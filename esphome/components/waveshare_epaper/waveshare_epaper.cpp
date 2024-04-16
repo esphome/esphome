@@ -2553,14 +2553,14 @@ void WaveshareEPaper7P5InBC::initialize() {
 
   // COMMAND RESOLUTION SETTING
   this->command(0x61);
-  this->data(0x02);  // 640 >> 8
-  this->data(0x80);
-  this->data(0x01);  // 384 >> 8
-  this->data(0x80);
+  this->data(0x03);  // 800
+  this->data(0x20);
+  this->data(0x01);  // 480
+  this->data(0xE0);
 
   // COMMAND FLASH MODE
-  this->command(0xE5);
-  this->data(0x03);
+//  this->command(0xE5);
+//  this->data(0x03);
 }
 
 void HOT WaveshareEPaper7P5InBC::display() {
@@ -2592,12 +2592,16 @@ void HOT WaveshareEPaper7P5InBC::display() {
 
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
+
+  this->command(0x02);  // POWER OFF
+
+  this->command(0x07);  // SLEEP
+  this->data(0xA5);
+
 }
 
 int WaveshareEPaper7P5InBC::get_width_internal() { return 800; }
-
 int WaveshareEPaper7P5InBC::get_height_internal() { return 480; }
-
 void WaveshareEPaper7P5InBC::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in-bc");
@@ -2607,13 +2611,15 @@ void WaveshareEPaper7P5InBC::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+
+
 void WaveshareEPaper7P5InHDB::initialize() {
   this->command(0x12);  // SWRESET
 
   this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
-  this->command(0x46);  // Auto Write RAM
-  this->data(0xF7);
+  this->command(0x46);  // Aut
+  this->data(0xF7);o Write RAM
 
   this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
