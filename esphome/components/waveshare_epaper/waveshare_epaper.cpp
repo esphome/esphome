@@ -2956,7 +2956,8 @@ void WaveshareEPaper7P5InV3rb::configure() {
     DEV_Digital_Write(EPD_RST_PIN, 1);
     DEV_Delay_ms(200);*/
   // COMMAND PANEL SETTING Power settings
-  this->command(0x01);
+//  this->command(0x01); // POWER_SETTING
+  this->command( POWER_SETTING ); //
   this->data(0x37); 
   this->data(0x00); 
 
