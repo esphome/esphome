@@ -33,6 +33,9 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_LEVEL,
     CONF_DELTA,
+    CONF_ID,
+    CONF_BUTTON,
+    CONF_CHECK,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -510,6 +513,57 @@ async def dish_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
+
+
+# Dooya
+DooyaData, DooyaBinarySensor, DooyaTrigger, DooyaAction, DooyaDumper = declare_protocol(
+    "Dooya"
+)
+DOOYA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.hex_int_range(0, 16777215),
+        cv.Required(CONF_CHANNEL): cv.hex_int_range(0, 255),
+        cv.Required(CONF_BUTTON): cv.hex_int_range(0, 15),
+        cv.Required(CONF_CHECK): cv.hex_int_range(0, 15),
+    }
+)
+
+
+@register_binary_sensor("dooya", DooyaBinarySensor, DOOYA_SCHEMA)
+def dooya_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DooyaData,
+                ("id", config[CONF_ID]),
+                ("channel", config[CONF_CHANNEL]),
+                ("button", config[CONF_BUTTON]),
+                ("check", config[CONF_CHECK]),
+            )
+        )
+    )
+
+
+@register_trigger("dooya", DooyaTrigger, DooyaData)
+def dooya_trigger(var, config):
+    pass
+
+
+@register_dumper("dooya", DooyaDumper)
+def dooya_dumper(var, config):
+    pass
+
+
+@register_action("dooya", DooyaAction, DOOYA_SCHEMA)
+async def dooya_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ID], args, cg.uint32)
+    cg.add(var.set_id(template_))
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+    cg.add(var.set_channel(template_))
+    template_ = await cg.templatable(config[CONF_BUTTON], args, cg.uint8)
+    cg.add(var.set_button(template_))
+    template_ = await cg.templatable(config[CONF_CHECK], args, cg.uint8)
+    cg.add(var.set_check(template_))
 
 
 # JVC

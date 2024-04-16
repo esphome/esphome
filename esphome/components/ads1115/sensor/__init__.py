@@ -10,8 +10,9 @@ from esphome.const import (
     UNIT_VOLT,
     CONF_ID,
 )
-from . import ads1115_ns, ADS1115Component
+from .. import ads1115_ns, ADS1115Component, CONF_ADS1115_ID
 
+AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["ads1115"]
 
 ADS1115Multiplexer = ads1115_ns.enum("ADS1115Multiplexer")
@@ -43,20 +44,10 @@ RESOLUTION = {
 }
 
 
-def validate_gain(value):
-    if isinstance(value, float):
-        value = f"{value:0.03f}"
-    elif not isinstance(value, str):
-        raise cv.Invalid(f'invalid gain "{value}"')
-
-    return cv.enum(GAIN)(value)
-
-
 ADS1115Sensor = ads1115_ns.class_(
     "ADS1115Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
 
-CONF_ADS1115_ID = "ads1115_id"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         ADS1115Sensor,
@@ -69,7 +60,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(CONF_ADS1115_ID): cv.use_id(ADS1115Component),
             cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
-            cv.Required(CONF_GAIN): validate_gain,
+            cv.Required(CONF_GAIN): cv.enum(GAIN, string=True),
             cv.Optional(CONF_RESOLUTION, default="16_BITS"): cv.enum(
                 RESOLUTION, upper=True, space="_"
             ),
@@ -80,13 +71,11 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    paren = await cg.get_variable(config[CONF_ADS1115_ID])
-    var = cg.new_Pvariable(config[CONF_ID], paren)
+    var = cg.new_Pvariable(config[CONF_ID])
     await sensor.register_sensor(var, config)
     await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_ADS1115_ID])
 
     cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-
-    cg.add(paren.register_sensor(var))
