@@ -1,9 +1,7 @@
 #pragma once
+#include "esphome/core/defines.h"
+#ifdef  USE_LVGL
 
-// required for clang-tidy
-#ifndef LV_CONF_SKIP
-#define LV_CONF_SKIP 1  // NOLINT
-#endif
 #include "esphome/components/display/display.h"
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/core/automation.h"
@@ -13,7 +11,7 @@
 #if LVGL_USES_IMAGE
 #include "esphome/components/image/image.h"
 #endif
-#if USE_FONT
+#ifdef USE_FONT
 #include "esphome/components/font/font.h"
 #endif
 #if LV_USE_TOUCHSCREEN
@@ -137,7 +135,7 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
   std::function<void(Ts...)> lamb_;
 };
 
-#if USE_FONT
+#ifdef USE_FONT
 class FontEngine {
  public:
   FontEngine(font::Font *esp_font) : font_(esp_font) {
@@ -581,3 +579,5 @@ class LVRotaryEncoderListener : public Parented<LvglComponent> {
 
 }  // namespace lvgl
 }  // namespace esphome
+
+#endif

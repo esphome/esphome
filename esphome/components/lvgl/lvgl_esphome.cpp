@@ -1,3 +1,4 @@
+#ifdef USE_LVGL
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
@@ -48,4 +49,6 @@ void *lv_custom_mem_realloc(void *ptr, size_t size) {
 #endif
   return heap_caps_realloc(ptr, size, cap_bits);
 }
+#endif
+
 #endif

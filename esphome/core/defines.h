@@ -31,6 +31,7 @@
 #define USE_LIGHT
 #define USE_LOCK
 #define USE_LOGGER
+#define USE_LVGL
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT

@@ -2014,6 +2014,7 @@ async def generate_triggers(lv_component):
 
 async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
+    add_define("USE_LVGL", "1")
     for comp in lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")
     add_define("_STRINGIFY(x)", "_STRINGIFY_(x)")
@@ -2075,11 +2076,13 @@ async def to_code(config):
     if CONF_ROTARY_ENCODERS in config:  # or CONF_KEYBOARDS in config
         cgen("lv_group_set_default(lv_group_create())")
     init = []
-    for font in esphome_fonts_used:
-        getter = cg.RawExpression(f"(new lvgl::FontEngine({font}))->get_lv_font()")
-        cg.Pvariable(
-            ID(f"{font}_as_lv_font_", True, lv_font_t.operator("const")), getter
-        )
+    if esphome_fonts_used:
+        add_define("USE_FONT", "1")
+        for font in esphome_fonts_used:
+            getter = cg.RawExpression(f"(new lvgl::FontEngine({font}))->get_lv_font()")
+            cg.Pvariable(
+                ID(f"{font}_as_lv_font_", True, lv_font_t.operator("const")), getter
+            )
     if style_defs := config.get(CONF_STYLE_DEFINITIONS, []):
         styles_to_code(style_defs)
     if theme := config.get(CONF_THEME):
