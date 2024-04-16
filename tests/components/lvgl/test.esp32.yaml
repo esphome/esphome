@@ -121,32 +121,32 @@ lvgl:
             id: b_matrix
             rows:
               - buttons:
-                - id: button_1
-                  text: "\uF04B"
-                  control:
-                    checkable: true
-                - id: button_2
-                  text: "\uF04C"
-                  control:
-                    checkable: true
+                  - id: button_1
+                    text: "\uF04B"
+                    control:
+                      checkable: true
+                  - id: button_2
+                    text: "\uF04C"
+                    control:
+                      checkable: true
               - buttons:
-                - id: button_3
-                  text: "A"
-                  control:
-                    popover: true
-                - id: button_4
-                  text: "B"
-                  control:
-                    disabled: true
+                  - id: button_3
+                    text: "A"
+                    control:
+                      popover: true
+                  - id: button_4
+                    text: "B"
+                    control:
+                      disabled: true
               - buttons:
-                - id: button_5
-                  text: "It's #ff0000 red#"
-                  width: 2
-                  control:
-                    recolor: true
-                  on_press:
-                    then:
-                      - lvgl.page.show: main_page
+                  - id: button_5
+                    text: "It's #ff0000 red#"
+                    width: 2
+                    control:
+                      recolor: true
+                    on_press:
+                      then:
+                        - lvgl.page.show: main_page
 
         - switch:
             x: 10
@@ -289,7 +289,7 @@ lvgl:
         - animimg:
             align: CENTER
             id: anim_id
-            src: [ cat_image, cat_image_bowtie ]
+            src: [cat_image, cat_image_bowtie]
             duration: 600ms
             on_click:
               then:
