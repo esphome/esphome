@@ -808,6 +808,15 @@ ARC_MODIFY_SCHEMA = cv.Schema(
     }
 )
 
+BAR_MODIFY_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_ANIMATED, default=True): lv_animated,
+    }
+)
+
+SLIDER_MODIFY_SCHEMA = BAR_MODIFY_SCHEMA
+
 SPINNER_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ARC_LENGTH): lv_angle,
@@ -2460,6 +2469,20 @@ async def arc_update_to_code(config, action_id, template_arg, args):
     init = []
     value = await lv_int.process(config.get(CONF_VALUE))
     init.append(f"lv_arc_set_value({widget.obj}, {value})")
+    return await update_to_code(config, action_id, widget, init, template_arg, args)
+
+
+@automation.register_action(
+    "lvgl.bar.update",
+    ObjUpdateAction,
+    modify_schema(CONF_BAR),
+)
+async def bar_update_to_code(config, action_id, template_arg, args):
+    widget = await get_widget(config[CONF_ID])
+    init = []
+    value = await lv_int.process(config.get(CONF_VALUE))
+    animated = config[CONF_ANIMATED]
+    init.append(f"lv_bar_set_value({widget.obj}, {value}, {animated})")
     return await update_to_code(config, action_id, widget, init, template_arg, args)
 
 
