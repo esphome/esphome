@@ -410,6 +410,7 @@ jobs:
         id: target-branch
         run: |
           echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
+          echo "Target branch is $GITHUB_OUTPUT"
       - name: Fetch ${{ steps.target-branch.outputs.branch }} branch
         run: |
           git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/${{ steps.target-branch.outputs.branch }}:refs/remotes/origin/${{ steps.target-branch.outputs.branch }}
@@ -472,6 +473,7 @@ jobs:
       - compile-tests
       - clang-tidy
       - test-build-components
+      - list-components
     if: always()
     steps:
       - name: Success
@@ -479,4 +481,8 @@ jobs:
         run: exit 0
       - name: Failure
         if: ${{ contains(needs.*.result, 'failure') }}
-        run: exit 1
+        env:
+          JSON_DOC: ${{ toJSON(needs) }}
+        run: |
+          echo $JSON_DOC | jq
+          exit 1
