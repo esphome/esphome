@@ -1129,7 +1129,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   std::string tft_url_;
   uint8_t *transfer_buffer_{nullptr};
   size_t transfer_buffer_size_;
-  bool upload_first_chunk_sent_ = false;
 
 #ifdef USE_ESP8266
   WiFiClient *wifi_client_{nullptr};
