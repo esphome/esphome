@@ -57,27 +57,27 @@ async def to_code(config):
             lambda_config, [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_state_lambda(template_))
-    if CONF_OPEN_ACTION in config:
+    if open_action_config := config.get(CONF_OPEN_ACTION):
         await automation.build_automation(
-            var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
+            var.get_open_trigger(), [], open_action_config
         )
-    if CONF_CLOSE_ACTION in config:
+    if close_action_config := config.get(CONF_CLOSE_ACTION):
         await automation.build_automation(
-            var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
+            var.get_close_trigger(), [], close_action_config
         )
-    if CONF_STOP_ACTION in config:
+    if stop_action_config := config.get(CONF_STOP_ACTION):
         await automation.build_automation(
-            var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
+            var.get_stop_trigger(), [], stop_action_config
         )
         cg.add(var.set_has_stop(True))
-    if CONF_TOGGLE_ACTION in config:
+    if toggle_action_config := config.get(CONF_TOGGLE_ACTION):
         await automation.build_automation(
-            var.get_toggle_trigger(), [], config[CONF_TOGGLE_ACTION]
+            var.get_toggle_trigger(), [], toggle_action_config
         )
         cg.add(var.set_has_toggle(True))
-    if CONF_POSITION_ACTION in config:
+    if position_action_config := config.get(CONF_POSITION_ACTION):
         await automation.build_automation(
-            var.get_position_trigger(), [(float, "pos")], config[CONF_POSITION_ACTION]
+            var.get_position_trigger(), [(float, "pos")], position_action_config
         )
         cg.add(var.set_has_position(True))
     else:
@@ -104,15 +104,15 @@ async def to_code(config):
 async def valve_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, float)
+    if state_config := config.get(CONF_STATE):
+        template_ = await cg.templatable(state_config, args, float)
         cg.add(var.set_position(template_))
-    if CONF_POSITION in config:
-        template_ = await cg.templatable(config[CONF_POSITION], args, float)
+    if position_config := config.get(CONF_POSITION):
+        template_ = await cg.templatable(position_config, args, float)
         cg.add(var.set_position(template_))
-    if CONF_CURRENT_OPERATION in config:
+    if current_operation_config := config.get(CONF_CURRENT_OPERATION):
         template_ = await cg.templatable(
-            config[CONF_CURRENT_OPERATION], args, valve.ValveOperation
+            current_operation_config, args, valve.ValveOperation
         )
         cg.add(var.set_current_operation(template_))
     return var

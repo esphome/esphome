@@ -98,19 +98,15 @@ async def setup_valve_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if mqtt_id_config := config.get(CONF_MQTT_ID):
+        mqtt_ = cg.new_Pvariable(mqtt_id_config, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if CONF_POSITION_STATE_TOPIC in config:
+        if position_state_topic_config := config.get(CONF_POSITION_STATE_TOPIC):
+            cg.add(mqtt_.set_custom_position_state_topic(position_state_topic_config))
+        if position_command_topic_config := config.get(CONF_POSITION_COMMAND_TOPIC):
             cg.add(
-                mqtt_.set_custom_position_state_topic(config[CONF_POSITION_STATE_TOPIC])
-            )
-        if CONF_POSITION_COMMAND_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_position_command_topic(
-                    config[CONF_POSITION_COMMAND_TOPIC]
-                )
+                mqtt_.set_custom_position_command_topic(position_command_topic_config)
             )
 
 
@@ -172,14 +168,14 @@ VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
 async def valve_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_STOP in config:
-        template_ = await cg.templatable(config[CONF_STOP], args, bool)
+    if stop_config := config.get(CONF_STOP):
+        template_ = await cg.templatable(stop_config, args, bool)
         cg.add(var.set_stop(template_))
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, float)
+    if state_config := config.get(CONF_STATE):
+        template_ = await cg.templatable(state_config, args, float)
         cg.add(var.set_position(template_))
-    if CONF_POSITION in config:
-        template_ = await cg.templatable(config[CONF_POSITION], args, float)
+    if position_config := config.get(CONF_POSITION):
+        template_ = await cg.templatable(position_config, args, float)
         cg.add(var.set_position(template_))
     return var
 
