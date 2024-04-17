@@ -416,6 +416,8 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -449,6 +451,8 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->text_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -471,6 +475,8 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 
 #ifdef USE_SWITCH
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->switch_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
@@ -532,6 +538,8 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->binary_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
@@ -553,7 +561,11 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state"); }
+void WebServer::on_fan_update(fan::Fan *obj) {
+  if (this->events_.count() == 0)
+    return;
+  this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
+}
 std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state,
@@ -623,6 +635,8 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->light_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -729,6 +743,8 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->cover_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -798,6 +814,8 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
 #ifdef USE_NUMBER
 void WebServer::on_number_update(number::Number *obj, float state) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->number_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -833,9 +851,12 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
-      root["min_value"] = obj->traits.get_min_value();
-      root["max_value"] = obj->traits.get_max_value();
-      root["step"] = obj->traits.get_step();
+      root["min_value"] =
+          value_accuracy_to_string(obj->traits.get_min_value(), step_to_accuracy_decimals(obj->traits.get_step()));
+      root["max_value"] =
+          value_accuracy_to_string(obj->traits.get_max_value(), step_to_accuracy_decimals(obj->traits.get_step()));
+      root["step"] =
+          value_accuracy_to_string(obj->traits.get_step(), step_to_accuracy_decimals(obj->traits.get_step()));
       root["mode"] = (int) obj->traits.get_mode();
       if (!obj->traits.get_unit_of_measurement().empty())
         root["uom"] = obj->traits.get_unit_of_measurement();
@@ -844,7 +865,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["value"] = "\"NaN\"";
       root["state"] = "NA";
     } else {
-      root["value"] = value;
+      root["value"] = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
       std::string state = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
       if (!obj->traits.get_unit_of_measurement().empty())
         state += " " + obj->traits.get_unit_of_measurement();
@@ -856,6 +877,8 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
 #ifdef USE_DATETIME_DATE
 void WebServer::on_date_update(datetime::DateEntity *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->date_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -894,15 +917,63 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
 std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "date-" + obj->get_object_id(), start_config);
-    std::string value = str_sprintf("%d-%d-%d", obj->year, obj->month, obj->day);
+    std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
     root["value"] = value;
     root["state"] = value;
   });
 }
 #endif  // USE_DATETIME_DATE
 
+#ifdef USE_DATETIME_TIME
+void WebServer::on_time_update(datetime::TimeEntity *obj) {
+  this->events_.send(this->time_json(obj, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_times()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      std::string data = this->time_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (!request->hasParam("value")) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("value")) {
+      std::string value = request->getParam("value")->value().c_str();
+      call.set_time(value);
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "time-" + obj->get_object_id(), start_config);
+    std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
+    root["value"] = value;
+    root["state"] = value;
+  });
+}
+#endif  // USE_DATETIME_TIME
+
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -954,6 +1025,8 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1008,6 +1081,8 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->climate_json(obj, DETAIL_STATE).c_str(), "state");
 }
 
@@ -1149,6 +1224,8 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
 #ifdef USE_LOCK
 void WebServer::on_lock_update(lock::Lock *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->lock_json(obj, obj->state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config) {
@@ -1185,6 +1262,8 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
@@ -1287,6 +1366,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_DATETIME_DATE
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "date")
+    return true;
+#endif
+
+#ifdef USE_DATETIME_TIME
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "time")
     return true;
 #endif
 
@@ -1411,6 +1495,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_DATETIME_DATE
   if (match.domain == "date") {
     this->handle_date_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_DATETIME_TIME
+  if (match.domain == "time") {
+    this->handle_time_request(request, match);
     return;
   }
 #endif

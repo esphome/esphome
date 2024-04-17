@@ -1,7 +1,6 @@
 ---
 name: YAML lint
 
-# yamllint disable-line rule:truthy
 on:
   push:
     branches: [dev, beta, release]
