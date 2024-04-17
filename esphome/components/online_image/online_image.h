@@ -1,19 +1,27 @@
 #pragma once
-#ifdef USE_ARDUINO
 
 #include "esphome/core/component.h"
-#include "esphome/components/image/image.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/http_request/http_request.h"
+#include "esphome/components/image/image.h"
 
 #include "image_decoder.h"
 
 namespace esphome {
 namespace online_image {
+
+typedef enum {
+  HTTP_CODE_OK = 200,
+  HTTP_CODE_NOT_MODIFIED = 304,
+  HTTP_CODE_NOT_FOUND = 404,
+} t_http_codes;
+
 /**
  * @brief Format that the image is encoded with.
  */
 enum ImageFormat {
-  /** Automatically detect from MIME type. */
+  /** Automatically detect from MIME type. Not supported yet. */
   AUTO,
   /** JPEG format. Not supported yet. */
   JPEG,
@@ -23,12 +31,15 @@ enum ImageFormat {
 
 /**
  * @brief Download an image from a given URL, and decode it using the specified decoder.
- * The image will then be stored in a buffer, so that it can be displayed.
+ * The image will then be stored in a buffer, so that it can be re-displayed without the
+ * need to re-download or re-decode.
  */
-class OnlineImage : public PollingComponent, public image::Image {
+class OnlineImage : public PollingComponent,
+                    public image::Image,
+                    public Parented<esphome::http_request::HttpRequestComponent> {
  public:
   /**
-   * @brief Construct a new Online Image object.
+   * @brief Construct a new OnlineImage object.
    *
    * @param url URL to download the image from.
    * @param width Desired width of the target image area.
@@ -46,24 +57,23 @@ class OnlineImage : public PollingComponent, public image::Image {
 
   /** Set the URL to download the image from. */
   void set_url(const std::string &url) {
-    this->url_ = url;
-    this->secure_ = this->url_.compare(0, 6, "https:") == 0;
+    if (this->validate_url_(url)) {
+      this->url_ = url;
+    }
   }
+
   /**
    * Release the buffer storing the image. The image will need to be downloaded again
    * to be able to be displayed.
    */
   void release();
 
-  void set_follow_redirects(bool follow, int limit);
-  void set_useragent(const char *useragent);
-
-  void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
-
   void add_on_finished_callback(std::function<void()> &&callback);
   void add_on_error_callback(std::function<void()> &&callback);
 
  protected:
+  bool validate_url_(const std::string &url);
+
   bool get_binary_pixel_(int x, int y) const;
   Color get_rgba_pixel_(int x, int y) const;
   Color get_color_pixel_(int x, int y) const;
@@ -90,24 +100,15 @@ class OnlineImage : public PollingComponent, public image::Image {
   CallbackManager<void()> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
 
-  HTTPClient http_;
-#ifdef USE_ESP8266
-  std::shared_ptr<WiFiClient> wifi_client_;
-#ifdef USE_ONLINE_IMAGE_ESP8266_HTTPS
-  std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
-#endif
-  std::shared_ptr<WiFiClient> get_wifi_client_();
-#endif
-
+  std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
   std::unique_ptr<ImageDecoder> decoder_;
 
   uint8_t *buffer_;
-  std::string url_;
-  bool secure_ = false;
-  String etag_ = "";
   DownloadBuffer download_buffer_;
 
   const ImageFormat format_;
+
+  std::string url_{""};
 
   /** width requested on configuration, or 0 if non specified. */
   const int fixed_width_;
@@ -131,8 +132,6 @@ class OnlineImage : public PollingComponent, public image::Image {
    * decoded images).
    */
   int buffer_height_;
-
-  uint16_t timeout_;
 
   friend void ImageDecoder::set_size(int width, int height);
   friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);
@@ -177,5 +176,3 @@ class DownloadErrorTrigger : public Trigger<> {
 
 }  // namespace online_image
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

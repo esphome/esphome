@@ -1,18 +1,5 @@
 #pragma once
-#ifdef USE_ARDUINO
-
 #include "esphome/core/defines.h"
-
-#ifdef USE_ESP32
-#include <HTTPClient.h>
-#endif
-#ifdef USE_ESP8266
-#include <ESP8266HTTPClient.h>
-#ifdef USE_ONLINE_IMAGE_ESP8266_HTTPS
-#include <WiFiClientSecure.h>
-#endif
-#endif
-
 #include "esphome/core/color.h"
 
 namespace esphome {
@@ -117,5 +104,3 @@ class DownloadBuffer {
 
 }  // namespace online_image
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

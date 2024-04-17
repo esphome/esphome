@@ -1,2 +1,4 @@
 <<: !include common-esp8266.yaml
 
+http_request:
+  esp8266_disable_ssl_support: true

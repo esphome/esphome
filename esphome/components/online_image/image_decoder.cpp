@@ -1,5 +1,3 @@
-#ifdef USE_ARDUINO
-
 #include "image_decoder.h"
 #include "online_image.h"
 
@@ -44,5 +42,3 @@ size_t DownloadBuffer::read(size_t len) {
 
 }  // namespace online_image
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

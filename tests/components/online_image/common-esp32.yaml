@@ -16,4 +16,3 @@ display:
     lambda: |-
       it.fill(Color(0, 0, 0));
       it.image(0, 0, id(online_rgba_image));
-

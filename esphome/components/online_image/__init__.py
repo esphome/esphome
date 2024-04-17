@@ -2,9 +2,18 @@ import logging
 from esphome import automation
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components.http_request import (
+    CONF_HTTP_REQUEST_ID,
+    HttpRequestComponent,
+)
+from esphome.components.image import (
+    Image_,
+    IMAGE_TYPE,
+    CONF_USE_TRANSPARENCY,
+    validate_cross_dependencies,
+)
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_FORMAT,
     CONF_ID,
     CONF_TRIGGER_ID,
@@ -12,22 +21,9 @@ from esphome.const import (
     CONF_RESIZE,
     CONF_URL,
 )
-from esphome.core import CORE
-from esphome.components.image import (
-    Image_,
-    IMAGE_TYPE,
-    CONF_USE_TRANSPARENCY,
-    validate_cross_dependencies,
-)
-from esphome.components.http_request import (
-    CONF_FOLLOW_REDIRECTS,
-    CONF_REDIRECT_LIMIT,
-    CONF_TIMEOUT,
-    CONF_USERAGENT,
-)
 
-DEPENDENCIES = ["network", "display"]
-AUTO_LOAD = ["image"]
+DEPENDENCIES = ["display"]
+AUTO_LOAD = ["http_request", "image"]
 CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
 
@@ -62,10 +58,10 @@ DownloadErrorTrigger = online_image_ns.class_(
 ONLINE_IMAGE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.declare_id(OnlineImage),
+        cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
         #
-        # Image options
+        # Common image options
         #
-        cv.Required(CONF_URL): cv.url,
         cv.Optional(CONF_RESIZE): cv.dimensions,
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
         # Not setting default here on purpose; the default depends on the image type,
@@ -74,6 +70,7 @@ ONLINE_IMAGE_SCHEMA = cv.Schema(
         #
         # Online Image specific options
         #
+        cv.Required(CONF_URL): cv.url,
         cv.Optional(CONF_FORMAT, default="PNG"): cv.enum(IMAGE_FORMAT, upper=True),
         cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
         cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
@@ -86,14 +83,6 @@ ONLINE_IMAGE_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadErrorTrigger),
             }
         ),
-        #
-        # HTTP Request options
-        #
-        cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
-        cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
-        cv.Optional(CONF_TIMEOUT, "5s"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
-        cv.Optional(CONF_ESP8266_DISABLE_SSL_SUPPORT, False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("never"))
 
@@ -104,6 +93,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.require_framework_version(
             esp8266_arduino=cv.Version(2, 7, 0),
             esp32_arduino=cv.Version(0, 0, 0),
+            esp_idf=cv.Version(4, 0, 0),
         ),
     )
 )
@@ -139,18 +129,9 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_ONLINE_IMAGE")
 
-    if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
-        cg.add_define("USE_ONLINE_IMAGE_ESP8266_HTTPS")
-
-    if CORE.is_esp32:
-        cg.add_library("WiFiClientSecure", None)
-        cg.add_library("HTTPClient", None)
-    if CORE.is_esp8266:
-        cg.add_library("ESP8266HTTPClient", None)
-
     if config[CONF_FORMAT] in ["PNG"]:
         cg.add_define("ONLINE_IMAGE_PNG_SUPPORT")
-        cg.add_library("pngle", None)
+        cg.add_library("pngle", "1.0.2")
 
     url = config[CONF_URL]
     width, height = config.get(CONF_RESIZE, (0, 0))
@@ -166,14 +147,9 @@ async def to_code(config):
         config[CONF_BUFFER_SIZE],
     )
     await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
+
     cg.add(var.set_transparency(transparent))
-    cg.add(
-        var.set_follow_redirects(
-            config[CONF_FOLLOW_REDIRECTS], config[CONF_REDIRECT_LIMIT]
-        )
-    )
-    cg.add(var.set_timeout(config[CONF_TIMEOUT]))
-    cg.add(var.set_useragent(config[CONF_USERAGENT]))
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

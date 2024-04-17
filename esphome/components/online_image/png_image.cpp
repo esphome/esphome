@@ -1,7 +1,4 @@
-#ifdef USE_ARDUINO
-
 #include "png_image.h"
-
 #ifdef ONLINE_IMAGE_PNG_SUPPORT
 
 #include "esphome/components/display/display_buffer.h"
@@ -69,5 +66,3 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
 }  // namespace esphome
 
 #endif  // ONLINE_IMAGE_PNG_SUPPORT
-
-#endif  // USE_ARDUINO

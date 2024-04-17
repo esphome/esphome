@@ -1,0 +1,2 @@
+<<: !include common-esp32.yaml
+

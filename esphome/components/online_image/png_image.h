@@ -1,9 +1,7 @@
 #pragma once
-#ifdef USE_ARDUINO
 
 #include "image_decoder.h"
 #ifdef ONLINE_IMAGE_PNG_SUPPORT
-
 #include <pngle.h>
 
 namespace esphome {
@@ -33,5 +31,3 @@ class PngDecoder : public ImageDecoder {
 }  // namespace esphome
 
 #endif  // ONLINE_IMAGE_PNG_SUPPORT
-
-#endif  // USE_ARDUINO
