@@ -2,6 +2,11 @@
 #include "esphome/core/defines.h"
 #ifdef USE_LVGL
 
+// required for clang-tidy
+#ifndef LV_CONF_SKIP
+#define LV_CONF_SKIP 1  // NOLINT
+#endif
+
 #include "esphome/components/display/display.h"
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/core/automation.h"
