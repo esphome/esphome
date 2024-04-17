@@ -47,6 +47,9 @@ jobs:
     name: Build and publish to PyPi
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4.1.1
       - name: Set up Python
@@ -56,16 +59,11 @@ jobs:
       - name: Set up python environment
         env:
           ESPHOME_NO_VENV: 1
-        run: |
-          script/setup
-          pip install twine
+        run: script/setup
       - name: Build
         run: python setup.py sdist bdist_wheel
-      - name: Upload
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: twine upload dist/*
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@v1.8.14
 
   deploy-docker:
     name: Build ESPHome ${{ matrix.platform }}
