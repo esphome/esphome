@@ -41,7 +41,7 @@ class TemplateValve : public valve::Valve, public Component {
   valve::ValveTraits get_traits() override;
   void stop_prev_trigger_();
 
-  TemplateValveRestoreMode restore_mode_{VALVE_RESTORE};
+  TemplateValveRestoreMode restore_mode_{VALVE_NO_RESTORE};
   optional<std::function<optional<float>()>> state_f_;
   bool assumed_state_{false};
   bool optimistic_{false};

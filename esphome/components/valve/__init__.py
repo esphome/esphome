@@ -88,8 +88,8 @@ VALVE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ex
 async def setup_valve_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if device_class_config := config.get(CONF_DEVICE_CLASS):
+        cg.add(var.set_device_class(device_class_config))
 
     for conf in config.get(CONF_ON_OPEN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

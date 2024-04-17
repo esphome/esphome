@@ -42,7 +42,7 @@ CONFIG_SCHEMA = valve.VALVE_SCHEMA.extend(
         cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
         cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(single=True),
         cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_RESTORE_MODE, default="RESTORE"): cv.enum(
+        cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
             RESTORE_MODES, upper=True
         ),
     }
@@ -52,9 +52,9 @@ CONFIG_SCHEMA = valve.VALVE_SCHEMA.extend(
 async def to_code(config):
     var = await valve.new_valve(config)
     await cg.register_component(var, config)
-    if CONF_LAMBDA in config:
+    if lambda_config := config.get(CONF_LAMBDA):
         template_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
+            lambda_config, [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
