@@ -17,14 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      branch_build: ${{ steps.tag.outputs.branch_build }}
     steps:
       - uses: actions/checkout@v4.1.1
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
         run: |
-          if [[ "$GITHUB_EVENT_NAME" = "release" ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "${{ github.event_name }}" = "release" ]]; then
+            TAG="${{ github.event.release.tag_name}}"
+            BRANCH_BUILD="false"
           else
             TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
             today="$(date --utc '+%Y%m%d')"
@@ -32,9 +34,13 @@ jobs:
             BRANCH=${GITHUB_REF#refs/heads/}
             if [[ "$BRANCH" != "dev" ]]; then
               TAG="${TAG}-${BRANCH}"
+              BRANCH_BUILD="true"
+            else
+              BRANCH_BUILD="false"
             fi
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "branch_build=${BRANCH_BUILD}" >> $GITHUB_OUTPUT
         # yamllint enable rule:line-length
 
   deploy-pypi:
@@ -197,22 +203,28 @@ jobs:
             $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)
 
   deploy-ha-addon-repo:
-    if: github.repository == 'esphome/esphome' && github.event_name == 'release'
+    if: github.repository == 'esphome/esphome' && needs.init.outputs.branch_build == 'false'
     runs-on: ubuntu-latest
-    needs: [deploy-manifest]
+    needs:
+      - init
+      - deploy-manifest
     steps:
       - name: Trigger Workflow
         uses: actions/github-script@v7.0.1
         with:
           github-token: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
           script: |
+            let description = "ESPHome";
+            if (context.eventName == "release") {
+              description = ${{ toJSON(github.event.release.body) }};
+            }
             github.rest.actions.createWorkflowDispatch({
               owner: "esphome",
               repo: "home-assistant-addon",
               workflow_id: "bump-version.yml",
               ref: "main",
               inputs: {
-                version: "${{ github.event.release.tag_name }}",
-                content: ${{ toJSON(github.event.release.body) }}
+                version: "${{ needs.init.outputs.tag }}",
+                content: description
               }
             })
