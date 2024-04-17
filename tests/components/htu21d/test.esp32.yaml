@@ -5,6 +5,7 @@ i2c:
 
 sensor:
   - platform: htu21d
+    model: htu21d
     temperature:
       name: Temperature
     humidity:
