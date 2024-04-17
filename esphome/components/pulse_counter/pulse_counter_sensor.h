@@ -102,6 +102,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *total_sensor_{nullptr};
 #ifdef USE_TIME
   time::RealTimeClock *time_id_{nullptr};
+  bool time_is_synchronized{false};
 #endif
 };
 

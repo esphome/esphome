@@ -251,6 +251,9 @@ void PulseCounterSensor::setup() {
     this->mark_failed();
     return;
   }
+#ifdef CONF_USE_TIME
+  this->time_id_->add_on_time_sync_callback([this]() { this->time_is_synchronized = true; });
+#endif
 }
 
 void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
@@ -268,19 +271,26 @@ void PulseCounterSensor::dump_config() {
 }
 
 void PulseCounterSensor::update() {
+#ifdef CONF_USE_TIME
+  // Can't clear the pulse count until we can report the rate, so there's
+  // nothing to do until the time is synchronized
+  if (!time_is_synchronized) {
+    return;
+  }
+#endif
+
   pulse_counter_t raw = this->storage_.read_raw_value();
   timestamp_t now;
+  timestamp_t interval;
 #ifdef CONF_USE_TIME
-  if (this->time_id_ != nullptr) {
-    now = this->time_id_->timestamp_now() * 1000;
-  } else {
-    now = millis();
-  }
+  now = this->time_id_->timestamp_now();
+  // Convert to ms to match units when not using a Time component.
+  interval = (now - this->last_time_) * 1000;
 #else
   now = millis();
+  interval = now - this->last_time_;
 #endif
   if (this->last_time_ != 0) {
-    timestamp_t interval = now - this->last_time_;
     float value = (60000.0f * raw) / float(interval);  // per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
     this->publish_state(value);
