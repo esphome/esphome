@@ -13,7 +13,6 @@ from . import (
     add_init_lambda,
     CONF_ANIMATED,
     lv_animated,
-    CONF_ARC,
     lv_number_t,
     CONF_WIDGET,
     get_widget,
@@ -44,22 +43,19 @@ async def to_code(config):
     animated = config[CONF_ANIMATED]
     paren = await cg.get_variable(config[CONF_LVGL_ID])
     widget = await get_widget(config[CONF_WIDGET])
-    if widget.type_base() == CONF_ARC:
-        animated = ""
-    else:
-        animated = f", {animated}"
     value = widget.get_value()
     publish = f"{var}->publish_state({value})"
     init = widget.set_event_cb(publish, "LV_EVENT_VALUE_CHANGED")
+    init.append(f"{var}->set_control_lambda([] (float v) {{")
+    init.extend(widget.set_value("v", animated))
     init.extend(
         [
-            f"""{var}->set_control_lambda([] (float v) {{
-               lv_{widget.type_base()}_set_value({widget.obj}, v{animated});
+            f"""
                lv_event_send({widget.obj}, {paren}->get_custom_change_event(), nullptr);
                {publish};
             }})""",
-            f"{var}->traits.set_max_value(lv_{widget.type_base()}_get_max_value({widget.obj}))",
-            f"{var}->traits.set_min_value(lv_{widget.type_base()}_get_min_value({widget.obj}))",
+            f"{var}->traits.set_max_value({widget.get_max_value()})",
+            f"{var}->traits.set_min_value({widget.get_min_value()})",
             publish,
         ]
     )

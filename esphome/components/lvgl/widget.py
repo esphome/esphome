@@ -1,14 +1,18 @@
 import esphome.codegen as cg
-from . import BTNMATRIX_CTRLS
+from . import (
+    BTNMATRIX_CTRLS,
+    CONF_ARC,
+    CONF_SPINBOX,
+)
 from ...core import TimePeriod
 
 EVENT_LAMB = "event_lamb__"
 
 
 class Widget:
-    def __init__(self, var, type: cg.MockObjClass, config: dict = None, obj=None):
+    def __init__(self, var, wtype: cg.MockObjClass, config: dict = None, obj=None):
         self.var = var
-        self.type = type
+        self.type = wtype
         self.config = config
         self.obj = obj or var
         self.parent = None
@@ -77,6 +81,32 @@ class Widget:
             return f"lv_{self.type_base()}_get_value({self.obj})"
         return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
 
+    def set_value(self, value, animated: bool):
+        if self.type_base() in (CONF_ARC, CONF_SPINBOX):
+            animated = ""
+        else:
+            animated = f", {animated}"
+        if self.scale != 1.0:
+            value = f"{value} * {self.scale:#f}"
+        return [f"lv_{self.type_base()}_set_value({self.obj}, {value} {animated})"]
+
+    def get_mxx_value(self, which: str):
+        if self.scale == 1.0:
+            mult = ""
+        else:
+            mult = f"/ {self.scale:#f}"
+        if self.type_base() == CONF_SPINBOX:
+            gval = f"((lv_spinbox_t *){self.obj})->range_{which}"
+        else:
+            gval = f"lv_{self.type_base()}_get_{which}_value({self.obj})"
+        return f"({gval} {mult})"
+
+    def get_max_value(self):
+        return self.get_mxx_value("max")
+
+    def get_min_value(self):
+        return self.get_mxx_value("min")
+
     def type_base(self):
         base = str(self.type)
         if base.startswith("Lv"):
@@ -92,17 +122,18 @@ class MatrixButton(Widget):
     Describes a button within a button matrix.
     """
 
-    def __init__(self, btnm, type, config, index):
-        super().__init__(btnm, type, config)
+    def __init__(self, btnm, btype, config, index):
+        super().__init__(btnm, btype, config)
         self.index = index
 
-    def map_ctrls(self, ctrls):
-        list = []
+    @staticmethod
+    def map_ctrls(ctrls):
+        clist = []
         for item in ctrls:
             item = item.upper().removeprefix("LV_BTNMATRIX_CTRL_")
             assert item in BTNMATRIX_CTRLS
-            list.append(f"(int)LV_BTNMATRIX_CTRL_{item}")
-        return "|".join(list)
+            clist.append(f"(int)LV_BTNMATRIX_CTRL_{item}")
+        return "|".join(clist)
 
     def set_ctrls(self, *ctrls):
         return [
