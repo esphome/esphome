@@ -55,6 +55,21 @@ def default_url(config):
 def validate_local(config):
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
+    if CONF_LOCAL in config and config[CONF_VERSION] == 3:
+        raise cv.Invalid(
+            "'local' is not (yet) supported in version 3\n"
+            "\n"
+            "As a workaround download https://oi.esphome.io/v3/www.js\n"
+            "and use the following configuration:\n"
+            "\n"
+            "web_server:\n"
+            "  version: 3\n"
+            "  local: false\n"
+            '  js_include: "www.js"\n'
+            '  js_url: ""\n'
+            "\n"
+            "See https://github.com/esphome/issues/issues/5692 for updates"
+        )
     return config
 
 
