@@ -19,7 +19,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["md5", "socket"]
-DEPENDENCIES = ["network", "ota"]
+DEPENDENCIES = ["network"]
 
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
