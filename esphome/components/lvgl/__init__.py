@@ -2163,10 +2163,11 @@ async def to_code(config):
     await add_init_lambda(lv_component, init)
     for use in lv_uses:
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
-    for macro, value in lv_defines.items():
-        cg.add_build_flag(f"-D\\'{macro}\\'=\\'{value}\\'")
     for comp in lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")
+    for macro, value in lv_defines.items():
+        cg.add_build_flag(f"-D\\'{macro}\\'=\\'{value}\\'")
+    print(lvgl_components_required)
 
 
 def indicator_update_schema(base):
