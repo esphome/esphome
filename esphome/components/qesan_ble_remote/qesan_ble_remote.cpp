@@ -27,7 +27,7 @@ void QesanListener::update() {
 #ifdef USE_BINARY_SENSOR
   if ((this->last_message_received_ != 0) && (millis() - this->last_message_received_ > 1000)) {
     // Turn off all binary sensors when no messages were received for a while
-    for (auto binary_sensor : this->binary_sensors_) {
+    for (auto *binary_sensor : this->binary_sensors_) {
       binary_sensor->publish_state(false);
     }
     this->last_message_received_ = 0;
@@ -51,7 +51,7 @@ void QesanListener::dump_config() {
     ESP_LOGCONFIG(TAG, "  Remote address: 0x%04X", this->remote_address_);
   }
 #ifdef USE_BINARY_SENSOR
-  for (auto binary_sensor : this->binary_sensors_) {
+  for (auto *binary_sensor : this->binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Button", binary_sensor);
     ESP_LOGCONFIG(TAG, "    Code: 0x%02X", binary_sensor->get_button_code());
   }
@@ -64,12 +64,12 @@ bool QesanListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
 
   const auto &manufacturer_datas = device.get_manufacturer_datas();
-  if (manufacturer_datas.size() != 0) {
+  if (!manufacturer_datas.empty()) {
     return false;
   }
 
   const auto &service_datas = device.get_service_datas();
-  if (service_datas.size() != 0) {
+  if (!service_datas.empty()) {
     return false;
   }
 
@@ -127,7 +127,7 @@ bool QesanListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool matched = false;
 
 #ifdef USE_BINARY_SENSOR
-  for (auto binary_sensor : this->binary_sensors_) {
+  for (auto *binary_sensor : this->binary_sensors_) {
     matched |= binary_sensor->on_update_received(data_bytes[11], action);
   }
 #endif  // USE_BINARY_SENSOR
