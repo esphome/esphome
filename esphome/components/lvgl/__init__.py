@@ -1756,6 +1756,7 @@ async def msgbox_to_code(conf):
 async def spinbox_to_code(widget: Widget, config):
     init = []
     lv_uses.add("TEXTAREA")
+    lv_uses.add("LABEL")
     digits = config[CONF_DIGITS]
     scale = 10 ** config[CONF_DECIMAL_PLACES]
     range_from = int(config[CONF_RANGE_FROM])
