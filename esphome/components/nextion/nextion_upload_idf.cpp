@@ -300,7 +300,7 @@ bool Nextion::upload_tft() {
   uint32_t position = 0;
   while (this->content_length_ > 0) {
     int upload_result = upload_by_chunks_(http_client, position);
-    if (upload_result < 0>) {
+    if (upload_result < 0) {
       ESP_LOGE(TAG, "Error uploading TFT to Nextion!");
       ESP_LOGD(TAG, "Close HTTP connection");
       esp_http_client_close(http_client);
