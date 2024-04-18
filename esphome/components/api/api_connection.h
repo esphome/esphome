@@ -72,6 +72,16 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  bool send_date_state(datetime::DateEntity *date);
+  bool send_date_info(datetime::DateEntity *date);
+  void date_command(const DateCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  bool send_time_state(datetime::TimeEntity *time);
+  bool send_time_info(datetime::TimeEntity *time);
+  void time_command(const TimeCommandRequest &msg) override;
+#endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text, std::string state);
   bool send_text_info(text::Text *text);
@@ -129,6 +139,7 @@ class APIConnection : public APIServerConnection {
   void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override;
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
+  void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

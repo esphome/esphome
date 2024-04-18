@@ -23,6 +23,7 @@ enum EthernetType {
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
+  ETHERNET_TYPE_W5500,
 };
 
 struct ManualIP {
@@ -50,15 +51,26 @@ class EthernetComponent : public Component {
   void on_shutdown() override { powerdown(); }
   bool is_connected();
 
+#ifdef USE_ETHERNET_SPI
+  void set_clk_pin(uint8_t clk_pin);
+  void set_miso_pin(uint8_t miso_pin);
+  void set_mosi_pin(uint8_t mosi_pin);
+  void set_cs_pin(uint8_t cs_pin);
+  void set_interrupt_pin(uint8_t interrupt_pin);
+  void set_reset_pin(uint8_t reset_pin);
+  void set_clock_speed(int clock_speed);
+#else
   void set_phy_addr(uint8_t phy_addr);
   void set_power_pin(int power_pin);
   void set_mdc_pin(uint8_t mdc_pin);
   void set_mdio_pin(uint8_t mdio_pin);
-  void set_type(EthernetType type);
   void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
+#endif
+  void set_type(EthernetType type);
   void set_manual_ip(const ManualIP &manual_ip);
 
-  network::IPAddress get_ip_address();
+  network::IPAddresses get_ip_addresses();
+  network::IPAddress get_dns_address(uint8_t num);
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
   bool powerdown();
@@ -76,19 +88,30 @@ class EthernetComponent : public Component {
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
 
   std::string use_address_;
+#ifdef USE_ETHERNET_SPI
+  uint8_t clk_pin_;
+  uint8_t miso_pin_;
+  uint8_t mosi_pin_;
+  uint8_t cs_pin_;
+  uint8_t interrupt_pin_;
+  int reset_pin_{-1};
+  int phy_addr_spi_{-1};
+  int clock_speed_;
+#else
   uint8_t phy_addr_{0};
   int power_pin_{-1};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
-  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
   emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
   emac_rmii_clock_gpio_t clk_gpio_{EMAC_CLK_IN_GPIO};
+#endif
+  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
   optional<ManualIP> manual_ip_{};
 
   bool started_{false};
   bool connected_{false};
+  bool got_ipv4_address_{false};
 #if LWIP_IPV6
-  bool got_ipv6_{false};
   uint8_t ipv6_count_{0};
 #endif /* LWIP_IPV6 */
   EthernetComponentState state_{EthernetComponentState::STOPPED};
