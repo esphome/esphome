@@ -44,6 +44,7 @@ CONF_KNOB = "knob"
 CONF_SELECTED = "selected"
 CONF_ITEMS = "items"
 CONF_TICKS = "ticks"
+CONF_TICK_STYLE = "tick_style"
 CONF_CURSOR = "cursor"
 CONF_TEXTAREA_PLACEHOLDER = "textarea_placeholder"
 

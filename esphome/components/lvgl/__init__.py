@@ -86,6 +86,7 @@ from .defines import (
     CONF_SELECTED,
     CONF_ITEMS,
     CONF_TICKS,
+    CONF_TICK_STYLE,
     CONF_CURSOR,
     CONF_TEXTAREA_PLACEHOLDER,
     CHILD_ALIGNMENTS,
@@ -902,7 +903,7 @@ INDICATOR_SCHEMA = cv.Schema(
                 cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
             }
         ),
-        cv.Exclusive(CONF_TICKS, CONF_INDICATORS): INDICATOR_TICKS_SCHEMA.extend(
+        cv.Exclusive(CONF_TICK_STYLE, CONF_INDICATORS): INDICATOR_TICKS_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(lv_meter_indicator_t),
             }
@@ -1895,11 +1896,10 @@ async def meter_to_code(meter: Widget, meter_conf):
                     + f"{v[CONF_COLOR]}, {v[CONF_R_MOD]})"
                 )
             if t == CONF_TICKS:
-                color_end = v[CONF_COLOR_START]
-                if CONF_COLOR_END in v:
-                    color_end = v[CONF_COLOR_END]
+                color_start = v[CONF_COLOR_START]
+                color_end = v.get(CONF_COLOR_END) or color_start
                 init.append(
-                    f"{ivar} = lv_meter_add_scale_lines({var}, {s}, {v[CONF_COLOR_START]},"
+                    f"{ivar} = lv_meter_add_scale_lines({var}, {s}, {color_start},"
                     + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_R_MOD]})"
                 )
             start_value = await get_start_value(v)
