@@ -976,6 +976,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return Whether the send was successful.
    */
   bool send_command(const char *command);
+
   /**
    * Manually send a raw formatted command to the display.
    * @param format The printf-style command format, like "vis %s,0"
@@ -996,7 +997,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_tft();
 
-#endif
+#endif  // USE_NEXTION_TFT_UPLOAD
 
   void dump_config() override;
 
@@ -1119,11 +1120,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void all_components_send_state_(bool force_update = false);
   uint64_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+
   /**
    * @brief
    * Sends commands ignoring of the Nextion has been setup.
    */
   bool ignore_is_setup_ = false;
+
   bool nextion_reports_is_setup_ = false;
   uint8_t nextion_event_;
 
@@ -1173,7 +1176,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
-#endif
+#endif  // USE_ESP8266
 
 #ifdef ARDUINO
   /**
@@ -1231,7 +1234,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef NEXTION_PROTOCOL_LOG
   void print_queue_members_();
-#endif
+#endif  // NEXTION_PROTOCOL_LOG
   void reset_(bool reset_nextion = true);
 
   std::string command_data_;
