@@ -2515,6 +2515,7 @@ async def bar_update_to_code(config, action_id, template_arg, args):
 
 
 async def slider_to_code(slider: Widget, config):
+    lv_uses.add("bar")
     var = slider.obj
     init = [
         f"lv_slider_set_range({var}, {config[CONF_MIN_VALUE]}, {config[CONF_MAX_VALUE]})",
