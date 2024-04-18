@@ -94,7 +94,7 @@ async def to_code(config):
         {
             cv.Required(CONF_ID): cv.use_id(valve.Valve),
             cv.Exclusive(CONF_STATE, "pos"): cv.templatable(valve.validate_valve_state),
-            cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.zero_to_one_float),
+            cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.percentage),
             cv.Optional(CONF_CURRENT_OPERATION): cv.templatable(
                 valve.validate_valve_operation
             ),
