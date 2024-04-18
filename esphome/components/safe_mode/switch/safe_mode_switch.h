@@ -10,10 +10,10 @@ namespace safe_mode {
 class SafeModeSwitch : public switch_::Switch, public Component {
  public:
   void dump_config() override;
-  void set_ota(ota_esphome::OTAESPHomeComponent *ota);
+  void set_ota(esphome::ESPHomeOTAComponent *ota);
 
  protected:
-  ota_esphome::OTAESPHomeComponent *ota_;
+  esphome::ESPHomeOTAComponent *ota_;
   void write_state(bool state) override;
 };
 

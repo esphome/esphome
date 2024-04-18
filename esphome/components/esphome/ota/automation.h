@@ -8,7 +8,6 @@
 #include "esphome/core/automation.h"
 
 namespace esphome {
-namespace ota_esphome {
 
 class OTAESPHomeStateChangeTrigger : public Trigger<OTAESPHomeState> {
  public:
@@ -65,7 +64,6 @@ class OTAESPHomeErrorTrigger : public Trigger<uint8_t> {
   }
 };
 
-}  // namespace ota_esphome
 }  // namespace esphome
 
 #endif  // USE_OTA_STATE_CALLBACK

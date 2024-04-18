@@ -7,14 +7,13 @@
 #include "esphome/core/preferences.h"
 
 namespace esphome {
-namespace ota_esphome {
 
 enum OTAESPHomeState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
 
-/// OTAESPHomeComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
+/// ESPHomeOTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class ESPHomeOTAComponent : public Component {
  public:
-  OTAESPHomeComponent();
+  ESPHomeOTAComponent();
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
 #endif  // USE_OTA_PASSWORD
@@ -77,7 +76,6 @@ class ESPHomeOTAComponent : public Component {
 #endif
 };
 
-extern OTAESPHomeComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern ESPHomeOTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace ota_esphome
 }  // namespace esphome

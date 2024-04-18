@@ -27,31 +27,31 @@ CONF_ON_ERROR = "on_error"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_STATE_CHANGE = "on_state_change"
 
-ota_esphome = cg.esphome_ns.namespace("ota_esphome")
+esphome = cg.esphome_ns.namespace("esphome")
 
-OTAESPHomeComponent = ota_esphome.class_("OTAESPHomeComponent", cg.Component)
-OTAESPHomeEndTrigger = ota_esphome.class_(
-    "OTAESPHomeEndTrigger", automation.Trigger.template()
+ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", cg.Component)
+ESPHomeOTAEndTrigger = esphome.class_(
+    "ESPHomeOTAEndTrigger", automation.Trigger.template()
 )
-OTAESPHomeErrorTrigger = ota_esphome.class_(
-    "OTAESPHomeErrorTrigger", automation.Trigger.template()
+ESPHomeOTAErrorTrigger = esphome.class_(
+    "ESPHomeOTAErrorTrigger", automation.Trigger.template()
 )
-OTAESPHomeProgressTrigger = ota_esphome.class_(
-    "OTAESPHomeProgressTrigger", automation.Trigger.template()
+ESPHomeOTAProgressTrigger = esphome.class_(
+    "ESPHomeOTAProgressTrigger", automation.Trigger.template()
 )
-OTAESPHomeStartTrigger = ota_esphome.class_(
-    "OTAESPHomeStartTrigger", automation.Trigger.template()
+ESPHomeOTAStartTrigger = esphome.class_(
+    "ESPHomeOTAStartTrigger", automation.Trigger.template()
 )
-OTAESPHomeStateChangeTrigger = ota_esphome.class_(
-    "OTAESPHomeStateChangeTrigger", automation.Trigger.template()
+ESPHomeOTAStateChangeTrigger = esphome.class_(
+    "ESPHomeOTAStateChangeTrigger", automation.Trigger.template()
 )
 
-OTAESPHomeState = ota_esphome.enum("OTAESPHomeState")
+ESPHomeOTAState = esphome.enum("ESPHomeOTAState")
 
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(OTAESPHomeComponent),
+        cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
         cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
         cv.SplitDefault(
@@ -70,29 +70,29 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    OTAESPHomeStateChangeTrigger
+                    ESPHomeOTAStateChangeTrigger
                 ),
             }
         ),
         cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAESPHomeStartTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPHomeOTAStartTrigger),
             }
         ),
         cv.Optional(CONF_ON_END): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAESPHomeEndTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPHomeOTAEndTrigger),
             }
         ),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAESPHomeErrorTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPHomeOTAErrorTrigger),
             }
         ),
         cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    OTAESPHomeProgressTrigger
+                    ESPHomeOTAProgressTrigger
                 ),
             }
         ),
@@ -130,7 +130,7 @@ async def to_code(config):
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(OTAESPHomeState, "state")], conf)
+        await automation.build_automation(trigger, [(ESPHomeOTAState, "state")], conf)
         use_state_callback = True
     for conf in config.get(CONF_ON_BEGIN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

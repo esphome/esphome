@@ -8,7 +8,7 @@ namespace safe_mode {
 
 static const char *const TAG = "safe_mode_switch";
 
-void SafeModeSwitch::set_ota(ota_esphome::OTAESPHomeComponent *ota) { this->ota_ = ota; }
+void SafeModeSwitch::set_ota(esphome::ESPHomeOTAComponent *ota) { this->ota_ = ota; }
 
 void SafeModeSwitch::write_state(bool state) {
   // Acknowledge

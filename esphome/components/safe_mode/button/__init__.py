@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import button
-from esphome.components.esphome.ota import OTAESPHomeComponent
+from esphome.components.esphome.ota import ESPHomeOTAComponent
 from esphome.const import (
     CONF_ESPHOME,
     DEVICE_CLASS_RESTART,
@@ -21,7 +21,7 @@ CONFIG_SCHEMA = (
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RESTART_ALERT,
     )
-    .extend({cv.GenerateID(CONF_ESPHOME): cv.use_id(OTAESPHomeComponent)})
+    .extend({cv.GenerateID(CONF_ESPHOME): cv.use_id(ESPHomeOTAComponent)})
     .extend(cv.COMPONENT_SCHEMA)
 )
 

@@ -17,16 +17,15 @@
 #include <cstdio>
 
 namespace esphome {
-namespace ota_esphome {
 
 static const char *const TAG = "esphome.ota";
 static constexpr u_int16_t OTA_BLOCK_SIZE = 8192;
 
-OTAESPHomeComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+ESPHomeOTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-OTAESPHomeComponent::OTAESPHomeComponent() { global_ota_component = this; }
+ESPHomeOTAComponent::ESPHomeOTAComponent() { global_ota_component = this; }
 
-void OTAESPHomeComponent::setup() {
+void ESPHomeOTAComponent::setup() {
   server_ = socket::socket_ip(SOCK_STREAM, 0);
   if (server_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");
@@ -70,7 +69,7 @@ void OTAESPHomeComponent::setup() {
   }
 }
 
-void OTAESPHomeComponent::dump_config() {
+void ESPHomeOTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air updates:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
   ESP_LOGCONFIG(TAG, "  OTA version: %d", USE_OTA_VERSION);
@@ -80,13 +79,13 @@ void OTAESPHomeComponent::dump_config() {
   }
 #endif
   if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
-      this->safe_mode_rtc_value_ != OTAESPHomeComponent::ENTER_SAFE_MODE_MAGIC) {
+      this->safe_mode_rtc_value_ != ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGW(TAG, "Last reset occurred too quickly; safe mode will be invoked in %" PRIu32 " restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
 }
 
-void OTAESPHomeComponent::loop() {
+void ESPHomeOTAComponent::loop() {
   this->handle_();
 
   if (this->has_safe_mode_ && (millis() - this->safe_mode_start_time_) > this->safe_mode_enable_time_) {
@@ -99,7 +98,7 @@ void OTAESPHomeComponent::loop() {
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
 
-void OTAESPHomeComponent::handle_() {
+void ESPHomeOTAComponent::handle_() {
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
   size_t total = 0;
@@ -362,7 +361,7 @@ error:
 #endif
 }
 
-bool OTAESPHomeComponent::readall_(uint8_t *buf, size_t len) {
+bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
   uint32_t start = millis();
   uint32_t at = 0;
   while (len - at > 0) {
@@ -393,7 +392,7 @@ bool OTAESPHomeComponent::readall_(uint8_t *buf, size_t len) {
 
   return true;
 }
-bool OTAESPHomeComponent::writeall_(const uint8_t *buf, size_t len) {
+bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
   uint32_t start = millis();
   uint32_t at = 0;
   while (len - at > 0) {
@@ -421,31 +420,31 @@ bool OTAESPHomeComponent::writeall_(const uint8_t *buf, size_t len) {
   return true;
 }
 
-float OTAESPHomeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
-uint16_t OTAESPHomeComponent::get_port() const { return this->port_; }
-void OTAESPHomeComponent::set_port(uint16_t port) { this->port_ = port; }
+float ESPHomeOTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
+uint16_t ESPHomeOTAComponent::get_port() const { return this->port_; }
+void ESPHomeOTAComponent::set_port(uint16_t port) { this->port_ = port; }
 
-void OTAESPHomeComponent::set_safe_mode_pending(const bool &pending) {
+void ESPHomeOTAComponent::set_safe_mode_pending(const bool &pending) {
   if (!this->has_safe_mode_)
     return;
 
   uint32_t current_rtc = this->read_rtc_();
 
-  if (pending && current_rtc != OTAESPHomeComponent::ENTER_SAFE_MODE_MAGIC) {
+  if (pending && current_rtc != ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGI(TAG, "Device will enter safe mode on next boot");
-    this->write_rtc_(OTAESPHomeComponent::ENTER_SAFE_MODE_MAGIC);
+    this->write_rtc_(ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC);
   }
 
-  if (!pending && current_rtc == OTAESPHomeComponent::ENTER_SAFE_MODE_MAGIC) {
+  if (!pending && current_rtc == ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGI(TAG, "Safe mode pending has been cleared");
     this->clean_rtc();
   }
 }
-bool OTAESPHomeComponent::get_safe_mode_pending() {
-  return this->has_safe_mode_ && this->read_rtc_() == OTAESPHomeComponent::ENTER_SAFE_MODE_MAGIC;
+bool ESPHomeOTAComponent::get_safe_mode_pending() {
+  return this->has_safe_mode_ && this->read_rtc_() == ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC;
 }
 
-bool OTAESPHomeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
+bool ESPHomeOTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->has_safe_mode_ = true;
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
@@ -453,7 +452,7 @@ bool OTAESPHomeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t 
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
-  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == OTAESPHomeComponent::ENTER_SAFE_MODE_MAGIC;
+  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC;
 
   if (is_manual_safe_mode) {
     ESP_LOGI(TAG, "Safe mode has been entered manually");
@@ -487,27 +486,26 @@ bool OTAESPHomeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t 
     return false;
   }
 }
-void OTAESPHomeComponent::write_rtc_(uint32_t val) {
+void ESPHomeOTAComponent::write_rtc_(uint32_t val) {
   this->rtc_.save(&val);
   global_preferences->sync();
 }
-uint32_t OTAESPHomeComponent::read_rtc_() {
+uint32_t ESPHomeOTAComponent::read_rtc_() {
   uint32_t val;
   if (!this->rtc_.load(&val))
     return 0;
   return val;
 }
-void OTAESPHomeComponent::clean_rtc() { this->write_rtc_(0); }
-void OTAESPHomeComponent::on_safe_shutdown() {
-  if (this->has_safe_mode_ && this->read_rtc_() != OTAESPHomeComponent::ENTER_SAFE_MODE_MAGIC)
+void ESPHomeOTAComponent::clean_rtc() { this->write_rtc_(0); }
+void ESPHomeOTAComponent::on_safe_shutdown() {
+  if (this->has_safe_mode_ && this->read_rtc_() != ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
 }
 
 #ifdef USE_OTA_STATE_CALLBACK
-void OTAESPHomeComponent::add_on_state_callback(std::function<void(OTAESPHomeState, float, uint8_t)> &&callback) {
+void ESPHomeOTAComponent::add_on_state_callback(std::function<void(OTAESPHomeState, float, uint8_t)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 #endif
 
-}  // namespace ota_esphome
 }  // namespace esphome

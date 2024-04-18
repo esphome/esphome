@@ -10,10 +10,10 @@ namespace safe_mode {
 class SafeModeButton : public button::Button, public Component {
  public:
   void dump_config() override;
-  void set_ota(ota_esphome::OTAESPHomeComponent *ota);
+  void set_ota(esphome::ESPHomeOTAComponent *ota);
 
  protected:
-  ota_esphome::OTAESPHomeComponent *ota_;
+  esphome::ESPHomeOTAComponent *ota_;
   void press_action() override;
 };
 
