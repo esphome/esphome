@@ -917,13 +917,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
-#endif
-
   /**
    * Upload the tft file and soft reset Nextion
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_tft();
+
+#endif
 
   void dump_config() override;
 
@@ -1084,16 +1084,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   int upload_by_chunks_(HTTPClient *http, int range_start);
 
-  bool upload_with_range_(uint32_t range_start, uint32_t range_end);
-
+#elif defined(USE_ESP_IDF)
   /**
-   * start update tft file to nextion.
-   *
-   * @param const uint8_t *file_buf
-   * @param size_t buf_size
-   * @return true if success, false for failure.
+   * will request 4096 bytes chunks from the web server
+   * and send each to Nextion
+   * @param esp_http_client_handle_t http HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
    */
-  bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
+  int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start) {
+#endif  // ARDUINO vs ESP-IDF
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
@@ -1101,24 +1101,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
-#elif defined(USE_ESP_IDF)
-  /**
-   * will request 4096 bytes chunks from the web server
-   * and send each to Nextion
-   * @param std::string url Full url for download.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_range(const std::string &url, int range_start);
-  /**
-   * Ends the upload process, restart Nextion and, if successful,
-   * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
-   */
-  bool upload_end(bool successful);
-#endif  // ARDUINO vs ESP-IDF
-
 #endif  // USE_NEXTION_TFT_UPLOAD
 
   bool get_is_connected_() { return this->is_connected_; }
