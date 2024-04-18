@@ -472,6 +472,7 @@ jobs:
       - compile-tests
       - clang-tidy
       - test-build-components
+      - list-components
     if: always()
     steps:
       - name: Success
@@ -479,4 +480,8 @@ jobs:
         run: exit 0
       - name: Failure
         if: ${{ contains(needs.*.result, 'failure') }}
-        run: exit 1
+        env:
+          JSON_DOC: ${{ toJSON(needs) }}
+        run: |
+          echo $JSON_DOC | jq
+          exit 1
