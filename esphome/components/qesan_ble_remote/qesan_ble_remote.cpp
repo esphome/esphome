@@ -35,7 +35,6 @@ void QesanListener::update() {
 #endif  // USE_BINARY_SENSOR
 }
 
-
 void QesanListener::dump_config() {
   ESP_LOGCONFIG(TAG, "QESAN BLE Remote:");
   if (this->filter_by_mac_address_) {
@@ -68,7 +67,7 @@ bool QesanListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (manufacturer_datas.size() != 0) {
     return false;
   }
-  
+
   const auto &service_datas = device.get_service_datas();
   if (service_datas.size() != 0) {
     return false;
@@ -78,7 +77,7 @@ bool QesanListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (service_uuids.size() != 6) {
     return false;
   }
-  
+
   // Data is sent as 6 16-bit service uuids
   uint8_t data_bytes[12];
   for (uint8_t i = 0; i < 6; i++) {
@@ -86,52 +85,56 @@ bool QesanListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     data_bytes[2 * i] = uuid16 & 0xff;
     data_bytes[2 * i + 1] = uuid16 >> 8;
   }
-  
+
   // Decode XOR-masked data
   for (uint8_t i = 2; i < 12; i++) {
     data_bytes[i] ^= data_bytes[1];
   }
-  
+
   uint16_t remote_address = (data_bytes[6] << 8) | data_bytes[7];
-  
+
   if (this->filter_by_remote_address_ && (this->remote_address_ != remote_address)) {
     return false;
   }
-  
+
   this->last_message_received_ = millis();
-  
-  if (this->last_xor_mask_ == data_bytes[1] && this->last_action_ == data_bytes[0] && this->last_remote_address_ == remote_address) {
+
+  if (this->last_xor_mask_ == data_bytes[1] && this->last_action_ == data_bytes[0] &&
+      this->last_remote_address_ == remote_address) {
     // Duplicate received
     return false;
   }
-  
+
   this->last_action_ = data_bytes[0];
   this->last_xor_mask_ = data_bytes[1];
   this->last_remote_address_ = remote_address;
-  
+
   ESP_LOGVV(TAG, "Received raw message: %s", format_hex_pretty(data_bytes, 12).c_str());
-  
-  if ((data_bytes[2] != 0x00) || (data_bytes[3] != 0x01) || (data_bytes[4] != 0x02) || (data_bytes[5] != 0x02) || (data_bytes[8] != 0xF9) || (data_bytes[9] != 0xF8) || (data_bytes[10] != 0xF7)) {
-    ESP_LOGE(TAG, "Unexpected constants received (%02X %02X %02X %02X %02X %02X %02X)", data_bytes[2], data_bytes[3], data_bytes[4], data_bytes[5], data_bytes[8], data_bytes[9], data_bytes[10]);
+
+  if ((data_bytes[2] != 0x00) || (data_bytes[3] != 0x01) || (data_bytes[4] != 0x02) || (data_bytes[5] != 0x02) ||
+      (data_bytes[8] != 0xF9) || (data_bytes[9] != 0xF8) || (data_bytes[10] != 0xF7)) {
+    ESP_LOGE(TAG, "Unexpected constants received (%02X %02X %02X %02X %02X %02X %02X)", data_bytes[2], data_bytes[3],
+             data_bytes[4], data_bytes[5], data_bytes[8], data_bytes[9], data_bytes[10]);
     return false;
   }
-  
+
   if ((data_bytes[0] & 0xF7) != 0) {
     ESP_LOGE(TAG, "Unknown action received (0x%02X)", data_bytes[0]);
     return false;
   }
-  
+
   bool action = ((data_bytes[0] & 0x08) != 0);
   bool matched = false;
-  
+
 #ifdef USE_BINARY_SENSOR
   for (auto binary_sensor : this->binary_sensors_) {
     matched |= binary_sensor->on_update_received(data_bytes[11], action);
   }
 #endif  // USE_BINARY_SENSOR
-  
+
   if (!matched) {
-    ESP_LOGD(TAG, "[%s] Remote address: 0x%04X, Button code: 0x%02X %s", device.address_str().c_str(), remote_address, data_bytes[11], action ? "pressed" : "released");
+    ESP_LOGD(TAG, "[%s] Remote address: 0x%04X, Button code: 0x%02X %s", device.address_str().c_str(), remote_address,
+             data_bytes[11], action ? "pressed" : "released");
   }
 
   return false;
