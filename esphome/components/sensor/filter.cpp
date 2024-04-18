@@ -360,12 +360,17 @@ OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
 
 optional<float> OrFilter::PhiNode::new_value(float value) {
   this->or_parent_->output(value);
-
+  this->or_parent_->has_value_ = true;
   return {};
 }
 optional<float> OrFilter::new_value(float value) {
-  for (Filter *filter : this->filters_)
+  this->has_value_ = false;
+  for (Filter *filter : this->filters_) {
     filter->input(value);
+    if (this->has_value_) {
+      break;
+    }
+  }
 
   return {};
 }
