@@ -56,7 +56,7 @@ void MPL115A2Component::dump_config() {
 }
 
 void MPL115A2Component::update() {
-  uint16_t pressure, temp;
+  uint16_t pressureRaw, tempRaw;
   float pressureComp;
 
   uint8_t cmd[2] = {MPL115A2_REGISTER_STARTCONVERSION, 0};
@@ -71,18 +71,18 @@ void MPL115A2Component::update() {
   this->write(cmd, 1);
   this->read(buffer, 4);
 
-  pressure = (((uint16_t) buffer[0] << 8) | buffer[1]) >> 6;
-  temp = (((uint16_t) buffer[2] << 8) | buffer[3]) >> 6;
+  pressureRaw = (((uint16_t) buffer[0] << 8) | buffer[1]) >> 6;
+  tempRaw = (((uint16_t) buffer[2] << 8) | buffer[3]) >> 6;
 
   // See datasheet p.6 for evaluation sequence
-  pressureComp = _mpl115a2_a0 + (_mpl115a2_b1 + _mpl115a2_c12 * temp) * pressure + _mpl115a2_b2 * temp;
+  pressureComp = _mpl115a2_a0 + (_mpl115a2_b1 + _mpl115a2_c12 * tempRaw) * pressureRaw + _mpl115a2_b2 * tempRaw;
 
   float pressure = ((65.0F / 1023.0F) * pressureComp) + 50.0F;
   if (this->pressure_ != nullptr)
     this->pressure_->publish_state(pressure);
   int16_t t = encode_uint16(buffer[3], buffer[4]);
 
-  float temperature = ((float) temp - 498.0F) / -5.35F + 25.0F;
+  float temperature = ((float) tempRaw - 498.0F) / -5.35F + 25.0F;
   if (this->temperature_ != nullptr)
     this->temperature_->publish_state(temperature);
 
