@@ -971,6 +971,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_wait_for_ack(bool wait_for_ack);
 
   /**
+   * Manually send a raw command to the display.
+   * @param command The pcommand, like "page 0"
+   * @return Whether the send was successful.
+   */
+  bool send_command(const char *command);
+  /**
    * Manually send a raw formatted command to the display.
    * @param format The printf-style command format, like "vis %s,0"
    * @param ... The format arguments
