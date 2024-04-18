@@ -1031,6 +1031,26 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   size_t queue_size() { return this->nextion_queue_.size(); }
 
+  /**
+   * @brief Check if the TFT update process is currently running.
+   *
+   * This method provides a way to determine if the Nextion display is in the
+   * process of updating its TFT firmware. When a TFT update is in progress,
+   * certain operations or commands may be restricted or could interfere with the
+   * update process. By checking the state of the update process, the system can
+   * make informed decisions about performing actions that involve communication
+   * with the Nextion display.
+   *
+   * @return true if the TFT update process is active, indicating that the Nextion
+   *         display is currently updating its firmware. This implies that caution
+   *         should be taken with commands sent to the display to avoid interrupting
+   *         the update process.
+   * @return false if the TFT update process is not active, indicating that the Nextion
+   *         display is not currently updating its firmware and is in a normal operational
+   *         state, ready to receive and process commands as usual.
+   */
+  bool is_updating() override;
+
  protected:
   std::deque<NextionQueue *> nextion_queue_;
   std::deque<NextionQueue *> waveform_queue_;

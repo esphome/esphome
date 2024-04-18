@@ -1137,5 +1137,7 @@ void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = write
 ESPDEPRECATED("set_wait_for_ack(bool) is deprecated and has no effect", "v1.20")
 void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "This command is deprecated"); }
 
+bool Nextion::is_updating() { return this->is_updating_; }
+
 }  // namespace nextion
 }  // namespace esphome
