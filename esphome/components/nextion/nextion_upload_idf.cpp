@@ -161,7 +161,6 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
 
 bool Nextion::upload_tft() {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
-  ESP_LOGD(TAG, "Exit reparse: %s", YESNO(exit_reparse));
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
 
   if (this->is_updating_) {
