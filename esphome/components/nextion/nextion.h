@@ -37,7 +37,6 @@ static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<c
 
 class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
-
   /**
    * Set the text of a component to a static string.
    * @param component The component name.
@@ -1182,16 +1181,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#elif defined(USE_ESP_IDF)
-  /**
-   * will request 4096 bytes chunks from the web server
-   * and send each to Nextion
-   * @param std::string url Full url for download.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_range(const std::string &url, int range_start);
-#endif  // ARDUINO vs USE_ESP_IDF
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1201,6 +1190,24 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_end_(bool successful);
 
+#elif defined(USE_ESP_IDF)
+  /**
+   * will request 4096 bytes chunks from the web server
+   * and send each to Nextion
+   * @param std::string url Full url for download.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int upload_range(const std::string &url, int range_start);
+
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool upload_end(bool successful);
+#endif  // ARDUINO vs USE_ESP_IDF
   /**
    * Returns the ESP Free Heap memory. This is framework independent.
    * @return Free Heap in bytes.
