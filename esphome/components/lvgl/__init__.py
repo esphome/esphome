@@ -604,6 +604,7 @@ def cv_point_list(value):
     values = list(map(cv_int_list, value))
     if not functools.reduce(lambda f, v: f and len(v) == 2, values, True):
         raise cv.Invalid("Points must be a list of x,y integer pairs")
+    lv_uses.add("POINT")
     return {
         CONF_ID: cv.declare_id(lv_point_t)(generate_id(CONF_POINTS)),
         CONF_POINTS: values,
@@ -1751,22 +1752,27 @@ async def msgbox_to_code(conf):
     return init
 
 
-async def spinbox_to_code(var: Widget, config):
+async def spinbox_to_code(widget: Widget, config):
     init = []
+    lv_uses.add("TEXTAREA")
     digits = config[CONF_DIGITS]
     scale = 10 ** config[CONF_DECIMAL_PLACES]
-    var.set_scale(scale)
-    range_from = int(config[CONF_RANGE_FROM] * scale)
-    range_to = int(config[CONF_RANGE_TO] * scale)
-    step = int(config[CONF_STEP] * scale)
-    init.append(f"lv_spinbox_set_range({var.obj}, {range_from}, {range_to})")
-    init.extend(var.set_property(CONF_STEP, step))
-    init.extend(var.set_property(CONF_ROLLOVER, config))
+    range_from = int(config[CONF_RANGE_FROM])
+    range_to = int(config[CONF_RANGE_TO])
+    step = int(config[CONF_STEP])
+    widget.scale = scale
+    widget.step = step
+    widget.range_to = range_to
+    widget.range_from = range_from
     init.append(
-        f"lv_spinbox_set_digit_format({var.obj}, {digits}, {digits - config[CONF_DECIMAL_PLACES]})"
+        f"lv_spinbox_set_range({widget.obj}, {range_from * scale}, {range_to * scale})"
     )
-    init.extend(
-        var.set_property(CONF_VALUE, await lv_float.process(config.get(CONF_VALUE)))
+    if value := config.get(CONF_VALUE):
+        init.extend(widget.set_value(await lv_float.process(value)))
+    init.extend(widget.set_property(CONF_STEP, step * scale))
+    init.extend(widget.set_property(CONF_ROLLOVER, config))
+    init.append(
+        f"lv_spinbox_set_digit_format({widget.obj}, {digits}, {digits - config[CONF_DECIMAL_PLACES]})"
     )
     return init
 
@@ -1820,6 +1826,20 @@ async def line_to_code(var: Widget, line):
     )
     points = cg.static_const_array(data[CONF_ID], initialiser)
     return [f"lv_line_set_points({var.obj}, {points}, {len(point_list)})"]
+
+
+def set_indicator_values(meter, indicator, start_value, end_value):
+    init = []
+    if start_value is not None:
+        selector = "" if end_value is None else "_start"
+        init.append(
+            f"lv_meter_set_indicator{selector}_value({meter}, {indicator}, {start_value})"
+        )
+    if end_value is not None:
+        init.append(
+            f"lv_meter_set_indicator_end_value({meter}, {indicator}, {end_value})"
+        )
+    return init
 
 
 async def meter_to_code(meter: Widget, meter_conf):
@@ -1876,14 +1896,7 @@ async def meter_to_code(meter: Widget, meter_conf):
                 )
             start_value = await get_start_value(v)
             end_value = await get_end_value(v)
-            if start_value is not None:
-                init.append(
-                    f"lv_meter_set_indicator_start_value({var}, {ivar}, {start_value})"
-                )
-            if end_value is not None:
-                init.append(
-                    f"lv_meter_set_indicator_end_value({var}, {ivar}, {end_value})"
-                )
+            init.extend(set_indicator_values(var, ivar, start_value, end_value))
 
     return init
 
@@ -2030,6 +2043,9 @@ async def generate_triggers(lv_component):
 async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
     add_define("USE_LVGL", "1")
+    # suppress default enabling of extra widgets
+    add_define("_LV_KCONFIG_PRESENT")
+    add_define("LV_DRAW_COMPLEX", 1)
     for comp in lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")
     add_define("_STRINGIFY(x)", "_STRINGIFY_(x)")
@@ -2101,8 +2117,10 @@ async def to_code(config):
     if style_defs := config.get(CONF_STYLE_DEFINITIONS, []):
         styles_to_code(style_defs)
     if theme := config.get(CONF_THEME):
+        lv_uses.add("THEME")
         await theme_to_code(theme)
     if msgboxes := config.get(CONF_MSGBOXES):
+        lv_uses.add("MSGBOX")
         for msgbox in msgboxes:
             init.extend(await msgbox_to_code(msgbox))
     lv_scr_act = Widget("lv_scr_act()", lv_obj_t, config, "lv_scr_act()")
@@ -2368,7 +2386,7 @@ async def obj_update_to_code(config, action_id, template_arg, args):
 )
 async def spinbox_update_to_code(config, action_id, template_arg, args):
     obj = await get_widget(config[CONF_ID])
-    init = obj.set_property(CONF_VALUE, lv_float.process(config[CONF_VALUE]))
+    init = obj.set_value(await lv_float.process(config[CONF_VALUE]))
     return await update_to_code(config, action_id, obj, init, template_arg, args)
 
 
@@ -2400,20 +2418,12 @@ async def label_update_to_code(config, action_id, template_arg, args):
     indicator_update_schema(INDICATOR_LINE_SCHEMA),
 )
 async def indicator_update_to_code(config, action_id, template_arg, args):
-    ind = await get_widget(config[CONF_ID])
+    widget = await get_widget(config[CONF_ID])
     init = []
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
-    selector = "start_" if end_value is not None else ""
-    if start_value is not None:
-        init.append(
-            f"lv_meter_set_indicator_{selector}value({ind.var},{ind.obj}, {start_value})"
-        )
-    if end_value is not None:
-        init.append(
-            f"lv_meter_set_indicator_end_value({ind.var},{ind.obj}, {end_value})"
-        )
-    return await update_to_code(None, action_id, ind, init, template_arg, args)
+    init.extend(set_indicator_values(widget.var, widget.obj, start_value, end_value))
+    return await update_to_code(None, action_id, widget, init, template_arg, args)
 
 
 @automation.register_action(

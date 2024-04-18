@@ -38,7 +38,9 @@ namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
 
+#ifdef LVGL_USES_COLOR
 static lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
+#endif
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -50,36 +52,85 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 // The ESPHome name munging does not work well with the lv_ types, and will produce variable names
 // that are the same as the type.
 // to work-around this these typedefs are used.
-typedef lv_obj_t LvScreenType;
+#if LV_USE_SLIDER
+typedef lv_slider_t LvSliderType;
+#endif
+#if LV_USE_COLOR
 typedef lv_color_t LvColorType;
+#endif
+#if LV_USE_FONT
 typedef lv_font_t LvFontType;
-typedef lv_obj_t LvObjType;
+#endif
+#if LV_USE_STYLE
 typedef lv_style_t LvStyleType;
+#endif
+#if LV_USE_POINT
 typedef lv_point_t LvPointType;
+#endif
+#if LV_USE_LABEL
 typedef lv_label_t LvLabelType;
+#endif
+#if LV_USE_METER
 typedef lv_meter_t LvMeterType;
 typedef lv_meter_indicator_t LvMeterIndicatorType;
-typedef lv_slider_t LvSliderType;
+#endif
+#if LV_USE_BTN
 typedef lv_btn_t LvBtnType;
+#endif
+#if LV_USE_MSGBOX
 typedef lv_msgbox_t LvMsgBoxType;
+#endif
+#if LV_USE_LINE
 typedef lv_line_t LvLineType;
+#endif
+#if LV_USE_IMG
 typedef lv_img_t LvImgType;
+#endif
+#if LV_USE_ANIMIMG
 typedef lv_animimg_t LvAnimImgType;
+#endif
+#if LV_USE_SPINBOX
 typedef lv_spinbox_t LvSpinBoxType;
+#endif
+#if LV_USE_ARC
 typedef lv_arc_t LvArcType;
+#endif
+#if LV_USE_BAR
 typedef lv_bar_t LvBarType;
+#endif
+#if LV_USE_THEME
 typedef lv_theme_t LvThemeType;
+#endif
+#if LV_USE_CHECKBOX
 typedef lv_checkbox_t LvCheckboxType;
+#endif
+#if LV_USE_CANVAS
 typedef lv_canvas_t LvCanvasType;
+#endif
+#if LV_USE_DROPDOWN
 typedef lv_dropdown_t LvDropdownType;
 typedef lv_dropdown_list_t LvDropdownListType;
+#endif
+#if LV_USE_ROLLER
 typedef lv_roller_t LvRollerType;
+#endif
+#if LV_USE_LED
 typedef lv_led_t LvLedType;
+#endif
+#if LV_USE_SWITCH
 typedef lv_switch_t LvSwitchType;
+#endif
+#if LV_USE_TABLE
 typedef lv_table_t LvTableType;
+#endif
+#if LV_USE_TEXTAREA
 typedef lv_textarea_t LvTextareaType;
+#endif
+
 typedef lv_obj_t LvBtnmBtn;
 typedef lv_obj_t LvChartType;
+typedef lv_obj_t LvScreenType;
+typedef lv_obj_t LvObjType;
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
@@ -88,6 +139,7 @@ class LvCompound {
   lv_obj_t *obj{};
 };
 
+#if LV_USE_BTNMATRIX
 class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
  public:
   void set_obj(lv_obj_t *lv_obj) override {
@@ -118,7 +170,7 @@ class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
  protected:
   std::map<size_t, uint8_t> key_map_{};
 };
-// typedef lv_btnmatrix_t LvBtnmatrixType;
+#endif
 
 typedef struct {
   lv_obj_t *page;

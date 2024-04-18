@@ -1,5 +1,3 @@
-import sys
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
@@ -35,15 +33,19 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await number.register_number(
-        var, config, max_value=sys.maxsize, min_value=-sys.maxsize, step=1
-    )
-
     animated = config[CONF_ANIMATED]
     paren = await cg.get_variable(config[CONF_LVGL_ID])
     widget = await get_widget(config[CONF_WIDGET])
     value = widget.get_value()
+    var = cg.new_Pvariable(config[CONF_ID])
+    await number.register_number(
+        var,
+        config,
+        max_value=widget.range_to,
+        min_value=widget.range_from,
+        step=widget.step,
+    )
+
     publish = f"{var}->publish_state({value})"
     init = widget.set_event_cb(publish, "LV_EVENT_VALUE_CHANGED")
     init.append(f"{var}->set_control_lambda([] (float v) {{")

@@ -1,3 +1,5 @@
+import sys
+
 import esphome.codegen as cg
 from . import (
     BTNMATRIX_CTRLS,
@@ -17,12 +19,12 @@ class Widget:
         self.obj = obj or var
         self.parent = None
         self.scale = 1.0
+        self.step = 1.0
+        self.range_from = -sys.maxsize
+        self.range_to = sys.maxsize
 
     def set_parent(self, parent):
         self.parent = parent
-
-    def set_scale(self, scale: float):
-        self.scale = scale
 
     def add_state(self, state):
         return [f"lv_obj_add_state({self.obj}, {state})"]
@@ -81,7 +83,7 @@ class Widget:
             return f"lv_{self.type_base()}_get_value({self.obj})"
         return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
 
-    def set_value(self, value, animated: bool):
+    def set_value(self, value, animated: bool = False):
         if self.type_base() in (CONF_ARC, CONF_SPINBOX):
             animated = ""
         else:
@@ -95,7 +97,7 @@ class Widget:
             mult = ""
         else:
             mult = f"/ {self.scale:#f}"
-        if self.type_base() == CONF_SPINBOX:
+        if self.type_base() == CONF_SPINBOX and (which == "max" or which == "min"):
             gval = f"((lv_spinbox_t *){self.obj})->range_{which}"
         else:
             gval = f"lv_{self.type_base()}_get_{which}_value({self.obj})"

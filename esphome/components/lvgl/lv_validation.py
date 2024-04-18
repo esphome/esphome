@@ -16,6 +16,9 @@ from .defines import (
 lv_uses = {
     "USER_DATA",
     "LOG",
+    "STYLE",
+    "FONT_PLACEHOLDER",
+    "THEME_DEFAULT",
 }
 
 lv_fonts_used = set()
@@ -48,6 +51,7 @@ def lv_color_validator(value):
         hexval = cv.hex_int(value)
         return f"lv_color_hex({hexval})"
     color_id = cv.use_id(ColorStruct)(value)
+    lvgl_components_required.add("color")
     return f"lv_color_from({color_id})"
 
 
