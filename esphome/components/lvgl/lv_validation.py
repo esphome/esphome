@@ -71,7 +71,7 @@ def lv_font(value):
     font = cv.use_id(Font)(value)
     esphome_fonts_used.add(font)
     lvgl_components_required.add("font")
-    return f"{font}_as_lv_font_"
+    return cv.requires_component("font")(f"{font}_as_lv_font_")
 
 
 def is_esphome_font(font):

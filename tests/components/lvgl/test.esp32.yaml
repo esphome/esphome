@@ -6,6 +6,11 @@ i2c:
   sda: GPIO18
   scl: GPIO19
 
+font:
+  - file: "gfonts://Roboto"
+    id: space16
+
+
 display:
   - platform: ili9xxx
     model: st7789v
@@ -275,6 +280,30 @@ lvgl:
                 - lvgl.indicator.line.update:
                     id: temperature_needle
                     value: 3
+        - spinbox:
+            text_font: space16
+            id: spinbox_id
+            align: center
+            width: 120
+            range_from: -10
+            range_to: 1000
+            step: 5.0
+            rollover: false
+            digits: 6
+            decimal_places: 2
+            value: 15
+            on_value:
+              then:
+                - logger.log:
+                    format: "Spinbox value is %f"
+                    args: [ x ]
+        - btn:
+            id: spin_down
+            on_click:
+              - lvgl.spinbox.decrement: spinbox_id
+              - lvgl.spinbox.update:
+                  id: spinbox_id
+                  value: 100
         - img:
             align: CENTER
             src: cat_image

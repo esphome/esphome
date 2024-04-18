@@ -1704,6 +1704,7 @@ async def msgbox_to_code(conf):
     :param conf: The config data
     :return: code to add to the init lambda
     """
+    lv_uses.add("FLEX")
     init = []
     id = conf[CONF_ID]
     outer = cg.new_variable(
@@ -2046,8 +2047,6 @@ async def to_code(config):
     # suppress default enabling of extra widgets
     add_define("_LV_KCONFIG_PRESENT")
     add_define("LV_DRAW_COMPLEX", 1)
-    for comp in lvgl_components_required:
-        add_define(f"LVGL_USES_{comp.upper()}")
     add_define("_STRINGIFY(x)", "_STRINGIFY_(x)")
     add_define("_STRINGIFY_(x)", "#x")
     add_define("LV_CONF_SKIP", "1")
@@ -2166,6 +2165,8 @@ async def to_code(config):
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
     for macro, value in lv_defines.items():
         cg.add_build_flag(f"-D\\'{macro}\\'=\\'{value}\\'")
+    for comp in lvgl_components_required:
+        add_define(f"LVGL_USES_{comp.upper()}")
 
 
 def indicator_update_schema(base):

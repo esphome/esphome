@@ -97,7 +97,7 @@ class Widget:
             mult = ""
         else:
             mult = f"/ {self.scale:#f}"
-        if self.type_base() == CONF_SPINBOX and (which == "max" or which == "min"):
+        if self.type_base() == CONF_SPINBOX and which in ("max", "min"):
             gval = f"((lv_spinbox_t *){self.obj})->range_{which}"
         else:
             gval = f"lv_{self.type_base()}_get_{which}_value({self.obj})"
