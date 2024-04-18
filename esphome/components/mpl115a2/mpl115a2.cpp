@@ -39,21 +39,8 @@ void MPL115A2Component::readCoefficients() {
 }
 
 void MPL115A2Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MPL3115A2:");
+  ESP_LOGCONFIG(TAG, "MPL115A2:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, "Communication with MPL3115A2 failed!");
-        break;
-      case WRONG_ID:
-        ESP_LOGE(TAG, "MPL3115A2 has invalid id");
-        break;
-      default:
-        ESP_LOGE(TAG, "Setting up MPL3115A2 registers failed!");
-        break;
-    }
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Pressure", this->pressure_);

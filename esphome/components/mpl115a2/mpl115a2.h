@@ -43,11 +43,6 @@ class MPL115A2Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *pressure_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_ID,
-  } error_code_{NONE};
 };
 
 }  // namespace mpl115a2
