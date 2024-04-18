@@ -138,11 +138,11 @@ void Nextion::dump_config() {
   }
 
   if (this->wake_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page:     %d", this->wake_up_page_);
+    ESP_LOGCONFIG(TAG, "  Wake Up Page:     %" PRId16, this->wake_up_page_);
   }
 
   if (this->start_up_page_ != -1) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page:    %d", this->start_up_page_);
+    ESP_LOGCONFIG(TAG, "  Start Up Page:    %" PRId16, this->start_up_page_);
   }
 }
 
@@ -1024,23 +1024,23 @@ bool Nextion::add_no_result_to_queue_with_printf_(const std::string &variable_na
  * @param is_sleep_safe The command is safe to send when the Nextion is sleeping
  */
 
-void Nextion::add_no_result_to_queue_with_set(NextionComponentBase *component, int state_value) {
+void Nextion::add_no_result_to_queue_with_set(NextionComponentBase *component, int32_t state_value) {
   this->add_no_result_to_queue_with_set(component->get_variable_name(), component->get_variable_name_to_send(),
                                         state_value);
 }
 
 void Nextion::add_no_result_to_queue_with_set(const std::string &variable_name,
-                                              const std::string &variable_name_to_send, int state_value) {
+                                              const std::string &variable_name_to_send, int32_t state_value) {
   this->add_no_result_to_queue_with_set_internal_(variable_name, variable_name_to_send, state_value);
 }
 
 void Nextion::add_no_result_to_queue_with_set_internal_(const std::string &variable_name,
-                                                        const std::string &variable_name_to_send, int state_value,
+                                                        const std::string &variable_name_to_send, int32_t state_value,
                                                         bool is_sleep_safe) {
   if ((!this->is_setup() && !this->ignore_is_setup_) || (!is_sleep_safe && this->is_sleeping()))
     return;
 
-  this->add_no_result_to_queue_with_ignore_sleep_printf_(variable_name, "%s=%d", variable_name_to_send.c_str(),
+  this->add_no_result_to_queue_with_ignore_sleep_printf_(variable_name, "%s=%" PRId32, variable_name_to_send.c_str(),
                                                          state_value);
 }
 
