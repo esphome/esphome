@@ -107,7 +107,7 @@ async def valve_template_publish_to_code(config, action_id, template_arg, args):
     if state_config := config.get(CONF_STATE):
         template_ = await cg.templatable(state_config, args, float)
         cg.add(var.set_position(template_))
-    if position_config := config.get(CONF_POSITION):
+    if (position_config := config.get(CONF_POSITION)) is not None:
         template_ = await cg.templatable(position_config, args, float)
         cg.add(var.set_position(template_))
     if current_operation_config := config.get(CONF_CURRENT_OPERATION):
