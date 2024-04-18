@@ -877,7 +877,6 @@ INDICATOR_TICKS_SCHEMA = cv.Schema(
         cv.Optional(CONF_WIDTH, default=4): lv_size,
         cv.Optional(CONF_COLOR_START, default=0): lv_color,
         cv.Optional(CONF_COLOR_END): lv_color,
-        cv.Optional(CONF_R_MOD, default=0): lv_size,
         cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
         cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
@@ -1895,12 +1894,12 @@ async def meter_to_code(meter: Widget, meter_conf):
                     f"{ivar} = lv_meter_add_arc({var}, {s}, {v[CONF_WIDTH]},"
                     + f"{v[CONF_COLOR]}, {v[CONF_R_MOD]})"
                 )
-            if t == CONF_TICKS:
+            if t == CONF_TICK_STYLE:
                 color_start = v[CONF_COLOR_START]
                 color_end = v.get(CONF_COLOR_END) or color_start
                 init.append(
                     f"{ivar} = lv_meter_add_scale_lines({var}, {s}, {color_start},"
-                    + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_R_MOD]})"
+                    + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_WIDTH]})"
                 )
             start_value = await get_start_value(v)
             end_value = await get_end_value(v)
