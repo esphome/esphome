@@ -1569,6 +1569,7 @@ async def led_update_to_code(config, action_id, template_arg, args):
 
 
 async def roller_to_code(var, config):
+    lv_uses.add("label")
     init = []
     mode = config[CONF_MODE]
     if options := config.get(CONF_OPTIONS):
@@ -1599,6 +1600,7 @@ async def roller_update_to_code(config, action_id, template_arg, args):
 
 
 async def dropdown_to_code(dropdown: Widget, config):
+    lv_uses.add("label")
     obj = dropdown.obj
     init = []
     if options := config.get(CONF_OPTIONS):
@@ -1705,6 +1707,8 @@ async def msgbox_to_code(conf):
     :return: code to add to the init lambda
     """
     lv_uses.add("FLEX")
+    lv_uses.add("btnm")
+    lv_uses.add("label")
     init = []
     id = conf[CONF_ID]
     outer = cg.new_variable(
@@ -1780,6 +1784,8 @@ async def spinbox_to_code(widget: Widget, config):
 
 
 async def animimg_to_code(var: Widget, config):
+    lv_uses.add("label")
+    lv_uses.add("img")
     init = []
     wid = config[CONF_ID]
     if CONF_SRC in config:
@@ -1904,6 +1910,7 @@ async def meter_to_code(meter: Widget, meter_conf):
 
 
 async def spinner_to_code(spinner: Widget, config):
+    lv_uses.add("arc")
     return []
 
 
