@@ -10,7 +10,6 @@ font:
   - file: "gfonts://Roboto"
     id: space16
 
-
 display:
   - platform: ili9xxx
     model: st7789v
@@ -45,10 +44,12 @@ touchscreen:
             - lvgl.resume:
 
 image:
-  - file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
-    id: cat_image
+  - id: cat_image
+    file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
   - id: cat_image_bowtie
     file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
+
+    # file: $component_dir/pnglogo.png
     resize: 256x48
     type: TRANSPARENT_BINARY
 
@@ -296,7 +297,7 @@ lvgl:
               then:
                 - logger.log:
                     format: "Spinbox value is %f"
-                    args: [ x ]
+                    args: [x]
         - btn:
             id: spin_down
             on_click:
