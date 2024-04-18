@@ -2053,11 +2053,12 @@ async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
     add_define("USE_LVGL", "1")
     # suppress default enabling of extra widgets
+    add_define("LV_CONF_SKIP", "1")
     add_define("_LV_KCONFIG_PRESENT")
+    # Always enable - lots of things use it.
     add_define("LV_DRAW_COMPLEX", 1)
     add_define("_STRINGIFY(x)", "_STRINGIFY_(x)")
     add_define("_STRINGIFY_(x)", "#x")
-    add_define("LV_CONF_SKIP", "1")
     add_define("LV_TICK_CUSTOM", "1")
     add_define(
         "LV_TICK_CUSTOM_INCLUDE", "_STRINGIFY(esphome/components/lvgl/lvgl_hal.h)"
@@ -2173,6 +2174,7 @@ async def to_code(config):
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
     for comp in lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")
+    # These must be build flags, since the lvgl code does not read our defines.h
     for macro, value in lv_defines.items():
         cg.add_build_flag(f"-D\\'{macro}\\'=\\'{value}\\'")
     print(lvgl_components_required)
