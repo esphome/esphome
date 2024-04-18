@@ -12,7 +12,7 @@ namespace ota_esphome {
 enum OTAESPHomeState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
 
 /// OTAESPHomeComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
-class OTAESPHomeComponent : public Component {
+class ESPHomeOTAComponent : public Component {
  public:
   OTAESPHomeComponent();
 #ifdef USE_OTA_PASSWORD
