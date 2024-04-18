@@ -59,7 +59,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails or isn't available
     if (!buffer) {
       ESP_LOGE(TAG, "Failed to allocate upload buffer");
-      return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
+      return -1;
     }
   } else {
     ESP_LOGD(TAG, "Successfully allocated upload buffer in PSRAM");
@@ -69,7 +69,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
 #endif
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
-    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
+    return -1;
   }
 
   std::string recv_string;
@@ -137,7 +137,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
           range_start = range_end + 1;
         }
         heap_caps_free(buffer);
-        return Nextion::TFTUploadResult::OK;
+        return range_end + 1;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
@@ -156,7 +156,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   }
   range_start = range_end + 1;
   heap_caps_free(buffer);
-  return Nextion::TFTUploadResult::OK;
+  return range_end + 1;
 }
 
 bool Nextion::upload_tft() {
@@ -299,8 +299,8 @@ bool Nextion::upload_tft() {
 
   uint32_t position = 0;
   while (this->content_length_ > 0) {
-    Nextion::TFTUploadResult upload_result = upload_by_chunks_(http_client, position);
-    if (upload_result != Nextion::TFTUploadResult::OK) {
+    int upload_result = upload_by_chunks_(http_client, position);
+    if (upload_result < 0>) {
       ESP_LOGE(TAG, "Error uploading TFT to Nextion!");
       ESP_LOGD(TAG, "Close HTTP connection");
       esp_http_client_close(http_client);
