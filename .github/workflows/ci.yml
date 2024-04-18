@@ -410,7 +410,6 @@ jobs:
         id: target-branch
         run: |
           echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
-          echo "Target branch is $GITHUB_OUTPUT"
       - name: Fetch ${{ steps.target-branch.outputs.branch }} branch
         run: |
           git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/${{ steps.target-branch.outputs.branch }}:refs/remotes/origin/${{ steps.target-branch.outputs.branch }}
