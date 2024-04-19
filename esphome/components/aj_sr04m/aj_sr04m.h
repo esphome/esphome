@@ -5,9 +5,9 @@
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
-namespace ultrasonic_uart {
+namespace aj_sr04m {
 
-class UltrasonicSensorUart : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
+class Ajsr04mComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -17,5 +17,5 @@ class UltrasonicSensorUart : public sensor::Sensor, public PollingComponent, pub
   float get_setup_priority() const override;
 };
 
-}  // namespace ultrasonic_uart
+}  // namespace aj_sr04m
 }  // namespace esphome

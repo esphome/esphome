@@ -3,16 +3,16 @@ import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import (
     STATE_CLASS_MEASUREMENT,
-    UNIT_CENTIMETER,
+    UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
     DEVICE_CLASS_DISTANCE,
 )
 
 DEPENDENCIES = ["uart"]
 
-ultrasonic_uart_ns = cg.esphome_ns.namespace("ultrasonic_uart")
-UltrasonicSensorUart = ultrasonic_uart_ns.class_(
-    "UltrasonicSensorUart",
+aj_sr04m_ns = cg.esphome_ns.namespace("aj_sr04m")
+Ajsr04mComponent = aj_sr04m_ns.class_(
+    "Ajsr04mComponent",
     sensor.Sensor,
     cg.PollingComponent,
     uart.UARTDevice,
@@ -20,10 +20,10 @@ UltrasonicSensorUart = ultrasonic_uart_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UltrasonicSensorUart,
-        unit_of_measurement=UNIT_CENTIMETER,
+        Ajsr04mComponent,
+        unit_of_measurement=UNIT_METER,
         icon=ICON_ARROW_EXPAND_VERTICAL,
-        accuracy_decimals=2,
+        accuracy_decimals=3,
         state_class=STATE_CLASS_MEASUREMENT,
         device_class=DEVICE_CLASS_DISTANCE,
     )
@@ -32,7 +32,7 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "ultrasonic_uart",
+    "aj_sr04m",
     baud_rate=9600,
     require_tx=True,
     require_rx=True,
