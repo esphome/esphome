@@ -318,7 +318,7 @@ void VoiceAssistant::loop() {
 #endif
 #ifdef USE_MEDIA_PLAYER
       if (this->media_player_ != nullptr) {
-        playing = (this->media_player_->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING);
+        playing = (this->media_player_->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING);
       }
 #endif
       if (playing) {
@@ -640,7 +640,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this, url]() {
 #ifdef USE_MEDIA_PLAYER
         if (this->media_player_ != nullptr) {
-          this->media_player_->make_call().set_media_url(url).perform();
+          this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
         }
 #endif
         this->tts_end_trigger_->trigger(url);
