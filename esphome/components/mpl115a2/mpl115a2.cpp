@@ -7,7 +7,7 @@ namespace mpl115a2 {
 
 static const char *const TAG = "mpl115a2";
 
-void MPL115A2Component::setup() { 
+void MPL115A2Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MPL115A2...");
 
   this->readCoefficients();
