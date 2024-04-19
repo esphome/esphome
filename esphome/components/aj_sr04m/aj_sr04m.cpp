@@ -21,7 +21,6 @@ void Ajsr04mComponent::update() {
       ESP_LOGW(TAG, "checksum failed: %02x != %02x", checksum, frame[3]);
     }
   }
-
 }
 void Ajsr04mComponent::dump_config() {
   LOG_SENSOR("", "AJ_SR04M Sensor", this);
