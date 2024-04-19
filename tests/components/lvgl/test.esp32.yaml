@@ -53,6 +53,10 @@ image:
     resize: 256x48
     type: TRANSPARENT_BINARY
 
+color:
+  - id: my_light_red
+    hex: FF3340
+
 lvgl:
   touchscreens:
     - touchscreen_id: tft_touch
@@ -66,7 +70,7 @@ lvgl:
   log_level: WARN
   color_depth: 16
   default_font: montserrat_14
-  bg_color: 0xe5e4dc
+  bg_color: my_light_red
   style_definitions:
     - id: style_test
       bg_color: 0x2F8CD8
@@ -84,6 +88,7 @@ lvgl:
       body:
         text: "This is a sample messagebox."
         bg_color: 0x808080
+        bg_opa: 30%
       buttons:
         - id: msgbox_apply
           text: "Apply"
@@ -100,6 +105,12 @@ lvgl:
         - obj:
             align: TOP_MID
             styles: style_test
+            height: 146
+            width: 146
+            radius: 73
+            border_width: 0
+            bg_opa: 30%
+            pad_all: 0
             widgets:
               - btn:
                   checkable: true
@@ -276,11 +287,33 @@ lvgl:
                       width: 2
                       color: 0xFF0000
                       r_mod: -4
+                  - img:
+                      id: needle_img
+                      src: cat_image
+                      value: 4
+                      pivot_x: 31
+                      pivot_y: 9
+                  - arc:
+                      color: 0xFF3000
+                      r_mod: 10
+                      width: 31
+                      start_value: -10
+                      end_value: 0
+                  - tick_style:
+                      start_value: -10
+                      end_value: 0
+                      color_start: 0x00FF00
+                      color_end: 0xFF3000
+                      local: true
+                      width: 12
             on_click:
               then:
                 - lvgl.indicator.update:
                     id: temperature_needle
                     value: 3
+                - lvgl.indicator.update:
+                    id: needle_img
+                    value: 13
         - spinbox:
             text_font: space16
             id: spinbox_id
@@ -288,7 +321,7 @@ lvgl:
             width: 120
             range_from: -10
             range_to: 1000
-            step: 5.0
+            step: 0.5
             rollover: false
             digits: 6
             decimal_places: 2
