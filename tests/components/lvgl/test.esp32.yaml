@@ -311,7 +311,7 @@ lvgl:
                 - lvgl.indicator.line.update:
                     id: temperature_needle
                     value: 3
-                - lvgl.indicator.img.update:  #todo
+                - lvgl.indicator.update:
                     id: needle_img
                     value: 13
         - spinbox:
