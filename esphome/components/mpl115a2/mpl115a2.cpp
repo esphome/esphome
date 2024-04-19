@@ -48,7 +48,7 @@ void MPL115A2Component::dump_config() {
 
 void MPL115A2Component::update() {
   uint16_t pressure_in, temp_in;
-  float pressureComp;
+  float pressure_comp;
 
   uint8_t cmd[2] = {MPL115A2_REGISTER_STARTCONVERSION, 0};
   uint8_t buffer[4];
@@ -66,9 +66,9 @@ void MPL115A2Component::update() {
   temp_in = (((uint16_t) buffer[2] << 8) | buffer[3]) >> 6;
 
   // See datasheet p.6 for evaluation sequence
-  pressureComp = mpl115a2_a0_ + (mpl115a2_b1_ + mpl115a2_c12_ * temp_in) * pressure_in + mpl115a2_b2_ * temp_in;
+  pressure_comp = mpl115a2_a0_ + (mpl115a2_b1_ + mpl115a2_c12_ * temp_in) * pressure_in + mpl115a2_b2_ * temp_in;
 
-  float pressure_out = ((65.0F / 1023.0F) * pressureComp) + 50.0F;
+  float pressure_out = ((65.0F / 1023.0F) * pressure_comp) + 50.0F;
   if (this->pressure_ != nullptr)
     this->pressure_->publish_state(pressure_out);
 
