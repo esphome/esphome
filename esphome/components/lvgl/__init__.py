@@ -224,6 +224,7 @@ lv_btnmatrix_t = cg.MockObjClass(
 # Provided for the benefit of get_widget_type
 lv_spinner_t = lv_obj_t
 lv_ticks_t = lv_obj_t
+lv_tick_style_t = lv_obj_t
 
 CONF_ACTION = "action"
 CONF_ADJUSTABLE = "adjustable"
