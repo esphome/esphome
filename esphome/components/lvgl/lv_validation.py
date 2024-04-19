@@ -151,6 +151,13 @@ def lv_angle(value):
     return int(cv.float_range(0.0, 360.0)(cv.angle(value)) * 10)
 
 
+def lv_pixels(value):
+    """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
+    if isinstance(value, str) and value.lower().endswith("px"):
+        return cv.int_(value[:-2])
+    return str(cv.int_(value))
+
+
 @schema_extractor("one_of")
 def lv_size(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""

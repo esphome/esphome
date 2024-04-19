@@ -141,6 +141,7 @@ from .lv_validation import (
     is_esphome_font,
     lv_color_validator,
     lv_bool_validator,
+    lv_pixels,
 )
 from .widget import (
     Widget,
@@ -858,8 +859,9 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
 )
 INDICATOR_IMG_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_PIVOT_X, default="50%"): lv_size,
-        cv.Optional(CONF_PIVOT_Y, default="50%"): lv_size,
+        cv.Required(CONF_SRC): cv.use_id(Image_),
+        cv.Required(CONF_PIVOT_X): lv_pixels,
+        cv.Required(CONF_PIVOT_Y): lv_pixels,
         cv.Optional(CONF_VALUE): lv_float,
     }
 )
@@ -1901,6 +1903,12 @@ async def meter_to_code(meter: Widget, meter_conf):
                 init.append(
                     f"{ivar} = lv_meter_add_scale_lines({var}, {s}, {color_start},"
                     + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_WIDTH]})"
+                )
+            if t == CONF_IMG:
+                lv_uses.add("img")
+                init.append(
+                    f"{ivar} = lv_meter_add_needle_img({var}, {s}, lv_img_from({v[CONF_SRC]}),"
+                    + f"{v[CONF_PIVOT_X]}, {v[CONF_PIVOT_Y]})"
                 )
             start_value = await get_start_value(v)
             end_value = await get_end_value(v)
