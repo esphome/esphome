@@ -108,7 +108,6 @@ lvgl:
             height: 146
             width: 146
             radius: 73
-            align: center
             border_width: 0
             bg_opa: 30%
             pad_all: 0
@@ -296,7 +295,7 @@ lvgl:
                       pivot_y: 9
                   - arc:
                       color: 0xFF3000
-                      r_mod: 10 
+                      r_mod: 10
                       width: 31
                       start_value: -10
                       end_value: 0
@@ -312,7 +311,7 @@ lvgl:
                 - lvgl.indicator.line.update:
                     id: temperature_needle
                     value: 3
-                - lvgl.indicator.line.update:
+                - lvgl.indicator.img.update:  #todo
                     id: needle_img
                     value: 13
         - spinbox:
