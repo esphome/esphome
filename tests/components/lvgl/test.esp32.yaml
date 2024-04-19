@@ -278,7 +278,7 @@ lvgl:
                       r_mod: -4
             on_click:
               then:
-                - lvgl.indicator.line.update:
+                - lvgl.indicator.update:
                     id: temperature_needle
                     value: 3
         - spinbox:
