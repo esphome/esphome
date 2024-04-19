@@ -2433,7 +2433,7 @@ async def label_update_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "lvgl.indicator.needle.update",
+    "lvgl.indicator.update",
     ObjUpdateAction,
     indicator_update_schema(INDICATOR_LINE_SCHEMA),
 )
