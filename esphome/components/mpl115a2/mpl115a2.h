@@ -33,12 +33,12 @@ class MPL115A2Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  private:
-  float _mpl115a2_a0;
-  float _mpl115a2_b1;
-  float _mpl115a2_b2;
-  float _mpl115a2_c12;
+  float mpl115a2_a0_;
+  float mpl115a2_b1_;
+  float mpl115a2_b2_;
+  float mpl115a2_c12_;
 
-  void readCoefficients();
+  void read_coefficients_();
 
  protected:
   sensor::Sensor *temperature_{nullptr};

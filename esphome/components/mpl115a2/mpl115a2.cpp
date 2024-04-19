@@ -10,10 +10,10 @@ static const char *const TAG = "mpl115a2";
 void MPL115A2Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MPL115A2...");
 
-  this->readCoefficients();
+  this->read_coefficients_();
 }
 
-void MPL115A2Component::readCoefficients() {
+void MPL115A2Component::read_coefficients_() {
   int16_t a0coeff;
   int16_t b1coeff;
   int16_t b2coeff;
@@ -31,11 +31,11 @@ void MPL115A2Component::readCoefficients() {
   b2coeff = (((uint16_t) buffer[4] << 8) | buffer[5]);
   c12coeff = (((uint16_t) buffer[6] << 8) | buffer[7]) >> 2;
 
-  _mpl115a2_a0 = (float) a0coeff / 8;
-  _mpl115a2_b1 = (float) b1coeff / 8192;
-  _mpl115a2_b2 = (float) b2coeff / 16384;
-  _mpl115a2_c12 = (float) c12coeff;
-  _mpl115a2_c12 /= 4194304.0;
+  mpl115a2_a0_ = (float) a0coeff / 8;
+  mpl115a2_b1_ = (float) b1coeff / 8192;
+  mpl115a2_b2_ = (float) b2coeff / 16384;
+  mpl115a2_c12_ = (float) c12coeff;
+  mpl115a2_c12_ /= 4194304.0;
 }
 
 void MPL115A2Component::dump_config() {
@@ -47,7 +47,7 @@ void MPL115A2Component::dump_config() {
 }
 
 void MPL115A2Component::update() {
-  uint16_t pressureIn, tempIn;
+  uint16_t pressure_in, temp_in;
   float pressureComp;
 
   uint8_t cmd[2] = {MPL115A2_REGISTER_STARTCONVERSION, 0};
@@ -62,22 +62,21 @@ void MPL115A2Component::update() {
   this->write(cmd, 1);
   this->read(buffer, 4);
 
-  pressureIn = (((uint16_t) buffer[0] << 8) | buffer[1]) >> 6;
-  tempIn = (((uint16_t) buffer[2] << 8) | buffer[3]) >> 6;
+  pressure_in = (((uint16_t) buffer[0] << 8) | buffer[1]) >> 6;
+  temp_in = (((uint16_t) buffer[2] << 8) | buffer[3]) >> 6;
 
   // See datasheet p.6 for evaluation sequence
-  pressureComp = _mpl115a2_a0 + (_mpl115a2_b1 + _mpl115a2_c12 * tempIn) * pressureIn + _mpl115a2_b2 * tempIn;
+  pressureComp = mpl115a2_a0_ + (mpl115a2_b1_ + mpl115a2_c12_ * temp_in) * pressure_in + mpl115a2_b2_ * temp_in;
 
-  float pressureOut = ((65.0F / 1023.0F) * pressureComp) + 50.0F;
+  float pressure_out = ((65.0F / 1023.0F) * pressureComp) + 50.0F;
   if (this->pressure_ != nullptr)
-    this->pressure_->publish_state(pressureOut);
-  int16_t t = encode_uint16(buffer[3], buffer[4]);
+    this->pressure_->publish_state(pressure_out);
 
-  float temperatureOut = ((float) tempIn - 498.0F) / -5.35F + 25.0F;
+  float temperature_out = ((float) temp_in - 498.0F) / -5.35F + 25.0F;
   if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(temperatureOut);
+    this->temperature_->publish_state(temperature_out);
 
-  ESP_LOGD(TAG, "Got Temperature=%.1f°C Pressure=%.1f", temperatureOut, pressureOut);
+  ESP_LOGD(TAG, "Got Temperature=%.1f°C Pressure=%.1f", temperature_out, pressure_out);
 
   this->status_clear_warning();
 }
