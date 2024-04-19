@@ -363,6 +363,7 @@ class LvglComponent : public PollingComponent {
     if (buf == nullptr) {
       esph_log_e(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
       this->mark_failed();
+      this->status_set_error("Memory allocation failure");
       return;
     }
     lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);

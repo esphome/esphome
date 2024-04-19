@@ -2435,7 +2435,14 @@ async def label_update_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "lvgl.indicator.update",
     ObjUpdateAction,
-    indicator_update_schema(INDICATOR_LINE_SCHEMA),
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(lv_meter_indicator_t),
+            cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
+            cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
+            cv.Optional(CONF_END_VALUE): lv_float,
+        }
+    ),
 )
 async def indicator_update_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
