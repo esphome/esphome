@@ -246,6 +246,24 @@ bool APIServerConnectionBase::send_climate_state_response(const ClimateStateResp
 #endif
 #ifdef USE_CLIMATE
 #endif
+#ifdef USE_HUMIDIFIER
+bool APIServerConnectionBase::send_list_entities_humidifier_response(const ListEntitiesHumidifierResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_humidifier_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesHumidifierResponse>(msg, 107);
+}
+#endif
+#ifdef USE_HUMIDIFIER
+bool APIServerConnectionBase::send_humidifier_state_response(const HumidifierStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_humidifier_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<HumidifierStateResponse>(msg, 108);
+}
+#endif
+#ifdef USE_HUMIDIFIER
+#endif
 #ifdef USE_NUMBER
 bool APIServerConnectionBase::send_list_entities_number_response(const ListEntitiesNumberResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1074,6 +1092,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 109: {
+#ifdef USE_HUMIDIFIER
+      HumidifierCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_humidifier_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_humidifier_command_request(msg);
+#endif
+      break;
+    }
     case 111: {
 #ifdef USE_VALVE
       ValveCommandRequest msg;
@@ -1289,6 +1318,19 @@ void APIServerConnection::on_climate_command_request(const ClimateCommandRequest
     return;
   }
   this->climate_command(msg);
+}
+#endif
+#ifdef USE_HUMIDIFIER
+void APIServerConnection::on_humidifier_command_request(const HumidifierCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->humidifier_command(msg);
 }
 #endif
 #ifdef USE_NUMBER

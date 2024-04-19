@@ -38,6 +38,7 @@ service APIConnection {
   rpc switch_command (SwitchCommandRequest) returns (void) {}
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
+  rpc humidifier_command (HumidifierCommandRequest) returns (void) {}  
   rpc number_command (NumberCommandRequest) returns (void) {}
   rpc text_command (TextCommandRequest) returns (void) {}
   rpc select_command (SelectCommandRequest) returns (void) {}
@@ -921,6 +922,83 @@ message ClimateCommandRequest {
   string custom_preset = 21;
   bool has_target_humidity = 22;
   float target_humidity = 23;
+}
+
+// ==================== HUMIDIFIER ====================
+enum HumidifierMode {
+  HUMIDIFIER_MODE_OFF = 0;
+  HUMIDIFIER_MODE_LEVEL_1 = 1;
+  HUMIDIFIER_MODE_LEVEL_2 = 2;
+  HUMIDIFIER_MODE_LEVEL_3 = 3;
+  HUMIDIFIER_MODE_PRESET = 4;
+}
+enum HumidifierAction {
+  HUMIDIFIER_ACTION_OFF = 0;
+  // values same as mode for readability
+  HUMIDIFIER_ACTION_LEVEL_1 = 2;
+  HUMIDIFIER_ACTION_LEVEL_2 = 3;
+  HUMIDIFIER_ACTION_LEVEL_3 = 4;
+  HUMIDIFIER_ACTION_PRESET = 5;
+}
+enum HumidifierPreset {
+  HUMIDIFIER_PRESET_NONE = 0;
+  HUMIDIFIER_PRESET_CONSTANT_HUMIDITY = 1;
+  HUMIDIFIER_PRESET_BABY = 2;
+}
+
+message ListEntitiesHumidifierResponse {
+  option (id) = 107;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_HUMIDIFIER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  bool supports_current_humidity = 5;
+  bool supports_target_humidity= 6;
+  repeated HumidifierMode supported_modes = 7;
+  float visual_min_humidity = 8;
+  float visual_max_humidity = 9;
+  float visual_target_humidity_step = 10;
+  bool supports_action = 11;
+  repeated HumidifierPreset supported_presets = 12;
+  repeated string supported_custom_presets = 13;
+  bool disabled_by_default = 14;
+  string icon = 15;
+  EntityCategory entity_category = 16;
+  float visual_current_humidity_step = 17;
+}
+message HumidifierStateResponse {
+  option (id) = 108;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_HUMIDIFIER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  HumidifierMode mode = 2;
+  float current_humidity = 3;
+  float target_humidity = 4;
+  HumidifierAction action = 5;
+  HumidifierPreset preset = 6;
+  string custom_preset = 7;
+}
+message HumidifierCommandRequest {
+  option (id) = 109;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_HUMIDIFIER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool has_mode = 2;
+  HumidifierMode mode = 3;
+  bool has_target_humidity = 4;
+  float target_humidity = 5;
+  bool has_preset = 6;
+  HumidifierPreset preset = 7;
+  bool has_custom_preset = 8;
+  string custom_preset = 9;
 }
 
 // ==================== NUMBER ====================

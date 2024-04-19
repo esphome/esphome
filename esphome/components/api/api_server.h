@@ -63,6 +63,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_CLIMATE
   void on_climate_update(climate::Climate *obj) override;
 #endif
+#ifdef USE_HUMIDIFIER
+  void on_humidifier_update(humidifier::Humidifier *obj) override;
+#endif
 #ifdef USE_NUMBER
   void on_number_update(number::Number *obj, float state) override;
 #endif

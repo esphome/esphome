@@ -11,7 +11,6 @@
 #define ESPHOME_BOARD "dummy_board"
 #define ESPHOME_PROJECT_NAME "dummy project"
 #define ESPHOME_PROJECT_VERSION "v2"
-#define ESPHOME_PROJECT_VERSION_30 "v2"
 #define ESPHOME_VARIANT "ESP32"
 
 // Feature flags
@@ -28,6 +27,7 @@
 #define USE_FAN
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
+#define USE_HUMIDIFIER
 #define USE_JSON
 #define USE_LIGHT
 #define USE_LOCK

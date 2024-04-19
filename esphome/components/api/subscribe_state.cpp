@@ -37,6 +37,9 @@ bool InitialStateIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) 
 #ifdef USE_CLIMATE
 bool InitialStateIterator::on_climate(climate::Climate *climate) { return this->client_->send_climate_state(climate); }
 #endif
+#ifdef USE_HUMIDIFIER
+bool InitialStateIterator::on_humidifier(humidifier::Humidifier *humidifier) { return this->client_->send_humidifier_state(humidifier); }
+#endif
 #ifdef USE_NUMBER
 bool InitialStateIterator::on_number(number::Number *number) {
   return this->client_->send_number_state(number, number->state);

@@ -656,6 +656,78 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_HUMIDIFIER
+bool APIConnection::send_humidifier_state(humidifier::Humidifier *humidifier) {
+  if (!this->state_subscription_)
+    return false;
+
+  auto traits = humidifier->get_traits();
+  HumidifierStateResponse resp{};
+  resp.key = humidifier->get_object_id_hash();
+  resp.mode = static_cast<enums::HumidifierMode>(humidifier->mode);
+  resp.action = static_cast<enums::HumidifierAction>(humidifier->action);
+  if (traits.get_supports_current_humidity())
+    resp.current_humidity = humidifier->current_humidity;
+  if (traits.get_supports_target_humidity()) {
+    resp.target_humidity = humidifier->target_humidity;
+  }
+  if (traits.get_supports_presets() && humidifier->preset.has_value()) {
+    resp.preset = static_cast<enums::HumidifierPreset>(humidifier->preset.value());  
+  }
+  if (!traits.get_supported_custom_presets().empty() && humidifier->custom_preset.has_value())
+    resp.custom_preset = humidifier->custom_preset.value();
+  return this->send_humidifier_state_response(resp);
+}
+bool APIConnection::send_humidifier_info(humidifier::Humidifier *humidifier) {
+  auto traits = humidifier->get_traits();
+  ListEntitiesHumidifierResponse msg;
+  msg.key = humidifier->get_object_id_hash();
+  msg.object_id = humidifier->get_object_id();
+  if (humidifier->has_own_name())
+    msg.name = humidifier->get_name();
+  msg.unique_id = get_default_unique_id("humidifier", humidifier);
+
+  msg.disabled_by_default = humidifier->is_disabled_by_default();
+  msg.icon = humidifier->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(humidifier->get_entity_category());
+
+  msg.supports_current_humidity = traits.get_supports_current_humidity();
+  msg.supports_target_humidity = traits.get_supports_target_humidity();
+
+  for (auto mode : traits.get_supported_modes())
+    msg.supported_modes.push_back(static_cast<enums::HumidifierMode>(mode));
+
+  msg.visual_min_humidity = traits.get_visual_min_humidity();
+  msg.visual_max_humidity = traits.get_visual_max_humidity();
+  msg.visual_target_humidity_step = traits.get_visual_target_humidity_step();
+  msg.visual_current_humidity_step = traits.get_visual_current_humidity_step();
+
+  msg.supports_action = traits.get_supports_action();
+
+  for (auto preset : traits.get_supported_presets())
+    msg.supported_presets.push_back(static_cast<enums::HumidifierPreset>(preset));
+  for (auto const &custom_preset : traits.get_supported_custom_presets())
+    msg.supported_custom_presets.push_back(custom_preset);
+  return this->send_list_entities_humidifier_response(msg);
+}
+void APIConnection::humidifier_command(const HumidifierCommandRequest &msg) {
+  humidifier::Humidifier *humidifier = App.get_humidifier_by_key(msg.key);
+  if (humidifier == nullptr)
+    return;
+
+  auto call = humidifier->make_call();
+  if (msg.has_mode)
+    call.set_mode(static_cast<humidifier::HumidifierMode>(msg.mode));
+  if (msg.has_target_humidity)
+    call.set_target_humidity(msg.target_humidity);
+  if (msg.has_preset)
+    call.set_preset(static_cast<humidifier::HumidifierPreset>(msg.preset));
+  if (msg.has_custom_preset)
+    call.set_preset(msg.custom_preset);
+  call.perform();
+}
+#endif
+
 #ifdef USE_NUMBER
 bool APIConnection::send_number_state(number::Number *number, float state) {
   if (!this->state_subscription_)
