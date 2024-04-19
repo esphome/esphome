@@ -20,6 +20,8 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
+      if (param->disconnect.conn_id != this->conn_id_)
+        break;
       this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
       this->set_address(0);
       this->proxy_->send_connections_free();
