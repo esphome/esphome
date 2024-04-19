@@ -10,7 +10,9 @@ from esphome.zeroconf import (
     DashboardStatus,
 )
 
+from ..const import SENTINEL
 from ..core import DASHBOARD
+from ..entries import DashboardEntry, bool_to_entry_state
 
 
 class MDNSStatus:
@@ -22,16 +24,7 @@ class MDNSStatus:
         self.aiozc: AsyncEsphomeZeroconf | None = None
         # This is the current mdns state for each host (True, False, None)
         self.host_mdns_state: dict[str, bool | None] = {}
-        # This is the hostnames to filenames mapping
-        self.host_name_to_filename: dict[str, str] = {}
-        self.filename_to_host_name: dict[str, str] = {}
-        # This is a set of host names to track (i.e no_mdns = false)
-        self.host_name_with_mdns_enabled: set[set] = set()
         self._loop = asyncio.get_running_loop()
-
-    def filename_to_host_name_thread_safe(self, filename: str) -> str | None:
-        """Resolve a filename to an address in a thread-safe manner."""
-        return self.filename_to_host_name.get(filename)
 
     async def async_resolve_host(self, host_name: str) -> str | None:
         """Resolve a host name to an address in a thread-safe manner."""
@@ -42,53 +35,47 @@ class MDNSStatus:
     async def async_refresh_hosts(self):
         """Refresh the hosts to track."""
         dashboard = DASHBOARD
-        entries = dashboard.entries.async_all()
-        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
         host_mdns_state = self.host_mdns_state
-        host_name_to_filename = self.host_name_to_filename
-        filename_to_host_name = self.filename_to_host_name
-        ping_result = dashboard.ping_result
-
-        for entry in entries:
-            name = entry.name
-            # If no_mdns is set, remove it from the set
+        entries = dashboard.entries
+        poll_names: dict[str, set[DashboardEntry]] = {}
+        for entry in entries.async_all():
             if entry.no_mdns:
-                host_name_with_mdns_enabled.discard(name)
                 continue
-
-            # We are tracking this host
-            host_name_with_mdns_enabled.add(name)
-            filename = entry.filename
-
             # If we just adopted/imported this host, we likely
             # already have a state for it, so we should make sure
             # to set it so the dashboard shows it as online
-            if name in host_mdns_state:
-                ping_result[filename] = host_mdns_state[name]
+            if entry.loaded_integrations and "api" not in entry.loaded_integrations:
+                # No api available so we have to poll since
+                # the device won't respond to a request to ._esphomelib._tcp.local.
+                poll_names.setdefault(entry.name, set()).add(entry)
+            elif (online := host_mdns_state.get(entry.name, SENTINEL)) != SENTINEL:
+                entries.async_set_state(entry, bool_to_entry_state(online))
 
-            # Make sure the mapping is up to date
-            # so when we get an mdns update we can map it back
-            # to the filename
-            host_name_to_filename[name] = filename
-            filename_to_host_name[filename] = name
+        if poll_names and self.aiozc:
+            results = await asyncio.gather(
+                *(self.aiozc.async_resolve_host(name) for name in poll_names)
+            )
+            for name, address in zip(poll_names, results):
+                result = bool(address)
+                host_mdns_state[name] = result
+                for entry in poll_names[name]:
+                    entries.async_set_state(entry, bool_to_entry_state(result))
 
     async def async_run(self) -> None:
         dashboard = DASHBOARD
-
+        entries = dashboard.entries
         aiozc = AsyncEsphomeZeroconf()
         self.aiozc = aiozc
         host_mdns_state = self.host_mdns_state
-        host_name_to_filename = self.host_name_to_filename
-        host_name_with_mdns_enabled = self.host_name_with_mdns_enabled
-        ping_result = dashboard.ping_result
 
         def on_update(dat: dict[str, bool | None]) -> None:
-            """Update the global PING_RESULT dict."""
+            """Update the entry state."""
             for name, result in dat.items():
                 host_mdns_state[name] = result
-                if name in host_name_with_mdns_enabled:
-                    filename = host_name_to_filename[name]
-                    ping_result[filename] = result
+                if matching_entries := entries.get_by_name(name):
+                    for entry in matching_entries:
+                        if not entry.no_mdns:
+                            entries.async_set_state(entry, bool_to_entry_state(result))
 
         stat = DashboardStatus(on_update)
         imports = DashboardImportDiscovery()
@@ -100,10 +87,11 @@ class MDNSStatus:
             [stat.browser_callback, imports.browser_callback],
         )
 
+        ping_request = dashboard.ping_request
         while not dashboard.stop_event.is_set():
             await self.async_refresh_hosts()
-            await dashboard.ping_request.wait()
-            dashboard.ping_request.clear()
+            await ping_request.wait()
+            ping_request.clear()
 
         await browser.async_cancel()
         await aiozc.async_close()

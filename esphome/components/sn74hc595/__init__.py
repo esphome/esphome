@@ -5,7 +5,6 @@ from esphome.components import spi
 from esphome.const import (
     CONF_ID,
     CONF_SPI_ID,
-    CONF_MODE,
     CONF_NUMBER,
     CONF_INVERTED,
     CONF_DATA_PIN,
@@ -34,7 +33,6 @@ CONF_SN74HC595 = "sn74hc595"
 CONF_LATCH_PIN = "latch_pin"
 CONF_OE_PIN = "oe_pin"
 CONF_SR_COUNT = "sr_count"
-
 
 CONFIG_SCHEMA = cv.Any(
     cv.Schema(
@@ -88,24 +86,20 @@ async def to_code(config):
 
 
 def _validate_output_mode(value):
-    if value is not True:
+    if value.get(CONF_OUTPUT) is not True:
         raise cv.Invalid("Only output mode is supported")
     return value
 
 
-SN74HC595_PIN_SCHEMA = cv.All(
+SN74HC595_PIN_SCHEMA = pins.gpio_base_schema(
+    SN74HC595GPIOPin,
+    cv.int_range(min=0, max=2047),
+    modes=[CONF_OUTPUT],
+    mode_validator=_validate_output_mode,
+    invertable=True,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(SN74HC595GPIOPin),
         cv.Required(CONF_SN74HC595): cv.use_id(SN74HC595Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=2048, max_included=False),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_OUTPUT, default=True): cv.All(
-                    cv.boolean, _validate_output_mode
-                ),
-            },
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 

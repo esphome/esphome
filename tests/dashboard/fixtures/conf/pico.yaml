@@ -1,0 +1,47 @@
+substitutions:
+  name: picoproxy
+  friendly_name: Pico Proxy
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  project:
+    name: esphome.bluetooth-proxy
+    version: "1.0"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+api:
+logger:
+ota:
+improv_serial:
+
+dashboard_import:
+  package_import_url: github://esphome/firmware/bluetooth-proxy/esp32-generic.yaml@main
+
+button:
+  - platform: factory_reset
+    id: resetf
+  - platform: safe_mode
+    name: Safe Mode Boot
+    entity_category: diagnostic
+
+sensor:
+  - platform: template
+    id: pm11
+    name: "pm 1.0µm"
+    lambda: return 1.0;
+  - platform: template
+    id: pm251
+    name: "pm 2.5µm"
+    lambda: return 2.5;
+  - platform: template
+    id: pm101
+    name: "pm 10µm"
+    lambda: return 10;

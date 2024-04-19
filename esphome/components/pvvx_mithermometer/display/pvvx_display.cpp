@@ -13,7 +13,9 @@ void PVVXDisplay::dump_config() {
   ESP_LOGCONFIG(TAG, "  Service UUID          : %s", this->service_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Characteristic UUID   : %s", this->char_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Auto clear            : %s", YESNO(this->auto_clear_enabled_));
+#ifdef USE_TIME
   ESP_LOGCONFIG(TAG, "  Set time on connection: %s", YESNO(this->time_ != nullptr));
+#endif
   ESP_LOGCONFIG(TAG, "  Disconnect delay      : %" PRIu32 "ms", this->disconnect_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
 }

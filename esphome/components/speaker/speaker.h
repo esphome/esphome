@@ -18,6 +18,8 @@ class Speaker {
   virtual void start() = 0;
   virtual void stop() = 0;
 
+  virtual bool has_buffered_data() const = 0;
+
   bool is_running() const { return this->state_ == STATE_RUNNING; }
 
  protected:

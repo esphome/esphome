@@ -12,7 +12,7 @@ import argcomplete
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.config import iter_components, read_config, strip_default_ids
+from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_BAUD_RATE,
@@ -196,7 +196,7 @@ def write_cpp(config):
 def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
-    for name, component, conf in iter_components(CORE.config):
+    for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
             coro = wrap_to_code(name, component)
             CORE.add_job(coro, conf)
@@ -297,8 +297,27 @@ def upload_using_platformio(config, port):
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
+def check_permissions(port):
+    if os.name == "posix" and get_port_type(port) == "SERIAL":
+        # Check if we can open selected serial port
+        if not os.access(port, os.F_OK):
+            raise EsphomeError(
+                "The selected serial port does not exist. To resolve this issue, "
+                "check that the device is connected to this computer with a USB cable and that "
+                "the USB cable can be used for data and is not a power-only cable."
+            )
+        if not (os.access(port, os.R_OK | os.W_OK)):
+            raise EsphomeError(
+                "You do not have read or write permission on the selected serial port. "
+                "To resolve this issue, you can add your user to the dialout group "
+                f"by running the following command: sudo usermod -a -G dialout {os.getlogin()}. "
+                "You will need to log out & back in or reboot to activate the new group access."
+            )
+
+
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
+        check_permissions(host)
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
             return upload_using_esptool(config, host, file)
@@ -344,6 +363,7 @@ def show_logs(config, args, port):
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
+        check_permissions(port)
         return run_miniterm(config, port)
     if get_port_type(port) == "NETWORK" and "api" in config:
         if config[CONF_MDNS][CONF_DISABLED] and CONF_MQTT in config:
@@ -389,7 +409,8 @@ def command_config(args, config):
         output = re.sub(
             r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
         )
-    safe_print(output)
+    if not CORE.quiet:
+        safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 
@@ -764,6 +785,7 @@ def parse_args(argv):
     parser_logs = subparsers.add_parser(
         "logs",
         help="Validate the configuration and show all logs.",
+        aliases=["log"],
         parents=[mqtt_options],
     )
     parser_logs.add_argument(
