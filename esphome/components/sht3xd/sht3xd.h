@@ -28,7 +28,7 @@ class SHT3XDComponent : public PollingComponent, public sensirion_common::Sensir
     READ_SERIAL_FAILED,
     WRITE_HEATER_MODE_FAILED,
   } error_code_{NONE};
-  
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   bool heater_enabled_{true};
