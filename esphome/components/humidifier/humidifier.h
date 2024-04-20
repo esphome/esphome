@@ -45,21 +45,10 @@ class HumidifierCall {
   /// Set the target humidity of the humidifier device.
   HumidifierCall &set_target_humidity(optional<float> target_humidity);
 
-  /// Set the preset of the humidifier device.
-  HumidifierCall &set_preset(HumidifierPreset preset);
-  /// Set the preset of the humidifier device.
-  HumidifierCall &set_preset(optional<HumidifierPreset> preset);
-  /// Set the preset of the humidifier device based on a string.
-  HumidifierCall &set_preset(const std::string &preset);
-  /// Set the preset of the humidifier device based on a string.
-  HumidifierCall &set_preset(optional<std::string> preset);
-
   void perform();
 
   const optional<HumidifierMode> &get_mode() const;
   const optional<float> &get_target_humidity() const;
-  const optional<HumidifierPreset> &get_preset() const;
-  const optional<std::string> &get_custom_preset() const;
 
  protected:
   void validate_();
@@ -67,22 +56,14 @@ class HumidifierCall {
   Humidifier *const parent_;
   optional<HumidifierMode> mode_;
   optional<float> target_humidity_;
-  optional<HumidifierPreset> preset_;
-  optional<std::string> custom_preset_;
 };
 
 /// Struct used to save the state of the humidifier device in restore memory.
 /// Make sure to update RESTORE_STATE_VERSION when changing the struct entries.
 struct HumidifierDeviceRestoreState {
   HumidifierMode mode;
-  bool uses_custom_preset{false};
-  union {
-    HumidifierPreset preset;
-    uint8_t custom_preset;
-  };
-  union {
-    float target_humidity;
-  };
+  float target_humidity;
+  
 
   /// Convert this struct to a humidifier call that can be performed.
   HumidifierCall to_call(Humidifier *humidifier);
@@ -122,12 +103,6 @@ class Humidifier : public EntityBase {
     /// The target humidity of the humidifier device.
     float target_humidity;
   };
-
-  /// The active preset of the humidifier device.
-  optional<HumidifierPreset> preset;
-
-  /// The active custom preset mode of the climate device.
-  optional<std::string> custom_preset;
 
   /** Add a callback for the humidifier device state, each time the state of the humidifier device is updated
    * (using publish_state), this callback will be called.
@@ -171,12 +146,6 @@ class Humidifier : public EntityBase {
 
  protected:
   friend HumidifierCall;
-
-  /// Set preset. Reset custom preset. Return true if preset has been changed.
-  bool set_preset_(HumidifierPreset preset);
-
-  /// Set custom preset. Reset primary preset. Return true if preset has been changed.
-  bool set_custom_preset_(const std::string &preset);
 
   /** Get the default traits of this humidifier device.
    *

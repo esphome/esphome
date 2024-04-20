@@ -23,15 +23,24 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
   void dump_config() override;
 
   void set_sensor(sensor::Sensor *sensor);
-  Trigger<> *get_level_1_trigger() const;
-  void set_supports_level_1(bool supports_level_1);
-  Trigger<> *get_level_2_trigger() const;
-  void set_supports_level_2(bool supports_level_2);
-  Trigger<> *get_level_3_trigger() const;
-  void set_supports_level_3(bool supports_level_3);
-  Trigger<> *get_preset_trigger() const;
-  void set_supports_preset(bool supports_preset);
-  void set_normal_config(const GenericHumidifierTargetHumidityConfig &normal_config);
+  Trigger<> *get_normal_trigger() const;
+  void set_supports_normal(bool supports_normal);
+  Trigger<> *get_eco_trigger() const;
+  void set_supports_eco(bool supports_eco);
+  Trigger<> *get_away_trigger() const;
+  void set_supports_away(bool supports_away);
+  Trigger<> *get_boost_trigger() const;
+  void set_supports_boost(bool supports_boost);
+  Trigger<> *get_comfort_trigger() const;
+  void set_supports_comfort(bool supports_comfort);
+  Trigger<> *get_home_trigger() const;
+  void set_supports_home(bool supports_home);
+  Trigger<> *get_sleep_trigger() const;
+  void set_supports_sleep(bool supports_sleep);
+  Trigger<> *get_auto_trigger() const;
+  void set_supports_auto(bool supports_auto);
+  Trigger<> *get_baby_trigger() const;
+  void set_supports_baby(bool supports_baby);
 
  protected:
   /// Override control to change settings of the climate device.
@@ -48,39 +57,78 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
 
-  /** The trigger to call when the controller should switch to level 1.
+  /** The trigger to call when the controller should switch to normal mode.
    */
-  Trigger<> *level_1_trigger_;
-  /** Whether the controller supports level 1.
-   *
-   * A false value for this attribute means that the controller has no level 1 action
+  Trigger<> *normal_trigger_;
+  /** Whether the controller supports normal mode.
+   * A false value for this attribute means that the controller has no normal mode action
    */
-  bool supports_level_1_{false};
+  bool supports_normal_{false};
 
-  /** The trigger to call when the controller should switch to level 2.
+  /** The trigger to call when the controller should switch to eco mode.
    */
-  Trigger<> *level_2_trigger_;
-  /** Whether the controller supports level 2.
-   *
-   * A false value for this attribute means that the controller has no level 2 action.
+  Trigger<> *eco_trigger_;
+  /** Whether the controller supports eco mode.
+   * A false value for this attribute means that the controller has no eco mode action.
    */
-  bool supports_level_2_{false};
+  bool supports_eco_{false};
 
-  /** The trigger to call when the controller should switch to level 3.
+  /** The trigger to call when the controller should switch to away mode.
    */
-  Trigger<> *level_3_trigger_;
-  /** Whether the controller supports level 3.
-   *
-   * A false value for this attribute means that the controller has no level 3 action
+  Trigger<> *away_trigger_;
+  /** Whether the controller supports away mode.
+   * A false value for this attribute means that the controller has no away mode action
    */
-  bool supports_level_3_{false};
+  bool supports_away_{false};
+  
+  /** The trigger to call when the controller should switch to boost mode.
+   */
+  Trigger<> *boost_trigger_;
+  /** Whether the controller supports boost mode.
+   * A false value for this attribute means that the controller has no boost mode action
+   */
+  bool supports_boost_{false};
 
-  /** The trigger to call when the controller should switch to preset mode.
-   *
-   * A null value for this attribute means that the controller has no preset action
+  /** The trigger to call when the controller should switch to comfort mode.
    */
-  Trigger<> *preset_trigger_{nullptr};
-  bool supports_preset_{false};
+  Trigger<> *comfort_trigger_;
+  /** Whether the controller supports comfort mode.
+   * A false value for this attribute means that the controller has no comfort mode action.
+   */
+  bool supports_comfort_{false};
+
+  /** The trigger to call when the controller should switch to home mode.
+   */
+  Trigger<> *home_trigger_;
+  /** Whether the controller supports home mode.
+   * A false value for this attribute means that the controller has no home mode action
+   */
+  bool supports_home_{false};
+
+  /** The trigger to call when the controller should switch to sleep mode.
+   */
+  Trigger<> *sleep_trigger_;
+  /** Whether the controller supports sleep mode.
+   * A false value for this attribute means that the controller has no sleep mode action
+   */
+  bool supports_sleep_{false};
+
+  /** The trigger to call when the controller should switch to auto mode.
+   */
+  Trigger<> *auto_trigger_;
+  /** Whether the controller supports auto mode.
+   * A false value for this attribute means that the controller has no auto mode action.
+   */
+  bool supports_auto_{false};
+
+  /** The trigger to call when the controller should switch to baby mode.
+   */
+  Trigger<> *baby_trigger_;
+  /** Whether the controller supports baby mode.
+   * A false value for this attribute means that the controller has no baby mode action
+   */
+  bool supports_baby_{false};
+
   /** A reference to the trigger that was previously active.
    *
    * This is so that the previous trigger can be stopped before enabling a new one.

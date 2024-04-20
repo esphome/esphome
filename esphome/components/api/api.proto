@@ -927,23 +927,22 @@ message ClimateCommandRequest {
 // ==================== HUMIDIFIER ====================
 enum HumidifierMode {
   HUMIDIFIER_MODE_OFF = 0;
-  HUMIDIFIER_MODE_LEVEL_1 = 1;
-  HUMIDIFIER_MODE_LEVEL_2 = 2;
-  HUMIDIFIER_MODE_LEVEL_3 = 3;
-  HUMIDIFIER_MODE_PRESET = 4;
+  HUMIDIFIER_MODE_NORMAL = 1;
+  HUMIDIFIER_MODE_ECO = 2;
+  HUMIDIFIER_MODE_AWAY = 3;
+  HUMIDIFIER_MODE_BOOST = 4;
+  HUMIDIFIER_MODE_COMFORT = 5;
+  HUMIDIFIER_MODE_HOME = 6;
+  HUMIDIFIER_MODE_SLEEP = 7;
+  HUMIDIFIER_MODE_AUTO = 8;
+  HUMIDIFIER_MODE_BABY = 9;
 }
 enum HumidifierAction {
   HUMIDIFIER_ACTION_OFF = 0;
   // values same as mode for readability
-  HUMIDIFIER_ACTION_LEVEL_1 = 2;
-  HUMIDIFIER_ACTION_LEVEL_2 = 3;
-  HUMIDIFIER_ACTION_LEVEL_3 = 4;
-  HUMIDIFIER_ACTION_PRESET = 5;
-}
-enum HumidifierPreset {
-  HUMIDIFIER_PRESET_NONE = 0;
-  HUMIDIFIER_PRESET_CONSTANT_HUMIDITY = 1;
-  HUMIDIFIER_PRESET_BABY = 2;
+  HUMIDIFIER_ACTION_IDLE = 2;
+  HUMIDIFIER_ACTION_HUMIDIFYING = 3;
+  HUMIDIFIER_ACTION_DRYING = 4;
 }
 
 message ListEntitiesHumidifierResponse {
@@ -963,12 +962,10 @@ message ListEntitiesHumidifierResponse {
   float visual_max_humidity = 9;
   float visual_target_humidity_step = 10;
   bool supports_action = 11;
-  repeated HumidifierPreset supported_presets = 12;
-  repeated string supported_custom_presets = 13;
-  bool disabled_by_default = 14;
-  string icon = 15;
-  EntityCategory entity_category = 16;
-  float visual_current_humidity_step = 17;
+  bool disabled_by_default = 13;
+  string icon = 14;
+  EntityCategory entity_category = 15;
+  float visual_current_humidity_step = 16;
 }
 message HumidifierStateResponse {
   option (id) = 108;
@@ -981,8 +978,6 @@ message HumidifierStateResponse {
   float current_humidity = 3;
   float target_humidity = 4;
   HumidifierAction action = 5;
-  HumidifierPreset preset = 6;
-  string custom_preset = 7;
 }
 message HumidifierCommandRequest {
   option (id) = 109;
@@ -995,10 +990,6 @@ message HumidifierCommandRequest {
   HumidifierMode mode = 3;
   bool has_target_humidity = 4;
   float target_humidity = 5;
-  bool has_preset = 6;
-  HumidifierPreset preset = 7;
-  bool has_custom_preset = 8;
-  string custom_preset = 9;
 }
 
 // ==================== NUMBER ====================

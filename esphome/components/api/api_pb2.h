@@ -127,22 +127,21 @@ enum ClimatePreset : uint32_t {
 };
 enum HumidifierMode : uint32_t {
   HUMIDIFIER_MODE_OFF = 0,
-  HUMIDIFIER_MODE_LEVEL_1 = 1,
-  HUMIDIFIER_MODE_LEVEL_2 = 2,
-  HUMIDIFIER_MODE_LEVEL_3 = 3,
-  HUMIDIFIER_MODE_PRESET = 4,
+  HUMIDIFIER_MODE_NORMAL = 1,
+  HUMIDIFIER_MODE_ECO = 2,
+  HUMIDIFIER_MODE_AWAY = 3,
+  HUMIDIFIER_MODE_BOOST = 4,
+  HUMIDIFIER_MODE_COMFORT = 5,
+  HUMIDIFIER_MODE_HOME = 6,
+  HUMIDIFIER_MODE_SLEEP = 7,
+  HUMIDIFIER_MODE_AUTO = 8,
+  HUMIDIFIER_MODE_BABY = 9,
 };
 enum HumidifierAction : uint32_t {
   HUMIDIFIER_ACTION_OFF = 0,
-  HUMIDIFIER_ACTION_LEVEL_1 = 2,
-  HUMIDIFIER_ACTION_LEVEL_2 = 3,
-  HUMIDIFIER_ACTION_LEVEL_3 = 4,
-  HUMIDIFIER_ACTION_PRESET = 5,
-};
-enum HumidifierPreset : uint32_t {
-  HUMIDIFIER_PRESET_NONE = 0,
-  HUMIDIFIER_PRESET_CONSTANT_HUMIDITY = 1,
-  HUMIDIFIER_PRESET_BABY = 2,
+  HUMIDIFIER_ACTION_IDLE = 2,
+  HUMIDIFIER_ACTION_HUMIDIFYING = 3,
+  HUMIDIFIER_ACTION_DRYING = 4,
 };
 enum NumberMode : uint32_t {
   NUMBER_MODE_AUTO = 0,
@@ -1104,8 +1103,6 @@ class ListEntitiesHumidifierResponse : public ProtoMessage {
   float visual_max_humidity{0.0f};
   float visual_target_humidity_step{0.0f};
   bool supports_action{false};
-  std::vector<enums::HumidifierPreset> supported_presets{};
-  std::vector<std::string> supported_custom_presets{};
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
@@ -1127,8 +1124,6 @@ class HumidifierStateResponse : public ProtoMessage {
   float current_humidity{0.0f};
   float target_humidity{0.0f};
   enums::HumidifierAction action{};
-  enums::HumidifierPreset preset{};
-  std::string custom_preset{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1136,7 +1131,6 @@ class HumidifierStateResponse : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class HumidifierCommandRequest : public ProtoMessage {
@@ -1146,10 +1140,6 @@ class HumidifierCommandRequest : public ProtoMessage {
   enums::HumidifierMode mode{};
   bool has_target_humidity{false};
   float target_humidity{0.0f};
-  bool has_preset{false};
-  enums::HumidifierPreset preset{};
-  bool has_custom_preset{false};
-  std::string custom_preset{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1157,7 +1147,6 @@ class HumidifierCommandRequest : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesNumberResponse : public ProtoMessage {

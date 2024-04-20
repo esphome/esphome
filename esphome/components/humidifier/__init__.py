@@ -6,7 +6,6 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_ACTION_STATE_TOPIC,
     CONF_CURRENT_HUMIDITY_STATE_TOPIC,
-    CONF_CUSTOM_PRESET,
     CONF_ID,
     CONF_MAX_HUMIDITY,
     CONF_MIN_HUMIDITY,
@@ -15,9 +14,6 @@ from esphome.const import (
     CONF_MODE_STATE_TOPIC,
     CONF_ON_CONTROL,
     CONF_ON_STATE,
-    CONF_PRESET,
-    CONF_PRESET_COMMAND_TOPIC,
-    CONF_PRESET_STATE_TOPIC,
     CONF_TARGET_HUMIDITY,
     CONF_TARGET_HUMIDITY_COMMAND_TOPIC,
     CONF_TARGET_HUMIDITY_STATE_TOPIC,
@@ -40,22 +36,18 @@ HumidifierTraits = humidifier_ns.class_("HumidifierTraits")
 HumidifierMode = humidifier_ns.enum("HumidifierMode")
 HUMIDIFIER_MODES = {
     "OFF": HumidifierMode.HUMIDIFIER_MODE_OFF,
-    "LEVEL_1": HumidifierMode.HUMIDIFIER_MODE_LEVEL_1,
-    "LEVEL_2": HumidifierMode.HUMIDIFIER_MODE_LEVEL_2,
-    "LEVEL_3": HumidifierMode.HUMIDIFIER_MODE_LEVEL_3,
-    "PRESET": HumidifierMode.HUMIDIFIER_MODE_PRESET,
+    "NORMAL": HumidifierMode.HUMIDIFIER_MODE_NORMAL,
+    "ECO": HumidifierMode.HUMIDIFIER_MODE_ECO,
+    "AWAY": HumidifierMode.HUMIDIFIER_MODE_AWAY,
+    "BOOST": HumidifierMode.HUMIDIFIER_MODE_BOOST,
+    "COMFORT": HumidifierMode.HUMIDIFIER_MODE_COMFORT,
+    "HOME": HumidifierMode.HUMIDIFIER_MODE_HOME,
+    "SLEEP": HumidifierMode.HUMIDIFIER_MODE_SLEEP,
+    "AUTO": HumidifierMode.HUMIDIFIER_MODE_AUTO,
+    "BABY": HumidifierMode.HUMIDIFIER_MODE_BABY,
 }
 
 validate_humidifier_mode = cv.enum(HUMIDIFIER_MODES, upper=True)
-
-HumidifierPreset = humidifier_ns.enum("HumidifierPreset")
-HUMIDIFIER_PRESETS = {
-    "NONE": HumidifierPreset.HUMIDIFIER_PRESET_NONE,
-    "CONSTANT HUMIDITY": HumidifierPreset.HUMIDIFIER_PRESET_CONSTANT_HUMIDITY,
-    "BABY": HumidifierPreset.HUMIDIFIER_PRESET_BABY,
-}
-
-validate_humidifier_preset = cv.enum(HUMIDIFIER_PRESETS, upper=True)
 
 CONF_CURRENT_HUMIDITY = "current_humidity"
 
@@ -117,12 +109,6 @@ HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_MODE_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
-        cv.Optional(CONF_PRESET_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_PRESET_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
         cv.Optional(CONF_TARGET_HUMIDITY_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
@@ -175,12 +161,6 @@ async def setup_humidifier_core_(var, config):
             cg.add(mqtt_.set_custom_mode_command_topic(config[CONF_MODE_COMMAND_TOPIC]))
         if CONF_MODE_STATE_TOPIC in config:
             cg.add(mqtt_.set_custom_mode_state_topic(config[CONF_MODE_STATE_TOPIC]))
-        if CONF_PRESET_COMMAND_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_preset_command_topic(config[CONF_PRESET_COMMAND_TOPIC])
-            )
-        if CONF_PRESET_STATE_TOPIC in config:
-            cg.add(mqtt_.set_custom_preset_state_topic(config[CONF_PRESET_STATE_TOPIC]))
         if CONF_TARGET_HUMIDITY_COMMAND_TOPIC in config:
             cg.add(
                 mqtt_.set_custom_target_humidity_command_topic(
@@ -219,8 +199,6 @@ HUMIDIFIER_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.use_id(Humidifier),
         cv.Optional(CONF_MODE): cv.templatable(validate_humidifier_mode),
         cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
-        cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_humidifier_preset),
-        cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.templatable(cv.string_strict),
     }
 )
 
@@ -237,14 +215,6 @@ async def humidifier_control_to_code(config, action_id, template_arg, args):
     if CONF_TARGET_HUMIDITY in config:
         template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY], args, float)
         cg.add(var.set_target_temperature(template_))
-    if CONF_PRESET in config:
-        template_ = await cg.templatable(config[CONF_PRESET], args, HumidifierPreset)
-        cg.add(var.set_preset(template_))
-    if CONF_CUSTOM_PRESET in config:
-        template_ = await cg.templatable(
-            config[CONF_CUSTOM_PRESET], args, cg.std_string
-        )
-        cg.add(var.set_custom_preset(template_))
     return var
 
 

@@ -22,15 +22,25 @@ void GenericHumidifier::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults,
-    if (supports_level_1_) {
-      this->mode = humidifier::HUMIDIFIER_MODE_LEVEL_1;
-    } else if (supports_level_2_) {
-      this->mode = humidifier::HUMIDIFIER_MODE_LEVEL_2;
-    } else if (supports_level_3_) {
-      this->mode = humidifier::HUMIDIFIER_MODE_LEVEL_3;
-    } else if (supports_preset_) {
-      this->mode = humidifier::HUMIDIFIER_MODE_PRESET;
-    }
+    if (supports_normal_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_NORMAL;
+    } else if (supports_eco_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_ECO;
+    } else if (supports_away_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_AWAY;
+    } else if (supports_boost_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_BOOST;
+    } else if (supports_comfort_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_COMFORT;
+    } else if (supports_home_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_HOME;
+    } else if (supports_sleep_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_SLEEP;
+    } else if (supports_auto_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_AUTO;
+    } else if (supports_baby_) {
+      this->mode = humidifier::HUMIDIFIER_MODE_BABY;
+    } else 
   }
 }
 void GenericHumidifier::control(const humidifier::HumidifierCall &call) {
@@ -38,8 +48,6 @@ void GenericHumidifier::control(const humidifier::HumidifierCall &call) {
     this->mode = *call.get_mode();
   if (call.get_target_humidity().has_value())
     this->target_humidity = *call.get_target_humidity();
-  if (call.get_preset().has_value())
-    this->preset = *call.get_preset();
 
   this->compute_state_();
   this->publish_state();
@@ -50,14 +58,24 @@ humidifier::HumidifierTraits GenericHumidifier::traits() {
   traits.set_supported_modes({
       humidifier::HUMIDIFIER_MODE_OFF,
   });
-  if (supports_level_1_)
-    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_LEVEL_1);
-  if (supports_level_2_)
-    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_LEVEL_2);
-  if (supports_level_3_)
-    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_LEVEL_3);
-  if (supports_preset_)
-    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_PRESET);
+  if (supports_normal_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_NORMAL);
+  if (supports_eco_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_ECO);
+  if (supports_away_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_AWAY);
+  if (supports_boost_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_BOOST);
+  if (supports_comfort_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_COMFORT);
+  if (supports_home_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_HOME);
+  if (supports_sleep_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_SLEEP);
+  if (supports_auto_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_AUTO);
+  if (supports_baby_)
+    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_BABY);
   traits.set_supports_action(true);
   return traits;
 }
@@ -85,17 +103,32 @@ void GenericHumidifier::switch_to_action_(humidifier::HumidifierAction action) {
   Trigger<> *trig;
   switch (action) {
     case humidifier::HUMIDIFIER_ACTION_OFF:
-    case humidifier::HUMIDIFIER_ACTION_LEVEL_1:
-      trig = this->level_1_trigger_;
+    case humidifier::HUMIDIFIER_ACTION_NORMAL:
+      trig = this->normal_trigger_;
       break;
-    case humidifier::HUMIDIFIER_ACTION_LEVEL_2:
-      trig = this->level_2_trigger_;
+    case humidifier::HUMIDIFIER_ACTION_ECO:
+      trig = this->eco_trigger_;
       break;
-    case humidifier::HUMIDIFIER_ACTION_LEVEL_3:
-      trig = this->level_3_trigger_;
+    case humidifier::HUMIDIFIER_ACTION_AWAY:
+      trig = this->away_trigger_;
       break;
-    case humidifier::HUMIDIFIER_ACTION_PRESET:
-      trig = this->preset_trigger_;
+    case humidifier::HUMIDIFIER_ACTION_BOOST:
+      trig = this->boost_trigger_;
+      break;
+    case humidifier::HUMIDIFIER_ACTION_COMFORT:
+      trig = this->comfort_trigger_;
+      break;
+    case humidifier::HUMIDIFIER_ACTION_HOME:
+      trig = this->home_trigger_;
+      break;
+    case humidifier::HUMIDIFIER_ACTION_SLEEP:
+      trig = this->sleep_trigger_;
+      break;
+    case humidifier::HUMIDIFIER_ACTION_AUTO:
+      trig = this->auto_trigger_;
+      break;
+    case humidifier::HUMIDIFIER_ACTION_BABY:
+      trig = this->baby_trigger_;
       break;
     default:
       trig = nullptr;
@@ -112,25 +145,45 @@ void GenericHumidifier::set_normal_config(const GenericHumidifierTargetHumidityC
 }
 
 GenericHumidifier::GenericHumidifier()
-    : level_1_trigger_(new Trigger<>()),
-      level_2_trigger_(new Trigger<>()),
-      level_3_trigger_(new Trigger<>()),
-      preset_trigger_(new Trigger<>()) {}
+    : normal_trigger_(new Trigger<>()),
+      eco_trigger_(new Trigger<>()),
+      away_trigger_(new Trigger<>()),
+      boost_trigger_(new Trigger<>()),
+      comfort_trigger_(new Trigger<>()),
+      home_trigger_(new Trigger<>()),
+      sleep_trigger_(new Trigger<>()),
+      auto_trigger_(new Trigger<>()),
+      baby_trigger_(new Trigger<>()) {}
 void GenericHumidifier::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-Trigger<> *GenericHumidifier::get_level_1_trigger() const { return this->level_1_trigger_; }
-void GenericHumidifier::set_supports_level_1(bool supports_level_1) { this->supports_level_1_ = supports_level_1; }
-Trigger<> *GenericHumidifier::get_level_2_trigger() const { return this->level_2_trigger_; }
-void GenericHumidifier::set_supports_level_2(bool supports_level_2) { this->supports_level_2_ = supports_level_2; }
-Trigger<> *GenericHumidifier::get_level_3_trigger() const { return this->level_3_trigger_; }
-void GenericHumidifier::set_supports_level_3(bool supports_level_3) { this->supports_level_3_ = supports_level_3; }
-Trigger<> *GenericHumidifier::get_preset_trigger() const { return this->preset_trigger_; }
-void GenericHumidifier::set_supports_preset(bool supports_preset) { this->supports_preset_ = supports_preset; }
+Trigger<> *GenericHumidifier::get_normal_trigger() const { return this->normal_trigger_; }
+void GenericHumidifier::set_supports_normal(bool supports_normal) { this->supports_normal_ = supports_normal; }
+Trigger<> *GenericHumidifier::get_eco_trigger() const { return this->eco_trigger_; }
+void GenericHumidifier::set_supports_eco(bool supports_eco) { this->supports_eco_ = supports_eco; }
+Trigger<> *GenericHumidifier::get_away_trigger() const { return this->away_trigger_; }
+void GenericHumidifier::set_supports_away(bool supports_away) { this->supports_away_ = supports_away; }
+Trigger<> *GenericHumidifier::get_boost_trigger() const { return this->boost_trigger_; }
+void GenericHumidifier::set_supports_boost(bool supports_boost) { this->supports_boost_ = supports_boost; }
+Trigger<> *GenericHumidifier::get_comfort_trigger() const { return this->comfort_trigger_; }
+void GenericHumidifier::set_supports_comfort(bool supports_comfort) { this->supports_comfort_ = supports_comfort; }
+Trigger<> *GenericHumidifier::get_home_trigger() const { return this->home_trigger_; }
+void GenericHumidifier::set_supports_home(bool supports_home) { this->supports_home_ = supports_home; }
+Trigger<> *GenericHumidifier::get_sleep_trigger() const { return this->sleep_trigger_; }
+void GenericHumidifier::set_supports_sleep(bool supports_sleep) { this->supports_sleep_ = supports_sleep; }
+Trigger<> *GenericHumidifier::get_auto_trigger() const { return this->auto_trigger_; }
+void GenericHumidifier::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
+Trigger<> *GenericHumidifier::get_baby_trigger() const { return this->baby_trigger_; }
+void GenericHumidifier::set_supports_baby(bool supports_baby) { this->supports_baby_ = supports_baby; }
 void GenericHumidifier::dump_config() {
   LOG_HUMIDIFIER("", "Generic Humidifier", this);
-  ESP_LOGCONFIG(TAG, "  Supports LEVEL 1: %s", YESNO(this->supports_level_1_));
-  ESP_LOGCONFIG(TAG, "  Supports LEVEL 2: %s", YESNO(this->supports_level_2_));
-  ESP_LOGCONFIG(TAG, "  Supports LEVEL 3: %s", YESNO(this->supports_level_3_));
-  ESP_LOGCONFIG(TAG, "  Supports PRESET: %s", YESNO(this->supports_preset_));
+  ESP_LOGCONFIG(TAG, "  Supports Normal Mode: %s", YESNO(this->supports_normal_));
+  ESP_LOGCONFIG(TAG, "  Supports Eco Mode: %s", YESNO(this->supports_eco_));
+  ESP_LOGCONFIG(TAG, "  Supports Away Mode: %s", YESNO(this->supports_away_));
+  ESP_LOGCONFIG(TAG, "  Supports Boost Mode: %s", YESNO(this->supports_boost_));
+  ESP_LOGCONFIG(TAG, "  Supports Comfort Mode: %s", YESNO(this->supports_comfort_));
+  ESP_LOGCONFIG(TAG, "  Supports Home Mode: %s", YESNO(this->supports_home_));
+  ESP_LOGCONFIG(TAG, "  Supports Sleep Mode: %s", YESNO(this->supports_sleep_));
+  ESP_LOGCONFIG(TAG, "  Supports Auto Mode: %s", YESNO(this->supports_auto_));
+  ESP_LOGCONFIG(TAG, "  Supports Baby Mode: %s", YESNO(this->supports_baby_));
   ESP_LOGCONFIG(TAG, "  Default Target Humidity: %.2f%%", this->normal_config_.default_humidity);
 }
 

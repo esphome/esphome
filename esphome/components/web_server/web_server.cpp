@@ -1343,17 +1343,6 @@ std::string WebServer::humidifier_json(humidifier::Humidifier *obj, JsonDetail s
       JsonArray opt = root.createNestedArray("modes");
       for (humidifier::HumidifierMode m : traits.get_supported_modes())
         opt.add(PSTR_LOCAL(humidifier::humidifier_mode_to_string(m)));
-
-      if (traits.get_supports_presets() && obj->preset.has_value()) {
-        JsonArray opt = root.createNestedArray("presets");
-        for (humidifier::HumidifierPreset m : traits.get_supported_presets())
-          opt.add(PSTR_LOCAL(humidifier::humidifier_preset_to_string(m)));
-      }
-      if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
-        JsonArray opt = root.createNestedArray("custom_presets");
-        for (auto const &custom_preset : traits.get_supported_custom_presets())
-          opt.add(custom_preset);
-      }
     }
 
     bool has_state = false;
@@ -1365,12 +1354,6 @@ std::string WebServer::humidifier_json(humidifier::Humidifier *obj, JsonDetail s
       root["action"] = PSTR_LOCAL(humidifier_action_to_string(obj->action));
       root["state"] = root["action"];
       has_state = true;
-    }
-    if (traits.get_supports_presets() && obj->preset.has_value()) {
-      root["preset"] = PSTR_LOCAL(humidifier_preset_to_string(obj->preset.value()));
-    }
-    if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
-      root["custom_preset"] = obj->custom_preset.value().c_str();
     }
 
     if (traits.get_supports_current_humidity()) {

@@ -309,14 +309,24 @@ template<> const char *proto_enum_to_string<enums::HumidifierMode>(enums::Humidi
   switch (value) {
     case enums::HUMIDIFIER_MODE_OFF:
       return "HUMIDIFIER_MODE_OFF";
-    case enums::HUMIDIFIER_MODE_LEVEL_1:
-      return "HUMIDIFIER_MODE_LEVEL_1";
-    case enums::HUMIDIFIER_MODE_LEVEL_2:
-      return "HUMIDIFIER_MODE_LEVEL_2";
-    case enums::HUMIDIFIER_MODE_LEVEL_3:
-      return "HUMIDIFIER_MODE_LEVEL_3";
-    case enums::HUMIDIFIER_MODE_PRESET:
-      return "HUMIDIFIER_MODE_PRESET";
+    case enums::HUMIDIFIER_MODE_NORMAL:
+      return "HUMIDIFIER_MODE_NORMAL";
+    case enums::HUMIDIFIER_MODE_ECO:
+      return "HUMIDIFIER_MODE_ECO";
+    case enums::HUMIDIFIER_MODE_AWAY:
+      return "HUMIDIFIER_MODE_AWAY";
+    case enums::HUMIDIFIER_MODE_BOOST:
+      return "HUMIDIFIER_MODE_BOOST";
+    case enums::HUMIDIFIER_MODE_COMFORT:
+      return "HUMIDIFIER_MODE_COMFORT";
+    case enums::HUMIDIFIER_MODE_HOME:
+      return "HUMIDIFIER_MODE_HOME";
+    case enums::HUMIDIFIER_MODE_SLEEP:
+      return "HUMIDIFIER_MODE_SLEEP";
+    case enums::HUMIDIFIER_MODE_AUTO:
+      return "HUMIDIFIER_MODE_AUTO";
+    case enums::HUMIDIFIER_MODE_BABY:
+      return "HUMIDIFIER_MODE_BABY";
     default:
       return "UNKNOWN";
   }
@@ -327,28 +337,12 @@ template<> const char *proto_enum_to_string<enums::HumidifierAction>(enums::Humi
   switch (value) {
     case enums::HUMIDIFIER_ACTION_OFF:
       return "HUMIDIFIER_ACTION_OFF";
-    case enums::HUMIDIFIER_ACTION_LEVEL_1:
-      return "HUMIDIFIER_ACTION_LEVEL_1";
-    case enums::HUMIDIFIER_ACTION_LEVEL_2:
-      return "HUMIDIFIER_ACTION_LEVEL_2";
-    case enums::HUMIDIFIER_ACTION_LEVEL_3:
-      return "HUMIDIFIER_ACTION_LEVEL_3";
-    case enums::HUMIDIFIER_ACTION_PRESET:
-      return "HUMIDIFIER_ACTION_PRESET";
-    default:
-      return "UNKNOWN";
-  }
-}
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-template<> const char *proto_enum_to_string<enums::HumidifierPreset>(enums::HumidifierPreset value) {
-  switch (value) {
-    case enums::HUMIDIFIER_PRESET_NONE:
-      return "HUMIDIFIER_PRESET_NONE";
-    case enums::HUMIDIFIER_PRESET_CONSTANT_HUMIDITY:
-      return "HUMIDIFIER_PRESET_CONSTANT_HUMIDITY";
-    case enums::HUMIDIFIER_PRESET_BABY:
-      return "HUMIDIFIER_PRESET_BABY";
+    case enums::HUMIDIFIER_ACTION_IDLE:
+      return "HUMIDIFIER_ACTION_IDLE";
+    case enums::HUMIDIFIER_ACTION_HUMIDIFYING:
+      return "HUMIDIFIER_ACTION_HUMIDIFYING";
+    case enums::HUMIDIFIER_ACTION_DRYING:
+      return "HUMIDIFIER_ACTION_DRYING";
     default:
       return "UNKNOWN";
   }
@@ -4371,15 +4365,11 @@ bool ListEntitiesHumidifierResponse::decode_varint(uint32_t field_id, ProtoVarIn
       this->supports_action = value.as_bool();
       return true;
     }
-    case 12: {
-      this->supported_presets.push_back(value.as_enum<enums::HumidifierPreset>());
-      return true;
-    }
-    case 14: {
+    case 13: {
       this->disabled_by_default = value.as_bool();
       return true;
     }
-    case 16: {
+    case 15: {
       this->entity_category = value.as_enum<enums::EntityCategory>();
       return true;
     }
@@ -4401,11 +4391,7 @@ bool ListEntitiesHumidifierResponse::decode_length(uint32_t field_id, ProtoLengt
       this->unique_id = value.as_string();
       return true;
     }
-    case 13: {
-      this->supported_custom_presets.push_back(value.as_string());
-      return true;
-    }
-    case 15: {
+    case 14: {
       this->icon = value.as_string();
       return true;
     }
@@ -4431,7 +4417,7 @@ bool ListEntitiesHumidifierResponse::decode_32bit(uint32_t field_id, Proto32Bit 
       this->visual_target_humidity_step = value.as_float();
       return true;
     }
-    case 17: {
+    case 16: {
       this->visual_current_humidity_step = value.as_float();
       return true;
     }
@@ -4453,16 +4439,10 @@ void ListEntitiesHumidifierResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(9, this->visual_max_humidity);
   buffer.encode_float(10, this->visual_target_humidity_step);
   buffer.encode_bool(11, this->supports_action);
-  for (auto &it : this->supported_presets) {
-    buffer.encode_enum<enums::HumidifierPreset>(12, it, true);
-  }
-  for (auto &it : this->supported_custom_presets) {
-    buffer.encode_string(13, it, true);
-  }
-  buffer.encode_bool(14, this->disabled_by_default);
-  buffer.encode_string(15, this->icon);
-  buffer.encode_enum<enums::EntityCategory>(16, this->entity_category);
-  buffer.encode_float(17, this->visual_current_humidity_step);
+  buffer.encode_bool(13, this->disabled_by_default);
+  buffer.encode_string(14, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(15, this->entity_category);
+  buffer.encode_float(16, this->visual_current_humidity_step);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesHumidifierResponse::dump_to(std::string &out) const {
@@ -4518,18 +4498,6 @@ void ListEntitiesHumidifierResponse::dump_to(std::string &out) const {
   out.append(YESNO(this->supports_action));
   out.append("\n");
 
-  for (const auto &it : this->supported_presets) {
-    out.append("  supported_presets: ");
-    out.append(proto_enum_to_string<enums::HumidifierPreset>(it));
-    out.append("\n");
-  }
-
-  for (const auto &it : this->supported_custom_presets) {
-    out.append("  supported_custom_presets: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
   out.append("\n");
@@ -4557,20 +4525,6 @@ bool HumidifierStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value
     }
     case 5: {
       this->action = value.as_enum<enums::HumidifierAction>();
-      return true;
-    }
-    case 6: {
-      this->preset = value.as_enum<enums::HumidifierPreset>();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool HumidifierStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 7: {
-      this->custom_preset = value.as_string();
       return true;
     }
     default:
@@ -4601,8 +4555,6 @@ void HumidifierStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(3, this->current_humidity);
   buffer.encode_float(4, this->target_humidity);
   buffer.encode_enum<enums::HumidifierAction>(5, this->action);
-  buffer.encode_enum<enums::HumidifierPreset>(6, this->preset);
-  buffer.encode_string(7, this->custom_preset);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HumidifierStateResponse::dump_to(std::string &out) const {
@@ -4630,14 +4582,6 @@ void HumidifierStateResponse::dump_to(std::string &out) const {
   out.append("  action: ");
   out.append(proto_enum_to_string<enums::HumidifierAction>(this->action));
   out.append("\n");
-
-  out.append("  preset: ");
-  out.append(proto_enum_to_string<enums::HumidifierPreset>(this->preset));
-  out.append("\n");
-
-  out.append("  custom_preset: ");
-  out.append("'").append(this->custom_preset).append("'");
-  out.append("\n");
   out.append("}");
 }
 #endif
@@ -4653,28 +4597,6 @@ bool HumidifierCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt valu
     }
     case 4: {
       this->has_target_humidity = value.as_bool();
-      return true;
-    }
-    case 6: {
-      this->has_preset = value.as_bool();
-      return true;
-    }
-    case 7: {
-      this->preset = value.as_enum<enums::HumidifierPreset>();
-      return true;
-    }
-    case 8: {
-      this->has_custom_preset = value.as_bool();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool HumidifierCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 9: {
-      this->custom_preset = value.as_string();
       return true;
     }
     default:
@@ -4701,10 +4623,6 @@ void HumidifierCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::HumidifierMode>(3, this->mode);
   buffer.encode_bool(4, this->has_target_humidity);
   buffer.encode_float(5, this->target_humidity);
-  buffer.encode_bool(6, this->has_preset);
-  buffer.encode_enum<enums::HumidifierPreset>(7, this->preset);
-  buffer.encode_bool(8, this->has_custom_preset);
-  buffer.encode_string(9, this->custom_preset);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HumidifierCommandRequest::dump_to(std::string &out) const {
@@ -4730,22 +4648,6 @@ void HumidifierCommandRequest::dump_to(std::string &out) const {
   out.append("  target_humidity: ");
   sprintf(buffer, "%g", this->target_humidity);
   out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_preset: ");
-  out.append(YESNO(this->has_preset));
-  out.append("\n");
-
-  out.append("  preset: ");
-  out.append(proto_enum_to_string<enums::HumidifierPreset>(this->preset));
-  out.append("\n");
-
-  out.append("  has_custom_preset: ");
-  out.append(YESNO(this->has_custom_preset));
-  out.append("\n");
-
-  out.append("  custom_preset: ");
-  out.append("'").append(this->custom_preset).append("'");
   out.append("\n");
   out.append("}");
 }

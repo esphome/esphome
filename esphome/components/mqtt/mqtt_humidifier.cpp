@@ -26,15 +26,25 @@ void MQTTHumidifierComponent::send_discovery(JsonObject root, mqtt::SendDiscover
   // modes
   JsonArray modes = root.createNestedArray(MQTT_MODES);
   // sort array for nice UI in HA
-  if (traits.supports_mode(HUMIDIFIER_MODE_LEVEL_1))
-    modes.add("level 1");
+  if (traits.supports_mode(HUMIDIFIER_MODE_NORMAL))
+    modes.add("normal");
   modes.add("off");
-  if (traits.supports_mode(HUMIDIFIER_MODE_LEVEL_2))
-    modes.add("level 2");
-  if (traits.supports_mode(HUMIDIFIER_MODE_LEVEL_3))
-    modes.add("level 3");
-  if (traits.supports_mode(HUMIDIFIER_MODE_PRESET))
-    modes.add("preset");
+  if (traits.supports_mode(HUMIDIFIER_MODE_ECO))
+    modes.add("eco");
+  if (traits.supports_mode(HUMIDIFIER_MODE_AWAY))
+    modes.add("away");
+  if (traits.supports_mode(HUMIDIFIER_MODE_BOOST))
+    modes.add("boost");
+  if (traits.supports_mode(HUMIDIFIER_MODE_COMFORT))
+    modes.add("comfort");
+  if (traits.supports_mode(HUMIDIFIER_MODE_HOME))
+    modes.add("home");
+  if (traits.supports_mode(HUMIDIFIER_MODE_SLEEP))
+    modes.add("sleep");
+  if (traits.supports_mode(HUMIDIFIER_MODE_AUTO))
+    modes.add("auto");
+  if (traits.supports_mode(HUMIDIFIER_MODE_BOOST))
+    modes.add("baby");
 
   if (traits.get_supports_target_humidity()) {
     // humidity_command_topic
@@ -51,23 +61,6 @@ void MQTTHumidifierComponent::send_discovery(JsonObject root, mqtt::SendDiscover
   root["humi_step"] = traits.get_visual_target_humidity_step();
   // humidity units are always coerced to percentage internally
   root[MQTT_HUMIDITY_UNIT] = "%";
-
-  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
-    // preset_mode_command_topic
-    root[MQTT_PRESET_MODE_COMMAND_TOPIC] = this->get_preset_command_topic();
-    // preset_mode_state_topic
-    root[MQTT_PRESET_MODE_STATE_TOPIC] = this->get_preset_state_topic();
-    // presets
-    JsonArray presets = root.createNestedArray("preset_modes");
-    if (traits.supports_preset(HUMIDIFIER_PRESET_NONE))
-      presets.add("none");
-    if (traits.supports_preset(HUMIDIFIER_PRESET_CONSTANT_HUMIDITY))
-      presets.add("constant humidity");
-    if (traits.supports_preset(HUMIDIFIER_PRESET_BABY))
-      presets.add("baby");
-    for (const auto &preset : traits.get_supported_custom_presets())
-      presets.add(preset);
-  }
 
   if (traits.get_supports_action()) {
     // action_topic
@@ -99,13 +92,6 @@ void MQTTHumidifierComponent::setup() {
                     });
   }
 
-  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
-    this->subscribe(this->get_preset_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto call = this->device_->make_call();
-      call.set_preset(payload);
-      call.perform();
-    });
-  }
   this->device_->add_on_state_callback([this](Humidifier & /*unused*/) { this->publish_state_(); });
 }
 MQTTHumidifierComponent::MQTTHumidifierComponent(Humidifier *device) : device_(device) {}
@@ -121,18 +107,33 @@ bool MQTTHumidifierComponent::publish_state_() {
     case HUMIDIFIER_MODE_OFF:
       mode_s = "off";
       break;
-    case HUMIDIFIER_MODE_LEVEL_1:
-      mode_s = "level_1";
+    case HUMIDIFIER_MODE_NORMAL:
+      mode_s = "normal";
       break;
-    case HUMIDIFIER_MODE_LEVEL_2:
-      mode_s = "level_2";
+    case HUMIDIFIER_MODE_ECO:
+      mode_s = "eco";
       break;
-    case HUMIDIFIER_MODE_LEVEL_3:
-      mode_s = "level_3";
+    case HUMIDIFIER_MODE_AWAY:
+      mode_s = "away";
       break;
-    case HUMIDIFIER_MODE_PRESET:
-      mode_s = "preset";
+    case HUMIDIFIER_MODE_BOOST:
+      mode_s = "boost";
       break;
+    case HUMIDIFIER_MODE_COMFORT:
+      mode_s = "comfort";
+      break;
+    case HUMIDIFIER_MODE_HOME:
+      mode_s = "home";
+      break;
+    case HUMIDIFIER_MODE_SLEEP:
+      mode_s = "sleep";
+      break;
+    case HUMIDIFIER_MODE_AUTO:
+      mode_s = "auto";
+      break;
+    case HUMIDIFIER_MODE_BABY:
+      mode_s = "baby";
+      break;      
   }
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
@@ -150,44 +151,20 @@ bool MQTTHumidifierComponent::publish_state_() {
       success = false;
   }
 
-  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
-    std::string payload;
-    if (this->device_->preset.has_value()) {
-      switch (this->device_->preset.value()) {
-        case HUMIDIFIER_PRESET_NONE:
-          payload = "none";
-          break;
-        case HUMIDIFIER_PRESET_CONSTANT_HUMIDITY:
-          payload = "constant humidity";
-          break;
-        case HUMIDIFIER_PRESET_BABY:
-          payload = "baby";
-          break;
-      }
-    }
-    if (this->device_->custom_preset.has_value())
-      payload = this->device_->custom_preset.value();
-    if (!this->publish(this->get_preset_state_topic(), payload))
-      success = false;
-  }
-
   if (traits.get_supports_action()) {
     const char *payload = "unknown";
     switch (this->device_->action) {
       case HUMIDIFIER_ACTION_OFF:
         payload = "off";
         break;
-      case HUMIDIFIER_ACTION_LEVEL_1:
-        payload = "level_1";
+      case HUMIDIFIER_ACTION_IDLE:
+        payload = "idle";
         break;
-      case HUMIDIFIER_ACTION_LEVEL_2:
-        payload = "level_2";
+      case HUMIDIFIER_ACTION_HUMIDIFYING:
+        payload = "humidifying";
         break;
-      case HUMIDIFIER_ACTION_LEVEL_3:
-        payload = "level_3";
-        break;
-      case HUMIDIFIER_ACTION_PRESET:
-        payload = "preset";
+      case HUMIDIFIER_ACTION_DRYING:
+        payload = "drying";
         break;
     }
     if (!this->publish(this->get_action_state_topic(), payload))

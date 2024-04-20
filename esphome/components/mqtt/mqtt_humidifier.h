@@ -25,8 +25,6 @@ class MQTTHumidifierComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(target_humidity, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(target_humidity, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(action, state)
-  MQTT_COMPONENT_CUSTOM_TOPIC(preset, state)
-  MQTT_COMPONENT_CUSTOM_TOPIC(preset, command)
 
  protected:
   const EntityBase *get_entity() const override;

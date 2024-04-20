@@ -12,17 +12,11 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(HumidifierMode, mode)
   TEMPLATABLE_VALUE(float, target_humidity)
-  TEMPLATABLE_VALUE(float, target_humidity_low)
-  TEMPLATABLE_VALUE(float, target_humidity_high)
-  TEMPLATABLE_VALUE(HumidifierPreset, preset)
-  TEMPLATABLE_VALUE(std::string, custom_preset)
 
   void play(Ts... x) override {
     auto call = this->humidifier_->make_call();
     call.set_mode(this->mode_.optional_value(x...));
     call.set_target_humidity(this->target_humidity_.optional_value(x...));
-    call.set_preset(this->preset_.optional_value(x...));
-    call.set_preset(this->custom_preset_.optional_value(x...));
     call.perform();
   }
 

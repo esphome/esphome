@@ -671,11 +671,6 @@ bool APIConnection::send_humidifier_state(humidifier::Humidifier *humidifier) {
   if (traits.get_supports_target_humidity()) {
     resp.target_humidity = humidifier->target_humidity;
   }
-  if (traits.get_supports_presets() && humidifier->preset.has_value()) {
-    resp.preset = static_cast<enums::HumidifierPreset>(humidifier->preset.value());
-  }
-  if (!traits.get_supported_custom_presets().empty() && humidifier->custom_preset.has_value())
-    resp.custom_preset = humidifier->custom_preset.value();
   return this->send_humidifier_state_response(resp);
 }
 bool APIConnection::send_humidifier_info(humidifier::Humidifier *humidifier) {
@@ -704,10 +699,6 @@ bool APIConnection::send_humidifier_info(humidifier::Humidifier *humidifier) {
 
   msg.supports_action = traits.get_supports_action();
 
-  for (auto preset : traits.get_supported_presets())
-    msg.supported_presets.push_back(static_cast<enums::HumidifierPreset>(preset));
-  for (auto const &custom_preset : traits.get_supported_custom_presets())
-    msg.supported_custom_presets.push_back(custom_preset);
   return this->send_list_entities_humidifier_response(msg);
 }
 void APIConnection::humidifier_command(const HumidifierCommandRequest &msg) {
@@ -720,10 +711,6 @@ void APIConnection::humidifier_command(const HumidifierCommandRequest &msg) {
     call.set_mode(static_cast<humidifier::HumidifierMode>(msg.mode));
   if (msg.has_target_humidity)
     call.set_target_humidity(msg.target_humidity);
-  if (msg.has_preset)
-    call.set_preset(static_cast<humidifier::HumidifierPreset>(msg.preset));
-  if (msg.has_custom_preset)
-    call.set_preset(msg.custom_preset);
   call.perform();
 }
 #endif
