@@ -1434,6 +1434,6 @@ humidifier:
     sensor: ha_hello_world
     default_target_humidity: 65
     normal_action:
-      - switch.turn_on: out
+      - output.turn_on: out
     eco_action:
-      - switch.turn_off: out
+      - output.turn_off: out
