@@ -91,5 +91,5 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
   GenericHumidifierTargetHumidityConfig normal_config_{};
 };
 
-}  // namespace bang_bang
+}  // namespace generic_humidifier
 }  // namespace esphome

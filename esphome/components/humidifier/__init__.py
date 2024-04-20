@@ -58,9 +58,6 @@ HUMIDIFIER_PRESETS = {
 validate_humidifier_preset = cv.enum(HUMIDIFIER_PRESETS, upper=True)
 
 CONF_CURRENT_HUMIDITY = "current_humidity"
-# CONF_MIN_HUMIDITY = "min_humidity"
-# CONF_MAX_HUMIDITY = "max_humidity"
-# CONF_TARGET_HUMIDITY = "target_humidity"
 
 visual_humidity = cv.float_with_unit(
     "visual_humidity", "(%)?"
@@ -105,8 +102,6 @@ HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEM
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTHumidifierComponent),
         cv.Optional(CONF_VISUAL, default={}): cv.Schema(
             {
-                # cv.Optional(CONF_MIN_HUMIDITY): cv.humidity,
-                # cv.Optional(CONF_MAX_HUMIDITY): cv.humidity,
                 cv.Optional(CONF_HUMIDITY_STEP): VISUAL_HUMIDITY_STEP_SCHEMA,
             }
         ),

@@ -22,7 +22,7 @@ void GenericHumidifier::setup() {
   if (restore.has_value()) {
     restore->to_call(this).perform();
   } else {
-    // restore from defaults, change_away handles those for us
+    // restore from defaults, 
     if (supports_level_1_) {
       this->mode = humidifier::HUMIDIFIER_MODE_LEVEL_1;
     } else if (supports_level_2_) {
@@ -68,45 +68,9 @@ void GenericHumidifier::compute_state_() {
     return;
   }
   if (std::isnan(this->current_humidity) || std::isnan(this->target_humidity)) {
-    // if any control parameters are nan, go to OFF action (not IDLE!)
     this->switch_to_action_(humidifier::HUMIDIFIER_ACTION_OFF);
     return;
   }
-
-  // #############################################################################
-//   const bool too_cold = this->current_temperature < this->target_temperature_low;
-//   const bool too_hot = this->current_temperature > this->target_temperature_high;
-
-//   climate::ClimateAction target_action;
-//   if (too_cold) {
-//     // too cold -> enable heating if possible and enabled, else idle
-//     if (this->supports_heat_ &&
-//         (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_HEAT)) {
-//       target_action = climate::CLIMATE_ACTION_HEATING;
-//     } else {
-//       target_action = climate::CLIMATE_ACTION_IDLE;
-//     }
-//   } else if (too_hot) {
-//     // too hot -> enable cooling if possible and enabled, else idle
-//     if (this->supports_cool_ &&
-//         (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_COOL)) {
-//       target_action = climate::CLIMATE_ACTION_COOLING;
-//     } else {
-//       target_action = climate::CLIMATE_ACTION_IDLE;
-//     }
-//   } else {
-//     // neither too hot nor too cold -> in range
-//     if (this->supports_cool_ && this->supports_heat_ && this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
-//       // if supports both ends and both cooling and heating enabled, go to idle action
-//       target_action = climate::CLIMATE_ACTION_IDLE;
-//     } else {
-//       // else use current mode and don't change (hysteresis)
-//       target_action = this->action;
-//     }
-//   }
-
-//   this->switch_to_action_(target_action);
-// #############################################
 }
 
 
@@ -115,17 +79,6 @@ void GenericHumidifier::switch_to_action_(humidifier::HumidifierAction action) {
     // already in target mode
     return;
   }
-// #############################################
-  // if ((action == climate::CLIMATE_ACTION_OFF && this->action == climate::CLIMATE_ACTION_IDLE) ||
-  //     (action == climate::CLIMATE_ACTION_IDLE && this->action == climate::CLIMATE_ACTION_OFF)) {
-  //   // switching from OFF to IDLE or vice-versa
-  //   // these only have visual difference. OFF means user manually disabled,
-  //   // IDLE means it's in auto mode but value is in target range.
-  //   this->action = action;
-  //   this->publish_state();
-  //   return;
-  // }
-// ############################################
 
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop_action();
@@ -155,16 +108,7 @@ void GenericHumidifier::switch_to_action_(humidifier::HumidifierAction action) {
   this->prev_trigger_ = trig;
   this->publish_state();
 }
-// void BangBangClimate::change_away_(bool away) {
-//   if (!away) {
-//     this->target_temperature_low = this->normal_config_.default_temperature_low;
-//     this->target_temperature_high = this->normal_config_.default_temperature_high;
-//   } else {
-//     this->target_temperature_low = this->away_config_.default_temperature_low;
-//     this->target_temperature_high = this->away_config_.default_temperature_high;
-//   }
-//   this->preset = away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME;
-// }
+
 void GenericHumidifier::set_normal_config(const GenericHumidifierTargetHumidityConfig &normal_config) {
   this->normal_config_ = normal_config;
 }

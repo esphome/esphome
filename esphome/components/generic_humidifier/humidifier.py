@@ -46,11 +46,7 @@ async def to_code(config):
         config[CONF_DEFAULT_TARGET_HUMIDITY],
     )
     cg.add(var.set_normal_config(normal_config))
-
-    # await automation.build_automation(
-    #     var.get_idle_trigger(), [], config[CONF_IDLE_ACTION]
-    # )
-
+    
     if level_1_action_config := config.get(CONF_HUMIDIFIER_LEVEL_1_ACTION):
         await automation.build_automation(
             var.get_level_1_trigger(), [], level_1_action_config
