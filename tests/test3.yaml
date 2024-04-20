@@ -1435,5 +1435,5 @@ humidifier:
     default_target_humidity: 65
     normal_action:
       - switch.turn_on: out
-    eco_action:  
+    eco_action:
       - switch.turn_off: out
