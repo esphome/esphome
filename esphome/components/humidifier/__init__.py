@@ -51,7 +51,7 @@ validate_humidifier_mode = cv.enum(HUMIDIFIER_MODES, upper=True)
 HumidifierPreset = humidifier_ns.enum("HumidifierPreset")
 HUMIDIFIER_PRESETS = {
     "NONE": HumidifierPreset.HUMIDIFIER_PRESET_NONE,
-    "CONSTANT HUMIDITY":  HumidifierPreset.HUMIDIFIER_PRESET_CONSTANT_HUMIDITY,
+    "CONSTANT HUMIDITY": HumidifierPreset.HUMIDIFIER_PRESET_CONSTANT_HUMIDITY,
     "BABY": HumidifierPreset.HUMIDIFIER_PRESET_BABY,
 }
 
@@ -123,7 +123,7 @@ HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEM
         cv.Optional(CONF_PRESET_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
-        
+
         cv.Optional(CONF_TARGET_HUMIDITY_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
@@ -160,7 +160,6 @@ async def setup_humidifier_core_(var, config):
             )
         )
 
-
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
@@ -195,7 +194,7 @@ async def setup_humidifier_core_(var, config):
                     config[CONF_TARGET_HUMIDITY_STATE_TOPIC]
                 )
             )
-        
+
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
@@ -246,7 +245,7 @@ async def humidifier_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(
             config[CONF_CUSTOM_PRESET], args, cg.std_string
         )
-        cg.add(var.set_custom_preset(template_))        
+        cg.add(var.set_custom_preset(template_))
     return var
 
 

@@ -26,7 +26,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_HUMIDIFIER_LEVEL_2_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_HUMIDIFIER_LEVEL_3_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_HUMIDIFIER_PRESET_ACTION): automation.validate_automation(single=True),
-            
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_HUMIDIFIER_LEVEL_1_ACTION, CONF_HUMIDIFIER_LEVEL_2_ACTION, CONF_HUMIDIFIER_LEVEL_3_ACTION),
@@ -41,33 +40,31 @@ async def to_code(config):
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
 
-
     normal_config = GenericHumidifierTargetHumidityConfig(
         config[CONF_DEFAULT_TARGET_HUMIDITY],
     )
     cg.add(var.set_normal_config(normal_config))
-    
+
     if level_1_action_config := config.get(CONF_HUMIDIFIER_LEVEL_1_ACTION):
         await automation.build_automation(
             var.get_level_1_trigger(), [], level_1_action_config
         )
         cg.add(var.set_supports_level_1(True))
-    
+
     if level_2_action_config := config.get(CONF_HUMIDIFIER_LEVEL_2_ACTION):
-            await automation.build_automation(
-                var.get_level_2_trigger(), [], level_2_action_config
-            )
-            cg.add(var.set_supports_level_2(True))
+        await automation.build_automation(
+            var.get_level_2_trigger(), [], level_2_action_config
+        )
+        cg.add(var.set_supports_level_2(True))
 
     if level_3_action_config := config.get(CONF_HUMIDIFIER_LEVEL_3_ACTION):
-            await automation.build_automation(
-                var.get_level_3_trigger(), [], level_3_action_config
-            )
-            cg.add(var.set_supports_level_3(True))
+        await automation.build_automation(
+            var.get_level_3_trigger(), [], level_3_action_config
+        )
+        cg.add(var.set_supports_level_3(True))
 
     if preset_action_config := config.get(CONF_HUMIDIFIER_PRESET_ACTION):
         await automation.build_automation(
             var.get_preset_trigger(), [], preset_action_config
         )
         cg.add(var.set_supports_preset(True))
-
