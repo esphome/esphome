@@ -16,7 +16,9 @@ from esphome.const import (
     CONF_FAN_MODE_COMMAND_TOPIC,
     CONF_FAN_MODE_STATE_TOPIC,
     CONF_ID,
+    CONF_MAX_HUMIDITY,
     CONF_MAX_TEMPERATURE,
+    CONF_MIN_HUMIDITY,
     CONF_MIN_TEMPERATURE,
     CONF_MODE,
     CONF_MODE_COMMAND_TOPIC,
@@ -29,6 +31,7 @@ from esphome.const import (
     CONF_SWING_MODE,
     CONF_SWING_MODE_COMMAND_TOPIC,
     CONF_SWING_MODE_STATE_TOPIC,
+    CONF_TARGET_HUMIDITY,
     CONF_TARGET_HUMIDITY_COMMAND_TOPIC,
     CONF_TARGET_HUMIDITY_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE,
@@ -109,9 +112,6 @@ CLIMATE_SWING_MODES = {
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
 CONF_CURRENT_TEMPERATURE = "current_temperature"
-CONF_MIN_HUMIDITY = "min_humidity"
-CONF_MAX_HUMIDITY = "max_humidity"
-CONF_TARGET_HUMIDITY = "target_humidity"
 
 visual_temperature = cv.float_with_unit(
     "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"

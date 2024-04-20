@@ -61,7 +61,7 @@ bool ListEntitiesIterator::on_climate(climate::Climate *climate) { return this->
 
 #ifdef USE_HUMIDIFIER
 bool ListEntitiesIterator::on_humidifier(humidifier::Humidifier *humidifier) {
-  return this->client_->send_humidifier_info(humidifier); 
+  return this->client_->send_humidifier_info(humidifier);
 }
 #endif
 

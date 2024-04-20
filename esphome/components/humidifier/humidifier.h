@@ -137,7 +137,7 @@ class Humidifier : public EntityBase {
   void add_on_state_callback(std::function<void(Humidifier &)> &&callback);
 
   /**
-   * Add a callback for the humidifier device configuration; each time the configuration parameters of a humidifier 
+   * Add a callback for the humidifier device configuration; each time the configuration parameters of a humidifier
    * device is updated (using perform() of a HumidifierCall), this callback will be called, before any on_state
    * callback.
    *

@@ -144,7 +144,7 @@ static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<HumidifierDeviceRestoreState> Humidifier::restore_state_() {
   this->rtc_ = global_preferences->make_preference<HumidifierDeviceRestoreState>(this->get_object_id_hash() ^
-                                                                                RESTORE_STATE_VERSION);
+                                                                                 RESTORE_STATE_VERSION);
   HumidifierDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
@@ -284,7 +284,7 @@ template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optio
 }
 
 bool Humidifier::set_preset_(HumidifierPreset preset) {
-  return set_alternative(this->preset, this->custom_preset, preset); 
+  return set_alternative(this->preset, this->custom_preset, preset);
 }
 
 bool Humidifier::set_custom_preset_(const std::string &preset) {

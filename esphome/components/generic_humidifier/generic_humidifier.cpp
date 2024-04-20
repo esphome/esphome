@@ -94,7 +94,7 @@ void GenericHumidifier::switch_to_action_(humidifier::HumidifierAction action) {
     case humidifier::HUMIDIFIER_ACTION_LEVEL_3:
       trig = this->level_3_trigger_;
       break;
-   case humidifier::HUMIDIFIER_ACTION_PRESET:
+    case humidifier::HUMIDIFIER_ACTION_PRESET:
       trig = this->preset_trigger_;
       break;
     default:
