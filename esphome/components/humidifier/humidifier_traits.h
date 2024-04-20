@@ -31,9 +31,15 @@ namespace humidifier {
  *  - supports action - if the humidifier supports reporting the active
  *    current action of the device with the action property.
  *    - off
- *    - idle
- *    - humidifying
- *    - drying
+ *    - normal
+ *    - eco
+ *    - away
+ *    - boost
+ *    - comfort
+ *    - home
+ *    - sleep
+ *    - auto
+ *    - baby
  *
  * This class also contains static data for the humidifier device display:
  *  - visual min/max humidity - tells the frontend what range of temperatures the humidifier
@@ -59,7 +65,7 @@ class HumidifierTraits {
   void set_supports_away(bool supports_away) { set_mode_support_(HUMIDIFIER_MODE_AWAY, supports_away); }
   void set_supports_boost(bool supports_boost) { set_mode_support_(HUMIDIFIER_MODE_BOOST, supports_boost); }
   void set_supports_comfort(bool supports_comfort) { set_mode_support_(HUMIDIFIER_MODE_COMFORT, supports_comfort); }
-  void set_supports_home(bool supports_home) { set_mode_support_(HUMIDIFIER_MODE_HOME, supports_home); }  
+  void set_supports_home(bool supports_home) { set_mode_support_(HUMIDIFIER_MODE_HOME, supports_home); } 
   void set_supports_sleep(bool supports_sleep) { set_mode_support_(HUMIDIFIER_MODE_SLEEP, supports_sleep); }
   void set_supports_auto(bool supports_auto) { set_mode_support_(HUMIDIFIER_MODE_AUTO, supports_auto); }
   void set_supports_baby(bool supports_baby) { set_mode_support_(HUMIDIFIER_MODE_BABY, supports_baby); }

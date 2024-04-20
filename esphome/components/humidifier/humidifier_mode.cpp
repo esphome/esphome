@@ -33,12 +33,24 @@ const LogString *humidifier_action_to_string(HumidifierAction action) {
   switch (action) {
     case HUMIDIFIER_ACTION_OFF:
       return LOG_STR("OFF");
-    case HUMIDIFIER_ACTION_IDLE:
-      return LOG_STR("IDLE");
-    case HUMIDIFIER_ACTION_HUMIDIFYING:
-      return LOG_STR("HUMIDIFYING");
-    case HUMIDIFIER_ACTION_DRYING:
-      return LOG_STR("DRYING");
+    case HUMIDIFIER_ACTION_NORMAL:
+      return LOG_STR("NORMAL");
+    case HUMIDIFIER_ACTION_ECO:
+      return LOG_STR("ECO");
+    case HUMIDIFIER_ACTION_AWAY:
+      return LOG_STR("AWAY");
+    case HUMIDIFIER_ACTION_BOOST:
+      return LOG_STR("BOOST");
+    case HUMIDIFIER_ACTION_COMFORT:
+      return LOG_STR("COMFORT");
+    case HUMIDIFIER_ACTION_HOME:
+      return LOG_STR("HOME");
+    case HUMIDIFIER_ACTION_SLEEP:
+      return LOG_STR("SLEEP");
+    case HUMIDIFIER_ACTION_AUTO:
+      return LOG_STR("AUTO");
+    case HUMIDIFIER_ACTION_BABY:
+      return LOG_STR("BABY");
     default:
       return LOG_STR("UNKNOWN");
   }

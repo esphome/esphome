@@ -337,12 +337,24 @@ template<> const char *proto_enum_to_string<enums::HumidifierAction>(enums::Humi
   switch (value) {
     case enums::HUMIDIFIER_ACTION_OFF:
       return "HUMIDIFIER_ACTION_OFF";
-    case enums::HUMIDIFIER_ACTION_IDLE:
-      return "HUMIDIFIER_ACTION_IDLE";
-    case enums::HUMIDIFIER_ACTION_HUMIDIFYING:
-      return "HUMIDIFIER_ACTION_HUMIDIFYING";
-    case enums::HUMIDIFIER_ACTION_DRYING:
-      return "HUMIDIFIER_ACTION_DRYING";
+    case enums::HUMIDIFIER_ACTION_NORMAL:
+      return "HUMIDIFIER_ACTION_NORMAL";
+    case enums::HUMIDIFIER_ACTION_ECO:
+      return "HUMIDIFIER_ACTION_ECO";
+    case enums::HUMIDIFIER_ACTION_AWAY:
+      return "HUMIDIFIER_ACTION_AWAY";
+    case enums::HUMIDIFIER_ACTION_BOOST:
+      return "HUMIDIFIER_ACTION_BOOST";
+    case enums::HUMIDIFIER_ACTION_COMFORT:
+      return "HUMIDIFIER_ACTION_COMFORT";
+    case enums::HUMIDIFIER_ACTION_HOME:
+      return "HUMIDIFIER_ACTION_HOME";
+    case enums::HUMIDIFIER_ACTION_SLEEP:
+      return "HUMIDIFIER_ACTION_SLEEP";
+    case enums::HUMIDIFIER_ACTION_AUTO:
+      return "HUMIDIFIER_ACTION_AUTO";
+    case enums::HUMIDIFIER_ACTION_BABY:
+      return "HUMIDIFIER_ACTION_BABY";
     default:
       return "UNKNOWN";
   }

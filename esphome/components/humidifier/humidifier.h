@@ -63,7 +63,6 @@ class HumidifierCall {
 struct HumidifierDeviceRestoreState {
   HumidifierMode mode;
   float target_humidity;
-  
 
   /// Convert this struct to a humidifier call that can be performed.
   HumidifierCall to_call(Humidifier *humidifier);

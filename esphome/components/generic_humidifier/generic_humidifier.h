@@ -41,6 +41,7 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
   void set_supports_auto(bool supports_auto);
   Trigger<> *get_baby_trigger() const;
   void set_supports_baby(bool supports_baby);
+  void set_normal_config(const GenericHumidifierTargetHumidityConfig &normal_config);
 
  protected:
   /// Override control to change settings of the climate device.
@@ -80,7 +81,7 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
    * A false value for this attribute means that the controller has no away mode action
    */
   bool supports_away_{false};
-  
+
   /** The trigger to call when the controller should switch to boost mode.
    */
   Trigger<> *boost_trigger_;

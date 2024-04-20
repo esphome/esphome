@@ -133,7 +133,7 @@ bool MQTTHumidifierComponent::publish_state_() {
       break;
     case HUMIDIFIER_MODE_BABY:
       mode_s = "baby";
-      break;      
+      break;
   }
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
@@ -157,14 +157,32 @@ bool MQTTHumidifierComponent::publish_state_() {
       case HUMIDIFIER_ACTION_OFF:
         payload = "off";
         break;
-      case HUMIDIFIER_ACTION_IDLE:
-        payload = "idle";
+      case HUMIDIFIER_ACTION_NORMAL:
+        mode_s = "normal";
         break;
-      case HUMIDIFIER_ACTION_HUMIDIFYING:
-        payload = "humidifying";
+      case HUMIDIFIER_ACTION_ECO:
+        mode_s = "eco";
         break;
-      case HUMIDIFIER_ACTION_DRYING:
-        payload = "drying";
+      case HUMIDIFIER_ACTION_AWAY:
+        mode_s = "away";
+        break;
+      case HUMIDIFIER_ACTION_BOOST:
+        mode_s = "boost";
+        break;
+      case HUMIDIFIER_ACTION_COMFORT:
+        mode_s = "comfort";
+        break;
+      case HUMIDIFIER_ACTION_HOME:
+        mode_s = "home";
+        break;
+      case HUMIDIFIER_ACTION_SLEEP:
+        mode_s = "sleep";
+        break;
+      case HUMIDIFIER_ACTION_AUTO:
+        mode_s = "auto";
+        break;
+      case HUMIDIFIER_ACTION_BABY:
+        mode_s = "baby";
         break;
     }
     if (!this->publish(this->get_action_state_topic(), payload))

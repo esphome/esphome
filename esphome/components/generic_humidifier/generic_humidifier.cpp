@@ -40,7 +40,7 @@ void GenericHumidifier::setup() {
       this->mode = humidifier::HUMIDIFIER_MODE_AUTO;
     } else if (supports_baby_) {
       this->mode = humidifier::HUMIDIFIER_MODE_BABY;
-    } else 
+    }
   }
 }
 void GenericHumidifier::control(const humidifier::HumidifierCall &call) {

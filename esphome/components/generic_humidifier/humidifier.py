@@ -35,7 +35,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NORMAL_ACTION): automation.validate_automation(
                 single=True
             ),
-            cv.Required(CONF_ECO_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_ECO_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_AWAY_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_BOOST_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_COMFORT_ACTION): automation.validate_automation(
