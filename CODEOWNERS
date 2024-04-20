@@ -91,7 +91,7 @@ esphome/components/daikin_arc/* @MagicBear
 esphome/components/daikin_brc/* @hagak
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
-esphome/components/datetime/* @rfdarter
+esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
@@ -115,6 +115,7 @@ esphome/components/esp32_ble_server/* @Rapsssito @clydebarrow @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
+esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
@@ -363,6 +364,7 @@ esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tlc5947/* @rnauber
+esphome/components/tlc5971/* @IJIJI
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
@@ -404,6 +406,7 @@ esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xgzp68xx/* @gcormier
+esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs

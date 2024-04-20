@@ -64,7 +64,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
  protected:
   light::ESPColorView get_view_internal(int32_t index) const override;
 
-  size_t get_buffer_size_() const { return this->num_leds_ * (3 + this->is_rgbw_); }
+  size_t get_buffer_size_() const { return this->num_leds_ * (this->is_rgbw_ || this->is_wrgb_ ? 4 : 3); }
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
