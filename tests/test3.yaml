@@ -1433,10 +1433,7 @@ humidifier:
     name: "HA Livingroom Humidifier"
     sensor: ha_hello_world
     default_target_humidity: 65
-    humidifier_level_1_action:
-      - output.turn_on: out
-    humidifier_level_2_action:
-      - output.turn_on: out2
-    humidifier_level_3_action:
-      - output.turn_on: out
-      - output.turn_on: out2
+    normal_action:
+      - switch.turn_on: out
+    eco_action:  
+      - switch.turn_off: out
