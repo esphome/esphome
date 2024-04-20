@@ -1168,13 +1168,6 @@ output:
     id: my_slow_pwm
     period: 15s
     restart_cycle_on_state_change: false
-  - platform: gpio
-    id: h_low
-    pin: D5
-  - platform: gpio 
-    id: h_med
-    pin: D2
-
 
 e131:
 
@@ -1440,10 +1433,10 @@ humidifier:
     name: "HA Livingroom Humidifier"
     sensor: ha_hello_world
     default_target_humidity: 65
-    humidifier_level_1_action: 
-      - output.turn_on: h_low
+    humidifier_level_1_action:
+      - output.turn_on: out
     humidifier_level_2_action:
-      - output.turn_on: h_med
+      - output.turn_on: out2
     humidifier_level_3_action:
-      - output.turn_on: h_low
-      - output.turn_on: h_med
+      - output.turn_on: out
+      - output.turn_on: out2

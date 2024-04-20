@@ -30,11 +30,11 @@ void MQTTHumidifierComponent::send_discovery(JsonObject root, mqtt::SendDiscover
     modes.add("level 1");
   modes.add("off");
   if (traits.supports_mode(HUMIDIFIER_MODE_LEVEL_2))
-  modes.add("level 2");
+    modes.add("level 2");
   if (traits.supports_mode(HUMIDIFIER_MODE_LEVEL_3))
-  modes.add("level 3");
+    modes.add("level 3");
   if (traits.supports_mode(HUMIDIFIER_MODE_PRESET))
-  modes.add("preset");
+    modes.add("preset");
 
   if (traits.get_supports_target_humidity()) {
     // humidity_command_topic
@@ -51,7 +51,6 @@ void MQTTHumidifierComponent::send_discovery(JsonObject root, mqtt::SendDiscover
   root["humi_step"] = traits.get_visual_target_humidity_step();
   // humidity units are always coerced to percentage internally
   root[MQTT_HUMIDITY_UNIT] = "%";
-
 
   if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
     // preset_mode_command_topic
@@ -133,8 +132,7 @@ bool MQTTHumidifierComponent::publish_state_() {
       break;
     case HUMIDIFIER_MODE_PRESET:
       mode_s = "preset";
-      break;  
-
+      break;
   }
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
@@ -190,12 +188,12 @@ bool MQTTHumidifierComponent::publish_state_() {
         break;
       case HUMIDIFIER_ACTION_PRESET:
         payload = "preset";
-        break;  
+        break;
     }
     if (!this->publish(this->get_action_state_topic(), payload))
       success = false;
   }
-  
+
   return success;
 }
 

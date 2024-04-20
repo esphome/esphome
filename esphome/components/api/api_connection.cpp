@@ -672,7 +672,7 @@ bool APIConnection::send_humidifier_state(humidifier::Humidifier *humidifier) {
     resp.target_humidity = humidifier->target_humidity;
   }
   if (traits.get_supports_presets() && humidifier->preset.has_value()) {
-    resp.preset = static_cast<enums::HumidifierPreset>(humidifier->preset.value());  
+    resp.preset = static_cast<enums::HumidifierPreset>(humidifier->preset.value());
   }
   if (!traits.get_supported_custom_presets().empty() && humidifier->custom_preset.has_value())
     resp.custom_preset = humidifier->custom_preset.value();

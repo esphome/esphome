@@ -57,7 +57,7 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
    */
   bool supports_level_1_{false};
 
-    /** The trigger to call when the controller should switch to level 2.
+  /** The trigger to call when the controller should switch to level 2.
    */
   Trigger<> *level_2_trigger_;
   /** Whether the controller supports level 2.
@@ -66,7 +66,7 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
    */
   bool supports_level_2_{false};
 
-    /** The trigger to call when the controller should switch to level 3.
+  /** The trigger to call when the controller should switch to level 3.
    */
   Trigger<> *level_3_trigger_;
   /** Whether the controller supports level 3.
@@ -75,7 +75,6 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
    */
   bool supports_level_3_{false};
 
-  
   /** The trigger to call when the controller should switch to preset mode.
    *
    * A null value for this attribute means that the controller has no preset action

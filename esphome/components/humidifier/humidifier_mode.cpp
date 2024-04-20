@@ -30,7 +30,7 @@ const LogString *humidifier_action_to_string(HumidifierAction action) {
     case HUMIDIFIER_ACTION_LEVEL_3:
       return LOG_STR("LEVEL 3");
     case HUMIDIFIER_ACTION_PRESET:
-      return LOG_STR("PRESET");  
+      return LOG_STR("PRESET");
     default:
       return LOG_STR("UNKNOWN");
   }

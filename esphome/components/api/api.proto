@@ -38,7 +38,7 @@ service APIConnection {
   rpc switch_command (SwitchCommandRequest) returns (void) {}
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
-  rpc humidifier_command (HumidifierCommandRequest) returns (void) {}  
+  rpc humidifier_command (HumidifierCommandRequest) returns (void) {}
   rpc number_command (NumberCommandRequest) returns (void) {}
   rpc text_command (TextCommandRequest) returns (void) {}
   rpc select_command (SelectCommandRequest) returns (void) {}

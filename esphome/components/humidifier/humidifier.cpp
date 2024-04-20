@@ -67,11 +67,11 @@ HumidifierCall &HumidifierCall::set_mode(const std::string &mode) {
   } else if (str_equals_case_insensitive(mode, "LEVEL 1")) {
     this->set_mode(HUMIDIFIER_MODE_LEVEL_1);
   } else if (str_equals_case_insensitive(mode, "LEVEL 2")) {
-  this->set_mode(HUMIDIFIER_MODE_LEVEL_2);
+    this->set_mode(HUMIDIFIER_MODE_LEVEL_2);
   } else if (str_equals_case_insensitive(mode, "LEVEL 3")) {
-  this->set_mode(HUMIDIFIER_MODE_LEVEL_2);
+    this->set_mode(HUMIDIFIER_MODE_LEVEL_2);
   } else if (str_equals_case_insensitive(mode, "PRESET")) {
-  this->set_mode(HUMIDIFIER_MODE_PRESET);
+    this->set_mode(HUMIDIFIER_MODE_PRESET);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
   }
@@ -113,7 +113,6 @@ HumidifierCall &HumidifierCall::set_target_humidity(float target_humidity) {
   return *this;
 }
 
-
 const optional<HumidifierMode> &HumidifierCall::get_mode() const { return this->mode_; }
 const optional<float> &HumidifierCall::get_target_humidity() const { return this->target_humidity_; }
 const optional<HumidifierPreset> &HumidifierCall::get_preset() const { return this->preset_; }
@@ -145,7 +144,7 @@ static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<HumidifierDeviceRestoreState> Humidifier::restore_state_() {
   this->rtc_ = global_preferences->make_preference<HumidifierDeviceRestoreState>(this->get_object_id_hash() ^
-                                                                              RESTORE_STATE_VERSION);
+                                                                                RESTORE_STATE_VERSION);
   HumidifierDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
@@ -284,7 +283,9 @@ template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optio
   return is_changed;
 }
 
-bool Humidifier::set_preset_(HumidifierPreset preset) { return set_alternative(this->preset, this->custom_preset, preset); }
+bool Humidifier::set_preset_(HumidifierPreset preset) {
+  return set_alternative(this->preset, this->custom_preset, preset); 
+}
 
 bool Humidifier::set_custom_preset_(const std::string &preset) {
   return set_alternative(this->custom_preset, this->preset, preset);

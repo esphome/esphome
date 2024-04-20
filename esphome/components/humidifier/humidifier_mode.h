@@ -9,7 +9,7 @@ namespace humidifier {
 /// Enum for all modes a humidifier device can be in.
 enum HumidifierMode : uint8_t {
   /// The humid device is off
-  HUMIDIFIER_MODE_OFF = 0,  
+  HUMIDIFIER_MODE_OFF = 0,
   /// The MODE mode is set to Level 1
   HUMIDIFIER_MODE_LEVEL_1 = 1,
   /// The MODE mode is set to Level 2
@@ -25,7 +25,7 @@ enum HumidifierMode : uint8_t {
 enum HumidifierAction : uint8_t {
   /// The humidifier device is off (inactive or no power)
   HUMIDIFIER_ACTION_OFF = 0,
-    /// The ACTION mode is set to Level 1
+  /// The ACTION mode is set to Level 1
   HUMIDIFIER_ACTION_LEVEL_1 = 1,
   /// The ACTION mode is set to Level 2
   HUMIDIFIER_ACTION_LEVEL_2 = 2,
@@ -55,5 +55,5 @@ const LogString *humidifier_action_to_string(HumidifierAction action);
 /// Convert the given PresetMode to a human-readable string.
 const LogString *humidifier_preset_to_string(HumidifierPreset preset);
 
-}  // namespace humidifer
+}  // namespace humidifier
 }  // namespace esphome

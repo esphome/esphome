@@ -63,7 +63,6 @@ class HumidifierCall {
 
  protected:
   void validate_();
-  
 
   Humidifier *const parent_;
   optional<HumidifierMode> mode_;
@@ -138,15 +137,16 @@ class Humidifier : public EntityBase {
   void add_on_state_callback(std::function<void(Humidifier &)> &&callback);
 
   /**
-   * Add a callback for the humidifier device configuration; each time the configuration parameters of a humidifier device
-   * is updated (using perform() of a HumidifierCall), this callback will be called, before any on_state callback.
+   * Add a callback for the humidifier device configuration; each time the configuration parameters of a humidifier 
+   * device is updated (using perform() of a HumidifierCall), this callback will be called, before any on_state
+   * callback.
    *
    * @param callback The callback to call.
    */
   void add_on_control_callback(std::function<void(HumidifierCall &)> &&callback);
 
-  /** Make a humidifier device control call, this is used to control the humidifier device, see the HumidifierCall description
-   * for more info.
+  /** Make a humidifier device control call, this is used to control the humidifier device, see the HumidifierCall
+   * description for more info.
    * @return A new HumidifierCall instance targeting this humidifier device.
    */
   HumidifierCall make_call();

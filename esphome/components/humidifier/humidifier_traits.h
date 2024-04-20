@@ -21,7 +21,7 @@ namespace humidifier {
  *    - on (turned on)
  *  - supports action - if the humidifier supports reporting the active
  *    current action of the device with the action property.
- *  
+ *
  * This class also contains static data for the humidifier device display:
  *  - visual min/max humidity - tells the frontend what range of temperatures the humidifier
  *     should display (gauge min/max values)
@@ -50,7 +50,6 @@ class HumidifierTraits {
   void set_supports_action(bool supports_action) { supports_action_ = supports_action; }
   bool get_supports_action() const { return supports_action_; }
 
-
   void set_supported_presets(std::set<HumidifierPreset> presets) { supported_presets_ = std::move(presets); }
   void add_supported_preset(HumidifierPreset preset) { supported_presets_.insert(preset); }
   void add_supported_custom_preset(const std::string &preset) { supported_custom_presets_.insert(preset); }
@@ -72,19 +71,14 @@ class HumidifierTraits {
   void set_visual_max_humidity(float visual_max_humidity) { visual_max_humidity_ = visual_max_humidity; }
   float get_visual_target_humidity_step() const { return visual_target_humidity_step_; }
   float get_visual_current_humidity_step() const { return visual_current_humidity_step_; }
-  void set_visual_target_humidity_step(float humidity_step) {
-    visual_target_humidity_step_ = humidity_step;
-  }
-  void set_visual_current_humidity_step(float humidity_step) {
-    visual_current_humidity_step_ = humidity_step;
-  }
+  void set_visual_target_humidity_step(float humidity_step) { visual_target_humidity_step_ = humidity_step; }
+  void set_visual_current_humidity_step(float humidity_step) { visual_current_humidity_step_ = humidity_step; }
   void set_visual_humidity_step(float humidity_step) {
     visual_target_humidity_step_ = humidity_step;
     visual_current_humidity_step_ = humidity_step;
   }
   int8_t get_target_humidity_accuracy_decimals() const;
   int8_t get_current_humidity_accuracy_decimals() const;
-
 
  protected:
   void set_mode_support_(humidifier::HumidifierMode mode, bool supported) {

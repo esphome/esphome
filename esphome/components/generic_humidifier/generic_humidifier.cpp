@@ -16,13 +16,12 @@ void GenericHumidifier::setup() {
   });
   this->current_humidity = this->sensor_->state;
 
-
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->to_call(this).perform();
   } else {
-    // restore from defaults, 
+    // restore from defaults,
     if (supports_level_1_) {
       this->mode = humidifier::HUMIDIFIER_MODE_LEVEL_1;
     } else if (supports_level_2_) {
@@ -73,7 +72,6 @@ void GenericHumidifier::compute_state_() {
   }
 }
 
-
 void GenericHumidifier::switch_to_action_(humidifier::HumidifierAction action) {
   if (action == this->action) {
     // already in target mode
@@ -95,10 +93,10 @@ void GenericHumidifier::switch_to_action_(humidifier::HumidifierAction action) {
       break;
     case humidifier::HUMIDIFIER_ACTION_LEVEL_3:
       trig = this->level_3_trigger_;
-      break; 
-   case humidifier::HUMIDIFIER_ACTION_PRESET: 
+      break;
+   case humidifier::HUMIDIFIER_ACTION_PRESET:
       trig = this->preset_trigger_;
-      break;   
+      break;
     default:
       trig = nullptr;
   }
@@ -114,7 +112,10 @@ void GenericHumidifier::set_normal_config(const GenericHumidifierTargetHumidityC
 }
 
 GenericHumidifier::GenericHumidifier()
-    : level_1_trigger_(new Trigger<>()), level_2_trigger_(new Trigger<>()), level_3_trigger_(new Trigger<>()), preset_trigger_(new Trigger<>()) {}
+    : level_1_trigger_(new Trigger<>()),
+      level_2_trigger_(new Trigger<>()),
+      level_3_trigger_(new Trigger<>()),
+      preset_trigger_(new Trigger<>()) {}
 void GenericHumidifier::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 Trigger<> *GenericHumidifier::get_level_1_trigger() const { return this->level_1_trigger_; }
 void GenericHumidifier::set_supports_level_1(bool supports_level_1) { this->supports_level_1_ = supports_level_1; }

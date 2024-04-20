@@ -59,9 +59,7 @@ validate_humidifier_preset = cv.enum(HUMIDIFIER_PRESETS, upper=True)
 
 CONF_CURRENT_HUMIDITY = "current_humidity"
 
-visual_humidity = cv.float_with_unit(
-    "visual_humidity", "(%)?"
-)
+visual_humidity = cv.float_with_unit("visual_humidity", "(%)?")
 
 
 def single_visual_humidity(value):
@@ -96,7 +94,9 @@ VISUAL_HUMIDITY_STEP_SCHEMA = cv.Any(
     ),
 )
 
-HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+    cv.MQTT_COMMAND_COMPONENT_SCHEMA
+).extend(
     {
         cv.GenerateID(): cv.declare_id(Humidifier),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTHumidifierComponent),
@@ -123,7 +123,6 @@ HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEM
         cv.Optional(CONF_PRESET_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
-
         cv.Optional(CONF_TARGET_HUMIDITY_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),

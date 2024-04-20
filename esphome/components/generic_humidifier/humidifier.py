@@ -13,8 +13,10 @@ from esphome.const import (
 )
 
 generic_humidifier_ns = cg.esphome_ns.namespace("generic_humidifier")
-GenericHumidifier = generic_humidifier_ns.class_("GenericHumidifier", humidifier.Humidifier, cg.Component)
-GenericHumidifierTargetHumidityConfig = generic_humidifier_ns.struct("GenericHumidifierTargetHumidityConfig")
+GenericHumidifier = generic_humidifier_ns.class_(
+    "GenericHumidifier", humidifier.Humidifier, cg.Component)
+GenericHumidifierTargetHumidityConfig = generic_humidifier_ns.struct(
+    "GenericHumidifierTargetHumidityConfig")
 
 CONFIG_SCHEMA = cv.All(
     humidifier.HUMIDIFIER_SCHEMA.extend(
@@ -22,13 +24,25 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(GenericHumidifier),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_DEFAULT_TARGET_HUMIDITY): cv.temperature,
-            cv.Required(CONF_HUMIDIFIER_LEVEL_1_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_HUMIDIFIER_LEVEL_2_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_HUMIDIFIER_LEVEL_3_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_HUMIDIFIER_PRESET_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_HUMIDIFIER_LEVEL_1_ACTION): automation.validate_automation(
+                single=True
+                ),
+            cv.Optional(CONF_HUMIDIFIER_LEVEL_2_ACTION): automation.validate_automation(
+                single=True
+                ),
+            cv.Optional(CONF_HUMIDIFIER_LEVEL_3_ACTION): automation.validate_automation(
+                single=True
+                ),
+            cv.Optional(CONF_HUMIDIFIER_PRESET_ACTION): automation.validate_automation(
+                single=True
+                ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(CONF_HUMIDIFIER_LEVEL_1_ACTION, CONF_HUMIDIFIER_LEVEL_2_ACTION, CONF_HUMIDIFIER_LEVEL_3_ACTION),
+    cv.has_at_least_one_key(
+        CONF_HUMIDIFIER_LEVEL_1_ACTION,
+        CONF_HUMIDIFIER_LEVEL_2_ACTION,
+        CONF_HUMIDIFIER_LEVEL_3_ACTION
+        ),
 )
 
 
