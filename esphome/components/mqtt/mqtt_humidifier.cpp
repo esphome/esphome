@@ -48,9 +48,9 @@ void MQTTHumidifierComponent::send_discovery(JsonObject root, mqtt::SendDiscover
 
   if (traits.get_supports_target_humidity()) {
     // humidity_command_topic
-    root[MQTT_HUMIDITY_COMMAND_TOPIC] = this->get_target_humidity_command_topic();
+    root[MQTT_TARGET_HUMIDITY_COMMAND_TOPIC] = this->get_target_humidity_command_topic();
     // humidity_state_topic
-    root[MQTT_HUMIDITY_STATE_TOPIC] = this->get_target_humidity_state_topic();
+    root[MQTT_TARGET_HUMIDITY_STATE_TOPIC] = this->get_target_humidity_state_topic();
   }
 
   // min_humidity
@@ -59,8 +59,8 @@ void MQTTHumidifierComponent::send_discovery(JsonObject root, mqtt::SendDiscover
   root[MQTT_MAX_HUMIDITY] = traits.get_visual_max_humidity();
   // humidity_step
   root["humi_step"] = traits.get_visual_target_humidity_step();
-  // humidity units are always coerced to percentage internally
-  root[MQTT_HUMIDITY_UNIT] = "%";
+  // // humidity units are always coerced to percentage internally
+  // root[MQTT_HUMIDITY_UNIT] = "%";
 
   if (traits.get_supports_action()) {
     // action_topic
