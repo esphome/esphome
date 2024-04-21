@@ -37,23 +37,12 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       this->seen_mtu_or_services_ = false;
       break;
     }
-    case ESP_GATTC_CFG_MTU_EVT: {
-      if (!this->seen_mtu_or_services_) {
-        // We don't know if we will get the MTU or the services first, so
-        // only send the device connection true if we have already received
-        // the services.
-        this->seen_mtu_or_services_ = true;
-        break;
-      }
-      this->proxy_->send_device_connection(this->address_, true, this->mtu_);
-      this->proxy_->send_connections_free();
-      break;
-    }
+    case ESP_GATTC_CFG_MTU_EVT:
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       if (!this->seen_mtu_or_services_) {
         // We don't know if we will get the MTU or the services first, so
         // only send the device connection true if we have already received
-        // the mtu.
+        // the services.
         this->seen_mtu_or_services_ = true;
         break;
       }
