@@ -215,24 +215,23 @@ class WAVESHARERES35 : public ILI9XXXILI9488 {
  public:
   WAVESHARERES35() : ILI9XXXILI9488(INITCMD_WAVESHARE_RES_3_5) {}
   /*
-   *  This board uses a 16 bit serial-parallel chip to implement SPI. It requires a CS transition between command
-   *  and data phases, and DC must be set before CS is enabled.
+   *  This board uses a 16 bit serial-parallel chip to implement SPI, so all commands and parameters must be
+   *  sent as 16 bit values, with the significant data in the least significant byte (sent last.)
+   *  Pixel data is sent normally since it is already 16 bit format.
    */
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t length) override {
+    uint8_t buf[2]{0, command_byte};
     this->bus_->set_dc_data(false);
     this->bus_->begin_transaction();
-    this->bus_->write_array(&command_byte, 1);
-    this->bus_->end_transaction();
+    this->bus_->write_array(buf, 2);
     this->bus_->set_dc_data(true);
-    uint8_t buf[2]{};
     if (length != 0) {
-      this->bus_->begin_transaction();
       for (size_t i = 0; i != length; i++) {
         buf[1] = *data_bytes++;
         this->bus_->write_array(buf, 2);
       }
-      this->bus_->end_transaction();
     }
+    this->bus_->end_transaction();
   }
 };
 

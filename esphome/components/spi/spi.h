@@ -476,11 +476,9 @@ class SPIByteBus : public byte_bus::ByteBus {
   void write_cmd_data(int cmd, const uint8_t *data, size_t length) override;
 
   void dump_config() override;
-  void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
 
  protected:
   SPIClient *client_;
-  GPIOPin *dc_pin_{byte_bus::NULL_PIN};
 };
 }  // namespace spi
 }  // namespace esphome
