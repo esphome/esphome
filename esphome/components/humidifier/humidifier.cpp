@@ -30,7 +30,8 @@ void HumidifierCall::validate_() {
   }
   if (this->target_humidity_.has_value()) {
     auto target = *this->target_humidity_;
-    if (traits.get_supports_target_humidity()) {
+    // if (traits.get_supports_target_humidity()) {
+    if (std::isnan(target)) {
       ESP_LOGW(TAG, "  Target humidity must not be NAN!");
       this->target_humidity_.reset();
     }
