@@ -19,8 +19,8 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     return false;
 
   switch (event) {
-    case ESP_GATTC_DISCONNECT_EVT: {
-      this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
+    case ESP_GATTC_CLOSE_EVT: {
+      this->proxy_->send_device_connection(this->address_, false, 0, param->close.reason);
       this->set_address(0);
       this->proxy_->send_connections_free();
       break;
