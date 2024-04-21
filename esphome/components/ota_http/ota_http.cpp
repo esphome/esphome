@@ -214,7 +214,7 @@ void OtaHttpComponent::flash() {
   this->pref_.ota_http_state = OTA_HTTP_STATE_OK;
   strncpy(this->pref_.last_md5, this->md5_expected_, MD5_SIZE);
   this->pref_obj_.save(&this->pref_);
-    // on rp2040 and esp8266, reenable write to flash that was disabled by OTA
+  // on rp2040 and esp8266, reenable write to flash that was disabled by OTA
 #ifdef USE_ESP8266
   esp8266::preferences_prevent_write(false);
 #endif
