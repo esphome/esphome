@@ -2185,7 +2185,6 @@ async def to_code(config):
     # These must be build flags, since the lvgl code does not read our defines.h
     for macro, value in lv_defines.items():
         cg.add_build_flag(f"-D\\'{macro}\\'=\\'{value}\\'")
-    print(lvgl_components_required)
 
 
 def indicator_update_schema(base):
