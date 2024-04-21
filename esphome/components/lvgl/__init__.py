@@ -142,6 +142,7 @@ from .lv_validation import (
     lv_color_validator,
     lv_bool_validator,
     lv_pixels,
+    lv_color_retmapper,
 )
 from .widget import (
     Widget,
@@ -406,7 +407,7 @@ class LValidator:
         return value
 
 
-lv_color = LValidator(lv_color_validator, lv_color_t)
+lv_color = LValidator(lv_color_validator, lv_color_t, retmapper=lv_color_retmapper)
 lv_bool = LValidator(lv_bool_validator, cg.bool_, BinarySensor, "get_state()")
 lv_milliseconds = LValidator(
     cv.positive_time_period_milliseconds,
@@ -1185,14 +1186,16 @@ def cgen(*args):
     cg.add(cg.RawExpression("\n".join(args)))
 
 
-def styles_to_code(styles):
+async def styles_to_code(styles):
     """Convert styles to C__ code."""
     for style in styles:
         svar = cg.new_Pvariable(style[CONF_ID])
         cgen(f"lv_style_init({svar})")
         for prop in STYLE_PROPS:
             if prop in style:
-                cgen(f"lv_style_set_{prop}({svar}, {style[prop]})")
+                value = await STYLE_PROPS[prop].process(style[prop])
+                print(prop, value)
+                cgen(f"lv_style_set_{prop}({svar}, {value})")
 
 
 theme_widget_map = {}
@@ -2064,7 +2067,7 @@ async def to_code(config):
     add_define("LV_CONF_SKIP", "1")
     add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
-    add_define("LV_DRAW_COMPLEX", 1)
+    add_define("LV_DRAW_COMPLEX", "1")
     add_define("_STRINGIFY(x)", "_STRINGIFY_(x)")
     add_define("_STRINGIFY_(x)", "#x")
     add_define("LV_TICK_CUSTOM", "1")
@@ -2131,7 +2134,7 @@ async def to_code(config):
                 ID(f"{font}_as_lv_font_", True, lv_font_t.operator("const")), getter
             )
     if style_defs := config.get(CONF_STYLE_DEFINITIONS, []):
-        styles_to_code(style_defs)
+        await styles_to_code(style_defs)
     if theme := config.get(CONF_THEME):
         lv_uses.add("THEME")
         await theme_to_code(theme)

@@ -12,6 +12,7 @@ from .defines import (
     CONF_TOUCHSCREENS,
     LvConstant,
 )
+from ...core import HexInt
 
 lv_uses = {
     "USER_DATA",
@@ -45,14 +46,19 @@ def requires_component(comp):
 def lv_color_validator(value):
     if value == SCHEMA_EXTRACT:
         return ["hex color value", "color ID"]
+    if isinstance(value, int):
+        return value
+    return cv.use_id(ColorStruct)(value)
+
+
+def lv_color_retmapper(value):
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
     if isinstance(value, int):
-        hexval = cv.hex_int(value)
+        hexval = HexInt(value)
         return f"lv_color_hex({hexval})"
-    color_id = cv.use_id(ColorStruct)(value)
     lvgl_components_required.add("color")
-    return f"lv_color_from({color_id})"
+    return f"lv_color_from({value})"
 
 
 def lv_builtin_font(value):
