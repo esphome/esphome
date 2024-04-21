@@ -131,7 +131,7 @@ void ESPHomeOTAComponent::handle_() {
   ESP_LOGD(TAG, "Starting OTA update from %s...", this->client_->getpeername().c_str());
   this->status_set_warning();
 #ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(OTA_STARTED, 0.0f, 0);
+  this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
   if (!this->readall_(buf, 5)) {
@@ -306,7 +306,7 @@ void ESPHomeOTAComponent::handle_() {
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
 #ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(OTA_IN_PROGRESS, percentage, 0);
+      this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage, 0);
 #endif
       // feed watchdog and give other tasks a chance to run
       App.feed_wdt();
@@ -340,7 +340,7 @@ void ESPHomeOTAComponent::handle_() {
   ESP_LOGI(TAG, "OTA update finished");
   this->status_clear_warning();
 #ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(OTA_COMPLETED, 100.0f, 0);
+  this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
   delay(100);  // NOLINT
   App.safe_reboot();
@@ -357,7 +357,7 @@ error:
 
   this->status_momentary_error("onerror", 5000);
 #ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
+  this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
 }
 
@@ -486,26 +486,23 @@ bool ESPHomeOTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t 
     return false;
   }
 }
+
 void ESPHomeOTAComponent::write_rtc_(uint32_t val) {
   this->rtc_.save(&val);
   global_preferences->sync();
 }
+
 uint32_t ESPHomeOTAComponent::read_rtc_() {
   uint32_t val;
   if (!this->rtc_.load(&val))
     return 0;
   return val;
 }
+
 void ESPHomeOTAComponent::clean_rtc() { this->write_rtc_(0); }
+
 void ESPHomeOTAComponent::on_safe_shutdown() {
   if (this->has_safe_mode_ && this->read_rtc_() != ESPHomeOTAComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
 }
-
-#ifdef USE_OTA_STATE_CALLBACK
-void ESPHomeOTAComponent::add_on_state_callback(std::function<void(OTAESPHomeState, float, uint8_t)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-#endif
-
 }  // namespace esphome

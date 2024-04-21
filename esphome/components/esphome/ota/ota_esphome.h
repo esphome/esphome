@@ -1,17 +1,15 @@
 #pragma once
 
-#include "esphome/components/socket/socket.h"
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/socket/socket.h"
 
 namespace esphome {
 
-enum OTAESPHomeState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
-
 /// ESPHomeOTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
-class ESPHomeOTAComponent : public Component {
+class ESPHomeOTAComponent : public ota::OTAComponent {
  public:
   ESPHomeOTAComponent();
 #ifdef USE_OTA_PASSWORD
@@ -26,10 +24,6 @@ class ESPHomeOTAComponent : public Component {
   /// Set to true if the next startup will enter safe mode
   void set_safe_mode_pending(const bool &pending);
   bool get_safe_mode_pending();
-
-#ifdef USE_OTA_STATE_CALLBACK
-  void add_on_state_callback(std::function<void(OTAESPHomeState, float, uint8_t)> &&callback);
-#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -70,10 +64,6 @@ class ESPHomeOTAComponent : public Component {
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
-
-#ifdef USE_OTA_STATE_CALLBACK
-  CallbackManager<void(OTAESPHomeState, float, uint8_t)> state_callback_{};
-#endif
 };
 
 extern ESPHomeOTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

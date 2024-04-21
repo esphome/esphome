@@ -1,12 +1,32 @@
+import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 
-from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM
+from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["md5"]
 DEPENDENCIES = ["network"]
 
 IS_PLATFORM_COMPONENT = True
+
+CONF_ON_BEGIN = "on_begin"
+CONF_ON_END = "on_end"
+CONF_ON_ERROR = "on_error"
+CONF_ON_PROGRESS = "on_progress"
+CONF_ON_STATE_CHANGE = "on_state_change"
+
+
+ota = cg.esphome_ns.namespace("ota")
+OTAComponent = ota.class_("OTAComponent", cg.Component)
+OTAState = ota.enum("OTAState")
+OTAEndTrigger = ota.class_("OTAEndTrigger", automation.Trigger.template())
+OTAErrorTrigger = ota.class_("OTAErrorTrigger", automation.Trigger.template())
+OTAProgressTrigger = ota.class_("OTAProgressTrigger", automation.Trigger.template())
+OTAStartTrigger = ota.class_("OTAStartTrigger", automation.Trigger.template())
+OTAStateChangeTrigger = ota.class_(
+    "OTAStateChangeTrigger", automation.Trigger.template()
+)
 
 
 def _ota_final_validate(config):
@@ -17,3 +37,33 @@ def _ota_final_validate(config):
 
 
 FINAL_VALIDATE_SCHEMA = _ota_final_validate
+
+BASE_OTA_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStateChangeTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStartTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_END): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAEndTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAErrorTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAProgressTrigger),
+            }
+        ),
+    }
+)
