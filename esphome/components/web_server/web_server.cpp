@@ -890,6 +890,9 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["mode"] = (int) obj->traits.get_mode();
       if (!obj->traits.get_unit_of_measurement().empty())
         root["uom"] = obj->traits.get_unit_of_measurement();
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+      }
     }
     if (std::isnan(value)) {
       root["value"] = "\"NaN\"";
