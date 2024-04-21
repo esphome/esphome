@@ -26,6 +26,7 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
  protected:
   friend class BluetoothProxy;
   bool seen_mtu_or_services_{false};
+  void handle_connection_close_(esp_err_t error);
 
   int16_t send_service_{-2};
   BluetoothProxy *proxy_;

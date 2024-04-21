@@ -22,18 +22,14 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_DISCONNECT_EVT: {
       if (param->disconnect.conn_id != this->conn_id_)
         break;
-      this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
-      this->set_address(0);
-      this->proxy_->send_connections_free();
+      this->handle_connection_close_(param->disconnect.reason);
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.conn_id != this->conn_id_)
         break;
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
-        this->proxy_->send_device_connection(this->address_, false, 0, param->open.status);
-        this->set_address(0);
-        this->proxy_->send_connections_free();
+        this->handle_connection_close_(param->open.status);
       } else if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         this->proxy_->send_device_connection(this->address_, true, this->mtu_);
         this->proxy_->send_connections_free();
@@ -151,6 +147,12 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       break;
   }
   return true;
+}
+
+void BluetoothConnection::handle_connection_close_(esp_err_t error) {
+  this->proxy_->send_device_connection(this->address_, false, 0, error);
+  this->set_address(0);
+  this->proxy_->send_connections_free();
 }
 
 void BluetoothConnection::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
