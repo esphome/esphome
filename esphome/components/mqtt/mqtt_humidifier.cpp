@@ -54,9 +54,9 @@ void MQTTHumidifierComponent::send_discovery(JsonObject root, mqtt::SendDiscover
   }
 
   // min_humidity
-  root[MQTT_MIN_HUMI] = traits.get_visual_min_humidity();
+  root[MQTT_MIN_HUMIDITY] = traits.get_visual_min_humidity();
   // max_humidity
-  root[MQTT_MAX_HUMI] = traits.get_visual_max_humidity();
+  root[MQTT_MAX_HUMIFITY] = traits.get_visual_max_humidity();
   // humidity_step
   root["humi_step"] = traits.get_visual_target_humidity_step();
   // humidity units are always coerced to percentage internally
