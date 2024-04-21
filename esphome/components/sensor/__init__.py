@@ -782,8 +782,8 @@ async def setup_sensor_core_(var, config):
             else:
                 cg.add(mqtt_.set_expire_after(expire_after))
 
-    if CONF_WEB_SERVER_ID in config:
-        web_server_ = await cg.get_variable(config[CONF_WEB_SERVER_ID])
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
         web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 

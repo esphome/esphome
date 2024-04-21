@@ -190,8 +190,8 @@ async def setup_alarm_control_panel_core_(var, config):
     for conf in config.get(CONF_ON_READY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
-    if CONF_WEB_SERVER_ID in config:
-        web_server_ = await cg.get_variable(config[CONF_WEB_SERVER_ID])
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
         web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 

@@ -114,8 +114,8 @@ async def setup_datetime_core_(var, config):
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
-    if CONF_WEB_SERVER_ID in config:
-        web_server_ = await cg.get_variable(config[CONF_WEB_SERVER_ID])
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
         web_server.add_entity_to_sorting_list(web_server_, var, config)
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
