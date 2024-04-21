@@ -9,6 +9,13 @@
 #include "esphome/components/ota/ota_backend.h"
 #include "ota_http.h"
 
+#ifdef USE_ESP8266
+#include "esphome/components/esp8266/preferences.h"
+#endif
+#ifdef USE_RP2040
+#include "esphome/components/rp2040/preferences.h"
+#endif
+
 #ifdef CONFIG_WATCHDOG_TIMEOUT
 #include "watchdog.h"
 #endif
@@ -207,6 +214,13 @@ void OtaHttpComponent::flash() {
   this->pref_.ota_http_state = OTA_HTTP_STATE_OK;
   strncpy(this->pref_.last_md5, this->md5_expected_, MD5_SIZE);
   this->pref_obj_.save(&this->pref_);
+    // on rp2040 and esp8266, reenable write to flash that was disabled by OTA
+#ifdef USE_ESP8266
+  esp8266::preferences_prevent_write(false);
+#endif
+#ifdef USE_RP2040
+  rp2040::preferences_prevent_write(false);
+#endif
   global_preferences->sync();
   delay(10);
   ESP_LOGI(TAG, "OTA update completed");
