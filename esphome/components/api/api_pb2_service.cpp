@@ -562,7 +562,7 @@ bool APIServerConnectionBase::send_list_entities_event_response(const ListEntiti
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_event_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ListEntitiesEventResponse>(msg, 106);
+  return this->send_message_<ListEntitiesEventResponse>(msg, 107);
 }
 #endif
 #ifdef USE_EVENT
@@ -570,7 +570,7 @@ bool APIServerConnectionBase::send_event_response(const EventResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_event_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<EventResponse>(msg, 107);
+  return this->send_message_<EventResponse>(msg, 108);
 }
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
