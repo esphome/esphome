@@ -32,7 +32,7 @@ argcomplete>=2.0.0
 git+https://github.com/tomaszduda23/smp/@f9b85266485062f6a466989e8f59b913cc83b08b
 git+https://github.com/tomaszduda23/smpclient/@d25c8035ae2858fd41a106058297b619d58fbcb5
 bleak==0.21.1
-pydantic==2.16.2
+pydantic==2.7.0
 cbor2==5.6.1
 crcmod==1.7
 # pretty print by logging?
