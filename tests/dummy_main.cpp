@@ -25,7 +25,7 @@ void setup() {
   ap.set_password("password1");
   wifi->add_sta(ap);
 
-  auto *ota = new ota_esphome::OTAESPHomeComponent();  // NOLINT
+  auto *ota = new esphome::ESPHomeOTAComponent();  // NOLINT
   ota->set_port(8266);
 
   App.setup();
