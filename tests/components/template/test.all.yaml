@@ -182,3 +182,6 @@ datetime:
             - x.hour
             - x.minute
             - x.second
+
+time:
+  - platform: sntp # Required for datetime
