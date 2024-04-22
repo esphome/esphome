@@ -1,3 +1,6 @@
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
 light:
   - platform: beken_spi_led_strip
     rgb_order: GRB
