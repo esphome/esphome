@@ -156,6 +156,8 @@ def uart_selection(value):
         component = get_libretiny_component()
         if component in UART_SELECTION_LIBRETINY:
             return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
+    if CORE.is_host:
+        raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError

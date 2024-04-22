@@ -161,6 +161,24 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 #endif
 }
 
+#ifdef USE_LOGGER_USB_CDC
+void Logger::loop() {
+#ifdef USE_ARDUINO
+  if (this->uart_ != UART_SELECTION_USB_CDC) {
+    return;
+  }
+  static bool opened = false;
+  if (opened == Serial) {
+    return;
+  }
+  if (false == opened) {
+    App.schedule_dump_config();
+  }
+  opened = !opened;
+#endif
+}
+#endif
+
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
@@ -179,8 +197,10 @@ const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DE
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
+#ifndef USE_HOST
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", get_uart_selection_());
+#endif
 
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);

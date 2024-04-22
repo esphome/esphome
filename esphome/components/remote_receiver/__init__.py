@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import remote_base
+from esphome.components import remote_base, esp32_rmt
 from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_DUMP,
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_PIN,
     CONF_TOLERANCE,
     CONF_MEMORY_BLOCKS,
+    CONF_RMT_CHANNEL,
 )
 from esphome.core import CORE, TimePeriod
 
@@ -45,6 +46,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 CONF_IDLE, default="10ms"
             ): cv.positive_time_period_microseconds,
             cv.Optional(CONF_MEMORY_BLOCKS, default=3): cv.Range(min=1, max=8),
+            cv.Optional(CONF_RMT_CHANNEL): esp32_rmt.validate_rmt_channel(tx=False),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )
@@ -53,7 +55,12 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32:
-        var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_MEMORY_BLOCKS])
+        if (rmt_channel := config.get(CONF_RMT_CHANNEL, None)) is not None:
+            var = cg.new_Pvariable(
+                config[CONF_ID], pin, rmt_channel, config[CONF_MEMORY_BLOCKS]
+            )
+        else:
+            var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_MEMORY_BLOCKS])
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 

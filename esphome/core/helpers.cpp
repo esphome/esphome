@@ -13,9 +13,11 @@
 #include <strings.h>
 
 #ifdef USE_HOST
+#ifndef _WIN32
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#endif
 #include <unistd.h>
 #endif
 #if defined(USE_ESP8266)

@@ -60,7 +60,7 @@ enum UARTSelection {
 class Logger : public Component {
  public:
   explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
-#ifdef USE_USB_CDC
+#ifdef USE_LOGGER_USB_CDC
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
@@ -143,7 +143,9 @@ class Logger : public Component {
     va_end(arg);
   }
 
+#ifndef USE_HOST
   const char *get_uart_selection_();
+#endif
 
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};

@@ -1,0 +1,9 @@
+i2c:
+
+sensor:
+  - platform: htu31d
+    temperature:
+      name: Living Room Temperature 7
+    humidity:
+      name: Living Room Humidity 7
+    update_interval: 15s
