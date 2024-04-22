@@ -10,6 +10,7 @@ class NeoKeyBinarySensor : public binary_sensor::BinarySensor, public KeyListene
  public:
   void set_key(uint8_t key) { key_ = key; };
   void keys_update(uint8_t keys) override;
+
  protected:
   uint8_t key_{0};
 };

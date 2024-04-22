@@ -13,7 +13,6 @@ void NeoKeyLight::setup() {
   memset(this->effect_data_, 0x00, this->size());
 }
 
-
 void NeoKeyLight::write_state(light::LightState *state) {
   if (this->neokey_ == nullptr) {
     ESP_LOGW(TAG, "NeoKey component not initialized.");
