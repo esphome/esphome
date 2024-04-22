@@ -185,3 +185,6 @@ datetime:
 
 time:
   - platform: sntp  # Required for datetime
+
+wifi:  # Required for sntp time
+  ap:
