@@ -5,8 +5,8 @@ namespace neokey {
 
 void NeoKeyLight::setup() {
   // Byte each for Red, Green, and Blue
-  this->buf_ = new uint8_t[this->size() * NUM_BYTES_PER_LED];
-  this->effect_data_ = new uint8_t[this->size()];
+  this->buf_ = new uint8_t[this->size() * NUM_BYTES_PER_LED];  // NOLINT
+  this->effect_data_ = new uint8_t[this->size()];  // NOLINT
 
   // Clear buffer
   memset(this->buf_, 0x00, this->size() * NUM_BYTES_PER_LED);

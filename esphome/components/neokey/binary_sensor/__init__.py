@@ -8,11 +8,14 @@ CODEOWNERS = ["@deisterhold"]
 
 NeoKeyBinarySensor = neokey_ns.class_("NeoKeyBinarySensor", binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(NeoKeyBinarySensor).extend(
-    {
-        cv.GenerateID(CONF_NEOKEY_ID): cv.use_id(NeoKeyComponent),
-        cv.Required(CONF_KEY): cv.int_range(min=0, max=3),
-    }
+CONFIG_SCHEMA = cv.All(
+    binary_sensor.binary_sensor_schema(NeoKeyBinarySensor).extend(
+        {
+            cv.GenerateID(CONF_NEOKEY_ID): cv.use_id(NeoKeyComponent),
+            cv.Required(CONF_KEY): cv.int_range(min=0, max=3),
+        }
+    ),
+    cv.only_with_arduino,
 )
 
 
