@@ -8,6 +8,7 @@
 #define NBR_CHANNELS 8
 
 namespace esphome {
+
   namespace ds248x {
 
     enum class DS248xType : int {
@@ -135,4 +136,5 @@ namespace esphome {
     };
 
   }  // namespace ds248x
+
 }  // namespace esphome
