@@ -1,0 +1,38 @@
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+    glyphs: "0123456789."
+    extras:
+      - file: "gfonts://Roboto"
+        glyphs: ["\u00C4", "\u00C5", "\U000000C7"]
+  - file: "gfonts://Roboto"
+    id: roboto_web
+    size: 20
+  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: monocraft
+    size: 20
+  - file:
+      type: web
+      url: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: monocraft2
+    size: 24
+  - file: $component_dir/Monocraft.ttf
+    id: monocraft3
+    size: 28
+
+i2c:
+  scl: ${i2c_scl}
+  sda: ${i2c_sda}
+
+display:
+  - platform: ssd1306_i2c
+    id: ssd1306_display
+    model: SSD1306_128X64
+    reset_pin: ${display_reset_pin}
+    lambda: |-
+      it.print(0, 0, id(roboto), "Hello, World!");
+      it.print(0, 20, id(roboto_web), "Hello, World!");
+      it.print(0, 40, id(monocraft), "Hello, World!");
+      it.print(0, 60, id(monocraft2), "Hello, World!");
+      it.print(0, 80, id(monocraft3), "Hello, World!");
