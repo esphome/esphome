@@ -7791,30 +7791,6 @@ bool DateTimeStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->missing_state = value.as_bool();
       return true;
     }
-    case 3: {
-      this->year = value.as_uint32();
-      return true;
-    }
-    case 4: {
-      this->month = value.as_uint32();
-      return true;
-    }
-    case 5: {
-      this->day = value.as_uint32();
-      return true;
-    }
-    case 6: {
-      this->hour = value.as_uint32();
-      return true;
-    }
-    case 7: {
-      this->minute = value.as_uint32();
-      return true;
-    }
-    case 8: {
-      this->second = value.as_uint32();
-      return true;
-    }
     default:
       return false;
   }
@@ -7825,6 +7801,10 @@ bool DateTimeStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
+    case 3: {
+      this->epoch_seconds = value.as_fixed32();
+      return true;
+    }
     default:
       return false;
   }
@@ -7832,12 +7812,7 @@ bool DateTimeStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void DateTimeStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->missing_state);
-  buffer.encode_uint32(3, this->year);
-  buffer.encode_uint32(4, this->month);
-  buffer.encode_uint32(5, this->day);
-  buffer.encode_uint32(6, this->hour);
-  buffer.encode_uint32(7, this->minute);
-  buffer.encode_uint32(8, this->second);
+  buffer.encode_fixed32(3, this->epoch_seconds);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DateTimeStateResponse::dump_to(std::string &out) const {
@@ -7852,72 +7827,21 @@ void DateTimeStateResponse::dump_to(std::string &out) const {
   out.append(YESNO(this->missing_state));
   out.append("\n");
 
-  out.append("  year: ");
-  sprintf(buffer, "%" PRIu32, this->year);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  month: ");
-  sprintf(buffer, "%" PRIu32, this->month);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  day: ");
-  sprintf(buffer, "%" PRIu32, this->day);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  hour: ");
-  sprintf(buffer, "%" PRIu32, this->hour);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  minute: ");
-  sprintf(buffer, "%" PRIu32, this->minute);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  second: ");
-  sprintf(buffer, "%" PRIu32, this->second);
+  out.append("  epoch_seconds: ");
+  sprintf(buffer, "%" PRIu32, this->epoch_seconds);
   out.append(buffer);
   out.append("\n");
   out.append("}");
 }
 #endif
-bool DateTimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2: {
-      this->year = value.as_uint32();
-      return true;
-    }
-    case 3: {
-      this->month = value.as_uint32();
-      return true;
-    }
-    case 4: {
-      this->day = value.as_uint32();
-      return true;
-    }
-    case 5: {
-      this->hour = value.as_uint32();
-      return true;
-    }
-    case 6: {
-      this->minute = value.as_uint32();
-      return true;
-    }
-    case 7: {
-      this->second = value.as_uint32();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
 bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
+      return true;
+    }
+    case 2: {
+      this->epoch_seconds = value.as_fixed32();
       return true;
     }
     default:
@@ -7926,12 +7850,7 @@ bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void DateTimeCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_uint32(2, this->year);
-  buffer.encode_uint32(3, this->month);
-  buffer.encode_uint32(4, this->day);
-  buffer.encode_uint32(5, this->hour);
-  buffer.encode_uint32(6, this->minute);
-  buffer.encode_uint32(7, this->second);
+  buffer.encode_fixed32(2, this->epoch_seconds);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DateTimeCommandRequest::dump_to(std::string &out) const {
@@ -7942,33 +7861,8 @@ void DateTimeCommandRequest::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  year: ");
-  sprintf(buffer, "%" PRIu32, this->year);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  month: ");
-  sprintf(buffer, "%" PRIu32, this->month);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  day: ");
-  sprintf(buffer, "%" PRIu32, this->day);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  hour: ");
-  sprintf(buffer, "%" PRIu32, this->hour);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  minute: ");
-  sprintf(buffer, "%" PRIu32, this->minute);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  second: ");
-  sprintf(buffer, "%" PRIu32, this->second);
+  out.append("  epoch_seconds: ");
+  sprintf(buffer, "%" PRIu32, this->epoch_seconds);
   out.append(buffer);
   out.append("\n");
   out.append("}");

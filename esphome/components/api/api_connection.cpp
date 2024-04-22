@@ -780,12 +780,10 @@ bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
   DateTimeStateResponse resp{};
   resp.key = datetime->get_object_id_hash();
   resp.missing_state = !datetime->has_state();
-  resp.year = datetime->year;
-  resp.month = datetime->month;
-  resp.day = datetime->day;
-  resp.hour = datetime->hour;
-  resp.minute = datetime->minute;
-  resp.second = datetime->second;
+  if (datetime->has_state()) {
+    ESPTime state = datetime->state_as_esptime();
+    resp.epoch_seconds = state.timestamp;
+  }
   return this->send_date_time_state_response(resp);
 }
 bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
@@ -807,7 +805,7 @@ void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
     return;
 
   auto call = datetime->make_call();
-  call.set_datetime(msg.year, msg.month, msg.day, msg.hour, msg.minute, msg.second);
+  call.set_datetime(msg.epoch_seconds);
   call.perform();
 }
 #endif

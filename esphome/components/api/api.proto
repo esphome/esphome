@@ -1727,12 +1727,7 @@ message DateTimeStateResponse {
   // If the datetime does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 2;
-  uint32 year = 3;
-  uint32 month = 4;
-  uint32 day = 5;
-  uint32 hour = 6;
-  uint32 minute = 7;
-  uint32 second = 8;
+  fixed32 epoch_seconds = 3;
 }
 message DateTimeCommandRequest {
   option (id) = 114;
@@ -1741,10 +1736,5 @@ message DateTimeCommandRequest {
   option (no_delay) = true;
 
   fixed32 key = 1;
-  uint32 year = 2;
-  uint32 month = 3;
-  uint32 day = 4;
-  uint32 hour = 5;
-  uint32 minute = 6;
-  uint32 second = 7;
+  fixed32 epoch_seconds = 2;
 }

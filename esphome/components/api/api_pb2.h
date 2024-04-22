@@ -1992,12 +1992,7 @@ class DateTimeStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};
   bool missing_state{false};
-  uint32_t year{0};
-  uint32_t month{0};
-  uint32_t day{0};
-  uint32_t hour{0};
-  uint32_t minute{0};
-  uint32_t second{0};
+  uint32_t epoch_seconds{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2010,12 +2005,7 @@ class DateTimeStateResponse : public ProtoMessage {
 class DateTimeCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
-  uint32_t year{0};
-  uint32_t month{0};
-  uint32_t day{0};
-  uint32_t hour{0};
-  uint32_t minute{0};
-  uint32_t second{0};
+  uint32_t epoch_seconds{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2023,7 +2013,6 @@ class DateTimeCommandRequest : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 
 }  // namespace api
