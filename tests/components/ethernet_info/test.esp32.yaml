@@ -15,3 +15,5 @@ text_sensor:
   - platform: ethernet_info
     ip_address:
       name: IP Address
+    dns_address:
+      name: DNS Address

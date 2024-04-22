@@ -176,3 +176,11 @@ button:
             0x00,
             0x05,
           ]
+  - platform: template
+    name: Dooya
+    on_press:
+      remote_transmitter.transmit_dooya:
+        id: 0x123456
+        channel: 1
+        button: 1
+        check: 1

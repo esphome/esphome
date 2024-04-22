@@ -1590,6 +1590,10 @@ def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
     default_schema_option = kwargs.pop("default_type", None)
+    enum_mapping = kwargs.pop("enum", None)
+    if enum_mapping is not None:
+        assert isinstance(enum_mapping, dict)
+        assert set(enum_mapping.keys()) == set(schemas.keys())
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
@@ -1600,6 +1604,9 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
+        if enum_mapping is not None:
+            key_v = add_class_to_obj(key_v, core.EnumValue)
+            key_v.enum_value = enum_mapping[key_v]
         value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
