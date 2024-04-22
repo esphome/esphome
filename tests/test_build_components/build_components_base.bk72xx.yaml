@@ -1,9 +1,9 @@
 esphome:
-  name: componenttestesp8266
+  name: componenttestespbk72xx
   friendly_name: $component_name
 
-esp8266:
-  board: d1_mini
+bk72xx:
+  board: cb3s
 
 logger:
   level: VERY_VERBOSE
