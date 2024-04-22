@@ -180,40 +180,34 @@ async def setup_fan_core_(var, config):
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if CONF_OSCILLATION_STATE_TOPIC in config:
+        if (
+            oscillation_state_topic := config.get(CONF_OSCILLATION_STATE_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_oscillation_state_topic(oscillation_state_topic))
+        if (
+            oscillation_command_topic := config.get(CONF_OSCILLATION_COMMAND_TOPIC)
+        ) is not None:
             cg.add(
-                mqtt_.set_custom_oscillation_state_topic(
-                    config[CONF_OSCILLATION_STATE_TOPIC]
-                )
+                mqtt_.set_custom_oscillation_command_topic(oscillation_command_topic)
             )
-        if CONF_OSCILLATION_COMMAND_TOPIC in config:
+        if (
+            speed_level_state_topic := config.get(CONF_SPEED_LEVEL_STATE_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_speed_level_state_topic(speed_level_state_topic))
+        if (
+            speed_level_command_topic := config.get(CONF_SPEED_LEVEL_COMMAND_TOPIC)
+        ) is not None:
             cg.add(
-                mqtt_.set_custom_oscillation_command_topic(
-                    config[CONF_OSCILLATION_COMMAND_TOPIC]
-                )
+                mqtt_.set_custom_speed_level_command_topic(speed_level_command_topic)
             )
-        if CONF_SPEED_LEVEL_STATE_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_speed_level_state_topic(
-                    config[CONF_SPEED_LEVEL_STATE_TOPIC]
-                )
-            )
-        if CONF_SPEED_LEVEL_COMMAND_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_speed_level_command_topic(
-                    config[CONF_SPEED_LEVEL_COMMAND_TOPIC]
-                )
-            )
-        if CONF_SPEED_STATE_TOPIC in config:
-            cg.add(mqtt_.set_custom_speed_state_topic(config[CONF_SPEED_STATE_TOPIC]))
-        if CONF_SPEED_COMMAND_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC])
-            )
+        if (speed_state_topic := config.get(CONF_SPEED_STATE_TOPIC)) is not None:
+            cg.add(mqtt_.set_custom_speed_state_topic(speed_state_topic))
+        if (speed_command_topic := config.get(CONF_SPEED_COMMAND_TOPIC)) is not None:
+            cg.add(mqtt_.set_custom_speed_command_topic(speed_command_topic))
 
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -288,14 +282,14 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
 async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_OSCILLATING in config:
-        template_ = await cg.templatable(config[CONF_OSCILLATING], args, bool)
+    if (oscillating := config.get(CONF_OSCILLATING)) is not None:
+        template_ = await cg.templatable(oscillating, args, bool)
         cg.add(var.set_oscillating(template_))
-    if CONF_SPEED in config:
-        template_ = await cg.templatable(config[CONF_SPEED], args, int)
+    if (speed := config.get(CONF_SPEED)) is not None:
+        template_ = await cg.templatable(speed, args, int)
         cg.add(var.set_speed(template_))
-    if CONF_DIRECTION in config:
-        template_ = await cg.templatable(config[CONF_DIRECTION], args, FanDirection)
+    if (direction := config.get(CONF_DIRECTION)) is not None:
+        template_ = await cg.templatable(direction, args, FanDirection)
         cg.add(var.set_direction(template_))
     return var
 

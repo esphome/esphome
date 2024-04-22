@@ -732,14 +732,14 @@ async def build_filters(config):
 async def setup_sensor_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
-    if CONF_STATE_CLASS in config:
-        cg.add(var.set_state_class(config[CONF_STATE_CLASS]))
-    if CONF_UNIT_OF_MEASUREMENT in config:
-        cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
-    if CONF_ACCURACY_DECIMALS in config:
-        cg.add(var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
+    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
+        cg.add(var.set_state_class(state_class))
+    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.set_unit_of_measurement(unit_of_measurement))
+    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
+        cg.add(var.set_accuracy_decimals(accuracy_decimals))
     cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
@@ -754,23 +754,23 @@ async def setup_sensor_core_(var, config):
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
-        if CONF_ABOVE in conf:
-            template_ = await cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
+        if (above := conf.get(CONF_ABOVE)) is not None:
+            template_ = await cg.templatable(above, [(float, "x")], float)
             cg.add(trigger.set_min(template_))
-        if CONF_BELOW in conf:
-            template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
+        if (below := conf.get(CONF_BELOW)) is not None:
+            template_ = await cg.templatable(below, [(float, "x")], float)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if CONF_EXPIRE_AFTER in config:
-            if config[CONF_EXPIRE_AFTER] is None:
+        if (expire_after := config.get(CONF_EXPIRE_AFTER, _UNDEF)) is not _UNDEF:
+            if expire_after is None:
                 cg.add(mqtt_.disable_expire_after())
             else:
-                cg.add(mqtt_.set_expire_after(config[CONF_EXPIRE_AFTER]))
+                cg.add(mqtt_.set_expire_after(expire_after))
 
 
 async def register_sensor(var, config):
@@ -803,10 +803,10 @@ async def sensor_in_range_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
-    if CONF_ABOVE in config:
-        cg.add(var.set_min(config[CONF_ABOVE]))
-    if CONF_BELOW in config:
-        cg.add(var.set_max(config[CONF_BELOW]))
+    if (above := config.get(CONF_ABOVE)) is not None:
+        cg.add(var.set_min(above))
+    if (below := config.get(CONF_BELOW)) is not None:
+        cg.add(var.set_max(below))
 
     return var
 
