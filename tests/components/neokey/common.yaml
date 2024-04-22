@@ -1,0 +1,24 @@
+i2c:
+  - id: i2c_neokey
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+neokey:
+
+binary_sensor:
+  - platform: neokey
+    name: "Key 1"
+    key: 0
+  - platform: neokey
+    name: "Key 2"
+    key: 1
+  - platform: neokey
+    name: "Key 3"
+    key: 2
+  - platform: neokey
+    name: "Key 4"
+    key: 3
+
+light:
+  - platform: neokey
+    name: "Backlight"
