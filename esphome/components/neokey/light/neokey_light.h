@@ -6,7 +6,7 @@
 namespace esphome {
 namespace neokey {
 
-#define NUM_BYTES_PER_LED 3
+static const uint8_t NUM_BYTES_PER_LED = 3;
 
 class NeoKeyLight : public light::AddressableLight {
  public:

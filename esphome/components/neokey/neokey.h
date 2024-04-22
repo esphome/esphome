@@ -10,8 +10,6 @@
 namespace esphome {
 namespace neokey {
 
-static const uint8_t NUM_BYTES_PER_LED = 3;
-
 static const char *const TAG = "neokey";
 
 class KeyListener {
