@@ -79,7 +79,7 @@ SkipInitialFilter::SkipInitialFilter(size_t num_to_ignore) : num_to_ignore_(num_
 optional<float> SkipInitialFilter::new_value(float value) {
   if (num_to_ignore_ > 0) {
     num_to_ignore_--;
-    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %u left", this, value, num_to_ignore_);
+    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %zu left", this, value, num_to_ignore_);
     return {};
   }
 
