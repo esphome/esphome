@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     CONF_EVENT_TYPE,
-    CONF_EVENT_TYPES,
     DEVICE_CLASS_BUTTON,
     DEVICE_CLASS_DOORBELL,
     DEVICE_CLASS_EMPTY,
@@ -35,7 +34,7 @@ event_ns = cg.esphome_ns.namespace("event")
 Event = event_ns.class_("Event", cg.EntityBase)
 EventPtr = Event.operator("ptr")
 
-FireEventAction = event_ns.class_("FireEventAction", automation.Action)
+TriggerEventAction = event_ns.class_("TriggerEventAction", automation.Action)
 
 EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
 
@@ -45,7 +44,6 @@ EVENT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
         cv.GenerateID(): cv.declare_id(Event),
-        cv.Required(CONF_EVENT_TYPES): cv.ensure_list(cv.string_strict),
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_ON_EVENT): automation.validate_automation(
             {
@@ -81,7 +79,7 @@ def event_schema(
     return EVENT_SCHEMA.extend(schema)
 
 
-async def setup_event_core_(var, config):
+async def setup_event_core_(var, config, *, event_types: list[str]):
     await setup_entity(var, config)
 
     for conf in config.get(CONF_ON_EVENT, []):
@@ -90,8 +88,7 @@ async def setup_event_core_(var, config):
             trigger, [(cg.std_string, "event_type")], conf
         )
 
-    if CONF_EVENT_TYPES in config:
-        cg.add(var.set_event_types(config[CONF_EVENT_TYPES]))
+    cg.add(var.set_event_types(event_types))
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
@@ -101,20 +98,20 @@ async def setup_event_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
 
-async def register_event(var, config):
+async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_event(var))
-    await setup_event_core_(var, config)
+    await setup_event_core_(var, config, event_types=event_types)
 
 
-async def new_event(config):
+async def new_event(config, *, event_types: list[str]):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_event(var, config)
+    await register_event(var, config, event_types=event_types)
     return var
 
 
-FIRE_EVENT_SCHEMA = automation.maybe_simple_id(
+TRIGGER_EVENT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Event),
         cv.Required(CONF_EVENT_TYPE): cv.templatable(cv.string_strict),
@@ -122,10 +119,10 @@ FIRE_EVENT_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action("event.fire", FireEventAction, FIRE_EVENT_SCHEMA)
+@automation.register_action("event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA)
 async def event_fire_to_code(config, action_id, template_arg, args):
-    event_var = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, event_var)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     templ = await cg.templatable(config[CONF_EVENT_TYPE], args, cg.std_string)
     cg.add(var.set_event_type(templ))
     return var

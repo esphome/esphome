@@ -16,17 +16,20 @@ namespace event {
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
+    } \
   }
 
 class Event : public EntityBase, public EntityBase_DeviceClass {
  public:
-  void fire_event(const std::string &event_type);
+  void trigger(const std::string &event_type);
   void set_event_types(const std::set<std::string> &event_types) { this->types_ = event_types; }
   std::set<std::string> get_event_types() const { return this->types_; }
-  void add_on_event_fired_callback(std::function<void(const std::string &event_type)> &&callback);
+  void add_on_event_callback(std::function<void(const std::string &event_type)> &&callback);
 
  protected:
-  CallbackManager<void(const std::string &event_type)> event_fired_callback_;
+  CallbackManager<void(const std::string &event_type)> event_callback_;
   std::set<std::string> types_;
 };
 

@@ -7,21 +7,17 @@
 namespace esphome {
 namespace event {
 
-template<typename... Ts> class FireEventAction : public Action<Ts...> {
+template<typename... Ts> class TriggerEventAction : public Action<Ts...>, public Parented<Event> {
  public:
-  explicit FireEventAction(Event *event) : event_(event) {}
   TEMPLATABLE_VALUE(std::string, event_type)
 
-  void play(Ts... x) override { this->event_->fire_event(this->event_type_.value(x...)); }
-
- protected:
-  Event *event_;
+  void play(Ts... x) override { this->parent_->trigger(this->event_type_.value(x...)); }
 };
 
 class EventTrigger : public Trigger<std::string> {
  public:
   EventTrigger(Event *event) {
-    event->add_on_event_fired_callback([this](const std::string &event_type) { this->trigger(event_type); });
+    event->add_on_event_callback([this](const std::string &event_type) { this->trigger(event_type); });
   }
 };
 

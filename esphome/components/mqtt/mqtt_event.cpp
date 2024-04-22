@@ -27,8 +27,7 @@ void MQTTEventComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
 }
 
 void MQTTEventComponent::setup() {
-  this->event_->add_on_event_fired_callback(
-      [this](const std::string &event_type) { this->publish_event_(event_type); });
+  this->event_->add_on_event_callback([this](const std::string &event_type) { this->publish_event_(event_type); });
 }
 
 void MQTTEventComponent::dump_config() {
