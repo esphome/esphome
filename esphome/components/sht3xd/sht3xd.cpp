@@ -48,9 +48,6 @@ void SHT3XDComponent::setup() {
 void SHT3XDComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHT3xD:");
   switch (this->error_code_) {
-    case READ_SERIAL_STRETCHED_FAILED:
-      ESP_LOGD(TAG, "  Error reading serial number - trying alternate register");
-      break;
     case READ_SERIAL_FAILED:
       ESP_LOGD(TAG, "  Error reading serial number");
       break;
