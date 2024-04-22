@@ -146,6 +146,10 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
+  memset(this->buf_, 0, buffer_size);
+  memset(this->effect_data_, 0, this->num_leds_);
+  memset(this->dma_buf_, 0, dma_buffer_size);
+
   uint32_t value = PCLK_POSI_SPI;
   sddev_control(ICU_DEV_NAME, CMD_CONF_PCLK_26M, &value);
 
