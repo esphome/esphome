@@ -10,7 +10,7 @@
 namespace esphome {
 namespace neokey {
 
-#define NUM_BYTES_PER_LED 3
+static const uint8_t NUM_BYTES_PER_LED = 3;
 
 static const char *const TAG = "neokey";
 
@@ -35,7 +35,7 @@ class NeoKeyComponent : public PollingComponent, public i2c::I2CDevice {
   // Light
   friend NeoKeyLight;
   Adafruit_NeoKey_1x4 hub_;
-  std::vector<KeyListener *> listeners_{}; 
+  std::vector<KeyListener *> listeners_{};
 };
 
 }  // namespace neokey

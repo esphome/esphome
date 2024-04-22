@@ -10,19 +10,6 @@ void NeoKeyComponent::setup() {
     this->mark_failed();
     return;
   }
-
-  // Pulse all the LEDs on to show we're working
-  for (size_t i = 0; i < this->hub_.pixels.numPixels(); i++) {
-    this->hub_.pixels.setPixelColor(i, 0x808080);  // make each LED white
-    this->hub_.pixels.show();
-    delay(50);
-  }
-
-  for (size_t i = 0; i < this->hub_.pixels.numPixels(); i++) {
-    this->hub_.pixels.setPixelColor(i, 0x000000);
-    this->hub_.pixels.show();
-    delay(50);
-  }
 }
 
 void NeoKeyComponent::update() {
