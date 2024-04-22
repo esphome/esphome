@@ -10,10 +10,6 @@
 
 #include "datetime_base.h"
 
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
-
 namespace esphome {
 namespace datetime {
 
@@ -53,16 +49,7 @@ class DateTimeEntity : public DateTimeBase {
   void publish_state();
   DateTimeCall make_call();
 
-  ESPTime state_as_esptime() const override {
-    ESPTime obj;
-    obj.year = this->year_;
-    obj.month = this->month_;
-    obj.day_of_month = this->day_;
-    obj.hour = this->hour_;
-    obj.minute = this->minute_;
-    obj.second = this->second_;
-    return obj;
-  }
+  ESPTime state_as_esptime() const override;
 
   const uint16_t &year = year_;
   const uint8_t &month = month_;
@@ -74,6 +61,7 @@ class DateTimeEntity : public DateTimeBase {
  protected:
   friend class DateTimeCall;
   friend struct DateTimeEntityRestoreState;
+  friend class OnDateTimeTrigger;
 
   virtual void control(const DateTimeCall &call) = 0;
 };
@@ -85,6 +73,7 @@ class DateTimeCall {
   DateTimeCall &set_datetime(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
   DateTimeCall &set_datetime(ESPTime datetime);
   DateTimeCall &set_datetime(const std::string &datetime);
+  DateTimeCall &set_datetime(time_t epoch_seconds);
 
   DateTimeCall &set_year(uint16_t year) {
     this->year_ = year;
@@ -145,21 +134,15 @@ template<typename... Ts> class DateTimeSetAction : public Action<Ts...>, public 
   }
 };
 
-#ifdef USE_TIME
-
 class OnDateTimeTrigger : public Trigger<>, public Component, public Parented<DateTimeEntity> {
  public:
-  explicit OnDateTimeTrigger(time::RealTimeClock *rtc) : rtc_(rtc) {}
   void loop() override;
 
  protected:
   bool matches_(const ESPTime &time) const;
 
-  time::RealTimeClock *rtc_;
   optional<ESPTime> last_check_;
 };
-
-#endif
 
 }  // namespace datetime
 }  // namespace esphome

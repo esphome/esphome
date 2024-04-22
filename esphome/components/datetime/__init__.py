@@ -27,6 +27,7 @@ from esphome.cpp_helpers import setup_entity
 
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
+DEPENDENCIES = ["time"]
 
 IS_PLATFORM_COMPONENT = True
 
@@ -48,6 +49,12 @@ DateTimeStateTrigger = datetime_ns.class_(
 OnTimeTrigger = datetime_ns.class_(
     "OnTimeTrigger", automation.Trigger, cg.Component, cg.Parented.template(TimeEntity)
 )
+OnDateTimeTrigger = datetime_ns.class_(
+    "OnDateTimeTrigger",
+    automation.Trigger,
+    cg.Component,
+    cg.Parented.template(DateTimeEntity),
+)
 
 DATETIME_MODES = [
     "DATE",
@@ -63,58 +70,55 @@ _DATETIME_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
             }
         ),
+        cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
     }
 ).extend(cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA))
 
 
 def date_schema(class_: MockObjClass) -> cv.Schema:
-    schema = {
-        cv.GenerateID(): cv.declare_id(class_),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTDateComponent),
-        cv.Optional(CONF_TYPE, default="DATE"): cv.one_of("DATE", upper=True),
-    }
+    schema = cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTDateComponent),
+            cv.Optional(CONF_TYPE, default="DATE"): cv.one_of("DATE", upper=True),
+        }
+    )
     return _DATETIME_SCHEMA.extend(schema)
 
 
 def time_schema(class_: MockObjClass) -> cv.Schema:
-    schema = {
-        cv.GenerateID(): cv.declare_id(class_),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTimeComponent),
-        cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
-        cv.Inclusive(
-            CONF_ON_TIME,
-            group_of_inclusion=CONF_ON_TIME,
-            msg="`on_time` and `time_id` must both be specified",
-        ): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeTrigger),
-            }
-        ),
-        cv.Inclusive(CONF_TIME_ID, group_of_inclusion=CONF_ON_TIME): cv.use_id(
-            time.RealTimeClock
-        ),
-    }
+    schema = cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTimeComponent),
+            cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
+            cv.Optional(CONF_ON_TIME): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeTrigger),
+                }
+            ),
+        }
+    )
     return _DATETIME_SCHEMA.extend(schema)
 
 
 def datetime_schema(class_: MockObjClass) -> cv.Schema:
-    schema = {
-        cv.GenerateID(): cv.declare_id(class_),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTDateTimeComponent),
-        cv.Optional(CONF_TYPE, default="DATETIME"): cv.one_of("DATETIME", upper=True),
-        cv.Inclusive(
-            CONF_ON_TIME,
-            group_of_inclusion=CONF_ON_TIME,
-            msg="`on_time` and `time_id` must both be specified",
-        ): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeTrigger),
-            }
-        ),
-        cv.Inclusive(CONF_TIME_ID, group_of_inclusion=CONF_ON_TIME): cv.use_id(
-            time.RealTimeClock
-        ),
-    }
+    schema = cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt.MQTTDateTimeComponent
+            ),
+            cv.Optional(CONF_TYPE, default="DATETIME"): cv.one_of(
+                "DATETIME", upper=True
+            ),
+            cv.Optional(CONF_ON_TIME): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnDateTimeTrigger),
+                }
+            ),
+        }
+    )
     return _DATETIME_SCHEMA.extend(schema)
 
 
@@ -128,13 +132,11 @@ async def setup_datetime_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
 
-    rtc_id = config.get(CONF_TIME_ID)
-    rtc = None
-    if rtc_id is not None:
-        rtc = await cg.get_variable(rtc_id)
+    rtc = await cg.get_variable(config[CONF_TIME_ID])
+    cg.add(var.set_rtc(rtc))
+
     for conf in config.get(CONF_ON_TIME, []):
-        assert rtc is not None
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], rtc)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         await automation.build_automation(trigger, [], conf)
         await cg.register_component(trigger, conf)
         await cg.register_parented(trigger, var)

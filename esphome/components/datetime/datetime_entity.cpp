@@ -52,6 +52,20 @@ void DateTimeEntity::publish_state() {
 
 DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
+ESPTime DateTimeEntity::state_as_esptime() const {
+  ESPTime obj;
+  obj.year = this->year_;
+  obj.month = this->month_;
+  obj.day_of_month = this->day_;
+  obj.hour = this->hour_;
+  obj.minute = this->minute_;
+  obj.second = this->second_;
+  obj.day_of_week = 1;  // Required to be valid for recalc_timestamp_local but not used.
+  obj.day_of_year = 1;  // Required to be valid for recalc_timestamp_local but not used.
+  obj.recalc_timestamp_local(false);
+  return obj;
+}
+
 void DateTimeCall::validate_() {
   if (this->year_.has_value() && (this->year_ < 1970 || this->year_ > 3000)) {
     ESP_LOGE(TAG, "Year must be between 1970 and 3000");
@@ -157,6 +171,11 @@ DateTimeCall &DateTimeCall::set_datetime(const std::string &datetime) {
   return this->set_datetime(val);
 }
 
+DateTimeCall &DateTimeCall::set_datetime(time_t epoch_seconds) {
+  ESPTime val = ESPTime::from_epoch_local(epoch_seconds);
+  return this->set_datetime(val);
+}
+
 DateTimeCall DateTimeEntityRestoreState::to_call(DateTimeEntity *datetime) {
   DateTimeCall call = datetime->make_call();
   call.set_datetime(this->year, this->month, this->day, this->hour, this->minute, this->second);
@@ -173,8 +192,6 @@ void DateTimeEntityRestoreState::apply(DateTimeEntity *time) {
   time->publish_state();
 }
 
-#ifdef USE_TIME
-
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
@@ -182,7 +199,7 @@ void OnDateTimeTrigger::loop() {
   if (!this->parent_->has_state()) {
     return;
   }
-  ESPTime time = this->rtc_->now();
+  ESPTime time = this->parent_->rtc_->now();
   if (!time.is_valid()) {
     return;
   }
@@ -228,8 +245,6 @@ bool OnDateTimeTrigger::matches_(const ESPTime &time) const {
          time.day_of_month == this->parent_->day && time.hour == this->parent_->hour &&
          time.minute == this->parent_->minute && time.second == this->parent_->second;
 }
-
-#endif
 
 }  // namespace datetime
 }  // namespace esphome
