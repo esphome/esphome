@@ -13,15 +13,6 @@ void NeoKeyLight::setup() {
   memset(this->effect_data_, 0x00, this->size());
 }
 
-void NeoKeyLight::set_neokey(NeoKeyComponent *neokey) { neokey_ = neokey; }
-
-int32_t NeoKeyLight::size() { return this->neokey_ == nullptr ? 0 : this->neokey_->hub_.pixels.numPixels(); }
-
-light::LightTraits NeoKeyLight::get_traits() {
-  auto traits = light::LightTraits();
-  traits.set_supported_color_modes({light::ColorMode::RGB});
-  return traits;
-}
 
 void NeoKeyLight::write_state(light::LightState *state) {
   if (this->neokey_ == nullptr) {
@@ -42,17 +33,6 @@ void NeoKeyLight::write_state(light::LightState *state) {
     this->neokey_->hub_.pixels.setPixelColor(i, red, green, blue);
   }
   this->neokey_->hub_.pixels.show();
-}
-
-void NeoKeyLight::clear_effect_data() {
-  for (int i = 0; i < this->size(); i++)
-    this->effect_data_[i] = 0;
-}
-
-light::ESPColorView NeoKeyLight::get_view_internal(int32_t index) {
-  uint8_t *base = this->buf_ + (NUM_BYTES_PER_LED * index);
-
-  return light::ESPColorView(base + 0, base + 1, base + 2, nullptr, this->effect_data_ + index, &this->correction_);
 }
 
 }  // namespace neokey
