@@ -4,6 +4,8 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_KEY
 from .. import neokey_ns, NeoKeyComponent, CONF_NEOKEY_ID
 
+CODEOWNERS = ["@deisterhold"]
+
 NeoKeyBinarySensor = neokey_ns.class_("NeoKeyBinarySensor", binary_sensor.BinarySensor)
 
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(NeoKeyBinarySensor).extend(
