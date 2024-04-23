@@ -38,11 +38,11 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void register_sensor(DS248xTemperatureSensor *sensor);
 
  protected:
-  uint32_t readIdx;
-  uint64_t searchAddress;
-  uint8_t searchLastDiscrepancy;
-  uint8_t channel = 0;
-  bool last_device_found;
+  uint32_t read_idx_;
+  uint64_t search_address_;
+  uint8_t search_last_discrepancy_;
+  uint8_t channel_ = 0;
+  bool last_device_found_;
 
   InternalGPIOPin *sleep_pin_;
 
@@ -58,26 +58,26 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   std::vector<DS248xTemperatureSensor *> channel_sensors_[NBR_CHANNELS];
   std::vector<DS248xTemperatureSensor *> sensors_;
 
-  uint8_t read_config();
-  void write_config(uint8_t cfg);
+  uint8_t read_config_();
+  void write_config_(uint8_t cfg);
 
-  uint8_t wait_while_busy();
+  uint8_t wait_while_busy_();
 
-  void reset_hub();
-  bool set_channel(uint8_t channel);
-  uint8_t get_channel();
+  void reset_hub_();
+  bool set_channel_(uint8_t channel);
+  uint8_t get_channel_();
 
-  bool reset_devices();
+  bool reset_devices_();
 
-  void write_command(uint8_t command, uint8_t data);
+  void write_command_(uint8_t command, uint8_t data);
 
-  void select(uint64_t address);
+  void select_(uint64_t address);
 
-  void write_to_wire(uint8_t data);
+  void write_to_wire_(uint8_t data);
 
-  uint8_t read_from_wire();
+  uint8_t read_from_wire_();
 
-  bool search(uint64_t *address);
+  bool search_(uint64_t *address);
 };
 
 class DS248xTemperatureSensor : public sensor::Sensor {
