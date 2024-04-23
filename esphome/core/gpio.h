@@ -5,7 +5,7 @@
 namespace esphome {
 
 #define LOG_PIN(prefix, pin) \
-  if ((pin) != nullptr && (pin != NULL_PIN)) { \
+  if ((pin) != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix "%s", (pin)->dump_summary().c_str()); \
   }
 
