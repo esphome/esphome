@@ -511,8 +511,6 @@ void Display::do_update_() {
     this->page_->get_writer()(*this);
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
-  } else {
-    this->test_card_();
   }
   this->clear_clipping_();
 }
@@ -614,7 +612,7 @@ const uint8_t font_r[8] PROGMEM = {0x41, 0x7F, 0x7F, 0x09, 0x19, 0x7F, 0x66, 0x0
 const uint8_t font_g[8] PROGMEM = {0x1C, 0x3E, 0x63, 0x41, 0x51, 0x73, 0x72, 0x00};  // 'G'
 const uint8_t font_b[8] PROGMEM = {0x41, 0x7F, 0x7F, 0x49, 0x49, 0x7F, 0x36, 0x00};  // 'B'
 
-void Display::test_card_() {
+void Display::test_card() {
   // end
   int w = get_width(), h = get_height(), image_w, image_h;
   if (this->get_display_type() == DISPLAY_TYPE_COLOR) {

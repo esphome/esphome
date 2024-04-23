@@ -631,6 +631,8 @@ class Display : public PollingComponent {
    */
   bool clip(int x, int y);
 
+  void test_card();
+
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
@@ -642,8 +644,6 @@ class Display : public PollingComponent {
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
-
-  void test_card_();
 
   /**
    * This method fills a triangle using only integer variables by using a
