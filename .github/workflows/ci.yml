@@ -434,7 +434,7 @@ jobs:
     needs:
       - common
       - list-components
-    if: github.event_name == 'pull_request' && needs.list-components.outputs.count < 100
+    if: github.event_name == 'pull_request' && needs.list-components.outputs.count > 0 && needs.list-components.outputs.count < 100
     strategy:
       fail-fast: false
       max-parallel: 2
