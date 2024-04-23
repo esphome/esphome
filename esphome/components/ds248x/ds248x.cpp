@@ -122,8 +122,6 @@ void DS248xComponent::setup() {
     this->found_channel_sensors_.push_back(channel);
   }
 
-  index = 0;
-
   // DS2482_100
   if (this->ds248x_type_ == DS248xType::DS2482_100) {
     for (auto *sensor : this->sensors_) {
