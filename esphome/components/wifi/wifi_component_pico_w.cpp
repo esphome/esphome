@@ -6,6 +6,7 @@
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "lwip/netif.h"
+#include <AddrList.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -173,7 +174,14 @@ std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
+  network::IPAddresses addresses;
+  uint8_t index = 0;
+  for (auto addr : addrList) {
+    addresses[index++] = addr.ipFromNetifNum();
+  }
+  return addresses;
+}
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
