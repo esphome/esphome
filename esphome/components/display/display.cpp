@@ -507,7 +507,9 @@ void Display::do_update_() {
   if (this->auto_clear_enabled_) {
     this->clear();
   }
-  if (this->page_ != nullptr) {
+  if (this->show_test_card_) {
+    this->test_card();
+  } else if (this->page_ != nullptr) {
     this->page_->get_writer()(*this);
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
@@ -613,8 +615,9 @@ const uint8_t font_g[8] PROGMEM = {0x1C, 0x3E, 0x63, 0x41, 0x51, 0x73, 0x72, 0x0
 const uint8_t font_b[8] PROGMEM = {0x41, 0x7F, 0x7F, 0x49, 0x49, 0x7F, 0x36, 0x00};  // 'B'
 
 void Display::test_card() {
-  // end
   int w = get_width(), h = get_height(), image_w, image_h;
+  this->clear();
+  this->show_test_card_ = false;
   if (this->get_display_type() == DISPLAY_TYPE_COLOR) {
     Color R(255, 0, 0), G(0, 255, 0), B(0, 0, 255);
     if (w > h) {
