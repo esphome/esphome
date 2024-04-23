@@ -20,7 +20,6 @@ permissions:
 env:
   DEFAULT_PYTHON: "3.9"
   PYUPGRADE_TARGET: "--py39-plus"
-  CLANG_FORMAT_VERSION: "13.0.1"
 
 concurrency:
   # yamllint disable-line rule:line-length
@@ -239,7 +238,7 @@ jobs:
       - name: Install clang-format
         run: |
           . venv/bin/activate
-          pip install clang-format==${{ env.CLANG_FORMAT_VERSION }}
+          pip install clang-format -c requirements_dev.txt
       - name: Run clang-format
         run: |
           . venv/bin/activate
