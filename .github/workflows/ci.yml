@@ -428,6 +428,8 @@ jobs:
           echo "components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
           echo "count=$count" >> $GITHUB_OUTPUT
 
+          echo "$components" | jq -R -s 'split("\n")[:-1]'
+
   test-build-components:
     name: Component test ${{ matrix.file }}
     runs-on: ubuntu-latest
