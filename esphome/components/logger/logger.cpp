@@ -39,7 +39,7 @@ void Logger::write_header_(int level, const char *tag, int line) {
 
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
   void * current_task = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
   k_tid_t current_task = k_current_get();
@@ -49,7 +49,7 @@ void Logger::write_header_(int level, const char *tag, int line) {
   if (current_task == main_task_) {
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
   } else {
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
     const char *thread_name = pcTaskGetName(current_task);
 #elif defined(USE_ZEPHYR)
     const char *thread_name = k_thread_name_get(current_task);
@@ -140,16 +140,6 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 
   this->log_callback_.call(level, tag, msg);
 }
-
-#if defined(USE_HOST) || defined(USE_ARDUINO)
-void HOT Logger::write_msg_(const char *msg) {
-#ifdef USE_HOST
-  puts(msg);
-#elif USE_ARDUINO
-  this->hw_serial_->println(msg);
-#endif
-}
-#endif
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator

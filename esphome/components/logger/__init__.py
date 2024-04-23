@@ -307,17 +307,6 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
-    try:
-        uart_selection(USB_SERIAL_JTAG)
-        cg.add_build_flag("-DUSE_USB_SERIAL_JTAG")
-    except cv.Invalid:
-        pass
-    try:
-        uart_selection(USB_CDC)
-        cg.add_build_flag("-DUSE_USB_CDC")
-    except cv.Invalid:
-        pass
-
     if CORE.using_zephyr:
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
