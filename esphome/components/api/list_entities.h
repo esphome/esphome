@@ -61,6 +61,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
+#ifdef USE_VALVE
+  bool on_valve(valve::Valve *valve) override;
+#endif
 #ifdef USE_MEDIA_PLAYER
   bool on_media_player(media_player::MediaPlayer *media_player) override;
 #endif
