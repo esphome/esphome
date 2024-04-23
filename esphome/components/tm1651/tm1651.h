@@ -13,6 +13,12 @@
 namespace esphome {
 namespace tm1651 {
 
+enum TM1651Brightness : uint8_t {
+  TM1651_BRIGHTNESS_LOW = 1,
+  TM1651_BRIGHTNESS_MEDIUM = 2,
+  TM1651_BRIGHTNESS_HIGH = 3,
+};
+
 class TM1651Display : public Component {
  public:
   void set_clk_pin(InternalGPIOPin *pin) { clk_pin_ = pin; }
@@ -24,6 +30,7 @@ class TM1651Display : public Component {
   void set_level_percent(uint8_t new_level);
   void set_level(uint8_t new_level);
   void set_brightness(uint8_t new_brightness);
+  void set_brightness(TM1651Brightness new_brightness) { this->set_brightness(static_cast<uint8_t>(new_brightness)); }
 
   void turn_on();
   void turn_off();

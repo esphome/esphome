@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
+    CONF_EXTERNAL_TEMPERATURE,
     CONF_HUMIDITY,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
@@ -18,8 +19,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@fkirill"]
 DEPENDENCIES = ["esp32_ble_tracker"]
-
-CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 inkbird_ibsth1_mini_ns = cg.esphome_ns.namespace("inkbird_ibsth1_mini")
 InkbirdIbstH1Mini = inkbird_ibsth1_mini_ns.class_(

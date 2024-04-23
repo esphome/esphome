@@ -131,7 +131,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 // TODO: is this needed?
 #if LWIP_IPV6
   dns.type = IPADDR_TYPE_V4;
-#endif
+#endif /* LWIP_IPV6 */
   if (manual_ip->dns1.is_set()) {
     dns = manual_ip->dns1;
     dns_setserver(0, &dns);
@@ -144,12 +144,36 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
+  network::IPAddresses addresses;
   tcpip_adapter_ip_info_t ip;
-  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
-  return network::IPAddress(&ip.ip);
+  esp_err_t err = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
+    // TODO: do something smarter
+    // return false;
+  } else {
+    addresses[0] = network::IPAddress(&ip.ip);
+  }
+#if USE_NETWORK_IPV6
+  ip6_addr_t ipv6;
+  err = tcpip_adapter_get_ip6_global(TCPIP_ADAPTER_IF_STA, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_gobal failed: %s", esp_err_to_name(err));
+  } else {
+    addresses[1] = network::IPAddress(&ipv6);
+  }
+  err = tcpip_adapter_get_ip6_linklocal(TCPIP_ADAPTER_IF_STA, &ipv6);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_netif_get_ip6_linklocal failed: %s", esp_err_to_name(err));
+  } else {
+    addresses[2] = network::IPAddress(&ipv6);
+  }
+#endif /* USE_NETWORK_IPV6 */
+
+  return addresses;
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
@@ -440,9 +464,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
       this->set_timeout(100, [] { WiFi.enableIpV6(); });
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
 
       break;
     }
@@ -494,18 +518,26 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip).c_str(),
                format_ip4_addr(it.gw).c_str());
+      this->got_ipv4_address_ = true;
+#if USE_NETWORK_IPV6
+      s_sta_connecting = this->num_ipv6_addresses_ < USE_NETWORK_MIN_IPV6_ADDR_COUNT;
+#else
       s_sta_connecting = false;
+#endif /* USE_NETWORK_IPV6 */
       break;
     }
-#if ENABLE_IPV6
+#if USE_NETWORK_IPV6
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       auto it = info.got_ip6.ip6_info;
       ESP_LOGV(TAG, "Got IPv6 address=" IPV6STR, IPV62STR(it.ip));
+      this->num_ipv6_addresses_++;
+      s_sta_connecting = !(this->got_ipv4_address_ & (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT));
       break;
     }
-#endif /* ENABLE_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
+      this->got_ipv4_address_ = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_START: {
@@ -550,14 +582,14 @@ void WiFiComponent::wifi_pre_setup_() {
 }
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   auto status = WiFiClass::status();
-  if (status == WL_CONNECTED) {
-    return WiFiSTAConnectStatus::CONNECTED;
-  } else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
+  if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   } else if (status == WL_NO_SSID_AVAIL) {
     return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
   } else if (s_sta_connecting) {
     return WiFiSTAConnectStatus::CONNECTING;
+  } else if (status == WL_CONNECTED) {
+    return WiFiSTAConnectStatus::CONNECTED;
   }
   return WiFiSTAConnectStatus::IDLE;
 }
@@ -675,7 +707,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.ssid));
+    strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.password));
   }
 
   conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;

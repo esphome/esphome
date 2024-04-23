@@ -72,6 +72,16 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  bool send_date_state(datetime::DateEntity *date);
+  bool send_date_info(datetime::DateEntity *date);
+  void date_command(const DateCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  bool send_time_state(datetime::TimeEntity *time);
+  bool send_time_info(datetime::TimeEntity *time);
+  void time_command(const TimeCommandRequest &msg) override;
+#endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text, std::string state);
   bool send_text_info(text::Text *text);
@@ -90,6 +100,11 @@ class APIConnection : public APIServerConnection {
   bool send_lock_state(lock::Lock *a_lock, lock::LockState state);
   bool send_lock_info(lock::Lock *a_lock);
   void lock_command(const LockCommandRequest &msg) override;
+#endif
+#ifdef USE_VALVE
+  bool send_valve_state(valve::Valve *valve);
+  bool send_valve_info(valve::Valve *valve);
+  void valve_command(const ValveCommandRequest &msg) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
   bool send_media_player_state(media_player::MediaPlayer *media_player);
@@ -129,6 +144,7 @@ class APIConnection : public APIServerConnection {
   void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override;
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
+  void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

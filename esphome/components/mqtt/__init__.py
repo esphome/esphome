@@ -113,10 +113,13 @@ MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
 MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
+MQTTDateComponent = mqtt_ns.class_("MQTTDateComponent", MQTTComponent)
+MQTTTimeComponent = mqtt_ns.class_("MQTTTimeComponent", MQTTComponent)
 MQTTTextComponent = mqtt_ns.class_("MQTTTextComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
 MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
+MQTTValveComponent = mqtt_ns.class_("MQTTValveComponent", MQTTComponent)
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {
@@ -489,6 +492,8 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
+    if CONF_QOS in config:
+        cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
     if not config.get(CONF_DISCOVERY, True):

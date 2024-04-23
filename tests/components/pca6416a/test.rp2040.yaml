@@ -1,0 +1,17 @@
+i2c:
+  - id: i2c_pca6416a
+    scl: 5
+    sda: 4
+
+pca6416a:
+  - id: pca6416a_hub
+    address: 0x21
+
+binary_sensor:
+  - platform: gpio
+    name: PCA6416A Binary Sensor
+    pin:
+      pca6416a: pca6416a_hub
+      number: 15
+      mode: INPUT
+      inverted: true
