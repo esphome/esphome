@@ -76,12 +76,27 @@ void HTU21DComponent::update() {
 
       float humidity = (float(raw_humidity & 0xFFFC)) * 125.0f / 65536.0f - 6.0f;
 
-      int8_t heater_level = this->get_heater_level();
-
-      ESP_LOGD(TAG, "Got Humidity=%.1f%% Heater Level=%d", humidity, heater_level);
+      ESP_LOGD(TAG, "Got Humidity=%.1f%%", humidity);
 
       if (this->humidity_ != nullptr)
         this->humidity_->publish_state(humidity);
+
+      int8_t heater_level;
+
+      // HTU21D does have a heater module but does not have heater level
+      // Setting heater level to 1 in case the heater is ON
+      if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
+        if (this->is_heater_enabled()) {
+          heater_level = 1;
+        } else {
+          heater_level = 0;
+        }
+      } else {
+        heater_level = this->get_heater_level();
+      }
+
+      ESP_LOGD(TAG, "Heater Level=%d", heater_level);
+
       if (this->heater_ != nullptr)
         this->heater_->publish_state(heater_level);
       this->status_clear_warning();
