@@ -12,7 +12,7 @@ CONF_BUS_SLEEP = "bus_sleep"
 CONF_HUB_SLEEP = "hub_sleep"
 CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
-CONF_DS248X_TYPE = "type"
+CONF_TYPE = "type"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
 DS248xComponent = ds248x_ns.class_("DS248xComponent", cg.PollingComponent, i2c.I2CDevice)
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DS248xComponent),
-            cv.Required(CONF_DS248X_TYPE): cv.enum(DS248X_TYPES, lower=True),
+            cv.Required(CONF_TYPE): cv.enum(DS248X_TYPES, lower=True),
             cv.Optional(CONF_SLEEP_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_BUS_SLEEP, default=False): cv.boolean,
             cv.Optional(CONF_HUB_SLEEP, default=False): cv.boolean,
@@ -47,7 +47,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_ds248x_type(config[CONF_DS248X_TYPE]))
+    cg.add(var.set_ds248x_type(config[CONF_TYPE]))
     cg.add(var.set_bus_sleep(config[CONF_BUS_SLEEP]))
     cg.add(var.set_hub_sleep(config[CONF_HUB_SLEEP]))
     cg.add(var.set_active_pullup(config[CONF_ACTIVE_PULLUP]))
