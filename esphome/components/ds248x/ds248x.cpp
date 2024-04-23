@@ -248,15 +248,11 @@ void DS248xComponent::register_sensor(DS248xTemperatureSensor *sensor) {
 
 void DS248xComponent::update() {
   uint8_t channel = 0;
-  uint8_t nbr_channels = 1;
-  int nbr_sensors = 0;
+  uint8_t nbr_channels = 1;  
   int nbr_sensors_on_channel = 0;
 
   if (this->ds248x_type_ == DS248xType::DS2482_800) {
     nbr_channels = NBR_CHANNELS;
-    for (channel = 0; channel < nbr_channels; channel++) {
-      nbr_sensors += channel_sensors_[channel].size();
-    }
   }
 
   for (channel = 0; channel < nbr_channels; channel++) {
