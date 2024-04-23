@@ -43,6 +43,7 @@ service APIConnection {
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
+  rpc valve_command (ValveCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
   rpc date_command (DateCommandRequest) returns (void) {}
   rpc time_command (TimeCommandRequest) returns (void) {}
@@ -1699,4 +1700,54 @@ message TimeCommandRequest {
   uint32 hour = 2;
   uint32 minute = 3;
   uint32 second = 4;
+}
+
+
+// ==================== VALVE ====================
+message ListEntitiesValveResponse {
+  option (id) = 109;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+
+  bool assumed_state = 9;
+  bool supports_position = 10;
+  bool supports_stop = 11;
+}
+
+enum ValveOperation {
+  VALVE_OPERATION_IDLE = 0;
+  VALVE_OPERATION_IS_OPENING = 1;
+  VALVE_OPERATION_IS_CLOSING = 2;
+}
+message ValveStateResponse {
+  option (id) = 110;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float position = 2;
+  ValveOperation current_operation = 3;
+}
+
+message ValveCommandRequest {
+  option (id) = 111;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool has_position = 2;
+  float position = 3;
+  bool stop = 4;
 }
