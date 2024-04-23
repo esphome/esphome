@@ -424,8 +424,8 @@ jobs:
         run: |
           . venv/bin/activate
           components=$(script/list-components.py --changed --branch ${{ steps.target-branch.outputs.branch }})
-          output_components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')"
-          count=$(echo "$output_components" | jq length)"
+          output_components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')
+          count=$(echo "$output_components" | jq length)
 
           echo "components=$output_components" >> $GITHUB_OUTPUT
           echo "count=$count" >> $GITHUB_OUTPUT
