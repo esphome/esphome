@@ -65,6 +65,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
 
+    cg.add_define("USE_ESP32_BLE")
+
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
 async def ble_enabled_to_code(config, condition_id, template_arg, args):

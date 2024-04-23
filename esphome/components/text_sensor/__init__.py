@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
     CONF_ICON,
@@ -14,11 +15,20 @@ from esphome.const import (
     CONF_STATE,
     CONF_FROM,
     CONF_TO,
+    DEVICE_CLASS_DATE,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_TIMESTAMP,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
+
+DEVICE_CLASSES = [
+    DEVICE_CLASS_DATE,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_TIMESTAMP,
+]
 
 
 IS_PLATFORM_COMPONENT = True
@@ -112,10 +122,13 @@ async def map_filter_to_code(config, filter_id):
     )
 
 
+validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+
 TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
         cv.GenerateID(): cv.declare_id(TextSensor),
+        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
@@ -140,12 +153,21 @@ def text_sensor_schema(
     *,
     icon: str = _UNDEF,
     entity_category: str = _UNDEF,
+    device_class: str = _UNDEF,
 ) -> cv.Schema:
     schema = TEXT_SENSOR_SCHEMA
     if class_ is not _UNDEF:
         schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if icon is not _UNDEF:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    if device_class is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_DEVICE_CLASS, default=device_class
+                ): validate_device_class
+            }
+        )
     if entity_category is not _UNDEF:
         schema = schema.extend(
             {
@@ -164,6 +186,9 @@ async def build_filters(config):
 async def setup_text_sensor_core_(var, config):
     await setup_entity(var, config)
 
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
+
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
@@ -176,8 +201,8 @@ async def setup_text_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
 

@@ -57,6 +57,12 @@ class ComponentIterator {
 #ifdef USE_NUMBER
   virtual bool on_number(number::Number *number) = 0;
 #endif
+#ifdef USE_DATETIME_DATE
+  virtual bool on_date(datetime::DateEntity *date) = 0;
+#endif
+#ifdef USE_DATETIME_TIME
+  virtual bool on_time(datetime::TimeEntity *time) = 0;
+#endif
 #ifdef USE_TEXT
   virtual bool on_text(text::Text *text) = 0;
 #endif
@@ -65,6 +71,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_LOCK
   virtual bool on_lock(lock::Lock *a_lock) = 0;
+#endif
+#ifdef USE_VALVE
+  virtual bool on_valve(valve::Valve *valve) = 0;
 #endif
 #ifdef USE_MEDIA_PLAYER
   virtual bool on_media_player(media_player::MediaPlayer *media_player);
@@ -114,6 +123,12 @@ class ComponentIterator {
 #ifdef USE_NUMBER
     NUMBER,
 #endif
+#ifdef USE_DATETIME_DATE
+    DATETIME_DATE,
+#endif
+#ifdef USE_DATETIME_TIME
+    DATETIME_TIME,
+#endif
 #ifdef USE_TEXT
     TEXT,
 #endif
@@ -122,6 +137,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_LOCK
     LOCK,
+#endif
+#ifdef USE_VALVE
+    VALVE,
 #endif
 #ifdef USE_MEDIA_PLAYER
     MEDIA_PLAYER,

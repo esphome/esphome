@@ -128,7 +128,7 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning();
         if (millis() - this->action_started_ > 5000) {
-          if (this->fast_connect_) {
+          if (this->fast_connect_ || this->retry_hidden_) {
             this->start_connecting(this->sta_[0], false);
           } else {
             this->start_scanning();
@@ -207,14 +207,13 @@ void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = 
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
 void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
-
-network::IPAddress WiFiComponent::get_ip_address() {
+network::IPAddresses WiFiComponent::get_ip_addresses() {
   if (this->has_sta())
-    return this->wifi_sta_ip();
+    return this->wifi_sta_ip_addresses();
 
 #ifdef USE_WIFI_AP
   if (this->has_ap())
-    return this->wifi_soft_ap_ip();
+    return {this->wifi_soft_ap_ip()};
 #endif  // USE_WIFI_AP
 
   return {};
@@ -412,7 +411,11 @@ void WiFiComponent::print_connect_params_() {
     return;
   }
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
+  for (auto &ip : wifi_sta_ip_addresses()) {
+    if (ip.is_set()) {
+      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
+    }
+  }
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
                 bssid[4], bssid[5]);
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
@@ -588,6 +591,9 @@ void WiFiComponent::check_connecting_finished() {
       return;
     }
 
+    // We won't retry hidden networks unless a reconnect fails more than three times again
+    this->retry_hidden_ = false;
+
     ESP_LOGI(TAG, "WiFi Connected!");
     this->print_connect_params_();
 
@@ -658,12 +664,20 @@ void WiFiComponent::retry_connect() {
 
   delay(10);
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
-      (this->num_retried_ > 5 || this->error_from_callback_)) {
-    // If retry failed for more than 5 times, let's restart STA
-    ESP_LOGW(TAG, "Restarting WiFi adapter...");
-    this->wifi_mode_(false, {});
-    delay(100);  // NOLINT
-    this->num_retried_ = 0;
+      (this->num_retried_ > 3 || this->error_from_callback_)) {
+    if (this->num_retried_ > 5) {
+      // If retry failed for more than 5 times, let's restart STA
+      ESP_LOGW(TAG, "Restarting WiFi adapter...");
+      this->wifi_mode_(false, {});
+      delay(100);  // NOLINT
+      this->num_retried_ = 0;
+      this->retry_hidden_ = false;
+    } else {
+      // Try hidden networks after 3 failed retries
+      ESP_LOGD(TAG, "Retrying with hidden networks...");
+      this->retry_hidden_ = true;
+      this->num_retried_++;
+    }
   } else {
     this->num_retried_++;
   }

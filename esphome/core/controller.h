@@ -31,6 +31,12 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_DATETIME_DATE
+#include "esphome/components/datetime/date_entity.h"
+#endif
+#ifdef USE_DATETIME_TIME
+#include "esphome/components/datetime/time_entity.h"
+#endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
 #endif
@@ -39,6 +45,9 @@
 #endif
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
+#endif
+#ifdef USE_VALVE
+#include "esphome/components/valve/valve.h"
 #endif
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
@@ -79,6 +88,12 @@ class Controller {
 #ifdef USE_NUMBER
   virtual void on_number_update(number::Number *obj, float state){};
 #endif
+#ifdef USE_DATETIME_DATE
+  virtual void on_date_update(datetime::DateEntity *obj){};
+#endif
+#ifdef USE_DATETIME_TIME
+  virtual void on_time_update(datetime::TimeEntity *obj){};
+#endif
 #ifdef USE_TEXT
   virtual void on_text_update(text::Text *obj, const std::string &state){};
 #endif
@@ -87,6 +102,9 @@ class Controller {
 #endif
 #ifdef USE_LOCK
   virtual void on_lock_update(lock::Lock *obj){};
+#endif
+#ifdef USE_VALVE
+  virtual void on_valve_update(valve::Valve *obj){};
 #endif
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_update(media_player::MediaPlayer *obj){};
