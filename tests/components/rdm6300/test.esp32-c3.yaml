@@ -1,0 +1,12 @@
+uart:
+  - id: uart_rdm6300
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 115200
+
+rdm6300:
+
+binary_sensor:
+  - platform: rdm6300
+    uid: 7616525
+    name: RDM6300 NFC Tag
