@@ -518,31 +518,31 @@ jobs:
             ./script/test_build_components -e compile -c $component
           done
 
-  # ci-status:
-  #   name: CI Status
-  #   runs-on: ubuntu-latest
-  #   needs:
-  #     - common
-  #     - black
-  #     - ci-custom
-  #     - clang-format
-  #     - flake8
-  #     - pylint
-  #     - pytest
-  #     - pyupgrade
-  #     - compile-tests
-  #     - clang-tidy
-  #     - test-build-components
-  #     - list-components
-  #   if: always()
-  #   steps:
-  #     - name: Success
-  #       if: ${{ !(contains(needs.*.result, 'failure')) }}
-  #       run: exit 0
-  #     - name: Failure
-  #       if: ${{ contains(needs.*.result, 'failure') }}
-  #       env:
-  #         JSON_DOC: ${{ toJSON(needs) }}
-  #       run: |
-  #         echo $JSON_DOC | jq
-  #         exit 1
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      # - black
+      # - ci-custom
+      # - clang-format
+      # - flake8
+      # - pylint
+      # - pytest
+      # - pyupgrade
+      # - compile-tests
+      # - clang-tidy
+      # - test-build-components
+      - list-components
+    if: always()
+    steps:
+      - name: Success
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Failure
+        if: ${{ contains(needs.*.result, 'failure') }}
+        env:
+          JSON_DOC: ${{ toJSON(needs) }}
+        run: |
+          echo $JSON_DOC | jq
+          exit 1
