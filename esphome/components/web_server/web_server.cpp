@@ -1260,6 +1260,68 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 }
 #endif
 
+#ifdef USE_VALVE
+void WebServer::on_valve_update(valve::Valve *obj) {
+  if (this->events_.count() == 0)
+    return;
+  this->events_.send(this->valve_json(obj, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (valve::Valve *obj : App.get_valves()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      std::string data = this->valve_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      continue;
+    }
+
+    auto call = obj->make_call();
+    if (match.method == "open") {
+      call.set_command_open();
+    } else if (match.method == "close") {
+      call.set_command_close();
+    } else if (match.method == "stop") {
+      call.set_command_stop();
+    } else if (match.method == "toggle") {
+      call.set_command_toggle();
+    } else if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto traits = obj->get_traits();
+    if (request->hasParam("position") && !traits.get_supports_position()) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("position")) {
+      auto position = parse_number<float>(request->getParam("position")->value().c_str());
+      if (position.has_value()) {
+        call.set_position(*position);
+      }
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_icon_state_value(root, obj, "valve-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
+                              obj->position, start_config);
+    root["current_operation"] = valve::valve_operation_to_str(obj->current_operation);
+
+    if (obj->get_traits().get_supports_position())
+      root["position"] = obj->position;
+  });
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
   if (this->events_.count() == 0)
@@ -1391,6 +1453,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_LOCK
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
+    return true;
+#endif
+
+#ifdef USE_VALVE
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "valve")
     return true;
 #endif
 
@@ -1531,6 +1598,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (match.domain == "lock") {
     this->handle_lock_request(request, match);
 
+    return;
+  }
+#endif
+
+#ifdef USE_VALVE
+  if (match.domain == "valve") {
+    this->handle_valve_request(request, match);
     return;
   }
 #endif

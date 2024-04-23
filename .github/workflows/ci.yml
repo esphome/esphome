@@ -398,7 +398,8 @@ jobs:
       - common
     if: github.event_name == 'pull_request'
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      components: ${{ steps.list-components.outputs.components }}
+      count: ${{ steps.list-components.outputs.count }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.1
@@ -419,10 +420,18 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Find changed components
-        id: set-matrix
+        id: list-components
         run: |
           . venv/bin/activate
-          echo "matrix=$(script/list-components.py --changed --branch ${{ steps.target-branch.outputs.branch }} | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+          components=$(script/list-components.py --changed --branch ${{ steps.target-branch.outputs.branch }})
+          output_components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')
+          count=$(echo "$output_components" | jq length)
+
+          echo "components=$output_components" >> $GITHUB_OUTPUT
+          echo "count=$count" >> $GITHUB_OUTPUT
+
+          echo "$count Components:"
+          echo "$output_components" | jq
 
   test-build-components:
     name: Component test ${{ matrix.file }}
@@ -430,12 +439,12 @@ jobs:
     needs:
       - common
       - list-components
-    if: ${{ github.event_name == 'pull_request' && needs.list-components.outputs.matrix != '[]' && needs.list-components.outputs.matrix != '' }}
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) > 0 && fromJSON(needs.list-components.outputs.count) < 100
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: ${{ fromJson(needs.list-components.outputs.matrix) }}
+        file: ${{ fromJson(needs.list-components.outputs.components) }}
     steps:
       - name: Install libsodium
         run: sudo apt-get install libsodium-dev
@@ -456,6 +465,64 @@ jobs:
           . venv/bin/activate
           ./script/test_build_components -e compile -c ${{ matrix.file }}
 
+  test-build-components-splitter:
+    name: Split components for testing into 20 groups maximum
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - list-components
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
+    outputs:
+      matrix: ${{ steps.split.outputs.components }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Split components into 20 groups
+        id: split
+        run: |
+          components=$(echo '${{ needs.list-components.outputs.components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
+          echo "components=$components" >> $GITHUB_OUTPUT
+
+  test-build-components-split:
+    name: Test split components
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - list-components
+      - test-build-components-splitter
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
+    steps:
+      - name: List components
+        run: echo ${{ matrix.components }}
+
+      - name: Install libsodium
+        run: sudo apt-get install libsodium-dev
+
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Validate config
+        run: |
+          . venv/bin/activate
+          for component in ${{ matrix.components }}; do
+            ./script/test_build_components -e config -c $component
+          done
+      - name: Compile config
+        run: |
+          . venv/bin/activate
+          for component in ${{ matrix.components }}; do
+            ./script/test_build_components -e compile -c $component
+          done
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
@@ -470,8 +537,10 @@ jobs:
       - pyupgrade
       - compile-tests
       - clang-tidy
-      - test-build-components
       - list-components
+      - test-build-components
+      - test-build-components-splitter
+      - test-build-components-split
     if: always()
     steps:
       - name: Success

@@ -3996,6 +3996,7 @@ sn74hc595:
       number: GPIO32
     sr_count: 2
     spi_id: spi_bus
+    type: spi
 
 rtttl:
   output: gpio_19
