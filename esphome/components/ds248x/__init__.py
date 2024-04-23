@@ -14,7 +14,9 @@ CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
-DS248xComponent = ds248x_ns.class_("DS248xComponent", cg.PollingComponent, i2c.I2CDevice)
+DS248xComponent = ds248x_ns.class_(
+    "DS248xComponent", cg.PollingComponent, i2c.I2CDevice
+)
 
 ds248xType = ds248x_ns.enum("DS248xType", is_class=True)
 
@@ -34,7 +36,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_HUB_SLEEP, default=False): cv.boolean,
             cv.Optional(CONF_ACTIVE_PULLUP, default=False): cv.boolean,
             cv.Optional(CONF_STRONG_PULLUP, default=False): cv.boolean,
-
         }
     )
     .extend(cv.polling_component_schema("60s"))
