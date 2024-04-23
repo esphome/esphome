@@ -76,9 +76,9 @@ void DS248xComponent::setup() {
 
   if (this->ds248x_type_ == DS248xType::DS2482_100) {
     // Reset
-    this->reset_hub();
+    this->reset_hub_();
     address = 0;
-    while (this->search(&address)) {
+    while (this->search_(&address)) {
       raw_sensors.push_back(address);
       raw_channel_sensors.push_back(0);
     }
@@ -87,20 +87,20 @@ void DS248xComponent::setup() {
   if (this->ds248x_type_ == DS248xType::DS2482_800) {
     for (channel = 0; channel < NBR_CHANNELS; channel++) {
       // Reset
-      this->reset_hub();
+      this->reset_hub_();
 
       // 1-wire channel selection
-      if (this->set_channel(channel)) {
+      if (this->set_channel_(channel)) {
         // Search 1-wire components
         address = 0;
-        while (this->search(&address)) {
+        while (this->search_(&address)) {
           raw_sensors.push_back(address);
           raw_channel_sensors.push_back(channel);
         }
       }
     }
-    this->reset_hub();
-    this->set_channel(0);
+    this->reset_hub_();
+    this->set_channel_(0);
   }
 
   index = 0;
@@ -271,23 +271,23 @@ void DS248xComponent::update() {
     ESP_LOGV(TAG, "Start sensor update for %i sensors", nbr_sensors_on_channel);
 
     this->status_clear_warning();
-    if (nbr_sensors_on_channel && this->set_channel(channel)) {
+    if (nbr_sensors_on_channel && this->set_channel_(channel)) {
       if (this->enable_bus_sleep_) {
-        this->write_config(this->read_config() & ~DS248X_CONFIG_POWER_DOWN);
+        this->write_config_(this->read_config_() & ~DS248X_CONFIG_POWER_DOWN);
       }
 
-      bool result = this->reset_devices();
+      bool result = this->reset_devices_();
       if (!result) {
         this->status_set_warning();
         ESP_LOGE(TAG, "Reset failed");
         return;
       }
 
-      this->write_to_wire(WIRE_COMMAND_SKIP);
+      this->write_to_wire_(WIRE_COMMAND_SKIP);
       if (this->enable_strong_pullup_) {
-        this->write_config(this->read_config() | DS248X_CONFIG_STRONG_PULLUP);
+        this->write_config_(this->read_config_() | DS248X_CONFIG_STRONG_PULLUP);
       }
-      this->write_to_wire(DALLAS_COMMAND_START_CONVERSION);
+      this->write_to_wire_(DALLAS_COMMAND_START_CONVERSION);
     } else {
       ESP_LOGV(TAG, "Cannot change channel :%u", channel);
     }
@@ -296,29 +296,29 @@ void DS248xComponent::update() {
   uint16_t max_wait_time = 0;
 
   for (auto *sensor : this->channel_sensors_[channel]) {
-    auto sensorWaitTime = sensor->millis_to_wait_for_conversion();
-    if (max_wait_time < sensorWaitTime) {
-      max_wait_time = sensorWaitTime;
+    auto sensor_wait_time = sensor->millis_to_wait_for_conversion();
+    if (max_wait_time < sensor_wait_time) {
+      max_wait_time = sensor_wait_time;
     }
   }
 
-  readIdx = 0;
+  read_idx_ = 0;
 
   this->set_timeout(TAG, max_wait_time, [this] {
     ESP_LOGV(TAG, "Sensors read completed");
     this->set_interval(TAG, 50, [this]() {
-      if (sensors_.size() <= readIdx) {
+      if (sensors_.size() <= read_idx_) {
         if (this->enable_bus_sleep_) {
-          this->write_config(this->read_config() | DS248X_CONFIG_POWER_DOWN);
+          this->write_config_(this->read_config_() | DS248X_CONFIG_POWER_DOWN);
         }
         this->cancel_interval(TAG);
         return;
       }
-      ESP_LOGV(TAG, "Update Sensor idx: %i", readIdx);
+      ESP_LOGV(TAG, "Update Sensor idx: %i", read_idx_);
 
-      DS248xTemperatureSensor *sensor = sensors_[readIdx];
-      this->set_channel(sensor->get_channel());
-      readIdx++;
+      DS248xTemperatureSensor *sensor = sensors_[read_idx_];
+      this->set_channel_(sensor->get_channel());
+      read_idx_++;
 
       bool res = sensor->read_scratch_pad();
 
@@ -343,7 +343,7 @@ void DS248xComponent::update() {
 
 float DS248xComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-uint8_t DS248xComponent::read_config() {
+uint8_t DS248xComponent::read_config_() {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_SETREADPTR;
   cmd[1] = DS248X_POINTER_CONFIG;
@@ -355,14 +355,14 @@ uint8_t DS248xComponent::read_config() {
   return cfg_byte;
 }
 
-void DS248xComponent::write_config(uint8_t cfg) {
+void DS248xComponent::write_config_(uint8_t cfg) {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_WRITECONFIG;
   cmd[1] = cfg | ((~cfg) << 4);
   this->write(cmd.data(), sizeof(cmd));
 }
 
-uint8_t DS248xComponent::wait_while_busy() {
+uint8_t DS248xComponent::wait_while_busy_() {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_SETREADPTR;
   cmd[1] = DS248X_POINTER_STATUS;
@@ -377,7 +377,7 @@ uint8_t DS248xComponent::wait_while_busy() {
   return status;
 }
 
-void DS248xComponent::reset_hub() {
+void DS248xComponent::reset_hub_() {
   if (this->sleep_pin_) {
     this->sleep_pin_->digital_write(true);
   }
@@ -386,22 +386,22 @@ void DS248xComponent::reset_hub() {
   auto result = this->write(&cmd, sizeof(cmd));
 
   if (this->enable_active_pullup_) {
-    this->write_config(DS248X_CONFIG_ACTIVE_PULLUP);
+    this->write_config_(DS248X_CONFIG_ACTIVE_PULLUP);
   }
 
-  last_device_found = false;
-  searchAddress = 0;
-  searchLastDiscrepancy = 0;
+  last_device_found_ = false;
+  search_address_ = 0;
+  search_last_discrepancy_ = 0;
 }
 
-bool DS248xComponent::set_channel(uint8_t channel) {
+bool DS248xComponent::set_channel_(uint8_t channel) {
   std::array<uint8_t, 2> cmd;
   uint8_t data_byte;
 
   cmd[0] = DS2482_800_COMMAND_CHANNEL_SELECTION;
   cmd[1] = CHANNEL_CODE[channel];
 
-  auto status = this->wait_while_busy();
+  auto status = this->wait_while_busy_();
   if (status & DS248X_STATUS_BUSY) {
     ESP_LOGE(TAG, "Master never finishes command");
     return false;
@@ -409,16 +409,16 @@ bool DS248xComponent::set_channel(uint8_t channel) {
   this->write(cmd.data(), sizeof(cmd));
   this->read(&data_byte, sizeof(data_byte));
   if (READ_CHANNEL_CODE[channel] == data_byte) {
-    this->channel = channel;
+    this->channel_ = channel;
     return true;
   }
   return false;
 }
 
-uint8_t DS248xComponent::get_channel() { return (this->channel); }
+uint8_t DS248xComponent::get_channel_() { return (this->channel_); }
 
-bool DS248xComponent::reset_devices() {
-  auto status = wait_while_busy();
+bool DS248xComponent::reset_devices_() {
+  auto status = wait_while_busy_();
   if (status & DS248X_STATUS_BUSY) {
     ESP_LOGE(TAG, "Master never finished command");
     return false;
@@ -431,7 +431,7 @@ bool DS248xComponent::reset_devices() {
     return false;
   }
 
-  status = wait_while_busy();
+  status = wait_while_busy_();
 
   if (status & DS248X_STATUS_BUSY) {
     ESP_LOGE(TAG, "Master never finished command");
@@ -445,8 +445,8 @@ bool DS248xComponent::reset_devices() {
   return true;
 }
 
-void DS248xComponent::write_command(uint8_t command, uint8_t data) {
-  auto status = wait_while_busy();
+void DS248xComponent::write_command_(uint8_t command, uint8_t data) {
+  auto status = wait_while_busy_();
 
   if (status & DS248X_STATUS_BUSY) {
     return;  // TODO: error handling
@@ -458,18 +458,18 @@ void DS248xComponent::write_command(uint8_t command, uint8_t data) {
   this->write(cmd.data(), sizeof(cmd));
 }
 
-void DS248xComponent::select(uint64_t address) {
-  this->write_command(DS248X_COMMAND_WRITEBYTE, WIRE_COMMAND_SELECT);
+void DS248xComponent::select_(uint64_t address) {
+  this->write_command_(DS248X_COMMAND_WRITEBYTE, WIRE_COMMAND_SELECT);
 
   for (int i = 0; i < 8; i++) {
-    this->write_command(DS248X_COMMAND_WRITEBYTE, (address >> (i * 8)) & 0xff);
+    this->write_command_(DS248X_COMMAND_WRITEBYTE, (address >> (i * 8)) & 0xff);
   }
 }
 
-void DS248xComponent::write_to_wire(uint8_t data) { this->write_command(DS248X_COMMAND_WRITEBYTE, data); }
+void DS248xComponent::write_to_wire_(uint8_t data) { this->write_command_(DS248X_COMMAND_WRITEBYTE, data); }
 
-uint8_t DS248xComponent::read_from_wire() {
-  auto status = wait_while_busy();
+uint8_t DS248xComponent::read_from_wire_() {
+  auto status = wait_while_busy_();
 
   if (status & DS248X_STATUS_BUSY) {
     return 0;  // TODO: error handling
@@ -478,7 +478,7 @@ uint8_t DS248xComponent::read_from_wire() {
   uint8_t command = DS248X_COMMAND_READBYTE;
   this->write(&command, sizeof(command));
 
-  status = wait_while_busy();
+  status = wait_while_busy_();
 
   if (status & DS248X_STATUS_BUSY) {
     return 0;  // TODO: error handling
@@ -495,57 +495,60 @@ uint8_t DS248xComponent::read_from_wire() {
   return data_byte;
 }
 
-bool DS248xComponent::search(uint64_t *address) {
-  if (last_device_found)
+bool DS248xComponent::search_(uint64_t *address) {
+  if (last_device_found_)
     return false;
 
-  bool result = this->reset_devices();
+  bool result = this->reset_devices_();
   if (!result) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Reset failed");
     return false;
   }
 
-  write_to_wire(WIRE_COMMAND_SEARCH);
+  write_to_wire_(WIRE_COMMAND_SEARCH);
 
   uint8_t direction;
   uint8_t last_zero = 0;
   for (uint8_t i = 0; i < 64; i++) {
-    uint64_t searchBit = 1LL << i;
+    uint64_t search_bit = 1LL << i;
 
-    if (i < searchLastDiscrepancy)
-      direction = (searchAddress & searchBit) != 0;
-    else
-      direction = i == searchLastDiscrepancy;
+    if (i < search_last_discrepancy_) {
+      direction = (search_address_ & search_bit) != 0;
+    } else {
+      direction = i == search_last_discrepancy_;
+}
 
-    write_command(DS248X_COMMAND_TRIPLET, direction ? 0x80 : 0x00);
+    write_command_(DS248X_COMMAND_TRIPLET, direction ? 0x80 : 0x00);
 
-    uint8_t status = wait_while_busy();
-    ESP_LOGVV(TAG, "Search: i: %i dir: %i, status: %i bit: %llX", i, direction, status, searchBit);
+    uint8_t status = wait_while_busy_();
+    ESP_LOGVV(TAG, "Search: i: %i dir: %i, status: %i bit: %llX", i, direction, status, search_bit);
 
     uint8_t id = status & DS248X_STATUS_SBR;
     uint8_t comp_id = status & DS248X_STATUS_TSB;
     direction = status & DS248X_STATUS_DIR;
 
-    if (id && comp_id)
-      return 0;
-    else if (!id && !comp_id && !direction)
+    if (id && comp_id) {
+      return false;
+    } else if (!id && !comp_id && !direction) {
       last_zero = i;
+}
 
-    if (direction)
-      searchAddress |= searchBit;
-    else
-      searchAddress &= ~searchBit;
+    if (direction) {
+      search_address_ |= search_bit;
+    } else {
+      search_address_ &= ~search_bit;
+}
   }
 
-  searchLastDiscrepancy = last_zero;
+  search_last_discrepancy_ = last_zero;
 
   if (!last_zero)
-    last_device_found = true;
+    last_device_found_ = true;
 
-  *address = searchAddress;
+  *address = search_address_;
 
-  return 1;
+  return true;
 }
 
 void DS248xTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
@@ -586,18 +589,18 @@ uint16_t DS248xTemperatureSensor::millis_to_wait_for_conversion() const {
 }
 
 bool IRAM_ATTR DS248xTemperatureSensor::read_scratch_pad() {
-  bool result = this->parent_->reset_devices();
+  bool result = this->parent_->reset_devices_();
   if (!result) {
     this->parent_->status_set_warning();
     ESP_LOGE(TAG, "Reset failed");
     return false;
   }
 
-  this->parent_->select(this->address_);
-  this->parent_->write_to_wire(DALLAS_COMMAND_READ_SCRATCH_PAD);
+  this->parent_->select_(this->address_);
+  this->parent_->write_to_wire_(DALLAS_COMMAND_READ_SCRATCH_PAD);
 
   for (uint8_t &i : this->scratch_pad_) {
-    i = this->parent_->read_from_wire();
+    i = this->parent_->read_from_wire_();
   }
 
   return true;
@@ -639,30 +642,30 @@ bool DS248xTemperatureSensor::setup_sensor() {
     return false;
   }
 
-  bool result = this->parent_->reset_devices();
+  bool result = this->parent_->reset_devices_();
   if (!result) {
     ESP_LOGE(TAG, "Reset failed");
     return false;
   }
 
-  this->parent_->select(this->address_);
-  this->parent_->write_to_wire(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
-  this->parent_->write_to_wire(this->scratch_pad_[2]);  // high alarm temp
-  this->parent_->write_to_wire(this->scratch_pad_[3]);  // low alarm temp
-  this->parent_->write_to_wire(this->scratch_pad_[4]);  // resolution
+  this->parent_->select_(this->address_);
+  this->parent_->write_to_wire_(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
+  this->parent_->write_to_wire_(this->scratch_pad_[2]);  // high alarm temp
+  this->parent_->write_to_wire_(this->scratch_pad_[3]);  // low alarm temp
+  this->parent_->write_to_wire_(this->scratch_pad_[4]);  // resolution
 
-  result = this->parent_->reset_devices();
+  result = this->parent_->reset_devices_();
   if (!result) {
     ESP_LOGE(TAG, "Reset failed");
     return false;
   }
 
-  this->parent_->select(this->address_);
-  this->parent_->write_to_wire(DALLAS_COMMAND_SAVE_EEPROM);
+  this->parent_->select_(this->address_);
+  this->parent_->write_to_wire_(DALLAS_COMMAND_SAVE_EEPROM);
 
   delay(20);  // allow it to finish operation
 
-  result = this->parent_->reset_devices();
+  result = this->parent_->reset_devices_();
   if (!result) {
     ESP_LOGE(TAG, "Reset failed");
     return false;
