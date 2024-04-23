@@ -12,7 +12,6 @@ CONF_BUS_SLEEP = "bus_sleep"
 CONF_HUB_SLEEP = "hub_sleep"
 CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
-CONF_TYPE = "type"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
 DS248xComponent = ds248x_ns.class_("DS248xComponent", cg.PollingComponent, i2c.I2CDevice)
