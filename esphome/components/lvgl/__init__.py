@@ -1192,8 +1192,9 @@ async def styles_to_code(styles):
         svar = cg.new_Pvariable(style[CONF_ID])
         cgen(f"lv_style_init({svar})")
         for prop, validator in STYLE_PROPS.items():
-            if prop in style:
-                value = await validator.process(style[prop])
+            if value := style.get(prop):
+                if isinstance(validator, LValidator):
+                    value = await validator.process(value)
                 cgen(f"lv_style_set_{prop}({svar}, {value})")
 
 
