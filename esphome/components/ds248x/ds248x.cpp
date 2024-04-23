@@ -517,7 +517,7 @@ bool DS248xComponent::search_(uint64_t *address) {
       direction = (search_address_ & search_bit) != 0;
     } else {
       direction = i == search_last_discrepancy_;
-}
+    }
 
     write_command_(DS248X_COMMAND_TRIPLET, direction ? 0x80 : 0x00);
 
@@ -532,13 +532,13 @@ bool DS248xComponent::search_(uint64_t *address) {
       return false;
     } else if (!id && !comp_id && !direction) {
       last_zero = i;
-}
+    }
 
     if (direction) {
       search_address_ |= search_bit;
     } else {
       search_address_ &= ~search_bit;
-}
+    }
   }
 
   search_last_discrepancy_ = last_zero;
