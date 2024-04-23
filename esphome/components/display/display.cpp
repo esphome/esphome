@@ -1,7 +1,7 @@
 #include "display.h"
-
+#include "display_color_utils.h"
 #include <utility>
-
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -511,6 +511,8 @@ void Display::do_update_() {
     this->page_->get_writer()(*this);
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
+  } else {
+    this->test_card_();
   }
   this->clear_clipping_();
 }
@@ -606,6 +608,66 @@ bool Display::clamp_y_(int y, int h, int &min_y, int &max_y) {
   }
 
   return min_y < max_y;
+}
+
+const uint8_t font_r[8] PROGMEM = {0x41, 0x7F, 0x7F, 0x09, 0x19, 0x7F, 0x66, 0x00};  // 'R'
+const uint8_t font_g[8] PROGMEM = {0x1C, 0x3E, 0x63, 0x41, 0x51, 0x73, 0x72, 0x00};  // 'G'
+const uint8_t font_b[8] PROGMEM = {0x41, 0x7F, 0x7F, 0x49, 0x49, 0x7F, 0x36, 0x00};  // 'B'
+
+void Display::test_card_() {
+  // end
+  int w = get_width(), h = get_height(), image_w, image_h;
+  if (this->get_display_type() == DISPLAY_TYPE_COLOR) {
+    Color R(255, 0, 0), G(0, 255, 0), B(0, 0, 255);
+    if (w > h) {
+      image_w = w > 330 ? 310 : w - 20;
+      image_h = h > 280 ? 255 : h - 20;
+    } else {
+      image_h = h > 330 ? 310 : h - 20;
+      image_w = w > 280 ? 255 : w - 20;
+    }
+
+    int shift_x = (w - image_w) / 2;
+    int shift_y = (h - image_h) / 2;
+    int line_w = (image_w - 6) / 6;
+    int image_c = image_w / 2;
+    for (auto i = 0; i <= image_h; i++) {
+      int c = esp_scale(i, image_h);
+      this->horizontal_line(shift_x + 0, shift_y + i, line_w, R.fade_to_white(c));
+      this->horizontal_line(shift_x + line_w, shift_y + i, line_w, R.fade_to_black(c));  //
+
+      this->horizontal_line(shift_x + image_c - line_w, shift_y + i, line_w, G.fade_to_white(c));
+      this->horizontal_line(shift_x + image_c, shift_y + i, line_w, G.fade_to_black(c));
+
+      this->horizontal_line(shift_x + image_w - (line_w * 2), shift_y + i, line_w, B.fade_to_white(c));
+      this->horizontal_line(shift_x + image_w - line_w, shift_y + i, line_w, B.fade_to_black(c));
+    }
+    this->rectangle(shift_x, shift_y, image_w, image_h, Color(127, 127, 0));
+
+    uint16_t shift_r = shift_x + line_w - (8*3);
+    uint16_t shift_g = shift_x + image_c - (8*3);
+    uint16_t shift_b = shift_x + image_w - line_w - (8*3);
+    shift_y = h/2  - (8*3);
+    for (auto i = 0; i < 8; i++) {
+      uint8_t ftr = progmem_read_byte(&font_r[i]);
+      uint8_t ftg = progmem_read_byte(&font_g[i]);
+      uint8_t ftb = progmem_read_byte(&font_b[i]);
+      for (auto k = 0; k < 8; k++) {
+        if ((ftr &(1 << k)) != 0) {
+          this->filled_rectangle(shift_r + (i*6), shift_y  + (k*6), 6,6, COLOR_OFF);
+        }
+        if ((ftg & (1 << k)) != 0) {
+          this->filled_rectangle(shift_g + (i*6), shift_y + (k*6), 6,6,COLOR_OFF);
+        }
+        if ((ftb & (1 << k)) != 0) {
+          this->filled_rectangle(shift_b + (i*6), shift_y  + (k*6), 6,6,COLOR_OFF);
+        }
+      }
+    }
+  }
+  this->rectangle(0, 0, w, h, Color(127, 0, 127));
+  this->filled_rectangle(0, 0, 10, 10, Color(255, 0, 255));
+  this->stop_poller();
 }
 
 DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}

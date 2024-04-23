@@ -643,6 +643,8 @@ class Display : public PollingComponent {
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
 
+  void test_card_();
+
   /**
    * This method fills a triangle using only integer variables by using a
    * modified bresenham algorithm.
