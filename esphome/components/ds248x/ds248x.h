@@ -5,7 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-#define NBR_CHANNELS 8
+static const uint8_t NBR_CHANNELS = 8;
 
 namespace esphome {
 
