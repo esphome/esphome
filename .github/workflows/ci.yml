@@ -537,8 +537,10 @@ jobs:
       # - pyupgrade
       # - compile-tests
       # - clang-tidy
-      # - test-build-components
       - list-components
+      - test-build-components
+      - test-build-components-splitter
+      - test-build-components-split
     if: always()
     steps:
       - name: Success
