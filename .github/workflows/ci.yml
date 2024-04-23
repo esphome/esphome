@@ -480,7 +480,7 @@ jobs:
       - name: Split components into 20 groups
         id: split
         run: |
-          components=$(echo "${{ needs.list-components.outputs.components }}" | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
+          components=$(echo '${{ needs.list-components.outputs.components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
           echo "components=$components" >> $GITHUB_OUTPUT
 
   test-build-components-split:
