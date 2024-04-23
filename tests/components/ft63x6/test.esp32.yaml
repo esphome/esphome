@@ -1,0 +1,38 @@
+spi:
+  clk_pin: 14
+  mosi_pin: 13
+
+i2c:
+  sda: GPIO18
+  scl: GPIO19
+
+display:
+  - id: my_display
+    platform: ili9xxx
+    dimensions: 480x320
+    model: ST7796
+    cs_pin: 15
+    dc_pin: 21
+    reset_pin: 22
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    auto_clear_enabled: false
+
+touchscreen:
+  - platform: ft63x6
+    interrupt_pin: GPIO39
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: true
+    on_touch:
+      - logger.log:
+          format: tp touched
+    on_update:
+      - logger.log:
+          format: to updated
+    on_release:
+      - logger.log:
+          format: to released

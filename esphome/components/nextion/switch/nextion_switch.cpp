@@ -18,13 +18,13 @@ void NextionSwitch::process_bool(const std::string &variable_name, bool on) {
 }
 
 void NextionSwitch::update() {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
   this->nextion_->add_to_get_queue(this);
 }
 
 void NextionSwitch::set_state(bool state, bool publish, bool send_to_nextion) {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
 
   if (send_to_nextion) {

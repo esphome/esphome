@@ -1,9 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/voltage_sampler/voltage_sampler.h"
+#include "esphome/core/component.h"
 
 #include <vector>
 
@@ -35,12 +33,8 @@ enum ADS1115Resolution {
   ADS1015_12_BITS = 12,
 };
 
-class ADS1115Sensor;
-
 class ADS1115Component : public Component, public i2c::I2CDevice {
  public:
-  void register_sensor(ADS1115Sensor *obj) { this->sensors_.push_back(obj); }
-  /// Set up the internal sensor array.
   void setup() override;
   void dump_config() override;
   /// HARDWARE_LATE setup priority
@@ -48,32 +42,11 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
   void set_continuous_mode(bool continuous_mode) { continuous_mode_ = continuous_mode; }
 
   /// Helper method to request a measurement from a sensor.
-  float request_measurement(ADS1115Sensor *sensor);
+  float request_measurement(ADS1115Multiplexer multiplexer, ADS1115Gain gain, ADS1115Resolution resolution);
 
  protected:
-  std::vector<ADS1115Sensor *> sensors_;
   uint16_t prev_config_{0};
   bool continuous_mode_;
-};
-
-/// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
-class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
- public:
-  ADS1115Sensor(ADS1115Component *parent) : parent_(parent) {}
-  void update() override;
-  void set_multiplexer(ADS1115Multiplexer multiplexer) { multiplexer_ = multiplexer; }
-  void set_gain(ADS1115Gain gain) { gain_ = gain; }
-  void set_resolution(ADS1115Resolution resolution) { resolution_ = resolution; }
-  float sample() override;
-  uint8_t get_multiplexer() const { return multiplexer_; }
-  uint8_t get_gain() const { return gain_; }
-  uint8_t get_resolution() const { return resolution_; }
-
- protected:
-  ADS1115Component *parent_;
-  ADS1115Multiplexer multiplexer_;
-  ADS1115Gain gain_;
-  ADS1115Resolution resolution_;
 };
 
 }  // namespace ads1115

@@ -16,7 +16,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
-static const uint16_t I2S_SPEED = 1600;
+static const uint16_t I2S_SPEED = 1000;
 
 #undef HALF_PI
 static const double HALF_PI = 1.5707963267948966192313216916398;
@@ -136,7 +136,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = 8192 * sin(deg2rad(rem));
+          int16_t val = (49152 * this->gain_) * sin(deg2rad(rem));
 
           sample[x].left = val;
           sample[x].right = val;
@@ -269,7 +269,7 @@ void Rtttl::loop() {
     }
     if (this->output_freq_ != 0) {
       this->output_->update_frequency(this->output_freq_);
-      this->output_->set_level(0.5);
+      this->output_->set_level(this->gain_);
     } else {
       this->output_->set_level(0.0);
     }
@@ -278,18 +278,23 @@ void Rtttl::loop() {
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     this->samples_sent_ = 0;
-    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / I2S_SPEED;
-    // Convert from frequency in Hz to high and low samples in fixed point
+    this->samples_gap_ = 0;
+    this->samples_per_wave_ = 0;
+    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  //(ms);
+    if (need_note_gap) {
+      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  //(ms);
+    }
     if (this->output_freq_ != 0) {
       this->samples_per_wave_ = (this->sample_rate_ << 10) / this->output_freq_;
-    } else {
-      this->samples_per_wave_ = 0;
+
+      // make sure there is enough samples to add a full last sinus.
+      uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
+      uint16_t x = this->samples_count_;
+      this->samples_count_ = (division * this->samples_per_wave_);
+      ESP_LOGD(TAG, "play time old: %d div: %d new: %d %d", x, division, this->samples_count_, this->samples_per_wave_);
+      this->samples_count_ = this->samples_count_ >> 10;
     }
-    if (need_note_gap) {
-      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / I2S_SPEED;
-    } else {
-      this->samples_gap_ = 0;
-    }
+    // Convert from frequency in Hz to high and low samples in fixed point
   }
 #endif
 

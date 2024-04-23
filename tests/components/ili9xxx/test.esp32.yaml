@@ -2,7 +2,6 @@ spi:
   - id: spi_main_lcd
     clk_pin: 16
     mosi_pin: 17
-    miso_pin: 15
 
 display:
   - platform: ili9xxx

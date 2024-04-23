@@ -8,12 +8,12 @@
 
 #include <vector>
 #ifdef USE_ESP32
-#include <deque>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <deque>
 #endif
 
-#if USE_WEBSERVER_VERSION == 2
+#if USE_WEBSERVER_VERSION >= 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE;
 #endif
@@ -219,6 +219,24 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   /// Dump the number state with its value as a JSON string.
   std::string number_json(number::Number *obj, float value, JsonDetail start_config);
+#endif
+
+#ifdef USE_DATETIME_DATE
+  void on_date_update(datetime::DateEntity *obj) override;
+  /// Handle a date request under '/date/<id>'.
+  void handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the date state with its value as a JSON string.
+  std::string date_json(datetime::DateEntity *obj, JsonDetail start_config);
+#endif
+
+#ifdef USE_DATETIME_TIME
+  void on_time_update(datetime::TimeEntity *obj) override;
+  /// Handle a time request under '/time/<id>'.
+  void handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the time state with its value as a JSON string.
+  std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_TEXT

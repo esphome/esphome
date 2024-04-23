@@ -32,8 +32,12 @@ void WakeOnLanButton::press_action() {
   bool end_status = false;
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
 #ifdef USE_ESP8266
-  begin_status = this->udp_client_.beginPacketMulticast(broadcast, 9,
-                                                        IPAddress((ip_addr_t) esphome::network::get_ip_address()), 128);
+  for (auto ip : esphome::network::get_ip_addresses()) {
+    if (ip.is_ip4()) {
+      begin_status = this->udp_client_.beginPacketMulticast(broadcast, 9, ip, 128);
+      break;
+    }
+  }
 #endif
 #ifdef USE_ESP32
   begin_status = this->udp_client_.beginPacket(broadcast, 9);

@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
+    CONF_ON_UPDATE,
     CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
@@ -38,7 +39,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, walk_files
+from esphome.helpers import copy_file_if_changed, get_str_env, walk_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +52,9 @@ ShutdownTrigger = cg.esphome_ns.class_(
 )
 LoopTrigger = cg.esphome_ns.class_(
     "LoopTrigger", cg.Component, automation.Trigger.template()
+)
+ProjectUpdateTrigger = cg.esphome_ns.class_(
+    "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
 
 VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
@@ -99,16 +103,6 @@ def valid_project_name(value: str):
 
     value = value.replace(" ", "_")
 
-    return value
-
-
-def validate_version(value: str):
-    min_version = cv.Version.parse(value)
-    current_version = cv.Version.parse(ESPHOME_VERSION)
-    if current_version < min_version:
-        raise cv.Invalid(
-            f"Your ESPHome version is too old. Please update to at least {min_version}"
-        )
     return value
 
 
@@ -161,10 +155,17 @@ CONFIG_SCHEMA = cv.All(
                         cv.string_strict, valid_project_name
                     ),
                     cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                ProjectUpdateTrigger
+                            ),
+                        }
+                    ),
                 }
             ),
             cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
-                cv.version_number, validate_version
+                cv.version_number, cv.validate_esphome_version
             ),
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
@@ -200,7 +201,8 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
+        build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
+        conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
     CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
@@ -389,9 +391,16 @@ async def to_code(config):
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
 
-    if CONF_PROJECT in config:
-        cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
-        cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
+    if project_conf := config.get(CONF_PROJECT):
+        cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
+        cg.add_define("ESPHOME_PROJECT_VERSION", project_conf[CONF_VERSION])
+        cg.add_define("ESPHOME_PROJECT_VERSION_30", project_conf[CONF_VERSION][:30])
+        for conf in project_conf.get(CONF_ON_UPDATE, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+            await cg.register_component(trigger, conf)
+            await automation.build_automation(
+                trigger, [(cg.std_string, "version")], conf
+            )
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
