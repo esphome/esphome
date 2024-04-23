@@ -1191,10 +1191,9 @@ async def styles_to_code(styles):
     for style in styles:
         svar = cg.new_Pvariable(style[CONF_ID])
         cgen(f"lv_style_init({svar})")
-        for prop in STYLE_PROPS:
+        for prop, validator in STYLE_PROPS.items():
             if prop in style:
-                value = await STYLE_PROPS[prop].process(style[prop])
-                print(prop, value)
+                value = await validator.process(style[prop])
                 cgen(f"lv_style_set_{prop}({svar}, {value})")
 
 
