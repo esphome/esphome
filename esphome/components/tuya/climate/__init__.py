@@ -208,7 +208,7 @@ async def to_code(config):
         cg.add(var.set_switch_id(switch_datapoint))
 
     if active_state_config := config.get(CONF_ACTIVE_STATE):
-        cg.add(var.set_active_state_id(CONF_DATAPOINT))
+        cg.add(var.set_active_state_id(active_state_config.get(CONF_DATAPOINT)))
         if (heating_value := active_state_config.get(CONF_HEATING_VALUE)) is not None:
             cg.add(var.set_active_state_heating_value(heating_value))
         if (cooling_value := active_state_config.get(CONF_COOLING_VALUE)) is not None:
@@ -219,14 +219,10 @@ async def to_code(config):
             cg.add(var.set_active_state_fanonly_value(fanonly_value))
     else:
         if heating_state_pin_config := config.get(CONF_HEATING_STATE_PIN):
-            heating_state_pin = await cg.gpio_pin_expression(
-                config(heating_state_pin_config)
-            )
+            heating_state_pin = await cg.gpio_pin_expression(heating_state_pin_config)
             cg.add(var.set_heating_state_pin(heating_state_pin))
         if cooling_state_pin_config := config.get(CONF_COOLING_STATE_PIN):
-            cooling_state_pin = await cg.gpio_pin_expression(
-                config(cooling_state_pin_config)
-            )
+            cooling_state_pin = await cg.gpio_pin_expression(cooling_state_pin_config)
             cg.add(var.set_cooling_state_pin(cooling_state_pin))
 
     if target_temperature_datapoint := config.get(CONF_TARGET_TEMPERATURE_DATAPOINT):
@@ -254,11 +250,11 @@ async def to_code(config):
 
     if preset_config := config.get(CONF_PRESET, {}):
         if eco_config := preset_config.get(CONF_ECO, {}):
-            cg.add(var.set_eco_id(CONF_DATAPOINT))
+            cg.add(var.set_eco_id(eco_config.get(CONF_DATAPOINT)))
             if eco_temperature := eco_config.get(CONF_TEMPERATURE):
                 cg.add(var.set_eco_temperature(eco_temperature))
-        if CONF_SLEEP in preset_config:
-            cg.add(var.set_sleep_id(CONF_DATAPOINT))
+        if sleep_config := preset_config.get(CONF_SLEEP, {}):
+            cg.add(var.set_sleep_id(sleep_config.get(CONF_DATAPOINT)))
 
     if swing_mode_config := config.get(CONF_SWING_MODE):
         if swing_vertical_datapoint := swing_mode_config.get(CONF_VERTICAL_DATAPOINT):
@@ -268,7 +264,7 @@ async def to_code(config):
         ):
             cg.add(var.set_swing_horizontal_id(swing_horizontal_datapoint))
     if fan_mode_config := config.get(CONF_FAN_MODE):
-        cg.add(var.set_fan_speed_id(CONF_DATAPOINT))
+        cg.add(var.set_fan_speed_id(fan_mode_config.get(CONF_DATAPOINT)))
         if (fan_auto_value := fan_mode_config.get(CONF_AUTO_VALUE)) is not None:
             cg.add(var.set_fan_speed_auto_value(fan_auto_value))
         if (fan_low_value := fan_mode_config.get(CONF_LOW_VALUE)) is not None:

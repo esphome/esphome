@@ -1,0 +1,13 @@
+esphome:
+  on_boot:
+    then:
+      - output.turn_off: light_output_1
+      - output.turn_on: light_output_1
+      - output.set_level:
+          id: light_output_1
+          level: 50%
+
+output:
+  - platform: rp2040_pwm
+    id: light_output_1
+    pin: 12

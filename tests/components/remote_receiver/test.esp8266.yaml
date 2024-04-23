@@ -2,12 +2,146 @@ remote_receiver:
   id: rcvr
   pin: GPIO5
   dump: all
+  on_abbwelcome:
+    then:
+      - logger.log:
+          format: "on_abbwelcome: %u"
+          args: ["x.data()[0]"]
+  on_aeha:
+    then:
+      - logger.log:
+          format: "on_aeha: %u %u"
+          args: ["x.address", "x.data.front()"]
+  on_byronsx:
+    then:
+      - logger.log:
+          format: "on_byronsx: %u %u"
+          args: ["x.address", "x.command"]
+  on_canalsat:
+    then:
+      - logger.log:
+          format: "on_canalsat: %u %u"
+          args: ["x.address", "x.command"]
+  # on_canalsatld:
+  #   then:
+  #     - logger.log:
+  #         format: "on_canalsatld: %u %u"
+  #         args: ["x.address", "x.command"]
   on_coolix:
     then:
-      delay: !lambda "return x.first + x.second;"
+      - logger.log:
+          format: "on_coolix: %u %u"
+          args: ["x.first", "x.second"]
+  on_dish:
+    then:
+      - logger.log:
+          format: "on_dish: %u %u"
+          args: ["x.address", "x.command"]
+  on_dooya:
+    then:
+      - logger.log:
+          format: "on_dooya: %u %u %u"
+          args: ["x.channel", "x.button", "x.check"]
+  on_drayton:
+    then:
+      - logger.log:
+          format: "on_drayton: %u %u %u"
+          args: ["x.address", "x.channel", "x.command"]
+  on_jvc:
+    then:
+      - logger.log:
+          format: "on_jvc: %u"
+          args: ["x.data"]
+  on_keeloq:
+    then:
+      - logger.log:
+          format: "on_keeloq: %u %u %u"
+          args: ["x.encrypted", "x.address", "x.command"]
+  on_haier:
+    then:
+      - logger.log:
+          format: "on_haier: %u"
+          args: ["x.data.front()"]
+  on_lg:
+    then:
+      - logger.log:
+          format: "on_lg: %u %u"
+          args: ["x.data", "x.nbits"]
+  on_magiquest:
+    then:
+      - logger.log:
+          format: "on_magiquest: %u %u"
+          args: ["x.magnitude", "x.wand_id"]
+  on_midea:
+    then:
+      - logger.log:
+          format: "on_midea: %u %u"
+          args: ["x.size()", "x.data()[0]"]
+  on_nec:
+    then:
+      - logger.log:
+          format: "on_nec: %u %u"
+          args: ["x.address", "x.command"]
+  on_nexa:
+    then:
+      - logger.log:
+          format: "on_nexa: %u %u %u %u %u"
+          args: ["x.device", "x.group", "x.state", "x.channel", "x.level"]
+  on_panasonic:
+    then:
+      - logger.log:
+          format: "on_panasonic: %u %u"
+          args: ["x.address", "x.command"]
+  on_pioneer:
+    then:
+      - logger.log:
+          format: "on_pioneer: %u %u"
+          args: ["x.rc_code_1", "x.rc_code_2"]
+  on_pronto:
+    then:
+      - logger.log:
+          format: "on_pronto: %s"
+          args: ["x.data.c_str()"]
+  on_raw:
+    then:
+      - logger.log:
+          format: "on_raw: %u"
+          args: ["x.front()"]
+  on_rc5:
+    then:
+      - logger.log:
+          format: "on_rc5: %u %u"
+          args: ["x.address", "x.command"]
+  on_rc6:
+    then:
+      - logger.log:
+          format: "on_rc6: %u %u"
+          args: ["x.address", "x.command"]
   on_rc_switch:
     then:
-      delay: !lambda "return uint32_t(x.code) + x.protocol;"
+      - logger.log:
+          format: "on_rc_switch: %llu %u"
+          args: ["x.code", "x.protocol"]
+  on_samsung:
+    then:
+      - logger.log:
+          format: "on_samsung: %llu %u"
+          args: ["x.data", "x.nbits"]
+  on_samsung36:
+    then:
+      - logger.log:
+          format: "on_samsung36: %u %u"
+          args: ["x.address", "x.command"]
+  on_sony:
+    then:
+      - logger.log:
+          format: "on_sony: %u %u"
+          args: ["x.data", "x.nbits"]
+  on_toshiba_ac:
+    then:
+      - logger.log:
+          format: "on_toshiba_ac: %llu %llu"
+          args: ["x.rc_code_1", "x.rc_code_2"]
 
 binary_sensor:
   - platform: remote_receiver
