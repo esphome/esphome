@@ -49,7 +49,7 @@ image:
   - id: cat_image_bowtie
     file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
 
-    #file: $component_dir/pnglogo.png
+    # file: $component_dir/pnglogo.png
     resize: 256x48
     type: TRANSPARENT_BINARY
 
