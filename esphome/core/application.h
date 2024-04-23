@@ -39,6 +39,12 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_DATETIME_DATE
+#include "esphome/components/datetime/date_entity.h"
+#endif
+#ifdef USE_DATETIME_TIME
+#include "esphome/components/datetime/time_entity.h"
+#endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
 #endif
@@ -47,6 +53,9 @@
 #endif
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
+#endif
+#ifdef USE_VALVE
+#include "esphome/components/valve/valve.h"
 #endif
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
@@ -121,6 +130,14 @@ class Application {
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
 #endif
 
+#ifdef USE_DATETIME_DATE
+  void register_date(datetime::DateEntity *date) { this->dates_.push_back(date); }
+#endif
+
+#ifdef USE_DATETIME_TIME
+  void register_time(datetime::TimeEntity *time) { this->times_.push_back(time); }
+#endif
+
 #ifdef USE_TEXT
   void register_text(text::Text *text) { this->texts_.push_back(text); }
 #endif
@@ -131,6 +148,10 @@ class Application {
 
 #ifdef USE_LOCK
   void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
+#endif
+
+#ifdef USE_VALVE
+  void register_valve(valve::Valve *valve) { this->valves_.push_back(valve); }
 #endif
 
 #ifdef USE_MEDIA_PLAYER
@@ -289,6 +310,24 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_DATETIME_DATE
+  const std::vector<datetime::DateEntity *> &get_dates() { return this->dates_; }
+  datetime::DateEntity *get_date_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->dates_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_DATETIME_TIME
+  const std::vector<datetime::TimeEntity *> &get_times() { return this->times_; }
+  datetime::TimeEntity *get_time_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->times_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_TEXT
   const std::vector<text::Text *> &get_texts() { return this->texts_; }
   text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
@@ -311,6 +350,15 @@ class Application {
   const std::vector<lock::Lock *> &get_locks() { return this->locks_; }
   lock::Lock *get_lock_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->locks_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_VALVE
+  const std::vector<valve::Valve *> &get_valves() { return this->valves_; }
+  valve::Valve *get_valve_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->valves_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
@@ -382,6 +430,12 @@ class Application {
 #ifdef USE_NUMBER
   std::vector<number::Number *> numbers_{};
 #endif
+#ifdef USE_DATETIME_DATE
+  std::vector<datetime::DateEntity *> dates_{};
+#endif
+#ifdef USE_DATETIME_TIME
+  std::vector<datetime::TimeEntity *> times_{};
+#endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
 #endif
@@ -390,6 +444,9 @@ class Application {
 #endif
 #ifdef USE_LOCK
   std::vector<lock::Lock *> locks_{};
+#endif
+#ifdef USE_VALVE
+  std::vector<valve::Valve *> valves_{};
 #endif
 #ifdef USE_MEDIA_PLAYER
   std::vector<media_player::MediaPlayer *> media_players_{};

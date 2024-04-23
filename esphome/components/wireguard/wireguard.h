@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ESP32
-
 #include <ctime>
 #include <vector>
 #include <tuple>
@@ -172,5 +170,3 @@ template<typename... Ts> class WireguardDisableAction : public Action<Ts...>, pu
 
 }  // namespace wireguard
 }  // namespace esphome
-
-#endif  // USE_ESP32

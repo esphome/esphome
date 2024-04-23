@@ -187,11 +187,7 @@ void MQTTClientComponent::start_dnslookup_() {
     default:
     case ERR_ARG: {
       // error
-#if defined(USE_ESP8266)
-      ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %ld", err);
-#else
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %d", err);
-#endif
       break;
     }
   }
@@ -474,8 +470,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 
   if (!logging_topic) {
     if (ret) {
-      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", message.topic.c_str(), message.payload.c_str(),
-               message.retain);
+      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
+               message.retain, message.qos);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", message.topic.c_str(),
                message.payload.length());

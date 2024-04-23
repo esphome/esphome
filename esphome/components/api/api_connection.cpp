@@ -698,6 +698,80 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATE
+bool APIConnection::send_date_state(datetime::DateEntity *date) {
+  if (!this->state_subscription_)
+    return false;
+
+  DateStateResponse resp{};
+  resp.key = date->get_object_id_hash();
+  resp.missing_state = !date->has_state();
+  resp.year = date->year;
+  resp.month = date->month;
+  resp.day = date->day;
+  return this->send_date_state_response(resp);
+}
+bool APIConnection::send_date_info(datetime::DateEntity *date) {
+  ListEntitiesDateResponse msg;
+  msg.key = date->get_object_id_hash();
+  msg.object_id = date->get_object_id();
+  if (date->has_own_name())
+    msg.name = date->get_name();
+  msg.unique_id = get_default_unique_id("date", date);
+  msg.icon = date->get_icon();
+  msg.disabled_by_default = date->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(date->get_entity_category());
+
+  return this->send_list_entities_date_response(msg);
+}
+void APIConnection::date_command(const DateCommandRequest &msg) {
+  datetime::DateEntity *date = App.get_date_by_key(msg.key);
+  if (date == nullptr)
+    return;
+
+  auto call = date->make_call();
+  call.set_date(msg.year, msg.month, msg.day);
+  call.perform();
+}
+#endif
+
+#ifdef USE_DATETIME_TIME
+bool APIConnection::send_time_state(datetime::TimeEntity *time) {
+  if (!this->state_subscription_)
+    return false;
+
+  TimeStateResponse resp{};
+  resp.key = time->get_object_id_hash();
+  resp.missing_state = !time->has_state();
+  resp.hour = time->hour;
+  resp.minute = time->minute;
+  resp.second = time->second;
+  return this->send_time_state_response(resp);
+}
+bool APIConnection::send_time_info(datetime::TimeEntity *time) {
+  ListEntitiesTimeResponse msg;
+  msg.key = time->get_object_id_hash();
+  msg.object_id = time->get_object_id();
+  if (time->has_own_name())
+    msg.name = time->get_name();
+  msg.unique_id = get_default_unique_id("time", time);
+  msg.icon = time->get_icon();
+  msg.disabled_by_default = time->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(time->get_entity_category());
+
+  return this->send_list_entities_time_response(msg);
+}
+void APIConnection::time_command(const TimeCommandRequest &msg) {
+  datetime::TimeEntity *time = App.get_time_by_key(msg.key);
+  if (time == nullptr)
+    return;
+
+  auto call = time->make_call();
+  call.set_time(msg.hour, msg.minute, msg.second);
+  call.perform();
+}
+#endif
+
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)
@@ -838,6 +912,48 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
       a_lock->open();
       break;
   }
+}
+#endif
+
+#ifdef USE_VALVE
+bool APIConnection::send_valve_state(valve::Valve *valve) {
+  if (!this->state_subscription_)
+    return false;
+
+  ValveStateResponse resp{};
+  resp.key = valve->get_object_id_hash();
+  resp.position = valve->position;
+  resp.current_operation = static_cast<enums::ValveOperation>(valve->current_operation);
+  return this->send_valve_state_response(resp);
+}
+bool APIConnection::send_valve_info(valve::Valve *valve) {
+  auto traits = valve->get_traits();
+  ListEntitiesValveResponse msg;
+  msg.key = valve->get_object_id_hash();
+  msg.object_id = valve->get_object_id();
+  if (valve->has_own_name())
+    msg.name = valve->get_name();
+  msg.unique_id = get_default_unique_id("valve", valve);
+  msg.icon = valve->get_icon();
+  msg.disabled_by_default = valve->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(valve->get_entity_category());
+  msg.device_class = valve->get_device_class();
+  msg.assumed_state = traits.get_is_assumed_state();
+  msg.supports_position = traits.get_supports_position();
+  msg.supports_stop = traits.get_supports_stop();
+  return this->send_list_entities_valve_response(msg);
+}
+void APIConnection::valve_command(const ValveCommandRequest &msg) {
+  valve::Valve *valve = App.get_valve_by_key(msg.key);
+  if (valve == nullptr)
+    return;
+
+  auto call = valve->make_call();
+  if (msg.has_position)
+    call.set_position(msg.position);
+  if (msg.stop)
+    call.set_command_stop();
+  call.perform();
 }
 #endif
 
@@ -1003,10 +1119,15 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
       voice_assistant::global_voice_assistant->failed_to_start();
       return;
     }
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
+    if (msg.port == 0) {
+      // Use API Audio
+      voice_assistant::global_voice_assistant->start_streaming();
+    } else {
+      struct sockaddr_storage storage;
+      socklen_t len = sizeof(storage);
+      this->helper_->getpeername((struct sockaddr *) &storage, &len);
+      voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
+    }
   }
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
@@ -1018,6 +1139,15 @@ void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventR
     voice_assistant::global_voice_assistant->on_event(msg);
   }
 }
+void APIConnection::on_voice_assistant_audio(const VoiceAssistantAudio &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_audio(msg);
+  }
+};
 
 #endif
 
@@ -1105,7 +1235,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 9;
+  resp.api_version_minor = 10;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -1166,7 +1296,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
+  resp.legacy_voice_assistant_version = voice_assistant::global_voice_assistant->get_legacy_version();
+  resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
 #endif
   return resp;
 }

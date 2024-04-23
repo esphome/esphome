@@ -1,16 +1,17 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace pmsx003 {
 
 // known command bytes
-#define PMS_CMD_AUTO_MANUAL 0xE1  // data=0: perform measurement manually, data=1: perform measurement automatically
-#define PMS_CMD_TRIG_MANUAL 0xE2  // trigger a manual measurement
-#define PMS_CMD_ON_STANDBY 0xE4   // data=0: go to standby mode, data=1: go to normal mode
+static const uint8_t PMS_CMD_AUTO_MANUAL =
+    0xE1;  // data=0: perform measurement manually, data=1: perform measurement automatically
+static const uint8_t PMS_CMD_TRIG_MANUAL = 0xE2;  // trigger a manual measurement
+static const uint8_t PMS_CMD_ON_STANDBY = 0xE4;   // data=0: go to standby mode, data=1: go to normal mode
 
 static const uint16_t PMS_STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on
 
