@@ -3,7 +3,7 @@ esphome:
   friendly_name: $component_name
 
 bk72xx:
-  board: cb3s
+  board: generic-bk7231n-qfn32-tuya
 
 logger:
   level: VERY_VERBOSE
