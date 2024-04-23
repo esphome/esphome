@@ -1423,7 +1423,9 @@ async def btn_to_code(var, btn):
 
 async def led_to_code(var: Widget, config):
     init = []
-    init.extend(var.set_property(CONF_COLOR, config))
+    init.extend(
+        var.set_property(CONF_COLOR, await lv_color.process(config[CONF_COLOR]))
+    )
     init.extend(
         var.set_property(
             CONF_BRIGHTNESS, await lv_brightness.process(config.get(CONF_BRIGHTNESS))
@@ -1872,15 +1874,17 @@ async def meter_to_code(meter: Widget, meter_conf):
             + f"{scale[CONF_RANGE_TO]}, {scale[CONF_ANGLE_RANGE]}, {rotation})",
         )
         if ticks := scale.get(CONF_TICKS):
+            color = await lv_color.process(ticks[CONF_COLOR])
             init.append(
                 f"lv_meter_set_scale_ticks({var}, {s}, {ticks[CONF_COUNT]},"
-                + f"{ticks[CONF_WIDTH]}, {ticks[CONF_LENGTH]}, {ticks[CONF_COLOR]})"
+                + f"{ticks[CONF_WIDTH]}, {ticks[CONF_LENGTH]}, {color})"
             )
             if CONF_MAJOR in ticks:
                 major = ticks[CONF_MAJOR]
+                color = await lv_color.process(major[CONF_COLOR])
                 init.append(
                     f"lv_meter_set_scale_major_ticks({var}, {s}, {major[CONF_STRIDE]},"
-                    + f"{major[CONF_WIDTH]}, {major[CONF_LENGTH]}, {major[CONF_COLOR]},"
+                    + f"{major[CONF_WIDTH]}, {major[CONF_LENGTH]}, {color},"
                     + f"{major[CONF_LABEL_GAP]})"
                 )
         for indicator in scale.get(CONF_INDICATORS) or ():
@@ -1890,18 +1894,20 @@ async def meter_to_code(meter: Widget, meter_conf):
             # Enable getting the meter to which this belongs.
             widget_map[iid] = Widget(var, get_widget_type(t), v, ivar)
             if t == CONF_LINE:
+                color = await lv_color.process(v[CONF_COLOR])
                 init.append(
                     f"{ivar} = lv_meter_add_needle_line({var}, {s}, {v[CONF_WIDTH]},"
-                    + f"{v[CONF_COLOR]}, {v[CONF_R_MOD]})"
+                    + f"{color}, {v[CONF_R_MOD]})"
                 )
             if t == CONF_ARC:
+                color = await lv_color.process(v[CONF_COLOR])
                 init.append(
                     f"{ivar} = lv_meter_add_arc({var}, {s}, {v[CONF_WIDTH]},"
-                    + f"{v[CONF_COLOR]}, {v[CONF_R_MOD]})"
+                    + f"{color}, {v[CONF_R_MOD]})"
                 )
             if t == CONF_TICK_STYLE:
-                color_start = v[CONF_COLOR_START]
-                color_end = v.get(CONF_COLOR_END) or color_start
+                color_start = await lv_color.process(v[CONF_COLOR_START])
+                color_end = await lv_color.process(v.get(CONF_COLOR_END) or color_start)
                 init.append(
                     f"{ivar} = lv_meter_add_scale_lines({var}, {s}, {color_start},"
                     + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_WIDTH]})"
