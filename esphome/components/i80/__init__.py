@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import byte_bus
+from esphome.components import io_bus
 from esphome import pins
 
 from esphome.const import (
@@ -13,11 +13,11 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@clydebarrow"]
-AUTO_LOAD = ["byte_bus"]
+AUTO_LOAD = ["io_bus"]
 
 i80_ns = cg.esphome_ns.namespace("i80")
 I80Component = i80_ns.class_("I80Component", cg.Component)
-I80Client = i80_ns.class_("I80Client", byte_bus.ByteBus)
+I80Client = i80_ns.class_("I80Client", io_bus.IOBus)
 
 CONF_RD_PIN = "rd_pin"
 CONF_WR_PIN = "wr_pin"

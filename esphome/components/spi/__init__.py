@@ -3,7 +3,7 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
-from esphome.components import byte_bus
+from esphome.components import io_bus
 from esphome.components.esp32.const import (
     KEY_ESP32,
     VARIANT_ESP32S2,
@@ -39,14 +39,14 @@ from esphome.core import (
 )
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
-AUTO_LOAD = ["byte_bus"]
+AUTO_LOAD = ["io_bus"]
 
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 SPIClient = spi_ns.class_("SPIClient")
-SPIByteBus = spi_ns.class_("SPIByteBus", byte_bus.ByteBus)
+SPIByteBus = spi_ns.class_("SPIByteBus", io_bus.IOBus)
 SPIDataRate = spi_ns.enum("SPIDataRate")
 SPIMode = spi_ns.enum("SPIMode")
 BitOrder = spi_ns.enum("SPIBitOrder")

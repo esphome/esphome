@@ -84,7 +84,7 @@ CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
 CONF_BUS_TYPE = "bus_type"
-CONF_BYTE_BUS_ID = "byte_bus_id"
+CONF_IO_BUS_ID = "io_bus_id"
 
 
 def _validate(config):
@@ -162,7 +162,7 @@ CONFIG_SCHEMA = cv.All(
             ).extend(
                 {
                     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-                    cv.GenerateID(CONF_BYTE_BUS_ID): cv.declare_id(spi.SPIByteBus),
+                    cv.GenerateID(CONF_IO_BUS_ID): cv.declare_id(spi.SPIByteBus),
                 }
             ),
             TYPE_I80: BASE_SCHEMA.extend(i80.i80_client_schema()).extend(
@@ -192,7 +192,7 @@ async def to_code(config):
         data_rate = data_rate * 8
     else:
         spi_client = await spi.create_spi_client(config)
-        bus_client = cg.new_Pvariable(config[CONF_BYTE_BUS_ID], spi_client)
+        bus_client = cg.new_Pvariable(config[CONF_IO_BUS_ID], spi_client)
     cg.add(var.set_bus(bus_client))
     cg.add(var.set_data_rate(data_rate))
     if dc := config.get(CONF_DC_PIN):

@@ -38,9 +38,9 @@ void SPIComponent::setup() {
   ESP_LOGD(TAG, "Setting up SPI bus...");
 
   if (this->sdo_pin_ == nullptr)
-    this->sdo_pin_ = byte_bus::NULL_PIN;
+    this->sdo_pin_ = io_bus::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
-    this->sdi_pin_ = byte_bus::NULL_PIN;
+    this->sdi_pin_ = io_bus::NULL_PIN;
   if (this->clk_pin_ == nullptr) {
     ESP_LOGE(TAG, "No clock pin for SPI");
     this->mark_failed();

@@ -1,5 +1,5 @@
 #pragma once
-#include "esphome/components/byte_bus/byte_bus.h"
+#include "esphome/components/io_bus/io_bus.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/display/display_color_utils.h"
 #include "ili9xxx_defines.h"
@@ -63,13 +63,11 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
     this->offset_y_ = offset_y;
   }
   void invert_colors(bool invert);
-  virtual void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t length);
-  void send_command(uint8_t command_byte) { this->send_command(command_byte, nullptr, 0); }
   void set_color_order(display::ColorOrder color_order) { this->color_order_ = color_order; }
   void set_swap_xy(bool swap_xy) { this->swap_xy_ = swap_xy; }
   void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
   void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
-  void set_bus(byte_bus::ByteBus *bus) { this->bus_ = bus; }
+  void set_bus(io_bus::IOBus *bus) { this->bus_ = bus; }
 
   void update() override;
 
@@ -100,7 +98,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
   void init_lcd_();
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
 
-  byte_bus::ByteBus *bus_{nullptr};
+  io_bus::IOBus *bus_{nullptr};
   uint8_t const *init_sequence_{};
   int16_t width_{0};   ///< Display width as modified by current rotation
   int16_t height_{0};  ///< Display height as modified by current rotation
@@ -121,7 +119,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
 
   void alloc_buffer_();
 
-  GPIOPin *reset_pin_{byte_bus::NULL_PIN};
+  GPIOPin *reset_pin_{io_bus::NULL_PIN};
 
   bool prossing_update_ = false;
   bool need_update_ = false;
@@ -206,31 +204,16 @@ class ILI9XXXILI9488 : public ILI9XXXDisplay {
         dfun[1] = 0x62;
       }
     }
-    this->send_command(ILI9XXX_DFUNCTR, dfun, sizeof dfun);
-    this->send_command(ILI9XXX_MADCTL, &mad, 1);
+    this->bus_->write_cmd_data(ILI9XXX_DFUNCTR, dfun, sizeof dfun);
+    this->bus_->write_cmd_data(ILI9XXX_MADCTL, &mad, 1);
   }
 };
 //-----------   Waveshare 3.5 Res Touch - ILI9488 interfaced via 16 bit shift register to parallel */
 class WAVESHARERES35 : public ILI9XXXILI9488 {
  public:
   WAVESHARERES35() : ILI9XXXILI9488(INITCMD_WAVESHARE_RES_3_5) {}
-  /*
-   *  This board uses a 16 bit serial-parallel chip to implement SPI, so all parameters must be
-   *  sent as 16 bit values, with the significant data in the least significant byte (sent last.)
-   *  Pixel data is sent normally since it is already 16 bit format.
-   */
-  void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t length) override {
-    // an 8 bit write works here as it is clocked in when /CS is deasserted..
-    this->bus_->write_cmd_data(command_byte, nullptr, 0);
-    std::vector<uint8_t> vec;
-    if (length != 0) {
-      for (size_t i = 0; i != length; i++) {
-        vec.push_back(0);
-        vec.push_back(*data_bytes++);
-      }
-      this->bus_->write_cmd_data(-1, vec.data(), vec.size());
-    }
-  }
+
+  void setup() override;
 };
 
 //-----------   ILI9XXX_35_TFT origin colors rotated display --------------

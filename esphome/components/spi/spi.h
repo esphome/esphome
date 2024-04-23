@@ -4,7 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/components/byte_bus/byte_bus.h"
+#include "esphome/components/io_bus/io_bus.h"
 #include <map>
 #include <utility>
 #include <vector>
@@ -151,7 +151,7 @@ class SPIDelegate {
   SPIDelegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
       : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
     if (this->cs_pin_ == nullptr)
-      this->cs_pin_ = byte_bus::NULL_PIN;
+      this->cs_pin_ = io_bus::NULL_PIN;
     this->cs_pin_->setup();
     this->cs_pin_->digital_write(true);
   }
@@ -224,7 +224,7 @@ class SPIDelegate {
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
-  GPIOPin *cs_pin_{byte_bus::NULL_PIN};
+  GPIOPin *cs_pin_{io_bus::NULL_PIN};
   static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
@@ -441,7 +441,7 @@ class SPIClient {
   SPIMode mode_{MODE0};
   SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
   SPIComponent *parent_{};
-  GPIOPin *cs_{byte_bus::NULL_PIN};
+  GPIOPin *cs_{io_bus::NULL_PIN};
   uint32_t data_rate_{1000000};
 };
 
@@ -459,7 +459,7 @@ class SPIDevice : public SPIClient {
   SPIDevice() : SPIClient(BIT_ORDER, Utility::get_mode(CLOCK_POLARITY, CLOCK_PHASE), DATA_RATE) {}
 };
 
-class SPIByteBus : public byte_bus::ByteBus {
+class SPIByteBus : public io_bus::IOBus {
  public:
   SPIByteBus(SPIClient *client) : client_(client) {}
   void bus_setup() override {

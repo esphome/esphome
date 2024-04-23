@@ -5,7 +5,7 @@
 #ifdef USE_I80
 #include "esphome/core/gpio.h"
 #include "esphome/core/component.h"
-#include "esphome/components/byte_bus/byte_bus.h"
+#include "esphome/components/io_bus/io_bus.h"
 #include <map>
 #include <utility>
 #include <vector>
@@ -69,7 +69,7 @@ class I80Component : public Component {
   std::map<I80Client *, I80Delegate *> devices_{};
 };
 
-class I80Client : public byte_bus::ByteBus {
+class I80Client : public io_bus::IOBus {
  public:
   void bus_setup() override { this->delegate_ = this->parent_->register_device(this, this->cs_, this->data_rate_); }
   void bus_teardown() override {
@@ -94,7 +94,7 @@ class I80Client : public byte_bus::ByteBus {
  protected:
   I80Delegate *delegate_{NULL_DELEGATE};
   I80Component *parent_{};
-  GPIOPin *cs_{byte_bus::NULL_PIN};
+  GPIOPin *cs_{io_bus::NULL_PIN};
   uint32_t data_rate_{1000000};
 };
 
