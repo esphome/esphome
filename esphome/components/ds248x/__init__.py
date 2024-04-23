@@ -16,7 +16,7 @@ CONF_STRONG_PULLUP = "strong_pullup"
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
 DS248xComponent = ds248x_ns.class_("DS248xComponent", cg.PollingComponent, i2c.I2CDevice)
 
-ds248xType = ds248x_ns.enum("DS248xType",is_class=True)
+ds248xType = ds248x_ns.enum("DS248xType", is_class=True)
 
 DS248X_TYPES = {
     "ds2482-100": ds248xType.DS2482_100,
