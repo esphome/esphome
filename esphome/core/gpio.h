@@ -5,7 +5,7 @@
 namespace esphome {
 
 #define LOG_PIN(prefix, pin) \
-  if ((pin) != nullptr) { \
+  if ((pin) != nullptr && (pin != NULL_PIN)) { \
     ESP_LOGCONFIG(TAG, prefix "%s", (pin)->dump_summary().c_str()); \
   }
 
@@ -78,7 +78,7 @@ class NullPin : public GPIOPin {
   std::string dump_summary() const override { return {"Not used"}; }
 };
 
-static GPIOPin const *const NULL_PIN = new NullPin();
+static GPIOPin *const NULL_PIN = new NullPin();
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
 class ISRInternalGPIOPin {
