@@ -70,11 +70,14 @@ void SPIByteBus::write_cmd_data(int cmd, const uint8_t *data, size_t length) {
     this->dc_pin_->digital_write(false);
     this->client_->write_byte(cmd);
   }
-  this->dc_pin_->digital_write(true);
   if (length != 0) {
+    this->dc_pin_->digital_write(true);
     this->write_array(data, length);
   }
+  // note - if there is no data phase, the transaction is ended with DC still in control state, but the
+  // function must return with DC set to data state.
   this->end_transaction();
+  this->dc_pin_->digital_write(true);
 }
 
 void SPIByteBus::dump_config() {

@@ -58,12 +58,6 @@ class ByteBus {
 
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
 
-  /**
-   * Select data (true) or control mode.
-   * @param data True for data mode, false for control
-   */
-  void set_dc_data(bool data) { this->dc_pin_->digital_write(data); }
-
  protected:
   GPIOPin *dc_pin_{byte_bus::NULL_PIN};
 };
