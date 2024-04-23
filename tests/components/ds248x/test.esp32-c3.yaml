@@ -1,6 +1,6 @@
 i2c:
-  sda: GPIO13
-  scl: GPIO16
+  sda: GPIO8
+  scl: GPIO9
   id: bus_a
   frequency: 400kHz
 
