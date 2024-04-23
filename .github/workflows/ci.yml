@@ -439,7 +439,7 @@ jobs:
     needs:
       - common
       - list-components
-    if: github.event_name == 'pull_request' && needs.list-components.outputs.count > 0 && needs.list-components.outputs.count < 100
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) > 0 && fromJSON(needs.list-components.outputs.count) < 100
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -471,7 +471,7 @@ jobs:
     needs:
       - common
       - list-components
-    if: github.event_name == 'pull_request' && needs.list-components.outputs.count >= 100
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
     outputs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
@@ -490,7 +490,7 @@ jobs:
       - common
       - list-components
       - test-build-components-splitter
-    if: github.event_name == 'pull_request' && needs.list-components.outputs.count >= 100
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
     strategy:
       fail-fast: false
       max-parallel: 4
