@@ -1,7 +1,8 @@
 spi:
   - id: spi_main_lcd
-    clk_pin: 16
-    mosi_pin: 17
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
 
 display:
   - platform: ili9xxx
@@ -13,9 +14,9 @@ display:
       mirror_y: false
     model: TFT 2.4
     color_palette: GRAYSCALE
-    cs_pin: 12
-    dc_pin: 13
-    reset_pin: 14
+    cs_pin: 5
+    dc_pin: 15
+    reset_pin: 16
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
@@ -25,9 +26,9 @@ display:
       offset_width: 20
       offset_height: 10
     model: TFT 2.4
-    cs_pin: 25
-    dc_pin: 26
-    reset_pin: 27
+    cs_pin: 2
+    dc_pin: 4
+    reset_pin: 0
     auto_clear_enabled: false
     rotation: 90
     lambda: |-
