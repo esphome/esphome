@@ -6,13 +6,12 @@ from esphome.const import (
     CONF_DALLAS_ID,
     CONF_INDEX,
     CONF_RESOLUTION,
+    CONF_CHANNEL,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
 from . import DS248xComponent, ds248x_ns
-
-CONF_CHANNEL = "channel"
 
 DS248xTemperatureSensor = ds248x_ns.class_("DS248xTemperatureSensor", sensor.Sensor)
 
