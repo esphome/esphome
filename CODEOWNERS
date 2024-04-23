@@ -390,6 +390,7 @@ esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/uponor_smatrix/* @kroimon
+esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita

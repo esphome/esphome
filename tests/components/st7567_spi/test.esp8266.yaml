@@ -1,0 +1,24 @@
+spi:
+  - id: spi_st7567_spi
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+display:
+  - platform: st7567_spi
+    cs_pin: 15
+    dc_pin: 16
+    reset_pin: 5
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: page2
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
