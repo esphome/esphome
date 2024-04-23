@@ -40,6 +40,7 @@ static const char *const TAG = "beken_spi_led_strip";
 struct spi_data_t {
   SemaphoreHandle_t dma_tx_semaphore;
   volatile bool tx_in_progress;
+  bool first_run;
 };
 
 static spi_data_t *spi_data = nullptr;
@@ -176,6 +177,8 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
+  spi_data->first_run = true;
+
   set_spi_ctrl_register(MSTEN, 0);
   set_spi_ctrl_register(BIT_WDTH, 0);
   spi_set_clock(this->spi_frequency_);
@@ -262,6 +265,11 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
+  if (!spi_data->first_run && !xSemaphoreTake(spi_data->dma_tx_semaphore, 10 / portTICK_PERIOD_MS)) {
+    ESP_LOGE(TAG, "Timed out waiting for semaphore");
+    return;
+  }
+
   if (spi_data->tx_in_progress) {
     ESP_LOGE(TAG, "tx_in_progress is set");
     this->status_set_warning();
@@ -294,12 +302,8 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     *pdest++ = 0x00;  // 0xff for debugging
   }
 
+  spi_data->first_run = false;
   spi_dma_tx_enable(1);
-
-  if (!xSemaphoreTake(spi_data->dma_tx_semaphore, 10 / portTICK_PERIOD_MS)) {
-    ESP_LOGE(TAG, "Timed out waiting for semaphore");
-    return;
-  }
 
   this->status_clear_warning();
 }
