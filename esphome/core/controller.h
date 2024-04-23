@@ -46,6 +46,9 @@
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
 #endif
+#ifdef USE_VALVE
+#include "esphome/components/valve/valve.h"
+#endif
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
@@ -99,6 +102,9 @@ class Controller {
 #endif
 #ifdef USE_LOCK
   virtual void on_lock_update(lock::Lock *obj){};
+#endif
+#ifdef USE_VALVE
+  virtual void on_valve_update(valve::Valve *obj){};
 #endif
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_update(media_player::MediaPlayer *obj){};

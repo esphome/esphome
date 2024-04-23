@@ -54,6 +54,9 @@
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
 #endif
+#ifdef USE_VALVE
+#include "esphome/components/valve/valve.h"
+#endif
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
@@ -145,6 +148,10 @@ class Application {
 
 #ifdef USE_LOCK
   void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
+#endif
+
+#ifdef USE_VALVE
+  void register_valve(valve::Valve *valve) { this->valves_.push_back(valve); }
 #endif
 
 #ifdef USE_MEDIA_PLAYER
@@ -348,6 +355,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_VALVE
+  const std::vector<valve::Valve *> &get_valves() { return this->valves_; }
+  valve::Valve *get_valve_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->valves_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_MEDIA_PLAYER
   const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
   media_player::MediaPlayer *get_media_player_by_key(uint32_t key, bool include_internal = false) {
@@ -428,6 +444,9 @@ class Application {
 #endif
 #ifdef USE_LOCK
   std::vector<lock::Lock *> locks_{};
+#endif
+#ifdef USE_VALVE
+  std::vector<valve::Valve *> valves_{};
 #endif
 #ifdef USE_MEDIA_PLAYER
   std::vector<media_player::MediaPlayer *> media_players_{};

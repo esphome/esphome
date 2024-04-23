@@ -72,6 +72,9 @@ class ComponentIterator {
 #ifdef USE_LOCK
   virtual bool on_lock(lock::Lock *a_lock) = 0;
 #endif
+#ifdef USE_VALVE
+  virtual bool on_valve(valve::Valve *valve) = 0;
+#endif
 #ifdef USE_MEDIA_PLAYER
   virtual bool on_media_player(media_player::MediaPlayer *media_player);
 #endif
@@ -134,6 +137,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_LOCK
     LOCK,
+#endif
+#ifdef USE_VALVE
+    VALVE,
 #endif
 #ifdef USE_MEDIA_PLAYER
     MEDIA_PLAYER,

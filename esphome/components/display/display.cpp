@@ -620,13 +620,8 @@ void Display::test_card() {
   this->show_test_card_ = false;
   if (this->get_display_type() == DISPLAY_TYPE_COLOR) {
     Color R(255, 0, 0), G(0, 255, 0), B(0, 0, 255);
-    if (w > h) {
-      image_w = w > 330 ? 310 : w - 20;
-      image_h = h > 280 ? 255 : h - 20;
-    } else {
-      image_h = h > 330 ? 310 : h - 20;
-      image_w = w > 280 ? 255 : w - 20;
-    }
+    image_w = std::min(w - 20, 310);
+    image_h = std::min(h - 20, 255);
 
     int shift_x = (w - image_w) / 2;
     int shift_y = (h - image_h) / 2;
