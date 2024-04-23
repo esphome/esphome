@@ -537,6 +537,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       delay_microseconds_safe(1450);
       // Wait on an Rx from the LD2420 for up to 3 1 second loops, otherwise it could trigger a WDT.
       if ((millis() - start_millis) > 1000) {
+        start_millis = millis();
         error = LD2420_ERROR_TIMEOUT;
         retry--;
         break;
