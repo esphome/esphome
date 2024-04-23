@@ -41,6 +41,7 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x18))
 )
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
