@@ -123,7 +123,7 @@ void BekenSPILEDStripLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Beken SPI LED Strip...");
 
   size_t buffer_size = this->get_buffer_size_();
-  size_t dma_buffer_size = buffer_size * 8 + 128;
+  size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
 
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->buf_ = allocator.allocate(buffer_size);
@@ -281,12 +281,9 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   size_t buffer_size = this->get_buffer_size_();
   size_t size = 0;
   uint8_t *psrc = this->buf_;
-  uint8_t *pdest = this->dma_buf_;
-
-  // Workaround for SPI DMA bug
-  for (int i = 0; i < 64; i++) {
-    *pdest++ = 0x00;  // 0x80 for debugging
-  }
+  uint8_t *pdest = this->dma_buf_ + 64;
+  // The 64 byte padding is a workaround for a SPI DMA bug where the
+  // output doesn't exactly start at the beginning of dma_buf_
 
   while (size < buffer_size) {
     uint8_t b = *psrc;
@@ -295,11 +292,6 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     }
     size++;
     psrc++;
-  }
-
-  // Workaround for SPI DMA bug
-  for (int i = 0; i < 64; i++) {
-    *pdest++ = 0x00;  // 0xff for debugging
   }
 
   spi_data->first_run = false;
