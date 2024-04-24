@@ -379,7 +379,7 @@ void DS248xComponent::reset_hub_() {
   uint8_t cmd = DS248X_COMMAND_RESET;
   this->write(&cmd, sizeof(cmd));
 
-  if (this->enable_active_pullup_ == true) {
+  if (this->enable_active_pullup_) {
     this->DS248xComponent::write_config_(DS248X_CONFIG_ACTIVE_PULLUP);
   }
 
