@@ -1,8 +1,12 @@
-import esphome.codegen as cg
 from typing import Union
+import esphome.codegen as cg
 from esphome.core import CORE
 from esphome.helpers import (
     write_file_if_changed,
+)
+from esphome.const import (
+    CONF_VARIANT,
+    CONF_BOARD,
 )
 from .const import (
     ZEPHYR_VARIANT_GENERIC,
@@ -11,10 +15,6 @@ from .const import (
     KEY_PRJ_CONF,
     KEY_OVERLAY,
     zephyr_ns,
-)
-from esphome.const import (
-    CONF_VARIANT,
-    CONF_BOARD,
 )
 
 

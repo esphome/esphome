@@ -8,7 +8,7 @@ from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
 from smpclient.transport.ble import SMPBLETransport
 from smpclient.transport.serial import SMPSerialTransport
 from smpclient import SMPClient
-from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound
+from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound, MCUBootImageError
 from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
 from smpclient.requests.os_management import ResetWrite
 from smpclient.generics import error, success
@@ -71,7 +71,7 @@ def get_image_tlv_sha256(file):
         image_info = ImageInfo.load_file(str(file))
         pprint(image_info.header)
         _LOGGER.debug(str(image_info))
-    except Exception as e:
+    except MCUBootImageError as e:
         _LOGGER.error("Inspection of FW image failed: %s", e)
         return None
 
