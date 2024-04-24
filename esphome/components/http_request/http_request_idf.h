@@ -4,10 +4,10 @@
 
 #ifdef USE_ESP_IDF
 
-#include "esp_event.h"
-#include "esp_http_client.h"
-#include "esp_netif.h"
-#include "esp_tls.h"
+#include <esp_event.h>
+#include <esp_http_client.h>
+#include <esp_netif.h>
+#include <esp_tls.h>
 
 namespace esphome {
 namespace http_request {
