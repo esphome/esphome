@@ -43,7 +43,10 @@ service APIConnection {
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
+  rpc valve_command (ValveCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
+  rpc date_command (DateCommandRequest) returns (void) {}
+  rpc time_command (TimeCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -216,7 +219,8 @@ message DeviceInfoResponse {
 
   string friendly_name = 13;
 
-  uint32 voice_assistant_version = 14;
+  uint32 legacy_voice_assistant_version = 14;
+  uint32 voice_assistant_feature_flags = 17;
 
   string suggested_area = 16;
 }
@@ -365,6 +369,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10;
   EntityCategory entity_category = 11;
+  repeated string supported_preset_modes = 12;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -387,6 +392,7 @@ message FanStateResponse {
   FanSpeed speed = 4 [deprecated = true];
   FanDirection direction = 5;
   int32 speed_level = 6;
+  string preset_mode = 7;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -405,6 +411,8 @@ message FanCommandRequest {
   FanDirection direction = 9;
   bool has_speed_level = 10;
   int32 speed_level = 11;
+  bool has_preset_mode = 12;
+  string preset_mode = 13;
 }
 
 // ==================== LIGHT ====================
@@ -596,6 +604,7 @@ message ListEntitiesTextSensorResponse {
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
+  string device_class = 8;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -855,6 +864,10 @@ message ListEntitiesClimateResponse {
   string icon = 19;
   EntityCategory entity_category = 20;
   float visual_current_temperature_step = 21;
+  bool supports_current_humidity = 22;
+  bool supports_target_humidity = 23;
+  float visual_min_humidity = 24;
+  float visual_max_humidity = 25;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -875,6 +888,8 @@ message ClimateStateResponse {
   string custom_fan_mode = 11;
   ClimatePreset preset = 12;
   string custom_preset = 13;
+  float current_humidity = 14;
+  float target_humidity = 15;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -903,6 +918,8 @@ message ClimateCommandRequest {
   ClimatePreset preset = 19;
   bool has_custom_preset = 20;
   string custom_preset = 21;
+  bool has_target_humidity = 22;
+  float target_humidity = 23;
 }
 
 // ==================== NUMBER ====================
@@ -1408,12 +1425,18 @@ message BluetoothDeviceClearCacheResponse {
 }
 
 // ==================== PUSH TO TALK ====================
+enum VoiceAssistantSubscribeFlag {
+  VOICE_ASSISTANT_SUBSCRIBE_NONE = 0;
+  VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1;
+}
+
 message SubscribeVoiceAssistantRequest {
   option (id) = 89;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   bool subscribe = 1;
+  uint32 flags = 2;
 }
 
 enum VoiceAssistantRequestFlag {
@@ -1437,6 +1460,7 @@ message VoiceAssistantRequest {
   string conversation_id = 2;
   uint32 flags = 3;
   VoiceAssistantAudioSettings audio_settings = 4;
+  string wake_word_phrase = 5;
 }
 
 message VoiceAssistantResponse {
@@ -1479,6 +1503,16 @@ message VoiceAssistantEventResponse {
   VoiceAssistantEvent event_type = 1;
   repeated VoiceAssistantEventData data = 2;
 }
+
+message VoiceAssistantAudio {
+  option (id) = 106;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bytes data = 1;
+  bool end = 2;
+}
+
 
 // ==================== ALARM CONTROL PANEL ====================
 enum AlarmControlPanelState {
@@ -1583,4 +1617,163 @@ message TextCommandRequest {
 
   fixed32 key = 1;
   string state = 2;
+}
+
+
+// ==================== DATETIME DATE ====================
+message ListEntitiesDateResponse {
+  option (id) = 100;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+}
+message DateStateResponse {
+  option (id) = 101;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  // If the date does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 2;
+  uint32 year = 3;
+  uint32 month = 4;
+  uint32 day = 5;
+}
+message DateCommandRequest {
+  option (id) = 102;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DATETIME_DATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  uint32 year = 2;
+  uint32 month = 3;
+  uint32 day = 4;
+}
+
+// ==================== DATETIME TIME ====================
+message ListEntitiesTimeResponse {
+  option (id) = 103;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_TIME";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+}
+message TimeStateResponse {
+  option (id) = 104;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_TIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  // If the time does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 2;
+  uint32 hour = 3;
+  uint32 minute = 4;
+  uint32 second = 5;
+}
+message TimeCommandRequest {
+  option (id) = 105;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DATETIME_TIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  uint32 hour = 2;
+  uint32 minute = 3;
+  uint32 second = 4;
+}
+
+// ==================== EVENT ====================
+message ListEntitiesEventResponse {
+  option (id) = 107;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_EVENT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+
+  repeated string event_types = 9;
+}
+message EventResponse {
+  option (id) = 108;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_EVENT";
+
+  fixed32 key = 1;
+  string event_type = 2;
+}
+
+// ==================== VALVE ====================
+message ListEntitiesValveResponse {
+  option (id) = 109;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+
+  bool assumed_state = 9;
+  bool supports_position = 10;
+  bool supports_stop = 11;
+}
+
+enum ValveOperation {
+  VALVE_OPERATION_IDLE = 0;
+  VALVE_OPERATION_IS_OPENING = 1;
+  VALVE_OPERATION_IS_CLOSING = 2;
+}
+message ValveStateResponse {
+  option (id) = 110;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float position = 2;
+  ValveOperation current_operation = 3;
+}
+
+message ValveCommandRequest {
+  option (id) = 111;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool has_position = 2;
+  float position = 3;
+  bool stop = 4;
 }

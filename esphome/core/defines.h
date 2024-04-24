@@ -11,6 +11,7 @@
 #define ESPHOME_BOARD "dummy_board"
 #define ESPHOME_PROJECT_NAME "dummy project"
 #define ESPHOME_PROJECT_VERSION "v2"
+#define ESPHOME_PROJECT_VERSION_30 "v2"
 #define ESPHOME_VARIANT "ESP32"
 
 // Feature flags
@@ -23,6 +24,7 @@
 #define USE_CLIMATE
 #define USE_COVER
 #define USE_DEEP_SLEEP
+#define USE_EVENT
 #define USE_FAN
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
@@ -34,9 +36,13 @@
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
 #define USE_NUMBER
+#define USE_DATETIME
+#define USE_DATETIME_DATE
+#define USE_DATETIME_TIME
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
+#define USE_OTA_VERSION 1
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
@@ -49,7 +55,10 @@
 #define USE_TIME
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
+#define USE_VALVE
 #define USE_WIFI
+#define USE_WIFI_AP
+#define USE_GRAPHICAL_DISPLAY_MENU
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
@@ -93,7 +102,7 @@
 // ESP8266-specific feature flags
 #ifdef USE_ESP8266
 #define USE_ADC_SENSOR_VCC
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 0, 2)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 1, 2)
 #define USE_ESP8266_PREFERENCES_FLASH
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP

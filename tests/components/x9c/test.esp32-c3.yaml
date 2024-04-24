@@ -1,0 +1,7 @@
+output:
+  - platform: x9c
+    id: test_x9c
+    cs_pin: 3
+    inc_pin: 4
+    ud_pin: 5
+    initial_value: 0.5

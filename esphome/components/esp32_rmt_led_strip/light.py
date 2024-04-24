@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import esp32, light
+from esphome.components import esp32_rmt, light
 from esphome.const import (
     CONF_CHIPSET,
     CONF_MAX_REFRESH_RATE,
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_PIN,
     CONF_RGB_ORDER,
+    CONF_RMT_CHANNEL,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -47,36 +48,16 @@ CHIPSETS = {
     "WS2812": LEDStripTimings(400, 1000, 1000, 400),
     "SK6812": LEDStripTimings(300, 900, 600, 600),
     "APA106": LEDStripTimings(350, 1360, 1360, 350),
-    "SM16703": LEDStripTimings(300, 900, 1360, 350),
+    "SM16703": LEDStripTimings(300, 900, 900, 300),
 }
 
 
 CONF_IS_RGBW = "is_rgbw"
+CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
-CONF_RMT_CHANNEL = "rmt_channel"
-
-RMT_CHANNELS = {
-    esp32.const.VARIANT_ESP32: [0, 1, 2, 3, 4, 5, 6, 7],
-    esp32.const.VARIANT_ESP32S2: [0, 1, 2, 3],
-    esp32.const.VARIANT_ESP32S3: [0, 1, 2, 3],
-    esp32.const.VARIANT_ESP32C3: [0, 1],
-    esp32.const.VARIANT_ESP32C6: [0, 1],
-    esp32.const.VARIANT_ESP32H2: [0, 1],
-}
-
-
-def _validate_rmt_channel(value):
-    variant = esp32.get_esp32_variant()
-    if variant not in RMT_CHANNELS:
-        raise cv.Invalid(f"ESP32 variant {variant} does not support RMT.")
-    if value not in RMT_CHANNELS[variant]:
-        raise cv.Invalid(
-            f"RMT channel {value} is not supported for ESP32 variant {variant}."
-        )
-    return value
 
 
 CONFIG_SCHEMA = cv.All(
@@ -86,10 +67,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
-            cv.Required(CONF_RMT_CHANNEL): _validate_rmt_channel,
+            cv.Required(CONF_RMT_CHANNEL): esp32_rmt.validate_rmt_channel(tx=True),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
+            cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
                 "custom",
@@ -145,6 +127,7 @@ async def to_code(config):
 
     cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
     cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
+    cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
 
     cg.add(
         var.set_rmt_channel(

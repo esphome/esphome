@@ -1,7 +1,6 @@
 ---
 name: CI
 
-# yamllint disable-line rule:truthy
 on:
   push:
     branches: [dev, beta, release]
@@ -11,6 +10,8 @@ on:
       - "**"
       - "!.github/workflows/*.yml"
       - ".github/workflows/ci.yml"
+      - "!.yamllint"
+      - "!.github/dependabot.yml"
   merge_group:
 
 permissions:
@@ -19,7 +20,6 @@ permissions:
 env:
   DEFAULT_PYTHON: "3.9"
   PYUPGRADE_TARGET: "--py39-plus"
-  CLANG_FORMAT_VERSION: "13.0.1"
 
 concurrency:
   # yamllint disable-line rule:line-length
@@ -40,12 +40,12 @@ jobs:
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.1.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v3.3.2
+        uses: actions/cache@v4.0.2
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -166,7 +166,35 @@ jobs:
 
   pytest:
     name: Run pytest
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+        os:
+          - ubuntu-latest
+          - macOS-latest
+          - windows-latest
+        exclude:
+          # Minimize CI resource usage
+          # by only running the Python version
+          # version used for docker images on Windows and macOS
+          - python-version: "3.12"
+            os: windows-latest
+          - python-version: "3.10"
+            os: windows-latest
+          - python-version: "3.9"
+            os: windows-latest
+          - python-version: "3.12"
+            os: macOS-latest
+          - python-version: "3.10"
+            os: macOS-latest
+          - python-version: "3.9"
+            os: macOS-latest
+    runs-on: ${{ matrix.os }}
     needs:
       - common
     steps:
@@ -175,14 +203,24 @@ jobs:
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
+          python-version: ${{ matrix.python-version }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run pytest
+        if: matrix.os == 'windows-latest'
+        run: |
+          ./venv/Scripts/activate
+          pytest -vv --cov-report=xml --tb=native tests
+      - name: Run pytest
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --tb=native tests
+          pytest -vv --cov-report=xml --tb=native tests
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   clang-format:
     name: Check clang-format
@@ -200,7 +238,7 @@ jobs:
       - name: Install clang-format
         run: |
           . venv/bin/activate
-          pip install clang-format==${{ env.CLANG_FORMAT_VERSION }}
+          pip install clang-format -c requirements_dev.txt
       - name: Run clang-format
         run: |
           . venv/bin/activate
@@ -327,7 +365,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache platformio
-        uses: actions/cache@v3.3.2
+        uses: actions/cache@v4.0.2
         with:
           path: ~/.platformio
           # yamllint disable-line rule:line-length
@@ -354,6 +392,137 @@ jobs:
         # yamllint disable-line rule:line-length
         if: always()
 
+  list-components:
+    runs-on: ubuntu-latest
+    needs:
+      - common
+    if: github.event_name == 'pull_request'
+    outputs:
+      components: ${{ steps.list-components.outputs.components }}
+      count: ${{ steps.list-components.outputs.count }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+        with:
+          # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
+          fetch-depth: 500
+      - name: Get target branch
+        id: target-branch
+        run: |
+          echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
+      - name: Fetch ${{ steps.target-branch.outputs.branch }} branch
+        run: |
+          git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/${{ steps.target-branch.outputs.branch }}:refs/remotes/origin/${{ steps.target-branch.outputs.branch }}
+          git merge-base refs/remotes/origin/${{ steps.target-branch.outputs.branch }} HEAD
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Find changed components
+        id: list-components
+        run: |
+          . venv/bin/activate
+          components=$(script/list-components.py --changed --branch ${{ steps.target-branch.outputs.branch }})
+          output_components=$(echo "$components" | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')
+          count=$(echo "$output_components" | jq length)
+
+          echo "components=$output_components" >> $GITHUB_OUTPUT
+          echo "count=$count" >> $GITHUB_OUTPUT
+
+          echo "$count Components:"
+          echo "$output_components" | jq
+
+  test-build-components:
+    name: Component test ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - list-components
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) > 0 && fromJSON(needs.list-components.outputs.count) < 100
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        file: ${{ fromJson(needs.list-components.outputs.components) }}
+    steps:
+      - name: Install libsodium
+        run: sudo apt-get install libsodium-dev
+
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: test_build_components -e config -c ${{ matrix.file }}
+        run: |
+          . venv/bin/activate
+          ./script/test_build_components -e config -c ${{ matrix.file }}
+      - name: test_build_components -e compile -c ${{ matrix.file }}
+        run: |
+          . venv/bin/activate
+          ./script/test_build_components -e compile -c ${{ matrix.file }}
+
+  test-build-components-splitter:
+    name: Split components for testing into 20 groups maximum
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - list-components
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
+    outputs:
+      matrix: ${{ steps.split.outputs.components }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Split components into 20 groups
+        id: split
+        run: |
+          components=$(echo '${{ needs.list-components.outputs.components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
+          echo "components=$components" >> $GITHUB_OUTPUT
+
+  test-build-components-split:
+    name: Test split components
+    runs-on: ubuntu-latest
+    needs:
+      - common
+      - list-components
+      - test-build-components-splitter
+    if: github.event_name == 'pull_request' && fromJSON(needs.list-components.outputs.count) >= 100
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
+    steps:
+      - name: List components
+        run: echo ${{ matrix.components }}
+
+      - name: Install libsodium
+        run: sudo apt-get install libsodium-dev
+
+      - name: Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Validate config
+        run: |
+          . venv/bin/activate
+          for component in ${{ matrix.components }}; do
+            ./script/test_build_components -e config -c $component
+          done
+      - name: Compile config
+        run: |
+          . venv/bin/activate
+          for component in ${{ matrix.components }}; do
+            ./script/test_build_components -e compile -c $component
+          done
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
@@ -368,6 +537,10 @@ jobs:
       - pyupgrade
       - compile-tests
       - clang-tidy
+      - list-components
+      - test-build-components
+      - test-build-components-splitter
+      - test-build-components-split
     if: always()
     steps:
       - name: Success
@@ -375,4 +548,8 @@ jobs:
         run: exit 0
       - name: Failure
         if: ${{ contains(needs.*.result, 'failure') }}
-        run: exit 1
+        env:
+          JSON_DOC: ${{ toJSON(needs) }}
+        run: |
+          echo $JSON_DOC | jq
+          exit 1

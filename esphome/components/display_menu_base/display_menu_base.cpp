@@ -60,6 +60,8 @@ void DisplayMenuComponent::left() {
             if (this->editing_) {
               this->finish_editing_();
               changed = true;
+            } else {
+              changed = this->leave_menu_();
             }
             break;
           case MENU_MODE_JOYSTICK:
@@ -172,6 +174,8 @@ void DisplayMenuComponent::show_main() {
 
   this->process_initial_();
 
+  this->on_before_show();
+
   if (this->active_ && this->editing_)
     this->finish_editing_();
 
@@ -188,6 +192,8 @@ void DisplayMenuComponent::show_main() {
   }
 
   this->draw_and_update();
+
+  this->on_after_show();
 }
 
 void DisplayMenuComponent::show() {
@@ -196,18 +202,26 @@ void DisplayMenuComponent::show() {
 
   this->process_initial_();
 
+  this->on_before_show();
+
   if (!this->active_) {
     this->active_ = true;
     this->draw_and_update();
   }
+
+  this->on_after_show();
 }
 
 void DisplayMenuComponent::hide() {
   if (this->check_healthy_and_active_()) {
+    this->on_before_hide();
+
     if (this->editing_)
       this->finish_editing_();
     this->active_ = false;
     this->update();
+
+    this->on_after_hide();
   }
 }
 

@@ -25,7 +25,7 @@ void MQTTBinarySensorComponent::dump_config() {
 MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor *binary_sensor)
     : binary_sensor_(binary_sensor) {
   if (this->binary_sensor_->is_status_binary_sensor()) {
-    this->set_custom_state_topic(mqtt::global_mqtt_client->get_availability().topic);
+    this->set_custom_state_topic(mqtt::global_mqtt_client->get_availability().topic.c_str());
   }
 }
 

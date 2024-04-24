@@ -1,0 +1,4 @@
+sensor:
+  - platform: pulse_width
+    name: Pulse Width
+    pin: 4

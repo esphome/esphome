@@ -20,8 +20,7 @@ namespace esphome {
 namespace ota {
 
 static const char *const TAG = "ota";
-
-static const uint8_t OTA_VERSION_1_0 = 1;
+static constexpr u_int16_t OTA_BLOCK_SIZE = 8192;
 
 OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -101,6 +100,7 @@ void OTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
 #endif
+  ESP_LOGCONFIG(TAG, "  OTA version: %d.", USE_OTA_VERSION);
   if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
       this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %" PRIu32 " restarts",
@@ -132,6 +132,9 @@ void OTAComponent::handle_() {
   uint8_t ota_features;
   std::unique_ptr<OTABackend> backend;
   (void) ota_features;
+#if USE_OTA_VERSION == 2
+  size_t size_acknowledged = 0;
+#endif
 
   if (client_ == nullptr) {
     struct sockaddr_storage source_addr;
@@ -168,7 +171,7 @@ void OTAComponent::handle_() {
 
   // Send OK and version - 2 bytes
   buf[0] = OTA_RESPONSE_OK;
-  buf[1] = OTA_VERSION_1_0;
+  buf[1] = USE_OTA_VERSION;
   this->writeall_(buf, 2);
 
   backend = make_ota_backend();
@@ -312,6 +315,13 @@ void OTAComponent::handle_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
+#if USE_OTA_VERSION == 2
+    while (size_acknowledged + OTA_BLOCK_SIZE <= total || (total == ota_size && size_acknowledged < ota_size)) {
+      buf[0] = OTA_RESPONSE_CHUNK_OK;
+      this->writeall_(buf, 1);
+      size_acknowledged += OTA_BLOCK_SIZE;
+    }
+#endif
 
     uint32_t now = millis();
     if (now - last_progress > 1000) {

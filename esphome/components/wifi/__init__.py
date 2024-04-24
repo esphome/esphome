@@ -403,6 +403,10 @@ async def to_code(config):
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
+        cg.add_define("USE_WIFI_AP")
+    elif CORE.is_esp32 and CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
+        add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))

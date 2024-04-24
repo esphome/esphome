@@ -110,7 +110,7 @@ class DashboardImportDiscovery:
         self, zeroconf: Zeroconf, info: AsyncServiceInfo, service_type: str, name: str
     ) -> None:
         """Process a service info."""
-        if await info.async_request(zeroconf):
+        if await info.async_request(zeroconf, timeout=3000):
             self._process_service_info(name, info)
 
     def _process_service_info(self, name: str, info: ServiceInfo) -> None:
@@ -169,7 +169,9 @@ class DashboardImportDiscovery:
 def _make_host_resolver(host: str) -> HostResolver:
     """Create a new HostResolver for the given host name."""
     name = host.partition(".")[0]
-    info = HostResolver(ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}")
+    info = HostResolver(
+        ESPHOME_SERVICE_TYPE, f"{name}.{ESPHOME_SERVICE_TYPE}", server=f"{name}.local."
+    )
     return info
 
 

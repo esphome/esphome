@@ -181,8 +181,12 @@ mqtt:
     - light.turn_off: ${roomname}_lights
 
 i2c:
-  sda: 21
-  scl: 22
+  sda:
+    allow_other_uses: true
+    number: 21
+  scl:
+    allow_other_uses: true
+    number: 22
   scan: true
   frequency: 100kHz
   setup_priority: -100
@@ -190,15 +194,23 @@ i2c:
 
 spi:
   id: spi_bus
-  clk_pin: GPIO21
-  mosi_pin: GPIO22
-  miso_pin: GPIO23
+  clk_pin:
+    allow_other_uses: true
+    number: GPIO21
+  mosi_pin:
+    allow_other_uses: true
+    number: GPIO22
+  miso_pin:
+    allow_other_uses: true
+    number: GPIO23
 
 uart:
   - tx_pin:
+      allow_other_uses: true
       number: GPIO22
       inverted: true
     rx_pin:
+      allow_other_uses: true
       number: GPIO23
       inverted: true
     baud_rate: 115200
@@ -220,18 +232,30 @@ uart:
         - lambda: UARTDebug::log_int(direction, bytes, ',');
         - lambda: UARTDebug::log_binary(direction, bytes, ';');
   - id: ld2410_uart
-    tx_pin: 18
-    rx_pin: 23
+    tx_pin:
+      allow_other_uses: true
+      number: 18
+    rx_pin:
+      allow_other_uses: true
+      number: 23
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
   - id: dfrobot_mmwave_uart
-    tx_pin: 14
-    rx_pin: 27
+    tx_pin:
+      allow_other_uses: true
+      number: 14
+    rx_pin:
+      allow_other_uses: true
+      number: 27
     baud_rate: 115200
   - id: ld2420_uart
-    tx_pin: 17
-    rx_pin: 16
+    tx_pin:
+      allow_other_uses: true
+      number: 17
+    rx_pin:
+      allow_other_uses: true
+      number: 16
     baud_rate: 115200
     parity: NONE
     stop_bits: 1
@@ -282,24 +306,55 @@ power_supply:
   keep_on_time: 10s
   pin:
     number: 13
+    allow_other_uses: true
     inverted: true
 
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
-  wakeup_pin: GPIO2
+  wakeup_pin:
+    allow_other_uses: true
+    number: GPIO2
+    ignore_strapping_warning: true
   wakeup_pin_mode: INVERT_WAKEUP
 
 ads1115:
   address: 0x48
   i2c_id: i2c_bus
 
+ads1118:
+  spi_id: spi_bus
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO12
+
+as5600:
+  i2c_id: i2c_bus
+  dir_pin:
+    number: 27
+    allow_other_uses: true
+  direction: clockwise
+  start_position: 90deg
+  range: 180deg
+  watchdog: true
+  power_mode: low1
+  hysteresis: lsb1
+  slow_filter: 8x
+  fast_filter: lsb6
+
 dallas:
-  pin: GPIO23
+  pin:
+    allow_other_uses: true
+    number: GPIO23
 
 as3935_spi:
-  cs_pin: GPIO12
-  irq_pin: GPIO13
+  cs_pin:
+    ignore_strapping_warning: true
+    allow_other_uses: true
+    number: GPIO12
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO13
 
 esp32_ble:
   io_capability: keyboard_only
@@ -309,8 +364,10 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
+    auto_connect: true
   - mac_address: 11:22:33:44:55:66
     id: ble_blah
+    auto_connect: false
     on_connect:
       then:
         - switch.turn_on: ble1_status
@@ -329,7 +386,7 @@ ble_client:
       then:
         - ble_client.numeric_comparison_reply:
             id: ble_blah
-            accept: True
+            accept: true
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
 
@@ -339,16 +396,24 @@ bedjet:
     time_id: sntp_time
 mcp23s08:
   - id: mcp23s08_hub
-    cs_pin: GPIO12
+    cs_pin:
+      ignore_strapping_warning: true
+      number: GPIO12
+      allow_other_uses: true
     deviceaddress: 0
 
 mcp23s17:
   - id: mcp23s17_hub
-    cs_pin: GPIO12
+    cs_pin:
+      ignore_strapping_warning: true
+      number: GPIO12
+      allow_other_uses: true
     deviceaddress: 1
 
 micronova:
-  enable_rx_pin: 4
+  enable_rx_pin:
+    allow_other_uses: true
+    number: 4
   uart_id: uart_0
 
 dfrobot_sen0395:
@@ -512,6 +577,24 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: ads1118
+    name: ads1118 adc
+    multiplexer: A0_A1
+    gain: 1.024
+    type: adc
+  - platform: ads1118
+    name: ads1118 temperature
+    type: temperature
+  - platform: as5600
+    name: AS5600 Position
+    raw_position:
+      name: AS5600 Raw Position
+    gain:
+      name: AS5600 Gain
+    magnitude:
+      name: AS5600 Magnitude
+    status:
+      name: AS5600 Status
   - platform: as7341
     update_interval: 15s
     gain: X8
@@ -539,7 +622,9 @@ sensor:
       name: NIR
     i2c_id: i2c_bus
   - platform: atm90e26
-    cs_pin: 5
+    cs_pin:
+      allow_other_uses: true
+      number: 5
     voltage:
       name: Line Voltage
     current:
@@ -558,7 +643,9 @@ sensor:
     gain_voltage: 26400
     gain_ct: 31251
   - platform: atm90e32
-    cs_pin: 5
+    cs_pin:
+      allow_other_uses: true
+      number: 5
     phase_a:
       voltage:
         name: EMON Line Voltage A
@@ -606,6 +693,7 @@ sensor:
     internal: true
     address: 0x23
     update_interval: 30s
+    qos: 2
     retain: false
     availability:
     state_topic: livingroom/custom_state_topic
@@ -617,7 +705,7 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280
+  - platform: bme280_i2c
     temperature:
       name: Outside Temperature
       oversampling: 16x
@@ -631,6 +719,21 @@ sensor:
     iir_filter: 16x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: bme280_spi
+    temperature:
+      name: Outside Temperature
+      oversampling: 16x
+    pressure:
+      name: Outside Pressure
+      oversampling: none
+    humidity:
+      name: Outside Humidity
+      oversampling: 8x
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    iir_filter: 16x
+    update_interval: 15s
   - platform: bme680
     temperature:
       name: Outside Temperature
@@ -675,7 +778,9 @@ sensor:
     index: 1
     name: Living Room Temperature 2
   - platform: dht
-    pin: GPIO26
+    pin:
+      allow_other_uses: true
+      number: GPIO26
     temperature:
       id: dht_temperature
       name: Living Room Temperature 3
@@ -692,7 +797,9 @@ sensor:
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: duty_cycle
-    pin: GPIO25
+    pin:
+      allow_other_uses: true
+      number: GPIO25
     name: Duty Cycle Sensor
   - platform: ee895
     co2:
@@ -721,9 +828,15 @@ sensor:
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
-    sel_pin: 5
-    cf_pin: 14
-    cf1_pin: 13
+    sel_pin:
+      allow_other_uses: true
+      number: 5
+    cf_pin:
+      allow_other_uses: true
+      number: 14
+    cf1_pin:
+      allow_other_uses: true
+      number: 13
     current:
       name: HLW8012 Current
     voltage:
@@ -737,7 +850,7 @@ sensor:
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
-    change_mode_every: 16
+    change_mode_every: "never"
     initial_mode: VOLTAGE
     model: hlw8012
   - platform: total_daily_energy
@@ -765,6 +878,13 @@ sensor:
     oversampling: 8x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: honeywell_hih_i2c
+    temperature:
+      name: Living Room Temperature 7
+    humidity:
+      name: Living Room Humidity 7
+    update_interval: 15s
+    i2c_id: i2c_bus
   - platform: honeywellabp
     pressure:
       name: Honeywell pressure
@@ -772,7 +892,9 @@ sensor:
       max_pressure: 15
     temperature:
       name: Honeywell temperature
-    cs_pin: GPIO5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
   - platform: honeywellabp2_i2c
     pressure:
       name: Honeywell2 pressure
@@ -806,8 +928,12 @@ sensor:
     i2c_id: i2c_bus
   - platform: hx711
     name: HX711 Value
-    dout_pin: GPIO23
-    clk_pin: GPIO25
+    dout_pin:
+      allow_other_uses: true
+      number: GPIO23
+    clk_pin:
+      allow_other_uses: true
+      number: GPIO25
     gain: 128
     update_interval: 15s
   - platform: ina219
@@ -860,7 +986,8 @@ sensor:
       name: Internal Ttemperature
     update_interval: 15s
     i2c_id: i2c_bus
-  - platform: kalman_combinator
+  - platform: combination
+    type: kalman
     name: Kalman-filtered temperature
     process_std_dev: 0.00139
     sources:
@@ -869,6 +996,57 @@ sensor:
           return 0.4 + std::abs(x - 25) * 0.023;
       - source: scd4x_temperature
         error: 1.5
+  - platform: combination
+    type: linear
+    name: Linearly combined temperatures
+    sources:
+      - source: scd30_temperature
+        coeffecient: !lambda |-
+          return 0.4 + std::abs(x - 25) * 0.023;
+      - source: scd4x_temperature
+        coeffecient: 1.5
+  - platform: combination
+    type: max
+    name: Max of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: mean
+    name: Mean of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: median
+    name: Median of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: min
+    name: Min of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: most_recently_updated
+    name: Most recently updated of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: range
+    name: Range of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
+  - platform: combination
+    type: sum
+    name: Sum of combined temperatures
+    sources:
+      - source: scd30_temperature
+      - source: scd4x_temperature
   - platform: htu21d
     temperature:
       name: Living Room Temperature 6
@@ -880,22 +1058,30 @@ sensor:
     i2c_id: i2c_bus
   - platform: max6675
     name: Living Room Temperature
-    cs_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
     update_interval: 15s
   - platform: max31855
     name: Den Temperature
-    cs_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
     update_interval: 15s
     reference_temperature:
       name: MAX31855 Internal Temperature
   - platform: max31856
     name: BBQ Temperature
-    cs_pin: GPIO17
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO17
     update_interval: 15s
     mains_filter: 50Hz
   - platform: max31865
     name: Water Tank Temperature
-    cs_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
     update_interval: 15s
     reference_resistance: 430 Ω
     rtd_nominal_resistance: 100 Ω
@@ -1007,7 +1193,10 @@ sensor:
     i2c_id: i2c_bus
   - platform: pulse_counter
     name: Pulse Counter
-    pin: GPIO12
+    pin:
+      ignore_strapping_warning: true
+      number: GPIO12
+      allow_other_uses: true
     count_mode:
       rising_edge: INCREMENT
       falling_edge: DECREMENT
@@ -1016,7 +1205,10 @@ sensor:
   - platform: pulse_meter
     name: Pulse Meter
     id: pulse_meter_sensor
-    pin: GPIO12
+    pin:
+      ignore_strapping_warning: true
+      number: GPIO12
+      allow_other_uses: true
     internal_filter: 100ms
     timeout: 2 min
     on_value:
@@ -1039,9 +1231,15 @@ sensor:
   - platform: rotary_encoder
     name: Rotary Encoder
     id: rotary_encoder1
-    pin_a: GPIO23
-    pin_b: GPIO25
-    pin_reset: GPIO25
+    pin_a:
+      allow_other_uses: true
+      number: GPIO23
+    pin_b:
+      allow_other_uses: true
+      number: GPIO25
+    pin_reset:
+      allow_other_uses: true
+      number: GPIO25
     filters:
       - or:
           - debounce: 0.1s
@@ -1058,13 +1256,17 @@ sensor:
           value: !lambda "return -1;"
     on_clockwise:
       - logger.log: Clockwise
-      - display_menu.down:
+      - display_menu.down: test_lcd_menu
+      - display_menu.down: test_graphical_display_menu
     on_anticlockwise:
       - logger.log: Anticlockwise
-      - display_menu.up:
+      - display_menu.up: test_lcd_menu
+      - display_menu.up: test_graphical_display_menu
   - platform: pulse_width
     name: Pulse Width
-    pin: GPIO12
+    pin:
+      allow_other_uses: true
+      number: GPIO12
   - platform: sm300d2
     uart_id: uart_0
     co2:
@@ -1242,14 +1444,27 @@ sensor:
       name: tsl2591 calculated_lux
       id: tsl2591_cl
     i2c_id: i2c_bus
+  - platform: veml3235
+    id: veml3235_sensor
+    name: VEML3235 Light Sensor
+    i2c_id: i2c_bus
+    auto_gain: true
+    auto_gain_threshold_high: 90%
+    auto_gain_threshold_low: 15%
+    digital_gain: 1X
+    gain: 1X
+    integration_time: 50ms
   - platform: tee501
     name: Office Temperature 3
     address: 0x48
     i2c_id: i2c_bus
   - platform: ultrasonic
-    trigger_pin: GPIO25
+    trigger_pin:
+      allow_other_uses: true
+      number: GPIO25
     echo_pin:
       number: GPIO23
+      allow_other_uses: true
       inverted: true
     name: Ultrasonic Sensor
     timeout: 5.5m
@@ -1296,9 +1511,14 @@ sensor:
     pin:
       number: GPIO04
       mode: INPUT
+      allow_other_uses: true
   - platform: zyaura
-    clock_pin: GPIO5
-    data_pin: GPIO4
+    clock_pin:
+      allow_other_uses: true
+      number: GPIO5
+    data_pin:
+      allow_other_uses: true
+      number: GPIO4
     co2:
       name: ZyAura CO2
     temperature:
@@ -1553,6 +1773,64 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: ade7880
+    i2c_id: i2c_bus
+    irq0_pin:
+      number: GPIO13
+      allow_other_uses: true
+    irq1_pin:
+      number: GPIO5
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO16
+      allow_other_uses: true
+    frequency: 60Hz
+    phase_a:
+      name: Channel A
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+    phase_b:
+      name: Channel B
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3133655
+        voltage_gain: -755235
+        power_gain: -1345638
+        phase_angle: 188
+    phase_c:
+      name: Channel C
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3111158
+        voltage_gain: -743813
+        power_gain: -1351437
+        phase_angle: 180
+    neutral:
+      name: Neutral
+      current: Current
+      calibration:
+        current_gain: 3189
+
+psram:
 
 esp32_touch:
   setup_mode: false
@@ -1579,6 +1857,7 @@ binary_sensor:
       mcp23xxx: mcp23s17_hub
       # Use pin number 1
       number: 1
+      allow_other_uses: true
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: false
@@ -1587,13 +1866,16 @@ binary_sensor:
     pin:
       mcp23xxx: mcp23s17_hub
       # Use pin number 1
+      allow_other_uses: true
       number: 1
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: false
       interrupt: FALLING
   - platform: gpio
-    pin: GPIO9
+    pin:
+      allow_other_uses: true
+      number: GPIO9
     name: Living Room Window
     device_class: window
     filters:
@@ -1607,6 +1889,8 @@ binary_sensor:
       - delayed_on_off: !lambda "return 10;"
       - delayed_on: !lambda "return 1000;"
       - delayed_off: !lambda "return 0;"
+      - settle: 40ms
+      - settle: !lambda "return 10;"
     on_press:
       then:
         - lambda: >-
@@ -1662,11 +1946,13 @@ binary_sensor:
   - platform: gpio
     pin:
       number: GPIO9
+      allow_other_uses: true
       mode: INPUT_PULLUP
     name: Living Room Window 2
   - platform: gpio
     pin:
       number: GPIO9
+      allow_other_uses: true
       mode: INPUT_OUTPUT_OPEN_DRAIN
     name: Living Room Button
   - platform: status
@@ -1679,13 +1965,22 @@ binary_sensor:
     on_press:
       - if:
           condition:
-            display_menu.is_active:
+            display_menu.is_active: test_lcd_menu
           then:
-            - display_menu.enter:
+            - display_menu.enter: test_lcd_menu
           else:
-            - display_menu.left:
-            - display_menu.right:
-            - display_menu.show:
+            - display_menu.left: test_lcd_menu
+            - display_menu.right: test_lcd_menu
+            - display_menu.show: test_lcd_menu
+      - if:
+          condition:
+            display_menu.is_active: test_graphical_display_menu
+          then:
+            - display_menu.enter: test_graphical_display_menu
+          else:
+            - display_menu.left: test_graphical_display_menu
+            - display_menu.right: test_graphical_display_menu
+            - display_menu.show: test_graphical_display_menu
   - platform: template
     name: Garage Door Open
     id: garage_door
@@ -1745,6 +2040,7 @@ binary_sensor:
     pin:
       mcp23xxx: mcp23017_hub
       number: 1
+      allow_other_uses: true
       mode: INPUT
       inverted: true
   - platform: gpio
@@ -1765,13 +2061,14 @@ binary_sensor:
     name: Speed Fan Cycle binary sensor"
     pin:
       number: 18
+      allow_other_uses: true
       mode:
         input: true
         pulldown: true
     on_press:
       - fan.cycle_speed:
           id: fan_speed
-          off_speed_cycle: False
+          off_speed_cycle: false
       - logger.log: "Cycle speed clicked"
   - platform: remote_receiver
     name: Raw Remote Receiver Test
@@ -1871,6 +2168,18 @@ binary_sensor:
   - platform: dfrobot_sen0395
     id: mmwave_detected_uart
     dfrobot_sen0395_id: mmwave
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    ndef_contains: pulse
+    name: MFC Tag 1
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    tag_id: pulse
+    name: MFC Tag 2
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_i2c
+    uid: 59-FC-AB-15
+    name: MFC Tag 3
 
 pca9685:
   frequency: 500
@@ -1889,42 +2198,66 @@ tlc59208f:
     i2c_id: i2c_bus
 
 my9231:
-  data_pin: GPIO12
-  clock_pin: GPIO14
+  data_pin:
+    allow_other_uses: true
+    number: GPIO12
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO14
   num_channels: 6
   num_chips: 2
   bit_depth: 16
 
 sm2235:
-  data_pin: GPIO4
-  clock_pin: GPIO5
+  data_pin:
+    allow_other_uses: true
+    number: GPIO4
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
 sm2335:
-  data_pin: GPIO4
-  clock_pin: GPIO5
+  data_pin:
+    allow_other_uses: true
+    number: GPIO4
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 9
   max_power_white_channels: 9
 
 bp1658cj:
-  data_pin: GPIO3
-  clock_pin: GPIO5
+  data_pin:
+    allow_other_uses: true
+    number: GPIO3
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO5
   max_power_color_channels: 4
   max_power_white_channels: 6
 
 bp5758d:
-  data_pin: GPIO3
-  clock_pin: GPIO5
+  data_pin:
+    allow_other_uses: true
+    number: GPIO3
+  clock_pin:
+    allow_other_uses: true
+    number: GPIO5
 
 output:
   - platform: gpio
-    pin: GPIO26
+    pin:
+      allow_other_uses: true
+      number: GPIO26
     id: gpio_26
     power_supply: atx_power_supply
     inverted: false
   - platform: ledc
-    pin: 19
+    pin:
+      allow_other_uses: true
+      number: 19
     id: gpio_19
     frequency: 1500Hz
     channel: 14
@@ -1994,6 +2327,7 @@ output:
     pin:
       pcf8574: pcf8574_hub
       number: 0
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2001,6 +2335,7 @@ output:
     pin:
       pca9554: pca9554_hub
       number: 0
+      # allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
@@ -2074,14 +2409,22 @@ output:
     channel: 3
   - platform: slow_pwm
     id: id24
-    pin: GPIO26
+    pin:
+      allow_other_uses: true
+      number: GPIO26
     period: 15s
   - platform: ac_dimmer
     id: dimmer1
-    gate_pin: GPIO5
-    zero_cross_pin: GPIO26
+    gate_pin:
+      allow_other_uses: true
+      number: GPIO5
+    zero_cross_pin:
+      allow_other_uses: true
+      number: GPIO26
   - platform: esp32_dac
-    pin: GPIO25
+    pin:
+      allow_other_uses: true
+      number: GPIO25
     id: dac_output
   - platform: mcp4725
     id: mcp4725_dac_output
@@ -2145,9 +2488,15 @@ output:
     current: 10
   - platform: x9c
     id: test_x9c
-    cs_pin: GPIO25
-    inc_pin: GPIO26
-    ud_pin: GPIO27
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO25
+    inc_pin:
+      allow_other_uses: true
+      number: GPIO26
+    ud_pin:
+      allow_other_uses: true
+      number: GPIO27
     initial_value: 0.5
 
 light:
@@ -2254,7 +2603,9 @@ light:
     warm_white_color_temperature: 500 mireds
 
 remote_transmitter:
-  - pin: 32
+  - pin:
+      allow_other_uses: true
+      number: 32
     carrier_duty_percent: 100%
 
 climate:
@@ -2301,6 +2652,10 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+    supports_dry: "true"
+    supports_fan_only: "true"
+    horizontal_default: "left"
+    vertical_default: "down"
   - platform: whirlpool
     name: Whirlpool Climate
   - platform: climate_ir_lg
@@ -2446,10 +2801,13 @@ switch:
       mcp23xxx: mcp23s17_hub
       # Use pin number 0
       number: 1
+      allow_other_uses: true
       mode: OUTPUT
       inverted: false
   - platform: gpio
-    pin: GPIO25
+    pin:
+      allow_other_uses: true
+      number: GPIO25
     name: Living Room Dehumidifier
     icon: "mdi:restart"
     inverted: true
@@ -2781,6 +3139,33 @@ fan:
     on_speed_set:
       then:
         - logger.log: Fan speed was changed!
+  - platform: speed
+    id: fan_speed_presets
+    icon: mdi:weather-windy
+    output: pca_6
+    speed_count: 10
+    name: Speed Fan w/ Presets
+    oscillation_output: gpio_19
+    direction_output: gpio_26
+    preset_modes:
+      - Preset 1
+      - Preset 2
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
+  - platform: hbridge
+    id: fan_hbridge_presets
+    icon: mdi:weather-windy
+    speed_count: 4
+    name: H-bridge Fan w/ Presets
+    pin_a: pca_6
+    pin_b: pca_7
+    preset_modes:
+      - Preset 1
+      - Preset 2
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
   - platform: bedjet
     name: My Bedjet fan
     bedjet_id: my_bedjet_client
@@ -2814,6 +3199,16 @@ interval:
               page_id: page1
           then:
             - logger.log: Seeing page 1
+  - interval: 60min
+    then:
+      - ble_client.connect: ble_blah
+      - ble_client.ble_write:
+          id: ble_blah
+          service_uuid: EBE0CCB0-7A0A-4B0C-8A1A-6FF2997DA3A6
+          characteristic_uuid: EBE0CCB7-7A0A-4B0C-8A1A-6FF2997DA3A6
+          value: !lambda |-
+            return {1, 0};
+      - ble_client.disconnect: ble_blah
 
 color:
   - id: kbx_red
@@ -2832,12 +3227,20 @@ display:
     id: my_lcd_gpio
     dimensions: 18x4
     data_pins:
-      - GPIO19
-      - GPIO21
-      - GPIO22
-      - GPIO23
-    enable_pin: GPIO23
-    rs_pin: GPIO25
+      - allow_other_uses: true
+        number: GPIO19
+      - allow_other_uses: true
+        number: GPIO21
+      - allow_other_uses: true
+        number: GPIO22
+      - allow_other_uses: true
+        number: GPIO23
+    enable_pin:
+      allow_other_uses: true
+      number: GPIO23
+    rs_pin:
+      allow_other_uses: true
+      number: GPIO25
     lambda: |-
       it.print("Hello World!");
   - platform: lcd_pcf8574
@@ -2858,13 +3261,19 @@ display:
       it.print("Hello World!");
     i2c_id: i2c_bus
   - platform: max7219
-    cs_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
     num_chips: 1
     lambda: |-
       it.print("01234567");
   - platform: tm1637
-    clk_pin: GPIO23
-    dio_pin: GPIO25
+    clk_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dio_pin:
+      allow_other_uses: true
+      number: GPIO25
     intensity: 3
     lambda: |-
       it.print("1234");
@@ -2872,6 +3281,7 @@ display:
     clk_pin:
       mcp23xxx: mcp23017_hub
       number: 1
+      allow_other_uses: true
     dio_pin:
       mcp23xxx: mcp23017_hub
       number: 2
@@ -2881,15 +3291,23 @@ display:
     lambda: |-
       it.print("1234");
   - platform: pcd8544
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     contrast: 60
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1306_i2c
     model: SSD1306_128X64
-    reset_pin: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     address: 0x3C
     id: display1
     contrast: 60%
@@ -2910,28 +3328,48 @@ display:
     i2c_id: i2c_bus
   - platform: ssd1306_spi
     model: SSD1306 128x64
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1322_spi
     model: SSD1322 256x64
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1325_spi
     model: SSD1325 128x64
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1327_i2c
     model: SSD1327 128X128
-    reset_pin: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     address: 0x3D
     id: display1327
     brightness: 60%
@@ -2945,45 +3383,96 @@ display:
     i2c_id: i2c_bus
   - platform: ssd1327_spi
     model: SSD1327 128x128
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1331_spi
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1351_spi
     model: SSD1351 128x128
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO23
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7789v
     model: TTGO TDisplay 135x240
-    cs_pin: GPIO5
-    dc_pin: GPIO16
-    reset_pin: GPIO23
-    backlight_pin: no
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    backlight_pin: false
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7920
     width: 128
     height: 64
     cs_pin:
+      allow_other_uses: true
       number: GPIO23
       inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_i2c
+    id: st7735_display_i2c
+    address: 0x3F
+    i2c_id: i2c_bus
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7567_spi
+    id: st7735_display_spi
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
+    id: st7735_display
     model: INITR_BLACKTAB
-    cs_pin: GPIO5
-    dc_pin: GPIO16
-    reset_pin: GPIO23
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO16
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO23
     rotation: 0
     device_width: 128
     device_height: 160
@@ -2992,18 +3481,41 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
+    invert_colors: true
+    dimensions: 320x240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
     model: TFT 2.4
-    cs_pin: GPIO5
-    dc_pin: GPIO4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO4
     color_palette: GRAYSCALE
-    reset_pin: GPIO22
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO22
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
+    dimensions:
+      width: 320
+      height: 240
+      offset_width: 20
+      offset_height: 10
     model: TFT 2.4
-    cs_pin: GPIO5
-    dc_pin: GPIO4
-    reset_pin: GPIO22
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO4
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO22
     auto_clear_enabled: false
     rotation: 90
     lambda: |-
@@ -3028,10 +3540,18 @@ display:
       it.print_battery(true);
   - platform: tm1621
     id: tm1621_display
-    cs_pin: GPIO17
-    data_pin: GPIO5
-    read_pin: GPIO23
-    write_pin: GPIO18
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO17
+    data_pin:
+      allow_other_uses: true
+      number: GPIO5
+    read_pin:
+      allow_other_uses: true
+      number: GPIO23
+    write_pin:
+      allow_other_uses: true
+      number: GPIO18
     lambda: |-
       it.printf(0, "%.1f", id(dht_temperature).state);
       it.display_celsius(true);
@@ -3040,12 +3560,18 @@ display:
 
 tm1651:
   id: tm1651_battery
-  clk_pin: GPIO23
-  dio_pin: GPIO23
+  clk_pin:
+    allow_other_uses: true
+    number: GPIO23
+  dio_pin:
+    allow_other_uses: true
+    number: GPIO23
 
 remote_receiver:
   id: rcvr
-  pin: GPIO32
+  pin:
+    allow_other_uses: true
+    number: GPIO32
   dump: all
   on_coolix:
     then:
@@ -3055,11 +3581,16 @@ remote_receiver:
       delay: !lambda "return uint32_t(x.code) + x.protocol;"
 
 status_led:
-  pin: GPIO2
+  pin:
+    allow_other_uses: true
+    number: GPIO2
+    ignore_strapping_warning: true
 
 pn532_spi:
   id: pn532_bs
-  cs_pin: GPIO23
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO23
   update_interval: 1s
   on_tag:
     - lambda: |-
@@ -3077,11 +3608,60 @@ pn532_spi:
 pn532_i2c:
   i2c_id: i2c_bus
 
+pn7150_i2c:
+  id: nfcc_pn7150_i2c
+  i2c_id: i2c_bus
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO32
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+
+pn7160_i2c:
+  id: nfcc_pn7160_i2c
+  i2c_id: i2c_bus
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+  wkup_req_pin:
+    allow_other_uses: true
+    number: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+
+pn7160_spi:
+  id: nfcc_pn7160_spi
+  cs_pin:
+    number: GPIO15
+  dwl_req_pin:
+    allow_other_uses: true
+    number: GPIO17
+  irq_pin:
+    allow_other_uses: true
+    number: GPIO35
+  ven_pin:
+    allow_other_uses: true
+    number: GPIO16
+  wkup_req_pin:
+    allow_other_uses: true
+    number: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+
 rdm6300:
   uart_id: uart_0
 
 rc522_spi:
-  cs_pin: GPIO23
+  cs_pin:
+    allow_other_uses: true
+    number: GPIO23
   update_interval: 1s
   on_tag:
     - lambda: |-
@@ -3274,9 +3854,15 @@ mcp23016:
 stepper:
   - platform: a4988
     id: my_stepper
-    step_pin: GPIO23
-    dir_pin: GPIO25
-    sleep_pin: GPIO25
+    step_pin:
+      allow_other_uses: true
+      number: GPIO23
+    dir_pin:
+      allow_other_uses: true
+      number: GPIO25
+    sleep_pin:
+      allow_other_uses: true
+      number: GPIO25
     max_speed: 250 steps/s
     acceleration: 100 steps/s^2
     deceleration: 200 steps/s^2
@@ -3356,6 +3942,10 @@ text_sensor:
   - platform: template
     name: Template Text Sensor
     id: ${textname}_text
+  - platform: template
+    name: Template Text Sensor Timestamp
+    id: ${textname}_text_timestamp
+    device_class: timestamp
   - platform: wifi_info
     scan_results:
       name: Scan Results
@@ -3384,16 +3974,29 @@ text_sensor:
 
 sn74hc595:
   - id: sn74hc595_hub
-    data_pin: GPIO21
-    clock_pin: GPIO23
-    latch_pin: GPIO22
-    oe_pin: GPIO32
+    data_pin:
+      allow_other_uses: true
+      number: GPIO21
+    clock_pin:
+      allow_other_uses: true
+      number: GPIO23
+    latch_pin:
+      allow_other_uses: true
+      number: GPIO22
+    oe_pin:
+      allow_other_uses: true
+      number: GPIO32
     sr_count: 2
   - id: sn74hc595_hub_2
-    latch_pin: GPIO22
-    oe_pin: GPIO32
+    latch_pin:
+      allow_other_uses: true
+      number: GPIO22
+    oe_pin:
+      allow_other_uses: true
+      number: GPIO32
     sr_count: 2
     spi_id: spi_bus
+    type: spi
 
 rtttl:
   output: gpio_19
@@ -3443,8 +4046,12 @@ canbus:
               }
   - platform: esp32_can
     id: esp32_internal_can
-    rx_pin: GPIO04
-    tx_pin: GPIO05
+    rx_pin:
+      allow_other_uses: true
+      number: GPIO04
+    tx_pin:
+      allow_other_uses: true
+      number: GPIO05
     can_id: 4
     bit_rate: 50kbps
     on_frame:
@@ -3701,6 +4308,7 @@ ld2420:
   uart_id: ld2420_uart
 
 lcd_menu:
+  id: test_lcd_menu
   display_id: my_lcd_gpio
   mark_back: 0x5e
   mark_selected: 0x3e
@@ -3732,7 +4340,7 @@ lcd_menu:
               text: Show Main
               on_value:
                 then:
-                  - display_menu.show_main:
+                  - display_menu.show_main: test_lcd_menu
     - type: select
       text: Enum Item
       immediate_edit: true
@@ -3762,7 +4370,7 @@ lcd_menu:
       text: Hide
       on_value:
         then:
-          - display_menu.hide:
+          - display_menu.hide: test_lcd_menu
     - type: switch
       text: Switch
       switch: my_switch
@@ -3782,6 +4390,91 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
 
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
+graphical_display_menu:
+  id: test_graphical_display_menu
+  display: st7735_display
+  font: roboto
+  active: false
+  mode: rotary
+  on_enter:
+    then:
+      lambda: 'ESP_LOGI("graphical_display_menu", "root enter");'
+  on_leave:
+    then:
+      lambda: 'ESP_LOGI("graphical_display_menu", "root leave");'
+  items:
+    - type: back
+      text: "Back"
+    - type: label
+    - type: menu
+      text: "Submenu 1"
+      items:
+        - type: back
+          text: "Back"
+        - type: menu
+          text: "Submenu 21"
+          items:
+            - type: back
+              text: "Back"
+            - type: command
+              text: "Show Main"
+              on_value:
+                then:
+                  - display_menu.show_main: test_graphical_display_menu
+    - type: select
+      text: "Enum Item"
+      immediate_edit: true
+      select: test_select
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: number
+      text: "Number"
+      number: test_number
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: command
+      text: "Hide"
+      on_value:
+        then:
+          - display_menu.hide: test_graphical_display_menu
+    - type: switch
+      text: "Switch"
+      switch: my_switch
+      on_text: "Bright"
+      off_text: "Dark"
+      immediate_edit: false
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "switch value: %s", it->get_value_text().c_str());'
+    - type: custom
+      text: !lambda 'return "Custom";'
+      value_lambda: 'return "Val";'
+      on_next:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "custom next: %s", it->get_text().c_str());'
+      on_prev:
+        then:
+          lambda: 'ESP_LOGI("graphical_display_menu", "custom prev: %s", it->get_text().c_str());'
+
 alarm_control_panel:
   - platform: template
     id: alarmcontrolpanel1
@@ -3799,4 +4492,3 @@ alarm_control_panel:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
-

@@ -29,17 +29,18 @@ CONF_BACKGROUND_PRESSED_COLOR = "background_pressed_color"
 CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_FOREGROUND_PRESSED_COLOR = "foreground_pressed_color"
 CONF_FONT_ID = "font_id"
+CONF_EXIT_REPARSE_ON_START = "exit_reparse_on_start"
 
 
 def NextionName(value):
-    valid_chars = f"{ascii_letters + digits}."
+    valid_chars = f"{ascii_letters + digits + '_'}."
     if not isinstance(value, str) or len(value) > 29:
         raise cv.Invalid("Must be a string less than 29 characters")
 
     for char in value:
         if char not in valid_chars:
             raise cv.Invalid(
-                f"Must only consist of upper/lowercase characters, numbers and the period '.'. The character '{char}' cannot be used."
+                f"Must only consist of upper/lowercase characters, numbers, the underscore '_', and the period '.'. The character '{char}' cannot be used."
             )
 
     return value
