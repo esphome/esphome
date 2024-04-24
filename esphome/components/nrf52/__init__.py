@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_FRAMEWORK,
     CONF_VARIANT,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import (
@@ -67,8 +68,6 @@ def _parse_platform_version(value):
     except cv.Invalid:
         return value
 
-
-CONF_PLATFORM_VERSION = "platform_version"
 
 PLATFORM_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
