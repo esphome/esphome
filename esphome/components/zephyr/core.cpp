@@ -7,7 +7,7 @@
 namespace esphome {
 
 static int wdt_channel_id = -EINVAL;
-const device * wdt = nullptr;
+const device *wdt = nullptr;
 
 void yield() { ::k_yield(); }
 uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }

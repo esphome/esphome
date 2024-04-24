@@ -12,11 +12,11 @@ static const char *const TAG = "zephyr_ble_server";
 static struct k_work advertise_work;
 
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN	(sizeof(DEVICE_NAME) - 1)
+#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
 static const struct bt_data AD[] = {
-	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
+    BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 };
 
 static const struct bt_data SD[] = {
@@ -26,7 +26,7 @@ static const struct bt_data SD[] = {
 #endif
 };
 
-const struct bt_le_adv_param* const ADV_PARAM = BT_LE_ADV_CONN;
+const struct bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
 
 static void advertise(struct k_work *work) {
   bt_le_adv_stop();

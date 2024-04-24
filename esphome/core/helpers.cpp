@@ -598,7 +598,7 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 #else
 // this should be an error, but that messes with CI checks. #error No mac address method defined
 #endif
-//TODO
+  // TODO
 }
 std::string get_mac_address() {
   uint8_t mac[6];

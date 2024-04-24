@@ -27,8 +27,8 @@ struct ESPHSVColor {
   inline ESPHSVColor() ESPHOME_ALWAYS_INLINE : h(0), s(0), v(0) {  // NOLINT
   }
   inline ESPHSVColor(uint8_t hue, uint8_t saturation, uint8_t value) ESPHOME_ALWAYS_INLINE : hue(hue),
-                                                                                     saturation(saturation),
-                                                                                     value(value) {}
+                                                                                             saturation(saturation),
+                                                                                             value(value) {}
   Color to_rgb() const;
 };
 

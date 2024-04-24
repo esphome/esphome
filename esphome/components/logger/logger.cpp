@@ -40,11 +40,11 @@ void Logger::write_header_(int level, const char *tag, int line) {
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  void * current_task = xTaskGetCurrentTaskHandle();
+  void *current_task = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
   k_tid_t current_task = k_current_get();
 #else
-  void * current_task = nullptr;
+  void *current_task = nullptr;
 #endif
   if (current_task == main_task_) {
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);

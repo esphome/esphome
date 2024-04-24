@@ -35,13 +35,13 @@ struct Color {
   inline Color(uint8_t red, uint8_t green, uint8_t blue) ESPHOME_ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
 
   inline Color(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ESPHOME_ALWAYS_INLINE : r(red),
-                                                                                        g(green),
-                                                                                        b(blue),
-                                                                                        w(white) {}
+                                                                                                g(green),
+                                                                                                b(blue),
+                                                                                                w(white) {}
   inline explicit Color(uint32_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                            g((colorcode >> 8) & 0xFF),
-                                                            b((colorcode >> 0) & 0xFF),
-                                                            w((colorcode >> 24) & 0xFF) {}
+                                                                    g((colorcode >> 8) & 0xFF),
+                                                                    b((colorcode >> 0) & 0xFF),
+                                                                    w((colorcode >> 24) & 0xFF) {}
 
   inline bool is_on() ESPHOME_ALWAYS_INLINE { return this->raw_32 != 0; }
 

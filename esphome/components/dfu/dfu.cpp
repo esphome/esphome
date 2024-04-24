@@ -38,4 +38,3 @@ void DeviceFirmwareUpdate::loop() {
 
 }  // namespace dfu
 }  // namespace esphome
-
