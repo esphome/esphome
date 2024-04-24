@@ -297,6 +297,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
                                        alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
+
+  /// Dump the event details with its value as a JSON string.
+  std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.

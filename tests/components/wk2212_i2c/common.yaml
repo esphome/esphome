@@ -1,0 +1,59 @@
+i2c:
+  id: i2c_bus
+  scl: ${scl_pin}
+  sda: ${sda_pin}
+  scan: true
+  frequency: 600kHz
+
+#  component declaration
+wk2212_i2c:
+  - id: bridge_i2c
+    i2c_id: i2c_bus
+    address: 0x70
+    uart:
+      - id: uart_i2c_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - id: uart_i2c_id1
+        channel: 1
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+
+# individual binary_sensor inputs
+binary_sensor:
+  - platform: gpio
+    name: "pin_0"
+    pin:
+      wk2212_i2c: bridge_i2c
+      number: 0
+      mode:
+        input: true
+  - platform: gpio
+    name: "pin_1"
+    pin:
+      wk2212_i2c: bridge_i2c
+      number: 1
+      mode:
+        input: true
+      inverted: true
+
+# Individual binary outputs
+switch:
+  - platform: gpio
+    name: "pin_2"
+    pin:
+      wk2212_i2c: bridge_i2c
+      number: 2
+      mode:
+        output: true
+  - platform: gpio
+    name: "pin_3"
+    pin:
+      wk2212_i2c: bridge_i2c
+      number: 3
+      mode:
+        output: true
+      inverted: true

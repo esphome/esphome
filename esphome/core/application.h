@@ -63,6 +63,9 @@
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
+#ifdef USE_EVENT
+#include "esphome/components/event/event.h"
+#endif
 
 namespace esphome {
 
@@ -162,6 +165,10 @@ class Application {
   void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
     this->alarm_control_panels_.push_back(a_alarm_control_panel);
   }
+#endif
+
+#ifdef USE_EVENT
+  void register_event(event::Event *event) { this->events_.push_back(event); }
 #endif
 
   /// Register the component in this Application instance.
@@ -386,6 +393,16 @@ class Application {
   }
 #endif
 
+#ifdef USE_EVENT
+  const std::vector<event::Event *> &get_events() { return this->events_; }
+  event::Event *get_event_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->events_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+
   Scheduler scheduler;
 
  protected:
@@ -408,6 +425,9 @@ class Application {
 #endif
 #ifdef USE_BUTTON
   std::vector<button::Button *> buttons_{};
+#endif
+#ifdef USE_EVENT
+  std::vector<event::Event *> events_{};
 #endif
 #ifdef USE_SENSOR
   std::vector<sensor::Sensor *> sensors_{};
