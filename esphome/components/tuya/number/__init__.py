@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_NUMBER_DATAPOINT,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
+    CONF_MULTIPLY,
     CONF_STEP,
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
@@ -31,6 +32,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
+            cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -49,7 +51,8 @@ async def to_code(config):
         step=config[CONF_STEP],
     )
 
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))
+    parent = await cg.get_variable(config[CONF_TUYA_ID])
+    cg.add(var.set_tuya_parent(parent))
 
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))

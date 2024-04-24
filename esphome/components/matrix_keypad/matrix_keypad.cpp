@@ -11,11 +11,16 @@ void MatrixKeypad::setup() {
     if (!has_diodes_) {
       pin->pin_mode(gpio::FLAG_INPUT);
     } else {
-      pin->digital_write(true);
+      pin->digital_write(!has_pulldowns_);
     }
   }
-  for (auto *pin : this->columns_)
-    pin->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  for (auto *pin : this->columns_) {
+    if (has_pulldowns_) {
+      pin->pin_mode(gpio::FLAG_INPUT);
+    } else {
+      pin->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+    }
+  }
 }
 
 void MatrixKeypad::loop() {
@@ -28,9 +33,9 @@ void MatrixKeypad::loop() {
   for (auto *row : this->rows_) {
     if (!has_diodes_)
       row->pin_mode(gpio::FLAG_OUTPUT);
-    row->digital_write(false);
+    row->digital_write(has_pulldowns_);
     for (auto *col : this->columns_) {
-      if (!col->digital_read()) {
+      if (col->digital_read() == has_pulldowns_) {
         if (key != -1) {
           error = true;
         } else {
@@ -39,7 +44,7 @@ void MatrixKeypad::loop() {
       }
       pos++;
     }
-    row->digital_write(true);
+    row->digital_write(!has_pulldowns_);
     if (!has_diodes_)
       row->pin_mode(gpio::FLAG_INPUT);
   }
@@ -89,11 +94,13 @@ void MatrixKeypad::loop() {
 void MatrixKeypad::dump_config() {
   ESP_LOGCONFIG(TAG, "Matrix Keypad:");
   ESP_LOGCONFIG(TAG, " Rows:");
-  for (auto &pin : this->rows_)
+  for (auto &pin : this->rows_) {
     LOG_PIN("  Pin: ", pin);
+  }
   ESP_LOGCONFIG(TAG, " Cols:");
-  for (auto &pin : this->columns_)
+  for (auto &pin : this->columns_) {
     LOG_PIN("  Pin: ", pin);
+  }
 }
 
 void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->listeners_.push_back(listener); }

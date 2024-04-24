@@ -30,6 +30,9 @@ class RP2040UartComponent : public UARTComponent, public Component {
 
   uint16_t get_config();
 
+  bool is_hw_serial() { return this->hw_serial_; }
+  HardwareSerial *get_hw_serial() { return this->serial_; }
+
  protected:
   void check_logger_conflict() override {}
   bool hw_serial_{false};

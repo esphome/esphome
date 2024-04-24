@@ -1,4 +1,3 @@
-from typing import Optional
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -29,8 +28,10 @@ from esphome.const import (
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
     DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -42,6 +43,7 @@ from esphome.const import (
     DEVICE_CLASS_NITROGEN_MONOXIDE,
     DEVICE_CLASS_NITROUS_OXIDE,
     DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -57,8 +59,11 @@ from esphome.const import (
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -79,8 +84,10 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
     DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -92,6 +99,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_NITROGEN_MONOXIDE,
     DEVICE_CLASS_NITROUS_OXIDE,
     DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -107,8 +115,11 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -204,14 +215,13 @@ def number_schema(
 
 
 async def setup_number_core_(
-    var, config, *, min_value: float, max_value: float, step: Optional[float]
+    var, config, *, min_value: float, max_value: float, step: float
 ):
     await setup_entity(var, config)
 
     cg.add(var.traits.set_min_value(min_value))
     cg.add(var.traits.set_max_value(max_value))
-    if step is not None:
-        cg.add(var.traits.set_step(step))
+    cg.add(var.traits.set_step(step))
 
     cg.add(var.traits.set_mode(config[CONF_MODE]))
 
@@ -229,17 +239,18 @@ async def setup_number_core_(
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
-    if CONF_UNIT_OF_MEASUREMENT in config:
-        cg.add(var.traits.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.traits.set_unit_of_measurement(unit_of_measurement))
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.traits.set_device_class(device_class))
+
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.traits.set_device_class(config[CONF_DEVICE_CLASS]))
 
 
 async def register_number(
-    var, config, *, min_value: float, max_value: float, step: Optional[float] = None
+    var, config, *, min_value: float, max_value: float, step: float
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
@@ -249,10 +260,8 @@ async def register_number(
     )
 
 
-async def new_number(
-    config, *, min_value: float, max_value: float, step: Optional[float] = None
-):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_number(config, *args, min_value: float, max_value: float, step: float):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_number(
         var, config, min_value=min_value, max_value=max_value, step=step
     )
@@ -276,10 +285,10 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
-    if CONF_ABOVE in config:
-        cg.add(var.set_min(config[CONF_ABOVE]))
-    if CONF_BELOW in config:
-        cg.add(var.set_max(config[CONF_BELOW]))
+    if (above := config.get(CONF_ABOVE)) is not None:
+        cg.add(var.set_min(above))
+    if (below := config.get(CONF_BELOW)) is not None:
+        cg.add(var.set_max(below))
 
     return var
 
@@ -383,14 +392,14 @@ async def number_set_to_code(config, action_id, template_arg, args):
 async def number_to_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_OPERATION in config:
-        to_ = await cg.templatable(config[CONF_OPERATION], args, NumberOperation)
+    if (operation := config.get(CONF_OPERATION)) is not None:
+        to_ = await cg.templatable(operation, args, NumberOperation)
         cg.add(var.set_operation(to_))
-        if CONF_CYCLE in config:
-            cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
-            cg.add(var.set_cycle(cycle_))
-    if CONF_MODE in config:
-        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[config[CONF_MODE]]))
-        if CONF_CYCLE in config:
-            cg.add(var.set_cycle(config[CONF_CYCLE]))
+        if (cycle := config.get(CONF_CYCLE)) is not None:
+            template_ = await cg.templatable(cycle, args, bool)
+            cg.add(var.set_cycle(template_))
+    if (mode := config.get(CONF_MODE)) is not None:
+        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[mode]))
+        if (cycle := config.get(CONF_CYCLE)) is not None:
+            cg.add(var.set_cycle(cycle))
     return var

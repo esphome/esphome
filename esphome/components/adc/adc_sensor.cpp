@@ -1,6 +1,6 @@
 #include "adc_sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
@@ -12,6 +12,9 @@ ADC_MODE(ADC_VCC)
 #endif
 
 #ifdef USE_RP2040
+#ifdef CYW43_USES_VSYS_PIN
+#include "pico/cyw43_arch.h"
+#endif
 #include <hardware/adc.h>
 #endif
 
@@ -20,15 +23,15 @@ namespace adc {
 
 static const char *const TAG = "adc";
 
-// 13bit for S2, and 12bit for all other esp32 variants
+// 13-bit for S2, 12-bit for all other ESP32 variants
 #ifdef USE_ESP32
 static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
 
 #ifndef SOC_ADC_RTC_MAX_BITWIDTH
 #if USE_ESP32_VARIANT_ESP32S2
-static const int SOC_ADC_RTC_MAX_BITWIDTH = 13;
+static const int32_t SOC_ADC_RTC_MAX_BITWIDTH = 13;
 #else
-static const int SOC_ADC_RTC_MAX_BITWIDTH = 12;
+static const int32_t SOC_ADC_RTC_MAX_BITWIDTH = 12;
 #endif
 #endif
 
@@ -47,14 +50,21 @@ extern "C"
 #endif
 
 #ifdef USE_ESP32
-  adc1_config_width(ADC_WIDTH_MAX_SOC_BITS);
-  if (!autorange_) {
-    adc1_config_channel_atten(channel_, attenuation_);
+  if (channel1_ != ADC1_CHANNEL_MAX) {
+    adc1_config_width(ADC_WIDTH_MAX_SOC_BITS);
+    if (!autorange_) {
+      adc1_config_channel_atten(channel1_, attenuation_);
+    }
+  } else if (channel2_ != ADC2_CHANNEL_MAX) {
+    if (!autorange_) {
+      adc2_config_channel_atten(channel2_, attenuation_);
+    }
   }
 
   // load characteristics for each attenuation
-  for (int i = 0; i < (int) ADC_ATTEN_MAX; i++) {
-    auto cal_value = esp_adc_cal_characterize(ADC_UNIT_1, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
+  for (int32_t i = 0; i <= ADC_ATTEN_DB_11; i++) {
+    auto adc_unit = channel1_ != ADC1_CHANNEL_MAX ? ADC_UNIT_1 : ADC_UNIT_2;
+    auto cal_value = esp_adc_cal_characterize(adc_unit, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
                                               1100,  // default vref
                                               &cal_characteristics_[i]);
     switch (cal_value) {
@@ -85,13 +95,13 @@ extern "C"
 
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
 #ifdef USE_ADC_SENSOR_VCC
   ESP_LOGCONFIG(TAG, "  Pin: VCC");
 #else
   LOG_PIN("  Pin: ", pin_);
 #endif
-#endif  // USE_ESP8266
+#endif  // USE_ESP8266 || USE_LIBRETINY
 
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
@@ -116,13 +126,19 @@ void ADCSensor::dump_config() {
     }
   }
 #endif  // USE_ESP32
+
 #ifdef USE_RP2040
   if (this->is_temperature_) {
     ESP_LOGCONFIG(TAG, "  Pin: Temperature");
   } else {
+#ifdef USE_ADC_SENSOR_VCC
+    ESP_LOGCONFIG(TAG, "  Pin: VCC");
+#else
     LOG_PIN("  Pin: ", pin_);
+#endif  // USE_ADC_SENSOR_VCC
   }
-#endif
+#endif  // USE_RP2040
+
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -136,9 +152,9 @@ void ADCSensor::update() {
 #ifdef USE_ESP8266
 float ADCSensor::sample() {
 #ifdef USE_ADC_SENSOR_VCC
-  int raw = ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
+  int32_t raw = ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
 #else
-  int raw = analogRead(this->pin_->get_pin());  // NOLINT
+  int32_t raw = analogRead(this->pin_->get_pin());  // NOLINT
 #endif
   if (output_raw_) {
     return raw;
@@ -150,29 +166,53 @@ float ADCSensor::sample() {
 #ifdef USE_ESP32
 float ADCSensor::sample() {
   if (!autorange_) {
-    int raw = adc1_get_raw(channel_);
+    int raw = -1;
+    if (channel1_ != ADC1_CHANNEL_MAX) {
+      raw = adc1_get_raw(channel1_);
+    } else if (channel2_ != ADC2_CHANNEL_MAX) {
+      adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw);
+    }
+
     if (raw == -1) {
       return NAN;
     }
     if (output_raw_) {
       return raw;
     }
-    uint32_t mv = esp_adc_cal_raw_to_voltage(raw, &cal_characteristics_[(int) attenuation_]);
+    uint32_t mv = esp_adc_cal_raw_to_voltage(raw, &cal_characteristics_[(int32_t) attenuation_]);
     return mv / 1000.0f;
   }
 
-  int raw11, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
-  adc1_config_channel_atten(channel_, ADC_ATTEN_DB_11);
-  raw11 = adc1_get_raw(channel_);
-  if (raw11 < ADC_MAX) {
-    adc1_config_channel_atten(channel_, ADC_ATTEN_DB_6);
-    raw6 = adc1_get_raw(channel_);
-    if (raw6 < ADC_MAX) {
-      adc1_config_channel_atten(channel_, ADC_ATTEN_DB_2_5);
-      raw2 = adc1_get_raw(channel_);
-      if (raw2 < ADC_MAX) {
-        adc1_config_channel_atten(channel_, ADC_ATTEN_DB_0);
-        raw0 = adc1_get_raw(channel_);
+  int raw11 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
+
+  if (channel1_ != ADC1_CHANNEL_MAX) {
+    adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_11);
+    raw11 = adc1_get_raw(channel1_);
+    if (raw11 < ADC_MAX) {
+      adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_6);
+      raw6 = adc1_get_raw(channel1_);
+      if (raw6 < ADC_MAX) {
+        adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_2_5);
+        raw2 = adc1_get_raw(channel1_);
+        if (raw2 < ADC_MAX) {
+          adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_0);
+          raw0 = adc1_get_raw(channel1_);
+        }
+      }
+    }
+  } else if (channel2_ != ADC2_CHANNEL_MAX) {
+    adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_11);
+    adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw11);
+    if (raw11 < ADC_MAX) {
+      adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_6);
+      adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw6);
+      if (raw6 < ADC_MAX) {
+        adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_2_5);
+        adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw2);
+        if (raw2 < ADC_MAX) {
+          adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_0);
+          adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw0);
+        }
       }
     }
   }
@@ -181,10 +221,10 @@ float ADCSensor::sample() {
     return NAN;
   }
 
-  uint32_t mv11 = esp_adc_cal_raw_to_voltage(raw11, &cal_characteristics_[(int) ADC_ATTEN_DB_11]);
-  uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &cal_characteristics_[(int) ADC_ATTEN_DB_6]);
-  uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int) ADC_ATTEN_DB_2_5]);
-  uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int) ADC_ATTEN_DB_0]);
+  uint32_t mv11 = esp_adc_cal_raw_to_voltage(raw11, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_11]);
+  uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_6]);
+  uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_2_5]);
+  uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_0]);
 
   // Contribution of each value, in range 0-2048 (12 bit ADC) or 0-4096 (13 bit ADC)
   uint32_t c11 = std::min(raw11, ADC_HALF);
@@ -206,22 +246,53 @@ float ADCSensor::sample() {
     adc_set_temp_sensor_enabled(true);
     delay(1);
     adc_select_input(4);
+
+    int32_t raw = adc_read();
+    adc_set_temp_sensor_enabled(false);
+    if (this->output_raw_) {
+      return raw;
+    }
+    return raw * 3.3f / 4096.0f;
   } else {
     uint8_t pin = this->pin_->get_pin();
+#ifdef CYW43_USES_VSYS_PIN
+    if (pin == PICO_VSYS_PIN) {
+      // Measuring VSYS on Raspberry Pico W needs to be wrapped with
+      // `cyw43_thread_enter()`/`cyw43_thread_exit()` as discussed in
+      // https://github.com/raspberrypi/pico-sdk/issues/1222, since Wifi chip and
+      // VSYS ADC both share GPIO29
+      cyw43_thread_enter();
+    }
+#endif  // CYW43_USES_VSYS_PIN
+
     adc_gpio_init(pin);
     adc_select_input(pin - 26);
-  }
 
-  int raw = adc_read();
-  if (this->is_temperature_) {
-    adc_set_temp_sensor_enabled(false);
+    int32_t raw = adc_read();
+
+#ifdef CYW43_USES_VSYS_PIN
+    if (pin == PICO_VSYS_PIN) {
+      cyw43_thread_exit();
+    }
+#endif  // CYW43_USES_VSYS_PIN
+
+    if (output_raw_) {
+      return raw;
+    }
+    float coeff = pin == PICO_VSYS_PIN ? 3.0 : 1.0;
+    return raw * 3.3f / 4096.0f * coeff;
   }
-  if (output_raw_) {
-    return raw;
-  }
-  return raw * 3.3f / 4096.0f;
 }
 #endif
+
+#ifdef USE_LIBRETINY
+float ADCSensor::sample() {
+  if (output_raw_) {
+    return analogRead(this->pin_->get_pin());  // NOLINT
+  }
+  return analogReadVoltage(this->pin_->get_pin()) / 1000.0f;  // NOLINT
+}
+#endif  // USE_LIBRETINY
 
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }

@@ -102,8 +102,9 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
 
   esp32_ble_tracker::ESPBTUUID ibeacon_uuid_;
   uint16_t ibeacon_major_;
-  bool check_ibeacon_major_;
   uint16_t ibeacon_minor_;
+
+  bool check_ibeacon_major_;
   bool check_ibeacon_minor_;
 };
 

@@ -52,6 +52,8 @@ void KeyCollector::clear(bool progress_update) {
     this->progress_trigger_->trigger(this->result_, 0);
 }
 
+void KeyCollector::send_key(uint8_t key) { this->key_pressed_(key); }
+
 void KeyCollector::key_pressed_(uint8_t key) {
   this->last_key_time_ = millis();
   if (!this->start_keys_.empty() && !this->start_key_) {

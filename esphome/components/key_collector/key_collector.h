@@ -27,6 +27,7 @@ class KeyCollector : public Component {
   void set_timeout(int timeout) { this->timeout_ = timeout; };
 
   void clear(bool progress_update = true);
+  void send_key(uint8_t key);
 
  protected:
   void key_pressed_(uint8_t key);

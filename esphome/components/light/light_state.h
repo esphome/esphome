@@ -33,9 +33,6 @@ enum LightRestoreMode {
  */
 class LightState : public EntityBase, public Component {
  public:
-  /// Construct this LightState using the provided traits and name.
-  LightState(const std::string &name, LightOutput *output);
-
   LightState(LightOutput *output);
 
   LightTraits get_traits();
@@ -147,6 +144,17 @@ class LightState : public EntityBase, public Component {
 
   void current_values_as_ct(float *color_temperature, float *white_brightness);
 
+  /**
+   * Indicator if a transformer (e.g. transition) is active. This is useful
+   * for effects e.g. at the start of the apply() method, add a check like:
+   *
+   * if (this->state_->is_transformer_active()) {
+   *   // Something is already running.
+   *   return;
+   * }
+   */
+  bool is_transformer_active();
+
  protected:
   friend LightOutput;
   friend LightCall;
@@ -206,6 +214,9 @@ class LightState : public EntityBase, public Component {
   LightRestoreMode restore_mode_;
   /// List of effects for this light.
   std::vector<LightEffect *> effects_;
+
+  // for effects, true if a transformer (transition) is active.
+  bool is_transformer_active_ = false;
 };
 
 }  // namespace light

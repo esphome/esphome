@@ -24,8 +24,7 @@ const char *lock_state_to_string(LockState state) {
   }
 }
 
-Lock::Lock(const std::string &name) : EntityBase(name), state(LOCK_STATE_NONE) {}
-Lock::Lock() : Lock("") {}
+Lock::Lock() : state(LOCK_STATE_NONE) {}
 LockCall Lock::make_call() { return LockCall(this); }
 
 void Lock::lock() {

@@ -37,7 +37,7 @@ void ESP32Camera::setup() {
                           "framebuffer_task",  // name
                           1024,                // stack size
                           nullptr,             // task pv params
-                          0,                   // priority
+                          1,                   // priority
                           nullptr,             // handle
                           1                    // core
   );
@@ -202,7 +202,7 @@ void ESP32Camera::loop() {
 float ESP32Camera::get_setup_priority() const { return setup_priority::DATA; }
 
 /* ---------------- constructors ---------------- */
-ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
+ESP32Camera::ESP32Camera() {
   this->config_.pin_pwdn = -1;
   this->config_.pin_reset = -1;
   this->config_.pin_xclk = -1;
@@ -215,7 +215,6 @@ ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
 
   global_esp32_camera = this;
 }
-ESP32Camera::ESP32Camera() : ESP32Camera("") {}
 
 /* ---------------- setters ---------------- */
 /* set pin assignment */
@@ -336,8 +335,8 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 
 /* ---------------- public API (specific) ---------------- */
-void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f) {
-  this->new_image_callback_.add(std::move(f));
+void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) {
+  this->new_image_callback_.add(std::move(callback));
 }
 void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
   this->stream_start_callback_.add(std::move(callback));

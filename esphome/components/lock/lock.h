@@ -103,7 +103,6 @@ class LockCall {
 class Lock : public EntityBase {
  public:
   explicit Lock();
-  explicit Lock(const std::string &name);
 
   /** Make a lock device control call, this is used to control the lock device, see the LockCall description
    * for more info.

@@ -1,2 +1,2 @@
-pillow>4.0.0
-cryptography>=2.0.0,<4
+pillow==10.2.0
+cairosvg==2.7.1

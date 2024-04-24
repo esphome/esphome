@@ -47,7 +47,7 @@ void MAX31855Sensor::read_data_() {
   if (mem != 0xFFFFFFFF) {
     this->status_clear_error();
   } else {
-    ESP_LOGE(TAG, "No data received from MAX31855 (0x%08X). Check wiring!", mem);
+    ESP_LOGE(TAG, "No data received from MAX31855 (0x%08" PRIX32 "). Check wiring!", mem);
     this->publish_state(NAN);
     if (this->temperature_reference_) {
       this->temperature_reference_->publish_state(NAN);
@@ -69,25 +69,25 @@ void MAX31855Sensor::read_data_() {
 
   // Check thermocouple faults
   if (mem & 0x00000001) {
-    ESP_LOGW(TAG, "Thermocouple open circuit (not connected) fault from MAX31855 (0x%08X)", mem);
+    ESP_LOGW(TAG, "Thermocouple open circuit (not connected) fault from MAX31855 (0x%08" PRIX32 ")", mem);
     this->publish_state(NAN);
     this->status_set_warning();
     return;
   }
   if (mem & 0x00000002) {
-    ESP_LOGW(TAG, "Thermocouple short circuit to ground fault from MAX31855 (0x%08X)", mem);
+    ESP_LOGW(TAG, "Thermocouple short circuit to ground fault from MAX31855 (0x%08" PRIX32 ")", mem);
     this->publish_state(NAN);
     this->status_set_warning();
     return;
   }
   if (mem & 0x00000004) {
-    ESP_LOGW(TAG, "Thermocouple short circuit to VCC fault from MAX31855 (0x%08X)", mem);
+    ESP_LOGW(TAG, "Thermocouple short circuit to VCC fault from MAX31855 (0x%08" PRIX32 ")", mem);
     this->publish_state(NAN);
     this->status_set_warning();
     return;
   }
   if (mem & 0x00010000) {
-    ESP_LOGW(TAG, "Got faulty reading from MAX31855 (0x%08X)", mem);
+    ESP_LOGW(TAG, "Got faulty reading from MAX31855 (0x%08" PRIX32 ")", mem);
     this->publish_state(NAN);
     this->status_set_warning();
     return;

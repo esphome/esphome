@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cinttypes>
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -7,9 +10,8 @@
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/time.h"
 #endif
-
-#include <vector>
 
 namespace esphome {
 namespace tuya {
@@ -128,13 +130,14 @@ class Tuya : public Component, public uart::UARTDevice {
 
 #ifdef USE_TIME
   void send_local_time_();
-  optional<time::RealTimeClock *> time_id_{};
+  time::RealTimeClock *time_id_{nullptr};
+  bool time_sync_callback_registered_{false};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   bool init_failed_{false};
   int init_retries_{0};
   uint8_t protocol_version_ = -1;
-  optional<InternalGPIOPin *> status_pin_{};
+  InternalGPIOPin *status_pin_{nullptr};
   int status_pin_reported_ = -1;
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;

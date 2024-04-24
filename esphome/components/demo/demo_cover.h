@@ -72,6 +72,7 @@ class DemoCover : public cover::Cover, public Component {
         traits.set_supports_tilt(true);
         break;
       case DemoCoverType::TYPE_4:
+        traits.set_supports_stop(true);
         traits.set_is_assumed_state(true);
         traits.set_supports_tilt(true);
         break;

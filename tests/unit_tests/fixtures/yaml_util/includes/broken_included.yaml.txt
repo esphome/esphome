@@ -1,0 +1,5 @@
+---
+# yamllint disable-line
+   ssid: ${name}
+# yamllint disable-line
+       fdf: error

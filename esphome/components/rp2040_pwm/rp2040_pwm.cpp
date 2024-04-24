@@ -27,8 +27,12 @@ void RP2040PWM::setup_pwm_() {
 
   uint32_t clock = clock_get_hz(clk_sys);
   float divider = ceil(clock / (4096 * this->frequency_)) / 16.0f;
+  if (divider < 1.0f) {
+    divider = 1.0f;
+  }
   uint16_t wrap = clock / divider / this->frequency_ - 1;
   this->wrap_ = wrap;
+  ESP_LOGD(TAG, "divider=%.5f, wrap=%d, clock=%d", divider, wrap, clock);
 
   pwm_config_set_clkdiv(&config, divider);
   pwm_config_set_wrap(&config, wrap);

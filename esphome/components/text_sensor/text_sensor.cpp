@@ -6,9 +6,6 @@ namespace text_sensor {
 
 static const char *const TAG = "text_sensor";
 
-TextSensor::TextSensor() : TextSensor("") {}
-TextSensor::TextSensor(const std::string &name) : EntityBase(name) {}
-
 void TextSensor::publish_state(const std::string &state) {
   this->raw_state = state;
   this->raw_callback_.call(state);

@@ -2,12 +2,15 @@
 
 import re
 
+# pylint: disable=import-error
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.button import ButtonDeviceClass
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.switch import SwitchDeviceClass
+
+# pylint: enable=import-error
 
 BLOCKLIST = (
     # requires special support on HA side
@@ -25,10 +28,10 @@ DOMAINS = {
 
 
 def sub(path, pattern, repl):
-    with open(path, "r") as handle:
+    with open(path, encoding="utf-8") as handle:
         content = handle.read()
-    content = re.sub(pattern, repl, content, flags=re.MULTILINE, count=1)
-    with open(path, "w") as handle:
+    content = re.sub(pattern, repl, content, flags=re.MULTILINE)
+    with open(path, "w", encoding="utf-8") as handle:
         handle.write(content)
 
 
@@ -48,7 +51,7 @@ def main():
     out = ""
     for cls in sorted(classes):
         out += f'DEVICE_CLASS_{cls.upper()} = "{classes[cls]}"\n'
-    sub("esphome/const.py", '(DEVICE_CLASS_\w+ = "\w*"\r?\n)+', out)
+    sub("esphome/const.py", '(DEVICE_CLASS_\\w+ = "\\w*"\r?\n)+', out)
 
     for domain in sorted(allowed):
         # replace imports
@@ -58,7 +61,7 @@ def main():
 
         sub(
             f"esphome/components/{domain}/__init__.py",
-            "(    DEVICE_CLASS_\w+,\r?\n)+",
+            "(    DEVICE_CLASS_\\w+,\r?\n)+",
             out,
         )
 

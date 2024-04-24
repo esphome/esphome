@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_SCAN_RESULTS,
     CONF_SSID,
     CONF_MAC_ADDRESS,
+    CONF_DNS_ADDRESS,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
@@ -28,12 +29,24 @@ BSSIDWiFiInfo = wifi_info_ns.class_(
 MacAddressWifiInfo = wifi_info_ns.class_(
     "MacAddressWifiInfo", text_sensor.TextSensor, cg.Component
 )
+DNSAddressWifiInfo = wifi_info_ns.class_(
+    "DNSAddressWifiInfo", text_sensor.TextSensor, cg.PollingComponent
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IP_ADDRESS): text_sensor.text_sensor_schema(
             IPAddressWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("1s")),
+        )
+        .extend(cv.polling_component_schema("1s"))
+        .extend(
+            {
+                cv.Optional(f"address_{x}"): text_sensor.text_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                )
+                for x in range(5)
+            }
+        ),
         cv.Optional(CONF_SCAN_RESULTS): text_sensor.text_sensor_schema(
             ScanResultsWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("60s")),
@@ -46,6 +59,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
             MacAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
+        cv.Optional(CONF_DNS_ADDRESS): text_sensor.text_sensor_schema(
+            DNSAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ).extend(cv.polling_component_schema("1s")),
     }
 )
 
@@ -58,8 +74,15 @@ async def setup_conf(config, key):
 
 
 async def to_code(config):
-    await setup_conf(config, CONF_IP_ADDRESS)
     await setup_conf(config, CONF_SSID)
     await setup_conf(config, CONF_BSSID)
     await setup_conf(config, CONF_MAC_ADDRESS)
     await setup_conf(config, CONF_SCAN_RESULTS)
+    await setup_conf(config, CONF_DNS_ADDRESS)
+    if conf := config.get(CONF_IP_ADDRESS):
+        wifi_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
+        await cg.register_component(wifi_info, config[CONF_IP_ADDRESS])
+        for x in range(5):
+            if sensor_conf := conf.get(f"address_{x}"):
+                sens = await text_sensor.new_text_sensor(sensor_conf)
+                cg.add(wifi_info.add_ip_sensors(x, sens))

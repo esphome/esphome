@@ -170,7 +170,8 @@ class SprinklerValveOperator {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
   uint32_t run_duration_{0};
-  uint64_t pinned_millis_{0};
+  uint64_t start_millis_{0};
+  uint64_t stop_millis_{0};
   Sprinkler *controller_{nullptr};
   SprinklerValve *valve_{nullptr};
   SprinklerState state_{IDLE};
@@ -201,11 +202,10 @@ class SprinklerValveRunRequest {
   SprinklerValveRunRequestOrigin origin_{USER};
 };
 
-class Sprinkler : public Component, public EntityBase {
+class Sprinkler : public Component {
  public:
   Sprinkler();
   Sprinkler(const std::string &name);
-
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -407,6 +407,12 @@ class Sprinkler : public Component, public EntityBase {
   /// returns the amount of time remaining in seconds for all valves remaining, including the active valve, if any
   optional<uint32_t> time_remaining_current_operation();
 
+  /// returns true if this or any sprinkler controller this controller knows about is active
+  bool any_controller_is_active();
+
+  /// returns the current state of the sprinkler controller
+  SprinklerState controller_state() { return this->state_; };
+
   /// returns a pointer to a valve's control switch object
   SprinklerControllerSwitch *control_switch(size_t valve_number);
 
@@ -423,8 +429,6 @@ class Sprinkler : public Component, public EntityBase {
   SprinklerSwitch *valve_pump_switch_by_pump_index(size_t pump_index);
 
  protected:
-  uint32_t hash_base() override;
-
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);
 
@@ -506,7 +510,6 @@ class Sprinkler : public Component, public EntityBase {
   /// callback functions for timers
   void valve_selection_callback_();
   void sm_timer_callback_();
-  void pump_stop_delay_callback_();
 
   /// Maximum allowed queue size
   const uint8_t max_queue_size_{100};
@@ -528,20 +531,25 @@ class Sprinkler : public Component, public EntityBase {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
 
+  std::string name_;
+
   /// Sprinkler controller state
   SprinklerState state_{IDLE};
 
   /// The valve run request that is currently active
   SprinklerValveRunRequest active_req_;
 
+  /// The next run request for the controller to consume after active_req_ is complete
+  SprinklerValveRunRequest next_req_;
+
+  /// The previous run request the controller processed
+  SprinklerValveRunRequest prev_req_;
+
   /// The number of the manually selected valve currently selected
   optional<size_t> manual_valve_;
 
   /// The number of the valve to resume from (if paused)
   optional<size_t> paused_valve_;
-
-  /// The next run request for the controller to consume after active_req_ is complete
-  SprinklerValveRunRequest next_req_;
 
   /// Set the number of times to repeat a full cycle
   optional<uint32_t> target_repeats_;
@@ -574,9 +582,7 @@ class Sprinkler : public Component, public EntityBase {
   std::vector<SprinklerValveOperator> valve_op_{2};
 
   /// Valve control timers
-  std::vector<SprinklerTimer> timer_{
-      {this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)},
-      {this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)}};
+  std::vector<SprinklerTimer> timer_{};
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;

@@ -16,11 +16,14 @@ const struct MCP2515::RxBnRegs MCP2515::RXB[N_RXBUFFERS] = {{MCP_RXB0CTRL, MCP_R
 bool MCP2515::setup_internal() {
   this->spi_setup();
 
-  if (this->reset_() == canbus::ERROR_FAIL)
+  if (this->reset_() != canbus::ERROR_OK)
     return false;
-  this->set_bitrate_(this->bit_rate_, this->mcp_clock_);
-  this->set_mode_(this->mcp_mode_);
-  ESP_LOGV(TAG, "setup done");
+  if (this->set_bitrate_(this->bit_rate_, this->mcp_clock_) != canbus::ERROR_OK)
+    return false;
+  if (this->set_mode_(this->mcp_mode_) != canbus::ERROR_OK)
+    return false;
+  uint8_t err_flags = this->get_error_flags_();
+  ESP_LOGD(TAG, "mcp2515 setup done, error_flags = %02X", err_flags);
   return true;
 }
 
@@ -38,7 +41,7 @@ canbus::Error MCP2515::reset_() {
   set_registers_(MCP_TXB0CTRL, zeros, 14);
   set_registers_(MCP_TXB1CTRL, zeros, 14);
   set_registers_(MCP_TXB2CTRL, zeros, 14);
-  ESP_LOGD(TAG, "reset() CLEARED TXB registers");
+  ESP_LOGV(TAG, "reset() CLEARED TXB registers");
 
   set_register_(MCP_RXB0CTRL, 0);
   set_register_(MCP_RXB1CTRL, 0);
@@ -114,16 +117,12 @@ canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
   modify_register_(MCP_CANCTRL, CANCTRL_REQOP, mode);
 
   uint32_t end_time = millis() + 10;
-  bool mode_match = false;
   while (millis() < end_time) {
-    uint8_t new_mode = read_register_(MCP_CANSTAT);
-    new_mode &= CANSTAT_OPMOD;
-    mode_match = new_mode == mode;
-    if (mode_match) {
-      break;
-    }
+    if ((read_register_(MCP_CANSTAT) & CANSTAT_OPMOD) == mode)
+      return canbus::ERROR_OK;
   }
-  return mode_match ? canbus::ERROR_OK : canbus::ERROR_FAIL;
+  ESP_LOGE(TAG, "Failed to set mode");
+  return canbus::ERROR_FAIL;
 }
 
 canbus::Error MCP2515::set_clk_out_(const CanClkOut divisor) {
@@ -451,6 +450,78 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
       }
       break;
 
+    case (MCP_12MHZ):
+      switch (can_speed) {
+        case (canbus::CAN_5KBPS):  //   5Kbps
+          cfg1 = MCP_12MHZ_5KBPS_CFG1;
+          cfg2 = MCP_12MHZ_5KBPS_CFG2;
+          cfg3 = MCP_12MHZ_5KBPS_CFG3;
+          break;
+        case (canbus::CAN_10KBPS):  //  10Kbps
+          cfg1 = MCP_12MHZ_10KBPS_CFG1;
+          cfg2 = MCP_12MHZ_10KBPS_CFG2;
+          cfg3 = MCP_12MHZ_10KBPS_CFG3;
+          break;
+        case (canbus::CAN_20KBPS):  //  20Kbps
+          cfg1 = MCP_12MHZ_20KBPS_CFG1;
+          cfg2 = MCP_12MHZ_20KBPS_CFG2;
+          cfg3 = MCP_12MHZ_20KBPS_CFG3;
+          break;
+        case (canbus::CAN_33KBPS):  //  33.333Kbps
+          cfg1 = MCP_12MHZ_33K3BPS_CFG1;
+          cfg2 = MCP_12MHZ_33K3BPS_CFG2;
+          cfg3 = MCP_12MHZ_33K3BPS_CFG3;
+          break;
+        case (canbus::CAN_40KBPS):  //  40Kbps
+          cfg1 = MCP_12MHZ_40KBPS_CFG1;
+          cfg2 = MCP_12MHZ_40KBPS_CFG2;
+          cfg3 = MCP_12MHZ_40KBPS_CFG3;
+          break;
+        case (canbus::CAN_50KBPS):  //  50Kbps
+          cfg2 = MCP_12MHZ_50KBPS_CFG2;
+          cfg3 = MCP_12MHZ_50KBPS_CFG3;
+          break;
+        case (canbus::CAN_80KBPS):  //  80Kbps
+          cfg1 = MCP_12MHZ_80KBPS_CFG1;
+          cfg2 = MCP_12MHZ_80KBPS_CFG2;
+          cfg3 = MCP_12MHZ_80KBPS_CFG3;
+          break;
+        case (canbus::CAN_100KBPS):  // 100Kbps
+          cfg1 = MCP_12MHZ_100KBPS_CFG1;
+          cfg2 = MCP_12MHZ_100KBPS_CFG2;
+          cfg3 = MCP_12MHZ_100KBPS_CFG3;
+          break;
+        case (canbus::CAN_125KBPS):  // 125Kbps
+          cfg1 = MCP_12MHZ_125KBPS_CFG1;
+          cfg2 = MCP_12MHZ_125KBPS_CFG2;
+          cfg3 = MCP_12MHZ_125KBPS_CFG3;
+          break;
+        case (canbus::CAN_200KBPS):  // 200Kbps
+          cfg1 = MCP_12MHZ_200KBPS_CFG1;
+          cfg2 = MCP_12MHZ_200KBPS_CFG2;
+          cfg3 = MCP_12MHZ_200KBPS_CFG3;
+          break;
+        case (canbus::CAN_250KBPS):  // 250Kbps
+          cfg1 = MCP_12MHZ_250KBPS_CFG1;
+          cfg2 = MCP_12MHZ_250KBPS_CFG2;
+          cfg3 = MCP_12MHZ_250KBPS_CFG3;
+          break;
+        case (canbus::CAN_500KBPS):  // 500Kbps
+          cfg1 = MCP_12MHZ_500KBPS_CFG1;
+          cfg2 = MCP_12MHZ_500KBPS_CFG2;
+          cfg3 = MCP_12MHZ_500KBPS_CFG3;
+          break;
+        case (canbus::CAN_1000KBPS):  //   1Mbps
+          cfg1 = MCP_12MHZ_1000KBPS_CFG1;
+          cfg2 = MCP_12MHZ_1000KBPS_CFG2;
+          cfg3 = MCP_12MHZ_1000KBPS_CFG3;
+          break;
+        default:
+          set = 0;
+          break;
+      }
+      break;
+
     case (MCP_16MHZ):
       switch (can_speed) {
         case (canbus::CAN_5KBPS):  //   5Kbps
@@ -602,6 +673,7 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
     set_register_(MCP_CNF3, cfg3);  // NOLINT
     return canbus::ERROR_OK;
   } else {
+    ESP_LOGE(TAG, "Invalid frequency/bitrate combination: %d/%d", can_clock, can_speed);
     return canbus::ERROR_FAIL;
   }
 }

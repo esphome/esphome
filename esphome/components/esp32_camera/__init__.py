@@ -25,6 +25,11 @@ AUTO_LOAD = ["psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
+ESP32CameraImageData = esp32_camera_ns.struct("CameraImageData")
+# Triggers
+ESP32CameraImageTrigger = esp32_camera_ns.class_(
+    "ESP32CameraImageTrigger", automation.Trigger.template()
+)
 ESP32CameraStreamStartTrigger = esp32_camera_ns.class_(
     "ESP32CameraStreamStartTrigger",
     automation.Trigger.template(),
@@ -139,6 +144,7 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
 CONF_ON_STREAM_STOP = "on_stream_stop"
+CONF_ON_IMAGE = "on_image"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
@@ -156,7 +162,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
             {
                 cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
-                    cv.frequency, cv.Range(min=10e6, max=20e6)
+                    cv.frequency, cv.Range(min=8e6, max=20e6)
                 ),
             }
         ),
@@ -219,6 +225,11 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                     ESP32CameraStreamStopTrigger
                 ),
+            }
+        ),
+        cv.Optional(CONF_ON_IMAGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESP32CameraImageTrigger),
             }
         ),
     }
@@ -289,3 +300,9 @@ async def to_code(config):
     for conf in config.get(CONF_ON_STREAM_STOP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_IMAGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(ESP32CameraImageData, "image")], conf
+        )

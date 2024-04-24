@@ -1,13 +1,12 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include <map>
 #include <utility>
 
 #include "esphome/components/web_server_base/web_server_base.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/component.h"
+#include "esphome/core/controller.h"
+#include "esphome/core/entity_base.h"
 
 namespace esphome {
 namespace prometheus {
@@ -118,5 +117,3 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
 }  // namespace prometheus
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

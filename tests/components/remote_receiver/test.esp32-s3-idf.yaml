@@ -1,0 +1,6 @@
+substitutions:
+  pin: GPIO38
+  rmt_channel: "5"
+
+packages:
+  common: !include esp32-common.yaml

@@ -11,7 +11,7 @@ static const uint32_t SPI_CLOCK = 10000000;  // 10MHz
 
 static const int N_TXBUFFERS = 3;
 static const int N_RXBUFFERS = 2;
-enum CanClock { MCP_20MHZ, MCP_16MHZ, MCP_8MHZ };
+enum CanClock { MCP_20MHZ, MCP_16MHZ, MCP_12MHZ, MCP_8MHZ };
 enum MASK { MASK0, MASK1 };
 enum RXF { RXF0 = 0, RXF1 = 1, RXF2 = 2, RXF3 = 3, RXF4 = 4, RXF5 = 5 };
 enum RXBn { RXB0 = 0, RXB1 = 1 };

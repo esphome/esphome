@@ -151,11 +151,13 @@ void FujitsuGeneralClimate::transmit_state() {
     case climate::CLIMATE_FAN_LOW:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_LOW);
       break;
+    case climate::CLIMATE_FAN_QUIET:
+      SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_SILENT);
+      break;
     case climate::CLIMATE_FAN_AUTO:
     default:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_AUTO);
       break;
-      // TODO Quiet / Silent
   }
 
   // Set swing
@@ -345,8 +347,9 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
     const uint8_t recv_fan_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_FAN_NIBBLE);
     ESP_LOGV(TAG, "Received fan mode %X", recv_fan_mode);
     switch (recv_fan_mode) {
-      // TODO No Quiet / Silent in ESPH
       case FUJITSU_GENERAL_FAN_SILENT:
+        this->fan_mode = climate::CLIMATE_FAN_QUIET;
+        break;
       case FUJITSU_GENERAL_FAN_LOW:
         this->fan_mode = climate::CLIMATE_FAN_LOW;
         break;

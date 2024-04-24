@@ -278,7 +278,9 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
         }
       }
     } else {
-      b = pixels[7 - col];
+      for (uint8_t i = 0; i < 8; i++) {
+        b |= ((pixels[7 - col] >> i) & 1) << (7 - i);
+      }
     }
     // send this byte to display at selected chip
     if (this->invert_) {
@@ -325,18 +327,16 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
   return 0;
 }
 
-#ifdef USE_TIME
-uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::ESPTime time) {
+uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     return this->printdigit(pos, buffer);
   return 0;
 }
-uint8_t MAX7219Component::strftimedigit(const char *format, time::ESPTime time) {
+uint8_t MAX7219Component::strftimedigit(const char *format, ESPTime time) {
   return this->strftimedigit(0, format, time);
 }
-#endif
 
 }  // namespace max7219digit
 }  // namespace esphome

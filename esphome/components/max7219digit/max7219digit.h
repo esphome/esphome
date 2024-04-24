@@ -1,15 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/time.h"
+
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/spi/spi.h"
 
 #include <vector>
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
 
 namespace esphome {
 namespace max7219digit {
@@ -28,8 +25,7 @@ class MAX7219Component;
 
 using max7219_writer_t = std::function<void(MAX7219Component &)>;
 
-class MAX7219Component : public PollingComponent,
-                         public display::DisplayBuffer,
+class MAX7219Component : public display::DisplayBuffer,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
@@ -88,13 +84,11 @@ class MAX7219Component : public PollingComponent,
   /// Print `str` at position 0.
   uint8_t printdigit(const char *str);
 
-#ifdef USE_TIME
   /// Evaluate the strftime-format and print the result at the given position.
-  uint8_t strftimedigit(uint8_t pos, const char *format, time::ESPTime time) __attribute__((format(strftime, 3, 0)));
+  uint8_t strftimedigit(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
 
   /// Evaluate the strftime-format and print the result at position 0.
-  uint8_t strftimedigit(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
-#endif
+  uint8_t strftimedigit(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 

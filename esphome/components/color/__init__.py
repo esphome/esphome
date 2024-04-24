@@ -82,5 +82,5 @@ async def to_code(config):
 
     cg.new_variable(
         config[CONF_ID],
-        cg.StructInitializer(ColorStruct, ("r", r), ("g", g), ("b", b), ("w", w)),
+        cg.ArrayInitializer(r, g, b, w),
     )

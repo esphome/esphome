@@ -54,9 +54,9 @@ void SenseAirComponent::update() {
   this->status_clear_warning();
   const uint8_t length = response[2];
   const uint16_t status = (uint16_t(response[3]) << 8) | response[4];
-  const uint16_t ppm = (uint16_t(response[length + 1]) << 8) | response[length + 2];
+  const int16_t ppm = int16_t((response[length + 1] << 8) | response[length + 2]);
 
-  ESP_LOGD(TAG, "SenseAir Received CO₂=%uppm Status=0x%02X", ppm, status);
+  ESP_LOGD(TAG, "SenseAir Received CO₂=%dppm Status=0x%02X", ppm, status);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
 }
@@ -86,7 +86,7 @@ void SenseAirComponent::background_calibration_result() {
   }
 
   // Check if 5th bit (register CI6) is set
-  ESP_LOGD(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)", (response[4] & 0b100000) != 0 ? "OK" : "NOT_OK",
+  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)", (response[4] & 0b100000) != 0 ? "OK" : "NOT_OK",
            response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
 }
 

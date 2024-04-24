@@ -17,6 +17,13 @@ namespace select {
     } \
   }
 
+#define SUB_SELECT(name) \
+ protected: \
+  select::Select *name##_select_{nullptr}; \
+\
+ public: \
+  void set_##name##_select(select::Select *select) { this->name##_select_ = select; }
+
 /** Base-class for all selects.
  *
  * A select can use publish_state to send out a new value.

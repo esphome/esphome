@@ -1,0 +1,28 @@
+esphome:
+  on_boot:
+    then:
+      - globals.set:
+          id: glob_int
+          value: "10"
+
+globals:
+  - id: glob_int
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: glob_float
+    type: float
+    restore_value: true
+    initial_value: "0.0f"
+  - id: glob_bool
+    type: bool
+    restore_value: false
+    initial_value: "true"
+  - id: glob_string
+    type: std::string
+    restore_value: false
+    # initial_value: ""
+  - id: glob_bool_processed
+    type: bool
+    restore_value: false
+    initial_value: "false"

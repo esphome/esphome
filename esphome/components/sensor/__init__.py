@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
+    CONF_IGNORE_OUT_OF_RANGE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -23,12 +24,18 @@ from esphome.const import (
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
+    CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
+    CONF_VALUE,
+    CONF_MIN_VALUE,
+    CONF_MAX_VALUE,
+    CONF_METHOD,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -43,6 +50,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -54,6 +62,7 @@ from esphome.const import (
     DEVICE_CLASS_NITROGEN_MONOXIDE,
     DEVICE_CLASS_NITROUS_OXIDE,
     DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -70,11 +79,15 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
+    ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -97,6 +110,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -108,6 +122,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_NITROGEN_MONOXIDE,
     DEVICE_CLASS_NITROUS_OXIDE,
     DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -124,8 +139,11 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -174,6 +192,15 @@ def validate_datapoint(value):
     return validate_datapoint({CONF_FROM: cv.float_(a), CONF_TO: cv.float_(b)})
 
 
+_SENSOR_ENTITY_CATEGORIES = {
+    k: v for k, v in cv.ENTITY_CATEGORIES.items() if k != ENTITY_CATEGORY_CONFIG
+}
+
+
+def sensor_entity_category(value):
+    return cv.enum(_SENSOR_ENTITY_CATEGORIES, lower=True)(value)
+
+
 # Base
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
@@ -209,6 +236,7 @@ OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
+TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
@@ -216,6 +244,8 @@ OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
+ClampFilter = sensor_ns.class_("ClampFilter", Filter)
+RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -230,6 +260,7 @@ SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
         cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_STATE_CLASS): validate_state_class,
+        cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
         cv.Optional("last_reset_type"): cv.invalid(
             "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
         ),
@@ -285,7 +316,7 @@ def sensor_schema(
         (CONF_ACCURACY_DECIMALS, accuracy_decimals, validate_accuracy_decimals),
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_STATE_CLASS, state_class, validate_state_class),
-        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ENTITY_CATEGORY, entity_category, sensor_entity_category),
     ]:
         if default is not _UNDEF:
             schema[cv.Optional(key, default=default)] = validator
@@ -472,21 +503,38 @@ async def lambda_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, lambda_)
 
 
+DELTA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_VALUE): cv.positive_float,
+        cv.Optional(CONF_TYPE, default="absolute"): cv.one_of(
+            "absolute", "percentage", lower=True
+        ),
+    }
+)
+
+
 def validate_delta(config):
     try:
-        return (cv.positive_float(config), False)
+        value = cv.positive_float(config)
+        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "absolute"})
     except cv.Invalid:
         pass
     try:
-        return (cv.percentage(config), True)
+        value = cv.percentage(config)
+        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "percentage"})
     except cv.Invalid:
         pass
     raise cv.Invalid("Delta filter requires a positive number or percentage value.")
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, validate_delta)
+@FILTER_REGISTRY.register("delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta))
 async def delta_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, *config)
+    percentage = config[CONF_TYPE] == "percentage"
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_VALUE],
+        percentage,
+    )
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
@@ -511,6 +559,22 @@ async def heartbeat_filter_to_code(config, filter_id):
     return var
 
 
+TIMEOUT_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default="nan"): cv.float_,
+    },
+    key=CONF_TIMEOUT,
+)
+
+
+@FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
+async def timeout_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], config[CONF_VALUE])
+    await cg.register_component(var, {})
+    return var
+
+
 @FILTER_REGISTRY.register(
     "debounce", DebounceFilter, cv.positive_time_period_milliseconds
 )
@@ -520,30 +584,60 @@ async def debounce_filter_to_code(config, filter_id):
     return var
 
 
-def validate_not_all_from_same(config):
-    if all(conf[CONF_FROM] == config[0][CONF_FROM] for conf in config):
-        raise cv.Invalid(
-            "The 'from' values of the calibrate_linear filter cannot all point "
-            "to the same value! Please add more values to the filter."
-        )
+CONF_DATAPOINTS = "datapoints"
+
+
+def validate_calibrate_linear(config):
+    datapoints = config[CONF_DATAPOINTS]
+    if config[CONF_METHOD] == "exact":
+        for i in range(len(datapoints) - 1):
+            if datapoints[i][CONF_FROM] > datapoints[i + 1][CONF_FROM]:
+                raise cv.Invalid(
+                    "The 'from' values of the calibrate_linear filter must be sorted in ascending order."
+                )
+        for i in range(len(datapoints) - 1):
+            if datapoints[i][CONF_FROM] == datapoints[i + 1][CONF_FROM]:
+                raise cv.Invalid(
+                    "The 'from' values of the calibrate_linear filter must not contain duplicates."
+                )
+    elif config[CONF_METHOD] == "least_squares":
+        if all(conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints):
+            raise cv.Invalid(
+                "The 'from' values of the calibrate_linear filter cannot all point "
+                "to the same value! Please add more values to the filter."
+            )
     return config
 
 
 @FILTER_REGISTRY.register(
     "calibrate_linear",
     CalibrateLinearFilter,
-    cv.All(
-        cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_not_all_from_same
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_DATAPOINTS): cv.All(
+                cv.ensure_list(validate_datapoint), cv.Length(min=2)
+            ),
+            cv.Optional(CONF_METHOD, default="least_squares"): cv.one_of(
+                "least_squares", "exact", lower=True
+            ),
+        },
+        validate_calibrate_linear,
+        key=CONF_DATAPOINTS,
     ),
 )
 async def calibrate_linear_filter_to_code(config, filter_id):
-    x = [conf[CONF_FROM] for conf in config]
-    y = [conf[CONF_TO] for conf in config]
-    k, b = fit_linear(x, y)
-    return cg.new_Pvariable(filter_id, k, b)
+    x = [conf[CONF_FROM] for conf in config[CONF_DATAPOINTS]]
+    y = [conf[CONF_TO] for conf in config[CONF_DATAPOINTS]]
+
+    linear_functions = []
+    if config[CONF_METHOD] == "least_squares":
+        k, b = fit_linear(x, y)
+        linear_functions = [[k, b, float("NaN")]]
+    elif config[CONF_METHOD] == "exact":
+        linear_functions = map_linear(x, y)
+    return cg.new_Pvariable(filter_id, linear_functions)
 
 
-CONF_DATAPOINTS = "datapoints"
 CONF_DEGREE = "degree"
 
 
@@ -582,6 +676,55 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, res)
 
 
+def validate_clamp(config):
+    if not math.isfinite(config[CONF_MIN_VALUE]) and not math.isfinite(
+        config[CONF_MAX_VALUE]
+    ):
+        raise cv.Invalid("Either 'min_value' or 'max_value' must be set to a number.")
+    if config[CONF_MIN_VALUE] > config[CONF_MAX_VALUE]:
+        raise cv.Invalid("The 'min_value' must not be larger than the 'max_value'.")
+    return config
+
+
+CLAMP_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_MIN_VALUE, default="NaN"): cv.float_,
+            cv.Optional(CONF_MAX_VALUE, default="NaN"): cv.float_,
+            cv.Optional(CONF_IGNORE_OUT_OF_RANGE, default=False): cv.boolean,
+        }
+    ),
+    validate_clamp,
+)
+
+
+@FILTER_REGISTRY.register("clamp", ClampFilter, CLAMP_SCHEMA)
+async def clamp_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_MIN_VALUE],
+        config[CONF_MAX_VALUE],
+        config[CONF_IGNORE_OUT_OF_RANGE],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "round",
+    RoundFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ACCURACY_DECIMALS): cv.uint8_t,
+        },
+        key=CONF_ACCURACY_DECIMALS,
+    ),
+)
+async def round_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_ACCURACY_DECIMALS],
+    )
+
+
 async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
@@ -589,14 +732,14 @@ async def build_filters(config):
 async def setup_sensor_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
-    if CONF_STATE_CLASS in config:
-        cg.add(var.set_state_class(config[CONF_STATE_CLASS]))
-    if CONF_UNIT_OF_MEASUREMENT in config:
-        cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
-    if CONF_ACCURACY_DECIMALS in config:
-        cg.add(var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
+    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
+        cg.add(var.set_state_class(state_class))
+    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.set_unit_of_measurement(unit_of_measurement))
+    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
+        cg.add(var.set_accuracy_decimals(accuracy_decimals))
     cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
@@ -611,23 +754,23 @@ async def setup_sensor_core_(var, config):
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
-        if CONF_ABOVE in conf:
-            template_ = await cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
+        if (above := conf.get(CONF_ABOVE)) is not None:
+            template_ = await cg.templatable(above, [(float, "x")], float)
             cg.add(trigger.set_min(template_))
-        if CONF_BELOW in conf:
-            template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
+        if (below := conf.get(CONF_BELOW)) is not None:
+            template_ = await cg.templatable(below, [(float, "x")], float)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if CONF_EXPIRE_AFTER in config:
-            if config[CONF_EXPIRE_AFTER] is None:
+        if (expire_after := config.get(CONF_EXPIRE_AFTER, _UNDEF)) is not _UNDEF:
+            if expire_after is None:
                 cg.add(mqtt_.disable_expire_after())
             else:
-                cg.add(mqtt_.set_expire_after(config[CONF_EXPIRE_AFTER]))
+                cg.add(mqtt_.set_expire_after(expire_after))
 
 
 async def register_sensor(var, config):
@@ -660,10 +803,10 @@ async def sensor_in_range_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
-    if CONF_ABOVE in config:
-        cg.add(var.set_min(config[CONF_ABOVE]))
-    if CONF_BELOW in config:
-        cg.add(var.set_max(config[CONF_BELOW]))
+    if (above := config.get(CONF_ABOVE)) is not None:
+        cg.add(var.set_min(above))
+    if (below := config.get(CONF_BELOW)) is not None:
+        cg.add(var.set_max(below))
 
     return var
 
@@ -691,6 +834,22 @@ def fit_linear(x, y):
     k = r * (_std(y) / _std(x))
     b = m_y - k * m_x
     return k, b
+
+
+def map_linear(x, y):
+    assert len(x) == len(y)
+    f = []
+    for i in range(len(x) - 1):
+        slope = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
+        bias = y[i] - (slope * x[i])
+        next_x = x[i + 1]
+        if i == len(x) - 2:
+            next_x = float("NaN")
+        if f and f[-1][0] == slope and f[-1][1] == bias:
+            f[-1][2] = next_x
+        else:
+            f.append([slope, bias, next_x])
+    return f
 
 
 def _mat_copy(m):

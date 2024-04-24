@@ -14,6 +14,11 @@ uint8_t temprature_sens_read();
 #ifdef USE_RP2040
 #include "Arduino.h"
 #endif  // USE_RP2040
+#ifdef USE_BK72XX
+extern "C" {
+uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
+}
+#endif  // USE_BK72XX
 
 namespace esphome {
 namespace internal_temperature {
@@ -33,6 +38,10 @@ void InternalTemperatureSensor::update() {
   temp_sensor_config_t tsens = TSENS_CONFIG_DEFAULT();
   temp_sensor_set_config(tsens);
   temp_sensor_start();
+#if defined(USE_ESP32_VARIANT_ESP32S3) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 4, 3))
+#error \
+    "ESP32-S3 internal temperature sensor requires ESP IDF V4.4.3 or higher. See https://github.com/esphome/issues/issues/4271"
+#endif
   esp_err_t result = temp_sensor_read_celsius(&temperature);
   temp_sensor_stop();
   success = (result == ESP_OK);
@@ -42,6 +51,18 @@ void InternalTemperatureSensor::update() {
   temperature = analogReadTemp();
   success = (temperature != 0.0f);
 #endif  // USE_RP2040
+#ifdef USE_BK72XX
+  uint32_t raw, result;
+  result = temp_single_get_current_temperature(&raw);
+  success = (result == 0);
+#if defined(USE_LIBRETINY_VARIANT_BK7231N)
+  temperature = raw * -0.38f + 156.0f;
+#elif defined(USE_LIBRETINY_VARIANT_BK7231T)
+  temperature = raw * 0.04f;
+#else   // USE_LIBRETINY_VARIANT
+  temperature = raw * 0.128f;
+#endif  // USE_LIBRETINY_VARIANT
+#endif  // USE_BK72XX
   if (success && std::isfinite(temperature)) {
     this->publish_state(temperature);
   } else {

@@ -1,12 +1,14 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/component.h"
+
+#include <cinttypes>
 
 namespace esphome {
 namespace remote_receiver {
 
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
@@ -36,6 +38,9 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
 #ifdef USE_ESP32
   RemoteReceiverComponent(InternalGPIOPin *pin, uint8_t mem_block_num = 1)
       : RemoteReceiverBase(pin), remote_base::RemoteRMTChannel(mem_block_num) {}
+
+  RemoteReceiverComponent(InternalGPIOPin *pin, rmt_channel_t channel, uint8_t mem_block_num = 1)
+      : RemoteReceiverBase(pin), remote_base::RemoteRMTChannel(channel, mem_block_num) {}
 #else
   RemoteReceiverComponent(InternalGPIOPin *pin) : RemoteReceiverBase(pin) {}
 #endif
@@ -55,7 +60,7 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   esp_err_t error_code_{ESP_OK};
 #endif
 
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   RemoteReceiverComponentStore store_;
   HighFrequencyLoopRequester high_freq_;
 #endif
