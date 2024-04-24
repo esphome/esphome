@@ -230,7 +230,7 @@ inline void GraphicalDisplayMenu::draw_item(display::Display *display, const dis
   }
 
   display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT, label.c_str(),
-                 ~foreground_color);
+                 background_color);
 }
 
 void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, const uint8_t row, const bool selected) {
