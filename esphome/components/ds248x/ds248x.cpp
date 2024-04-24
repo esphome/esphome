@@ -352,7 +352,7 @@ uint8_t DS248xComponent::read_config_() {
 void DS248xComponent::write_config_(uint8_t cfg) {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_WRITECONFIG;
-  cmd[1] = cfg | ((~cfg) << 4); // NOLINT
+  cmd[1] = cfg | ((~cfg) << 4);  // NOLINT
   this->write(cmd.data(), sizeof(cmd));
 }
 
