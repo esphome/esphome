@@ -224,6 +224,26 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
       uint8_t parity = (data[i] >> 3) & 0b11;
       uint8_t uart_baud = (data[i] >> 5) & 0b111;
       ESP_LOGD(TAG, "air_data: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(air_data));
+      switch (air_data) {
+        case AIR_2_4KB:
+          ESP_LOGD(TAG, "air_data_rate: 2.4kb");
+          break;
+        case AIR_4_8KB:
+          ESP_LOGD(TAG, "air_data_rate: 4.8kb");
+          break;
+        case AIR_9_6KB:
+          ESP_LOGD(TAG, "air_data_rate: 9.6kb");
+          break;
+        case AIR_19_2KB:
+          ESP_LOGD(TAG, "air_data_rate: 19.2kb");
+          break;
+        case AIR_38_4KB:
+          ESP_LOGD(TAG, "air_data_rate: 38.4kb");
+          break;
+        case AIR_62_5KB:
+          ESP_LOGD(TAG, "air_data_rate: 62.5kb");
+          break;
+      }
       ESP_LOGD(TAG, "parity: %u", parity);
       ESP_LOGD(TAG, "uart_baud: %u", uart_baud);
     }
