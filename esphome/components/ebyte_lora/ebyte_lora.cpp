@@ -220,16 +220,22 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
     // 5 is reg0, which is air_data for first 3 bits, then parity for 2, uart_baud for 3
     if (i == 5) {
       ESP_LOGD(TAG, "reg0: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
-      uint8_t air_data = data[i] & 0b111;
-      uint8_t parity = data[i] & 0b00011;
-      uint8_t uart_baud = data[i] & 0b00000111;
-      ESP_LOGD(TAG, "air_data: %u", air_data);
+      uint8_t air_data = (data[i] >> 0) & 0b111;
+      uint8_t parity = (data[i] >> 3) & 0b11;
+      uint8_t uart_baud = (data[i] >> 5) & 0b111;
+      ESP_LOGD(TAG, "air_data: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(air_data));
       ESP_LOGD(TAG, "parity: %u", parity);
       ESP_LOGD(TAG, "uart_baud: %u", uart_baud);
     }
     // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
     if (i == 6) {
       ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
+      uint8_t transmission_power = (data[i] >> 0) & 0b11;
+      uint8_t rssi_noise = (data[i] >> 5) & 0b1;
+      uint8_t sub_packet = data[i] & 0b00000011;
+      ESP_LOGD(TAG, "transmission_power: %u", transmission_power);
+      ESP_LOGD(TAG, "rssi_noise: %u", rssi_noise);
+      ESP_LOGD(TAG, "sub_packet: %u", sub_packet);
     }
     // 7 is reg2; channel
     if (i == 7) {
@@ -238,6 +244,14 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
     // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
     if (i == 7) {
       ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
+      uint8_t wor_period = data[i] & 0b111;
+      uint8_t enable_lbt = data[i] & 0b00001;
+      uint8_t transmission_mode = data[i] & 0b0000001;
+      uint8_t enable_rssi = data[i] & 0b00000001;
+      ESP_LOGD(TAG, "wor_period: %u", wor_period);
+      ESP_LOGD(TAG, "enable_lbt: %u", enable_lbt);
+      ESP_LOGD(TAG, "transmission_mode: %u", transmission_mode);
+      ESP_LOGD(TAG, "enable_rssi: %u", enable_rssi);
     }
   }
 }
