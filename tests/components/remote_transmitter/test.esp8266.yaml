@@ -1,0 +1,7 @@
+remote_transmitter:
+  id: trns
+  pin: GPIO5
+  carrier_duty_percent: 50%
+
+packages:
+  buttons: !include common-buttons.yaml

@@ -735,6 +735,43 @@ void APIConnection::date_command(const DateCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_DATETIME_TIME
+bool APIConnection::send_time_state(datetime::TimeEntity *time) {
+  if (!this->state_subscription_)
+    return false;
+
+  TimeStateResponse resp{};
+  resp.key = time->get_object_id_hash();
+  resp.missing_state = !time->has_state();
+  resp.hour = time->hour;
+  resp.minute = time->minute;
+  resp.second = time->second;
+  return this->send_time_state_response(resp);
+}
+bool APIConnection::send_time_info(datetime::TimeEntity *time) {
+  ListEntitiesTimeResponse msg;
+  msg.key = time->get_object_id_hash();
+  msg.object_id = time->get_object_id();
+  if (time->has_own_name())
+    msg.name = time->get_name();
+  msg.unique_id = get_default_unique_id("time", time);
+  msg.icon = time->get_icon();
+  msg.disabled_by_default = time->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(time->get_entity_category());
+
+  return this->send_list_entities_time_response(msg);
+}
+void APIConnection::time_command(const TimeCommandRequest &msg) {
+  datetime::TimeEntity *time = App.get_time_by_key(msg.key);
+  if (time == nullptr)
+    return;
+
+  auto call = time->make_call();
+  call.set_time(msg.hour, msg.minute, msg.second);
+  call.perform();
+}
+#endif
+
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)
@@ -1040,10 +1077,15 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
       voice_assistant::global_voice_assistant->failed_to_start();
       return;
     }
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
+    if (msg.port == 0) {
+      // Use API Audio
+      voice_assistant::global_voice_assistant->start_streaming();
+    } else {
+      struct sockaddr_storage storage;
+      socklen_t len = sizeof(storage);
+      this->helper_->getpeername((struct sockaddr *) &storage, &len);
+      voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
+    }
   }
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
@@ -1055,6 +1097,15 @@ void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventR
     voice_assistant::global_voice_assistant->on_event(msg);
   }
 }
+void APIConnection::on_voice_assistant_audio(const VoiceAssistantAudio &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_audio(msg);
+  }
+};
 
 #endif
 
@@ -1142,7 +1193,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 9;
+  resp.api_version_minor = 10;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -1203,7 +1254,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
+  resp.legacy_voice_assistant_version = voice_assistant::global_voice_assistant->get_legacy_version();
+  resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
 #endif
   return resp;
 }
