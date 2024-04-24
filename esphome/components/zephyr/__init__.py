@@ -15,11 +15,14 @@ from .const import (
     KEY_PRJ_CONF,
     KEY_OVERLAY,
     zephyr_ns,
+    BOOTLOADER_MCUBOOT,
 )
 
 
 AUTO_LOAD = ["preferences"]
 KEY_BOARD = "board"
+
+KEY_BOOTLOADER = "bootloader"
 
 
 def zephyr_set_core_data(config):
@@ -27,6 +30,7 @@ def zephyr_set_core_data(config):
     CORE.data[KEY_ZEPHYR][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF] = {}
     CORE.data[KEY_ZEPHYR][KEY_OVERLAY] = ""
+    CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] = config[KEY_BOOTLOADER]
     return config
 
 
@@ -131,21 +135,22 @@ def zephyr_copy_files():
         CORE.data[KEY_ZEPHYR][KEY_OVERLAY],
     )
 
-    fake_board_manifest = """
+    if CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        fake_board_manifest = """
 {
-  "frameworks": [
+"frameworks": [
     "zephyr"
-  ],
-  "name": "esphome nrf52",
-  "upload": {
+],
+"name": "esphome nrf52",
+"upload": {
     "maximum_ram_size": 248832,
     "maximum_size": 815104
-  },
-  "url": "https://esphome.io/",
-  "vendor": "esphome"
+},
+"url": "https://esphome.io/",
+"vendor": "esphome"
 }
 """
-    write_file_if_changed(
-        CORE.relative_build_path(f"boards/{CORE.data[KEY_ZEPHYR][KEY_BOARD]}.json"),
-        fake_board_manifest,
-    )
+        write_file_if_changed(
+            CORE.relative_build_path(f"boards/{CORE.data[KEY_ZEPHYR][KEY_BOARD]}.json"),
+            fake_board_manifest,
+        )

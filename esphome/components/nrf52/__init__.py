@@ -26,11 +26,11 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_GENERIC,
     ZEPHYR_VARIANT_NRF_SDK,
     KEY_ZEPHYR,
+    KEY_BOOTLOADER,
+    BOOTLOADER_MCUBOOT,
 )
 from .boards_zephyr import BOARDS_ZEPHYR
 from .const import (
-    KEY_BOOTLOADER,
-    BOOTLOADER_MCUBOOT,
     BOOTLOADER_ADAFRUIT,
 )
 
@@ -130,8 +130,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
         }
     ),
-    set_core_data,
     _detect_bootloader,
+    set_core_data,
 )
 
 

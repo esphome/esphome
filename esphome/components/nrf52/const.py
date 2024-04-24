@@ -1,3 +1,1 @@
-KEY_BOOTLOADER = "bootloader"
-BOOTLOADER_MCUBOOT = "mcuboot"
 BOOTLOADER_ADAFRUIT = "adafruit"

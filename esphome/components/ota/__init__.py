@@ -16,6 +16,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -120,7 +121,7 @@ def _validate_mcumgr(config):
         fconf = fv.full_config.get()
         try:
             bootloader = fconf.get_config_for_path(["nrf52", "bootloader"])
-            if bootloader != "mcuboot":
+            if bootloader != BOOTLOADER_MCUBOOT:
                 raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
         except KeyError:
             pass
