@@ -7,6 +7,7 @@ namespace climate {
 static const char *const TAG = "climate";
 
 void ClimateCall::perform() {
+  this->parent_->control_callback_.call(*this);
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->mode_.has_value()) {
@@ -44,7 +45,9 @@ void ClimateCall::perform() {
   if (this->target_temperature_high_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
-  this->parent_->control_callback_.call();
+  if (this->target_humidity_.has_value()) {
+    ESP_LOGD(TAG, "  Target Humidity: %.0f", *this->target_humidity_);
+  }
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -213,6 +216,8 @@ ClimateCall &ClimateCall::set_preset(const std::string &preset) {
     this->set_preset(CLIMATE_PRESET_SLEEP);
   } else if (str_equals_case_insensitive(preset, "ACTIVITY")) {
     this->set_preset(CLIMATE_PRESET_ACTIVITY);
+  } else if (str_equals_case_insensitive(preset, "NONE")) {
+    this->set_preset(CLIMATE_PRESET_NONE);
   } else {
     if (this->parent_->get_traits().supports_custom_preset(preset)) {
       this->custom_preset_ = preset;
@@ -260,10 +265,16 @@ ClimateCall &ClimateCall::set_target_temperature_high(float target_temperature_h
   this->target_temperature_high_ = target_temperature_high;
   return *this;
 }
+ClimateCall &ClimateCall::set_target_humidity(float target_humidity) {
+  this->target_humidity_ = target_humidity;
+  return *this;
+}
+
 const optional<ClimateMode> &ClimateCall::get_mode() const { return this->mode_; }
 const optional<float> &ClimateCall::get_target_temperature() const { return this->target_temperature_; }
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
+const optional<float> &ClimateCall::get_target_humidity() const { return this->target_humidity_; }
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<std::string> &ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
@@ -279,6 +290,10 @@ ClimateCall &ClimateCall::set_target_temperature_low(optional<float> target_temp
 }
 ClimateCall &ClimateCall::set_target_temperature(optional<float> target_temperature) {
   this->target_temperature_ = target_temperature;
+  return *this;
+}
+ClimateCall &ClimateCall::set_target_humidity(optional<float> target_humidity) {
+  this->target_humidity_ = target_humidity;
   return *this;
 }
 ClimateCall &ClimateCall::set_mode(optional<ClimateMode> mode) {
@@ -300,11 +315,11 @@ ClimateCall &ClimateCall::set_swing_mode(optional<ClimateSwingMode> swing_mode) 
   return *this;
 }
 
-void Climate::add_on_state_callback(std::function<void()> &&callback) {
+void Climate::add_on_state_callback(std::function<void(Climate &)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-void Climate::add_on_control_callback(std::function<void()> &&callback) {
+void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callback) {
   this->control_callback_.add(std::move(callback));
 }
 
@@ -340,6 +355,9 @@ void Climate::save_state_() {
     state.target_temperature_high = this->target_temperature_high;
   } else {
     state.target_temperature = this->target_temperature;
+  }
+  if (traits.get_supports_target_humidity()) {
+    state.target_humidity = this->target_humidity;
   }
   if (traits.get_supports_fan_modes() && fan_mode.has_value()) {
     state.uses_custom_fan_mode = false;
@@ -406,9 +424,15 @@ void Climate::publish_state() {
   } else {
     ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature);
   }
+  if (traits.get_supports_current_humidity()) {
+    ESP_LOGD(TAG, "  Current Humidity: %.0f%%", this->current_humidity);
+  }
+  if (traits.get_supports_target_humidity()) {
+    ESP_LOGD(TAG, "  Target Humidity: %.0f%%", this->target_humidity);
+  }
 
   // Send state to frontend
-  this->state_callback_.call();
+  this->state_callback_.call(*this);
   // Save state
   this->save_state_();
 }
@@ -425,6 +449,12 @@ ClimateTraits Climate::get_traits() {
     traits.set_visual_target_temperature_step(*this->visual_target_temperature_step_override_);
     traits.set_visual_current_temperature_step(*this->visual_current_temperature_step_override_);
   }
+  if (this->visual_min_humidity_override_.has_value()) {
+    traits.set_visual_min_humidity(*this->visual_min_humidity_override_);
+  }
+  if (this->visual_max_humidity_override_.has_value()) {
+    traits.set_visual_max_humidity(*this->visual_max_humidity_override_);
+  }
 
   return traits;
 }
@@ -439,6 +469,12 @@ void Climate::set_visual_temperature_step_override(float target, float current) 
   this->visual_target_temperature_step_override_ = target;
   this->visual_current_temperature_step_override_ = current;
 }
+void Climate::set_visual_min_humidity_override(float visual_min_humidity_override) {
+  this->visual_min_humidity_override_ = visual_min_humidity_override;
+}
+void Climate::set_visual_max_humidity_override(float visual_max_humidity_override) {
+  this->visual_max_humidity_override_ = visual_max_humidity_override;
+}
 
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
@@ -451,6 +487,9 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
     call.set_target_temperature_high(this->target_temperature_high);
   } else {
     call.set_target_temperature(this->target_temperature);
+  }
+  if (traits.get_supports_target_humidity()) {
+    call.set_target_humidity(this->target_humidity);
   }
   if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
     call.set_fan_mode(this->fan_mode);
@@ -471,6 +510,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
     climate->target_temperature_high = this->target_temperature_high;
   } else {
     climate->target_temperature = this->target_temperature;
+  }
+  if (traits.get_supports_target_humidity()) {
+    climate->target_humidity = this->target_humidity;
   }
   if (traits.get_supports_fan_modes() && !this->uses_custom_fan_mode) {
     climate->fan_mode = this->fan_mode;
@@ -528,16 +570,24 @@ void Climate::dump_traits_(const char *tag) {
   auto traits = this->get_traits();
   ESP_LOGCONFIG(tag, "ClimateTraits:");
   ESP_LOGCONFIG(tag, "  [x] Visual settings:");
-  ESP_LOGCONFIG(tag, "      - Min: %.1f", traits.get_visual_min_temperature());
-  ESP_LOGCONFIG(tag, "      - Max: %.1f", traits.get_visual_max_temperature());
-  ESP_LOGCONFIG(tag, "      - Step:");
+  ESP_LOGCONFIG(tag, "      - Min temperature: %.1f", traits.get_visual_min_temperature());
+  ESP_LOGCONFIG(tag, "      - Max temperature: %.1f", traits.get_visual_max_temperature());
+  ESP_LOGCONFIG(tag, "      - Temperature step:");
   ESP_LOGCONFIG(tag, "          Target: %.1f", traits.get_visual_target_temperature_step());
   ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
+  ESP_LOGCONFIG(tag, "      - Min humidity: %.0f", traits.get_visual_min_humidity());
+  ESP_LOGCONFIG(tag, "      - Max humidity: %.0f", traits.get_visual_max_humidity());
   if (traits.get_supports_current_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
   }
+  if (traits.get_supports_current_humidity()) {
+    ESP_LOGCONFIG(tag, "  [x] Supports current humidity");
+  }
   if (traits.get_supports_two_point_target_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");
+  }
+  if (traits.get_supports_target_humidity()) {
+    ESP_LOGCONFIG(tag, "  [x] Supports target humidity");
   }
   if (traits.get_supports_action()) {
     ESP_LOGCONFIG(tag, "  [x] Supports action");

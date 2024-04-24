@@ -3,6 +3,7 @@
 #include "ota_backend_arduino_esp32.h"
 #include "ota_backend_arduino_esp8266.h"
 #include "ota_backend_arduino_rp2040.h"
+#include "ota_backend_arduino_libretiny.h"
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/core/log.h"
@@ -19,8 +20,7 @@ namespace esphome {
 namespace ota {
 
 static const char *const TAG = "ota";
-
-static const uint8_t OTA_VERSION_1_0 = 1;
+static constexpr u_int16_t OTA_BLOCK_SIZE = 8192;
 
 OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -39,6 +39,9 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_RP2040
   return make_unique<ArduinoRP2040OTABackend>();
 #endif  // USE_RP2040
+#ifdef USE_LIBRETINY
+  return make_unique<ArduinoLibreTinyOTABackend>();
+#endif
 }
 
 OTAComponent::OTAComponent() { global_ota_component = this; }
@@ -97,9 +100,10 @@ void OTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
 #endif
+  ESP_LOGCONFIG(TAG, "  OTA version: %d.", USE_OTA_VERSION);
   if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
       this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
-    ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
+    ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %" PRIu32 " restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
 }
@@ -128,6 +132,9 @@ void OTAComponent::handle_() {
   uint8_t ota_features;
   std::unique_ptr<OTABackend> backend;
   (void) ota_features;
+#if USE_OTA_VERSION == 2
+  size_t size_acknowledged = 0;
+#endif
 
   if (client_ == nullptr) {
     struct sockaddr_storage source_addr;
@@ -164,7 +171,7 @@ void OTAComponent::handle_() {
 
   // Send OK and version - 2 bytes
   buf[0] = OTA_RESPONSE_OK;
-  buf[1] = OTA_VERSION_1_0;
+  buf[1] = USE_OTA_VERSION;
   this->writeall_(buf, 2);
 
   backend = make_ota_backend();
@@ -191,7 +198,7 @@ void OTAComponent::handle_() {
     this->writeall_(buf, 1);
     md5::MD5Digest md5{};
     md5.init();
-    sprintf(sbuf, "%08X", random_uint32());
+    sprintf(sbuf, "%08" PRIx32, random_uint32());
     md5.add(sbuf, 8);
     md5.calculate();
     md5.get_hex(sbuf);
@@ -308,6 +315,13 @@ void OTAComponent::handle_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
+#if USE_OTA_VERSION == 2
+    while (size_acknowledged + OTA_BLOCK_SIZE <= total || (total == ota_size && size_acknowledged < ota_size)) {
+      buf[0] = OTA_RESPONSE_CHUNK_OK;
+      this->writeall_(buf, 1);
+      size_acknowledged += OTA_BLOCK_SIZE;
+    }
+#endif
 
     uint32_t now = millis();
     if (now - last_progress > 1000) {
@@ -466,7 +480,7 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   if (is_manual_safe_mode) {
     ESP_LOGI(TAG, "Safe mode has been entered manually");
   } else {
-    ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+    ESP_LOGCONFIG(TAG, "There have been %" PRIu32 " suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
   }
 
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {

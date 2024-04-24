@@ -1,7 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/time.h"
+
 #include "real_time_clock.h"
 
 #include <vector>

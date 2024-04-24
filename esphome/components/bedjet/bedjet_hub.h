@@ -13,6 +13,7 @@
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/time.h"
 #endif
 
 #include <esp_gattc_api.h>
@@ -140,7 +141,7 @@ class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingCompo
 #ifdef USE_TIME
   /** Initializes time sync callbacks to support syncing current time to the BedJet. */
   void setup_time_();
-  optional<time::RealTimeClock *> time_id_{};
+  time::RealTimeClock *time_id_{nullptr};
 #endif
 
   uint32_t timeout_{DEFAULT_STATUS_TIMEOUT};

@@ -19,6 +19,7 @@ CONF_CRC_CHECK = "crc_check"
 CONF_DECRYPTION_KEY = "decryption_key"
 CONF_DSMR_ID = "dsmr_id"
 CONF_GAS_MBUS_ID = "gas_mbus_id"
+CONF_WATER_MBUS_ID = "water_mbus_id"
 CONF_MAX_TELEGRAM_LENGTH = "max_telegram_length"
 CONF_REQUEST_INTERVAL = "request_interval"
 CONF_REQUEST_PIN = "request_pin"
@@ -53,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
             cv.Optional(CONF_CRC_CHECK, default=True): cv.boolean,
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
+            cv.Optional(CONF_WATER_MBUS_ID, default=2): cv.int_,
             cv.Optional(CONF_MAX_TELEGRAM_LENGTH, default=1500): cv.int_,
             cv.Optional(CONF_REQUEST_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
@@ -82,9 +84,10 @@ async def to_code(config):
     cg.add(var.set_receive_timeout(config[CONF_RECEIVE_TIMEOUT].total_milliseconds))
 
     cg.add_build_flag("-DDSMR_GAS_MBUS_ID=" + str(config[CONF_GAS_MBUS_ID]))
+    cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
 
     # DSMR Parser
-    cg.add_library("glmnet/Dsmr", "0.5")
+    cg.add_library("glmnet/Dsmr", "0.8")
 
     # Crypto
     cg.add_library("rweather/Crypto", "0.4.0")

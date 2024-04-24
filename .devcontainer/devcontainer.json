@@ -1,18 +1,27 @@
 {
   "name": "ESPHome Dev",
   "image": "ghcr.io/esphome/esphome-lint:dev",
-  "postCreateCommand": [
-    "script/devcontainer-post-create"
-  ],
+  "postCreateCommand": ["script/devcontainer-post-create"],
   "containerEnv": {
-    "DEVCONTAINER": "1"
+    "DEVCONTAINER": "1",
+    "PIP_BREAK_SYSTEM_PACKAGES": "1",
+    "PIP_ROOT_USER_ACTION": "ignore"
   },
   "runArgs": [
     "--privileged",
     "-e",
     "ESPHOME_DASHBOARD_USE_PING=1"
+    // uncomment and edit the path in order to pass though local USB serial to the conatiner
+    // , "--device=/dev/ttyACM0"
   ],
   "appPort": 6052,
+  // if you are using avahi in the host device, uncomment these to allow the
+  // devcontainer to find devices via mdns
+  //"mounts": [
+  //  "type=bind,source=/dev/bus/usb,target=/dev/bus/usb",
+  //  "type=bind,source=/var/run/dbus,target=/var/run/dbus",
+  //  "type=bind,source=/var/run/avahi-daemon/socket,target=/var/run/avahi-daemon/socket"
+  //],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -24,7 +33,7 @@
         // cpp
         "ms-vscode.cpptools",
         // editorconfig
-        "editorconfig.editorconfig",
+        "editorconfig.editorconfig"
       ],
       "settings": {
         "python.languageServer": "Pylance",
@@ -40,6 +49,8 @@
         "yaml.customTags": [
           "!secret scalar",
           "!lambda scalar",
+          "!extend scalar",
+          "!remove scalar",
           "!include_dir_named scalar",
           "!include_dir_list scalar",
           "!include_dir_merge_list scalar",

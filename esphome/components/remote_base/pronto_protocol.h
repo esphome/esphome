@@ -12,6 +12,7 @@ std::vector<uint16_t> encode_pronto(const std::string &str);
 
 struct ProntoData {
   std::string data;
+  int delta;
 
   bool operator==(const ProntoData &rhs) const;
 };
@@ -27,7 +28,7 @@ class ProntoProtocol : public RemoteProtocol<ProntoData> {
   std::string dump_digit_(uint8_t x);
   std::string dump_number_(uint16_t number, bool end = false);
   std::string dump_duration_(uint32_t duration, uint16_t timebase, bool end = false);
-  std::string compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase);
+  std::string compensate_and_dump_sequence_(const RawTimings &data, uint16_t timebase);
 
  public:
   void encode(RemoteTransmitData *dst, const ProntoData &data) override;
@@ -40,10 +41,12 @@ DECLARE_REMOTE_PROTOCOL(Pronto)
 template<typename... Ts> class ProntoAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(std::string, data)
+  TEMPLATABLE_VALUE(int, delta)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     ProntoData data{};
     data.data = this->data_.value(x...);
+    data.delta = this->delta_.value(x...);
     ProntoProtocol().encode(dst, data);
   }
 };

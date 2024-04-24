@@ -36,6 +36,24 @@
           ]
         }
       ]
+    },
+    {
+      "label": "Generate proto files",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "./script/api_protobuf/api_protobuf.py"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "never",
+        "close": true,
+        "panel": "new"
+      },
+      "problemMatcher": []
     }
   ]
 }

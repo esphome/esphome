@@ -16,14 +16,14 @@ template<typename... Ts> class StopCaptureAction : public Action<Ts...>, public 
   void play(Ts... x) override { this->parent_->stop(); }
 };
 
-class DataTrigger : public Trigger<const std::vector<uint8_t> &> {
+class DataTrigger : public Trigger<const std::vector<int16_t> &> {
  public:
   explicit DataTrigger(Microphone *mic) {
-    mic->add_data_callback([this](const std::vector<uint8_t> &data) { this->trigger(data); });
+    mic->add_data_callback([this](const std::vector<int16_t> &data) { this->trigger(data); });
   }
 };
 
-template<typename... Ts> class IsCapturingActon : public Condition<Ts...>, public Parented<Microphone> {
+template<typename... Ts> class IsCapturingCondition : public Condition<Ts...>, public Parented<Microphone> {
  public:
   bool check(Ts... x) override { return this->parent_->is_running(); }
 };

@@ -11,6 +11,7 @@ from helpers import (
     load_idedata,
     root_path,
     basepath,
+    get_binary,
 )
 import argparse
 import click
@@ -24,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+
 
 
 def clang_options(idedata):
@@ -72,7 +74,7 @@ def clang_options(idedata):
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(
         flag
-        for flag in idedata["cxx_flags"].split(" ")
+        for flag in idedata["cxx_flags"]
         if flag
         not in (
             "-free",
@@ -110,10 +112,12 @@ def clang_options(idedata):
     return cmd
 
 
-def run_tidy(args, options, tmpdir, queue, lock, failed_files):
+pids = set()
+
+def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
     while True:
         path = queue.get()
-        invocation = ["clang-tidy-11"]
+        invocation = [executable]
 
         if tmpdir is not None:
             invocation.append("--export-fixes")
@@ -193,22 +197,6 @@ def main():
     )
     args = parser.parse_args()
 
-    try:
-        get_output("clang-tidy-11", "-version")
-    except:
-        print(
-            """
-        Oops. It looks like clang-tidy-11 is not installed.
-
-        Please check you can run "clang-tidy-11 -version" in your terminal and install
-        clang-tidy (v11) if necessary.
-
-        Note you can also upload your code as a pull request on GitHub and see the CI check
-        output to apply clang-tidy.
-        """
-        )
-        return 1
-
     idedata = load_idedata(args.environment)
     options = clang_options(idedata)
 
@@ -242,12 +230,13 @@ def main():
 
     failed_files = []
     try:
+        executable = get_binary("clang-tidy", 14)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
             t = threading.Thread(
                 target=run_tidy,
-                args=(args, options, tmpdir, task_queue, lock, failed_files),
+                args=(executable, args, options, tmpdir, task_queue, lock, failed_files),
             )
             t.daemon = True
             t.start()
@@ -262,23 +251,28 @@ def main():
         # Wait for all threads to be done.
         task_queue.join()
 
+    except FileNotFoundError as ex:
+        return 1
     except KeyboardInterrupt:
         print()
         print("Ctrl-C detected, goodbye.")
         if tmpdir:
             shutil.rmtree(tmpdir)
+        # Kill subprocesses (and ourselves!)
+        # No simple, clean alternative appears to be available.
         os.kill(0, 9)
+        return 2    # Will not execute.
 
     if args.fix and failed_files:
         print("Applying fixes ...")
         try:
-            subprocess.call(["clang-apply-replacements-11", tmpdir])
+            subprocess.call(["clang-apply-replacements-14", tmpdir])
         except:
             print("Error applying fixes.\n", file=sys.stderr)
             raise
 
-    sys.exit(len(failed_files))
+    return len(failed_files)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

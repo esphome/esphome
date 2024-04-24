@@ -36,10 +36,14 @@ void SPISSD1306::command(uint8_t value) {
   this->disable();
 }
 void HOT SPISSD1306::write_display_data() {
-  if (this->is_sh1106_()) {
+  if (this->is_sh1106_() || this->is_sh1107_()) {
     for (uint8_t y = 0; y < (uint8_t) this->get_height_internal() / 8; y++) {
       this->command(0xB0 + y);
-      this->command(0x02);
+      if (this->is_sh1106_()) {
+        this->command(0x02);
+      } else {
+        this->command(0x00);
+      }
       this->command(0x10);
       this->dc_pin_->digital_write(true);
       for (uint8_t x = 0; x < (uint8_t) this->get_width_internal(); x++) {

@@ -1,16 +1,17 @@
 #pragma once
 
+#include "api_noise_context.h"
+#include "api_pb2.h"
+#include "api_pb2_service.h"
+#include "esphome/components/socket/socket.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#include "esphome/components/socket/socket.h"
-#include "api_pb2.h"
-#include "api_pb2_service.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
-#include "api_noise_context.h"
 
 #include <vector>
 
@@ -65,39 +66,35 @@ class APIServer : public Component, public Controller {
 #ifdef USE_NUMBER
   void on_number_update(number::Number *obj, float state) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  void on_date_update(datetime::DateEntity *obj) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  void on_time_update(datetime::TimeEntity *obj) override;
+#endif
+#ifdef USE_TEXT
+  void on_text_update(text::Text *obj, const std::string &state) override;
+#endif
 #ifdef USE_SELECT
   void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
 #endif
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;
 #endif
+#ifdef USE_VALVE
+  void on_valve_update(valve::Valve *obj) override;
+#endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
-#ifdef USE_BLUETOOTH_PROXY
-  void send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call);
-  void send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, esp_err_t error = ESP_OK);
-  void send_bluetooth_device_pairing(uint64_t address, bool paired, esp_err_t error = ESP_OK);
-  void send_bluetooth_device_unpairing(uint64_t address, bool success, esp_err_t error = ESP_OK);
-  void send_bluetooth_device_clear_cache(uint64_t address, bool success, esp_err_t error = ESP_OK);
-  void send_bluetooth_connections_free(uint8_t free, uint8_t limit);
-  void send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call);
-  void send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call);
-  void send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &call);
-  void send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &call);
-  void send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call);
-  void send_bluetooth_gatt_services_done(uint64_t address);
-  void send_bluetooth_gatt_error(uint64_t address, uint16_t handle, esp_err_t error);
-#endif
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
 
-#ifdef USE_VOICE_ASSISTANT
-  bool start_voice_assistant();
-  void stop_voice_assistant();
+#ifdef USE_ALARM_CONTROL_PANEL
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
 
   bool is_connected() const;
@@ -113,6 +110,11 @@ class APIServer : public Component, public Controller {
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 
+  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
+    return this->client_disconnected_trigger_;
+  }
+
  protected:
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   uint16_t port_{6053};
@@ -122,6 +124,8 @@ class APIServer : public Component, public Controller {
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;
+  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();

@@ -49,13 +49,13 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   for (std::vector<uint16_t>::size_type i = 0; i < data1.size() - 1; ++i) {
     int diff = data2[i] - data1[i];
     diff *= diff;
-    if (diff > 9)
+    if (rhs.delta == -1 && diff > 9)
       return false;
 
     total_diff += diff;
   }
 
-  return total_diff <= data1.size() * 3;
+  return total_diff <= (rhs.delta == -1 ? data1.size() * 3 : rhs.delta);
 }
 
 // DO NOT EXPORT from this file
@@ -187,11 +187,10 @@ std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase,
   return dump_number_((duration + timebase / 2) / timebase, end);
 }
 
-std::string ProntoProtocol::compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase) {
+std::string ProntoProtocol::compensate_and_dump_sequence_(const RawTimings &data, uint16_t timebase) {
   std::string out;
 
-  for (std::vector<int32_t>::size_type i = 0; i < data->size() - 1; i++) {
-    int32_t t_length = data->at(i);
+  for (int32_t t_length : data) {
     uint32_t t_duration;
     if (t_length > 0) {
       // Mark
@@ -212,32 +211,34 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   ProntoData out;
 
   uint16_t frequency = 38000U;
-  std::vector<int32_t> *data = src.get_raw_data();
+  auto &data = src.get_raw_data();
   std::string prontodata;
 
   prontodata += dump_number_(frequency > 0 ? LEARNED_TOKEN : LEARNED_NON_MODULATED_TOKEN);
   prontodata += dump_number_(to_frequency_code_(frequency));
-  prontodata += dump_number_((data->size() + 1) / 2);
+  prontodata += dump_number_((data.size() + 1) / 2);
   prontodata += dump_number_(0);
   uint16_t timebase = to_timebase_(frequency);
   prontodata += compensate_and_dump_sequence_(data, timebase);
 
   out.data = prontodata;
+  out.delta = -1;
 
   return out;
 }
 
 void ProntoProtocol::dump(const ProntoData &data) {
-  std::string first, rest;
-  if (data.data.size() < 230) {
-    first = data.data;
-  } else {
-    first = data.data.substr(0, 229);
-    rest = data.data.substr(230);
-  }
-  ESP_LOGD(TAG, "Received Pronto: data=%s", first.c_str());
-  if (!rest.empty()) {
-    ESP_LOGD(TAG, "%s", rest.c_str());
+  std::string rest;
+
+  rest = data.data;
+  ESP_LOGI(TAG, "Received Pronto: data=");
+  while (true) {
+    ESP_LOGI(TAG, "%s", rest.substr(0, 230).c_str());
+    if (rest.size() > 230) {
+      rest = rest.substr(230);
+    } else {
+      break;
+    }
   }
 }
 

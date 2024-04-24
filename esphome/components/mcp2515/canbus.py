@@ -16,6 +16,7 @@ McpMode = mcp2515_ns.enum("CANCTRL_REQOP_MODE")
 
 CAN_CLOCK = {
     "8MHZ": CanClock.MCP_8MHZ,
+    "12MHZ": CanClock.MCP_12MHZ,
     "16MHZ": CanClock.MCP_16MHZ,
     "20MHZ": CanClock.MCP_20MHZ,
 }

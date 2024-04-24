@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include "led_strip.h"
 
 #ifdef USE_ESP32
@@ -11,6 +12,8 @@ namespace esphome {
 namespace esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
+
+static const uint32_t RMT_CLK_FREQ = 80000000;
 
 static const uint8_t RMT_CLK_DIV = 2;
 
@@ -64,7 +67,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
                                                  uint32_t bit1_low) {
-  float ratio = (float) APB_CLK_FREQ / RMT_CLK_DIV / 1e09f;
+  float ratio = (float) RMT_CLK_FREQ / RMT_CLK_DIV / 1e09f;
 
   // 0-bit
   this->bit0_.duration0 = (uint32_t) (ratio * bit0_high);
@@ -157,11 +160,13 @@ light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index
       b = 0;
       break;
   }
-  uint8_t multiplier = this->is_rgbw_ ? 4 : 3;
-  return {this->buf_ + (index * multiplier) + r,
-          this->buf_ + (index * multiplier) + g,
-          this->buf_ + (index * multiplier) + b,
-          this->is_rgbw_ ? this->buf_ + (index * multiplier) + 3 : nullptr,
+  uint8_t multiplier = this->is_rgbw_ || this->is_wrgb_ ? 4 : 3;
+  uint8_t white = this->is_wrgb_ ? 0 : 3;
+
+  return {this->buf_ + (index * multiplier) + r + this->is_wrgb_,
+          this->buf_ + (index * multiplier) + g + this->is_wrgb_,
+          this->buf_ + (index * multiplier) + b + this->is_wrgb_,
+          this->is_rgbw_ || this->is_wrgb_ ? this->buf_ + (index * multiplier) + white : nullptr,
           &this->effect_data_[index],
           &this->correction_};
 }
@@ -195,7 +200,7 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
-  ESP_LOGCONFIG(TAG, "  Max refresh rate: %u", *this->max_refresh_rate_);
+  ESP_LOGCONFIG(TAG, "  Max refresh rate: %" PRIu32, *this->max_refresh_rate_);
   ESP_LOGCONFIG(TAG, "  Number of LEDs: %u", this->num_leds_);
 }
 

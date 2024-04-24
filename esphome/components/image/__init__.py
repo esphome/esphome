@@ -1,25 +1,46 @@
+from __future__ import annotations
+
 import logging
 
+import hashlib
+import io
+from pathlib import Path
+import re
+import requests
+from magic import Magic
+
+from PIL import Image
+
 from esphome import core
-from esphome.components import display, font
+from esphome.components import font
+from esphome import external_files
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
+    __version__,
     CONF_DITHER,
     CONF_FILE,
+    CONF_ICON,
     CONF_ID,
+    CONF_PATH,
     CONF_RAW_DATA_ID,
     CONF_RESIZE,
+    CONF_SOURCE,
     CONF_TYPE,
+    CONF_URL,
 )
 from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
+DOMAIN = "image"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
+MULTI_CONF_NO_DEFAULT = True
 
-ImageType = display.display_ns.enum("ImageType")
+image_ns = cg.esphome_ns.namespace("image")
+
+ImageType = image_ns.enum("ImageType")
 IMAGE_TYPE = {
     "BINARY": ImageType.IMAGE_TYPE_BINARY,
     "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_BINARY,
@@ -31,7 +52,96 @@ IMAGE_TYPE = {
 
 CONF_USE_TRANSPARENCY = "use_transparency"
 
-Image_ = display.display_ns.class_("Image")
+# If the MDI file cannot be downloaded within this time, abort.
+IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
+
+SOURCE_LOCAL = "local"
+SOURCE_MDI = "mdi"
+SOURCE_WEB = "web"
+
+
+Image_ = image_ns.class_("Image")
+
+
+def _compute_local_icon_path(value: dict) -> Path:
+    base_dir = external_files.compute_local_file_dir(DOMAIN) / "mdi"
+    return base_dir / f"{value[CONF_ICON]}.svg"
+
+
+def _compute_local_image_path(value: dict) -> Path:
+    url = value[CONF_URL]
+    h = hashlib.new("sha256")
+    h.update(url.encode())
+    key = h.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(DOMAIN)
+    return base_dir / key
+
+
+def download_content(url: str, path: Path) -> None:
+    if not external_files.has_remote_file_changed(url, path):
+        _LOGGER.debug("Remote file has not changed %s", url)
+        return
+
+    _LOGGER.debug(
+        "Remote file has changed, downloading from %s to %s",
+        url,
+        path,
+    )
+
+    try:
+        req = requests.get(
+            url,
+            timeout=IMAGE_DOWNLOAD_TIMEOUT,
+            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
+        )
+        req.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise cv.Invalid(f"Could not download from {url}: {e}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(req.content)
+
+
+def download_mdi(value):
+    validate_cairosvg_installed(value)
+
+    mdi_id = value[CONF_ICON]
+    path = _compute_local_icon_path(value)
+
+    url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
+
+    download_content(url, path)
+
+    return value
+
+
+def download_image(value):
+    url = value[CONF_URL]
+    path = _compute_local_image_path(value)
+
+    download_content(url, path)
+
+    return value
+
+
+def validate_cairosvg_installed(value):
+    """Validate that cairosvg is installed"""
+    try:
+        import cairosvg
+    except ImportError as err:
+        raise cv.Invalid(
+            "Please install the cairosvg python package to use this feature. "
+            "(pip install cairosvg)"
+        ) from err
+
+    major, minor, _ = cairosvg.__version__.split(".")
+    if major < "2" or major == "2" and minor < "2":
+        raise cv.Invalid(
+            "Please update your cairosvg installation to at least 2.2.0. "
+            "(pip install -U cairosvg)"
+        )
+
+    return value
 
 
 def validate_cross_dependencies(config):
@@ -41,6 +151,13 @@ def validate_cross_dependencies(config):
     have "use_transparency" set to True.
     Also set the default value for those kind of dependent fields.
     """
+    is_mdi = CONF_FILE in config and config[CONF_FILE][CONF_SOURCE] == SOURCE_MDI
+    if CONF_TYPE not in config:
+        if is_mdi:
+            config[CONF_TYPE] = "TRANSPARENT_BINARY"
+        else:
+            config[CONF_TYPE] = "BINARY"
+
     image_type = config[CONF_TYPE]
     is_transparent_type = image_type in ["TRANSPARENT_BINARY", "RGBA"]
 
@@ -51,16 +168,89 @@ def validate_cross_dependencies(config):
     if is_transparent_type and not config[CONF_USE_TRANSPARENCY]:
         raise cv.Invalid(f"Image type {image_type} must always be transparent.")
 
+    if is_mdi and config[CONF_TYPE] not in ["BINARY", "TRANSPARENT_BINARY"]:
+        raise cv.Invalid("MDI images must be binary images.")
+
     return config
 
+
+def validate_file_shorthand(value):
+    value = cv.string_strict(value)
+    if value.startswith("mdi:"):
+        validate_cairosvg_installed(value)
+
+        match = re.search(r"mdi:([a-zA-Z0-9\-]+)", value)
+        if match is None:
+            raise cv.Invalid("Could not parse mdi icon name.")
+        icon = match.group(1)
+        return FILE_SCHEMA(
+            {
+                CONF_SOURCE: SOURCE_MDI,
+                CONF_ICON: icon,
+            }
+        )
+    if value.startswith("http://") or value.startswith("https://"):
+        return FILE_SCHEMA(
+            {
+                CONF_SOURCE: SOURCE_WEB,
+                CONF_URL: value,
+            }
+        )
+    return FILE_SCHEMA(
+        {
+            CONF_SOURCE: SOURCE_LOCAL,
+            CONF_PATH: value,
+        }
+    )
+
+
+LOCAL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PATH): cv.file_,
+    }
+)
+
+MDI_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_ICON): cv.string,
+    },
+    download_mdi,
+)
+
+WEB_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_URL): cv.string,
+    },
+    download_image,
+)
+
+TYPED_FILE_SCHEMA = cv.typed_schema(
+    {
+        SOURCE_LOCAL: LOCAL_SCHEMA,
+        SOURCE_MDI: MDI_SCHEMA,
+        SOURCE_WEB: WEB_SCHEMA,
+    },
+    key=CONF_SOURCE,
+)
+
+
+def _file_schema(value):
+    if isinstance(value, str):
+        return validate_file_shorthand(value)
+    return TYPED_FILE_SCHEMA(value)
+
+
+FILE_SCHEMA = cv.Schema(_file_schema)
 
 IMAGE_SCHEMA = cv.Schema(
     cv.All(
         {
             cv.Required(CONF_ID): cv.declare_id(Image_),
-            cv.Required(CONF_FILE): cv.file_,
+            cv.Required(CONF_FILE): FILE_SCHEMA,
             cv.Optional(CONF_RESIZE): cv.dimensions,
-            cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
+            # Not setting default here on purpose; the default depends on the source type
+            # (file or mdi), and will be set in the "validate_cross_dependencies" validator.
+            cv.Optional(CONF_TYPE): cv.enum(IMAGE_TYPE, upper=True),
             # Not setting default here on purpose; the default depends on the image type,
             # and thus will be set in the "validate_cross_dependencies" validator.
             cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
@@ -76,31 +266,70 @@ IMAGE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
-async def to_code(config):
-    from PIL import Image
+def load_svg_image(file: bytes, resize: tuple[int, int]):
+    # This import is only needed in case of SVG images; adding it
+    # to the top would force configurations not using SVG to also have it
+    # installed for no reason.
+    from cairosvg import svg2png
 
-    path = CORE.relative_config_path(config[CONF_FILE])
+    if resize:
+        req_width, req_height = resize
+        svg_image = svg2png(
+            file,
+            output_width=req_width,
+            output_height=req_height,
+        )
+    else:
+        svg_image = svg2png(file)
+
+    return Image.open(io.BytesIO(svg_image))
+
+
+async def to_code(config):
+    conf_file = config[CONF_FILE]
+
+    if conf_file[CONF_SOURCE] == SOURCE_LOCAL:
+        path = CORE.relative_config_path(conf_file[CONF_PATH])
+
+    elif conf_file[CONF_SOURCE] == SOURCE_MDI:
+        path = _compute_local_icon_path(conf_file).as_posix()
+
+    elif conf_file[CONF_SOURCE] == SOURCE_WEB:
+        path = _compute_local_image_path(conf_file).as_posix()
+
     try:
-        image = Image.open(path)
+        with open(path, "rb") as f:
+            file_contents = f.read()
     except Exception as e:
         raise core.EsphomeError(f"Could not load image file {path}: {e}")
 
+    mime = Magic(mime=True)
+    file_type = mime.from_buffer(file_contents)
+
+    resize = config.get(CONF_RESIZE)
+    if "svg" in file_type:
+        image = load_svg_image(file_contents, resize)
+    else:
+        image = Image.open(io.BytesIO(file_contents))
+        if resize:
+            image.thumbnail(resize)
+
     width, height = image.size
 
-    if CONF_RESIZE in config:
-        image.thumbnail(config[CONF_RESIZE])
-        width, height = image.size
-    else:
-        if width > 500 or height > 500:
-            _LOGGER.warning(
-                'The image "%s" you requested is very big. Please consider'
-                " using the resize parameter.",
-                path,
-            )
+    if CONF_RESIZE not in config and (width > 500 or height > 500):
+        _LOGGER.warning(
+            'The image "%s" you requested is very big. Please consider'
+            " using the resize parameter.",
+            path,
+        )
 
     transparent = config[CONF_USE_TRANSPARENCY]
 
-    dither = Image.NONE if config[CONF_DITHER] == "NONE" else Image.FLOYDSTEINBERG
+    dither = (
+        Image.Dither.NONE
+        if config[CONF_DITHER] == "NONE"
+        else Image.Dither.FLOYDSTEINBERG
+    )
     if config[CONF_TYPE] == "GRAYSCALE":
         image = image.convert("LA", dither=dither)
         pixels = list(image.getdata())

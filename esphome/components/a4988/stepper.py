@@ -28,6 +28,6 @@ async def to_code(config):
     dir_pin = await cg.gpio_pin_expression(config[CONF_DIR_PIN])
     cg.add(var.set_dir_pin(dir_pin))
 
-    if CONF_SLEEP_PIN in config:
-        sleep_pin = await cg.gpio_pin_expression(config[CONF_SLEEP_PIN])
+    if sleep_pin_config := config.get(CONF_SLEEP_PIN):
+        sleep_pin = await cg.gpio_pin_expression(sleep_pin_config)
         cg.add(var.set_sleep_pin(sleep_pin))

@@ -1,10 +1,9 @@
 #include "bluetooth_proxy.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/macros.h"
 
 #ifdef USE_ESP32
-
-#include "esphome/components/api/api_server.h"
 
 namespace esphome {
 namespace bluetooth_proxy {
@@ -27,15 +26,39 @@ std::vector<uint64_t> get_128bit_uuid_vec(esp_bt_uuid_t uuid_source) {
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  if (!api::global_api_server->is_connected())
+  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || this->raw_advertisements_)
     return false;
+
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
-
   return true;
 }
 
+bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
+  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || !this->raw_advertisements_)
+    return false;
+
+  api::BluetoothLERawAdvertisementsResponse resp;
+  for (size_t i = 0; i < count; i++) {
+    auto &result = advertisements[i];
+    api::BluetoothLERawAdvertisement adv;
+    adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
+    adv.rssi = result.rssi;
+    adv.address_type = result.ble_addr_type;
+
+    uint8_t length = result.adv_data_len + result.scan_rsp_len;
+    adv.data.reserve(length);
+    for (uint16_t i = 0; i < length; i++) {
+      adv.data.push_back(result.ble_adv[i]);
+    }
+
+    resp.advertisements.push_back(std::move(adv));
+  }
+  ESP_LOGV(TAG, "Proxying %d packets", count);
+  this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
+  return true;
+}
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
@@ -58,7 +81,7 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
     manufacturer_data.data.assign(data.data.begin(), data.data.end());
     resp.manufacturer_data.push_back(std::move(manufacturer_data));
   }
-  api::global_api_server->send_bluetooth_le_advertisement(resp);
+  this->api_connection_->send_bluetooth_le_advertisement(resp);
 }
 
 void BluetoothProxy::dump_config() {
@@ -81,7 +104,7 @@ int BluetoothProxy::get_bluetooth_connections_free() {
 }
 
 void BluetoothProxy::loop() {
-  if (!api::global_api_server->is_connected()) {
+  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
     for (auto *connection : this->connections_) {
       if (connection->get_address() != 0) {
         connection->disconnect();
@@ -92,7 +115,7 @@ void BluetoothProxy::loop() {
   for (auto *connection : this->connections_) {
     if (connection->send_service_ == connection->service_count_) {
       connection->send_service_ = DONE_SENDING_SERVICES;
-      api::global_api_server->send_bluetooth_gatt_services_done(connection->get_address());
+      this->send_gatt_services_done(connection->get_address());
       if (connection->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
           connection->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         connection->release_services();
@@ -170,9 +193,15 @@ void BluetoothProxy::loop() {
         service_resp.characteristics.push_back(std::move(characteristic_resp));
       }
       resp.services.push_back(std::move(service_resp));
-      api::global_api_server->send_bluetooth_gatt_services(resp);
+      this->api_connection_->send_bluetooth_gatt_get_services_response(resp);
     }
   }
+}
+
+esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
+  if (this->raw_advertisements_)
+    return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
+  return esp32_ble_tracker::AdvertisementParserType::PARSED_ADVERTISEMENTS;
 }
 
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
@@ -208,16 +237,15 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       auto *connection = this->get_connection_(msg.address, true);
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
-        api::global_api_server->send_bluetooth_device_connection(msg.address, false);
+        this->send_device_connection(msg.address, false);
         return;
       }
       if (connection->state() == espbt::ClientState::CONNECTED ||
           connection->state() == espbt::ClientState::ESTABLISHED) {
         ESP_LOGW(TAG, "[%d] [%s] Connection already established", connection->get_connection_index(),
                  connection->address_str().c_str());
-        api::global_api_server->send_bluetooth_device_connection(msg.address, true);
-        api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
-                                                                this->get_bluetooth_connections_limit());
+        this->send_device_connection(msg.address, true);
+        this->send_connections_free();
         return;
       } else if (connection->state() == espbt::ClientState::SEARCHING) {
         ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, already searching for device",
@@ -263,25 +291,22 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       } else {
         connection->set_state(espbt::ClientState::SEARCHING);
       }
-      api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
-                                                              this->get_bluetooth_connections_limit());
+      this->send_connections_free();
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
       auto *connection = this->get_connection_(msg.address, false);
       if (connection == nullptr) {
-        api::global_api_server->send_bluetooth_device_connection(msg.address, false);
-        api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
-                                                                this->get_bluetooth_connections_limit());
+        this->send_device_connection(msg.address, false);
+        this->send_connections_free();
         return;
       }
       if (connection->state() != espbt::ClientState::IDLE) {
         connection->disconnect();
       } else {
         connection->set_address(0);
-        api::global_api_server->send_bluetooth_device_connection(msg.address, false);
-        api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
-                                                                this->get_bluetooth_connections_limit());
+        this->send_device_connection(msg.address, false);
+        this->send_connections_free();
       }
       break;
     }
@@ -291,10 +316,10 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         if (!connection->is_paired()) {
           auto err = connection->pair();
           if (err != ESP_OK) {
-            api::global_api_server->send_bluetooth_device_pairing(msg.address, false, err);
+            this->send_device_pairing(msg.address, false, err);
           }
         } else {
-          api::global_api_server->send_bluetooth_device_pairing(msg.address, true);
+          this->send_device_pairing(msg.address, true);
         }
       }
       break;
@@ -303,14 +328,20 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       esp_bd_addr_t address;
       uint64_to_bd_addr(msg.address, address);
       esp_err_t ret = esp_ble_remove_bond_device(address);
-      api::global_api_server->send_bluetooth_device_unpairing(msg.address, ret == ESP_OK, ret);
+      this->send_device_pairing(msg.address, ret == ESP_OK, ret);
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
       esp_bd_addr_t address;
       uint64_to_bd_addr(msg.address, address);
       esp_err_t ret = esp_ble_gattc_cache_clean(address);
-      api::global_api_server->send_bluetooth_device_clear_cache(msg.address, ret == ESP_OK, ret);
+      api::BluetoothDeviceClearCacheResponse call;
+      call.address = msg.address;
+      call.success = ret == ESP_OK;
+      call.error = ret;
+
+      this->api_connection_->send_bluetooth_device_clear_cache_response(call);
+
       break;
     }
   }
@@ -320,13 +351,13 @@ void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &ms
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
     ESP_LOGW(TAG, "Cannot read GATT characteristic, not connected");
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
     return;
   }
 
   auto err = connection->read_characteristic(msg.handle);
   if (err != ESP_OK) {
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, err);
+    this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
 
@@ -334,13 +365,13 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
     ESP_LOGW(TAG, "Cannot write GATT characteristic, not connected");
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
     return;
   }
 
   auto err = connection->write_characteristic(msg.handle, msg.data, msg.response);
   if (err != ESP_OK) {
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, err);
+    this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
 
@@ -348,13 +379,13 @@ void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTRead
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
     ESP_LOGW(TAG, "Cannot read GATT descriptor, not connected");
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
     return;
   }
 
   auto err = connection->read_descriptor(msg.handle);
   if (err != ESP_OK) {
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, err);
+    this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
 
@@ -362,13 +393,13 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
     ESP_LOGW(TAG, "Cannot write GATT descriptor, not connected");
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
     return;
   }
 
   auto err = connection->write_descriptor(msg.handle, msg.data, true);
   if (err != ESP_OK) {
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, err);
+    this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
 
@@ -376,12 +407,12 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr || !connection->connected()) {
     ESP_LOGW(TAG, "Cannot get GATT services, not connected");
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, 0, ESP_GATT_NOT_CONNECTED);
+    this->send_gatt_error(msg.address, 0, ESP_GATT_NOT_CONNECTED);
     return;
   }
   if (!connection->service_count_) {
     ESP_LOGW(TAG, "[%d] [%s] No GATT services found", connection->connection_index_, connection->address_str().c_str());
-    api::global_api_server->send_bluetooth_gatt_services_done(msg.address);
+    this->send_gatt_services_done(msg.address);
     return;
   }
   if (connection->send_service_ ==
@@ -393,14 +424,89 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
   auto *connection = this->get_connection_(msg.address, false);
   if (connection == nullptr) {
     ESP_LOGW(TAG, "Cannot notify GATT characteristic, not connected");
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
+    this->send_gatt_error(msg.address, msg.handle, ESP_GATT_NOT_CONNECTED);
     return;
   }
 
   auto err = connection->notify_characteristic(msg.handle, msg.enable);
   if (err != ESP_OK) {
-    api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, err);
+    this->send_gatt_error(msg.address, msg.handle, err);
   }
+}
+
+void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
+  if (this->api_connection_ != nullptr) {
+    ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+    return;
+  }
+  this->api_connection_ = api_connection;
+  this->raw_advertisements_ = flags & BluetoothProxySubscriptionFlag::SUBSCRIPTION_RAW_ADVERTISEMENTS;
+  this->parent_->recalculate_advertisement_parser_types();
+}
+
+void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {
+  if (this->api_connection_ != api_connection) {
+    ESP_LOGV(TAG, "API connection is not subscribed");
+    return;
+  }
+  this->api_connection_ = nullptr;
+  this->raw_advertisements_ = false;
+  this->parent_->recalculate_advertisement_parser_types();
+}
+
+void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error) {
+  if (this->api_connection_ == nullptr)
+    return;
+  api::BluetoothDeviceConnectionResponse call;
+  call.address = address;
+  call.connected = connected;
+  call.mtu = mtu;
+  call.error = error;
+  this->api_connection_->send_bluetooth_device_connection_response(call);
+}
+void BluetoothProxy::send_connections_free() {
+  if (this->api_connection_ == nullptr)
+    return;
+  api::BluetoothConnectionsFreeResponse call;
+  call.free = this->get_bluetooth_connections_free();
+  call.limit = this->get_bluetooth_connections_limit();
+  this->api_connection_->send_bluetooth_connections_free_response(call);
+}
+
+void BluetoothProxy::send_gatt_services_done(uint64_t address) {
+  if (this->api_connection_ == nullptr)
+    return;
+  api::BluetoothGATTGetServicesDoneResponse call;
+  call.address = address;
+  this->api_connection_->send_bluetooth_gatt_get_services_done_response(call);
+}
+
+void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, esp_err_t error) {
+  if (this->api_connection_ == nullptr)
+    return;
+  api::BluetoothGATTErrorResponse call;
+  call.address = address;
+  call.handle = handle;
+  call.error = error;
+  this->api_connection_->send_bluetooth_gatt_error_response(call);
+}
+
+void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, esp_err_t error) {
+  api::BluetoothDevicePairingResponse call;
+  call.address = address;
+  call.paired = paired;
+  call.error = error;
+
+  this->api_connection_->send_bluetooth_device_pairing_response(call);
+}
+
+void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, esp_err_t error) {
+  api::BluetoothDeviceUnpairingResponse call;
+  call.address = address;
+  call.success = success;
+  call.error = error;
+
+  this->api_connection_->send_bluetooth_device_unpairing_response(call);
 }
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

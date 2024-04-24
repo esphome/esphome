@@ -101,12 +101,8 @@ void CoolixClimate::transmit_state() {
       }
     }
   }
-  ESP_LOGV(TAG, "Sending coolix code: 0x%06X", remote_state);
-
-  auto transmit = this->transmitter_->transmit();
-  auto *data = transmit.get_data();
-  remote_base::CoolixProtocol().encode(data, remote_state);
-  transmit.perform();
+  ESP_LOGV(TAG, "Sending coolix code: 0x%06" PRIX32, remote_state);
+  this->transmit_<remote_base::CoolixProtocol>(remote_state);
 }
 
 bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteReceiveData data) {
@@ -114,8 +110,8 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
   if (!decoded.has_value())
     return false;
   // Decoded remote state y 3 bytes long code.
-  uint32_t remote_state = *decoded;
-  ESP_LOGV(TAG, "Decoded 0x%06X", remote_state);
+  uint32_t remote_state = (*decoded).second;
+  ESP_LOGV(TAG, "Decoded 0x%06" PRIX32, remote_state);
   if ((remote_state & 0xFF0000) != 0xB20000)
     return false;
 

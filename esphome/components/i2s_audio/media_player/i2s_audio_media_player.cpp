@@ -12,12 +12,12 @@ static const char *const TAG = "audio";
 void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (call.get_media_url().has_value()) {
     this->current_url_ = call.get_media_url();
-
-    if (this->state == media_player::MEDIA_PLAYER_STATE_PLAYING && this->audio_ != nullptr) {
+    if (this->i2s_state_ != I2S_STATE_STOPPED && this->audio_ != nullptr) {
       if (this->audio_->isRunning()) {
         this->audio_->stopSong();
       }
       this->audio_->connecttohost(this->current_url_.value().c_str());
+      this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
     } else {
       this->start();
     }
@@ -148,6 +148,7 @@ void I2SAudioMediaPlayer::start_() {
     pin_config.data_out_num = this->dout_pin_;
     i2s_set_pin(this->parent_->get_port(), &pin_config);
 
+    this->audio_->setI2SCommFMT_LSB(this->i2s_comm_fmt_lsb_);
     this->audio_->forceMono(this->external_dac_channels_ == 1);
     if (this->mute_pin_ != nullptr) {
       this->mute_pin_->setup();

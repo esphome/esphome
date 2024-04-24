@@ -42,6 +42,67 @@ ESP32_BASE_PINS = {
 }
 
 ESP32_BOARD_PINS = {
+    "adafruit_feather_esp32_v2": {
+        "A0": 26,
+        "A1": 25,
+        "A2": 34,
+        "A3": 39,
+        "A4": 36,
+        "A5": 4,
+        "SCK": 5,
+        "MOSI": 19,
+        "MISO": 21,
+        "RX": 7,
+        "TX": 8,
+        "D37": 37,
+        "LED": 13,
+        "LED_BUILTIN": 13,
+        "D12": 12,
+        "D27": 27,
+        "D33": 33,
+        "D15": 15,
+        "D32": 32,
+        "D14": 14,
+        "SCL": 20,
+        "SDA": 22,
+        "BUTTON": 38,
+        "NEOPIXEL": 0,
+        "PIN_NEOPIXEL": 0,
+        "NEOPIXEL_POWER": 2,
+    },
+    "adafruit_feather_esp32s2_tft": {
+        "BUTTON": 0,
+        "A0": 18,
+        "A1": 17,
+        "A2": 16,
+        "A3": 15,
+        "A4": 14,
+        "A5": 8,
+        "SCK": 36,
+        "MOSI": 35,
+        "MISO": 37,
+        "RX": 2,
+        "TX": 1,
+        "D13": 13,
+        "D12": 12,
+        "D11": 11,
+        "D10": 10,
+        "D9": 9,
+        "D6": 6,
+        "D5": 5,
+        "NEOPIXEL": 33,
+        "PIN_NEOPIXEL": 33,
+        "NEOPIXEL_POWER": 34,
+        "SCL": 41,
+        "SDA": 42,
+        "TFT_I2C_POWER": 21,
+        "TFT_CS": 7,
+        "TFT_DC": 39,
+        "TFT_RESET": 40,
+        "TFT_BACKLIGHT": 45,
+        "LED": 13,
+        "LED_BUILTIN": 13,
+    },
     "adafruit_qtpy_esp32c3": {
         "A0": 4,
         "A1": 3,
@@ -99,6 +160,10 @@ ESP32_BOARD_PINS = {
         "NEOPIXEL_POWER": 8,
         "BUTTON": 0,
         "SWITCH": 0,
+    },
+    "airm2m_core_esp32c3": {
+        "LED1_BUILTIN": 12,
+        "LED2_BUILTIN": 13,
     },
     "alksesp32": {
         "A0": 32,
@@ -202,6 +267,7 @@ ESP32_BOARD_PINS = {
         "SDA": 5,
         "SS": 15,
     },
+    "denky_d4": {"RX": 8, "LED": 14},
     "esp-wrover-kit": {},
     "esp32-devkitlipo": {},
     "esp32-evb": {
@@ -1168,6 +1234,10 @@ BOARDS = {
         "name": "BPI-Bit",
         "variant": VARIANT_ESP32,
     },
+    "bpi_leaf_s3": {
+        "name": "BPI-Leaf-S3",
+        "variant": VARIANT_ESP32S3,
+    },
     "briki_abc_esp32": {
         "name": "Briki ABC (MBC-WB) - ESP32",
         "variant": VARIANT_ESP32,
@@ -1184,6 +1254,10 @@ BOARDS = {
         "name": "Connaxio's Espoir",
         "variant": VARIANT_ESP32,
     },
+    "cytron_maker_feather_aiot_s3": {
+        "name": "Cytron Maker Feather AIoT S3",
+        "variant": VARIANT_ESP32S3,
+    },
     "d-duino-32": {
         "name": "D-duino-32",
         "variant": VARIANT_ESP32,
@@ -1191,6 +1265,10 @@ BOARDS = {
     "deneyapkart1A": {
         "name": "Deneyap Kart 1A",
         "variant": VARIANT_ESP32,
+    },
+    "deneyapkart1Av2": {
+        "name": "Deneyap Kart 1A v2",
+        "variant": VARIANT_ESP32S3,
     },
     "deneyapkartg": {
         "name": "Deneyap Kart G",
@@ -1202,6 +1280,10 @@ BOARDS = {
     },
     "deneyapmini": {
         "name": "Deneyap Mini",
+        "variant": VARIANT_ESP32S2,
+    },
+    "deneyapminiv2": {
+        "name": "Deneyap Mini v2",
         "variant": VARIANT_ESP32S2,
     },
     "denky32": {
@@ -1230,6 +1312,10 @@ BOARDS = {
     },
     "esp32-c3-devkitm-1": {
         "name": "Espressif ESP32-C3-DevKitM-1",
+        "variant": VARIANT_ESP32C3,
+    },
+    "esp32-c3-m1i-kit": {
+        "name": "Ai-Thinker ESP-C3-M1-I-Kit",
         "variant": VARIANT_ESP32C3,
     },
     "esp32cam": {
@@ -1294,6 +1380,10 @@ BOARDS = {
     },
     "esp32-s3-devkitc-1": {
         "name": "Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)",
+        "variant": VARIANT_ESP32S3,
+    },
+    "esp32-s3-korvo-2": {
+        "name": "Espressif ESP32-S3-Korvo-2",
         "variant": VARIANT_ESP32S3,
     },
     "esp32thing": {
@@ -1603,6 +1693,10 @@ BOARDS = {
     "quantum": {
         "name": "Noduino Quantum",
         "variant": VARIANT_ESP32,
+    },
+    "redpill_esp32s3": {
+        "name": "Munich Labs RedPill ESP32-S3",
+        "variant": VARIANT_ESP32S3,
     },
     "seeed_xiao_esp32c3": {
         "name": "Seeed Studio XIAO ESP32C3",

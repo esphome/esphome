@@ -43,7 +43,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
+            cv.Optional(CONF_RESTORE_STATE): cv.invalid(
+                "The restore_state option has been removed in 2023.7.0. Use the restore_mode option instead"
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -70,7 +72,6 @@ async def to_code(config):
         )
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
-    cg.add(var.set_restore_state(config[CONF_RESTORE_STATE]))
 
 
 @automation.register_action(

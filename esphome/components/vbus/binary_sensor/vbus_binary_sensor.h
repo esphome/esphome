@@ -39,6 +39,27 @@ class DeltaSolBSPlusBSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
+class DeltaSolBS2009BSensor : public VBusListener, public Component {
+ public:
+  void dump_config() override;
+  void set_s1_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s1_error_bsensor_ = bsensor; }
+  void set_s2_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s2_error_bsensor_ = bsensor; }
+  void set_s3_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s3_error_bsensor_ = bsensor; }
+  void set_s4_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s4_error_bsensor_ = bsensor; }
+  void set_frost_protection_active_bsensor(binary_sensor::BinarySensor *bsensor) {
+    this->frost_protection_active_bsensor_ = bsensor;
+  }
+
+ protected:
+  binary_sensor::BinarySensor *s1_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s2_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s3_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *s4_error_bsensor_{nullptr};
+  binary_sensor::BinarySensor *frost_protection_active_bsensor_{nullptr};
+
+  void handle_message(std::vector<uint8_t> &message) override;
+};
+
 class DeltaSolCBSensor : public VBusListener, public Component {
  public:
   void dump_config() override;

@@ -18,7 +18,6 @@ SSD1331_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 
 
 async def setup_ssd1331(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:
@@ -28,6 +27,6 @@ async def setup_ssd1331(var, config):
         cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

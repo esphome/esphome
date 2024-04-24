@@ -28,7 +28,7 @@ void HX711Sensor::update() {
   uint32_t result;
   if (this->read_sensor_(&result)) {
     int32_t value = static_cast<int32_t>(result);
-    ESP_LOGD(TAG, "'%s': Got value %d", this->name_.c_str(), value);
+    ESP_LOGD(TAG, "'%s': Got value %" PRId32, this->name_.c_str(), value);
     this->publish_state(value);
   }
 }

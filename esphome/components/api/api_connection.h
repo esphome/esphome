@@ -16,7 +16,7 @@ namespace api {
 class APIConnection : public APIServerConnection {
  public:
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
-  virtual ~APIConnection() = default;
+  virtual ~APIConnection();
 
   void start();
   void loop();
@@ -72,6 +72,21 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  bool send_date_state(datetime::DateEntity *date);
+  bool send_date_info(datetime::DateEntity *date);
+  void date_command(const DateCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  bool send_time_state(datetime::TimeEntity *time);
+  bool send_time_info(datetime::TimeEntity *time);
+  void time_command(const TimeCommandRequest &msg) override;
+#endif
+#ifdef USE_TEXT
+  bool send_text_state(text::Text *text, std::string state);
+  bool send_text_info(text::Text *text);
+  void text_command(const TextCommandRequest &msg) override;
+#endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select, std::string state);
   bool send_select_info(select::Select *select);
@@ -86,6 +101,11 @@ class APIConnection : public APIServerConnection {
   bool send_lock_info(lock::Lock *a_lock);
   void lock_command(const LockCommandRequest &msg) override;
 #endif
+#ifdef USE_VALVE
+  bool send_valve_state(valve::Valve *valve);
+  bool send_valve_info(valve::Valve *valve);
+  void valve_command(const ValveCommandRequest &msg) override;
+#endif
 #ifdef USE_MEDIA_PLAYER
   bool send_media_player_state(media_player::MediaPlayer *media_player);
   bool send_media_player_info(media_player::MediaPlayer *media_player);
@@ -98,12 +118,8 @@ class APIConnection : public APIServerConnection {
     this->send_homeassistant_service_response(call);
   }
 #ifdef USE_BLUETOOTH_PROXY
-  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = true;
-  }
-  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = false;
-  }
+  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
   bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg);
 
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
@@ -125,17 +141,22 @@ class APIConnection : public APIServerConnection {
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
-    this->voice_assistant_subscription_ = msg.subscribe;
-  }
-  bool request_voice_assistant(bool start);
+  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override;
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
+  void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
+  bool send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
+  void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 
   void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
+    this->ping_retries_ = 0;
     this->sent_ping_ = false;
   }
   void on_home_assistant_state_response(const HomeAssistantStateResponse &msg) override;
@@ -181,6 +202,8 @@ class APIConnection : public APIServerConnection {
   }
   bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override;
 
+  std::string get_client_combined_info() const { return this->client_combined_info_; }
+
  protected:
   friend APIServer;
 
@@ -200,6 +223,8 @@ class APIConnection : public APIServerConnection {
   std::unique_ptr<APIFrameHelper> helper_;
 
   std::string client_info_;
+  std::string client_peername_;
+  std::string client_combined_info_;
   uint32_t client_api_version_major_{0};
   uint32_t client_api_version_minor_{0};
 #ifdef USE_ESP32_CAMERA
@@ -209,14 +234,10 @@ class APIConnection : public APIServerConnection {
   bool state_subscription_{false};
   int log_subscription_{ESPHOME_LOG_LEVEL_NONE};
   uint32_t last_traffic_;
+  uint32_t next_ping_retry_{0};
+  uint8_t ping_retries_{0};
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-#ifdef USE_BLUETOOTH_PROXY
-  bool bluetooth_le_advertisement_subscription_{false};
-#endif
-#ifdef USE_VOICE_ASSISTANT
-  bool voice_assistant_subscription_{false};
-#endif
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;

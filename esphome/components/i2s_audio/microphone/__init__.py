@@ -2,7 +2,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from esphome import pins
-from esphome.const import CONF_ID, CONF_NUMBER
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_NUMBER
 from esphome.components import microphone, esp32
 from esphome.components.adc import ESP32_VARIANT_ADC1_PIN_TO_CHANNEL, validate_adc_pin
 
@@ -20,13 +20,29 @@ DEPENDENCIES = ["i2s_audio"]
 CONF_ADC_PIN = "adc_pin"
 CONF_ADC_TYPE = "adc_type"
 CONF_PDM = "pdm"
+CONF_SAMPLE_RATE = "sample_rate"
+CONF_BITS_PER_SAMPLE = "bits_per_sample"
+CONF_USE_APLL = "use_apll"
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
 
+i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
+CHANNELS = {
+    "left": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
+    "right": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
+}
+i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
+BITS_PER_SAMPLE = {
+    16: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_16BIT,
+    32: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_32BIT,
+}
+
 INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
 PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
+
+_validate_bits = cv.float_with_unit("bits", "bit")
 
 
 def validate_esp32_variant(config):
@@ -47,6 +63,12 @@ BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(I2SAudioMicrophone),
         cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
+        cv.Optional(CONF_CHANNEL, default="right"): cv.enum(CHANNELS),
+        cv.Optional(CONF_SAMPLE_RATE, default=16000): cv.int_range(min=1),
+        cv.Optional(CONF_BITS_PER_SAMPLE, default="32bit"): cv.All(
+            _validate_bits, cv.enum(BITS_PER_SAMPLE)
+        ),
+        cv.Optional(CONF_USE_APLL, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -85,5 +107,10 @@ async def to_code(config):
     else:
         cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
         cg.add(var.set_pdm(config[CONF_PDM]))
+
+    cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
+    cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
+    cg.add(var.set_use_apll(config[CONF_USE_APLL]))
 
     await microphone.register_microphone(var, config)

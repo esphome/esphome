@@ -57,6 +57,47 @@ void DeltaSolBSPlusSensor::handle_message(std::vector<uint8_t> &message) {
     this->version_sensor_->publish_state(get_u16(message, 26) * 0.01f);
 }
 
+void DeltaSolBS2009Sensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Deltasol BS 2009:");
+  LOG_SENSOR("  ", "Temperature 1", this->temperature1_sensor_);
+  LOG_SENSOR("  ", "Temperature 2", this->temperature2_sensor_);
+  LOG_SENSOR("  ", "Temperature 3", this->temperature3_sensor_);
+  LOG_SENSOR("  ", "Temperature 4", this->temperature4_sensor_);
+  LOG_SENSOR("  ", "Pump Speed 1", this->pump_speed1_sensor_);
+  LOG_SENSOR("  ", "Pump Speed 2", this->pump_speed2_sensor_);
+  LOG_SENSOR("  ", "Operating Hours 1", this->operating_hours1_sensor_);
+  LOG_SENSOR("  ", "Operating Hours 2", this->operating_hours2_sensor_);
+  LOG_SENSOR("  ", "Heat Quantity", this->heat_quantity_sensor_);
+  LOG_SENSOR("  ", "System Time", this->time_sensor_);
+  LOG_SENSOR("  ", "FW Version", this->version_sensor_);
+}
+
+void DeltaSolBS2009Sensor::handle_message(std::vector<uint8_t> &message) {
+  if (this->temperature1_sensor_ != nullptr)
+    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
+  if (this->temperature2_sensor_ != nullptr)
+    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
+  if (this->temperature3_sensor_ != nullptr)
+    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
+  if (this->temperature4_sensor_ != nullptr)
+    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
+  if (this->pump_speed1_sensor_ != nullptr)
+    this->pump_speed1_sensor_->publish_state(message[8]);
+  if (this->pump_speed2_sensor_ != nullptr)
+    this->pump_speed2_sensor_->publish_state(message[12]);
+  if (this->operating_hours1_sensor_ != nullptr)
+    this->operating_hours1_sensor_->publish_state(get_u16(message, 10));
+  if (this->operating_hours2_sensor_ != nullptr)
+    this->operating_hours2_sensor_->publish_state(get_u16(message, 18));
+  if (this->heat_quantity_sensor_ != nullptr) {
+    this->heat_quantity_sensor_->publish_state(get_u16(message, 28) + get_u16(message, 30) * 1000);
+  }
+  if (this->time_sensor_ != nullptr)
+    this->time_sensor_->publish_state(get_u16(message, 22));
+  if (this->version_sensor_ != nullptr)
+    this->version_sensor_->publish_state(get_u16(message, 32) * 0.01f);
+}
+
 void DeltaSolCSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol C:");
   LOG_SENSOR("  ", "Temperature 1", this->temperature1_sensor_);
@@ -166,9 +207,9 @@ void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->heat_quantity_sensor_ != nullptr)
     this->heat_quantity_sensor_->publish_state((get_u16(message, 30) << 16) + get_u16(message, 28));
   if (this->time_sensor_ != nullptr)
-    this->time_sensor_->publish_state(get_u16(message, 12));
+    this->time_sensor_->publish_state(get_u16(message, 22));
   if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 26) * 0.01f);
+    this->version_sensor_->publish_state(get_u16(message, 32) * 0.01f);
   if (this->flow_rate_sensor_ != nullptr)
     this->flow_rate_sensor_->publish_state(get_u16(message, 38));
 }
@@ -191,8 +232,9 @@ void VBusCustomSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
   }
   ESP_LOGCONFIG(TAG, "  Sensors:");
-  for (VBusCustomSubSensor *sensor : this->sensors_)
+  for (VBusCustomSubSensor *sensor : this->sensors_) {
     LOG_SENSOR("  ", "-", sensor);
+  }
 }
 
 void VBusCustomSensor::handle_message(std::vector<uint8_t> &message) {

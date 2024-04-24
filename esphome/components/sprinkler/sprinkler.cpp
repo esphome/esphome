@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <utility>
 
 namespace esphome {
@@ -386,11 +387,16 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-void Sprinkler::setup() {
+Sprinkler::Sprinkler() {}
+Sprinkler::Sprinkler(const std::string &name) {
+  // The `name` is needed to set timers up, hence non-default constructor
+  // replaces `set_name()` method previously existed
+  this->name_ = name;
   this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
   this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
-  this->all_valves_off_(true);
 }
+
+void Sprinkler::setup() { this->all_valves_off_(true); }
 
 void Sprinkler::loop() {
   for (auto &p : this->pump_) {
@@ -870,7 +876,7 @@ void Sprinkler::queue_valve(optional<size_t> valve_number, optional<uint32_t> ru
     if (this->is_a_valid_valve(valve_number.value()) && (this->queued_valves_.size() < this->max_queue_size_)) {
       SprinklerQueueItem item{valve_number.value(), run_duration.value()};
       this->queued_valves_.insert(this->queued_valves_.begin(), item);
-      ESP_LOGD(TAG, "Valve %u placed into queue with run duration of %u seconds", valve_number.value_or(0),
+      ESP_LOGD(TAG, "Valve %zu placed into queue with run duration of %" PRIu32 " seconds", valve_number.value_or(0),
                run_duration.value_or(0));
     }
   }
@@ -949,15 +955,23 @@ void Sprinkler::pause() {
   this->paused_valve_ = this->active_valve();
   this->resume_duration_ = this->time_remaining_active_valve();
   this->shutdown(false);
-  ESP_LOGD(TAG, "Paused valve %u with %u seconds remaining", this->paused_valve_.value_or(0),
+  ESP_LOGD(TAG, "Paused valve %zu with %" PRIu32 " seconds remaining", this->paused_valve_.value_or(0),
            this->resume_duration_.value_or(0));
 }
 
 void Sprinkler::resume() {
+  if (this->standby()) {
+    ESP_LOGD(TAG, "resume called but standby is enabled; no action taken");
+    return;
+  }
+
   if (this->paused_valve_.has_value() && (this->resume_duration_.has_value())) {
-    ESP_LOGD(TAG, "Resuming valve %u with %u seconds remaining", this->paused_valve_.value_or(0),
-             this->resume_duration_.value_or(0));
-    this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
+    // Resume only if valve has not been completed yet
+    if (!this->valve_cycle_complete_(this->paused_valve_.value())) {
+      ESP_LOGD(TAG, "Resuming valve %zu with %" PRIu32 " seconds remaining", this->paused_valve_.value_or(0),
+               this->resume_duration_.value_or(0));
+      this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
+    }
     this->reset_resume();
   } else {
     ESP_LOGD(TAG, "No valve to resume!");
@@ -1376,7 +1390,8 @@ void Sprinkler::load_next_valve_run_request_(const optional<size_t> first_valve)
       this->next_req_.set_run_duration(
           this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_(first_valve).value_or(0)));
     } else if ((this->repeat_count_++ < this->repeat().value_or(0))) {
-      ESP_LOGD(TAG, "Repeating - starting cycle %u of %u", this->repeat_count_ + 1, this->repeat().value_or(0) + 1);
+      ESP_LOGD(TAG, "Repeating - starting cycle %" PRIu32 " of %" PRIu32, this->repeat_count_ + 1,
+               this->repeat().value_or(0) + 1);
       // if there are repeats remaining and no more valves were left in the cycle, start a new cycle
       this->prep_full_cycle_();
       if (this->next_valve_number_in_cycle_().has_value()) {  // this should always succeed here, but just in case...
@@ -1407,7 +1422,7 @@ void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
   for (auto &vo : this->valve_op_) {  // find the first available SprinklerValveOperator, load it and start it up
     if (vo.state() == IDLE) {
       auto run_duration = req->run_duration() ? req->run_duration() : this->valve_run_duration_adjusted(req->valve());
-      ESP_LOGD(TAG, "%s is starting valve %u for %u seconds, cycle %u of %u",
+      ESP_LOGD(TAG, "%s is starting valve %zu for %" PRIu32 " seconds, cycle %" PRIu32 " of %" PRIu32,
                this->req_as_str_(req->request_is_from()).c_str(), req->valve(), run_duration, this->repeat_count_ + 1,
                this->repeat().value_or(0) + 1);
       req->set_valve_operator(&vo);
@@ -1632,7 +1647,7 @@ void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
     this->timer_[timer_index].start_time = millis();
     this->timer_[timer_index].active = true;
   }
-  ESP_LOGVV(TAG, "Timer %u started for %u sec", static_cast<size_t>(timer_index),
+  ESP_LOGVV(TAG, "Timer %zu started for %" PRIu32 " sec", static_cast<size_t>(timer_index),
             this->timer_duration_(timer_index) / 1000);
 }
 
@@ -1671,48 +1686,48 @@ void Sprinkler::sm_timer_callback_() {
 void Sprinkler::dump_config() {
   ESP_LOGCONFIG(TAG, "Sprinkler Controller -- %s", this->name_.c_str());
   if (this->manual_selection_delay_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Manual Selection Delay: %u seconds", this->manual_selection_delay_.value_or(0));
+    ESP_LOGCONFIG(TAG, "  Manual Selection Delay: %" PRIu32 " seconds", this->manual_selection_delay_.value_or(0));
   }
   if (this->repeat().has_value()) {
-    ESP_LOGCONFIG(TAG, "  Repeat Cycles: %u times", this->repeat().value_or(0));
+    ESP_LOGCONFIG(TAG, "  Repeat Cycles: %" PRIu32 " times", this->repeat().value_or(0));
   }
   if (this->start_delay_) {
     if (this->start_delay_is_valve_delay_) {
-      ESP_LOGCONFIG(TAG, "  Pump Start Valve Delay: %u seconds", this->start_delay_);
+      ESP_LOGCONFIG(TAG, "  Pump Start Valve Delay: %" PRIu32 " seconds", this->start_delay_);
     } else {
-      ESP_LOGCONFIG(TAG, "  Pump Start Pump Delay: %u seconds", this->start_delay_);
+      ESP_LOGCONFIG(TAG, "  Pump Start Pump Delay: %" PRIu32 " seconds", this->start_delay_);
     }
   }
   if (this->stop_delay_) {
     if (this->stop_delay_is_valve_delay_) {
-      ESP_LOGCONFIG(TAG, "  Pump Stop Valve Delay: %u seconds", this->stop_delay_);
+      ESP_LOGCONFIG(TAG, "  Pump Stop Valve Delay: %" PRIu32 " seconds", this->stop_delay_);
     } else {
-      ESP_LOGCONFIG(TAG, "  Pump Stop Pump Delay: %u seconds", this->stop_delay_);
+      ESP_LOGCONFIG(TAG, "  Pump Stop Pump Delay: %" PRIu32 " seconds", this->stop_delay_);
     }
   }
   if (this->switching_delay_.has_value()) {
     if (this->valve_overlap_) {
-      ESP_LOGCONFIG(TAG, "  Valve Overlap: %u seconds", this->switching_delay_.value_or(0));
+      ESP_LOGCONFIG(TAG, "  Valve Overlap: %" PRIu32 " seconds", this->switching_delay_.value_or(0));
     } else {
-      ESP_LOGCONFIG(TAG, "  Valve Open Delay: %u seconds", this->switching_delay_.value_or(0));
+      ESP_LOGCONFIG(TAG, "  Valve Open Delay: %" PRIu32 " seconds", this->switching_delay_.value_or(0));
       ESP_LOGCONFIG(TAG, "  Pump Switch Off During Valve Open Delay: %s",
                     YESNO(this->pump_switch_off_during_valve_open_delay_));
     }
   }
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
-    ESP_LOGCONFIG(TAG, "  Valve %u:", valve_number);
+    ESP_LOGCONFIG(TAG, "  Valve %zu:", valve_number);
     ESP_LOGCONFIG(TAG, "    Name: %s", this->valve_name(valve_number));
-    ESP_LOGCONFIG(TAG, "    Run Duration: %u seconds", this->valve_run_duration(valve_number));
+    ESP_LOGCONFIG(TAG, "    Run Duration: %" PRIu32 " seconds", this->valve_run_duration(valve_number));
     if (this->valve_[valve_number].valve_switch.pulse_duration()) {
-      ESP_LOGCONFIG(TAG, "    Pulse Duration: %u milliseconds",
+      ESP_LOGCONFIG(TAG, "    Pulse Duration: %" PRIu32 " milliseconds",
                     this->valve_[valve_number].valve_switch.pulse_duration());
     }
   }
   if (!this->pump_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Total number of pumps: %u", this->pump_.size());
+    ESP_LOGCONFIG(TAG, "  Total number of pumps: %zu", this->pump_.size());
   }
   if (!this->valve_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Total number of valves: %u", this->valve_.size());
+    ESP_LOGCONFIG(TAG, "  Total number of valves: %zu", this->valve_.size());
   }
 }
 

@@ -51,7 +51,7 @@ optional<LGData> LGProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 void LGProtocol::dump(const LGData &data) {
-  ESP_LOGD(TAG, "Received LG: data=0x%08X, nbits=%d", data.data, data.nbits);
+  ESP_LOGI(TAG, "Received LG: data=0x%08" PRIX32 ", nbits=%d", data.data, data.nbits);
 }
 
 }  // namespace remote_base
