@@ -70,6 +70,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
 #endif
+#ifdef USE_EVENT
+  bool on_event(event::Event *event) override;
+#endif
   bool on_end() override;
 
  protected:

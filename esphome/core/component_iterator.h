@@ -81,6 +81,9 @@ class ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) = 0;
 #endif
+#ifdef USE_EVENT
+  virtual bool on_event(event::Event *event) = 0;
+#endif
   virtual bool on_end();
 
  protected:
@@ -146,6 +149,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
     ALARM_CONTROL_PANEL,
+#endif
+#ifdef USE_EVENT
+    EVENT,
 #endif
     MAX,
   } state_{IteratorState::NONE};

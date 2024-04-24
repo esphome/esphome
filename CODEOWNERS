@@ -119,6 +119,7 @@ esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
+esphome/components/event/* @nohat
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
@@ -359,6 +360,7 @@ esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
 esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter
+esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81

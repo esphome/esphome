@@ -1209,6 +1209,30 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 }
 #endif
 
+#ifdef USE_EVENT
+bool APIConnection::send_event(event::Event *event, std::string event_type) {
+  EventResponse resp{};
+  resp.key = event->get_object_id_hash();
+  resp.event_type = std::move(event_type);
+  return this->send_event_response(resp);
+}
+bool APIConnection::send_event_info(event::Event *event) {
+  ListEntitiesEventResponse msg;
+  msg.key = event->get_object_id_hash();
+  msg.object_id = event->get_object_id();
+  if (event->has_own_name())
+    msg.name = event->get_name();
+  msg.unique_id = get_default_unique_id("event", event);
+  msg.icon = event->get_icon();
+  msg.disabled_by_default = event->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(event->get_entity_category());
+  msg.device_class = event->get_device_class();
+  for (const auto &event_type : event->get_event_types())
+    msg.event_types.push_back(event_type);
+  return this->send_list_entities_event_response(msg);
+}
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
