@@ -40,7 +40,7 @@ void Logger::write_header_(int level, const char *tag, int line) {
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  void *current_task = xTaskGetCurrentTaskHandle();
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
   k_tid_t current_task = k_current_get();
 #else
@@ -178,7 +178,7 @@ void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
 }
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
