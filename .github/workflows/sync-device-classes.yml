@@ -13,10 +13,10 @@ jobs:
     if: github.repository == 'esphome/esphome'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.4
 
       - name: Checkout Home Assistant
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.4
         with:
           repository: home-assistant/core
           path: lib/home-assistant
