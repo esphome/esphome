@@ -337,6 +337,8 @@ int8_t step_to_accuracy_decimals(float step) {
 
 static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
+std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
+
 std::string base64_encode(const char *buf, unsigned int buf_len) {
   std::string ret;
   int i = 0;
@@ -377,13 +379,23 @@ std::string base64_encode(const char *buf, unsigned int buf_len) {
   return ret;
 }
 
-std::vector<char> base64_decode(std::string const &encoded_string) {
+size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
+  std::vector<uint8_t> decoded = base64_decode(encoded_string);
+  if (decoded.size() > buf_len) {
+    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+    decoded.resize(buf_len);
+  }
+  memcpy(buf, decoded.data(), decoded.size());
+  return decoded.size();
+}
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   int in_len = encoded_string.size();
   int i = 0;
   int j = 0;
   int in = 0;
-  char char_array_4[4], char_array_3[3];
-  std::vector<char> ret;
+  uint8_t char_array_4[4], char_array_3[3];
+  std::vector<uint8_t> ret;
 
   while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
     char_array_4[i++] = encoded_string[in];
