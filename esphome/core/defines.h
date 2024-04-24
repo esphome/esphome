@@ -24,6 +24,7 @@
 #define USE_CLIMATE
 #define USE_COVER
 #define USE_DEEP_SLEEP
+#define USE_EVENT
 #define USE_FAN
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME

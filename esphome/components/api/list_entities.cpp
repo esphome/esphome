@@ -89,6 +89,9 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
   return this->client_->send_alarm_control_panel_info(a_alarm_control_panel);
 }
 #endif
+#ifdef USE_EVENT
+bool ListEntitiesIterator::on_event(event::Event *event) { return this->client_->send_event_info(event); }
+#endif
 
 }  // namespace api
 }  // namespace esphome

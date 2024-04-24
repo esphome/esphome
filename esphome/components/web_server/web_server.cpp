@@ -1352,6 +1352,28 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
 }
 #endif
 
+#ifdef USE_EVENT
+void WebServer::on_event(event::Event *obj, const std::string &event_type) {
+  this->events_.send(this->event_json(obj, event_type, DETAIL_STATE).c_str(), "state");
+}
+
+std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
+  return json::build_json([obj, event_type, start_config](JsonObject root) {
+    set_json_id(root, obj, "event-" + obj->get_object_id(), start_config);
+    if (!event_type.empty()) {
+      root["event_type"] = event_type;
+    }
+    if (start_config == DETAIL_ALL) {
+      JsonArray event_types = root.createNestedArray("event_types");
+      for (auto const &event_type : obj->get_event_types()) {
+        event_types.add(event_type);
+      }
+      root["device_class"] = obj->get_device_class();
+    }
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;

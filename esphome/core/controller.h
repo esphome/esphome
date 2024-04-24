@@ -55,6 +55,9 @@
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
+#ifdef USE_EVENT
+#include "esphome/components/event/event.h"
+#endif
 
 namespace esphome {
 
@@ -111,6 +114,9 @@ class Controller {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj){};
+#endif
+#ifdef USE_EVENT
+  virtual void on_event(event::Event *obj, const std::string &event_type){};
 #endif
 };
 
