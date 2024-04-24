@@ -52,40 +52,22 @@ enum WorPeriod : uint8_t {
 };
 // reverse order on the data sheet
 
-union RegisterConfig {
-  uint8_t raw[35];
-  struct {
-    uint8_t command : 8;
-    uint8_t starting_address : 8;
-    uint8_t length : 8;
-    uint8_t addh : 8;
-    uint8_t addl : 8;
-    struct {
-      uint8_t air_data_rate : 3;
-      uint8_t parity : 2;
-      uint8_t uart_baud : 3;
-
-    } reg_0;
-    struct {
-      uint8_t transmission_power : 2;
-      uint8_t reserve : 3;
-      uint8_t rssi_noise : 1;
-      uint8_t sub_packet : 2;
-    } reg_1;
-    // reg2
-    uint8_t channel : 8;
-    struct {
-      uint8_t wor_period : 3;
-      uint8_t reserve1 : 1;
-      uint8_t enable_lbt : 1;
-      uint8_t reserve2 : 1;
-      uint8_t transmission_mode : 1;
-      uint8_t enable_rssi : 1;
-    } reg_3;
-    uint8_t crypt_h : 8;
-    uint8_t crypt_l : 8;
-  };
-} __attribute__((packed));
+struct RegisterConfig {
+  uint8_t config_set;
+  uint8_t addh;
+  uint8_t addl;
+  uint8_t air_data_rate;
+  uint8_t parity;
+  uint8_t uart_baud;
+  uint8_t transmission_power;
+  uint8_t rssi_noise;
+  uint8_t sub_packet;
+  uint8_t channel;
+  uint8_t wor_period;
+  uint8_t enable_lbt;
+  uint8_t transmission_mode;
+  uint8_t enable_rssi;
+};
 
 }  // namespace ebyte_lora
 }  // namespace esphome
