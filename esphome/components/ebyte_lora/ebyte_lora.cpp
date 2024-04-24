@@ -246,6 +246,32 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
       }
       ESP_LOGD(TAG, "parity: %u", parity);
       ESP_LOGD(TAG, "uart_baud: %u", uart_baud);
+      switch (uart_baud) {
+        case UART_1200:
+          ESP_LOGD(TAG, "uart_baud: 1200");
+          break;
+        case UART_2400:
+          ESP_LOGD(TAG, "uart_baud: 2400");
+          break;
+        case UART_4800:
+          ESP_LOGD(TAG, "uart_baud: 4800");
+          break;
+        case UART_9600:
+          ESP_LOGD(TAG, "uart_baud: 9600");
+          break;
+        case UART_19200:
+          ESP_LOGD(TAG, "uart_baud: 19200");
+          break;
+        case UART_38400:
+          ESP_LOGD(TAG, "uart_baud: 38400");
+          break;
+        case UART_57600:
+          ESP_LOGD(TAG, "uart_baud: 57600");
+          break;
+        case UART_115200:
+          ESP_LOGD(TAG, "uart_baud: 115200");
+          break;
+      }
     }
     // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
     if (i == 6) {
