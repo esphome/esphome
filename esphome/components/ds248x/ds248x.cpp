@@ -352,7 +352,7 @@ uint8_t DS248xComponent::read_config_() {
 void DS248xComponent::write_config_(uint8_t cfg) {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_WRITECONFIG;
-  cmd[1] = cfg | ((~cfg) << 4);
+  cmd[1] = cfg | ((~cfg) << 4); // NOLINT
   this->write(cmd.data(), sizeof(cmd));
 }
 
@@ -372,14 +372,14 @@ uint8_t DS248xComponent::wait_while_busy_() {
 }
 
 void DS248xComponent::reset_hub_() {
-  if (this->sleep_pin_) {
+  if (this->sleep_pin_ != nullptr) {
     this->sleep_pin_->digital_write(true);
   }
 
   uint8_t cmd = DS248X_COMMAND_RESET;
-  auto result = this->write(&cmd, sizeof(cmd));
+  this->write(&cmd, sizeof(cmd));
 
-  if (this->enable_active_pullup_) {
+  if (this->enable_active_pullup_ == true) {
     this->DS248xComponent::write_config_(DS248X_CONFIG_ACTIVE_PULLUP);
   }
 
