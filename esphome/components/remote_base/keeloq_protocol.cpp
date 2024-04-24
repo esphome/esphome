@@ -1,6 +1,8 @@
 #include "keeloq_protocol.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace remote_base {
 
@@ -34,7 +36,8 @@ transmitter and nutton command is decoded.
 void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
   uint32_t out_data = 0x0;
 
-  ESP_LOGD(TAG, "Send Keeloq: address=%07x command=%03x encrypted=%08x", data.address, data.command, data.encrypted);
+  ESP_LOGD(TAG, "Send Keeloq: address=%07" PRIx32 " command=%03x encrypted=%08" PRIx32, data.address, data.command,
+           data.encrypted);
   ESP_LOGV(TAG, "Send Keeloq: data bits (%d + %d)", NBITS_ENCRYPTED_DATA, NBITS_FIXED_DATA);
 
   // Preamble = '01' x 12
@@ -181,7 +184,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
 }
 
 void KeeloqProtocol::dump(const KeeloqData &data) {
-  ESP_LOGD(TAG, "Received Keeloq: address=0x%08X, command=0x%02x", data.address, data.command);
+  ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x", data.address, data.command);
 }
 
 }  // namespace remote_base

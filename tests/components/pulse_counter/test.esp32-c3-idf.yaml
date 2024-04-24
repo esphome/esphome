@@ -1,0 +1,9 @@
+sensor:
+  - platform: pulse_counter
+    name: Pulse Counter
+    pin: 4
+    count_mode:
+      rising_edge: INCREMENT
+      falling_edge: DECREMENT
+    internal_filter: 13us
+    update_interval: 15s
