@@ -449,9 +449,21 @@ class MetadataValidationStep(ConfigValidationStep):
 
         success = True
         for dependency in self.comp.dependencies:
-            if dependency not in result:
+            dependency_parts = dependency.split(".")
+            component_dep = dependency_parts[-1]
+            platform_dep = dependency_parts[0]
+            if component_dep not in result:
                 result.add_str_error(
-                    f"Component {self.domain} requires component {dependency}",
+                    f"Component {self.domain} requires component {component_dep}",
+                    self.path,
+                )
+                success = False
+            elif (
+                component_dep != platform_dep
+                and platform_dep not in result[component_dep]
+            ):
+                result.add_str_error(
+                    f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
                     self.path,
                 )
                 success = False
