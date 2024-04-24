@@ -73,8 +73,8 @@ async def setup_text_core_(
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
 

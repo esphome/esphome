@@ -1,0 +1,16 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+  idf_send_async: false
+  log_topic:
+  on_message:
+    topic: testing/sensor/testing_sensor/state
+    qos: 0
+    then:
+      - logger.log: Mqtt Test

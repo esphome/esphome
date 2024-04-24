@@ -1,0 +1,36 @@
+esphome:
+  on_boot:
+    then:
+      - lock.lock: test_lock1
+      - lock.unlock: test_lock1
+      - lock.open: test_lock1
+
+output:
+  - platform: gpio
+    id: test_binary
+    pin: 4
+
+lock:
+  - platform: template
+    id: test_lock1
+    name: Template Lock
+    lambda: |-
+      if (millis() > 10000) {
+        return LOCK_STATE_LOCKED;
+      } else {
+        return LOCK_STATE_UNLOCKED;
+      }
+    optimistic: true
+    assumed_state: false
+    on_unlock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return LOCK_STATE_UNLOCKED;"
+    on_lock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return LOCK_STATE_LOCKED;"
+  - platform: output
+    name: Generic Output Lock
+    id: test_lock2
+    output: test_binary
