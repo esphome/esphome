@@ -1,0 +1,24 @@
+i2c:
+  - id: i2c_ssd1327_i2c
+    scl: 5
+    sda: 4
+
+display:
+  - platform: ssd1327_i2c
+    model: SSD1327_128x128
+    reset_pin: 3
+    address: 0x3C
+    id: display1
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: page2
+        lambda: |-
+          it.rectangle(0, 0, 10, 10);
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
