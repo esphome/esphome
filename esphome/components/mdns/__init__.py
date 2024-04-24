@@ -86,10 +86,10 @@ async def to_code(config):
         5, 0, 0
     ):
         add_idf_component(
-            "mdns",
-            "https://github.com/espressif/esp-protocols.git",
-            "mdns-v1.0.9",
-            "components/mdns",
+            name="mdns",
+            repo="https://github.com/espressif/esp-protocols.git",
+            ref="mdns-v1.2.5",
+            path="components/mdns",
         )
 
     if config[CONF_DISABLED]:

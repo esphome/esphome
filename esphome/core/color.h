@@ -57,26 +57,12 @@ struct Color {
   inline bool operator!=(uint32_t colorcode) {  // NOLINT
     return this->raw_32 != colorcode;
   }
-
-  inline Color &operator=(const Color &rhs) ALWAYS_INLINE {  // NOLINT
-    this->r = rhs.r;
-    this->g = rhs.g;
-    this->b = rhs.b;
-    this->w = rhs.w;
-    return *this;
-  }
-  inline Color &operator=(uint32_t colorcode) ALWAYS_INLINE {
-    this->w = (colorcode >> 24) & 0xFF;
-    this->r = (colorcode >> 16) & 0xFF;
-    this->g = (colorcode >> 8) & 0xFF;
-    this->b = (colorcode >> 0) & 0xFF;
-    return *this;
-  }
   inline uint8_t &operator[](uint8_t x) ALWAYS_INLINE { return this->raw[x]; }
   inline Color operator*(uint8_t scale) const ALWAYS_INLINE {
     return Color(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
                  esp_scale8(this->white, scale));
   }
+  inline Color operator~() const ALWAYS_INLINE { return Color(255 - this->red, 255 - this->green, 255 - this->blue); }
   inline Color &operator*=(uint8_t scale) ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale);
     this->green = esp_scale8(this->green, scale);

@@ -11,6 +11,8 @@ static const uint8_t SM10BIT_ADDR_START_3CH = 0x8;
 static const uint8_t SM10BIT_ADDR_START_2CH = 0x10;
 static const uint8_t SM10BIT_ADDR_START_5CH = 0x18;
 
+static const uint8_t SM10BIT_DELAY = 2;
+
 // Power current values
 // HEX | Binary | RGB level | White level | Config value
 // 0x0 | 0000   | RGB 10mA  | CW 5mA      | 0
@@ -37,10 +39,13 @@ void Sm10BitBase::loop() {
   uint8_t data[12];
   if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
       this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
-    // Off / Sleep
-    data[0] = this->model_id_ + SM10BIT_ADDR_STANDBY;
     for (int i = 1; i < 12; i++)
       data[i] = 0;
+    // First turn all channels off
+    data[0] = this->model_id_ + SM10BIT_ADDR_START_5CH;
+    this->write_buffer_(data, 12);
+    // Then sleep
+    data[0] = this->model_id_ + SM10BIT_ADDR_STANDBY;
     this->write_buffer_(data, 12);
   } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
              (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
@@ -84,28 +89,42 @@ void Sm10BitBase::set_channel_value_(uint8_t channel, uint16_t value) {
   this->pwm_amounts_[channel] = value;
 }
 void Sm10BitBase::write_bit_(bool value) {
-  this->clock_pin_->digital_write(false);
   this->data_pin_->digital_write(value);
+  delayMicroseconds(SM10BIT_DELAY);
   this->clock_pin_->digital_write(true);
+  delayMicroseconds(SM10BIT_DELAY);
+  this->clock_pin_->digital_write(false);
+  delayMicroseconds(SM10BIT_DELAY);
 }
 
 void Sm10BitBase::write_byte_(uint8_t data) {
   for (uint8_t mask = 0x80; mask; mask >>= 1) {
     this->write_bit_(data & mask);
   }
-  this->clock_pin_->digital_write(false);
-  this->data_pin_->digital_write(true);
+
+  // ack bit
+  this->data_pin_->pin_mode(gpio::FLAG_INPUT);
   this->clock_pin_->digital_write(true);
+  delayMicroseconds(SM10BIT_DELAY);
+  this->clock_pin_->digital_write(false);
+  delayMicroseconds(SM10BIT_DELAY);
+  this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }
 
 void Sm10BitBase::write_buffer_(uint8_t *buffer, uint8_t size) {
   this->data_pin_->digital_write(false);
+  delayMicroseconds(SM10BIT_DELAY);
+  this->clock_pin_->digital_write(false);
+  delayMicroseconds(SM10BIT_DELAY);
+
   for (uint32_t i = 0; i < size; i++) {
     this->write_byte_(buffer[i]);
   }
-  this->clock_pin_->digital_write(false);
+
   this->clock_pin_->digital_write(true);
+  delayMicroseconds(SM10BIT_DELAY);
   this->data_pin_->digital_write(true);
+  delayMicroseconds(SM10BIT_DELAY);
 }
 
 }  // namespace sm10bit_base

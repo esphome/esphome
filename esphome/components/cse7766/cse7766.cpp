@@ -1,5 +1,8 @@
 #include "cse7766.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
+#include <iomanip>
+#include <sstream>
 
 namespace esphome {
 namespace cse7766 {
@@ -67,20 +70,26 @@ bool CSE7766Component::check_byte_() {
   return true;
 }
 void CSE7766Component::parse_data_() {
-  ESP_LOGVV(TAG, "CSE7766 Data: ");
-  for (uint8_t i = 0; i < 23; i++) {
-    ESP_LOGVV(TAG, "  %u: 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", i + 1, BYTE_TO_BINARY(this->raw_data_[i]),
-              this->raw_data_[i]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  {
+    std::stringstream ss;
+    ss << "Raw data:" << std::hex << std::uppercase << std::setfill('0');
+    for (uint8_t i = 0; i < 23; i++) {
+      ss << ' ' << std::setw(2) << static_cast<unsigned>(this->raw_data_[i]);
+    }
+    ESP_LOGVV(TAG, "%s", ss.str().c_str());
   }
+#endif
 
+  // Parse header
   uint8_t header1 = this->raw_data_[0];
+
   if (header1 == 0xAA) {
     ESP_LOGE(TAG, "CSE7766 not calibrated!");
     return;
   }
 
   bool power_cycle_exceeds_range = false;
-
   if ((header1 & 0xF0) == 0xF0) {
     if (header1 & 0xD) {
       ESP_LOGE(TAG, "CSE7766 reports abnormal external circuit or chip damage: (0x%02X)", header1);
@@ -93,98 +102,122 @@ void CSE7766Component::parse_data_() {
       if (header1 & (1 << 0)) {
         ESP_LOGE(TAG, "  Coefficient storage area is abnormal.");
       }
+
+      // Datasheet: voltage or current cycle exceeding range means invalid values
       return;
     }
 
     power_cycle_exceeds_range = header1 & (1 << 1);
   }
 
-  uint32_t voltage_calib = this->get_24_bit_uint_(2);
+  // Parse data frame
+  uint32_t voltage_coeff = this->get_24_bit_uint_(2);
   uint32_t voltage_cycle = this->get_24_bit_uint_(5);
-  uint32_t current_calib = this->get_24_bit_uint_(8);
+  uint32_t current_coeff = this->get_24_bit_uint_(8);
   uint32_t current_cycle = this->get_24_bit_uint_(11);
-  uint32_t power_calib = this->get_24_bit_uint_(14);
+  uint32_t power_coeff = this->get_24_bit_uint_(14);
   uint32_t power_cycle = this->get_24_bit_uint_(17);
-
   uint8_t adj = this->raw_data_[20];
-  uint32_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
-
-  bool have_voltage = adj & 0x40;
-  if (have_voltage) {
-    // voltage cycle of serial port outputted is a complete cycle;
-    this->voltage_acc_ += voltage_calib / float(voltage_cycle);
-    this->voltage_counts_ += 1;
-  }
+  uint16_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
 
   bool have_power = adj & 0x10;
-  float power = 0.0f;
+  bool have_current = adj & 0x20;
+  bool have_voltage = adj & 0x40;
 
-  if (have_power) {
-    // power cycle of serial port outputted is a complete cycle;
-    // According to the user manual, power cycle exceeding range means the measured power is 0
-    if (!power_cycle_exceeds_range) {
-      power = power_calib / float(power_cycle);
+  float voltage = 0.0f;
+  if (have_voltage) {
+    voltage = voltage_coeff / float(voltage_cycle);
+    if (this->voltage_sensor_ != nullptr) {
+      this->voltage_sensor_->publish_state(voltage);
     }
-    this->power_acc_ += power;
-    this->power_counts_ += 1;
+  }
 
-    uint32_t difference;
-    if (this->cf_pulses_last_ == 0) {
+  float energy = 0.0;
+  if (this->energy_sensor_ != nullptr) {
+    if (this->cf_pulses_last_ == 0 && !this->energy_sensor_->has_state()) {
       this->cf_pulses_last_ = cf_pulses;
     }
-
-    if (cf_pulses < this->cf_pulses_last_) {
-      difference = cf_pulses + (0x10000 - this->cf_pulses_last_);
-    } else {
-      difference = cf_pulses - this->cf_pulses_last_;
-    }
+    uint16_t cf_diff = cf_pulses - this->cf_pulses_last_;
+    this->cf_pulses_total_ += cf_diff;
     this->cf_pulses_last_ = cf_pulses;
-    this->energy_total_ += difference * float(power_calib) / 1000000.0f / 3600.0f;
-    this->energy_total_counts_ += 1;
+    energy = this->cf_pulses_total_ * float(power_coeff) / 1000000.0f / 3600.0f;
+    this->energy_sensor_->publish_state(energy);
   }
 
-  if (adj & 0x20) {
-    // indicates current cycle of serial port outputted is a complete cycle;
-    float current = 0.0f;
-    if (have_voltage && !have_power) {
-      // Testing has shown that when we have voltage and current but not power, that means the power is 0.
-      // We report a power of 0, which in turn means we should report a current of 0.
-      this->power_counts_ += 1;
-    } else if (power != 0.0f) {
-      current = current_calib / float(current_cycle);
+  float power = 0.0f;
+  if (power_cycle_exceeds_range) {
+    // Datasheet: power cycle exceeding range means active power is 0
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(0.0f);
     }
-    this->current_acc_ += current;
-    this->current_counts_ += 1;
+  } else if (have_power) {
+    power = power_coeff / float(power_cycle);
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(power);
+    }
   }
-}
-void CSE7766Component::update() {
-  const auto publish_state = [](const char *name, sensor::Sensor *sensor, float &acc, uint32_t &counts) {
-    if (counts != 0) {
-      const auto avg = acc / counts;
 
-      ESP_LOGV(TAG, "Got %s_acc=%.2f %s_counts=%d %s=%.1f", name, acc, name, counts, name, avg);
+  float current = 0.0f;
+  float calculated_current = 0.0f;
+  if (have_current) {
+    // Assumption: if we don't have power measurement, then current is likely below 50mA
+    if (have_power && voltage > 1.0f) {
+      calculated_current = power / voltage;
+    }
+    // Datasheet: minimum measured current is 50mA
+    if (calculated_current > 0.05f) {
+      current = current_coeff / float(current_cycle);
+    }
+    if (this->current_sensor_ != nullptr) {
+      this->current_sensor_->publish_state(current);
+    }
+  }
 
-      if (sensor != nullptr) {
-        sensor->publish_state(avg);
+  if (have_voltage && have_current) {
+    const float apparent_power = voltage * current;
+    if (this->apparent_power_sensor_ != nullptr) {
+      this->apparent_power_sensor_->publish_state(apparent_power);
+    }
+    if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
+      float pf = NAN;
+      if (apparent_power > 0) {
+        pf = power / apparent_power;
+        if (pf < 0 || pf > 1) {
+          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
+          pf = NAN;
+        }
+      } else if (apparent_power == 0 && power == 0) {
+        // No load, report ideal power factor
+        pf = 1.0f;
+      } else if (current == 0 && calculated_current <= 0.05f) {
+        // Datasheet: minimum measured current is 50mA
+        ESP_LOGV(TAG, "Can't calculate power factor (current below minimum for CSE7766)");
+      } else {
+        ESP_LOGW(TAG, "Can't calculate power factor from P = %.4f W, S = %.4f VA", power, apparent_power);
       }
-
-      acc = 0.0f;
-      counts = 0;
+      this->power_factor_sensor_->publish_state(pf);
     }
-  };
-
-  publish_state("voltage", this->voltage_sensor_, this->voltage_acc_, this->voltage_counts_);
-  publish_state("current", this->current_sensor_, this->current_acc_, this->current_counts_);
-  publish_state("power", this->power_sensor_, this->power_acc_, this->power_counts_);
-
-  if (this->energy_total_counts_ != 0) {
-    ESP_LOGV(TAG, "Got energy_total=%.2f energy_total_counts=%d", this->energy_total_, this->energy_total_counts_);
-
-    if (this->energy_sensor_ != nullptr) {
-      this->energy_sensor_->publish_state(this->energy_total_);
-    }
-    this->energy_total_counts_ = 0;
   }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  {
+    std::stringstream ss;
+    ss << "Parsed:";
+    if (have_voltage) {
+      ss << " V=" << voltage << "V";
+    }
+    if (have_current) {
+      ss << " I=" << current * 1000.0f << "mA (~" << calculated_current * 1000.0f << "mA)";
+    }
+    if (have_power) {
+      ss << " P=" << power << "W";
+    }
+    if (energy != 0.0f) {
+      ss << " E=" << energy << "kWh (" << cf_pulses << ")";
+    }
+    ESP_LOGVV(TAG, "%s", ss.str().c_str());
+  }
+#endif
 }
 
 uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
@@ -194,11 +227,12 @@ uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
 
 void CSE7766Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CSE7766:");
-  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Energy", this->energy_sensor_);
+  LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
+  LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
   this->check_uart_settings(4800);
 }
 

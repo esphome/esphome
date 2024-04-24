@@ -1,7 +1,7 @@
 import pytest
 
 from hypothesis import given
-from hypothesis.provisional import ip_addresses
+from hypothesis.strategies import ip_addresses
 
 from esphome import helpers
 
@@ -108,6 +108,10 @@ def test_is_ip_address__valid(value):
         ("FOO", None, False, False),
         ("FOO", None, True, True),
         ("FOO", "", False, False),
+        ("FOO", "False", False, False),
+        ("FOO", "True", False, True),
+        ("FOO", "FALSE", True, False),
+        ("FOO", "fAlSe", True, False),
         ("FOO", "Yes", False, True),
         ("FOO", "123", False, True),
     ),
@@ -254,9 +258,10 @@ def test_snake_case(text, expected):
     "text, expected",
     (
         ("foo_bar", "foo_bar"),
-        ('!"§$%&/()=?foo_bar', "foo_bar"),
-        ('foo_!"§$%&/()=?bar', "foo_bar"),
-        ('foo_bar!"§$%&/()=?', "foo_bar"),
+        ('!"§$%&/()=?foo_bar', "___________foo_bar"),
+        ('foo_!"§$%&/()=?bar', "foo____________bar"),
+        ('foo_bar!"§$%&/()=?', "foo_bar___________"),
+        ('foo-bar!"§$%&/()=?', "foo-bar___________"),
     ),
 )
 def test_sanitize(text, expected):

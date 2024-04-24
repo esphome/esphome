@@ -1,5 +1,3 @@
-#ifdef USE_ARDUINO
-
 #include "captive_portal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -14,7 +12,7 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("application/json");
   stream->addHeader("cache-control", "public, max-age=0, must-revalidate");
-  stream->printf(R"({"name":"%s","aps":[{})", App.get_name().c_str());
+  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", get_mac_address_pretty().c_str(), App.get_name().c_str());
 
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
     if (scan.get_is_hidden())
@@ -46,10 +44,12 @@ void CaptivePortal::start() {
     this->base_->add_ota_handler();
   }
 
+#ifdef USE_ARDUINO
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-  this->dns_server_->start(53, "*", (uint32_t) ip);
+  this->dns_server_->start(53, "*", ip);
+#endif
 
   this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *req) {
     if (!this->active_ || req->host().c_str() == wifi::global_wifi_component->wifi_soft_ap_ip().str()) {
@@ -67,7 +67,7 @@ void CaptivePortal::start() {
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   if (req->url() == "/") {
-    AsyncWebServerResponse *response = req->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+    auto *response = req->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
     response->addHeader("Content-Encoding", "gzip");
     req->send(response);
     return;
@@ -91,5 +91,3 @@ CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avo
 
 }  // namespace captive_portal
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

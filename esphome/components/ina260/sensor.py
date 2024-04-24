@@ -16,7 +16,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
-CODEOWNERS = ["@MrEditor97"]
+CODEOWNERS = ["@mreditor97"]
 
 ina260_ns = cg.esphome_ns.namespace("ina260")
 INA260Component = ina260_ns.class_(

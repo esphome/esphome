@@ -33,7 +33,6 @@ SSD1322_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 
 
 async def setup_ssd1322(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
@@ -46,6 +45,6 @@ async def setup_ssd1322(var, config):
         cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

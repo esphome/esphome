@@ -45,8 +45,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)
-    if CONF_TIME_ID in config:
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
+    if time_id := config.get(CONF_TIME_ID):
+        time_ = await cg.get_variable(time_id)
         cg.add(var.set_time_id(time_))
-    if CONF_RECEIVE_TIMEOUT in config:
-        cg.add(var.set_status_timeout(config[CONF_RECEIVE_TIMEOUT]))
+    if (receive_timeout := config.get(CONF_RECEIVE_TIMEOUT)) is not None:
+        cg.add(var.set_status_timeout(receive_timeout))

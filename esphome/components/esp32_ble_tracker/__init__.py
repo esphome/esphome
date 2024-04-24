@@ -1,23 +1,26 @@
 import re
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.components import esp32_ble
+from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.const import (
     CONF_ACTIVE,
+    CONF_DURATION,
     CONF_ID,
     CONF_INTERVAL,
-    CONF_DURATION,
-    CONF_TRIGGER_ID,
     CONF_MAC_ADDRESS,
-    CONF_SERVICE_UUID,
     CONF_MANUFACTURER_ID,
     CONF_ON_BLE_ADVERTISE,
-    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
+    CONF_SERVICE_UUID,
+    CONF_TRIGGER_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
 )
-from esphome.components import esp32_ble
 from esphome.core import CORE
-from esphome.components.esp32 import add_idf_sdkconfig_option
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
@@ -212,6 +215,7 @@ async def to_code(config):
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
     cg.add(parent.register_gap_event_handler(var))
     cg.add(parent.register_gattc_event_handler(var))
+    cg.add(parent.register_ble_status_event_handler(var))
     cg.add(var.set_parent(parent))
 
     params = config[CONF_SCAN_PARAMETERS]
@@ -262,7 +266,11 @@ async def to_code(config):
         # https://github.com/espressif/esp-idf/issues/2503
         # Match arduino CONFIG_BTU_TASK_STACK_SIZE
         # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
-        add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(4, 4, 6):
+            add_idf_sdkconfig_option("CONFIG_BT_BTU_TASK_STACK_SIZE", 8192)
+        else:
+            add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
+        add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")

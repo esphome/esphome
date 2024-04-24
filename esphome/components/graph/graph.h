@@ -8,9 +8,9 @@
 
 namespace esphome {
 
-// forward declare DisplayBuffer
+// forward declare Display
 namespace display {
-class DisplayBuffer;
+class Display;
 class BaseFont;
 }  // namespace display
 
@@ -116,6 +116,8 @@ class GraphTrace {
   void set_line_type(enum LineType val) { this->line_type_ = val; }
   Color get_line_color() { return this->line_color_; }
   void set_line_color(Color val) { this->line_color_ = val; }
+  bool get_continuous() { return this->continuous_; }
+  void set_continuous(bool continuous) { this->continuous_ = continuous; }
   std::string get_name() { return name_; }
   const HistoryData *get_tracedata() { return &data_; }
 
@@ -125,6 +127,7 @@ class GraphTrace {
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};
+  bool continuous_{false};
   HistoryData data_;
 
   friend Graph;
@@ -133,8 +136,8 @@ class GraphTrace {
 
 class Graph : public Component {
  public:
-  void draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
-  void draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+  void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+  void draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
 
   void setup() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }

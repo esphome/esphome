@@ -1,0 +1,33 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+text:
+  - platform: template
+    name: "test 1 text"
+    id: "it_1"
+    optimistic: true
+    mode: text
+
+  - platform: template
+    name: "test 2 text"
+    id: "it_2"
+    icon: "mdi:text"
+    optimistic: true
+    min_length: 5
+    max_length: 255
+    internal: false
+    initial_value: "Welcome ESPHOME"
+    restore_value: true
+    mode: text
+
+  - platform: template
+    name: "test 3 key"
+    id: "it_3"
+    icon: "mdi:text"
+    mode: "password"
+    optimistic: true
+    internal: true
+    max_length: 255

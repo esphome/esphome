@@ -1,6 +1,8 @@
 #include "sen5x.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sen5x {
@@ -134,21 +136,24 @@ void SEN5XComponent::setup() {
       ESP_LOGD(TAG, "Firmware version %d", this->firmware_version_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        // Hash with compilation time
+        uint32_t combined_serial =
+            encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
+        // Hash with compilation time and serial number
         // This ensures the baseline storage is cleared after OTA
-        uint32_t hash = fnv1_hash(App.get_compilation_time());
+        // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
+        uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(combined_serial));
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
-          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04X, state1: 0x%04X", this->voc_baselines_storage_.state0,
-                   voc_baselines_storage_.state1);
+          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                   this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
         }
 
         // Initialize storage timestamp
         this->seconds_since_last_store_ = 0;
 
         if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04X, state1: 0x%04X",
+          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
                    this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
           uint16_t states[4];
 
@@ -196,13 +201,19 @@ void SEN5XComponent::setup() {
           ESP_LOGE(TAG, "Failed to read RHT Acceleration mode");
         }
       }
-      if (this->voc_tuning_params_.has_value())
+      if (this->voc_tuning_params_.has_value()) {
         this->write_tuning_parameters_(SEN5X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
-      if (this->nox_tuning_params_.has_value())
+        delay(20);
+      }
+      if (this->nox_tuning_params_.has_value()) {
         this->write_tuning_parameters_(SEN5X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
+        delay(20);
+      }
 
-      if (this->temperature_compensation_.has_value())
+      if (this->temperature_compensation_.has_value()) {
         this->write_temperature_compensation_(this->temperature_compensation_.value());
+        delay(20);
+      }
 
       // Finally start sensor measurements
       auto cmd = SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY;
@@ -252,7 +263,7 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware version: %d", this->firmware_version_);
   ESP_LOGCONFIG(TAG, "  Serial number %02d.%02d.%02d", serial_number_[0], serial_number_[1], serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Auto cleaning interval %d seconds", auto_cleaning_interval_.value());
+    ESP_LOGCONFIG(TAG, "  Auto cleaning interval %" PRId32 " seconds", auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
     switch (this->acceleration_mode_.value()) {
@@ -302,8 +313,8 @@ void SEN5XComponent::update() {
             this->voc_baselines_storage_.state1 = state1;
 
             if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04X ,state1: 0x%04X", this->voc_baselines_storage_.state0,
-                       voc_baselines_storage_.state1);
+              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
+                       this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
             } else {
               ESP_LOGW(TAG, "Could not store VOC baselines");
             }
@@ -341,7 +352,7 @@ void SEN5XComponent::update() {
     float humidity = measurements[4] / 100.0;
     if (measurements[4] == 0xFFFF)
       humidity = NAN;
-    float temperature = measurements[5] / 200.0;
+    float temperature = (int16_t) measurements[5] / 200.0;
     if (measurements[5] == 0xFFFF)
       temperature = NAN;
     float voc = measurements[6] / 10.0;

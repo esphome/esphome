@@ -13,8 +13,10 @@ void PVVXDisplay::dump_config() {
   ESP_LOGCONFIG(TAG, "  Service UUID          : %s", this->service_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Characteristic UUID   : %s", this->char_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Auto clear            : %s", YESNO(this->auto_clear_enabled_));
+#ifdef USE_TIME
   ESP_LOGCONFIG(TAG, "  Set time on connection: %s", YESNO(this->time_ != nullptr));
-  ESP_LOGCONFIG(TAG, "  Disconnect delay      : %dms", this->disconnect_delay_ms_);
+#endif
+  ESP_LOGCONFIG(TAG, "  Disconnect delay      : %" PRIu32 "ms", this->disconnect_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -139,7 +141,11 @@ void PVVXDisplay::sync_time_() {
   }
   time.recalc_timestamp_utc(true);  // calculate timestamp of local time
   uint8_t blk[5] = {};
+#if ESP_IDF_VERSION_MAJOR >= 5
+  ESP_LOGD(TAG, "[%s] Sync time with timestamp %" PRIu64 ".", this->parent_->address_str().c_str(), time.timestamp);
+#else
   ESP_LOGD(TAG, "[%s] Sync time with timestamp %lu.", this->parent_->address_str().c_str(), time.timestamp);
+#endif
   blk[0] = 0x23;
   blk[1] = time.timestamp & 0xff;
   blk[2] = (time.timestamp >> 8) & 0xff;

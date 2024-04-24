@@ -1,5 +1,5 @@
 #include "graph.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -56,7 +56,7 @@ void GraphTrace::init(Graph *g) {
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
 }
 
-void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
+void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   /// Plot border
   if (this->border_) {
     buff->horizontal_line(x_offset, y_offset, this->width_, color);
@@ -165,17 +165,42 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   for (auto *trace : traces_) {
     Color c = trace->get_line_color();
     uint16_t thick = trace->get_line_thickness();
+    bool continuous = trace->get_continuous();
+    bool has_prev = false;
+    bool prev_b = false;
+    int16_t prev_y = 0;
     for (uint32_t i = 0; i < this->width_; i++) {
       float v = (trace->get_tracedata()->get_value(i) - ymin) / yrange;
       if (!std::isnan(v) && (thick > 0)) {
-        int16_t x = this->width_ - 1 - i;
-        uint8_t b = (i % (thick * LineType::PATTERN_LENGTH)) / thick;
-        if (((uint8_t) trace->get_line_type() & (1 << b)) == (1 << b)) {
-          int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2;
-          for (uint16_t t = 0; t < thick; t++) {
-            buff->draw_pixel_at(x_offset + x, y_offset + y + t, c);
+        int16_t x = this->width_ - 1 - i + x_offset;
+        uint8_t bit = 1 << ((i % (thick * LineType::PATTERN_LENGTH)) / thick);
+        bool b = (trace->get_line_type() & bit) == bit;
+        if (b) {
+          int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
+          if (!continuous || !has_prev || !prev_b || (abs(y - prev_y) <= thick)) {
+            for (uint16_t t = 0; t < thick; t++) {
+              buff->draw_pixel_at(x, y + t, c);
+            }
+          } else {
+            int16_t mid_y = (y + prev_y + thick) / 2;
+            if (y > prev_y) {
+              for (uint16_t t = prev_y + thick; t <= mid_y; t++)
+                buff->draw_pixel_at(x + 1, t, c);
+              for (uint16_t t = mid_y + 1; t < y + thick; t++)
+                buff->draw_pixel_at(x, t, c);
+            } else {
+              for (uint16_t t = prev_y - 1; t >= mid_y; t--)
+                buff->draw_pixel_at(x + 1, t, c);
+              for (uint16_t t = mid_y - 1; t >= y; t--)
+                buff->draw_pixel_at(x, t, c);
+            }
           }
+          prev_y = y;
         }
+        prev_b = b;
+        has_prev = true;
+      } else {
+        has_prev = false;
       }
     }
   }
@@ -303,7 +328,7 @@ void GraphLegend::init(Graph *g) {
   }
 }
 
-void Graph::draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
+void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   if (!legend_)
     return;
 

@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 #include "esphome/core/defines.h"
@@ -43,14 +41,29 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  bool on_date(datetime::DateEntity *date) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  bool on_time(datetime::TimeEntity *time) override;
+#endif
+#ifdef USE_TEXT
+  bool on_text(text::Text *text) override;
+#endif
 #ifdef USE_SELECT
   bool on_select(select::Select *select) override;
 #endif
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
+#ifdef USE_VALVE
+  bool on_valve(valve::Valve *valve) override;
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
+#endif
+#ifdef USE_EVENT
+  bool on_event(event::Event *event) override;
 #endif
 
  protected:
@@ -59,5 +72,3 @@ class ListEntitiesIterator : public ComponentIterator {
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

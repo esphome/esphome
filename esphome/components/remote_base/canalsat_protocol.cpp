@@ -96,10 +96,10 @@ optional<CanalSatData> CanalSatBaseProtocol::decode(RemoteReceiveData src) {
 
 void CanalSatBaseProtocol::dump(const CanalSatData &data) {
   if (this->tag_ == CANALSATLD_TAG) {
-    ESP_LOGD(this->tag_, "Received CanalSatLD: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
+    ESP_LOGI(this->tag_, "Received CanalSatLD: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
              data.address, data.command, data.repeat);
   } else {
-    ESP_LOGD(this->tag_, "Received CanalSat: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
+    ESP_LOGI(this->tag_, "Received CanalSat: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
              data.address, data.command, data.repeat);
   }
 }

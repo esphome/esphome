@@ -2,14 +2,17 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import (
+    CONF_CAPACITANCE,
+    CONF_DIV_RATIO,
     CONF_INDOOR,
-    CONF_WATCHDOG_THRESHOLD,
-    CONF_NOISE_LEVEL,
-    CONF_SPIKE_REJECTION,
+    CONF_IRQ_PIN,
     CONF_LIGHTNING_THRESHOLD,
     CONF_MASK_DISTURBER,
-    CONF_DIV_RATIO,
-    CONF_CAPACITANCE,
+    CONF_CALIBRATION,
+    CONF_TUNE_ANTENNA,
+    CONF_NOISE_LEVEL,
+    CONF_SPIKE_REJECTION,
+    CONF_WATCHDOG_THRESHOLD,
 )
 
 MULTI_CONF = True
@@ -19,7 +22,6 @@ CONF_AS3935_ID = "as3935_id"
 as3935_ns = cg.esphome_ns.namespace("as3935")
 AS3935 = as3935_ns.class_("AS3935Component", cg.Component)
 
-CONF_IRQ_PIN = "irq_pin"
 AS3935_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(AS3935),
@@ -34,6 +36,8 @@ AS3935_SCHEMA = cv.Schema(
         cv.Optional(CONF_MASK_DISTURBER, default=False): cv.boolean,
         cv.Optional(CONF_DIV_RATIO, default=0): cv.one_of(0, 16, 32, 64, 128, int=True),
         cv.Optional(CONF_CAPACITANCE, default=0): cv.int_range(min=0, max=15),
+        cv.Optional(CONF_TUNE_ANTENNA, default=False): cv.boolean,
+        cv.Optional(CONF_CALIBRATION, default=True): cv.boolean,
     }
 )
 
@@ -51,3 +55,5 @@ async def setup_as3935(var, config):
     cg.add(var.set_mask_disturber(config[CONF_MASK_DISTURBER]))
     cg.add(var.set_div_ratio(config[CONF_DIV_RATIO]))
     cg.add(var.set_capacitance(config[CONF_CAPACITANCE]))
+    cg.add(var.set_tune_antenna(config[CONF_TUNE_ANTENNA]))
+    cg.add(var.set_calibration(config[CONF_CALIBRATION]))

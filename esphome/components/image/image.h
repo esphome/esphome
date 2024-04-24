@@ -37,9 +37,10 @@ class Image : public display::BaseImage {
   Color get_pixel(int x, int y, Color color_on = display::COLOR_ON, Color color_off = display::COLOR_OFF) const;
   int get_width() const override;
   int get_height() const override;
+  const uint8_t *get_data_start() { return this->data_start_; }
   ImageType get_type() const;
 
-  void draw(int x, int y, display::DisplayBuffer *display, Color color_on, Color color_off) override;
+  void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
   void set_transparency(bool transparent) { transparent_ = transparent; }
   bool has_transparency() const { return transparent_; }

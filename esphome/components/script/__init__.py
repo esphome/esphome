@@ -33,6 +33,7 @@ SCRIPT_MODES = {
 
 PARAMETER_TYPE_TRANSLATIONS = {
     "string": "std::string",
+    "boolean": "bool",
 }
 
 
@@ -149,6 +150,16 @@ async def to_code(config):
     ),
 )
 async def script_execute_action_to_code(config, action_id, template_arg, args):
+    def convert(type: str):
+        def converter(value):
+            if type == "std::string":
+                return value
+            if type == "bool":
+                return cg.RawExpression(str(value).lower())
+            return cg.RawExpression(str(value))
+
+        return converter
+
     async def get_ordered_args(config, script_params):
         config_args = config.copy()
         config_args.pop(CONF_ID)
@@ -160,7 +171,9 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 raise EsphomeError(
                     f"Missing parameter: '{name}' in script.execute {config[CONF_ID]}"
                 )
-            arg = await cg.templatable(config_args[name], args, type)
+            arg = await cg.templatable(
+                config_args[name], args, type, convert(str(type))
+            )
             script_args.append(arg)
         return script_args
 

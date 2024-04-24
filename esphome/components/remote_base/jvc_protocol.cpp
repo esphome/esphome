@@ -46,7 +46,7 @@ optional<JVCData> JVCProtocol::decode(RemoteReceiveData src) {
   }
   return out;
 }
-void JVCProtocol::dump(const JVCData &data) { ESP_LOGD(TAG, "Received JVC: data=0x%04X", data.data); }
+void JVCProtocol::dump(const JVCData &data) { ESP_LOGI(TAG, "Received JVC: data=0x%04" PRIX32, data.data); }
 
 }  // namespace remote_base
 }  // namespace esphome

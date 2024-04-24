@@ -33,6 +33,7 @@ MODELS = {
     "SH1106_96X16": SSD1306Model.SH1106_MODEL_96_16,
     "SH1106_64X48": SSD1306Model.SH1106_MODEL_64_48,
     "SH1107_128X64": SSD1306Model.SH1107_MODEL_128_64,
+    "SH1107_128X128": SSD1306Model.SH1107_MODEL_128_128,
     "SSD1305_128X32": SSD1306Model.SSD1305_MODEL_128_32,
     "SSD1305_128X64": SSD1306Model.SSD1305_MODEL_128_64,
 }
@@ -63,15 +64,16 @@ SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
         cv.Optional(CONF_EXTERNAL_VCC): cv.boolean,
         cv.Optional(CONF_FLIP_X, default=True): cv.boolean,
         cv.Optional(CONF_FLIP_Y, default=True): cv.boolean,
-        cv.Optional(CONF_OFFSET_X, default=0): cv.int_range(min=-32, max=32),
-        cv.Optional(CONF_OFFSET_Y, default=0): cv.int_range(min=-32, max=32),
+        # Offsets determine shifts of memory location to LCD rows/columns,
+        # and this family of controllers supports up to 128x128 screens
+        cv.Optional(CONF_OFFSET_X, default=0): cv.int_range(min=0, max=128),
+        cv.Optional(CONF_OFFSET_Y, default=0): cv.int_range(min=0, max=128),
         cv.Optional(CONF_INVERT, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("1s"))
 
 
 async def setup_ssd1306(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
@@ -96,6 +98,6 @@ async def setup_ssd1306(var, config):
         cg.add(var.init_invert(config[CONF_INVERT]))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

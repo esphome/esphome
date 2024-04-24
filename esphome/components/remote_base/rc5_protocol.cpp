@@ -83,7 +83,7 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   return out;
 }
 void RC5Protocol::dump(const RC5Data &data) {
-  ESP_LOGD(TAG, "Received RC5: address=0x%02X, command=0x%02X", data.address, data.command);
+  ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
 }  // namespace remote_base

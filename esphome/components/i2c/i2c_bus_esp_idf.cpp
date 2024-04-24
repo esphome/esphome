@@ -1,12 +1,12 @@
 #ifdef USE_ESP_IDF
 
 #include "i2c_bus_esp_idf.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/application.h"
-#include <cstring>
 #include <cinttypes>
+#include <cstring>
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace i2c {
@@ -14,8 +14,20 @@ namespace i2c {
 static const char *const TAG = "i2c.idf";
 
 void IDFI2CBus::setup() {
-  static i2c_port_t next_port = 0;
-  port_ = next_port++;
+  ESP_LOGCONFIG(TAG, "Setting up I2C bus...");
+  static i2c_port_t next_port = I2C_NUM_0;
+  port_ = next_port;
+#if I2C_NUM_MAX > 1
+  next_port = (next_port == I2C_NUM_0) ? I2C_NUM_1 : I2C_NUM_MAX;
+#else
+  next_port = I2C_NUM_MAX;
+#endif
+
+  if (port_ == I2C_NUM_MAX) {
+    ESP_LOGE(TAG, "Too many I2C buses configured");
+    this->mark_failed();
+    return;
+  }
 
   recover_();
 
@@ -32,6 +44,20 @@ void IDFI2CBus::setup() {
     ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
+  }
+  if (timeout_ > 0) {  // if timeout specified in yaml:
+    if (timeout_ > 13000) {
+      ESP_LOGW(TAG, "i2c timeout of %" PRIu32 "us greater than max of 13ms on esp-idf, setting to max", timeout_);
+      timeout_ = 13000;
+    }
+    err = i2c_set_timeout(port_, timeout_ * 80);  // unit: APB 80MHz clock cycle
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "i2c_set_timeout failed: %s", esp_err_to_name(err));
+      this->mark_failed();
+      return;
+    } else {
+      ESP_LOGV(TAG, "i2c_timeout set to %d ticks (%d us)", timeout_ * 80, timeout_);
+    }
   }
   err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
   if (err != ESP_OK) {
@@ -50,6 +76,9 @@ void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %" PRIu32 " Hz", this->frequency_);
+  if (timeout_ > 0) {
+    ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
+  }
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -115,6 +144,8 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
     return ERROR_UNKNOWN;
   }
   err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
+  // i2c_master_cmd_begin() will block for a whole second if no ack:
+  // https://github.com/espressif/esp-idf/issues/4999
   i2c_cmd_link_delete(cmd);
   if (err == ESP_FAIL) {
     // transfer not acked
@@ -190,11 +221,13 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
       return ERROR_UNKNOWN;
     }
   }
-  err = i2c_master_stop(cmd);
-  if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "TX to %02X master stop failed: %s", address, esp_err_to_name(err));
-    i2c_cmd_link_delete(cmd);
-    return ERROR_UNKNOWN;
+  if (stop) {
+    err = i2c_master_stop(cmd);
+    if (err != ESP_OK) {
+      ESP_LOGVV(TAG, "TX to %02X master stop failed: %s", address, esp_err_to_name(err));
+      i2c_cmd_link_delete(cmd);
+      return ERROR_UNKNOWN;
+    }
   }
   err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
   i2c_cmd_link_delete(cmd);
