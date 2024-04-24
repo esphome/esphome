@@ -62,6 +62,7 @@ struct Color {
     return Color(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
                  esp_scale8(this->white, scale));
   }
+  inline Color operator~() const ALWAYS_INLINE { return Color(255 - this->red, 255 - this->green, 255 - this->blue); }
   inline Color &operator*=(uint8_t scale) ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale);
     this->green = esp_scale8(this->green, scale);

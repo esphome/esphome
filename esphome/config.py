@@ -333,10 +333,11 @@ class LoadValidationStep(ConfigValidationStep):
             if load not in result:
                 result.add_validation_step(AutoLoadValidationStep(load))
 
+        result.add_validation_step(
+            MetadataValidationStep([self.domain], self.domain, self.conf, component)
+        )
+
         if not component.is_platform_component:
-            result.add_validation_step(
-                MetadataValidationStep([self.domain], self.domain, self.conf, component)
-            )
             return
 
         # This is a platform component, proceed to reading platform entries
@@ -520,8 +521,6 @@ class SchemaValidationStep(ConfigValidationStep):
         self.comp = comp
 
     def run(self, result: Config) -> None:
-        if self.comp.config_schema is None:
-            return
         token = path_context.set(self.path)
         with result.catch_error(self.path):
             if self.comp.is_platform:
@@ -536,7 +535,7 @@ class SchemaValidationStep(ConfigValidationStep):
                 validated["platform"] = platform_val
                 validated.move_to_end("platform", last=False)
                 result.set_by_path(self.path, validated)
-            else:
+            elif self.comp.config_schema is not None:
                 schema = cv.Schema(self.comp.config_schema)
                 validated = schema(self.conf)
                 result.set_by_path(self.path, validated)

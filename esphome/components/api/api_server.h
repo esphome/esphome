@@ -81,6 +81,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;
 #endif
+#ifdef USE_VALVE
+  void on_valve_update(valve::Valve *obj) override;
+#endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
@@ -92,6 +95,9 @@ class APIServer : public Component, public Controller {
 
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+#endif
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
 #endif
 
   bool is_connected() const;
