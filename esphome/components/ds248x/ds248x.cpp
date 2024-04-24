@@ -69,7 +69,7 @@ void DS248xComponent::setup() {
 
   ESP_LOGCONFIG(TAG, "Setting up DS248x...");
 
-  if (this->sleep_pin_) {
+  if (this->sleep_pin_ != nullptr) {
     this->sleep_pin_->setup();
     this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
   }
