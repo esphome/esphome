@@ -72,10 +72,10 @@ SPI_MODE_OPTIONS = {
     "MODE1": SPIMode.MODE1,
     "MODE2": SPIMode.MODE2,
     "MODE3": SPIMode.MODE3,
-    0: SPIMode.MODE0,
-    1: SPIMode.MODE1,
-    2: SPIMode.MODE2,
-    3: SPIMode.MODE3,
+    "0": SPIMode.MODE0,
+    "1": SPIMode.MODE1,
+    "2": SPIMode.MODE2,
+    "3": SPIMode.MODE3,
 }
 
 ORDERS = {
