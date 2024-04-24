@@ -1,0 +1,16 @@
+i2c:
+  - id: i2c_tmp1075
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: tmp1075
+    name: Temperature TMP1075
+    conversion_rate: 27.5ms
+    alert:
+      limit_low: 50
+      limit_high: 75
+      fault_count: 1
+      polarity: active_high
+      function: comparator
+    update_interval: 10s

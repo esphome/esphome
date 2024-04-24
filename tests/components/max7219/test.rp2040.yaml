@@ -1,0 +1,12 @@
+spi:
+  - id: spi_max6675
+    clk_pin: 2
+    mosi_pin: 3
+    miso_pin: 4
+
+display:
+  - platform: max7219
+    cs_pin: 6
+    num_chips: 1
+    lambda: |-
+      it.print("01234567");
