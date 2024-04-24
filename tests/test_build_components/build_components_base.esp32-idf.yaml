@@ -18,3 +18,4 @@ packages:
       test_name: $test_name
       target_platform: $target_platform
       component_test_file: $component_test_file
+      component_dir: "../../components/$component_name"
