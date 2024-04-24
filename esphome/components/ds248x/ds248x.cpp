@@ -380,7 +380,7 @@ void DS248xComponent::reset_hub_() {
   auto result = this->write(&cmd, sizeof(cmd));
 
   if (this->enable_active_pullup_) {
-    this->write_config_(DS248X_CONFIG_ACTIVE_PULLUP);
+    this->DS248xComponent::write_config_(DS248X_CONFIG_ACTIVE_PULLUP);
   }
 
   last_device_found_ = false;
