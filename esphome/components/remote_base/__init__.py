@@ -881,6 +881,45 @@ async def pronto_action(var, config, args):
     cg.add(var.set_data(template_))
 
 
+# Roomba
+(
+    RoombaData,
+    RoombaBinarySensor,
+    RoombaTrigger,
+    RoombaAction,
+    RoombaDumper,
+) = declare_protocol("Roomba")
+ROOMBA_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint8_t})
+
+
+@register_binary_sensor("roomba", RoombaBinarySensor, ROOMBA_SCHEMA)
+def roomba_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RoombaData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("roomba", RoombaTrigger, RoombaData)
+def roomba_trigger(var, config):
+    pass
+
+
+@register_dumper("roomba", RoombaDumper)
+def roomba_dumper(var, config):
+    pass
+
+
+@register_action("roomba", RoombaAction, ROOMBA_SCHEMA)
+async def roomba_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint8)
+    cg.add(var.set_data(template_))
+
+
 # Sony
 SonyData, SonyBinarySensor, SonyTrigger, SonyAction, SonyDumper = declare_protocol(
     "Sony"
