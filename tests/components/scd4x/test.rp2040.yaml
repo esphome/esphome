@@ -1,0 +1,20 @@
+i2c:
+  - id: i2c_scd4x
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: scd4x
+    id: scd40
+    co2:
+      name: SCD4X CO2
+    temperature:
+      id: scd4x_temperature
+      name: SCD4X Temperature
+    humidity:
+      name: SCD4X Humidity
+    automatic_self_calibration: true
+    altitude_compensation: 10m
+    ambient_pressure_compensation: 961mBar
+    temperature_offset: 4.2C
+    update_interval: 15s
