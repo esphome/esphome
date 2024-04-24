@@ -915,6 +915,48 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_VALVE
+bool APIConnection::send_valve_state(valve::Valve *valve) {
+  if (!this->state_subscription_)
+    return false;
+
+  ValveStateResponse resp{};
+  resp.key = valve->get_object_id_hash();
+  resp.position = valve->position;
+  resp.current_operation = static_cast<enums::ValveOperation>(valve->current_operation);
+  return this->send_valve_state_response(resp);
+}
+bool APIConnection::send_valve_info(valve::Valve *valve) {
+  auto traits = valve->get_traits();
+  ListEntitiesValveResponse msg;
+  msg.key = valve->get_object_id_hash();
+  msg.object_id = valve->get_object_id();
+  if (valve->has_own_name())
+    msg.name = valve->get_name();
+  msg.unique_id = get_default_unique_id("valve", valve);
+  msg.icon = valve->get_icon();
+  msg.disabled_by_default = valve->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(valve->get_entity_category());
+  msg.device_class = valve->get_device_class();
+  msg.assumed_state = traits.get_is_assumed_state();
+  msg.supports_position = traits.get_supports_position();
+  msg.supports_stop = traits.get_supports_stop();
+  return this->send_list_entities_valve_response(msg);
+}
+void APIConnection::valve_command(const ValveCommandRequest &msg) {
+  valve::Valve *valve = App.get_valve_by_key(msg.key);
+  if (valve == nullptr)
+    return;
+
+  auto call = valve->make_call();
+  if (msg.has_position)
+    call.set_position(msg.position);
+  if (msg.stop)
+    call.set_command_stop();
+  call.perform();
+}
+#endif
+
 #ifdef USE_MEDIA_PLAYER
 bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_player) {
   if (!this->state_subscription_)
@@ -1164,6 +1206,30 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
   }
   call.set_code(msg.code);
   call.perform();
+}
+#endif
+
+#ifdef USE_EVENT
+bool APIConnection::send_event(event::Event *event, std::string event_type) {
+  EventResponse resp{};
+  resp.key = event->get_object_id_hash();
+  resp.event_type = std::move(event_type);
+  return this->send_event_response(resp);
+}
+bool APIConnection::send_event_info(event::Event *event) {
+  ListEntitiesEventResponse msg;
+  msg.key = event->get_object_id_hash();
+  msg.object_id = event->get_object_id();
+  if (event->has_own_name())
+    msg.name = event->get_name();
+  msg.unique_id = get_default_unique_id("event", event);
+  msg.icon = event->get_icon();
+  msg.disabled_by_default = event->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(event->get_entity_category());
+  msg.device_class = event->get_device_class();
+  for (const auto &event_type : event->get_event_types())
+    msg.event_types.push_back(event_type);
+  return this->send_list_entities_event_response(msg);
 }
 #endif
 

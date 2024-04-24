@@ -389,6 +389,7 @@ class OrFilter : public Filter {
   };
 
   std::vector<Filter *> filters_;
+  bool has_value_{false};
   PhiNode phi_;
 };
 
