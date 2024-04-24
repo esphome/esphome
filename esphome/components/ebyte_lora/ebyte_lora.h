@@ -48,6 +48,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void get_current_config_();
   void send_switch_push_(uint8_t pin, bool value);
   void send_switch_info_();
+  void setup_conf_(std::vector<uint8_t> data);
 
  protected:
   bool update_needed_ = false;
