@@ -376,7 +376,7 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
       ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
       this->config.transmission_power = (data[i] >> 0) & 0b11;
       this->config.rssi_noise = (data[i] >> 5) & 0b1;
-      this->config.sub_packet = data[i] & 0b00000011;
+      this->config.sub_packet = (data[i] >> 6) & 0b11;
     }
     // 7 is reg2; channel
     if (i == 7) {
@@ -385,10 +385,10 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
     // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
     if (i == 7) {
       ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
-      this->config.wor_period = data[i] & 0b111;
-      this->config.enable_lbt = data[i] & 0b00001;
-      this->config.transmission_mode = data[i] & 0b0000001;
-      this->config.enable_rssi = data[i] & 0b00000001;
+      this->config.wor_period = (data[i] >> 0) & 0b111;
+      this->config.enable_lbt = (data[i] >> 4) & 0b1;
+      this->config.transmission_mode = (data[i] >> 6) & 0b1;
+      this->config.enable_rssi = (data[i] >> 7) & 0b1;
     }
   }
 }
