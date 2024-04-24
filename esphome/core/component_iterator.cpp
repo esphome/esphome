@@ -322,6 +322,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_EVENT
+    case IteratorState::EVENT:
+      if (this->at_ >= App.get_events().size()) {
+        advance_platform = true;
+      } else {
+        auto *event = App.get_events()[this->at_];
+        if (event->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_event(event);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;

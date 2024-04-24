@@ -153,6 +153,11 @@ class APIConnection : public APIServerConnection {
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 
+#ifdef USE_EVENT
+  bool send_event(event::Event *event, std::string event_type);
+  bool send_event_info(event::Event *event);
+#endif
+
   void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
