@@ -10,7 +10,7 @@ void EbyteLoraComponent::update() {
     this->get_current_config_();
     return;
   } else {
-    ESP_LOGD(TAG, "Got a config");
+    ESP_LOGD(TAG, "Got a config:");
     switch (this->config.air_data_rate) {
       case AIR_2_4KB:
         ESP_LOGD(TAG, "air_data_rate: 2.4kb");
