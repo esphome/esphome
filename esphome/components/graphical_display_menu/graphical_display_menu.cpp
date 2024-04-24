@@ -219,9 +219,7 @@ inline void GraphicalDisplayMenu::draw_item(display::Display *display, const dis
   // int background_width = std::max(bounds->width, available_width);
   int background_width = bounds->w;
 
-  if (selected) {
-    display->filled_rectangle(bounds->x, bounds->y, background_width, bounds->h, background_color);
-  }
+  display->filled_rectangle(bounds->x, bounds->y, background_width, bounds->h, background_color);
 
   std::string label = item->get_text();
   if (item->has_value()) {
