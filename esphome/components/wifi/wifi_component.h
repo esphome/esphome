@@ -371,6 +371,7 @@ class WiFiComponent : public Component {
   std::vector<WiFiSTAPriority> sta_priorities_;
   WiFiAP selected_ap_;
   bool fast_connect_{false};
+  bool retry_hidden_{false};
 
   bool has_ap_{false};
   WiFiAP ap_;

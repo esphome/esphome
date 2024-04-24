@@ -277,6 +277,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_VALVE
+    case IteratorState::VALVE:
+      if (this->at_ >= App.get_valves().size()) {
+        advance_platform = true;
+      } else {
+        auto *valve = App.get_valves()[this->at_];
+        if (valve->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_valve(valve);
+        }
+      }
+      break;
+#endif
 #ifdef USE_MEDIA_PLAYER
     case IteratorState::MEDIA_PLAYER:
       if (this->at_ >= App.get_media_players().size()) {

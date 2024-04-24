@@ -573,6 +573,24 @@ bool APIServerConnectionBase::send_event_response(const EventResponse &msg) {
   return this->send_message_<EventResponse>(msg, 108);
 }
 #endif
+#ifdef USE_VALVE
+bool APIServerConnectionBase::send_list_entities_valve_response(const ListEntitiesValveResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_valve_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesValveResponse>(msg, 109);
+}
+#endif
+#ifdef USE_VALVE
+bool APIServerConnectionBase::send_valve_state_response(const ValveStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_valve_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ValveStateResponse>(msg, 110);
+}
+#endif
+#ifdef USE_VALVE
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -1038,6 +1056,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 111: {
+#ifdef USE_VALVE
+      ValveCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_valve_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_valve_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1296,6 +1325,19 @@ void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg)
     return;
   }
   this->lock_command(msg);
+}
+#endif
+#ifdef USE_VALVE
+void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->valve_command(msg);
 }
 #endif
 #ifdef USE_MEDIA_PLAYER

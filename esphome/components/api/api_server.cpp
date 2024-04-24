@@ -300,6 +300,15 @@ void APIServer::on_lock_update(lock::Lock *obj) {
 }
 #endif
 
+#ifdef USE_VALVE
+void APIServer::on_valve_update(valve::Valve *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_valve_state(obj);
+}
+#endif
+
 #ifdef USE_MEDIA_PLAYER
 void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
   if (obj->is_internal())

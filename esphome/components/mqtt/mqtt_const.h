@@ -70,6 +70,7 @@ constexpr const char *const MQTT_EFFECT_STATE_TOPIC = "fx_stat_t";
 constexpr const char *const MQTT_EFFECT_TEMPLATE = "fx_tpl";
 constexpr const char *const MQTT_EFFECT_VALUE_TEMPLATE = "fx_val_tpl";
 constexpr const char *const MQTT_ENABLED_BY_DEFAULT = "en";
+constexpr const char *const MQTT_ENTITY_CATEGORY = "ent_cat";
 constexpr const char *const MQTT_ERROR_TEMPLATE = "err_tpl";
 constexpr const char *const MQTT_ERROR_TOPIC = "err_t";
 constexpr const char *const MQTT_EVENT_TYPE = "event_type";
@@ -108,6 +109,7 @@ constexpr const char *const MQTT_MIN = "min";
 constexpr const char *const MQTT_MIN_HUMIDITY = "min_hum";
 constexpr const char *const MQTT_MIN_MIREDS = "min_mirs";
 constexpr const char *const MQTT_MIN_TEMP = "min_temp";
+constexpr const char *const MQTT_MODE = "mode";
 constexpr const char *const MQTT_MODE_COMMAND_TEMPLATE = "mode_cmd_tpl";
 constexpr const char *const MQTT_MODE_COMMAND_TOPIC = "mode_cmd_t";
 constexpr const char *const MQTT_MODE_STATE_TEMPLATE = "mode_stat_tpl";
@@ -327,6 +329,7 @@ constexpr const char *const MQTT_EFFECT_STATE_TOPIC = "effect_state_topic";
 constexpr const char *const MQTT_EFFECT_TEMPLATE = "effect_template";
 constexpr const char *const MQTT_EFFECT_VALUE_TEMPLATE = "effect_value_template";
 constexpr const char *const MQTT_ENABLED_BY_DEFAULT = "enabled_by_default";
+constexpr const char *const MQTT_ENTITY_CATEGORY = "entity_category";
 constexpr const char *const MQTT_ERROR_TEMPLATE = "error_template";
 constexpr const char *const MQTT_ERROR_TOPIC = "error_topic";
 constexpr const char *const MQTT_EVENT_TYPE = "event_type";
@@ -365,6 +368,7 @@ constexpr const char *const MQTT_MIN = "min";
 constexpr const char *const MQTT_MIN_HUMIDITY = "min_humidity";
 constexpr const char *const MQTT_MIN_MIREDS = "min_mireds";
 constexpr const char *const MQTT_MIN_TEMP = "min_temp";
+constexpr const char *const MQTT_MODE = "mode";
 constexpr const char *const MQTT_MODE_COMMAND_TEMPLATE = "mode_command_template";
 constexpr const char *const MQTT_MODE_COMMAND_TOPIC = "mode_command_topic";
 constexpr const char *const MQTT_MODE_STATE_TEMPLATE = "mode_state_template";
@@ -520,11 +524,8 @@ constexpr const char *const MQTT_WHITE_VALUE_TEMPLATE = "white_value_template";
 constexpr const char *const MQTT_XY_COMMAND_TOPIC = "xy_command_topic";
 constexpr const char *const MQTT_XY_STATE_TOPIC = "xy_state_topic";
 constexpr const char *const MQTT_XY_VALUE_TEMPLATE = "xy_value_template";
-#endif
 
-// Additional MQTT fields where no abbreviation is defined in HA source
-constexpr const char *const MQTT_ENTITY_CATEGORY = "entity_category";
-constexpr const char *const MQTT_MODE = "mode";
+#endif
 
 }  // namespace mqtt
 }  // namespace esphome

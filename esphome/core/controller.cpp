@@ -91,6 +91,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj]() { this->on_lock_update(obj); });
   }
 #endif
+#ifdef USE_VALVE
+  for (auto *obj : App.get_valves()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_valve_update(obj); });
+  }
+#endif
 #ifdef USE_MEDIA_PLAYER
   for (auto *obj : App.get_media_players()) {
     if (include_internal || !obj->is_internal())

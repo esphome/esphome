@@ -10,6 +10,7 @@ import paho.mqtt.client as mqtt
 
 from esphome.const import (
     CONF_BROKER,
+    CONF_CERTIFICATE_AUTHORITY,
     CONF_DISCOVERY_PREFIX,
     CONF_ESPHOME,
     CONF_LOG_TOPIC,
@@ -99,7 +100,9 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS):
+    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
+        CONF_CERTIFICATE_AUTHORITY
+    ):
         if sys.version_info >= (2, 7, 13):
             tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
         else:

@@ -120,6 +120,7 @@ MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
 MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
 MQTTEventComponent = mqtt_ns.class_("MQTTEventComponent", MQTTComponent)
+MQTTValveComponent = mqtt_ns.class_("MQTTValveComponent", MQTTComponent)
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {

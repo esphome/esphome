@@ -316,17 +316,26 @@ def _parse_platform_version(value):
 
 
 def _detect_variant(value):
-    if CONF_VARIANT not in value:
-        board = value[CONF_BOARD]
-        if board not in BOARDS:
+    board = value[CONF_BOARD]
+    if board in BOARDS:
+        variant = BOARDS[board][KEY_VARIANT]
+        if CONF_VARIANT in value and variant != value[CONF_VARIANT]:
             raise cv.Invalid(
-                "This board is unknown, please set the variant manually",
+                f"Option '{CONF_VARIANT}' does not match selected board.",
+                path=[CONF_VARIANT],
+            )
+        value = value.copy()
+        value[CONF_VARIANT] = variant
+    else:
+        if CONF_VARIANT not in value:
+            raise cv.Invalid(
+                "This board is unknown, if you are sure you want to compile with this board selection, "
+                f"override with option '{CONF_VARIANT}'",
                 path=[CONF_BOARD],
             )
-
-        value = value.copy()
-        value[CONF_VARIANT] = BOARDS[board][KEY_VARIANT]
-
+        _LOGGER.warning(
+            "This board is unknown. Make sure the chosen chip component is correct.",
+        )
     return value
 
 

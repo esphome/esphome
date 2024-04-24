@@ -101,6 +101,11 @@ class APIConnection : public APIServerConnection {
   bool send_lock_info(lock::Lock *a_lock);
   void lock_command(const LockCommandRequest &msg) override;
 #endif
+#ifdef USE_VALVE
+  bool send_valve_state(valve::Valve *valve);
+  bool send_valve_info(valve::Valve *valve);
+  void valve_command(const ValveCommandRequest &msg) override;
+#endif
 #ifdef USE_MEDIA_PLAYER
   bool send_media_player_state(media_player::MediaPlayer *media_player);
   bool send_media_player_info(media_player::MediaPlayer *media_player);
