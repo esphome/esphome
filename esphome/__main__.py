@@ -124,17 +124,16 @@ def choose_upload_log_host(
                     (f"OTA over Bluetooth LE ({default})", f"mcumgr {default}")
                 )
                 return choose_prompt(options, purpose=purpose)
-            else:
-                ble_devices = asyncio.run(smpmgr_scan(CORE.config["esphome"]["name"]))
-                if len(ble_devices) == 0:
-                    _LOGGER.warning("No OTA over Bluetooth LE service found!")
-                for device in ble_devices:
-                    options.append(
-                        (
-                            f"OTA over Bluetooth LE({device.address}) {device.name}",
-                            f"mcumgr {device.address}",
-                        )
+            ble_devices = asyncio.run(smpmgr_scan(CORE.config["esphome"]["name"]))
+            if len(ble_devices) == 0:
+                _LOGGER.warning("No OTA over Bluetooth LE service found!")
+            for device in ble_devices:
+                options.append(
+                    (
+                        f"OTA over Bluetooth LE({device.address}) {device.name}",
+                        f"mcumgr {device.address}",
                     )
+                )
     else:
         if (show_ota and ota) or (show_api and "api" in CORE.config):
             options.append((f"Over The Air ({CORE.address})", CORE.address))
@@ -346,11 +345,11 @@ def upload_using_esptool(config, port, file):
     return run_esptool(115200)
 
 
-def upload_using_platformio(
-    config, port, upload_args=["-t", "upload", "-t", "nobuild"]
-):
+def upload_using_platformio(config, port, upload_args=None):
     from esphome import platformio_api
 
+    if upload_args is None:
+        upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)

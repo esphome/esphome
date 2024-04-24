@@ -11,9 +11,9 @@ from smpclient import SMPClient
 from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound
 from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
 from smpclient.requests.os_management import ResetWrite
+from smpclient.generics import error, success
 from smp.exceptions import SMPBadStartDelimiter
 
-from smpclient.generics import error, success
 from esphome.espota2 import ProgressBar
 
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
@@ -31,7 +31,7 @@ def is_mac_address(value):
 
 
 async def logger_scan(name):
-    _LOGGER.info(f"Scanning bluetooth for {name}...")
+    _LOGGER.info("Scanning bluetooth for %s...", name)
     device = await BleakScanner.find_device_by_name(name)
     return device
 
@@ -45,19 +45,19 @@ async def logger_connect(host):
     def handle_rx(_, data: bytearray):
         print(data.decode("utf-8"), end="")
 
-    _LOGGER.info(f"Connecting {host}...")
+    _LOGGER.info("Connecting %s...", host)
     async with BleakClient(host, disconnected_callback=handle_disconnect) as client:
-        _LOGGER.info(f"Connected {host}...")
+        _LOGGER.info("Connected %s...", host)
         try:
             await client.start_notify(NUS_TX_CHAR_UUID, handle_rx)
         except BleakDBusError as e:
-            _LOGGER.error(f"Bluetooth LE logger: {e}")
+            _LOGGER.error("Bluetooth LE logger: %s", e)
             disconnected_event.set()
         await disconnected_event.wait()
 
 
 async def smpmgr_scan(name):
-    _LOGGER.info(f"Scanning bluetooth for {name}...")
+    _LOGGER.info("Scanning bluetooth for %s...", name)
     devices = []
     for device in await BleakScanner.discover(service_uuids=[SMP_SERVICE_UUID]):
         if device.name == name:
@@ -66,18 +66,18 @@ async def smpmgr_scan(name):
 
 
 def get_image_tlv_sha256(file):
-    _LOGGER.info(f"Checking image: {str(file)}")
+    _LOGGER.info("Checking image: %s", str(file))
     try:
         image_info = ImageInfo.load_file(str(file))
         pprint(image_info.header)
         _LOGGER.debug(str(image_info))
     except Exception as e:
-        _LOGGER.error(f"Inspection of FW image failed: {e}")
+        _LOGGER.error("Inspection of FW image failed: %s", e)
         return None
 
     try:
         image_tlv_sha256 = image_info.get_tlv(IMAGE_TLV.SHA256)
-        _LOGGER.debug(f"IMAGE_TLV_SHA256: {image_tlv_sha256}")
+        _LOGGER.debug("IMAGE_TLV_SHA256: %s", image_tlv_sha256)
     except TLVNotFound:
         _LOGGER.error("Could not find IMAGE_TLV_SHA256 in image.")
         return None
@@ -94,21 +94,21 @@ async def smpmgr_upload(config, host, firmware):
     else:
         smp_client = SMPClient(SMPSerialTransport(mtu=256), host)
 
-    _LOGGER.info(f"Connecting {host}...")
+    _LOGGER.info("Connecting %s...", host)
     try:
         await smp_client.connect()
     except BleakDeviceNotFoundError:
-        _LOGGER.error(f"Device {host} not found")
+        _LOGGER.error("Device %s not found", host)
         return 1
 
-    _LOGGER.info(f"Connected {host}...")
+    _LOGGER.info("Connected %s...", host)
 
     try:
         image_state = await asyncio.wait_for(
             smp_client.request(ImageStatesRead()), timeout=SMPClient.MEDIUM_TIMEOUT
         )
     except SMPBadStartDelimiter as e:
-        _LOGGER.error(f"mcumgr is not supported by device ({e})")
+        _LOGGER.error("mcumgr is not supported by device (%s)", e)
         return 1
 
     already_uploaded = False
@@ -116,7 +116,7 @@ async def smpmgr_upload(config, host, firmware):
     if error(image_state):
         _LOGGER.error(image_state)
         return 1
-    elif success(image_state):
+    if success(image_state):
         if len(image_state.images) == 0:
             _LOGGER.warning("No images on device!")
         for image in image_state.images:
@@ -128,12 +128,11 @@ async def smpmgr_upload(config, host, firmware):
                 if already_uploaded:
                     _LOGGER.error("Both slots have the same image")
                     return 1
-                else:
-                    if image.confirmed:
-                        _LOGGER.error("Image already confirmted")
-                        return 1
-                    _LOGGER.warning("The same image already uploaded")
-                    already_uploaded = True
+                if image.confirmed:
+                    _LOGGER.error("Image already confirmted")
+                    return 1
+                _LOGGER.warning("The same image already uploaded")
+                already_uploaded = True
 
     if not already_uploaded:
         with open(firmware, "rb") as file:
