@@ -280,6 +280,12 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_DATETIME_TIME
   virtual void on_time_command_request(const TimeCommandRequest &value){};
 #endif
+#ifdef USE_EVENT
+  bool send_list_entities_event_response(const ListEntitiesEventResponse &msg);
+#endif
+#ifdef USE_EVENT
+  bool send_event_response(const EventResponse &msg);
+#endif
 #ifdef USE_VALVE
   bool send_list_entities_valve_response(const ListEntitiesValveResponse &msg);
 #endif

@@ -109,6 +109,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj]() { this->on_alarm_control_panel_update(obj); });
   }
 #endif
+#ifdef USE_EVENT
+  for (auto *obj : App.get_events()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_event_callback([this, obj](const std::string &event_type) { this->on_event(obj, event_type); });
+  }
+#endif
 }
 
 }  // namespace esphome

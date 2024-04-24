@@ -96,6 +96,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
+#endif
 
   bool is_connected() const;
 
