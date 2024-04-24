@@ -44,7 +44,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t channel_ = 0;
   bool last_device_found_;
 
-  InternalGPIOPin *sleep_pin_;
+  InternalGPIOPin *sleep_pin_ = nullptr;
 
   DS248xType ds248x_type_ = DS248xType::DS2482_100;
   bool enable_bus_sleep_ = false;
