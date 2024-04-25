@@ -66,9 +66,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   RegisterConfig current_config_;
   RegisterConfig expected_config_;
   sensor::Sensor *rssi_sensor_{nullptr};
-  GPIOPin *pin_aux_;
-  GPIOPin *pin_m0_;
-  GPIOPin *pin_m1_;
+  GPIOPin *pin_aux_{nullptr};
+  GPIOPin *pin_m0_{nullptr};
+  GPIOPin *pin_m1_{nullptr};
 };
 class EbyteLoraSwitch : public switch_::Switch, public Component {
  public:
