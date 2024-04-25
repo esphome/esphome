@@ -3,6 +3,7 @@ from contextlib import suppress
 
 import logging
 import os
+import platform
 from pathlib import Path
 from typing import Union
 import tempfile
@@ -10,6 +11,10 @@ from urllib.parse import urlparse
 import re
 
 _LOGGER = logging.getLogger(__name__)
+
+IS_MACOS = platform.system() == "Darwin"
+IS_WINDOWS = platform.system() == "Windows"
+IS_LINUX = platform.system() == "Linux"
 
 
 def ensure_unique_string(preferred_string, current_strings):

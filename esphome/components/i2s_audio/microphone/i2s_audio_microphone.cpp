@@ -47,14 +47,14 @@ void I2SAudioMicrophone::start_() {
   }
   i2s_driver_config_t config = {
       .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
-      .sample_rate = 16000,
+      .sample_rate = this->sample_rate_,
       .bits_per_sample = this->bits_per_sample_,
       .channel_format = this->channel_,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 4,
       .dma_buf_len = 256,
-      .use_apll = false,
+      .use_apll = this->use_apll_,
       .tx_desc_auto_clear = false,
       .fixed_mclk = 0,
       .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,

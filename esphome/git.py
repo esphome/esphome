@@ -59,17 +59,14 @@ def clone_or_update(
         )
 
     repo_dir = _compute_destination_path(key, domain)
-    fetch_pr_branch = ref is not None and ref.startswith("pull/")
     if not repo_dir.is_dir():
         _LOGGER.info("Cloning %s", key)
         _LOGGER.debug("Location: %s", repo_dir)
         cmd = ["git", "clone", "--depth=1"]
-        if ref is not None and not fetch_pr_branch:
-            cmd += ["--branch", ref]
         cmd += ["--", url, str(repo_dir)]
         run_git_command(cmd)
 
-        if fetch_pr_branch:
+        if ref is not None:
             # We need to fetch the PR branch first, otherwise git will complain
             # about missing objects
             _LOGGER.info("Fetching %s", ref)
