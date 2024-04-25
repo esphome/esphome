@@ -3,7 +3,7 @@
 #include "esphome/components/number/number.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
-#include "input.h"
+#include "esphome/components/opentherm/input.h"
 
 namespace esphome {
 namespace opentherm {

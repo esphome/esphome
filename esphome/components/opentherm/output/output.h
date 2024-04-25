@@ -1,7 +1,8 @@
 #pragma once
 
 #include "esphome/components/output/float_output.h"
-#include "input.h"
+#include "esphome/components/opentherm/input.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace opentherm {

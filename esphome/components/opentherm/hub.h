@@ -6,12 +6,25 @@
 
 #include "opentherm.h"
 
+#ifdef OPENTHERM_SENSOR_LIST
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
-#include "switch.h"
-#include "number.h"
-#include "output.h"
+#ifdef OPENTHERM_BINARY_SENSOR_LIST
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
+#ifdef OPENTHERM_SWITCH_LIST
+#include "esphome/components/opentherm/switch/switch.h"
+#endif
+
+#ifdef OPENTHERM_OUTPUT_LIST
+#include "esphome/components/opentherm/output/output.h"
+#endif
+
+#ifdef OPENTHERM_NUMBER_LIST
+#include "esphome/components/opentherm/number/number.h"
+#endif
 
 #include <unordered_map>
 #include <unordered_set>

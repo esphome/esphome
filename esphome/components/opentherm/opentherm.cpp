@@ -1,6 +1,18 @@
+/*
+ * OpenTherm protocol implementation. Originally taken from https://github.com/jpraus/arduino-opentherm, but
+ * heavily modified to comply with ESPHome coding standards and provide better logging.
+ * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
+ * Public License, which is compatible with GPLv3 license, which covers C++ part of ESPHome project.
+ */
+
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
+#ifdef ESP32
 #include "driver/timer.h"
+#endif
+#ifdef ESP8266
+#include "Arduino.h"
+#endif
 #include <string>
 #include <sstream>
 #include <bitset>
@@ -31,12 +43,12 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
 }
 
 void OpenTherm::begin() {
+#ifdef ESP8266
+  instance_ = this;
+#endif
   in_pin_->pin_mode(gpio::FLAG_INPUT);
   out_pin_->pin_mode(gpio::FLAG_OUTPUT);
   out_pin_->digital_write(true);
-
-  // delay(1000); // It was here in Igor Melnik's library, but there is nothing like this in arduino-opentherm
-  // library example. Commenting out for now.
 }
 
 void OpenTherm::listen() {
@@ -197,6 +209,12 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
   return false;
 }
 
+#ifdef ESP8266
+void IRAM_ATTR OpenTherm::esp8266_timer_isr() {
+  timer_isr(instance_);
+}
+#endif
+
 void IRAM_ATTR OpenTherm::bit_read_(uint8_t value) {
   data_ = (data_ << 1) | value;
   bit_pos_++;
@@ -218,7 +236,7 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
   }
 }
 
-// #ifdef ESP32
+#ifdef ESP32
 
 void IRAM_ATTR OpenTherm::init_timer_() {
   if (timer_initialized_)
@@ -274,7 +292,32 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   }
 }
 
-// #endif  // END ESP32
+#endif  // END ESP32
+
+#ifdef ESP8266
+// 5 kHz timer_
+void OpenTherm::start_read_timer_() {
+  InterruptLock const lock;
+  timer1_attachInterrupt(esp8266_timer_isr);
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5MHz (5 ticks/us - 1677721.4 us max)
+  timer1_write(1000);                            // 5kHz
+}
+
+// 2 kHz timer_
+void OpenTherm::start_write_timer_() {
+  InterruptLock const lock;
+  timer1_attachInterrupt(esp8266_timer_isr);
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5MHz (5 ticks/us - 1677721.4 us max)
+  timer1_write(2500);                            // 2kHz
+}
+
+void OpenTherm::stop_timer_() {
+  InterruptLock const lock;
+  timer1_disable();
+  timer1_detachInterrupt();
+}
+
+#endif  // END ESP8266
 
 // https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
 bool OpenTherm::check_parity_(uint32_t val) {
@@ -425,6 +468,7 @@ std::string OpenTherm::debug_error(OpenThermError &error) {
   return result.str();
 }
 
+
 float OpenthermData::f88() {
   float const value = (int8_t) valueHB;
   return value + (float) valueLB / 256.0;
@@ -461,43 +505,6 @@ void OpenthermData::s16(int16_t value) {
   valueLB = value & 0xFF;
   valueHB = (value >> 8) & 0xFF;
 }
-
-// #ifdef ESP8266
-//// 5 kHz timer_
-// void OpenTherm::start_read_timer_() {
-//   noInterrupts();
-//   timer1_attachInterrupt(OpenTherm::timer_isr);
-//   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5MHz (5 ticks/us - 1677721.4 us max)
-//   timer1_write(1000);                            // 5kHz
-//   interrupts();
-// }
-//
-//// 2 kHz timer_
-// void OpenTherm::start_write_timer_() {
-//   noInterrupts();
-//   timer1_attachInterrupt(OpenTherm::timer_isr);
-//   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5MHz (5 ticks/us - 1677721.4 us max)
-//   timer1_write(2500);                            // 2kHz
-//   interrupts();
-// }
-//
-//// 1 kHz timer_
-// void OpenTherm::_startTimeoutTimer() {
-//   noInterrupts();
-//   timer1_attachInterrupt(OpenTherm::timer_isr);
-//   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5MHz (5 ticks/us - 1677721.4 us max)
-//   timer1_write(5000);                            // 1kHz
-//   interrupts();
-// }
-//
-// void OpenTherm::stop_timer_() {
-//   noInterrupts();
-//   timer1_disable();
-//   timer1_detachInterrupt();
-//   interrupts();
-// }
-//
-// #endif  // END ESP8266
 
 }  // namespace opentherm
 }  // namespace esphome

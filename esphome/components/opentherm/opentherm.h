@@ -1,3 +1,10 @@
+/*
+ * OpenTherm protocol implementation. Originally taken from https://github.com/jpraus/arduino-opentherm, but
+ * heavily modified to comply with ESPHome coding standards and provide better logging.
+ * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
+ * Public License, which is compatible with GPLv3 license, which covers C++ part of ESPHome project.
+ */
+
 #pragma once
 
 #include <string>
@@ -284,6 +291,10 @@ class OpenTherm {
 
   static bool timer_isr(OpenTherm *arg);
 
+#ifdef ESP8266
+  static void esp8266_timer_isr();
+#endif
+
  private:
   InternalGPIOPin *in_pin_;
   InternalGPIOPin *out_pin_;
@@ -314,6 +325,11 @@ class OpenTherm {
   void bit_read_(uint8_t value);
   ProtocolErrorType verify_stop_bit_(uint8_t value);
   void write_bit_(uint8_t high, uint8_t clock);
+
+#ifdef ESP8266
+  // ESP8266 timer can accept callback with no parameters, so we have this hack to save a static instance of OpenTherm
+  static OpenTherm* instance_;
+#endif
 };
 
 template<typename T> void int_to_hex(std::stringstream &stream, T i) {

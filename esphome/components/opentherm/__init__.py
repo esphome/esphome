@@ -3,12 +3,12 @@ from typing import Any, Dict
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome import pins
 
 from . import const, schema, validate, generate
 
-AUTO_LOAD = ["binary_sensor", "sensor", "switch", "number", "output"]
+CODEOWNERS = ["@olegtarasov"]
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.All(
@@ -31,6 +31,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266])
 )
 
 
