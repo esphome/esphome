@@ -16,6 +16,10 @@ Ams5915::Ams5915(TwoWire &bus,uint8_t address,Transducer type){
   _type = type; 
 }
 
+void Ams5915::set_transducer_type(Transducer type){
+  _type = type; 
+}
+
 /* starts the I2C communication and sets the pressure and temperature ranges using getTransducer */
 int Ams5915::begin(){
   // starting the I2C bus

@@ -43,6 +43,7 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
       AMS5915_1000_A,
       AMS5915_1200_B
   };
+  void set_transducer_type(Transducer type); 
   Ams5915(TwoWire &bus,uint8_t address,Transducer type);
   int begin();
   int readSensor();
