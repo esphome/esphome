@@ -251,7 +251,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
 bool EbyteLoraComponent::can_send_message_() {
   // High means no more information is needed
   if (this->pin_aux_->digital_read()) {
-    if (!this->starting_to_check_ == 0 && !this->time_out_after_ == 0) {
+    if (!(this->starting_to_check_ == 0) && !(this->time_out_after_ == 0)) {
       this->starting_to_check_ = 0;
       this->time_out_after_ = 0;
       this->flush();
