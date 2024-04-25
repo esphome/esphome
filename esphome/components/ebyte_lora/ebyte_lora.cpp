@@ -270,7 +270,7 @@ bool EbyteLoraComponent::can_send_message_() {
 }
 
 void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
-  if (this->starting_to_check_ != 0 || this->time_out_after_ != 0) {
+  if (!(this->starting_to_check_ == 0) && !(this->time_out_after_ == 0)) {
     ESP_LOGD(TAG, "Wait response already set!!  %u", timeout);
   }
   ESP_LOGD(TAG, "Setting a timer for %u", timeout);
@@ -312,12 +312,12 @@ void EbyteLoraComponent::loop() {
   }
   // if it is only push info
   if (data[0] == SWITCH_PUSH) {
-    ESP_LOGD(TAG, "GOT SWITCH PUSH ", data.size());
-    ESP_LOGD(TAG, "Total: %u ", data.size());
-    ESP_LOGD(TAG, "Start bit: ", data[0]);
-    ESP_LOGD(TAG, "PIN: %u ", data[1]);
-    ESP_LOGD(TAG, "VALUE: %u ", data[2]);
-    ESP_LOGD(TAG, "RSSI: %u % ", (data[3] / 255.0) * 100);
+    ESP_LOGD(TAG, "GOT SWITCH PUSH", data.size());
+    ESP_LOGD(TAG, "Total: %u", data.size());
+    ESP_LOGD(TAG, "Start bit: %u", data[0]);
+    ESP_LOGD(TAG, "PIN: %u", data[1]);
+    ESP_LOGD(TAG, "VALUE: %u", data[2]);
+    ESP_LOGD(TAG, "RSSI: %f %", (data[3] / 255.0) * 100);
     if (this->rssi_sensor_ != nullptr)
       this->rssi_sensor_->publish_state((data[3] / 255.0) * 100);
 
@@ -333,7 +333,7 @@ void EbyteLoraComponent::loop() {
   if (data[0] == SWITCH_INFO) {
     for (int i = 0; i < data.size(); i++) {
       if (data[i] == SWITCH_INFO) {
-        ESP_LOGD(TAG, "GOT INFO ", data.size());
+        ESP_LOGD(TAG, "GOT INFO", data.size());
         uint8_t pin = data[i + 1];
         bool value = data[i + 2];
         for (auto *sensor : this->sensors_) {
@@ -344,7 +344,7 @@ void EbyteLoraComponent::loop() {
       }
     }
     this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
-    ESP_LOGD(TAG, "RSSI: %u % ", (data[data.size() - 1] / 255.0) * 100);
+    ESP_LOGD(TAG, "RSSI: %f %", (data[data.size() - 1] / 255.0) * 100);
   }
   if (data[0] == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
