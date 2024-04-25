@@ -171,7 +171,7 @@ void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
 }
 void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220");
-  switch (this->current_config_.air_data_rate) {
+  switch (this->expected_config_.air_data_rate) {
     case AIR_2_4KB:
       ESP_LOGD(TAG, "air_data_rate: 2.4kb");
       break;
@@ -191,7 +191,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "air_data_rate: 62.5kb");
       break;
   }
-  switch (this->current_config_.uart_baud) {
+  switch (this->expected_config_.uart_baud) {
     case UART_1200:
       ESP_LOGD(TAG, "uart_baud: 1200");
       break;
@@ -217,7 +217,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "uart_baud: 115200");
       break;
   }
-  switch (this->current_config_.parity) {
+  switch (this->expected_config_.parity) {
     case EBYTE_UART_8N1:
       ESP_LOGD(TAG, "uart_parity: 8N1");
       break;
@@ -228,7 +228,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "uart_parity: 8E1");
       break;
   }
-  switch (this->current_config_.rssi_noise) {
+  switch (this->expected_config_.rssi_noise) {
     case EBYTE_ENABLED:
       ESP_LOGD(TAG, "rssi_noise: ENABLED");
       break;
@@ -236,7 +236,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "rssi_noise: DISABLED");
       break;
   }
-  switch (this->current_config_.sub_packet) {
+  switch (this->expected_config_.sub_packet) {
     case SUB_200B:
       ESP_LOGD(TAG, "sub_packet: 200 bytes");
       break;
@@ -250,7 +250,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "sub_packet: 32 bytes");
       break;
   }
-  switch (this->current_config_.transmission_power) {
+  switch (this->expected_config_.transmission_power) {
     case TX_DEFAULT_MAX:
       ESP_LOGD(TAG, "transmission_power: default or max");
       break;
@@ -264,7 +264,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "transmission_power: Lowest");
       break;
   }
-  ESP_LOGD(TAG, "channel: %u", this->current_config_.channel);
+  ESP_LOGD(TAG, "channel: %u", this->expected_config_.channel);
   switch (this->current_config_.enable_lbt) {
     case EBYTE_ENABLED:
       ESP_LOGD(TAG, "enable_lbt: ENABLED");
@@ -273,7 +273,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "enable_lbt: DISABLED");
       break;
   }
-  switch (this->current_config_.transmission_mode) {
+  switch (this->expected_config_.transmission_mode) {
     case TRANSPARENT:
       ESP_LOGD(TAG, "transmission_type: TRANSPARENT");
       break;
@@ -281,7 +281,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "transmission_type: FIXED");
       break;
   }
-  switch (this->current_config_.enable_rssi) {
+  switch (this->expected_config_.enable_rssi) {
     case EBYTE_ENABLED:
       ESP_LOGD(TAG, "enable_rssi: ENABLED");
       break;
@@ -289,7 +289,7 @@ void EbyteLoraComponent::dump_config() {
       ESP_LOGD(TAG, "enable_rssi: DISABLED");
       break;
   }
-  switch (this->current_config_.wor_period) {
+  switch (this->expected_config_.wor_period) {
     case WOR_500:
       ESP_LOGD(TAG, "wor_period: 500");
       break;

@@ -10,7 +10,7 @@ namespace ebyte_lora {
 enum EnableByte : uint8_t { EBYTE_ENABLED = 0b1, EBYTE_DISABLED = 0b0 };
 
 enum AirDataRate : uint8_t {
-  AIR_2_4KB = 0b000,
+  AIR_2_4KB = 0b010,
   AIR_4_8KB = 0b011,
   AIR_9_6KB = 0b100,
   AIR_19_2KB = 0b101,
