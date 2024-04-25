@@ -115,7 +115,7 @@ async def setup_display_core_(var, config):
         await automation.build_automation(
             trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
         )
-    if (CONF_SHOW_TEST_CARD in config) and (config[CONF_SHOW_TEST_CARD] is True):
+    if config.get(CONF_SHOW_TEST_CARD):
         cg.add(var.show_test_card())
 
 
