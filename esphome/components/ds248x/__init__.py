@@ -4,8 +4,6 @@ from esphome import pins
 from esphome.const import CONF_ID, CONF_SLEEP_PIN, CONF_TYPE
 from esphome.components import i2c
 
-CODEOWNERS = ["@alainstark"]
-
 MULTI_CONF = True
 AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["i2c"]
