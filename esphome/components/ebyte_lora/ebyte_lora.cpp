@@ -4,49 +4,67 @@ namespace ebyte_lora {
 static const uint8_t SWITCH_PUSH = 0x55;
 static const uint8_t SWITCH_INFO = 0x66;
 static const uint8_t PROGRAM_CONF = 0xC1;
+bool EbyteLoraComponent::check_config() {
+  bool success = true;
+  if (this->current_config_.addh != this->expected_config_.addh) {
+    ESP_LOGD(TAG, "addh was not set right");
+    success = false;
+  }
+  if (this->current_config_.addl != this->expected_config_.addl) {
+    ESP_LOGD(TAG, "addl was not set right");
+    success = false;
+  }
+  if (this->current_config_.air_data_rate != this->expected_config_.air_data_rate) {
+    ESP_LOGD(TAG, "air_data_rate was not set right");
+    success = false;
+  }
+  if (this->current_config_.parity != this->expected_config_.parity) {
+    ESP_LOGD(TAG, "parity was not set right");
+    success = false;
+  }
+  if (this->current_config_.uart_baud != this->expected_config_.uart_baud) {
+    ESP_LOGD(TAG, "uart_baud was not set right");
+    success = false;
+  }
+  if (this->current_config_.transmission_power != this->expected_config_.transmission_power) {
+    ESP_LOGD(TAG, "transmission_power was not set right");
+    success = false;
+  }
+  if (this->current_config_.rssi_noise != this->expected_config_.rssi_noise) {
+    ESP_LOGD(TAG, "rssi_noise was not set right");
+    success = false;
+  }
+  if (this->current_config_.sub_packet != this->expected_config_.sub_packet) {
+    ESP_LOGD(TAG, "sub_packet was not set right");
+    success = false;
+  }
+  if (this->current_config_.channel != this->expected_config_.channel) {
+    ESP_LOGD(TAG, "channel was not set right is %u, should be %u", this->current_config_.channel,
+             this->expected_config_.channel);
+    success = false;
+  }
+  if (this->current_config_.wor_period != this->expected_config_.wor_period) {
+    ESP_LOGD(TAG, "wor_period was not set right");
+    success = false;
+  }
+  if (this->current_config_.enable_lbt != this->expected_config_.enable_lbt) {
+    ESP_LOGD(TAG, "enable_lbt was not set right");
+    success = false;
+  }
+  if (this->current_config_.enable_rssi != this->expected_config_.enable_rssi) {
+    ESP_LOGD(TAG, "enable_rssi was not set right");
+    success = false;
+  }
+  return success;
+}
 void EbyteLoraComponent::update() {
   if (this->current_config_.config_set == 0) {
     ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
     this->get_current_config_();
     return;
   } else {
-    ESP_LOGD(TAG, "Checking config");
-    if (this->current_config_.addh != this->expected_config_.addh) {
-      ESP_LOGD(TAG, "addh was not set right");
-    }
-    if (this->current_config_.addl != this->expected_config_.addl) {
-      ESP_LOGD(TAG, "addl was not set right");
-    }
-    if (this->current_config_.air_data_rate != this->expected_config_.air_data_rate) {
-      ESP_LOGD(TAG, "air_data_rate was not set right");
-    }
-    if (this->current_config_.parity != this->expected_config_.parity) {
-      ESP_LOGD(TAG, "parity was not set right");
-    }
-    if (this->current_config_.uart_baud != this->expected_config_.uart_baud) {
-      ESP_LOGD(TAG, "uart_baud was not set right");
-    }
-    if (this->current_config_.transmission_power != this->expected_config_.transmission_power) {
-      ESP_LOGD(TAG, "transmission_power was not set right");
-    }
-    if (this->current_config_.rssi_noise != this->expected_config_.rssi_noise) {
-      ESP_LOGD(TAG, "rssi_noise was not set right");
-    }
-    if (this->current_config_.sub_packet != this->expected_config_.sub_packet) {
-      ESP_LOGD(TAG, "sub_packet was not set right");
-    }
-    if (this->current_config_.channel != this->expected_config_.channel) {
-      ESP_LOGD(TAG, "channel was not set right is %u, should be %u", this->current_config_.channel,
-               this->expected_config_.channel);
-    }
-    if (this->current_config_.wor_period != this->expected_config_.wor_period) {
-      ESP_LOGD(TAG, "wor_period was not set right");
-    }
-    if (this->current_config_.enable_lbt != this->expected_config_.enable_lbt) {
-      ESP_LOGD(TAG, "enable_lbt was not set right");
-    }
-    if (this->current_config_.enable_rssi != this->expected_config_.enable_rssi) {
-      ESP_LOGD(TAG, "enable_rssi was not set right");
+    if (!this->check_config()) {
+      ESP_LOGD(TAG, "Config is not right, have to do something about that!");
     }
   }
   if (this->get_mode_() != NORMAL) {
