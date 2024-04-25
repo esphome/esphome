@@ -13,6 +13,8 @@
 #endif
 #include <cerrno>
 
+#include <cinttypes>
+
 namespace esphome {
 namespace time {
 

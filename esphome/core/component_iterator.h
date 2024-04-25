@@ -63,6 +63,9 @@ class ComponentIterator {
 #ifdef USE_DATETIME_TIME
   virtual bool on_time(datetime::TimeEntity *time) = 0;
 #endif
+#ifdef USE_DATETIME_DATETIME
+  virtual bool on_datetime(datetime::DateTimeEntity *datetime) = 0;
+#endif
 #ifdef USE_TEXT
   virtual bool on_text(text::Text *text) = 0;
 #endif
@@ -131,6 +134,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_DATETIME_TIME
     DATETIME_TIME,
+#endif
+#ifdef USE_DATETIME_DATETIME
+    DATETIME_DATETIME,
 #endif
 #ifdef USE_TEXT
     TEXT,
