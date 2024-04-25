@@ -103,6 +103,7 @@ from .defines import (
     CONF_ROTARY_ENCODERS,
     CONF_TOUCHSCREENS,
     DIRECTIONS,
+    TILE_DIRECTIONS,
     ROLLER_MODES,
     CONF_PAGE,
     LV_ANIM,
@@ -112,9 +113,9 @@ from .defines import (
     CONF_SPINNER,
     LV_GRID_ALIGNMENTS,
     LV_CELL_ALIGNMENTS,
-    SIBLING_ALIGNMENTS,
     CONF_CHART,
     LvConstant,
+    CONF_TILEVIEW,
 )
 
 from .lv_validation import (
@@ -207,6 +208,8 @@ lv_img_t = cg.MockObjClass("LvImgType", parents=[lv_obj_t])
 lv_animimg_t = cg.MockObjClass("LvAnimImgType", parents=[lv_obj_t])
 lv_number_t = lvgl_ns.class_("LvPseudoNumber")
 lv_spinbox_t = cg.MockObjClass("LvSpinBoxType", parents=[lv_obj_t, lv_number_t])
+lv_tileview_t = cg.MockObjClass("LvTileViewtype", parents=[lv_obj_t])
+lv_tile_t = cg.MockObjClass("LvTiletype", parents=[lv_obj_t])
 lv_arc_t = cg.MockObjClass("LvArcType", parents=[lv_obj_t, lv_number_t])
 lv_bar_t = cg.MockObjClass("LvBarType", parents=[lv_obj_t, lv_number_t])
 lv_slider_t = cg.MockObjClass("LvSliderType", parents=[lv_obj_t, lv_number_t])
@@ -241,6 +244,7 @@ CONF_ARC_LENGTH = "arc_length"
 CONF_AUTO_START = "auto_start"
 CONF_BACKGROUND_STYLE = "background_style"
 CONF_DECIMAL_PLACES = "decimal_places"
+CONF_COLUMN = "column"
 CONF_DIGITS = "digits"
 CONF_DISP_BG_COLOR = "disp_bg_color"
 CONF_DISP_BG_IMAGE = "disp_bg_image"
@@ -301,6 +305,7 @@ CONF_ROWS = "rows"
 CONF_R_MOD = "r_mod"
 CONF_RECOLOR = "recolor"
 CONF_ROLLOVER = "rollover"
+CONF_ROW = "row"
 CONF_SCALES = "scales"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
@@ -319,6 +324,8 @@ CONF_STYLE_ID = "style_id"
 CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TEXT = "text"
+CONF_TILE = "tile"
+CONF_TILES = "tiles"
 CONF_TITLE = "title"
 CONF_TOP_LAYER = "top_layer"
 CONF_TRANSPARENCY_KEY = "transparency_key"
@@ -377,6 +384,7 @@ WIDGET_TYPES = {
         CONF_CURSOR,
         CONF_TEXTAREA_PLACEHOLDER,
     ),
+    CONF_TILEVIEW: (CONF_MAIN),
 }
 
 
@@ -1011,18 +1019,6 @@ SPIN_ACTIONS = (
     "CLEAR",
 )
 
-
-def spin_btn_schema(value):
-    schema = container_schema(
-        CONF_BTN,
-        extras={
-            cv.Required(CONF_ACTION): cv.one_of(SPIN_ACTIONS, upper=True),
-            cv.Required(CONF_ALIGN): lv_one_of(SIBLING_ALIGNMENTS),
-        },
-    )
-    return cv.ensure_list(schema)(value)
-
-
 SPINBOX_SCHEMA = {
     cv.Optional(CONF_VALUE): lv_float,
     cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
@@ -1117,7 +1113,9 @@ def obj_schema(wtype: str):
 def container_schema(widget_type, extras=None):
     lv_type = get_widget_type(widget_type)
     schema = obj_schema(widget_type).extend({cv.GenerateID(): cv.declare_id(lv_type)})
-    if extras := extras or globals().get(f"{widget_type.upper()}_SCHEMA"):
+    if globs := globals().get(f"{widget_type.upper()}_SCHEMA"):
+        schema = schema.extend(globs)
+    if extras:
         schema = schema.extend(extras).add_extra(validate_max_min)
 
     # Delayed evaluation for recursion
@@ -1135,14 +1133,38 @@ def container_schema(widget_type, extras=None):
     return validator
 
 
-def widget_schema(name):
-    validator = cv.All(container_schema(name), validate_grid)
+def widget_schema(name, extras=None):
+    validator = cv.All(container_schema(name, extras=extras), validate_grid)
     if required := REQUIRED_COMPONENTS.get(name):
         validator = cv.All(validator, requires_component(required))
     return cv.Exclusive(name, CONF_WIDGETS), validator
 
 
-WIDGET_SCHEMA = cv.Any(dict(map(widget_schema, WIDGET_TYPES)))
+def any_widget_schema(extras=None):
+    return cv.Any(dict(map(lambda wt: widget_schema(wt, extras), WIDGET_TYPES)))
+
+
+TILE_SCHEMA = any_widget_schema(
+    {
+        cv.Required(CONF_ROW): lv_int,
+        cv.Required(CONF_COLUMN): lv_int,
+        cv.Optional(CONF_DIR, default="ALL"): lv_one_of(TILE_DIRECTIONS),
+    }
+)
+
+TILEVIEW_SCHEMA = {
+    cv.Required(CONF_TILES): cv.ensure_list(TILE_SCHEMA),
+    cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+        {
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                automation.Trigger.template(lv_tile_t)
+            )
+        }
+    ),
+}
+
+
+WIDGET_SCHEMA = any_widget_schema()
 
 MSGBOX_SCHEMA = STYLE_SCHEMA.extend(
     {
@@ -1394,8 +1416,16 @@ async def obj_to_code(var, obj):
     return []
 
 
+def tile_obj_creator(parent: Widget, config: dict):
+    return f"lv_tileview_add_tile({parent.obj}, {config[CONF_COLUMN]}, {config[CONF_ROW]}, {config[CONF_DIR]})"
+
+
+async def tileview_to_code(var: Widget, config: dict):
+    init = []
+    return init
+
+
 async def page_to_code(config, pconf, index):
-    """Write object creation code for an object extending lv_obj_t"""
     init = []
     var = cg.new_Pvariable(pconf[CONF_ID])
     page = Widget(var, lv_page_t, config, f"{var}->page")
@@ -1441,6 +1471,40 @@ SHOW_SCHEMA = LVGL_SCHEMA.extend(
         cv.Optional(CONF_TIME, default="50ms"): lv_milliseconds,
     }
 )
+
+
+def tile_select_validate(config):
+    row = CONF_ROW in config
+    column = CONF_COLUMN in config
+    tile = CONF_TILE in config
+    if tile and (row or column) or not tile and not (row and column):
+        raise cv.Invalid("Specify either a tile id, or both a row and a column")
+    return config
+
+
+@automation.register_action(
+    "lvgl.tileview.select",
+    ObjUpdateAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(lv_tileview_t),
+            cv.Optional(CONF_ANIMATED, default=False): lv_animated,
+            cv.Optional(CONF_ROW): lv_int,
+            cv.Optional(CONF_COLUMN): lv_int,
+            cv.Optional(CONF_TILE): cv.use_id(lv_tile_t),
+        },
+    ).add_extra(tile_select_validate),
+)
+async def tileview_select(config, action_id, template_arg, args):
+    widget = await cg.get_variable(config[CONF_ID])
+    if tile := config.get(CONF_TILE):
+        tile = await cg.get_variable(tile)
+        init = [f"lv_obj_set_tile({widget}, {tile}, {config[CONF_ANIMATED]})"]
+    else:
+        init = [
+            f"lv_obj_set_tile_id({widget}, {config[CONF_COLUMN]}, {config[CONF_ROW]}, {config[CONF_ANIMATED]})"
+        ]
+    return await action_to_code(init, action_id, widget, template_arg, args)
 
 
 @automation.register_action(
@@ -2014,6 +2078,12 @@ async def touchscreens_to_code(var, config):
     return init
 
 
+WIDGET_VALUES = [
+    (lv_number_t, [cg.float_, "x"], lambda w: w.get_value()),
+    (lv_tileview_t, [lv_tile_t, "it"], lambda w: f"lv_tileview_get_tile_act({w})"),
+]
+
+
 async def generate_triggers(lv_component):
     init = []
     for widget in widget_map.values():
@@ -2027,14 +2097,15 @@ async def generate_triggers(lv_component):
                 event = LV_EVENT[event[3:].upper()]
                 conf = conf[0]
                 trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-                if isinstance(
-                    widget.type, cg.MockObjClass
-                ) and widget.type.inherits_from(lv_number_t):
-                    args = [(cg.float_, "x")]
-                    value = widget.get_value()
-                else:
-                    args = []
-                    value = ""
+                args = []
+                value = ""
+                if isinstance(widget.type, cg.MockObjClass):
+                    if widget.type.inherits_from(lv_number_t):
+                        args = [(cg.float_, "x")]
+                        value = widget.get_value()
+                    elif widget.type.inherits_from(lv_tileview_t):
+                        args = [cg.float_, "x"]
+                        value = f"lv_tileview_get_tile_act({widget.obj})"
                 await automation.build_automation(trigger, args, conf)
                 init.extend(widget.add_flag("LV_OBJ_FLAG_CLICKABLE"))
                 init.extend(

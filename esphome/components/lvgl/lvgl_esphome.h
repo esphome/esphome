@@ -92,6 +92,10 @@ typedef lv_animimg_t LvAnimImgType;
 #if LV_USE_SPINBOX
 typedef lv_spinbox_t LvSpinBoxType;
 #endif
+#if LV_USE_TILEVIEW
+typedef lv_tileview_t LvTileViewType;
+typedef lv_tileview_tile_t LvTileType;
+#endif
 #if LV_USE_ARC
 typedef lv_arc_t LvArcType;
 #endif

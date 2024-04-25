@@ -31,6 +31,7 @@ CONF_SPINNER = "spinner"
 CONF_SWITCH = "switch"
 CONF_TABLE = "table"
 CONF_TEXTAREA = "textarea"
+CONF_TILEVIEW = "tileview"
 
 # Input devices
 CONF_ROTARY_ENCODERS = "rotary_encoders"
@@ -138,6 +139,7 @@ PARTS = (
 
 ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
 DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
+TILE_DIRECTIONS = DIRECTIONS.extend("HOR", "VER", "ALL")
 CHILD_ALIGNMENTS = LvConstant(
     "LV_ALIGN_",
     "TOP_LEFT",
