@@ -36,7 +36,8 @@ void EbyteLoraComponent::update() {
       ESP_LOGD(TAG, "sub_packet was not set right");
     }
     if (this->current_config_.channel != this->expected_config_.channel) {
-      ESP_LOGD(TAG, "channel was not set right");
+      ESP_LOGD(TAG, "channel was not set right is %u, should be %u", this->current_config_.channel,
+               this->expected_config_.channel);
     }
     if (this->current_config_.wor_period != this->expected_config_.wor_period) {
       ESP_LOGD(TAG, "wor_period was not set right");

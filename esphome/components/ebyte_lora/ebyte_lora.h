@@ -39,9 +39,11 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_transmission_power(TransmissionPower power) { expected_config_.transmission_power = power; }
   void set_air_data_rate(AirDataRate air_data_rate) { expected_config_.air_data_rate = air_data_rate; }
+  void set_wor(WorPeriod wor) { expected_config_.wor_period = wor; }
   void set_enable_lbt(EnableByte enable) { expected_config_.enable_lbt = enable; }
   void set_enable_rssi(EnableByte enable) { expected_config_.enable_rssi = enable; }
   void set_rssi_noise(EnableByte enable) { expected_config_.rssi_noise = enable; }
+  void set_channel(uid_t channel) { expected_config_.channel = channel; }
 
  private:
   std::vector<EbyteLoraSwitch *> sensors_;

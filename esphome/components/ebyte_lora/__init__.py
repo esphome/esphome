@@ -19,6 +19,17 @@ ebyte_lora_ns = cg.esphome_ns.namespace("ebyte_lora")
 EbyteLoraComponent = ebyte_lora_ns.class_(
     "EbyteLoraComponent", cg.PollingComponent, uart.UARTDevice
 )
+WorPeriod = ebyte_lora_ns.enum("WorPeriod")
+WOR_PERIOD_OPTIONS = {
+    "WOR_500": WorPeriod.WOR_500,
+    "WOR_1000": WorPeriod.WOR_1000,
+    "WOR_1500": WorPeriod.WOR_1500,
+    "WOR_2000": WorPeriod.WOR_2000,
+    "WOR_2500": WorPeriod.WOR_2500,
+    "WOR_3000": WorPeriod.WOR_3000,
+    "WOR_3500": WorPeriod.WOR_3500,
+    "WOR_4000": WorPeriod.WOR_4000,
+}
 UartBpsSpeed = ebyte_lora_ns.enum("UartBpsSpeed")
 UART_BPS_OPTIONS = {
     "UART_1200": UartBpsSpeed.UART_1200,
@@ -68,9 +79,11 @@ CONF_UART_BPS = "uart_bps"
 CONF_TRANSMISSION_MODE = "transmission_mode"
 CONF_TRANSMISSION_POWER = "transmission_power"
 CONF_AIR_DATA_RATE = "air_data_rate"
+CONF_WOR = "wor_period"
 CONF_ENABLE_RSSI = "enable_rssi"
 CONF_ENABLE_LBT = "enable_lbt"
 CONF_RSSI_NOISE = "rssi_noise"
+CONF_CHANNEL = "channel"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -88,6 +101,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_CHANNEL, default=13): cv.int_range(min=0, max=83),
             cv.Optional(CONF_UART_BPS, default="UART_9600"): cv.enum(
                 UART_BPS_OPTIONS, upper=True
             ),
@@ -96,6 +110,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_TRANSMISSION_POWER, default="TX_DEFAULT_MAX"): cv.enum(
                 TRANSMISSION_POWER_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_WOR, default="WOR_4000"): cv.enum(
+                WOR_PERIOD_OPTIONS, upper=True
             ),
             cv.Optional(CONF_AIR_DATA_RATE, default="AIR_2_4KB"): cv.enum(
                 AIR_DATA_RATE_OPTIONS, upper=True
@@ -135,6 +152,9 @@ async def to_code(config):
     cg.add(var.set_enable_rssi(config[CONF_ENABLE_RSSI]))
     cg.add(var.set_enable_lbt(config[CONF_ENABLE_LBT]))
     cg.add(var.set_rssi_noise(config[CONF_RSSI_NOISE]))
+    cg.add(var.set_wor(config[CONF_WOR]))
+    cg.add(var.set_channel(config[CONF_CHANNEL]))
+
     if CONF_LORA_RSSI in config:
         sens = await sensor.new_sensor(config[CONF_LORA_RSSI])
         cg.add(var.set_rssi_sensor(sens))
