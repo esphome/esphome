@@ -40,10 +40,13 @@ void DateCall::validate_() {
   if (this->year_.has_value() && (this->year_ < 1970 || this->year_ > 3000)) {
     ESP_LOGE(TAG, "Year must be between 1970 and 3000");
     this->year_.reset();
+    this->month_.reset();
+    this->day_.reset();
   }
   if (this->month_.has_value() && (this->month_ < 1 || this->month_ > 12)) {
     ESP_LOGE(TAG, "Month must be between 1 and 12");
     this->month_.reset();
+    this->day_.reset();
   }
   if (this->day_.has_value()) {
     uint16_t year = 0;
