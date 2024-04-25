@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.components import number
 from esphome.const import CONF_ID, CONF_UNIT_OF_MEASUREMENT, CONF_STEP, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE
 
-from components.opentherm import const, schema, validate, input, generate
+from .. import const, schema, validate, input, generate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.NUMBER

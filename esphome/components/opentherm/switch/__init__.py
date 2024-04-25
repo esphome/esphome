@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.components import switch
 from esphome.const import CONF_ID
 
-from components.opentherm import const, schema, validate, generate
+from .. import const, schema, validate, generate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.SWITCH

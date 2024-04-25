@@ -3,7 +3,7 @@ from typing import Any, Dict
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 
-from components.opentherm import const, schema, validate, generate
+from .. import const, schema, validate, generate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.BINARY_SENSOR
