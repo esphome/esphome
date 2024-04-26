@@ -45,9 +45,9 @@ touchscreen:
 
 image:
   - id: cat_image
-    file: ./../../components/lvgl/cat.jpg
+    file: ./../../components/lvgl/cat.png
   - id: dog_img
-    file: ./../../components/lvgl/dog.jpg
+    file: ./../../components/lvgl/dog.png
     resize: 256x48
     type: TRANSPARENT_BINARY
 
