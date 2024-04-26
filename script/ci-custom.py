@@ -623,6 +623,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/cover/cover.h",
         "esphome/components/datetime/date_entity.h",
         "esphome/components/datetime/time_entity.h",
+        "esphome/components/datetime/datetime_entity.h",
         "esphome/components/display/display.h",
         "esphome/components/event/event.h",
         "esphome/components/fan/fan.h",
