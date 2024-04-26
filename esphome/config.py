@@ -374,7 +374,10 @@ class LoadValidationStep(ConfigValidationStep):
                         path + [CONF_ID],
                     )
                     continue
-                result.add_str_error("No platform specified! See 'platform' key.", path)
+                result.add_str_error(
+                    f"'{self.domain}' requires a 'platform' key but it was not specified.",
+                    path,
+                )
                 continue
             # Remove temp output path and construct new one
             result.remove_output_path(path, p_domain)
