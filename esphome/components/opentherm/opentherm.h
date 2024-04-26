@@ -1,7 +1,7 @@
 /*
  * OpenTherm protocol implementation. Originally taken from https://github.com/jpraus/arduino-opentherm, but
  * heavily modified to comply with ESPHome coding standards and provide better logging.
- * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
+ * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
  * Public License, which is compatible with GPLv3 license, which covers C++ part of ESPHome project.
  */
 
@@ -326,7 +326,7 @@ class OpenTherm {
 
 #ifdef ESP8266
   // ESP8266 timer can accept callback with no parameters, so we have this hack to save a static instance of OpenTherm
-  static OpenTherm* instance_;
+  static OpenTherm *instance_;
 #endif
 };
 

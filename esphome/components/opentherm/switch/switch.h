@@ -7,15 +7,14 @@
 namespace esphome {
 namespace opentherm {
 
-
 class OpenthermSwitch : public switch_::Switch, public Component {
-protected:
-    void write_state(bool state) override;
+ protected:
+  void write_state(bool state) override;
 
-public:
-    void setup() override;
-    void dump_config() override;
+ public:
+  void setup() override;
+  void dump_config() override;
 };
 
-} // namespace opentherm
-} // namespace esphome
+}  // namespace opentherm
+}  // namespace esphome

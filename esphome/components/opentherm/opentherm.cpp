@@ -1,7 +1,7 @@
 /*
  * OpenTherm protocol implementation. Originally taken from https://github.com/jpraus/arduino-opentherm, but
  * heavily modified to comply with ESPHome coding standards and provide better logging.
- * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
+ * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
  * Public License, which is compatible with GPLv3 license, which covers C++ part of ESPHome project.
  */
 
@@ -25,7 +25,7 @@ using std::bitset;
 using std::stringstream;
 using std::to_string;
 
-OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout) 
+OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
       mode_(OperationMode::IDLE),
@@ -210,9 +210,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
 }
 
 #ifdef ESP8266
-void IRAM_ATTR OpenTherm::esp8266_timer_isr() {
-  timer_isr(instance_);
-}
+void IRAM_ATTR OpenTherm::esp8266_timer_isr() { timer_isr(instance_); }
 #endif
 
 void IRAM_ATTR OpenTherm::bit_read_(uint8_t value) {
@@ -467,7 +465,6 @@ std::string OpenTherm::debug_error(OpenThermError &error) {
 
   return result.str();
 }
-
 
 float OpenthermData::f88() {
   float const value = (int8_t) valueHB;
