@@ -11,22 +11,22 @@ namespace esphome {
 namespace opentherm {
 
 namespace message_data {
-bool parse_flag8_lb_0(OpenthermData &data) { return bitRead(data.valueLB, 0); }
-bool parse_flag8_lb_1(OpenthermData &data) { return bitRead(data.valueLB, 1); }
-bool parse_flag8_lb_2(OpenthermData &data) { return bitRead(data.valueLB, 2); }
-bool parse_flag8_lb_3(OpenthermData &data) { return bitRead(data.valueLB, 3); }
-bool parse_flag8_lb_4(OpenthermData &data) { return bitRead(data.valueLB, 4); }
-bool parse_flag8_lb_5(OpenthermData &data) { return bitRead(data.valueLB, 5); }
-bool parse_flag8_lb_6(OpenthermData &data) { return bitRead(data.valueLB, 6); }
-bool parse_flag8_lb_7(OpenthermData &data) { return bitRead(data.valueLB, 7); }
-bool parse_flag8_hb_0(OpenthermData &data) { return bitRead(data.valueHB, 0); }
-bool parse_flag8_hb_1(OpenthermData &data) { return bitRead(data.valueHB, 1); }
-bool parse_flag8_hb_2(OpenthermData &data) { return bitRead(data.valueHB, 2); }
-bool parse_flag8_hb_3(OpenthermData &data) { return bitRead(data.valueHB, 3); }
-bool parse_flag8_hb_4(OpenthermData &data) { return bitRead(data.valueHB, 4); }
-bool parse_flag8_hb_5(OpenthermData &data) { return bitRead(data.valueHB, 5); }
-bool parse_flag8_hb_6(OpenthermData &data) { return bitRead(data.valueHB, 6); }
-bool parse_flag8_hb_7(OpenthermData &data) { return bitRead(data.valueHB, 7); }
+bool parse_flag8_lb_0(OpenthermData &data) { return readBit(data.valueLB, 0); }
+bool parse_flag8_lb_1(OpenthermData &data) { return readBit(data.valueLB, 1); }
+bool parse_flag8_lb_2(OpenthermData &data) { return readBit(data.valueLB, 2); }
+bool parse_flag8_lb_3(OpenthermData &data) { return readBit(data.valueLB, 3); }
+bool parse_flag8_lb_4(OpenthermData &data) { return readBit(data.valueLB, 4); }
+bool parse_flag8_lb_5(OpenthermData &data) { return readBit(data.valueLB, 5); }
+bool parse_flag8_lb_6(OpenthermData &data) { return readBit(data.valueLB, 6); }
+bool parse_flag8_lb_7(OpenthermData &data) { return readBit(data.valueLB, 7); }
+bool parse_flag8_hb_0(OpenthermData &data) { return readBit(data.valueHB, 0); }
+bool parse_flag8_hb_1(OpenthermData &data) { return readBit(data.valueHB, 1); }
+bool parse_flag8_hb_2(OpenthermData &data) { return readBit(data.valueHB, 2); }
+bool parse_flag8_hb_3(OpenthermData &data) { return readBit(data.valueHB, 3); }
+bool parse_flag8_hb_4(OpenthermData &data) { return readBit(data.valueHB, 4); }
+bool parse_flag8_hb_5(OpenthermData &data) { return readBit(data.valueHB, 5); }
+bool parse_flag8_hb_6(OpenthermData &data) { return readBit(data.valueHB, 6); }
+bool parse_flag8_hb_7(OpenthermData &data) { return readBit(data.valueHB, 7); }
 uint8_t parse_u8_lb(OpenthermData &data) { return data.valueLB; }
 uint8_t parse_u8_hb(OpenthermData &data) { return data.valueHB; }
 int8_t parse_s8_lb(OpenthermData &data) { return (int8_t) data.valueLB; }
@@ -35,22 +35,22 @@ uint16_t parse_u16(OpenthermData &data) { return data.u16(); }
 int16_t parse_s16(OpenthermData &data) { return data.s16(); }
 float parse_f88(OpenthermData &data) { return data.f88(); }
 
-void write_flag8_lb_0(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 0, value); }
-void write_flag8_lb_1(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 1, value); }
-void write_flag8_lb_2(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 2, value); }
-void write_flag8_lb_3(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 3, value); }
-void write_flag8_lb_4(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 4, value); }
-void write_flag8_lb_5(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 5, value); }
-void write_flag8_lb_6(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 6, value); }
-void write_flag8_lb_7(const bool value, OpenthermData &data) { bitWrite(data.valueLB, 7, value); }
-void write_flag8_hb_0(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 0, value); }
-void write_flag8_hb_1(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 1, value); }
-void write_flag8_hb_2(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 2, value); }
-void write_flag8_hb_3(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 3, value); }
-void write_flag8_hb_4(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 4, value); }
-void write_flag8_hb_5(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 5, value); }
-void write_flag8_hb_6(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 6, value); }
-void write_flag8_hb_7(const bool value, OpenthermData &data) { bitWrite(data.valueHB, 7, value); }
+void write_flag8_lb_0(const bool value, OpenthermData &data) { writeBit(data.valueLB, 0, value); }
+void write_flag8_lb_1(const bool value, OpenthermData &data) { writeBit(data.valueLB, 1, value); }
+void write_flag8_lb_2(const bool value, OpenthermData &data) { writeBit(data.valueLB, 2, value); }
+void write_flag8_lb_3(const bool value, OpenthermData &data) { writeBit(data.valueLB, 3, value); }
+void write_flag8_lb_4(const bool value, OpenthermData &data) { writeBit(data.valueLB, 4, value); }
+void write_flag8_lb_5(const bool value, OpenthermData &data) { writeBit(data.valueLB, 5, value); }
+void write_flag8_lb_6(const bool value, OpenthermData &data) { writeBit(data.valueLB, 6, value); }
+void write_flag8_lb_7(const bool value, OpenthermData &data) { writeBit(data.valueLB, 7, value); }
+void write_flag8_hb_0(const bool value, OpenthermData &data) { writeBit(data.valueHB, 0, value); }
+void write_flag8_hb_1(const bool value, OpenthermData &data) { writeBit(data.valueHB, 1, value); }
+void write_flag8_hb_2(const bool value, OpenthermData &data) { writeBit(data.valueHB, 2, value); }
+void write_flag8_hb_3(const bool value, OpenthermData &data) { writeBit(data.valueHB, 3, value); }
+void write_flag8_hb_4(const bool value, OpenthermData &data) { writeBit(data.valueHB, 4, value); }
+void write_flag8_hb_5(const bool value, OpenthermData &data) { writeBit(data.valueHB, 5, value); }
+void write_flag8_hb_6(const bool value, OpenthermData &data) { writeBit(data.valueHB, 6, value); }
+void write_flag8_hb_7(const bool value, OpenthermData &data) { writeBit(data.valueHB, 7, value); }
 void write_u8_lb(const uint8_t value, OpenthermData &data) { data.valueLB = value; }
 void write_u8_hb(const uint8_t value, OpenthermData &data) { data.valueHB = value; }
 void write_s8_lb(const int8_t value, OpenthermData &data) { data.valueLB = (uint8_t) value; }

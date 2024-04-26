@@ -25,7 +25,7 @@ def validate_min_value_less_than_max_value(conf):
 
 
 def input_schema(entity: schema.InputSchema) -> cv.Schema:
-    schema = cv.Schema(
+    result = cv.Schema(
         {
             cv.Optional(CONF_min_value, entity["range"][0]): cv.float_range(
                 entity["range"][0], entity["range"][1]
@@ -36,16 +36,16 @@ def input_schema(entity: schema.InputSchema) -> cv.Schema:
         }
     )
     if CONF_auto_min_value in entity:
-        schema = schema.extend({cv.Optional(CONF_auto_min_value, False): cv.boolean})
+        result = result.extend({cv.Optional(CONF_auto_min_value, False): cv.boolean})
     if CONF_auto_max_value in entity:
-        schema = schema.extend({cv.Optional(CONF_auto_max_value, False): cv.boolean})
+        result = result.extend({cv.Optional(CONF_auto_max_value, False): cv.boolean})
     if CONF_step in entity:
-        schema = schema.extend({cv.Optional(CONF_step, False): cv.float_})
-    schema = schema.add_extra(validate_min_value_less_than_max_value)
-    return schema
+        result = result.extend({cv.Optional(CONF_step, False): cv.float_})
+    result = result.add_extra(validate_min_value_less_than_max_value)
+    return result
 
 
-def generate_setters(entity: cg.MockObj, conf: Dict[str, Any]) -> None:
+def generate_setters(entity: cg.MockObj, conf: dict[str, Any]) -> None:
     generate.add_property_set(entity, CONF_min_value, conf)
     generate.add_property_set(entity, CONF_max_value, conf)
     generate.add_property_set(entity, CONF_auto_min_value, conf)

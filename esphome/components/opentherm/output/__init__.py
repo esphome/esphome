@@ -16,7 +16,7 @@ OpenthermOutput = generate.opentherm_ns.class_(
 
 
 async def new_openthermoutput(
-    config: Dict[str, Any], key: str, _hub: cg.MockObj
+    config: dict[str, Any], key: str, _hub: cg.MockObj
 ) -> cg.Pvariable:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = validate.create_component_schema(
 )
 
 
-async def to_code(config: Dict[str, Any]) -> None:
+async def to_code(config: dict[str, Any]) -> None:
     keys = await generate.component_to_code(
         COMPONENT_TYPE, schema.INPUTS, OpenthermOutput, new_openthermoutput, config
     )

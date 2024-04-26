@@ -18,7 +18,7 @@ from esphome.const import (
 T = TypeVar("T")
 
 
-class Schema(Generic[T], Dict[str, T]):
+class Schema(Generic[T], dict[str, T]):
     pass
 
 
@@ -36,14 +36,14 @@ class EntitySchema(TypedDict):
 
     message_data: str
     """Instructions on how to interpret the data in the message
-      - flag8_[hb|lb]_[0-7]: data is a byte of single bit flags, 
+      - flag8_[hb|lb]_[0-7]: data is a byte of single bit flags,
                              this flag is set in the high (hb) or low byte (lb),
                              at position 0 to 7
-      - u8_[hb|lb]: data is an unsigned 8-bit integer, 
+      - u8_[hb|lb]: data is an unsigned 8-bit integer,
                     in the high (hb) or low byte (lb)
-      - s8_[hb|lb]: data is an signed 8-bit integer, 
+      - s8_[hb|lb]: data is an signed 8-bit integer,
                     in the high (hb) or low byte (lb)
-      - f88: data is a signed fixed point value with 
+      - f88: data is a signed fixed point value with
               1 sign bit, 7 integer bits, 8 fractional bits
       - u16: data is an unsigned 16-bit integer
       - s16: data is a signed 16-bit integer
@@ -445,7 +445,7 @@ BINARY_SENSORS: Schema = Schema(
         "dhw_present": BinarySensorSchema(
             {
                 "description": "Configuration: DHW present",
-                "message": "SLAVE_CONFIG",
+                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
                 "keep_updated": False,
                 "message_data": "flag8_hb_0",
             }
@@ -453,7 +453,7 @@ BINARY_SENSORS: Schema = Schema(
         "control_type_on_off": BinarySensorSchema(
             {
                 "description": "Configuration: Control type is on/off",
-                "message": "SLAVE_CONFIG",
+                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
                 "keep_updated": False,
                 "message_data": "flag8_hb_1",
             }
@@ -461,7 +461,7 @@ BINARY_SENSORS: Schema = Schema(
         "cooling_supported": BinarySensorSchema(
             {
                 "description": "Configuration: Cooling supported",
-                "message": "SLAVE_CONFIG",
+                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
                 "keep_updated": False,
                 "message_data": "flag8_hb_2",
             }
@@ -469,15 +469,15 @@ BINARY_SENSORS: Schema = Schema(
         "dhw_storage_tank": BinarySensorSchema(
             {
                 "description": "Configuration: DHW storage tank",
-                "message": "SLAVE_CONFIG",
+                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
                 "keep_updated": False,
                 "message_data": "flag8_hb_3",
             }
         ),
-        "master_pump_control_allowed": BinarySensorSchema(
+        "master_pump_control_allowed": BinarySensorSchema(  # NOLINT this is OpenTherm standard terminology
             {
-                "description": "Configuration: Master pump control allowed",
-                "message": "SLAVE_CONFIG",
+                "description": "Configuration: Master pump control allowed",  # NOLINT this is OpenTherm terminology
+                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
                 "keep_updated": False,
                 "message_data": "flag8_hb_4",
             }
@@ -485,7 +485,7 @@ BINARY_SENSORS: Schema = Schema(
         "ch2_present": BinarySensorSchema(
             {
                 "description": "Configuration: CH2 present",
-                "message": "SLAVE_CONFIG",
+                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
                 "keep_updated": False,
                 "message_data": "flag8_hb_5",
             }
@@ -584,7 +584,7 @@ class AutoConfigure(TypedDict):
 class InputSchema(EntitySchema):
     unit_of_measurement: str
     step: float
-    range: Tuple[int, int]
+    range: tuple[int, int]
     auto_max_value: Optional[AutoConfigure]
     auto_min_value: Optional[AutoConfigure]
 

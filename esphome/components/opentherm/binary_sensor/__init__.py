@@ -23,7 +23,7 @@ CONFIG_SCHEMA = validate.create_component_schema(
 )
 
 
-async def to_code(config: Dict[str, Any]) -> None:
+async def to_code(config: dict[str, Any]) -> None:
     await generate.component_to_code(
         COMPONENT_TYPE,
         schema.BINARY_SENSORS,

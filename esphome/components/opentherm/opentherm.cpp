@@ -25,7 +25,7 @@ using std::bitset;
 using std::stringstream;
 using std::to_string;
 
-OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t slave_timeout)
+OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout) 
     : in_pin_(in_pin),
       out_pin_(out_pin),
       mode_(OperationMode::IDLE),
@@ -37,7 +37,7 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
       active_(false),
       timeout_counter_(-1),
       timer_initialized_(false),
-      slave_timeout_(slave_timeout) {
+      device_timeout_(device_timeout) {
   isr_in_pin_ = in_pin->to_isr();
   isr_out_pin_ = out_pin->to_isr();
 }
@@ -53,7 +53,7 @@ void OpenTherm::begin() {
 
 void OpenTherm::listen() {
   stop_();
-  this->timeout_counter_ = slave_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
+  this->timeout_counter_ = device_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
 
   mode_ = OperationMode::LISTEN;
   active_ = true;
@@ -192,7 +192,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
     if (arg->bit_pos_ == 33 || arg->bit_pos_ == 0) {  // start bit
       arg->write_bit_(1, arg->clock_);
     } else {  // data bits
-      arg->write_bit_(bitRead(arg->data_, arg->bit_pos_ - 1), arg->clock_);
+      arg->write_bit_(readBit(arg->data_, arg->bit_pos_ - 1), arg->clock_);
     }
     if (arg->clock_ == 0) {
       if (arg->bit_pos_ <= 0) {            // check termination

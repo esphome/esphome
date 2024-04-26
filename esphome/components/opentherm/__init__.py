@@ -35,8 +35,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config: Dict[str, Any]) -> None:
-    id = str(config[CONF_ID])
+async def to_code(config: dict[str, Any]) -> None:
     # Create the hub, passing the two callbacks defined below
     # Since the hub is used in the callbacks, we need to define it first
     var = cg.new_Pvariable(config[CONF_ID])
@@ -54,8 +53,12 @@ async def to_code(config: Dict[str, Any]) -> None:
     for key, value in config.items():
         if key not in non_sensors:
             if key in schema.INPUTS:
-                sensor = await cg.get_variable(value)
-                cg.add(getattr(var, f"set_{key}_{const.INPUT_SENSOR.lower()}")(sensor))
+                input_sensor = await cg.get_variable(value)
+                cg.add(
+                    getattr(var, f"set_{key}_{const.INPUT_SENSOR.lower()}")(
+                        input_sensor
+                    )
+                )
                 input_sensors.append(key)
             else:
                 cg.add(getattr(var, f"set_{key}")(value))

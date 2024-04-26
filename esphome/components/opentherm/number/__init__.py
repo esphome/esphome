@@ -21,7 +21,7 @@ OpenthermNumber = generate.opentherm_ns.class_(
 )
 
 
-async def new_openthermnumber(config: Dict[str, Any]) -> cg.Pvariable:
+async def new_openthermnumber(config: dict[str, Any]) -> cg.Pvariable:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await number.register_number(
@@ -64,7 +64,7 @@ CONFIG_SCHEMA = validate.create_component_schema(
 )
 
 
-async def to_code(config: Dict[str, Any]) -> None:
+async def to_code(config: dict[str, Any]) -> None:
     keys = await generate.component_to_code(
         COMPONENT_TYPE,
         schema.INPUTS,

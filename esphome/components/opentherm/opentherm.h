@@ -18,12 +18,10 @@
 #endif
 #endif
 
-// The only thing we want from Arduino :)
-#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
-#define bitSet(value, bit) ((value) |= (1UL << (bit)))
-#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
-#define bitToggle(value, bit) ((value) ^= (1UL << (bit)))
-#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+#define readBit(value, bit) (((value) >> (bit)) & 0x01)
+#define setBit(value, bit) ((value) |= (1UL << (bit)))
+#define clearBit(value, bit) ((value) &= ~(1UL << (bit)))
+#define writeBit(value, bit, bitvalue) ((bitvalue) ? setBit(value, bit) : clearBit(value, bit))
 
 namespace esphome {
 namespace opentherm {
@@ -63,8 +61,8 @@ enum MessageType {
 enum MessageId {
   STATUS = 0,
   CH_SETPOINT = 1,
-  MASTER_CONFIG = 2,
-  SLAVE_CONFIG = 3,
+  MASTER_CONFIG = 2,  // NOLINT this is OpenTherm standard terminology
+  SLAVE_CONFIG = 3, // NOLINT this is OpenTherm standard terminology
   COMMAND_CODE = 4,
   FAULT_FLAGS = 5,
   REMOTE = 6,
@@ -188,7 +186,7 @@ struct OpenThermError {
  */
 class OpenTherm {
  public:
-  OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t slave_timeout = 800);
+  OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout = 800);
 
   /**
    * Setup pins.
@@ -311,7 +309,7 @@ class OpenTherm {
   volatile int32_t timeout_counter_;  // <0 no timeout
   volatile bool timer_initialized_;
 
-  int32_t slave_timeout_;
+  int32_t device_timeout_;
 
   void read_();  // data detected start reading
   void stop_();  // stop timers and interrupts

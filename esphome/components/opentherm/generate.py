@@ -1,4 +1,5 @@
-from typing import Any, Awaitable, Callable, Dict, List, Set, Tuple, TypeVar
+from typing import Any, Callable, Dict, List, Set, Tuple, TypeVar
+from collections.abc import Awaitable
 
 import esphome.codegen as cg
 from esphome.const import CONF_ID
@@ -9,7 +10,7 @@ opentherm_ns = cg.esphome_ns.namespace("esphome::opentherm")
 OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
 
 
-def define_has_component(component_type: str, keys: List[str]) -> None:
+def define_has_component(component_type: str, keys: list[str]) -> None:
     cg.add_define(
         f"OPENTHERM_{component_type.upper()}_LIST(F, sep)",
         cg.RawExpression(
@@ -24,7 +25,7 @@ TSchema = TypeVar("TSchema", bound=schema.EntitySchema)
 
 
 def define_message_handler(
-    component_type: str, keys: List[str], schema_: schema.Schema[TSchema]
+    component_type: str, keys: list[str], schema_: schema.Schema[TSchema]
 ) -> None:
     # The macros defined here should be able to generate things like this:
     # // Parsing a message and publishing to sensors
@@ -44,7 +45,7 @@ def define_message_handler(
     # There doesn't seem to be a way to combine the handlers for different components, so we'll
     # have to call them seperately in C++.
 
-    messages: Dict[str, List[Tuple[str, str]]] = {}
+    messages: dict[str, list[tuple[str, str]]] = {}
     for key in keys:
         msg = schema_[key]["message"]
         if msg not in messages:
@@ -71,7 +72,7 @@ def define_message_handler(
     )
 
 
-def define_readers(component_type: str, keys: List[str]) -> None:
+def define_readers(component_type: str, keys: list[str]) -> None:
     for key in keys:
         cg.add_define(
             f"OPENTHERM_READ_{key}",
@@ -79,8 +80,8 @@ def define_readers(component_type: str, keys: List[str]) -> None:
         )
 
 
-def add_messages(hub: cg.MockObj, keys: List[str], schema_: schema.Schema[TSchema]):
-    messages: Set[Tuple[str, bool]] = set()
+def add_messages(hub: cg.MockObj, keys: list[str], schema_: schema.Schema[TSchema]):
+    messages: set[tuple[str, bool]] = set()
     for key in keys:
         messages.add((schema_[key]["message"], schema_[key]["keep_updated"]))
     for msg, keep_updated in messages:
@@ -91,16 +92,16 @@ def add_messages(hub: cg.MockObj, keys: List[str], schema_: schema.Schema[TSchem
             cg.add(hub.add_initial_message(msg_expr))
 
 
-def add_property_set(var: cg.MockObj, config_key: str, config: Dict[str, Any]) -> None:
+def add_property_set(var: cg.MockObj, config_key: str, config: dict[str, Any]) -> None:
     if config_key in config:
         cg.add(getattr(var, f"set_{config_key}")(config[config_key]))
 
 
-Create = Callable[[Dict[str, Any], str, cg.MockObj], Awaitable[cg.Pvariable]]
+Create = Callable[[dict[str, Any], str, cg.MockObj], Awaitable[cg.Pvariable]]
 
 
 def create_only_conf(
-    create: Callable[[Dict[str, Any]], Awaitable[cg.Pvariable]]
+    create: Callable[[dict[str, Any]], Awaitable[cg.Pvariable]]
 ) -> Create:
     return lambda conf, _key, _hub: create(conf)
 
@@ -110,8 +111,8 @@ async def component_to_code(
     schema_: schema.Schema[TSchema],
     type: cg.MockObjClass,
     create: Create,
-    config: Dict[str, Any],
-) -> List[str]:
+    config: dict[str, Any],
+) -> list[str]:
     """Generate the code for each configured component in the schema of a component type.
 
     Parameters:
@@ -128,7 +129,7 @@ async def component_to_code(
 
     hub = await cg.get_variable(config[const.CONF_OPENTHERM_ID])
 
-    keys: List[str] = []
+    keys: list[str] = []
     for key, conf in config.items():
         if not isinstance(conf, dict):
             continue
