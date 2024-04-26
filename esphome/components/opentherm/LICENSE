@@ -1,0 +1,5 @@
+Parts of the code (namely opentherm.h and opentherm.cpp) are adapted from arduino-opentherm project by
+jparus (https://github.com/jpraus/arduino-opentherm). That project is published under Creative Commons 
+Attribution-NonCommercial-ShareAlike 4.0 International Public License. That license is compatible with 
+GPLv3 license, which covers C++ part of ESPHome project (see the top-level license file). License compatibility
+is described here: https://creativecommons.org/share-your-work/licensing-considerations/compatible-licenses.
