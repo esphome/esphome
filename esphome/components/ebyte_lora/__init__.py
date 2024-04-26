@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     CONF_ID,
     UNIT_PERCENT,
+    CONF_CHANNEL,
 )
 
 CODEOWNERS = ["@danielkoek"]
@@ -79,11 +80,11 @@ CONF_UART_BPS = "uart_bps"
 CONF_TRANSMISSION_MODE = "transmission_mode"
 CONF_TRANSMISSION_POWER = "transmission_power"
 CONF_AIR_DATA_RATE = "air_data_rate"
-CONF_WOR = "wor_period"
+CONF_WOR_PERIOD = "wor_period"
 CONF_ENABLE_RSSI = "enable_rssi"
 CONF_ENABLE_LBT = "enable_lbt"
 CONF_RSSI_NOISE = "rssi_noise"
-CONF_CHANNEL = "channel"
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -111,7 +112,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_TRANSMISSION_POWER, default="TX_DEFAULT_MAX"): cv.enum(
                 TRANSMISSION_POWER_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_WOR, default="WOR_4000"): cv.enum(
+            cv.Optional(CONF_WOR_PERIOD, default="WOR_4000"): cv.enum(
                 WOR_PERIOD_OPTIONS, upper=True
             ),
             cv.Optional(CONF_AIR_DATA_RATE, default="AIR_2_4KB"): cv.enum(
@@ -152,7 +153,7 @@ async def to_code(config):
     cg.add(var.set_enable_rssi(config[CONF_ENABLE_RSSI]))
     cg.add(var.set_enable_lbt(config[CONF_ENABLE_LBT]))
     cg.add(var.set_rssi_noise(config[CONF_RSSI_NOISE]))
-    cg.add(var.set_wor(config[CONF_WOR]))
+    cg.add(var.set_wor(config[CONF_WOR_PERIOD]))
     cg.add(var.set_channel(config[CONF_CHANNEL]))
 
     if CONF_LORA_RSSI in config:
