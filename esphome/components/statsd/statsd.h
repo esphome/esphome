@@ -22,26 +22,25 @@
 namespace esphome {
 namespace statsd {
 
-typedef enum { TYPE_SENSOR, TYPE_BINARY_SENSOR } sensor_type_t;
+using sensor_type_t = enum { TYPE_SENSOR, TYPE_BINARY_SENSOR };
 
-typedef struct {
+using sensors_t = struct {
   const char *name;
   sensor_type_t type;
   union {
 #ifdef USE_SENSOR
     esphome::sensor::Sensor *sensor;
 #endif
-
 #ifdef USE_BINARY_SENSOR
     esphome::binary_sensor::BinarySensor *binary_sensor;
 #endif
   };
-} sensors_t;
+};
 
-class statsdComponent : public PollingComponent {
+class StatsdComponent : public PollingComponent {
  public:
-  statsdComponent() : PollingComponent(10000){};
-  ~statsdComponent();
+  StatsdComponent() : PollingComponent(10000){};
+  ~StatsdComponent();
 
   void setup() override;
   void dump_config() override;
@@ -49,9 +48,9 @@ class statsdComponent : public PollingComponent {
   float get_setup_priority() const override;
 
   void configure(const char *host, uint16_t port, const char *prefix) {
-    this->host = host;
-    this->port = port;
-    this->prefix = prefix;
+    this->host_ = host;
+    this->port_ = port;
+    this->prefix_ = prefix;
   }
 
 #ifdef USE_SENSOR
@@ -59,19 +58,19 @@ class statsdComponent : public PollingComponent {
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  void register_binary_sensor(const char *name, esphome::binary_sensor::BinarySensor *binarySensor);
+  void register_binary_sensor(const char *name, esphome::binary_sensor::BinarySensor *binary_sensor);
 #endif
 
  private:
-  std::unique_ptr<esphome::socket::Socket> sock;
-  const char *host;
-  const char *prefix;
-  uint16_t port;
-  struct sockaddr_in destination;
+  std::unique_ptr<esphome::socket::Socket> sock_;
+  const char *host_;
+  const char *prefix_;
+  uint16_t port_;
+  struct sockaddr_in destination_;
 
-  std::vector<sensors_t> sensors;
+  std::vector<sensors_t> sensors_;
 
-  void send(std::string *out);
+  void send_(std::string *out);
 };
 
 }  // namespace statsd
