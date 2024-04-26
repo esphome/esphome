@@ -4,7 +4,7 @@ namespace ebyte_lora {
 static const uint8_t SWITCH_PUSH = 0x55;
 static const uint8_t SWITCH_INFO = 0x66;
 static const uint8_t PROGRAM_CONF = 0xC1;
-bool EbyteLoraComponent::check_config() {
+bool EbyteLoraComponent::check_config_() {
   bool success = true;
   if (this->current_config_.addh != this->expected_config_.addh) {
     ESP_LOGD(TAG, "addh was not set right");
@@ -63,7 +63,7 @@ void EbyteLoraComponent::update() {
     this->get_current_config_();
     return;
   } else {
-    if (!this->check_config()) {
+    if (!this->check_config_()) {
       ESP_LOGD(TAG, "Config is not right, have to do something about that!");
     }
   }
