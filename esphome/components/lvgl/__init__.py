@@ -209,7 +209,7 @@ lv_animimg_t = cg.MockObjClass("LvAnimImgType", parents=[lv_obj_t])
 lv_number_t = lvgl_ns.class_("LvPseudoNumber")
 lv_spinbox_t = cg.MockObjClass("LvSpinBoxType", parents=[lv_obj_t, lv_number_t])
 lv_tileview_t = cg.MockObjClass("LvTileViewtype", parents=[lv_obj_t])
-lv_tile_t = cg.MockObjClass("LvTiletype", parents=[lv_obj_t])
+lv_tile_t = cg.MockObjClass("LvTileType", parents=[lv_obj_t])
 lv_arc_t = cg.MockObjClass("LvArcType", parents=[lv_obj_t, lv_number_t])
 lv_bar_t = cg.MockObjClass("LvBarType", parents=[lv_obj_t, lv_number_t])
 lv_slider_t = cg.MockObjClass("LvSliderType", parents=[lv_obj_t, lv_number_t])
@@ -293,6 +293,7 @@ CONF_OBJ = "obj"
 CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
 CONF_ON_IDLE = "on_idle"
+CONF_ON_SELECT = "on_select"
 CONF_ONE_CHECKED = "one_checked"
 CONF_NEXT = "next"
 CONF_PAGE_WRAP = "page_wrap"
@@ -325,6 +326,7 @@ CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TEXT = "text"
 CONF_TILE = "tile"
+CONF_TILE_ID = "tile_id"
 CONF_TILES = "tiles"
 CONF_TITLE = "title"
 CONF_TOP_LAYER = "top_layer"
@@ -1148,6 +1150,7 @@ TILE_SCHEMA = any_widget_schema(
     {
         cv.Required(CONF_ROW): lv_int,
         cv.Required(CONF_COLUMN): lv_int,
+        cv.GenerateID(CONF_TILE_ID): cv.declare_id(lv_tile_t),
         cv.Optional(CONF_DIR, default="ALL"): lv_one_of(TILE_DIRECTIONS),
     }
 )
@@ -1157,12 +1160,11 @@ TILEVIEW_SCHEMA = {
     cv.Optional(CONF_ON_VALUE): automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                automation.Trigger.template(lv_tile_t)
+                automation.Trigger.template(lv_obj_t_ptr)
             )
         }
     ),
 }
-
 
 WIDGET_SCHEMA = any_widget_schema()
 
@@ -1422,6 +1424,15 @@ def tile_obj_creator(parent: Widget, config: dict):
 
 async def tileview_to_code(var: Widget, config: dict):
     init = []
+    for widg in config[CONF_TILES]:
+        w_type, wc = next(iter(widg.items()))
+        tile_obj = cg.Pvariable(wc[CONF_TILE_ID], cg.nullptr, type_=lv_obj_t)
+        tile = Widget(tile_obj, lv_tile_t)
+        init.append(
+            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {wc[CONF_COLUMN]}, {wc[CONF_ROW]}, {wc[CONF_DIR]})"
+        )
+        ext_init = await widget_to_code(wc, w_type, tile)
+        init.extend(ext_init)
     return init
 
 
@@ -1476,7 +1487,7 @@ SHOW_SCHEMA = LVGL_SCHEMA.extend(
 def tile_select_validate(config):
     row = CONF_ROW in config
     column = CONF_COLUMN in config
-    tile = CONF_TILE in config
+    tile = CONF_TILE_ID in config
     if tile and (row or column) or not tile and not (row and column):
         raise cv.Invalid("Specify either a tile id, or both a row and a column")
     return config
@@ -1491,13 +1502,13 @@ def tile_select_validate(config):
             cv.Optional(CONF_ANIMATED, default=False): lv_animated,
             cv.Optional(CONF_ROW): lv_int,
             cv.Optional(CONF_COLUMN): lv_int,
-            cv.Optional(CONF_TILE): cv.use_id(lv_tile_t),
+            cv.Optional(CONF_TILE_ID): cv.use_id(lv_tile_t),
         },
     ).add_extra(tile_select_validate),
 )
 async def tileview_select(config, action_id, template_arg, args):
     widget = await cg.get_variable(config[CONF_ID])
-    if tile := config.get(CONF_TILE):
+    if tile := config.get(CONF_TILE_ID):
         tile = await cg.get_variable(tile)
         init = [f"lv_obj_set_tile({widget}, {tile}, {config[CONF_ANIMATED]})"]
     else:
@@ -2078,12 +2089,6 @@ async def touchscreens_to_code(var, config):
     return init
 
 
-WIDGET_VALUES = [
-    (lv_number_t, [cg.float_, "x"], lambda w: w.get_value()),
-    (lv_tileview_t, [lv_tile_t, "it"], lambda w: f"lv_tileview_get_tile_act({w})"),
-]
-
-
 async def generate_triggers(lv_component):
     init = []
     for widget in widget_map.values():
@@ -2103,9 +2108,6 @@ async def generate_triggers(lv_component):
                     if widget.type.inherits_from(lv_number_t):
                         args = [(cg.float_, "x")]
                         value = widget.get_value()
-                    elif widget.type.inherits_from(lv_tileview_t):
-                        args = [cg.float_, "x"]
-                        value = f"lv_tileview_get_tile_act({widget.obj})"
                 await automation.build_automation(trigger, args, conf)
                 init.extend(widget.add_flag("LV_OBJ_FLAG_CLICKABLE"))
                 init.extend(
@@ -2115,11 +2117,17 @@ async def generate_triggers(lv_component):
                 )
             if on_value := widget.config.get(CONF_ON_VALUE):
                 for conf in on_value:
-                    trigger = cg.new_Pvariable(
-                        conf[CONF_TRIGGER_ID],
-                    )
-                    await automation.build_automation(trigger, [(cg.float_, "x")], conf)
-                    value = widget.get_value()
+                    trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+                    # It would be nice to abstract this out to Widget.
+                    if isinstance(
+                        widget.type, cg.MockObjClass
+                    ) and widget.type.inherits_from(lv_tileview_t):
+                        args = [(lv_obj_t_ptr, "tile")]
+                        value = f"lv_tileview_get_tile_act({widget.obj})"
+                    else:
+                        args = [(cg.float_, "x")]
+                        value = widget.get_value()
+                    await automation.build_automation(trigger, args, conf)
                     init.extend(
                         widget.set_event_cb(
                             f"{trigger}->trigger({value})",
