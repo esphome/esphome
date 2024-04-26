@@ -10,21 +10,21 @@ namespace opentherm {
 class OpenthermOutput : public output::FloatOutput, public Component, public OpenthermInput {
  protected:
   bool has_state_ = false;
-  const char *id = nullptr;
+  const char *id_ = nullptr;
 
-  float min_value, max_value;
+  float min_value_, max_value_;
 
  public:
   float state;
 
-  void set_id(const char *id) { this->id = id; }
+  void set_id(const char *id) { this->id_ = id; }
 
   void write_state(float state) override;
 
   bool has_state() { return this->has_state_; };
 
-  void set_min_value(float min_value) override { this->min_value = min_value; }
-  void set_max_value(float max_value) override { this->max_value = max_value; }
+  void set_min_value(float min_value) override { this->min_value_ = min_value; }
+  void set_max_value(float max_value) override { this->max_value_ = max_value; }
 };
 
 }  // namespace opentherm
