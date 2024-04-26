@@ -464,18 +464,16 @@ class MetadataValidationStep(ConfigValidationStep):
                     self.path,
                 )
                 success = False
-            elif component_dep != platform_dep:
-                # there is a platform dependency, too
-                if (
-                    not isinstance(platform_list := result.get(component_dep), list)
-                    or not any(CONF_PLATFORM in p for p in platform_list)
-                    or not any(p[CONF_PLATFORM] == platform_dep for p in platform_list)
-                ):
-                    result.add_str_error(
-                        f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
-                        self.path,
-                    )
-                    success = False
+            elif component_dep != platform_dep and (
+                not isinstance(platform_list := result.get(component_dep), list)
+                or not any(CONF_PLATFORM in p for p in platform_list)
+                or not any(p[CONF_PLATFORM] == platform_dep for p in platform_list)
+            ):
+                result.add_str_error(
+                    f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
+                    self.path,
+                )
+                success = False
         if not success:
             return
 
