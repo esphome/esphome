@@ -425,10 +425,18 @@ lvgl:
             tiles:
               - img:
                   tile_id: cat_tile
-                  align: center
+                  dir: VER
                   row: 0
                   column: 0
+                  align: center
                   src: cat_image
+                  on_click:
+                    then:
+                      - lvgl.tileview.select:
+                          id: tv_id
+                          row: 1
+                          column: 0
+                          animated: false
 
               - img:
                   row: 1
