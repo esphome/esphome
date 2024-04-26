@@ -61,8 +61,8 @@ enum MessageType {
 enum MessageId {
   STATUS = 0,
   CH_SETPOINT = 1,
-  MASTER_CONFIG = 2,  // NOLINT this is OpenTherm standard terminology
-  SLAVE_CONFIG = 3, // NOLINT this is OpenTherm standard terminology
+  THERMOSTAT_CONFIG = 2,
+  DEVICE_CONFIG = 3,
   COMMAND_CODE = 4,
   FAULT_FLAGS = 5,
   REMOTE = 6,

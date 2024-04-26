@@ -1,7 +1,7 @@
 # This file contains a schema for all supported sensors, binary sensors and
 # inputs of the OpenTherm component.
 
-from typing import Dict, Generic, Tuple, TypeVar, TypedDict, Optional
+from typing import Generic, TypeVar, TypedDict, Optional
 
 from esphome.const import (
     UNIT_CELSIUS,
@@ -445,7 +445,7 @@ BINARY_SENSORS: Schema = Schema(
         "dhw_present": BinarySensorSchema(
             {
                 "description": "Configuration: DHW present",
-                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
+                "message": "DEVICE_CONFIG",
                 "keep_updated": False,
                 "message_data": "flag8_hb_0",
             }
@@ -453,7 +453,7 @@ BINARY_SENSORS: Schema = Schema(
         "control_type_on_off": BinarySensorSchema(
             {
                 "description": "Configuration: Control type is on/off",
-                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
+                "message": "DEVICE_CONFIG",
                 "keep_updated": False,
                 "message_data": "flag8_hb_1",
             }
@@ -461,7 +461,7 @@ BINARY_SENSORS: Schema = Schema(
         "cooling_supported": BinarySensorSchema(
             {
                 "description": "Configuration: Cooling supported",
-                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
+                "message": "DEVICE_CONFIG",
                 "keep_updated": False,
                 "message_data": "flag8_hb_2",
             }
@@ -469,15 +469,15 @@ BINARY_SENSORS: Schema = Schema(
         "dhw_storage_tank": BinarySensorSchema(
             {
                 "description": "Configuration: DHW storage tank",
-                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
+                "message": "DEVICE_CONFIG",
                 "keep_updated": False,
                 "message_data": "flag8_hb_3",
             }
         ),
-        "master_pump_control_allowed": BinarySensorSchema(  # NOLINT this is OpenTherm standard terminology
+        "thermostat_pump_control_allowed": BinarySensorSchema(
             {
-                "description": "Configuration: Master pump control allowed",  # NOLINT this is OpenTherm terminology
-                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
+                "description": "Configuration: Thermostat pump control allowed",
+                "message": "DEVICE_CONFIG",
                 "keep_updated": False,
                 "message_data": "flag8_hb_4",
             }
@@ -485,7 +485,7 @@ BINARY_SENSORS: Schema = Schema(
         "ch2_present": BinarySensorSchema(
             {
                 "description": "Configuration: CH2 present",
-                "message": "SLAVE_CONFIG",  # NOLINT this is OpenTherm standard terminology
+                "message": "DEVICE_CONFIG",
                 "keep_updated": False,
                 "message_data": "flag8_hb_5",
             }

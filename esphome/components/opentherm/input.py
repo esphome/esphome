@@ -1,8 +1,7 @@
-from typing import Any, Dict
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-
 from . import schema, generate
 
 CONF_min_value = "min_value"

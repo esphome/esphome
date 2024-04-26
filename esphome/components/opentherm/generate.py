@@ -1,9 +1,8 @@
-from typing import Any, Callable, Dict, List, Set, Tuple, TypeVar
 from collections.abc import Awaitable
+from typing import Any, Callable, TypeVar
 
 import esphome.codegen as cg
 from esphome.const import CONF_ID
-
 from . import const, schema
 
 opentherm_ns = cg.esphome_ns.namespace("esphome::opentherm")

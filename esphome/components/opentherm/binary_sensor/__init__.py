@@ -1,8 +1,7 @@
-from typing import Any, Dict
+from typing import Any
 
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-
 from .. import const, schema, validate, generate
 
 DEPENDENCIES = [const.OPENTHERM]
