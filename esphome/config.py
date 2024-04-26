@@ -450,23 +450,32 @@ class MetadataValidationStep(ConfigValidationStep):
         success = True
         for dependency in self.comp.dependencies:
             dependency_parts = dependency.split(".")
-            component_dep = dependency_parts[-1]
-            platform_dep = dependency_parts[0]
+            if len(dependency_parts) > 2:
+                result.add_str_error(
+                    "Dependencies must be specified as a single component or in component.platform format only",
+                    self.path,
+                )
+                return
+            component_dep = dependency_parts[0]
+            platform_dep = dependency_parts[-1]
             if component_dep not in result:
                 result.add_str_error(
                     f"Component {self.domain} requires component {component_dep}",
                     self.path,
                 )
                 success = False
-            elif (
-                component_dep != platform_dep
-                and platform_dep not in result[component_dep]
-            ):
-                result.add_str_error(
-                    f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
-                    self.path,
-                )
-                success = False
+            elif component_dep != platform_dep:
+                # there is a platform dependency, too
+                if (
+                    not isinstance(platform_list := result.get(component_dep), list)
+                    or not any(CONF_PLATFORM in p for p in platform_list)
+                    or not any(p[CONF_PLATFORM] == platform_dep for p in platform_list)
+                ):
+                    result.add_str_error(
+                        f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
+                        self.path,
+                    )
+                    success = False
         if not success:
             return
 
