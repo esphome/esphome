@@ -129,6 +129,15 @@ bool ListEntitiesIterator::on_time(datetime::TimeEntity *time) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *datetime) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->datetime_json(datetime, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_TEXT
 bool ListEntitiesIterator::on_text(text::Text *text) {
   if (this->web_server_->events_.count() == 0)
