@@ -19,6 +19,11 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
+#ifdef USE_ARDUINO
+#include "WiFiUdp.h"
+#include "IPAddress.h"
+#endif
+
 namespace esphome {
 namespace statsd {
 
@@ -62,13 +67,18 @@ class StatsdComponent : public PollingComponent {
 #endif
 
  private:
-  std::unique_ptr<esphome::socket::Socket> sock_;
   const char *host_;
   const char *prefix_;
   uint16_t port_;
-  struct sockaddr_in destination_;
 
   std::vector<sensors_t> sensors_;
+
+#ifdef USE_ARDUINO
+  WiFiUDP sock_;
+#else
+  std::unique_ptr<esphome::socket::Socket> sock_;
+  struct sockaddr_in destination_;
+#endif
 
   void send_(std::string *out);
 };

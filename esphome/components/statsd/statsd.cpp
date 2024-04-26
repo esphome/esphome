@@ -12,6 +12,10 @@ static const uint16_t SEND_THRESHOLD = 1024;
 static const char *const TAG = "statsD";
 
 void StatsdComponent::setup() {
+#ifndef USE_ARDUINO
+#ifdef ESP8266
+#error ESP8266 does not Support UDP socket
+#endif
   this->sock_ = esphome::socket::socket(AF_INET, SOCK_DGRAM, 0);
 
   struct sockaddr_in source;
@@ -23,13 +27,16 @@ void StatsdComponent::setup() {
   this->destination_.sin_family = AF_INET;
   this->destination_.sin_port = htons(this->port_);
   this->destination_.sin_addr.s_addr = inet_addr(this->host_);
+#endif
 }
 
 StatsdComponent::~StatsdComponent() {
+#ifndef USE_ARDUINO
   if (!this->sock_) {
     return;
   }
   this->sock_->close();
+#endif
 }
 
 void StatsdComponent::dump_config() {
@@ -124,14 +131,28 @@ void StatsdComponent::update() {
 }
 
 void StatsdComponent::send_(std::string *out) {
-  if (out->empty() || !this->sock_) {
+  if (out->empty()) {
     return;
   }
+#ifdef USE_ARDUINO
+  IPAddress ip;
+  ip.fromString(this->host_);
+
+  this->sock_.beginPacket(ip, this->port_);
+  this->sock_.write((const uint8_t *) out->c_str(), out->length());
+  this->sock_.endPacket();
+
+#else
+  if (!this->sock_) {
+    return;
+  }
+
   int n_bytes = this->sock_->sendto(out->c_str(), out->length(), 0, reinterpret_cast<sockaddr *>(&this->destination_),
                                     sizeof(this->destination_));
   if (n_bytes != out->length()) {
     ESP_LOGE(TAG, "Failed to send UDP packed (%d of %d)", n_bytes, out->length());
   }
+#endif
 }
 
 }  // namespace statsd
