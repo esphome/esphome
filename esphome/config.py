@@ -756,11 +756,11 @@ def validate_config(
     CORE.raw_config = config
 
     # 1. Load substitutions
-    if CONF_SUBSTITUTIONS in config:
+    if CONF_SUBSTITUTIONS in config or command_line_substitutions:
         from esphome.components import substitutions
 
         result[CONF_SUBSTITUTIONS] = {
-            **config[CONF_SUBSTITUTIONS],
+            **config.get(CONF_SUBSTITUTIONS, {}),
             **command_line_substitutions,
         }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
