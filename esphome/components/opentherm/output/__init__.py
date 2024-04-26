@@ -10,10 +10,14 @@ from .. import const, schema, validate, input, generate
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.OUTPUT
 
-OpenthermOutput = generate.opentherm_ns.class_("OpenthermOutput", output.FloatOutput, cg.Component,
-                                               input.OpenthermInput)
+OpenthermOutput = generate.opentherm_ns.class_(
+    "OpenthermOutput", output.FloatOutput, cg.Component, input.OpenthermInput
+)
 
-async def new_openthermoutput(config: Dict[str, Any], key: str, _hub: cg.MockObj) -> cg.Pvariable:
+
+async def new_openthermoutput(
+    config: Dict[str, Any], key: str, _hub: cg.MockObj
+) -> cg.Pvariable:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
@@ -23,21 +27,22 @@ async def new_openthermoutput(config: Dict[str, Any], key: str, _hub: cg.MockObj
 
 
 def get_entity_validation_schema(entity: schema.InputSchema) -> cv.Schema:
-    return output.FLOAT_OUTPUT_SCHEMA \
-        .extend({cv.GenerateID(): cv.declare_id(OpenthermOutput)}) \
-        .extend(input.input_schema(entity)) \
+    return (
+        output.FLOAT_OUTPUT_SCHEMA.extend(
+            {cv.GenerateID(): cv.declare_id(OpenthermOutput)}
+        )
+        .extend(input.input_schema(entity))
         .extend(cv.COMPONENT_SCHEMA)
+    )
 
 
-CONFIG_SCHEMA = validate.create_component_schema(schema.INPUTS, get_entity_validation_schema)
+CONFIG_SCHEMA = validate.create_component_schema(
+    schema.INPUTS, get_entity_validation_schema
+)
 
 
 async def to_code(config: Dict[str, Any]) -> None:
     keys = await generate.component_to_code(
-        COMPONENT_TYPE,
-        schema.INPUTS,
-        OpenthermOutput,
-        new_openthermoutput,
-        config
+        COMPONENT_TYPE, schema.INPUTS, OpenthermOutput, new_openthermoutput, config
     )
     generate.define_readers(COMPONENT_TYPE, keys)

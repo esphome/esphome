@@ -10,7 +10,9 @@ from .. import const, schema, validate, generate
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.SWITCH
 
-OpenthermSwitch = generate.opentherm_ns.class_("OpenthermSwitch", switch.Switch, cg.Component)
+OpenthermSwitch = generate.opentherm_ns.class_(
+    "OpenthermSwitch", switch.Switch, cg.Component
+)
 
 
 async def new_openthermswitch(config: Dict[str, Any]) -> cg.Pvariable:
@@ -21,12 +23,14 @@ async def new_openthermswitch(config: Dict[str, Any]) -> cg.Pvariable:
 
 
 def get_entity_validation_schema(entity: schema.SwitchSchema) -> cv.Schema:
-    return switch.SWITCH_SCHEMA.extend({
-        cv.GenerateID(): cv.declare_id(OpenthermSwitch)
-    }).extend(cv.COMPONENT_SCHEMA)
+    return switch.SWITCH_SCHEMA.extend(
+        {cv.GenerateID(): cv.declare_id(OpenthermSwitch)}
+    ).extend(cv.COMPONENT_SCHEMA)
 
 
-CONFIG_SCHEMA = validate.create_component_schema(schema.SWITCHES, get_entity_validation_schema)
+CONFIG_SCHEMA = validate.create_component_schema(
+    schema.SWITCHES, get_entity_validation_schema
+)
 
 
 async def to_code(config: Dict[str, Any]) -> None:
@@ -35,6 +39,6 @@ async def to_code(config: Dict[str, Any]) -> None:
         schema.SWITCHES,
         OpenthermSwitch,
         generate.create_only_conf(new_openthermswitch),
-        config
+        config,
     )
     generate.define_readers(COMPONENT_TYPE, keys)

@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266])
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 
 
