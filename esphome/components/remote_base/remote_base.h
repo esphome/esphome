@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 
 #ifdef USE_ESP32
 #include <driver/rmt.h>
@@ -86,6 +86,7 @@ class RemoteComponentBase {
 class RemoteRMTChannel {
  public:
   explicit RemoteRMTChannel(uint8_t mem_block_num = 1);
+  explicit RemoteRMTChannel(rmt_channel_t channel, uint8_t mem_block_num = 1);
 
   void config_rmt(rmt_config_t &rmt);
   void set_clock_divider(uint8_t clock_divider) { this->clock_divider_ = clock_divider; }

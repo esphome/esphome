@@ -1,0 +1,26 @@
+script:
+  - id: my_script
+    mode: single
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_queued
+    mode: queued
+    max_runs: 2
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_parallel
+    mode: parallel
+    max_runs: 2
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_restart
+    mode: restart
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_with_params
+    parameters:
+      prefix: string
+      param2: int
+      param3: bool
+    then:
+      - lambda: 'ESP_LOGD(prefix.c_str(), "Hello World! %i %i", param2, param3);'
