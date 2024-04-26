@@ -45,11 +45,9 @@ touchscreen:
 
 image:
   - id: cat_image
-    file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
-  - id: cat_image_bowtie
-    file: https://raw.githubusercontent.com/esphome/esphome-docs/a62d7ab193c1a464ed791670170c7d518189109b/images/logo.svg
-
-    # file: $component_dir/pnglogo.png
+    file: ./../../components/lvgl/cat.jpg
+  - id: dog_img
+    file: ./../../components/lvgl/dog.jpg
     resize: 256x48
     type: TRANSPARENT_BINARY
 
@@ -362,11 +360,11 @@ lvgl:
               then:
                 - lvgl.img.update:
                     id: img_id
-                    src: cat_image_bowtie
+                    src: dog_img
         - animimg:
             align: CENTER
             id: anim_id
-            src: [cat_image, cat_image_bowtie]
+            src: [cat_image, dog_img]
             duration: 600ms
             on_click:
               then:
@@ -413,3 +411,32 @@ lvgl:
                 - lvgl.spinner.update:
                     id: spinner_id
                     arc_color: 0x31de70
+    - id: secondary_page
+      widgets:
+        - tileview:
+            id: tv_id
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tile == id(cat_tile);
+                    then:
+                      - logger.log: "Cat tile is now showing"
+            tiles:
+              - img:
+                  tile_id: cat_tile
+                  align: center
+                  row: 0
+                  column: 0
+                  src: cat_image
+
+              - img:
+                  row: 1
+                  column: 0
+                  src: dog_img
+                  on_click:
+                    then:
+                      - lvgl.tileview.select:
+                          id: tv_id
+                          tile_id: cat_tile
+                          animated: true
