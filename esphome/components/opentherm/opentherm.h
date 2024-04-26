@@ -12,12 +12,6 @@
 #include <iomanip>
 #include "esphome/core/hal.h"
 
-#ifdef ESP8266
-#ifndef IRAM_ATTR
-#define IRAM_ATTR ICACHE_RAM_ATTR
-#endif
-#endif
-
 #define readBit(value, bit) (((value) >> (bit)) & 0x01)
 #define setBit(value, bit) ((value) |= (1UL << (bit)))
 #define clearBit(value, bit) ((value) &= ~(1UL << (bit)))
@@ -61,7 +55,7 @@ enum MessageType {
 enum MessageId {
   STATUS = 0,
   CH_SETPOINT = 1,
-  THERMOSTAT_CONFIG = 2,
+  CONTROLLER_CONFIG = 2,
   DEVICE_CONFIG = 3,
   COMMAND_CODE = 4,
   FAULT_FLAGS = 5,
@@ -103,7 +97,7 @@ enum MessageId {
   // HVAC Specific Message IDs
   HVAC_STATUS = 70,
   REL_VENT_SETPOINT = 71,
-  SLAVE_VENT = 74,
+  DEVICE_VENT = 74,
   REL_VENTILATION = 77,
   REL_HUMID_EXHAUST = 78,
   SUPPLY_INLET_TEMP = 80,
@@ -122,10 +116,10 @@ enum MessageId {
   CH_PUMP_HOURS = 121,
   DHW_PUMP_HOURS = 122,
   DHW_BURNER_HOURS = 123,
-  OT_VERSION_MASTER = 124,
-  OT_VERSION_SLAVE = 125,
-  VERSION_MASTER = 126,
-  VERSION_SLAVE = 127
+  OT_VERSION_CONTROLLER = 124,
+  OT_VERSION_DEVICE = 125,
+  VERSION_CONTROLLER = 126,
+  VERSION_DEVICE = 127
 };
 
 enum BitPositions { STOP_BIT = 33 };

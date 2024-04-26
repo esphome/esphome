@@ -474,9 +474,9 @@ BINARY_SENSORS: Schema = Schema(
                 "message_data": "flag8_hb_3",
             }
         ),
-        "thermostat_pump_control_allowed": BinarySensorSchema(
+        "controller_pump_control_allowed": BinarySensorSchema(
             {
-                "description": "Configuration: Thermostat pump control allowed",
+                "description": "Configuration: Controller pump control allowed",
                 "message": "DEVICE_CONFIG",
                 "keep_updated": False,
                 "message_data": "flag8_hb_4",

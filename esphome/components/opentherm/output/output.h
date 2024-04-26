@@ -19,12 +19,7 @@ class OpenthermOutput : public output::FloatOutput, public Component, public Ope
 
   void set_id(const char *id) { this->id = id; }
 
-  void write_state(float state) override {
-    ESP_LOGD("opentherm.output", "Received state: %.2f. Min value: %.2f, max value: %.2f", state, min_value, max_value);
-    this->state = state < 0.003 && this->zero_means_zero_ ? 0.0 : min_value + state * (max_value - min_value);
-    this->has_state_ = true;
-    ESP_LOGD("opentherm.output", "Output %s set to %.2f", this->id, this->state);
-  };
+  void write_state(float state) override;
 
   bool has_state() { return this->has_state_; };
 
