@@ -142,6 +142,9 @@ void Ams5915::getTransducer(){
 /* reads pressure and temperature and returns values in counts */
 int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
   i2c::ErrorCode err = this->read(_buffer,sizeof(_buffer));
+  for (int i = 0; i < sizeof(_buffer); i++){
+    ESP_LOGD(TAG, "data: [%i]", _buffer[i]);
+  }
   if (err != i2c::ERROR_OK){
     _status = -1;
   } else {
