@@ -52,7 +52,7 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
     Transducer _type;
   protected:
 
-  String Ams5915::intToBinary(int n);
+std::string Ams5915::intToBinary(int n);
   // struct to hold sensor data
     struct Data {
       float Pressure_Pa;
