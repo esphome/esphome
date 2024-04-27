@@ -139,7 +139,7 @@ void Ams5915::getTransducer(){
   }
 }
 
-std::string intToBinary(int n) {
+std::string Ams5915::intToBinary(int n) {
     std::string binary = "";
     while(n > 0) {
         binary = std::to_string(n % 2) + binary;
@@ -153,7 +153,7 @@ int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
   i2c::ErrorCode err = this->read(_buffer,sizeof(_buffer));
   for (int i = 0; i < sizeof(_buffer); i++){
     ESP_LOGD(TAG, "data: [%i]", _buffer[i]);
-    ESP_LOGD(TAG, "binary: [%s]", intToBinary(_buffer[i]).c_str());
+    ESP_LOGD(TAG, "binary: [%s]", this->intToBinary(_buffer[i]).c_str());
   }
   if (err != i2c::ERROR_OK){
     _status = -1;
