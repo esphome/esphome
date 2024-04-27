@@ -49,8 +49,9 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
   int readSensor();
   float getPressure_Pa();
   float getTemperature_C();
-
-  private:
+  // transducer type
+    Transducer _type;
+  protected:
   // struct to hold sensor data
     struct Data {
       float Pressure_Pa;
@@ -61,8 +62,7 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
     TwoWire *_bus;
     // sensor address
     uint8_t _address;
-    // transducer type
-    Transducer _type;
+
     // buffer for I2C data
     uint8_t _buffer[4];
     // number of bytes received from I2C
@@ -133,9 +133,8 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
     const int AMS5915_1200_B_P_MAX = 1200;
     void getTransducer();
     int readBytes(uint16_t* pressureCounts, uint16_t* temperatureCounts);
-  protected:
-      sensor::Sensor *temperature_sensor_{nullptr};
-      sensor::Sensor *pressure_sensor_{nullptr};
+    sensor::Sensor *temperature_sensor_{nullptr};
+    sensor::Sensor *pressure_sensor_{nullptr};
 };
 
 }  // namespace ams5915

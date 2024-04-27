@@ -155,19 +155,21 @@ void Ams5915::getTransducer(){
 /* reads pressure and temperature and returns values in counts */
 int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
   // read from sensor
-  _numBytes = _bus->requestFrom(_address,sizeof(_buffer));
+  // _numBytes = _bus->requestFrom(_address,sizeof(_buffer));
   // put the data in buffer
-  if (_numBytes == sizeof(_buffer)) {
-    _buffer[0] = _bus->read(); 
-    _buffer[1] = _bus->read();
-    _buffer[2] = _bus->read();
-    _buffer[3] = _bus->read();
-    // assemble into a uint16_t
+  // if (_numBytes == sizeof(_buffer)) {
+  //   _buffer[0] = _bus->read(); 
+  //   _buffer[1] = _bus->read();
+  //   _buffer[2] = _bus->read();
+  //   _buffer[3] = _bus->read();
+    // assemble into a uint 16_t
+  i2c::ErrorCode err = this->read(_buffer,sizeof(_buffer));
+  if (err != i2c::ERROR_OK){
+    _status = -1;
+  } else {
     *pressureCounts = (((uint16_t) (_buffer[0]&0x3F)) <<8) + (((uint16_t) _buffer[1]));
     *temperatureCounts = (((uint16_t) (_buffer[2])) <<3) + (((uint16_t) _buffer[3]&0xE0)>>5);
     _status = 1;
-  } else {
-    _status = -1;
   }
   return _status;
 }
@@ -197,6 +199,7 @@ void Ams5915::update() {
 
 void Ams5915::dump_config() {
   ESP_LOGCONFIG(TAG, "Ams5915:");
+  ESP_LOGCONFIG(TAG, "SensorType : %s", this->_type);
   LOG_I2C_DEVICE(this);
 }
 
