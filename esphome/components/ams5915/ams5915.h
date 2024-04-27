@@ -58,7 +58,7 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
       float Pressure_Pa;
       float Temp_C;
     };
-
+    Data _data;
     // buffer for I2C data
     uint8_t _buffer[4];
 
