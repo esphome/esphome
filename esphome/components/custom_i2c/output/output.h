@@ -3,6 +3,8 @@
 #include "../custom_i2c.h"
 #include "esphome/components/output/float_output.h"
 
+namespace esphome::custom_i2c {
+
 template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, public Component {
  public:
   // mind you, I'll eat my hat if anyone so much as has a need for 4 bytes in the first place
@@ -42,3 +44,5 @@ template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, publ
  protected:
   CustomI2CRegister *register_{};
 };
+
+}  // namespace esphome::custom_i2c
