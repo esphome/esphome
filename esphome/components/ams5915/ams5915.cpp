@@ -6,185 +6,170 @@ namespace esphome {
 namespace ams5915 {
 static const char *const TAG = "ams5915";
 
-void Ams5915::set_transducer_type(Transducer type){
-  _type = type; 
+void Ams5915::set_transducer_type(Transducer model){
+  type_ = model;
 }
 
 /* starts the I2C communication and sets the pressure and temperature ranges using getTransducer */
-int Ams5915::begin(){
-	// setting the min and max pressure based on the chip
-	this->getTransducer();
+int Ams5915::begin_(){
+  // setting the min and max pressure based on the chip
+  this->get_transducer_();
   // checking to see if we can talk with the sensor
-  for (size_t i=0; i < _maxAttempts; i++) {
-    _status = readBytes(&_pressureCounts,&_temperatureCounts);
-    if (_status > 0) {break;}
+  for (size_t i=0; i < max_attempts_; i++) {
+    status_ = read_bytes_(&pressure_counts_,&temperature_counts_);
+    if (status_ > 0) {break;}
     delay(10);
   }
-  return _status;
+  return status_;
 }
 
 /* reads data from the sensor */
-int Ams5915::readSensor(){
+int Ams5915::read_sensor_(){
   // get pressure and temperature counts off transducer
-  _status = readBytes(&_pressureCounts,&_temperatureCounts);
+  this->status_ = read_bytes_(&this->pressure_counts_,&this->temperature_counts_);
   // convert counts to pressure, PA
-  _data.Pressure_Pa = (((float)(_pressureCounts - _digOutPmin))/(((float)(_digOutPmax - _digOutPmin))/((float)(_pMax - _pMin)))+(float)_pMin);
+  this->data_.pressure_pa_ = (((float)(this->pressure_counts_ - this->dig_out_p_min_))/(((float)(this->dig_out_p_max_ - this->dig_out_p_min_))/((float)(this->p_max_ - this->p_min_)))+(float)this->p_min_);
   // convert counts to temperature, C
-  _data.Temp_C = (float)((_temperatureCounts*200))/2048.0f-50.0f;
-  return _status;
+  this->data_.temperature_c_ = (float)((this->temperature_counts_*200))/2048.0f-50.0f;
+  return this->status_;
 }
 
 /* returns the pressure value, PA */
-float Ams5915::getPressure_Pa(){
-  return _data.Pressure_Pa;
+float Ams5915::get_pressure_pa_(){
+  return this->data_.pressure_pa_;
 }
 
 /* returns the temperature value, C */
-float Ams5915::getTemperature_C(){
-  return _data.Temp_C;
+float Ams5915::get_temperature_c_(){
+  return this->data_.temperature_c_;
 }
 
 /* sets the pressure range based on the chip */
-void Ams5915::getTransducer(){
+void Ams5915::get_transducer_(){
   // setting the min and max pressures based on which transducer it is
-  switch(_type) {
+  switch(this->type_) {
     case AMS5915_0005_D:
-      _pMin = AMS5915_0005_D_P_MIN;
-      _pMax = AMS5915_0005_D_P_MAX;
+      this->p_min_ = this->ams5915_0005_d_p_min_;
+      this->p_max_ = this->ams5915_0005_d_p_max_;
       break;
     case AMS5915_0010_D:
-      _pMin = AMS5915_0010_D_P_MIN;
-      _pMax = AMS5915_0010_D_P_MAX;
+      this->p_min_ = this->ams5915_0010_d_p_min_;
+      this->p_max_ = this->ams5915_0010_d_p_max_;
       break;
     case AMS5915_0005_D_B:
-      _pMin = AMS5915_0005_D_B_P_MIN;
-      _pMax = AMS5915_0005_D_B_P_MAX;
+      this->p_min_ = this->ams5915_0005_d_b_p_min_;
+      this->p_max_ = this->ams5915_0005_d_b_p_max_;
       break;
     case AMS5915_0010_D_B:
-      _pMin = AMS5915_0010_D_B_P_MIN;
-      _pMax = AMS5915_0010_D_B_P_MAX;
+      this->p_min_ = this->ams5915_0010_d_b_p_min_;
+      this->p_max_ = this->ams5915_0010_d_b_p_max_;
       break;
     case AMS5915_0020_D:
-      _pMin = AMS5915_0020_D_P_MIN;
-      _pMax = AMS5915_0020_D_P_MAX;
+      this->p_min_ = this->ams5915_0020_d_p_min_;
+      this->p_max_ = this->ams5915_0020_d_p_max_;
       break;
     case AMS5915_0050_D:
-      _pMin = AMS5915_0050_D_P_MIN;
-      _pMax = AMS5915_0050_D_P_MAX;
+      this->p_min_ = this->ams5915_0050_d_p_min_;
+      this->p_max_ = this->ams5915_0050_d_p_max_;
       break;
     case AMS5915_0100_D:
-      _pMin = AMS5915_0100_D_P_MIN;
-      _pMax = AMS5915_0100_D_P_MAX;
+      this->p_min_ = this->ams5915_0100_d_p_min_;
+      this->p_max_ = this->ams5915_0100_d_p_max_;
       break;
     case AMS5915_0020_D_B:
-      _pMin = AMS5915_0020_D_B_P_MIN;
-      _pMax = AMS5915_0020_D_B_P_MAX;
+      this->p_min_ = this->ams5915_0020_d_b_p_min_;
+      this->p_max_ = this->ams5915_0020_d_b_p_max_;
       break;
     case AMS5915_0050_D_B:
-      _pMin = AMS5915_0050_D_B_P_MIN;
-      _pMax = AMS5915_0050_D_B_P_MAX;
+      this->p_min_ = this->ams5915_0050_d_b_p_min_;
+      this->p_max_ = this->ams5915_0050_d_b_p_max_;
       break;
     case AMS5915_0100_D_B:
-      _pMin = AMS5915_0100_D_B_P_MIN;
-      _pMax = AMS5915_0100_D_B_P_MAX;
+      this->p_min_ = this->ams5915_0100_d_b_p_min_;
+      this->p_max_ = this->ams5915_0100_d_b_p_max_;
       break;
     case AMS5915_0200_D:
-      _pMin = AMS5915_0200_D_P_MIN;
-      _pMax = AMS5915_0200_D_P_MAX;
+      this->p_min_ = this->ams5915_0200_d_p_min_;
+      this->p_max_ = this->ams5915_0200_d_p_max_;
       break;
     case AMS5915_0350_D:
-      _pMin = AMS5915_0350_D_P_MIN;
-      _pMax = AMS5915_0350_D_P_MAX;
+      this->p_min_ = this->ams5915_0350_d_p_min_;
+      this->p_max_ = this->ams5915_0350_d_p_max_;
       break;
     case AMS5915_1000_D:
-      _pMin = AMS5915_1000_D_P_MIN;
-      _pMax = AMS5915_1000_D_P_MAX;
+      this->p_min_ = this->ams5915_1000_d_p_min_;
+      this->p_max_ = this->ams5915_1000_d_p_max_;
       break;
     case AMS5915_2000_D:
-      _pMin = AMS5915_2000_D_P_MIN;
-      _pMax = AMS5915_2000_D_P_MAX;
+      this->p_min_ = this->ams5915_2000_d_p_min_;
+      this->p_max_ = this->ams5915_2000_d_p_max_;
       break;
     case AMS5915_4000_D:
-      _pMin = AMS5915_4000_D_P_MIN;
-      _pMax = AMS5915_4000_D_P_MAX;
+      this->p_min_ = this->ams5915_4000_d_p_min_;
+      this->p_max_ = this->ams5915_4000_d_p_max_;
       break;
     case AMS5915_7000_D:
-      _pMin = AMS5915_7000_D_P_MIN;
-      _pMax = AMS5915_7000_D_P_MAX;
+      this->p_min_ = this->ams5915_7000_d_p_min_;
+      this->p_max_ = this->ams5915_7000_d_p_max_;
       break;
     case AMS5915_10000_D:
-      _pMin = AMS5915_10000_D_P_MIN;
-      _pMax = AMS5915_10000_D_P_MAX;
+      this->p_min_ = this->ams5915_10000_d_p_min_;
+      this->p_max_ = this->ams5915_10000_d_p_max_;
       break;
     case AMS5915_0200_D_B:
-      _pMin = AMS5915_0200_D_B_P_MIN;
-      _pMax = AMS5915_0200_D_B_P_MAX;
+      this->p_min_ = this->ams5915_0200_d_b_p_min_;
+      this->p_max_ = this->ams5915_0200_d_b_p_max_;
       break;
     case AMS5915_0350_D_B:
-      _pMin = AMS5915_0350_D_B_P_MIN;
-      _pMax = AMS5915_0350_D_B_P_MAX;
+      this->p_min_ = this->ams5915_0350_d_b_p_min_;
+      this->p_max_ = this->ams5915_0350_d_b_p_max_;
       break;
     case AMS5915_1000_D_B:
-      _pMin = AMS5915_1000_D_B_P_MIN;
-      _pMax = AMS5915_1000_D_B_P_MAX;
+      this->p_min_ = this->ams5915_1000_d_b_p_min_;
+      this->p_max_ = this->ams5915_1000_d_b_p_max_;
       break;
     case AMS5915_1000_A:
-      _pMin = AMS5915_1000_A_P_MIN;
-      _pMax = AMS5915_1000_A_P_MAX;
+      this->p_min_ = this->ams5915_1000_a_p_min_;
+      this->p_max_ = this->ams5915_1000_a_p_max_;
       break;
     case AMS5915_1200_B:
-      _pMin = AMS5915_1200_B_P_MIN;
-      _pMax = AMS5915_1200_B_P_MAX;
+      this->p_min_ = this->ams5915_1200_b_p_min_;
+      this->p_max_ = this->ams5915_1200_b_p_max_;
       break;
   }
-}
-
-std::string Ams5915::intToBinary(uint16_t n) {
-    std::string binary = "";
-    while(n > 0) {
-        binary = std::to_string(n % 2) + binary;
-        n = n / 2;
-    }
-    return binary;
 }
 
 /* reads pressure and temperature and returns values in counts */
-int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
-  i2c::ErrorCode err = this->read(_buffer,sizeof(_buffer));
-  // for (int i = 0; i < sizeof(_buffer); i++){
-  //   ESP_LOGD(TAG, "data: [%i]", _buffer[i]);
-  // }
+int Ams5915::read_bytes_(uint16_t* pressure_counts,uint16_t* temperature_counts){
+  i2c::ErrorCode err = this->read(this->buffer_,sizeof(this->buffer_));
   if (err != i2c::ERROR_OK){
-    _status = -1;
+    this->status_ = -1;
   } else {
-    *pressureCounts = (((uint16_t) (_buffer[0]&0x3F)) <<8) + (((uint16_t) _buffer[1]));
-    // ESP_LOGD(TAG, "pressure: [%s]", this->intToBinary(*pressureCounts).c_str());
-    *temperatureCounts = (((uint16_t) (_buffer[2])) <<3) + (((uint16_t) _buffer[3]&0xE0)>>5);
-    // ESP_LOGD(TAG, "temperature: [%s]", this->intToBinary(*temperatureCounts).c_str());
-
-    _status = 1;
+    *pressure_counts = (((uint16_t) (this->buffer_[0]&0x3F)) <<8) + (((uint16_t) this->buffer_[1]));
+    *temperature_counts = (((uint16_t) (this->buffer_[2])) <<3) + (((uint16_t) this->buffer_[3]&0xE0)>>5);
+    this->status_ = 1;
   }
-  return _status;
+  return this->status_;
 }
 
 void Ams5915::setup() {
-  if (this->begin() < 0) {
+  if (this->begin_() < 0) {
     ESP_LOGE(TAG, "Failed to read pressure from Ams5915");
     this->mark_failed();
   }
 }
 
 void Ams5915::update() {
-  this->readSensor();
-  float temperature = this->getTemperature_C();
-  float pressure = this->getPressure_Pa();
+  this->read_sensor_();
+  float temperature = this->get_temperature_c_();
+  float pressure = this->get_pressure_pa_();
 
 
-  ESP_LOGD(TAG, "Got pressure=%.3fmBar %.3fpa temperature=%.1f°C", pressure,pressure*_mBar2Pa, temperature);
+  ESP_LOGD(TAG, "Got pressure=%.3fmBar %.3fpa temperature=%.1f°C", pressure,pressure*this->mbar_to_pa_, temperature);
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure*_mBar2Pa);
+    this->pressure_sensor_->publish_state(pressure*this->mbar_to_pa_);
 }
 
 
@@ -196,5 +181,6 @@ void Ams5915::dump_config() {
 }
 
 
-}  // namespace Ams5915
-}  // namespace esphome
+} // namespace ams5915
+} // namespace esphome
+
