@@ -37,6 +37,9 @@
 #ifdef USE_DATETIME_TIME
 #include "esphome/components/datetime/time_entity.h"
 #endif
+#ifdef USE_DATETIME_DATETIME
+#include "esphome/components/datetime/datetime_entity.h"
+#endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
 #endif
@@ -46,11 +49,17 @@
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
 #endif
+#ifdef USE_VALVE
+#include "esphome/components/valve/valve.h"
+#endif
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+#endif
+#ifdef USE_EVENT
+#include "esphome/components/event/event.h"
 #endif
 
 namespace esphome {
@@ -91,6 +100,9 @@ class Controller {
 #ifdef USE_DATETIME_TIME
   virtual void on_time_update(datetime::TimeEntity *obj){};
 #endif
+#ifdef USE_DATETIME_DATETIME
+  virtual void on_datetime_update(datetime::DateTimeEntity *obj){};
+#endif
 #ifdef USE_TEXT
   virtual void on_text_update(text::Text *obj, const std::string &state){};
 #endif
@@ -100,11 +112,17 @@ class Controller {
 #ifdef USE_LOCK
   virtual void on_lock_update(lock::Lock *obj){};
 #endif
+#ifdef USE_VALVE
+  virtual void on_valve_update(valve::Valve *obj){};
+#endif
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_update(media_player::MediaPlayer *obj){};
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj){};
+#endif
+#ifdef USE_EVENT
+  virtual void on_event(event::Event *obj, const std::string &event_type){};
 #endif
 };
 
