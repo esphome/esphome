@@ -175,8 +175,9 @@ void Ams5915::update() {
 
 void Ams5915::dump_config() {
   ESP_LOGCONFIG(TAG, "Ams5915:");
-  // ESP_LOGCONFIG(TAG, "SensorType : %s", this->_type);
   LOG_I2C_DEVICE(this);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
 
 
