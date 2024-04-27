@@ -9,15 +9,6 @@
 
 namespace esphome {
 namespace ams5915 {
-
-class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
- public:
-  Ams5915(): PollingComponent(5000) {}
-  void dump_config() override;
-  void setup() override;
-  void update() override;
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
   enum Transducer
   {
       AMS5915_0005_D,
@@ -43,6 +34,15 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
       AMS5915_1000_A,
       AMS5915_1200_B
   };
+class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
+ public:
+  Ams5915(): PollingComponent(5000) {}
+  void dump_config() override;
+  void setup() override;
+  void update() override;
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
+
   void set_transducer_type(Transducer type); 
   Ams5915(TwoWire &bus,uint8_t address,Transducer type);
   int begin();

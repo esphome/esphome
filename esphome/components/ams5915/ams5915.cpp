@@ -173,7 +173,7 @@ int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
 }
 
 void Ams5915::setup() {
-  if (sPress.begin() < 0) {
+  if (this->begin() < 0) {
     ESP_LOGE(TAG, "Failed to read pressure from Ams5915");
     this->mark_failed();
   }
