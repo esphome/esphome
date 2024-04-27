@@ -151,16 +151,16 @@ std::string Ams5915::intToBinary(uint16_t n) {
 /* reads pressure and temperature and returns values in counts */
 int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
   i2c::ErrorCode err = this->read(_buffer,sizeof(_buffer));
-  for (int i = 0; i < sizeof(_buffer); i++){
-    ESP_LOGD(TAG, "data: [%i]", _buffer[i]);
-  }
+  // for (int i = 0; i < sizeof(_buffer); i++){
+  //   ESP_LOGD(TAG, "data: [%i]", _buffer[i]);
+  // }
   if (err != i2c::ERROR_OK){
     _status = -1;
   } else {
     *pressureCounts = (((uint16_t) (_buffer[0]&0x3F)) <<8) + (((uint16_t) _buffer[1]));
-    ESP_LOGD(TAG, "pressure: [%s]", this->intToBinary(*pressureCounts).c_str());
+    // ESP_LOGD(TAG, "pressure: [%s]", this->intToBinary(*pressureCounts).c_str());
     *temperatureCounts = (((uint16_t) (_buffer[2])) <<3) + (((uint16_t) _buffer[3]&0xE0)>>5);
-    ESP_LOGD(TAG, "temperature: [%s]", this->intToBinary(*temperatureCounts).c_str());
+    // ESP_LOGD(TAG, "temperature: [%s]", this->intToBinary(*temperatureCounts).c_str());
 
     _status = 1;
   }
@@ -180,7 +180,7 @@ void Ams5915::update() {
   float pressure = this->getPressure_Pa();
 
 
-  ESP_LOGD(TAG, "Got pressure\nmBar=%.1f\npascal=%.1f\ntemperature=\n%.1f°C", pressure,pressure*_mBar2Pa, temperature);
+  ESP_LOGD(TAG, "Got pressure=%.1fmBar %.1fpa temperature=%.1f°C", pressure,pressure*_mBar2Pa, temperature);
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->pressure_sensor_ != nullptr)

@@ -58,16 +58,10 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
       float Pressure_Pa;
       float Temp_C;
     };
-    Data _data;
-    // I2C bus
-    TwoWire *_bus;
-    // sensor address
-    uint8_t _address;
 
     // buffer for I2C data
     uint8_t _buffer[4];
-    // number of bytes received from I2C
-    size_t _numBytes;
+
     // maximum number of attempts to talk to sensor
     const size_t _maxAttempts = 10;
     // track success of reading from sensor
@@ -79,8 +73,6 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
     // min and max pressure, millibar
     int _pMin;
     int _pMax;
-    // i2c bus frequency
-    const uint32_t _i2cRate = 400000;
     // conversion millibar to PA
     const float _mBar2Pa = 100.0f; 
     // digital output at minimum pressure
