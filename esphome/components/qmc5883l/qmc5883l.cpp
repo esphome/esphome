@@ -77,8 +77,17 @@ void QMC5883LComponent::dump_config() {
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void QMC5883LComponent::update() {
   uint8_t status = false;
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG)
-    this->read_byte(QMC5883L_REGISTER_STATUS, &status);
+  this->read_byte(QMC5883L_REGISTER_STATUS, &status);
+
+  // Always request X,Y,Z regardless if there are sensors for them
+  // to avoid https://github.com/esphome/issues/issues/5731
+  uint16_t raw_x, raw_y, raw_z;
+  if (!this->read_byte_16_(QMC5883L_REGISTER_DATA_X_LSB, &raw_x) ||
+      !this->read_byte_16_(QMC5883L_REGISTER_DATA_Y_LSB, &raw_y) ||
+      !this->read_byte_16_(QMC5883L_REGISTER_DATA_Z_LSB, &raw_z)) {
+    this->status_set_warning();
+    return;
+  }
 
   float mg_per_bit;
   switch (this->range_) {
@@ -93,36 +102,11 @@ void QMC5883LComponent::update() {
   }
 
   // in µT
-  float x = NAN, y = NAN, z = NAN;
-  if (this->x_sensor_ != nullptr || this->heading_sensor_ != nullptr) {
-    uint16_t raw_x;
-    if (!this->read_byte_16_(QMC5883L_REGISTER_DATA_X_LSB, &raw_x)) {
-      this->status_set_warning();
-      return;
-    }
-    x = int16_t(raw_x) * mg_per_bit * 0.1f;
-  }
-  if (this->y_sensor_ != nullptr || this->heading_sensor_ != nullptr) {
-    uint16_t raw_y;
-    if (!this->read_byte_16_(QMC5883L_REGISTER_DATA_Y_LSB, &raw_y)) {
-      this->status_set_warning();
-      return;
-    }
-    y = int16_t(raw_y) * mg_per_bit * 0.1f;
-  }
-  if (this->z_sensor_ != nullptr) {
-    uint16_t raw_z;
-    if (!this->read_byte_16_(QMC5883L_REGISTER_DATA_Z_LSB, &raw_z)) {
-      this->status_set_warning();
-      return;
-    }
-    z = int16_t(raw_z) * mg_per_bit * 0.1f;
-  }
+  const float x = int16_t(raw_x) * mg_per_bit * 0.1f;
+  const float y = int16_t(raw_y) * mg_per_bit * 0.1f;
+  const float z = int16_t(raw_z) * mg_per_bit * 0.1f;
 
-  float heading = NAN;
-  if (this->heading_sensor_ != nullptr) {
-    heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
-  }
+  float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
 
   float temp = NAN;
   if (this->temperature_sensor_ != nullptr) {
