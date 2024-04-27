@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_BYTES
 
-from .. import custom_i2c
-from .constants import CONF_REGISTER_ID
+from ... import custom_i2c
+from ..constants import CONF_REGISTER_ID
 
 CustomI2COutput = custom_i2c.custom_i2c_ns.class_(
     "CustomI2COutput", output.FloatOutput, cg.Component
