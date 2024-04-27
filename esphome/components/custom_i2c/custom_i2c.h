@@ -52,7 +52,7 @@ class CustomI2COnSetupComponent : public Component {
   // set up, so allowing setup actions to be attached to pin banks won't help either.)
   void setup() override {
     // TODO: remove before merging, currently here to troubleshoot the above setup order annoyance
-    ESP_LOGV(TAG, "running custom_i2c specific setup actions");
+    ESP_LOGV(TAG, "running custom_i2c specific setup actions");  // NOLINT
     this->on_setup_triggers.trigger();
   };
 
@@ -78,10 +78,12 @@ class CustomI2CDevice : public Component {
  public:
   void setup() override {
     // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
-    ESP_LOGV(TAG, "Setting up custom_i2c device");
+    ESP_LOGV(TAG, "Setting up custom_i2c device");  // NOLINT
   }
   void loop() override {}
-  void dump_config() override { ESP_LOGCONFIG(TAG, "CustomI2CDevice: present! (TODO: actually log the config)"); };
+  void dump_config() override {
+    ESP_LOGCONFIG(TAG, "CustomI2CDevice: present! (TODO: actually log the config)");
+  };  // NOLINT
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_i2c_bus(i2c::I2CBus *bus) {
     this->bus_ = bus;
@@ -100,7 +102,8 @@ class CustomI2CDevice : public Component {
       // consumers of the custom_i2c component won't do anything to handle errors like this, re-log it at debug level so
       // that users will see it with the default log settings. (We log it with a separate tag so that users can disable
       // failure messages if they're expected - e.g. on a bus where devices are hot-swapped - and too verbose.)
-      ESP_LOGD(TRANSACTION_FAILURE_TAG, "read from device 0x%02x failed with error %d", this->device_address_, result);
+      ESP_LOGD(TRANSACTION_FAILURE_TAG, "read from device 0x%02x failed with error %d", this->device_address_,
+               result);  // NOLINT
       return false;
     }
 
@@ -168,7 +171,8 @@ class CustomI2CDevice : public Component {
     auto result = this->bus_->writev(this->device_address_, buffers, 2);
     if (result != i2c::ERROR_OK) {
       // See the comment in read_bytes for why we do this
-      ESP_LOGD(TRANSACTION_FAILURE_TAG, "write to device 0x%02x failed with error %d", this->device_address_, result);
+      ESP_LOGD(TRANSACTION_FAILURE_TAG, "write to device 0x%02x failed with error %d", this->device_address_,
+               result);  // NOLINT
     }
 
     return result;
@@ -216,7 +220,7 @@ class CustomI2CRegister : public Component {
  public:
   void setup() override {
     // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
-    ESP_LOGV(TAG, "Setting up custom_i2c register");
+    ESP_LOGV(TAG, "Setting up custom_i2c register");  // NOLINT
   }
   void loop() override {}
   void dump_config() override {}
@@ -385,7 +389,7 @@ template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, publ
 
   void setup() override {
     // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
-    ESP_LOGV(TAG, "Setting up custom_i2c output");
+    ESP_LOGV(TAG, "Setting up custom_i2c output");  // NOLINT
     this->turn_off();
   }
   void dump_config() override {}
@@ -403,7 +407,7 @@ template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, publ
     }
 
     ESP_LOGVV(FLOAT_OUTPUT_TAG, "converted state %.6f to float value %.6f to uint32_t value 0x%08x", state,
-              multiplied_state, result);
+              multiplied_state, result);  // NOLINT
 
     result = convert_big_endian(result);
     std::array<uint8_t, bytes> data;
@@ -437,7 +441,7 @@ template<size_t bytes> class CustomI2CPinBank : public Component {
       uint8_t bit_index = pin % 8;
       if (byte_index >= bytes) {
         ESP_LOGE(TAG, "pin number %d too high for pin bank with %d bytes (max pin number is %d)", pin, bytes,
-                 (bytes * 8) - 1);
+                 (bytes * 8) - 1);  // NOLINT
         return invalid();
       }
 
@@ -497,7 +501,7 @@ template<size_t bytes> class CustomI2CPinBank : public Component {
         return;
       }
 
-      ESP_LOGD(TAG, "writing a 1 to bit %d of byte %d", pin.bit_index, pin.byte_index);
+      ESP_LOGD(TAG, "writing a 1 to bit %d of byte %d", pin.bit_index, pin.byte_index);  // NOLINT
 
       Word data{};
       data[pin.byte_index] |= pin.mask;
@@ -513,7 +517,7 @@ template<size_t bytes> class CustomI2CPinBank : public Component {
 
   void setup() override {
     // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
-    ESP_LOGV(TAG, "setting up custom_i2c pin bank");
+    ESP_LOGV(TAG, "setting up custom_i2c pin bank");  // NOLINT
   }
 
   void pin_mode(uint8_t pin_number, gpio::Flags flags) {
@@ -554,7 +558,7 @@ template<size_t bytes> class CustomI2CPinBank : public Component {
       this->write_ones_to_set_to_outputs_register.write_a_single_1_bit(pin);
 
       if (flags & gpio::FLAG_OPEN_DRAIN) {
-        ESP_LOGW(TAG, "open drain pin mode is not yet supported. (pull requests welcome!)");
+        ESP_LOGW(TAG, "open drain pin mode is not yet supported. (pull requests welcome!)");  // NOLINT
       } else {
         // Once we support open drain outputs, we should have a separate set of "is a non-open-drain output" registers
         // and write those here.
@@ -622,7 +626,7 @@ template<size_t bytes> class CustomI2CPin : public GPIOPin {
  public:
   void setup() override {
     // TODO: remove before merging, currently here to troubleshoot a setup order annoyance
-    ESP_LOGV(TAG, "Setting up custom_i2c pin with number %d", this->pin_);
+    ESP_LOGV(TAG, "Setting up custom_i2c pin with number %d", this->pin_);  // NOLINT
     this->pin_mode(this->flags_);
   }
   void pin_mode(gpio::Flags flags) override { this->pin_bank_->pin_mode(this->pin_, this->flags_); }
