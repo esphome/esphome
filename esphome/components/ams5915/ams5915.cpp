@@ -180,9 +180,7 @@ void Ams5915::update() {
   float pressure = this->getPressure_Pa();
 
 
-  ESP_LOGD(TAG, "Got pressure\n
-    mBar=%.1f\n
-    pascal=%.1f\ntemperature=\n%.1f°C", pressure,pressure*_mBar2Pa, temperature);
+  ESP_LOGD(TAG, "Got pressure\nmBar=%.1f\npascal=%.1f\ntemperature=\n%.1f°C", pressure,pressure*_mBar2Pa, temperature);
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->pressure_sensor_ != nullptr)
