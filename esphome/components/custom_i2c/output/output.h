@@ -3,8 +3,6 @@
 #include "../custom_i2c.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome::custom_i2c {
-
 template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, public Component {
  public:
   // mind you, I'll eat my hat if anyone so much as has a need for 4 bytes in the first place
@@ -34,7 +32,9 @@ template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, publ
     ESP_LOGVV(FLOAT_OUTPUT_TAG, "converted state %.6f to float value %.6f to uint32_t value 0x%08x", state,
               multiplied_state, result);  // NOLINT
 
-    std::array<uint8_t, bytes> data = shrink_right<sizeof(result), bytes>(to_i2c<>(result));
+    result = convert_big_endian(result);
+    std::array<uint8_t, bytes> data;
+    memcpy(data.data(), reinterpret_cast<uint8_t *>(&result), bytes);
 
     this->register_->write_bytes(data);
   }
@@ -42,5 +42,3 @@ template<uint8_t bytes> class CustomI2COutput : public output::FloatOutput, publ
  protected:
   CustomI2CRegister *register_{};
 };
-
-}  // namespace esphome::custom_i2c

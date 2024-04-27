@@ -7,7 +7,6 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
-#include "byteutils.h"
 
 namespace esphome::custom_i2c {
 
