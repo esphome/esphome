@@ -1,12 +1,9 @@
 import sys
 
 import esphome.codegen as cg
-from . import (
-    BTNMATRIX_CTRLS,
-    CONF_ARC,
-    CONF_SPINBOX,
-)
-from ...core import TimePeriod
+from .types import lv_number_t, lv_obj_t_ptr
+from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
+from esphome.core import TimePeriod
 
 EVENT_LAMB = "event_lamb__"
 
@@ -22,6 +19,9 @@ class Widget:
         self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
+
+    def get_obj(self):
+        return self.obj
 
     def set_parent(self, parent):
         self.parent = parent
@@ -69,7 +69,7 @@ class Widget:
 
     def set_event_cb(self, code, *varargs):
         init = add_temp_var("event_callback_t", EVENT_LAMB)
-        init.extend([f"{EVENT_LAMB} = [](lv_event_t *e) {{ {code} ;}} \n"])
+        init.extend([f"{EVENT_LAMB} = [](lv_event_t *event_data) {{ {code} ;}} \n"])
         for arg in varargs:
             init.extend(
                 [
@@ -79,9 +79,16 @@ class Widget:
         return init
 
     def get_value(self):
-        if self.scale == 1.0:
-            return f"lv_{self.type_base()}_get_value({self.obj})"
-        return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
+        if self.type.inherits_from(lv_number_t):
+            if self.scale == 1.0:
+                return f"lv_{self.type_base()}_get_value({self.obj})"
+            return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
+        return self.obj
+
+    def get_args(self):
+        if self.type.inherits_from(lv_number_t):
+            return [(cg.float_, "x")]
+        return [(lv_obj_t_ptr, "obj")]
 
     def set_value(self, value, animated: bool = False):
         if self.type_base() in (CONF_ARC, CONF_SPINBOX):
@@ -127,6 +134,12 @@ class MatrixButton(Widget):
     def __init__(self, btnm, btype, config, index):
         super().__init__(btnm, btype, config)
         self.index = index
+
+    def get_value(self):
+        return self.var.obj
+
+    def get_obj(self):
+        return self.var.obj
 
     @staticmethod
     def map_ctrls(ctrls):

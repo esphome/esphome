@@ -1,6 +1,8 @@
 import functools
 import re
 import logging
+from typing import Any
+
 from esphome.core import (
     CORE,
     ID,
@@ -12,7 +14,6 @@ from esphome import (
     automation,
 )
 from esphome.components.image import Image_
-from esphome.components.key_provider import KeyProvider
 from esphome.coroutine import FakeAwaitable
 from esphome.components.touchscreen import (
     Touchscreen,
@@ -56,7 +57,46 @@ from esphome.const import (
 )
 from esphome.cpp_generator import (
     LambdaExpression,
+    MockObj,
 )
+
+from .types import (
+    char_ptr_const,
+    void_ptr,
+    lv_coord_t,
+    lvgl_ns,
+    LvglComponent,
+    LvglComponentPtr,
+    LVTouchListener,
+    LVRotaryEncoderListener,
+    IdleTrigger,
+    ObjUpdateAction,
+    LvglCondition,
+    LvglAction,
+    lv_lambda_t,
+    LvCompound,
+    lv_pseudo_button_t,
+    LvBtnmBtn,
+    lv_obj_t,
+    lv_font_t,
+    lv_page_t,
+    lv_point_t,
+    lv_obj_t_ptr,
+    lv_style_t,
+    lv_color_t,
+    lv_meter_indicator_t,
+    lv_meter_indicator_t_ptr,
+    lv_dropdown_list_t,
+    lv_animimg_t,
+    lv_number_t,
+    lv_spinbox_t,
+    lv_tileview_t,
+    lv_tile_t,
+    lv_disp_t_ptr,
+    lv_btnmatrix_t,
+    lv_keyboard_t,
+)
+
 from .defines import (
     # widgets
     CONF_ANIMIMG,
@@ -116,6 +156,8 @@ from .defines import (
     CONF_CHART,
     LvConstant,
     CONF_TILEVIEW,
+    CONF_KEYBOARD,
+    KEYBOARD_MODES,
 )
 
 from .lv_validation import (
@@ -161,75 +203,6 @@ DEPENDENCIES = ("display",)
 AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
-
-char_ptr_const = cg.global_ns.namespace("char").operator("ptr")
-void_ptr = cg.void.operator("ptr")
-lv_coord_t = cg.global_ns.namespace("lv_coord_t")
-lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
-lvgl_ns = cg.esphome_ns.namespace("lvgl")
-LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
-LvglComponentPtr = LvglComponent.operator("ptr")
-LvImagePtr = Image_.operator("ptr")
-LVTouchListener = lvgl_ns.class_("LVTouchListener")
-LVRotaryEncoderListener = lvgl_ns.class_("LVRotaryEncoderListener")
-IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
-FontEngine = lvgl_ns.class_("FontEngine")
-ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
-LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
-LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
-lv_lambda_t = lvgl_ns.class_("LvLambdaType")
-# lv_lambda_ptr_t = lvgl_ns.class_("LvLambdaType").operator("ptr")
-
-# Can't use the native type names here, since ESPHome munges variable names and they conflict
-LvCompound = lvgl_ns.class_("LvCompound")
-lv_pseudo_button_t = lvgl_ns.class_("LvPseudoButton")
-LvBtnmBtn = lvgl_ns.class_("LvBtnmBtn", lv_pseudo_button_t)
-lv_obj_t = cg.global_ns.class_("LvObjType", lv_pseudo_button_t)
-lv_font_t = cg.global_ns.class_("LvFontType")
-lv_page_t = cg.global_ns.class_("LvPageType")
-lv_screen_t = cg.global_ns.class_("LvScreenType")
-lv_point_t = cg.global_ns.struct("LvPointType")
-lv_msgbox_t = cg.global_ns.struct("LvMsgBoxType")
-lv_obj_t_ptr = lv_obj_t.operator("ptr")
-lv_style_t = cg.global_ns.struct("LvStyleType")
-lv_color_t = cg.global_ns.struct("LvColorType")
-lv_theme_t = cg.global_ns.struct("LvThemeType")
-lv_theme_t_ptr = lv_theme_t.operator("ptr")
-lv_meter_indicator_t = cg.global_ns.struct("LvMeterIndicatorType")
-lv_indicator_t = cg.global_ns.struct("LvMeterIndicatorType")
-lv_meter_indicator_t_ptr = lv_meter_indicator_t.operator("ptr")
-lv_label_t = cg.MockObjClass("LvLabelType", parents=[lv_obj_t])
-lv_dropdown_list_t = cg.MockObjClass("LvDropdownListType", parents=[lv_obj_t])
-lv_meter_t = cg.MockObjClass("LvMeterType", parents=[lv_obj_t])
-lv_btn_t = cg.MockObjClass("LvBtnType", parents=[lv_obj_t])
-lv_checkbox_t = cg.MockObjClass("LvCheckboxType", parents=[lv_obj_t])
-lv_line_t = cg.MockObjClass("LvLineType", parents=[lv_obj_t])
-lv_img_t = cg.MockObjClass("LvImgType", parents=[lv_obj_t])
-lv_animimg_t = cg.MockObjClass("LvAnimImgType", parents=[lv_obj_t])
-lv_number_t = lvgl_ns.class_("LvPseudoNumber")
-lv_spinbox_t = cg.MockObjClass("LvSpinBoxType", parents=[lv_obj_t, lv_number_t])
-lv_tileview_t = cg.MockObjClass("LvTileViewtype", parents=[lv_obj_t])
-lv_tile_t = cg.MockObjClass("LvTileType", parents=[lv_obj_t])
-lv_arc_t = cg.MockObjClass("LvArcType", parents=[lv_obj_t, lv_number_t])
-lv_bar_t = cg.MockObjClass("LvBarType", parents=[lv_obj_t, lv_number_t])
-lv_slider_t = cg.MockObjClass("LvSliderType", parents=[lv_obj_t, lv_number_t])
-lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
-lv_canvas_t = cg.MockObjClass("LvCanvasType", parents=[lv_obj_t])
-lv_select_t = lvgl_ns.class_("LvPseudoSelect")
-lv_dropdown_t = cg.MockObjClass("LvDropdownType", parents=[lv_obj_t, lv_select_t])
-lv_roller_t = cg.MockObjClass("LvRollerType", parents=[lv_obj_t, lv_select_t])
-lv_led_t = cg.MockObjClass("LvLedType", parents=[lv_obj_t])
-lv_switch_t = cg.MockObjClass("LvSwitchType", parents=[lv_obj_t])
-lv_table_t = cg.MockObjClass("LvTableType", parents=[lv_obj_t])
-lv_textarea_t = cg.MockObjClass("LvTextareaType", parents=[lv_obj_t])
-lv_chart_t = cg.MockObjClass("LvChartType", parents=[lv_obj_t])
-lv_btnmatrix_t = cg.MockObjClass(
-    "LvBtnmatrixType", parents=[lv_obj_t, KeyProvider, LvCompound]
-)
-# Provided for the benefit of get_widget_type
-lv_spinner_t = lv_obj_t
-lv_ticks_t = lv_obj_t
-lv_tick_style_t = lv_obj_t
 
 CONF_ACTION = "action"
 CONF_ADJUSTABLE = "adjustable"
@@ -360,6 +333,7 @@ WIDGET_TYPES = {
     CONF_DROPDOWN: (CONF_MAIN, CONF_INDICATOR),
     CONF_IMG: (CONF_MAIN,),
     CONF_INDICATOR: (),
+    CONF_KEYBOARD: (CONF_MAIN, CONF_ITEMS),
     CONF_LABEL: (CONF_MAIN, CONF_SCROLLBAR, CONF_SELECTED),
     CONF_LED: (CONF_MAIN,),
     CONF_LINE: (CONF_MAIN,),
@@ -636,23 +610,24 @@ def part_schema(parts):
 
 
 def automation_schema(type: cg.MockObjClass = lv_obj_t):
-    template = (
-        automation.Trigger.template(cg.float_)
-        if type.inherits_from(lv_number_t)
-        else automation.Trigger.template()
-    )
+    if type.inherits_from(lv_number_t):
+        events = LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
+        template = automation.Trigger.template(cg.float_)
+    else:
+        events = LV_EVENT_TRIGGERS
+        template = automation.Trigger.template(lv_obj_t_ptr)
     return {
         cv.Optional(event): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
             }
         )
-        for event in LV_EVENT_TRIGGERS
+        for event in events
     }
 
 
+# https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
 def validate_printf(value):
-    # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
@@ -670,6 +645,30 @@ def validate_printf(value):
         )
     return value
 
+
+# Map typenames to action types and templates
+
+
+class TypeArg:
+
+    def __init__(self, type: MockObj, args: list, value):
+        self.type = type
+        self.args = args
+        self.value = value
+
+    def get_value(self, widget: Widget):
+        return self.value(widget)
+
+
+TYPE_ARGS = (
+    TypeArg(lv_number_t, [(cg.float_, "x")], lambda w: w.get_value()),
+    TypeArg(
+        lv_tileview_t,
+        [(lv_obj_t_ptr, "tile")],
+        lambda w: f"lv_tileview_get_tile_act({w.obj})",
+    ),
+    TypeArg(lv_keyboard_t, [(cg.int_, "key")], lambda w: f"({w.obj})"),
+)
 
 TEXT_SCHEMA = cv.Schema(
     {
@@ -712,13 +711,6 @@ BAR_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAX_VALUE, default=100): cv.int_,
         cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(BAR_MODES),
         cv.Optional(CONF_ANIMATED, default=True): lv_animated,
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    automation.Trigger.template(cg.float_)
-                )
-            }
-        ),
     }
 )
 
@@ -826,13 +818,6 @@ ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_ADJUSTABLE, default=False): bool,
         cv.Optional(CONF_MODE, default="NORMAL"): lv_one_of(ARC_MODES),
         cv.Optional(CONF_CHANGE_RATE, default=720): cv.uint16_t,
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    automation.Trigger.template(cg.float_)
-                )
-            }
-        ),
     }
 )
 
@@ -1029,17 +1014,14 @@ SPINBOX_SCHEMA = {
     cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
     cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
     cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
-    cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-        {
-            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                automation.Trigger.template(cg.float_)
-            )
-        }
-    ),
 }
 
 SPINBOX_MODIFY_SCHEMA = {
     cv.Required(CONF_VALUE): lv_float,
+}
+
+KEYBOARD_SCHEMA = {
+    cv.Optional(CONF_MODE, default="TEXT_UPPER"): lv_one_of(KEYBOARD_MODES),
 }
 
 # For use by platform components
@@ -1224,7 +1206,7 @@ async def styles_to_code(styles):
 
 theme_widget_map = {}
 # Map of widgets to their config, used for trigger generation
-widget_map = {}
+widget_map: dict[Any, Widget] = {}
 widgets_completed = False  # will be set true when all widgets are available
 
 
@@ -1418,16 +1400,14 @@ async def obj_to_code(var, obj):
     return []
 
 
-def tile_obj_creator(parent: Widget, config: dict):
-    return f"lv_tileview_add_tile({parent.obj}, {config[CONF_COLUMN]}, {config[CONF_ROW]}, {config[CONF_DIR]})"
-
-
 async def tileview_to_code(var: Widget, config: dict):
     init = []
     for widg in config[CONF_TILES]:
         w_type, wc = next(iter(widg.items()))
-        tile_obj = cg.Pvariable(wc[CONF_TILE_ID], cg.nullptr, type_=lv_obj_t)
+        w_id = wc[CONF_TILE_ID]
+        tile_obj = cg.Pvariable(w_id, cg.nullptr, type_=lv_obj_t)
         tile = Widget(tile_obj, lv_tile_t)
+        widget_map[w_id] = tile
         init.append(
             f"{tile.obj} = lv_tileview_add_tile({var.obj}, {wc[CONF_COLUMN]}, {wc[CONF_ROW]}, {wc[CONF_DIR]})"
         )
@@ -1438,9 +1418,11 @@ async def tileview_to_code(var: Widget, config: dict):
 
 async def page_to_code(config, pconf, index):
     init = []
-    var = cg.new_Pvariable(pconf[CONF_ID])
+    id = pconf[CONF_ID]
+    var = cg.new_Pvariable(id)
     page = Widget(var, lv_page_t, config, f"{var}->page")
-    init.append(f"{var}->index = {index}")
+    widget_map[id] = page
+    init.append(f"{page.var}->index = {index}")
     init.append(f"{page.obj} = lv_obj_create(nullptr)")
     skip = pconf[CONF_SKIP]
     init.append(f"{var}->skip = {skip}")
@@ -1507,13 +1489,13 @@ def tile_select_validate(config):
     ).add_extra(tile_select_validate),
 )
 async def tileview_select(config, action_id, template_arg, args):
-    widget = await cg.get_variable(config[CONF_ID])
+    widget = await get_widget(config[CONF_ID])
     if tile := config.get(CONF_TILE_ID):
         tile = await cg.get_variable(tile)
-        init = [f"lv_obj_set_tile({widget}, {tile}, {config[CONF_ANIMATED]})"]
+        init = [f"lv_obj_set_tile({widget.obj}, {tile}, {config[CONF_ANIMATED]})"]
     else:
         init = [
-            f"lv_obj_set_tile_id({widget}, {config[CONF_COLUMN]}, {config[CONF_ROW]}, {config[CONF_ANIMATED]})"
+            f"lv_obj_set_tile_id({widget.obj}, {config[CONF_COLUMN]}, {config[CONF_ROW]}, {config[CONF_ANIMATED]})"
         ]
     return await action_to_code(init, action_id, widget, template_arg, args)
 
@@ -1529,8 +1511,8 @@ async def tileview_select(config, action_id, template_arg, args):
     ),
 )
 async def spinbox_increment(config, action_id, template_arg, args):
-    widget = await cg.get_variable(config[CONF_ID])
-    init = [f"lv_spinbox_increment({widget})"]
+    widget = await get_widget(config[CONF_ID])
+    init = [f"lv_spinbox_increment({widget.obj})"]
     return await action_to_code(init, action_id, widget, template_arg, args)
 
 
@@ -1545,8 +1527,8 @@ async def spinbox_increment(config, action_id, template_arg, args):
     ),
 )
 async def spinbox_decrement(config, action_id, template_arg, args):
-    widget = await cg.get_variable(config[CONF_ID])
-    init = [f"lv_spinbox_decrement({widget})"]
+    widget = await get_widget(config[CONF_ID])
+    init = [f"lv_spinbox_decrement({widget.obj})"]
     return await action_to_code(init, action_id, widget, template_arg, args)
 
 
@@ -1561,8 +1543,8 @@ async def spinbox_decrement(config, action_id, template_arg, args):
     ),
 )
 async def animimg_start(config, action_id, template_arg, args):
-    widget = await cg.get_variable(config[CONF_ID])
-    init = [f"lv_animimg_start({widget})"]
+    widget = await get_widget(config[CONF_ID])
+    init = [f"lv_animimg_start({widget.obj})"]
     return await action_to_code(init, action_id, widget, template_arg, args)
 
 
@@ -1632,12 +1614,12 @@ async def page_previous_to_code(config, action_id, template_arg, args):
     ),
 )
 async def page_show_to_code(config, action_id, template_arg, args):
-    obj = await cg.get_variable(config[CONF_ID])
+    widget = await get_widget(config[CONF_ID])
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
     animation = config[CONF_ANIMATION]
     time = config[CONF_TIME].total_milliseconds
-    init = [f"{lv_comp}->show_page({obj}->index, {animation}, {time})"]
-    return await action_to_code(init, action_id, obj, template_arg, args)
+    init = [f"{lv_comp}->show_page({widget.var}->index, {animation}, {time})"]
+    return await action_to_code(init, action_id, widget, template_arg, args)
 
 
 @automation.register_action(
@@ -1728,18 +1710,18 @@ async def get_button_data(config, id, btnm: Widget):
     width_list = []
     key_list = []
     for row in config:
-        for btn in row[CONF_BUTTONS]:
-            bid = btn[CONF_ID]
-            widget = MatrixButton(btnm, lv_btnmatrix_t, btn, len(width_list))
+        for btnconf in row[CONF_BUTTONS]:
+            bid = btnconf[CONF_ID]
+            widget = MatrixButton(btnm, lv_obj_t, btnconf, len(width_list))
             widget_map[bid] = widget
-            if text := btn.get(CONF_TEXT):
+            if text := btnconf.get(CONF_TEXT):
                 text_list.append(f"{cg.safe_exp(text)}")
             else:
                 text_list.append("")
-            key_list.append(btn.get(CONF_KEY_CODE) or 0)
-            width_list.append(btn[CONF_WIDTH])
+            key_list.append(btnconf.get(CONF_KEY_CODE) or 0)
+            width_list.append(btnconf[CONF_WIDTH])
             ctrl = ["(int)LV_BTNMATRIX_CTRL_CLICK_TRIG"]
-            if controls := btn.get(CONF_CONTROL):
+            if controls := btnconf.get(CONF_CONTROL):
                 for item in controls:
                     ctrl.extend(
                         [
@@ -1800,12 +1782,12 @@ async def msgbox_to_code(conf):
     btnm = cg.new_variable(
         ID(f"{id.id}_btnm", is_declaration=True, type=lv_obj_t_ptr), cg.nullptr
     )
-    btnm_widg = Widget(btnm, lv_btnmatrix_t)
-    widget_map[id] = btnm_widg
-    text_id, ctrl_list, width_list, _ = await get_button_data((conf,), id, btnm_widg)
     msgbox = cg.new_variable(
         ID(f"{id.id}_msgbox", is_declaration=True, type=lv_obj_t_ptr), cg.nullptr
     )
+    btnm_widg = Widget(btnm, lv_btnmatrix_t)
+    widget_map[id] = btnm_widg
+    text_id, ctrl_list, width_list, _ = await get_button_data((conf,), id, btnm_widg)
     text = await lv_text.process(conf.get(CONF_BODY))
     title = await lv_text.process(conf.get(CONF_TITLE))
     close_button = conf[CONF_CLOSE_BUTTON]
@@ -2102,12 +2084,12 @@ async def generate_triggers(lv_component):
                 event = LV_EVENT[event[3:].upper()]
                 conf = conf[0]
                 trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-                args = []
-                value = ""
                 if isinstance(widget.type, cg.MockObjClass):
-                    if widget.type.inherits_from(lv_number_t):
-                        args = [(cg.float_, "x")]
-                        value = widget.get_value()
+                    args = widget.get_args()
+                    value = widget.get_value()
+                else:
+                    args = []
+                    value = ""
                 await automation.build_automation(trigger, args, conf)
                 init.extend(widget.add_flag("LV_OBJ_FLAG_CLICKABLE"))
                 init.extend(
@@ -2279,11 +2261,9 @@ def indicator_update_schema(base):
     return base.extend({cv.Required(CONF_ID): cv.use_id(lv_meter_indicator_t)})
 
 
-async def action_to_code(action, action_id, obj, template_arg, args):
-    if isinstance(obj, MatrixButton):
-        obj = obj.var.obj
-    elif isinstance(obj, Widget):
-        obj = obj.obj
+async def action_to_code(action, action_id, obj: Widget, template_arg, args):
+    if isinstance(obj, Widget):
+        obj = obj.get_obj()
     action.insert(0, f"if ({obj} == nullptr) return")
     lamb = await cg.process_lambda(Lambda(";\n".join([*action, ""])), args)
     var = cg.new_Pvariable(action_id, template_arg, lamb)
@@ -2293,7 +2273,7 @@ async def action_to_code(action, action_id, obj, template_arg, args):
 async def update_to_code(config, action_id, widget: Widget, init, template_arg, args):
     if config is not None:
         init.extend(await set_obj_properties(widget, config))
-    return await action_to_code(init, action_id, widget.obj, template_arg, args)
+    return await action_to_code(init, action_id, widget, template_arg, args)
 
 
 CONFIG_SCHEMA = (
@@ -2415,8 +2395,8 @@ async def widget_to_code(w_cnfig, w_type, parent: Widget):
         obj = var
 
     widget = Widget(var, get_widget_type(w_type), w_cnfig, obj)
-    widget.set_parent(parent)
     widget_map[id] = widget
+    widget.set_parent(parent)
     if theme := theme_widget_map.get(w_type):
         init.append(f"{theme}({obj})")
     init.extend(await set_obj_properties(widget, w_cnfig))
@@ -2446,7 +2426,7 @@ async def obj_disable_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
     widget = await get_widget(obj_id)
     action = widget.add_state("LV_STATE_DISABLED")
-    return await action_to_code(action, action_id, widget.obj, template_arg, args)
+    return await action_to_code(action, action_id, widget, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.enable", ObjUpdateAction, ACTION_SCHEMA)
@@ -2454,7 +2434,7 @@ async def obj_enable_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
     widget = await get_widget(obj_id)
     action = widget.clear_state("LV_STATE_DISABLED")
-    return await action_to_code(action, action_id, widget.obj, template_arg, args)
+    return await action_to_code(action, action_id, widget, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.show", ObjUpdateAction, ACTION_SCHEMA)
@@ -2462,7 +2442,7 @@ async def obj_show_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
     widget = await get_widget(obj_id)
     action = widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
-    return await action_to_code(action, action_id, widget.obj, template_arg, args)
+    return await action_to_code(action, action_id, widget, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.hide", ObjUpdateAction, ACTION_SCHEMA)
@@ -2470,15 +2450,15 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
     widget = await get_widget(obj_id)
     action = widget.add_flag("LV_OBJ_FLAG_HIDDEN")
-    return await action_to_code(action, action_id, widget.obj, template_arg, args)
+    return await action_to_code(action, action_id, widget, template_arg, args)
 
 
 @automation.register_action(
     "lvgl.widget.update", ObjUpdateAction, modify_schema(CONF_OBJ)
 )
 async def obj_update_to_code(config, action_id, template_arg, args):
-    obj = await get_widget(config[CONF_ID])
-    return await update_to_code(config, action_id, obj, [], template_arg, args)
+    widget = await get_widget(config[CONF_ID])
+    return await update_to_code(config, action_id, widget, [], template_arg, args)
 
 
 @automation.register_action(
@@ -2492,9 +2472,9 @@ async def obj_update_to_code(config, action_id, template_arg, args):
     ),
 )
 async def spinbox_update_to_code(config, action_id, template_arg, args):
-    obj = await get_widget(config[CONF_ID])
-    init = obj.set_value(await lv_float.process(config[CONF_VALUE]))
-    return await update_to_code(config, action_id, obj, init, template_arg, args)
+    widget = await get_widget(config[CONF_ID])
+    init = widget.set_value(await lv_float.process(config[CONF_VALUE]))
+    return await update_to_code(config, action_id, widget, init, template_arg, args)
 
 
 @automation.register_action(
@@ -2503,9 +2483,9 @@ async def spinbox_update_to_code(config, action_id, template_arg, args):
     modify_schema(CONF_CHECKBOX),
 )
 async def checkbox_update_to_code(config, action_id, template_arg, args):
-    obj = await get_widget(config[CONF_ID])
-    init = await checkbox_to_code(obj, config)
-    return await update_to_code(config, action_id, obj, init, template_arg, args)
+    widget = await get_widget(config[CONF_ID])
+    init = await checkbox_to_code(widget, config)
+    return await update_to_code(config, action_id, widget, init, template_arg, args)
 
 
 @automation.register_action(

@@ -18,6 +18,7 @@ CONF_CHART = "chart"
 CONF_CHECKBOX = "checkbox"
 CONF_DROPDOWN = "dropdown"
 CONF_IMG = "img"
+CONF_KEYBOARD = "label"
 CONF_LABEL = "label"
 CONF_LINE = "line"
 CONF_DROPDOWN_LIST = "dropdown_list"
@@ -70,7 +71,7 @@ LV_EVENT = {
     "DEFOCUS": "DEFOCUSED",
 }
 
-LV_EVENT_TRIGGERS = list(map(lambda x: "on_" + x.lower(), LV_EVENT))
+LV_EVENT_TRIGGERS = tuple(map(lambda x: "on_" + x.lower(), LV_EVENT))
 
 LV_ANIM = LvConstant(
     "LV_SCR_LOAD_ANIM_",
@@ -137,6 +138,13 @@ PARTS = (
     CONF_TEXTAREA_PLACEHOLDER,
 )
 
+KEYBOARD_MODES = LvConstant(
+    "LV_KEYBOARD_MODE_",
+    "TEXT_LOWER",
+    "TEXT_UPPER",
+    "SPECIAL",
+    "NUMBER",
+)
 ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
 DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
 TILE_DIRECTIONS = DIRECTIONS.extend("HOR", "VER", "ALL")

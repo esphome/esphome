@@ -92,6 +92,7 @@ lvgl:
   top_layer:
     widgets:
       - label:
+          id: label_id
           text: "Test"
   msgboxes:
     - id: message_box
@@ -109,6 +110,16 @@ lvgl:
           on_click:
             then:
               - lvgl.widget.hide: message_box
+              - lvgl.widget.show: message_box
+              - lvgl.widget.enable: message_box
+              - lvgl.widget.disable: message_box
+              - lvgl.widget.hide: button_1
+              - lvgl.widget.show: button_1
+              - lvgl.widget.enable: button_1
+              - lvgl.widget.disable: button_1
+              - lvgl.label.update:
+                  id: label_id
+                  text: "Updated"
   pages:
     - id: main_page
       skip: false
@@ -163,10 +174,16 @@ lvgl:
                     text: "A"
                     control:
                       popover: true
+                    on_press:
+                      then:
+                        - lvgl.page.previous:
                   - id: button_4
                     text: "B"
                     control:
                       disabled: true
+                    on_press:
+                      then:
+                        - lvgl.page.next:
               - buttons:
                   - id: button_5
                     text: "It's #ff0000 red#"
