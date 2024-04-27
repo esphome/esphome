@@ -184,7 +184,7 @@ void Ams5915::update() {
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure(*_mBar2Pa));
+    this->pressure_sensor_->publish_state(pressure*_mBar2Pa);
 }
 
 
