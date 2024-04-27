@@ -43,7 +43,7 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
   void set_transducer_type(Transducer type); 
-  
+
   int begin();
   int readSensor();
   float getPressure_Pa();
@@ -51,6 +51,8 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
   // transducer type
     Transducer _type;
   protected:
+
+  String Ams5915::intToBinary(int n);
   // struct to hold sensor data
     struct Data {
       float Pressure_Pa;

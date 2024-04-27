@@ -139,11 +139,21 @@ void Ams5915::getTransducer(){
   }
 }
 
+String Ams5915::intToBinary(int n) {
+    String binary = "";
+    while(n > 0) {
+        binary.concat(String(n % 2));
+        n = n / 2;
+    }
+    return binary;
+}
+
 /* reads pressure and temperature and returns values in counts */
 int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
   i2c::ErrorCode err = this->read(_buffer,sizeof(_buffer));
   for (int i = 0; i < sizeof(_buffer); i++){
     ESP_LOGD(TAG, "data: [%i]", _buffer[i]);
+    ESP_LOGD(TAG, "binary: [%i]", this->intToBinary(_buffer[i]));
   }
   if (err != i2c::ERROR_OK){
     _status = -1;
