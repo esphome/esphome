@@ -5,7 +5,6 @@
 namespace esphome {
 namespace ams5915 {
 static const char *const TAG = "ams5915";
-Ams5915 sPress(Wire,0x28,Ams5915::AMS5915_1000_D_B);
 /* constructor, I2C bus, sensor address, and transducer type */
 Ams5915::Ams5915(TwoWire &bus,uint8_t address,Transducer type){
   // I2C bus
@@ -178,12 +177,14 @@ void Ams5915::setup() {
     ESP_LOGE(TAG, "Failed to read pressure from Ams5915");
     this->mark_failed();
   }
+  // set pressure limits for different sensors
+  this->getTransducer();
 }
 
 void Ams5915::update() {
-  sPress.readSensor();
-  float temperature = sPress.getTemperature_C();
-  float pressure = sPress.getPressure_Pa();
+  this->readSensor();
+  float temperature = this->getTemperature_C();
+  float pressure = this->getPressure_Pa();
 
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fpa", temperature, pressure);
