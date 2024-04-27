@@ -15,7 +15,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensor"]
+# AUTO_LOAD = ["sensor"]
 
 ams5915_ns = cg.esphome_ns.namespace("ams5915")
 TRANSDUCER = ams5915_ns.enum("Ams5915::Transducer")
@@ -73,6 +73,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    cg.add(var.set_transducer_type(config.get(CONF_MODEL)))
 
     if pressure_config := config.get(CONF_PRESSURE):
         sens = await sensor.new_sensor(pressure_config)
@@ -81,4 +82,3 @@ async def to_code(config):
     if temperature_config := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
-    cg.add(var.set_transducer_type(config.get(CONF_MODEL)))

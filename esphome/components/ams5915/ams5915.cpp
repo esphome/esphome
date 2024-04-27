@@ -5,15 +5,6 @@
 namespace esphome {
 namespace ams5915 {
 static const char *const TAG = "ams5915";
-/* constructor, I2C bus, sensor address, and transducer type */
-// Ams5915::Ams5915(TwoWire &bus,uint8_t address,Transducer type){
-//   // I2C bus
-//   _bus = &bus; 
-//   // I2C address
-//   _address = address; 
-//   // transducer type
-//   _type = type; 
-// }
 
 void Ams5915::set_transducer_type(Transducer type){
   _type = type; 
@@ -184,7 +175,7 @@ void Ams5915::update() {
 
 void Ams5915::dump_config() {
   ESP_LOGCONFIG(TAG, "Ams5915:");
-  ESP_LOGCONFIG(TAG, "SensorType : %s", this->_type);
+  // ESP_LOGCONFIG(TAG, "SensorType : %s", this->_type);
   LOG_I2C_DEVICE(this);
 }
 
