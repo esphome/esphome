@@ -28,7 +28,7 @@ int Ams5915::readSensor(){
   // get pressure and temperature counts off transducer
   _status = readBytes(&_pressureCounts,&_temperatureCounts);
   // convert counts to pressure, PA
-  _data.Pressure_Pa = (((float)(_pressureCounts - _digOutPmin))/(((float)(_digOutPmax - _digOutPmin))/((float)(_pMax - _pMin)))+(float)_pMin)*_mBar2Pa;
+  _data.Pressure_Pa = (((float)(_pressureCounts - _digOutPmin))/(((float)(_digOutPmax - _digOutPmin))/((float)(_pMax - _pMin)))+(float)_pMin);
   // convert counts to temperature, C
   _data.Temp_C = (float)((_temperatureCounts*200))/2048.0f-50.0f;
   return _status;
@@ -180,11 +180,13 @@ void Ams5915::update() {
   float pressure = this->getPressure_Pa();
 
 
-  ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fpa", temperature, pressure);
+  ESP_LOGD(TAG, "Got pressure\n
+    mBar=%.1f\n
+    pascal=%.1f\ntemperature=\n%.1f°C", pressure,pressure*_mBar2Pa, temperature);
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
+    this->pressure_sensor_->publish_state(pressure(*_mBar2Pa));
 }
 
 
