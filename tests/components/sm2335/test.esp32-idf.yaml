@@ -1,0 +1,22 @@
+sm2335:
+  clock_pin: 4
+  data_pin: 5
+  max_power_color_channels: 9
+  max_power_white_channels: 9
+
+output:
+  - platform: sm2335
+    id: sm2335_red
+    channel: 1
+  - platform: sm2335
+    id: sm2335_green
+    channel: 0
+  - platform: sm2335
+    id: sm2335_blue
+    channel: 2
+  - platform: sm2335
+    id: sm2335_coldwhite
+    channel: 4
+  - platform: sm2335
+    id: sm2335_warmwhite
+    channel: 3

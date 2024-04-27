@@ -77,7 +77,15 @@ SN74HC165_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_SN74HC165, SN74HC165_PIN_SCHEMA)
+def sn74hc165_pin_final_validate(pin_config, parent_config):
+    max_pins = parent_config[CONF_SR_COUNT] * 8
+    if pin_config[CONF_NUMBER] >= max_pins:
+        raise cv.Invalid(f"Pin number must be less than {max_pins}")
+
+
+@pins.PIN_SCHEMA_REGISTRY.register(
+    CONF_SN74HC165, SN74HC165_PIN_SCHEMA, sn74hc165_pin_final_validate
+)
 async def sn74hc165_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_SN74HC165])

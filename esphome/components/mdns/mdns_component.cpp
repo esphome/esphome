@@ -45,6 +45,9 @@ void MDNSComponent::compile_records_() {
 #ifdef USE_RP2040
     platform = "RP2040";
 #endif
+#ifdef USE_LIBRETINY
+    platform = lt_cpu_get_model_name();
+#endif
     if (platform != nullptr) {
       service.txt_records.push_back({"platform", platform});
     }

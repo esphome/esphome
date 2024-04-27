@@ -16,11 +16,16 @@ wifi:
     - ssid: "MySSID"
       password: "password1"
 
+network:
+  enable_ipv6: true
+
 api:
 
 ota:
 
 logger:
+
+debug:
 
 binary_sensor:
   - platform: gpio
@@ -37,7 +42,14 @@ switch:
     output: pin_4
     id: pin_4_switch
 
-#light:
+spi:  # Pins are for SPI1 on the RP2040 Pico-W
+  miso_pin: 8
+  clk_pin: 10
+  mosi_pin: 11
+  id: spi_0
+  interface: hardware
+
+# light:
 #  - platform: rp2040_pio_led_strip
 #    id: led_strip
 #    pin: GPIO13
@@ -56,7 +68,9 @@ switch:
 #    bit1_high: .69us
 #    bit1_low: .4us
 
-
 sensor:
   - platform: internal_temperature
     name: Internal Temperature
+  - platform: adc
+    pin: VCC
+    name: VSYS

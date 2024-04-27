@@ -11,6 +11,8 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP8266,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
@@ -38,7 +40,7 @@ AUTO_LOAD = ["preferences"]
 
 def set_core_data(config):
     CORE.data[KEY_ESP8266] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp8266"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
@@ -48,6 +50,17 @@ def set_core_data(config):
         PinInitialState() for _ in range(16)
     ]
     return config
+
+
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "Standard format",
+            "description": "For flashing ESP8266.",
+            "file": "firmware.bin",
+            "download": f"{storage_json.name}.bin",
+        },
+    ]
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
@@ -71,20 +84,22 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 0, 2)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 1, 2)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
 ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 3)
 # for arduino 3 framework versions
 ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
+# for arduino 4 framework versions
+ARDUINO_4_PLATFORM_VERSION = cv.Version(4, 2, 1)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(3, 0, 2), "https://github.com/esp8266/Arduino.git"),
-        "latest": (cv.Version(3, 0, 2), None),
+        "dev": (cv.Version(3, 1, 2), "https://github.com/esp8266/Arduino.git"),
+        "latest": (cv.Version(3, 1, 2), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -104,7 +119,9 @@ def _arduino_check_versions(value):
 
     platform_version = value.get(CONF_PLATFORM_VERSION)
     if platform_version is None:
-        if version >= cv.Version(3, 0, 0):
+        if version >= cv.Version(3, 1, 0):
+            platform_version = _parse_platform_version(str(ARDUINO_4_PLATFORM_VERSION))
+        elif version >= cv.Version(3, 0, 0):
             platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
         elif version >= cv.Version(2, 5, 0):
             platform_version = _parse_platform_version(str(ARDUINO_2_PLATFORM_VERSION))
@@ -130,7 +147,6 @@ def _parse_platform_version(value):
         return value
 
 
-CONF_PLATFORM_VERSION = "platform_version"
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {

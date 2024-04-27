@@ -14,13 +14,12 @@ from esphome.const import (
     CONF_PM_4_0,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_AQI,
     DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_NITROUS_OXIDE,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     ICON_CHEMICAL_WEAPON,
     ICON_RADIATOR,
     ICON_THERMOMETER,
@@ -88,6 +87,15 @@ GAS_SENSOR = cv.Schema(
     }
 )
 
+
+def float_previously_pct(value):
+    if isinstance(value, str) and "%" in value:
+        raise cv.Invalid(
+            f"The value '{value}' is a percentage. Suggested value: {float(value.strip('%')) / 100}"
+        )
+    return value
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -123,13 +131,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VOC): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(GAS_SENSOR),
             cv.Optional(CONF_NOX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_NITROUS_OXIDE,
+                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(GAS_SENSOR),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
@@ -151,7 +159,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
                     cv.Optional(CONF_OFFSET, default=0): cv.float_,
-                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.percentage,
+                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.All(
+                        float_previously_pct, cv.float_
+                    ),
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
                 }
             ),

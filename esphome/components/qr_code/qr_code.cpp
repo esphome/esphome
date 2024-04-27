@@ -51,5 +51,17 @@ void QrCode::draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, 
     }
   }
 }
+
+uint8_t QrCode::get_size() {
+  if (this->needs_update_) {
+    this->generate_qr_code();
+    this->needs_update_ = false;
+  }
+
+  uint8_t size = qrcodegen_getSize(this->qr_);
+
+  return size;
+}
+
 }  // namespace qr_code
 }  // namespace esphome

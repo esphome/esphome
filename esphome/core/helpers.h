@@ -17,6 +17,9 @@
 #if defined(USE_ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#elif defined(USE_LIBRETINY)
+#include <FreeRTOS.h>
+#include <semphr.h>
 #endif
 
 #define HOT __attribute__((hot))
@@ -432,6 +435,16 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
+static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        "abcdefghijklmnopqrstuvwxyz"
+                                        "0123456789+/";
+
+std::string base64_encode(const uint8_t *buf, size_t buf_len);
+std::string base64_encode(const std::vector<uint8_t> &buf);
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string);
+size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
+
 ///@}
 
 /// @name Colors
@@ -543,7 +556,7 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-#if defined(USE_ESP32)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   SemaphoreHandle_t handle_;
 #endif
 };

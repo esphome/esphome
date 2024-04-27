@@ -8,11 +8,7 @@
 
 #include <vector>
 
-#if ESP_IDF_VERSION_MAJOR >= 4
 #include <driver/touch_sensor.h>
-#else
-#include <driver/touch_pad.h>
-#endif
 
 namespace esphome {
 namespace esp32_touch {
