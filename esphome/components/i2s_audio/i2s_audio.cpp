@@ -11,11 +11,7 @@ static const char *const TAG = "i2s_audio";
 
 void I2SAudioComponent::setup() {
   static i2s_port_t next_port_num = I2S_NUM_0;
-#if SOC_I2S_NUM > 1
-  if (next_port_num > I2S_NUM_1) {
-#else
-  if (next_port_num > I2S_NUM_0) {  
-#endif
+  if (next_port_num > I2S_NUM_AUTO) {
     ESP_LOGE(TAG, "Too many I2S Audio components!");
     this->mark_failed();
     return;
