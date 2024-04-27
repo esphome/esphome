@@ -6,14 +6,14 @@ namespace esphome {
 namespace ams5915 {
 static const char *const TAG = "ams5915";
 /* constructor, I2C bus, sensor address, and transducer type */
-Ams5915::Ams5915(TwoWire &bus,uint8_t address,Transducer type){
-  // I2C bus
-  _bus = &bus; 
-  // I2C address
-  _address = address; 
-  // transducer type
-  _type = type; 
-}
+// Ams5915::Ams5915(TwoWire &bus,uint8_t address,Transducer type){
+//   // I2C bus
+//   _bus = &bus; 
+//   // I2C address
+//   _address = address; 
+//   // transducer type
+//   _type = type; 
+// }
 
 void Ams5915::set_transducer_type(Transducer type){
   _type = type; 
@@ -21,12 +21,8 @@ void Ams5915::set_transducer_type(Transducer type){
 
 /* starts the I2C communication and sets the pressure and temperature ranges using getTransducer */
 int Ams5915::begin(){
-  // starting the I2C bus
-	_bus->begin();
-  // setting the I2C clock
-  _bus->setClock(_i2cRate);
 	// setting the min and max pressure based on the chip
-	getTransducer();
+	this->getTransducer();
   // checking to see if we can talk with the sensor
   for (size_t i=0; i < _maxAttempts; i++) {
     _status = readBytes(&_pressureCounts,&_temperatureCounts);
@@ -154,15 +150,6 @@ void Ams5915::getTransducer(){
 
 /* reads pressure and temperature and returns values in counts */
 int Ams5915::readBytes(uint16_t* pressureCounts,uint16_t* temperatureCounts){
-  // read from sensor
-  // _numBytes = _bus->requestFrom(_address,sizeof(_buffer));
-  // put the data in buffer
-  // if (_numBytes == sizeof(_buffer)) {
-  //   _buffer[0] = _bus->read(); 
-  //   _buffer[1] = _bus->read();
-  //   _buffer[2] = _bus->read();
-  //   _buffer[3] = _bus->read();
-    // assemble into a uint 16_t
   i2c::ErrorCode err = this->read(_buffer,sizeof(_buffer));
   if (err != i2c::ERROR_OK){
     _status = -1;
@@ -179,8 +166,6 @@ void Ams5915::setup() {
     ESP_LOGE(TAG, "Failed to read pressure from Ams5915");
     this->mark_failed();
   }
-  // set pressure limits for different sensors
-  this->getTransducer();
 }
 
 void Ams5915::update() {
