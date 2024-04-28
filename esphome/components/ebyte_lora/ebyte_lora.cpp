@@ -122,8 +122,9 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   if (!this->can_send_message_()) {
     return;
   }
-  if (this->pin_m0_ == nullptr && this->pin_m1_ == nullptr) {
+  if (this->pin_m0_ == nullptr || this->pin_m1_ == nullptr) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
+    return;
   } else {
     switch (mode) {
       case NORMAL:

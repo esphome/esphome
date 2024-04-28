@@ -31,10 +31,10 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   /// Helper function to write the value of a pin.
   void digital_write(uint8_t pin, bool value);
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
-  void set_pin_aux(GPIOPin *pin_aux) { pin_aux_ = pin_aux; }
+  void set_pin_aux(InternalGPIOPin *pin_aux) { pin_aux_ = pin_aux; }
   void register_sensor(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
-  void set_pin_m0(GPIOPin *pin_m0) { pin_m0_ = pin_m0; }
-  void set_pin_m1(GPIOPin *pin_m1) { pin_m1_ = pin_m1; }
+  void set_pin_m0(InternalGPIOPin *pin_m0) { pin_m0_ = pin_m0; }
+  void set_pin_m1(InternalGPIOPin *pin_m1) { pin_m1_ = pin_m1; }
   void set_uart_bps(UartBpsSpeed bps_speed) { expected_config_.uart_baud = bps_speed; }
   void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_transmission_power(TransmissionPower power) { expected_config_.transmission_power = power; }
@@ -69,9 +69,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   RegisterConfig current_config_;
   RegisterConfig expected_config_;
   sensor::Sensor *rssi_sensor_{nullptr};
-  GPIOPin *pin_aux_{nullptr};
-  GPIOPin *pin_m0_{nullptr};
-  GPIOPin *pin_m1_{nullptr};
+  InternalGPIOPin *pin_aux_{nullptr};
+  InternalGPIOPin *pin_m0_{nullptr};
+  InternalGPIOPin *pin_m1_{nullptr};
 };
 class EbyteLoraSwitch : public switch_::Switch, public Component {
  public:

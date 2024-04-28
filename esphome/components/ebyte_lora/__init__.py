@@ -90,11 +90,11 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(EbyteLoraComponent),
             # for communication to let us know that we can receive data
-            cv.Required(CONF_PIN_AUX): pins.gpio_input_pin_schema,
+            cv.Required(CONF_PIN_AUX): pins.internal_gpio_input_pin_schema,
             # for communication set the mode
-            cv.Required(CONF_PIN_M0): pins.gpio_output_pin_schema,
+            cv.Required(CONF_PIN_M0): pins.internal_gpio_output_pin_schema,
             # for communication set the mode
-            cv.Required(CONF_PIN_M1): pins.gpio_output_pin_schema,
+            cv.Required(CONF_PIN_M1): pins.internal_gpio_output_pin_schema,
             # if you want to see the rssi
             cv.Optional(CONF_LORA_RSSI): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
