@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from .. import safe_mode_ns
 
-DEPENDENCIES = ["ota"]
+DEPENDENCIES = ["ota.esphome"]
 
 SafeModeButton = safe_mode_ns.class_("SafeModeButton", button.Button, cg.Component)
 

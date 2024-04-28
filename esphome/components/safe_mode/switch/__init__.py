@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from .. import safe_mode_ns
 
-DEPENDENCIES = ["ota"]
+DEPENDENCIES = ["ota.esphome"]
 
 SafeModeSwitch = safe_mode_ns.class_("SafeModeSwitch", switch.Switch, cg.Component)
 
