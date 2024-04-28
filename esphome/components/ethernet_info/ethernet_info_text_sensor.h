@@ -38,6 +38,27 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
   std::array<text_sensor::TextSensor *, 5> ip_sensors_;
 };
 
+class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
+ public:
+  void update() override {
+    auto dns_one = ethernet::global_eth_component->get_dns_address(0);
+    auto dns_two = ethernet::global_eth_component->get_dns_address(1);
+
+    std::string dns_results = dns_one.str() + " " + dns_two.str();
+
+    if (dns_results != this->last_results_) {
+      this->last_results_ = dns_results;
+      this->publish_state(dns_results);
+    }
+  }
+  float get_setup_priority() const override { return setup_priority::ETHERNET; }
+  std::string unique_id() override { return get_mac_address() + "-ethernetinfo-dns"; }
+  void dump_config() override;
+
+ protected:
+  std::string last_results_;
+};
+
 }  // namespace ethernet_info
 }  // namespace esphome
 
