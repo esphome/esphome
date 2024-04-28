@@ -31,6 +31,12 @@ WOR_PERIOD_OPTIONS = {
     "WOR_3500": WorPeriod.WOR_3500,
     "WOR_4000": WorPeriod.WOR_4000,
 }
+UartParitySetting = ebyte_lora_ns.enum("UartParitySetting")
+UART_PARITY_OPTIONS = {
+    "EBYTE_UART_8N1": UartParitySetting.EBYTE_UART_8N1,
+    "EBYTE_UART_8O1": UartParitySetting.EBYTE_UART_8O1,
+    "EBYTE_UART_8E1": UartParitySetting.EBYTE_UART_8E1,
+}
 UartBpsSpeed = ebyte_lora_ns.enum("UartBpsSpeed")
 UART_BPS_OPTIONS = {
     "UART_1200": UartBpsSpeed.UART_1200,
@@ -41,6 +47,13 @@ UART_BPS_OPTIONS = {
     "UART_38400": UartBpsSpeed.UART_38400,
     "UART_57600": UartBpsSpeed.UART_57600,
     "UART_115200": UartBpsSpeed.UART_115200,
+}
+SubPacketSetting = ebyte_lora_ns.enum("SubPacketSetting")
+SUB_PACKET_OPTIONS = {
+    "SUB_200B": SubPacketSetting.SUB_200B,
+    "SUB_128B": SubPacketSetting.SUB_128B,
+    "SUB_64B": SubPacketSetting.SUB_64B,
+    "SUB_32B": SubPacketSetting.SUB_32B,
 }
 TransmissionMode = ebyte_lora_ns.enum("TransmissionMode")
 TRANSMISSION_MODE_OPTIONS = {
@@ -76,6 +89,8 @@ CONF_PIN_AUX = "pin_aux"
 CONF_PIN_M0 = "pin_m0"
 CONF_PIN_M1 = "pin_m1"
 CONF_LORA_RSSI = "lora_rssi"
+CONF_ADDL = "addl"
+CONF_ADDH = "addh"
 CONF_UART_BPS = "uart_bps"
 CONF_TRANSMISSION_MODE = "transmission_mode"
 CONF_TRANSMISSION_POWER = "transmission_power"
@@ -84,6 +99,8 @@ CONF_WOR_PERIOD = "wor_period"
 CONF_ENABLE_RSSI = "enable_rssi"
 CONF_ENABLE_LBT = "enable_lbt"
 CONF_RSSI_NOISE = "rssi_noise"
+CONF_UART_PARITY = "uart_parity"
+CONF_SUB_PACKET = "sub_packet"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -102,12 +119,20 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_ADDH, default=0): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_ADDL, default=0): cv.int_range(min=0, max=255),
             cv.Optional(CONF_CHANNEL, default=13): cv.int_range(min=0, max=83),
+            cv.Optional(CONF_UART_PARITY, default="EBYTE_UART_8N1"): cv.enum(
+                UART_PARITY_OPTIONS, upper=True
+            ),
             cv.Optional(CONF_UART_BPS, default="UART_9600"): cv.enum(
                 UART_BPS_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_TRANSMISSION_MODE, default="TRANSPARENT"): cv.enum(
-                TRANSMISSION_MODE_OPTIONS, upper=True
+            cv.Optional(CONF_UART_PARITY, default="EBYTE_UART_8N1"): cv.enum(
+                UART_PARITY_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_SUB_PACKET, default="SUB_200B"): cv.enum(
+                SUB_PACKET_OPTIONS, upper=True
             ),
             cv.Optional(CONF_TRANSMISSION_POWER, default="TX_DEFAULT_MAX"): cv.enum(
                 TRANSMISSION_POWER_OPTIONS, upper=True
@@ -146,15 +171,19 @@ async def to_code(config):
     cg.add(var.set_pin_m0(pin_m0))
     pin_m1 = await cg.gpio_pin_expression(config[CONF_PIN_M1])
     cg.add(var.set_pin_m1(pin_m1))
-    cg.add(var.set_uart_bps(config[CONF_UART_BPS]))
-    cg.add(var.set_transmission_mode(config[CONF_TRANSMISSION_MODE]))
-    cg.add(var.set_transmission_power(config[CONF_TRANSMISSION_POWER]))
+    cg.add(var.set_addh(config[CONF_ADDH]))
+    cg.add(var.set_addl(config[CONF_ADDL]))
     cg.add(var.set_air_data_rate(config[CONF_AIR_DATA_RATE]))
-    cg.add(var.set_enable_rssi(config[CONF_ENABLE_RSSI]))
-    cg.add(var.set_enable_lbt(config[CONF_ENABLE_LBT]))
+    cg.add(var.set_uart_parity(config[CONF_UART_PARITY]))
+    cg.add(var.set_uart_bps(config[CONF_UART_BPS]))
+    cg.add(var.set_transmission_power(config[CONF_TRANSMISSION_POWER]))
     cg.add(var.set_rssi_noise(config[CONF_RSSI_NOISE]))
-    cg.add(var.set_wor(config[CONF_WOR_PERIOD]))
+    cg.add(var.set_sub_packet(config[CONF_SUB_PACKET]))
     cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add(var.set_wor(config[CONF_WOR_PERIOD]))
+    cg.add(var.set_enable_lbt(config[CONF_ENABLE_LBT]))
+    cg.add(var.set_transmission_mode(config[CONF_TRANSMISSION_MODE]))
+    cg.add(var.set_enable_rssi(config[CONF_ENABLE_RSSI]))
 
     if CONF_LORA_RSSI in config:
         sens = await sensor.new_sensor(config[CONF_LORA_RSSI])

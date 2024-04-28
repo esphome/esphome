@@ -35,15 +35,19 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void register_sensor(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
   void set_pin_m0(InternalGPIOPin *pin_m0) { pin_m0_ = pin_m0; }
   void set_pin_m1(InternalGPIOPin *pin_m1) { pin_m1_ = pin_m1; }
-  void set_uart_bps(UartBpsSpeed bps_speed) { expected_config_.uart_baud = bps_speed; }
-  void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
-  void set_transmission_power(TransmissionPower power) { expected_config_.transmission_power = power; }
+  void set_addh(uint8_t addh) { expected_config_.addh = addh; }
+  void set_addl(uint8_t addl) { expected_config_.addl = addl; }
   void set_air_data_rate(AirDataRate air_data_rate) { expected_config_.air_data_rate = air_data_rate; }
+  void set_uart_parity(UartParitySetting parity) { expected_config_.parity = parity; }
+  void set_uart_bps(UartBpsSpeed bps_speed) { expected_config_.uart_baud = bps_speed; }
+  void set_transmission_power(TransmissionPower power) { expected_config_.transmission_power = power; }
+  void set_rssi_noise(EnableByte enable) { expected_config_.rssi_noise = enable; }
+  void set_sub_packet(SubPacketSetting sub_packet) { expected_config_.sub_packet = sub_packet; }
+  void set_channel(uint8_t channel) { expected_config_.channel = channel; }
   void set_wor(WorPeriod wor) { expected_config_.wor_period = wor; }
   void set_enable_lbt(EnableByte enable) { expected_config_.enable_lbt = enable; }
+  void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_enable_rssi(EnableByte enable) { expected_config_.enable_rssi = enable; }
-  void set_rssi_noise(EnableByte enable) { expected_config_.rssi_noise = enable; }
-  void set_channel(uid_t channel) { expected_config_.channel = channel; }
 
  private:
   std::vector<EbyteLoraSwitch *> sensors_;
