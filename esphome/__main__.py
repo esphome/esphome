@@ -768,7 +768,9 @@ def parse_args(argv):
     )
 
     parser_upload = subparsers.add_parser(
-        "upload", help="Validate the configuration and upload the latest binary."
+        "upload",
+        help="Validate the configuration and upload the latest binary.",
+        parents=[mqtt_options],
     )
     parser_upload.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
