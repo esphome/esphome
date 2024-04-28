@@ -252,7 +252,9 @@ void PulseCounterSensor::setup() {
     return;
   }
 #ifdef CONF_USE_TIME
-  this->time_id_->add_on_time_sync_callback([this]() { this->time_is_synchronized = true; });
+  this->time_id_->add_on_time_sync_callback([this]() { this->time_is_synchronized_ = true; this->update(); });
+  this->pref_ = global_preferences->make_preference<timestamp_t>(this->get_object_id_hash());
+  this->pref_.load(&this->last_time_);
 #endif
 }
 
@@ -274,7 +276,7 @@ void PulseCounterSensor::update() {
 #ifdef CONF_USE_TIME
   // Can't clear the pulse count until we can report the rate, so there's
   // nothing to do until the time is synchronized
-  if (!time_is_synchronized) {
+  if (!time_is_synchronized_) {
     return;
   }
 #endif
@@ -302,6 +304,9 @@ void PulseCounterSensor::update() {
     this->total_sensor_->publish_state(current_total_);
   }
   this->last_time_ = now;
+  #ifdef CONF_USE_TIME
+  this->pref_.save(&this->last_time_);
+  #endif
 }
 
 }  // namespace pulse_counter

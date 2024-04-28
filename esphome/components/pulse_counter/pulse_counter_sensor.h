@@ -102,7 +102,9 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *total_sensor_{nullptr};
 #ifdef USE_TIME
   time::RealTimeClock *time_id_{nullptr};
-  bool time_is_synchronized{false};
+  bool time_is_synchronized_{false};
+  // Store last_time_ across deep sleep
+  ESPPreferenceObject pref_{};
 #endif
 };
 
