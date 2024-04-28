@@ -5,27 +5,21 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <vector>
+
 namespace esphome {
 namespace tt21100 {
 
 using namespace touchscreen;
-
-struct TT21100TouchscreenStore {
-  volatile bool touch;
-  ISRInternalGPIOPin pin;
-
-  static void gpio_intr(TT21100TouchscreenStore *store);
-};
 
 class TT21100ButtonListener {
  public:
   virtual void update_button(uint8_t index, uint16_t state) = 0;
 };
 
-class TT21100Touchscreen : public Touchscreen, public Component, public i2c::I2CDevice {
+class TT21100Touchscreen : public Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
-  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
@@ -37,7 +31,7 @@ class TT21100Touchscreen : public Touchscreen, public Component, public i2c::I2C
  protected:
   void reset_();
 
-  TT21100TouchscreenStore store_;
+  void update_touches() override;
 
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *reset_pin_{nullptr};

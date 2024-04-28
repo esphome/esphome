@@ -242,7 +242,7 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         this->set_notify_(true);
 
 #ifdef USE_TIME
-        if (this->time_id_.has_value()) {
+        if (this->time_id_ != nullptr) {
           this->send_local_time();
         }
 #endif
@@ -441,9 +441,8 @@ uint8_t BedJetHub::write_notify_config_descriptor_(bool enable) {
 
 #ifdef USE_TIME
 void BedJetHub::send_local_time() {
-  if (this->time_id_.has_value()) {
-    auto *time_id = *this->time_id_;
-    ESPTime now = time_id->now();
+  if (this->time_id_ != nullptr) {
+    ESPTime now = this->time_id_->now();
     if (now.is_valid()) {
       this->set_clock(now.hour, now.minute);
       ESP_LOGD(TAG, "Using time component to set BedJet clock: %d:%02d", now.hour, now.minute);
@@ -454,10 +453,9 @@ void BedJetHub::send_local_time() {
 }
 
 void BedJetHub::setup_time_() {
-  if (this->time_id_.has_value()) {
+  if (this->time_id_ != nullptr) {
     this->send_local_time();
-    auto *time_id = *this->time_id_;
-    time_id->add_on_time_sync_callback([this] { this->send_local_time(); });
+    this->time_id_->add_on_time_sync_callback([this] { this->send_local_time(); });
   } else {
     ESP_LOGI(TAG, "`time_id` is not configured: will not sync BedJet clock.");
   }

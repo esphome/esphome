@@ -117,7 +117,7 @@ void ATM90E26Component::setup() {
   this->write16_(ATM90E26_REGISTER_ADJSTART,
                  0x8765);  // Checks correctness of 31-3A registers and starts normal measurement  if ok
 
-  uint16_t sys_status = this->read16_(ATM90E26_REGISTER_SYSSTATUS);
+  const uint16_t sys_status = this->read16_(ATM90E26_REGISTER_SYSSTATUS);
   if (sys_status & 0xC000) {  // Checksum 1 Error
 
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS1 was incorrect, expected: 0x%04X",
@@ -177,27 +177,27 @@ void ATM90E26Component::write16_(uint8_t a_register, uint16_t val) {
 }
 
 float ATM90E26Component::get_line_current_() {
-  uint16_t current = this->read16_(ATM90E26_REGISTER_IRMS);
+  const uint16_t current = this->read16_(ATM90E26_REGISTER_IRMS);
   return current / 1000.0f;
 }
 
 float ATM90E26Component::get_line_voltage_() {
-  uint16_t voltage = this->read16_(ATM90E26_REGISTER_URMS);
+  const uint16_t voltage = this->read16_(ATM90E26_REGISTER_URMS);
   return voltage / 100.0f;
 }
 
 float ATM90E26Component::get_active_power_() {
-  int16_t val = this->read16_(ATM90E26_REGISTER_PMEAN);  // two's complement
+  const int16_t val = this->read16_(ATM90E26_REGISTER_PMEAN);  // two's complement
   return (float) val;
 }
 
 float ATM90E26Component::get_reactive_power_() {
-  int16_t val = this->read16_(ATM90E26_REGISTER_QMEAN);  // two's complement
+  const int16_t val = this->read16_(ATM90E26_REGISTER_QMEAN);  // two's complement
   return (float) val;
 }
 
 float ATM90E26Component::get_power_factor_() {
-  uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF);  // signed
+  const uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF);  // signed
   if (val & 0x8000) {
     return -(val & 0x7FF) / 1000.0f;
   } else {
@@ -206,7 +206,7 @@ float ATM90E26Component::get_power_factor_() {
 }
 
 float ATM90E26Component::get_forward_active_energy_() {
-  uint16_t val = this->read16_(ATM90E26_REGISTER_APENERGY);
+  const uint16_t val = this->read16_(ATM90E26_REGISTER_APENERGY);
   if ((UINT32_MAX - this->cumulative_forward_active_energy_) > val) {
     this->cumulative_forward_active_energy_ += val;
   } else {
@@ -217,7 +217,7 @@ float ATM90E26Component::get_forward_active_energy_() {
 }
 
 float ATM90E26Component::get_reverse_active_energy_() {
-  uint16_t val = this->read16_(ATM90E26_REGISTER_ANENERGY);
+  const uint16_t val = this->read16_(ATM90E26_REGISTER_ANENERGY);
   if (UINT32_MAX - this->cumulative_reverse_active_energy_ > val) {
     this->cumulative_reverse_active_energy_ += val;
   } else {
@@ -227,7 +227,7 @@ float ATM90E26Component::get_reverse_active_energy_() {
 }
 
 float ATM90E26Component::get_frequency_() {
-  uint16_t freq = this->read16_(ATM90E26_REGISTER_FREQ);
+  const uint16_t freq = this->read16_(ATM90E26_REGISTER_FREQ);
   return freq / 100.0f;
 }
 

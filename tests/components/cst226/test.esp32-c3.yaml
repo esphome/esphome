@@ -1,0 +1,24 @@
+spi:
+  - id: spi_id_1
+    clk_pin: GPIO7
+    mosi_pin: GPIO6
+    interface: any
+
+display:
+  - platform: ili9xxx
+    id: displ8
+    model: ili9342
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin:
+      number: GPIO21
+
+i2c:
+  scl: GPIO18
+  sda: GPIO8
+
+touchscreen:
+  - platform: cst226
+    interrupt_pin: GPIO3
+    reset_pin: GPIO20
+

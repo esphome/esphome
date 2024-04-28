@@ -20,7 +20,7 @@ from esphome.const import (
     CONF_WIFI,
 )
 from esphome.components.packages import do_packages_pass
-from esphome.config_helpers import Extend
+from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
 
 # Test strings
@@ -345,6 +345,168 @@ def test_package_merge_by_missing_id():
                 CONF_FILTERS: [{CONF_OFFSET: 146.0}],
             },
         ]
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+def test_package_list_remove_by_id():
+    """
+    Ensures that components with matching IDs are removed correctly.
+
+    In this test, two sensors are defined in a package, and one of them is removed at the top level.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "package_sensors": {
+                CONF_SENSOR: [
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    },
+                    {
+                        CONF_ID: TEST_SENSOR_ID_2,
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    },
+                ]
+            },
+            # "package2": {
+            #     CONF_SENSOR: [
+            #         {
+            #             CONF_ID: Remove(TEST_SENSOR_ID_1),
+            #         }
+            #     ],
+            # },
+        },
+        CONF_SENSOR: [
+            {
+                CONF_ID: Remove(TEST_SENSOR_ID_1),
+            },
+        ],
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_ID: TEST_SENSOR_ID_2,
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+def test_multiple_package_list_remove_by_id():
+    """
+    Ensures that components with matching IDs are removed correctly.
+
+    In this test, two sensors are defined in a package, and one of them is removed in another package.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "package_sensors": {
+                CONF_SENSOR: [
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    },
+                    {
+                        CONF_ID: TEST_SENSOR_ID_2,
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    },
+                ]
+            },
+            "package2": {
+                CONF_SENSOR: [
+                    {
+                        CONF_ID: Remove(TEST_SENSOR_ID_1),
+                    }
+                ],
+            },
+        },
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_ID: TEST_SENSOR_ID_2,
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
+    """
+    Ensures that components with missing IDs are removed from dict.
+    """
+    """
+    Ensures that the top-level configuration takes precedence over duplicate keys defined in a package.
+
+    In this test, CONF_SSID should be overwritten by that defined in the top-level config.
+    """
+    config = {
+        CONF_ESPHOME: basic_esphome,
+        CONF_PACKAGES: {"network": {CONF_WIFI: basic_wifi}},
+        CONF_WIFI: Remove(),
+    }
+
+    expected = {
+        CONF_ESPHOME: basic_esphome,
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
+def test_package_remove_by_missing_id():
+    """
+    Ensures that components with missing IDs are not merged.
+    """
+
+    config = {
+        CONF_PACKAGES: {
+            "sensors": {
+                CONF_SENSOR: [
+                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
+                ]
+            }
+        },
+        "missing_key": Remove(),
+        CONF_SENSOR: [
+            {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
+            {CONF_ID: Remove(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]},
+        ],
+    }
+
+    expected = {
+        "missing_key": Remove(),
+        CONF_SENSOR: [
+            {
+                CONF_ID: TEST_SENSOR_ID_1,
+                CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+            },
+            {
+                CONF_ID: TEST_SENSOR_ID_1,
+                CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
+            },
+            {
+                CONF_ID: Remove(TEST_SENSOR_ID_2),
+                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
+            },
+        ],
     }
 
     actual = do_packages_pass(config)

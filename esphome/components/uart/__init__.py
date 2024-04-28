@@ -42,12 +42,24 @@ ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
 RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Component)
+LibreTinyUARTComponent = uart_ns.class_(
+    "LibreTinyUARTComponent", UARTComponent, cg.Component
+)
+
+NATIVE_UART_CLASSES = (
+    str(IDFUARTComponent),
+    str(ESP32ArduinoUARTComponent),
+    str(ESP8266UartComponent),
+    str(RP2040UartComponent),
+    str(LibreTinyUARTComponent),
+)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
+MULTI_CONF_NO_DEFAULT = True
 
 
 def validate_raw_data(value):
@@ -72,12 +84,13 @@ def validate_rx_pin(value):
 def validate_invert_esp32(config):
     if (
         CORE.is_esp32
+        and CORE.using_arduino
         and CONF_TX_PIN in config
         and CONF_RX_PIN in config
         and config[CONF_TX_PIN][CONF_INVERTED] != config[CONF_RX_PIN][CONF_INVERTED]
     ):
         raise cv.Invalid(
-            "Different invert values for TX and RX pin are not (yet) supported for ESP32."
+            "Different invert values for TX and RX pin are not supported for ESP32 when using Arduino."
         )
     return config
 
@@ -92,6 +105,8 @@ def _uart_declare_type(value):
             return cv.declare_id(IDFUARTComponent)(value)
     if CORE.is_rp2040:
         return cv.declare_id(RP2040UartComponent)(value)
+    if CORE.is_libretiny:
+        return cv.declare_id(LibreTinyUARTComponent)(value)
     raise NotImplementedError
 
 
@@ -293,17 +308,18 @@ def final_validate_device_schema(
     def validate_hub(hub_config):
         hub_schema = {}
         uart_id = hub_config[CONF_ID]
+        uart_id_type_str = str(uart_id.type)
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
-        if require_tx:
+        if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
                     CONF_TX_PIN,
                     msg=f"Component {name} requires this uart bus to declare a tx_pin",
                 )
             ] = validate_pin(CONF_TX_PIN, device)
-        if require_rx:
+        if require_rx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
                     CONF_RX_PIN,

@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 
 #ifdef USE_ESP32
 #include <driver/rmt.h>
@@ -86,6 +86,7 @@ class RemoteComponentBase {
 class RemoteRMTChannel {
  public:
   explicit RemoteRMTChannel(uint8_t mem_block_num = 1);
+  explicit RemoteRMTChannel(rmt_channel_t channel, uint8_t mem_block_num = 1);
 
   void config_rmt(rmt_config_t &rmt);
   void set_clock_divider(uint8_t clock_divider) { this->clock_divider_ = clock_divider; }
@@ -126,6 +127,14 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   TransmitCall transmit() {
     this->temp_.reset();
     return TransmitCall(this);
+  }
+  template<typename Protocol>
+  void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+    auto call = this->transmit();
+    Protocol().encode(call.get_data(), data);
+    call.set_send_times(send_times);
+    call.set_send_wait(send_wait);
+    call.perform();
   }
 
  protected:
@@ -184,12 +193,13 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
 
 template<typename T> class RemoteProtocol {
  public:
-  virtual void encode(RemoteTransmitData *dst, const T &data) = 0;
-  virtual optional<T> decode(RemoteReceiveData src) = 0;
-  virtual void dump(const T &data) = 0;
+  using ProtocolData = T;
+  virtual void encode(RemoteTransmitData *dst, const ProtocolData &data) = 0;
+  virtual optional<ProtocolData> decode(RemoteReceiveData src) = 0;
+  virtual void dump(const ProtocolData &data) = 0;
 };
 
-template<typename T, typename D> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
+template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
   RemoteReceiverBinarySensor() : RemoteReceiverBinarySensorBase() {}
 
@@ -201,13 +211,14 @@ template<typename T, typename D> class RemoteReceiverBinarySensor : public Remot
   }
 
  public:
-  void set_data(D data) { data_ = data; }
+  void set_data(typename T::ProtocolData data) { data_ = data; }
 
  protected:
-  D data_;
+  typename T::ProtocolData data_;
 };
 
-template<typename T, typename D> class RemoteReceiverTrigger : public Trigger<D>, public RemoteReceiverListener {
+template<typename T>
+class RemoteReceiverTrigger : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
     auto proto = T();
@@ -220,28 +231,36 @@ template<typename T, typename D> class RemoteReceiverTrigger : public Trigger<D>
   }
 };
 
-template<typename... Ts> class RemoteTransmitterActionBase : public Action<Ts...> {
+class RemoteTransmittable {
  public:
-  void set_parent(RemoteTransmitterBase *parent) { this->parent_ = parent; }
+  RemoteTransmittable() {}
+  RemoteTransmittable(RemoteTransmitterBase *transmitter) : transmitter_(transmitter) {}
+  void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
 
-  TEMPLATABLE_VALUE(uint32_t, send_times);
-  TEMPLATABLE_VALUE(uint32_t, send_wait);
+ protected:
+  template<typename Protocol>
+  void transmit_(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+    this->transmitter_->transmit<Protocol>(data, send_times, send_wait);
+  }
+  RemoteTransmitterBase *transmitter_;
+};
 
+template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransmittable, public Action<Ts...> {
+  TEMPLATABLE_VALUE(uint32_t, send_times)
+  TEMPLATABLE_VALUE(uint32_t, send_wait)
+
+ protected:
   void play(Ts... x) override {
-    auto call = this->parent_->transmit();
+    auto call = this->transmitter_->transmit();
     this->encode(call.get_data(), x...);
     call.set_send_times(this->send_times_.value_or(x..., 1));
     call.set_send_wait(this->send_wait_.value_or(x..., 0));
     call.perform();
   }
-
- protected:
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;
-
-  RemoteTransmitterBase *parent_{};
 };
 
-template<typename T, typename D> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
+template<typename T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
  public:
   bool dump(RemoteReceiveData src) override {
     auto proto = T();
@@ -254,9 +273,9 @@ template<typename T, typename D> class RemoteReceiverDumper : public RemoteRecei
 };
 
 #define DECLARE_REMOTE_PROTOCOL_(prefix) \
-  using prefix##BinarySensor = RemoteReceiverBinarySensor<prefix##Protocol, prefix##Data>; \
-  using prefix##Trigger = RemoteReceiverTrigger<prefix##Protocol, prefix##Data>; \
-  using prefix##Dumper = RemoteReceiverDumper<prefix##Protocol, prefix##Data>;
+  using prefix##BinarySensor = RemoteReceiverBinarySensor<prefix##Protocol>; \
+  using prefix##Trigger = RemoteReceiverTrigger<prefix##Protocol>; \
+  using prefix##Dumper = RemoteReceiverDumper<prefix##Protocol>;
 #define DECLARE_REMOTE_PROTOCOL(prefix) DECLARE_REMOTE_PROTOCOL_(prefix)
 
 }  // namespace remote_base

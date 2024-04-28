@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from esphome.const import (
+    CONF_ANALOG,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    PLATFORM_ESP8266,
 )
 from esphome import pins
 from esphome.core import CORE, coroutine_with_priority
@@ -20,9 +22,7 @@ import esphome.codegen as cg
 from . import boards
 from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
 
-
 _LOGGER = logging.getLogger(__name__)
-
 
 ESP8266GPIOPin = esp8266_ns.class_("ESP8266GPIOPin", cg.InternalGPIOPin)
 
@@ -123,6 +123,8 @@ def validate_supports(value):
         (True, False, False, False, False),
         # OUTPUT
         (False, True, False, False, False),
+        # INPUT and OUTPUT, e.g. for i2c
+        (True, True, False, False, False),
         # INPUT_PULLUP
         (True, False, False, True, False),
         # INPUT_PULLDOWN_16
@@ -140,23 +142,12 @@ def validate_supports(value):
     return value
 
 
-CONF_ANALOG = "analog"
 ESP8266_PIN_SCHEMA = cv.All(
-    {
-        cv.GenerateID(): cv.declare_id(ESP8266GPIOPin),
-        cv.Required(CONF_NUMBER): validate_gpio_pin,
-        cv.Optional(CONF_MODE, default={}): cv.Schema(
-            {
-                cv.Optional(CONF_ANALOG, default=False): cv.boolean,
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_PULLDOWN, default=False): cv.boolean,
-            }
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    },
+    pins.gpio_base_schema(
+        ESP8266GPIOPin,
+        validate_gpio_pin,
+        modes=pins.GPIO_STANDARD_MODES + (CONF_ANALOG,),
+    ),
     validate_supports,
 )
 
@@ -167,7 +158,7 @@ class PinInitialState:
     level: int = 255
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("esp8266", ESP8266_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP8266, ESP8266_PIN_SCHEMA)
 async def esp8266_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]

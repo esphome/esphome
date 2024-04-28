@@ -17,11 +17,12 @@ CONF_ON_FRAME = "on_frame"
 
 
 def validate_id(config):
-    can_id = config[CONF_CAN_ID]
-    id_ext = config[CONF_USE_EXTENDED_ID]
-    if not id_ext:
-        if can_id > 0x7FF:
-            raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
+    if CONF_CAN_ID in config:
+        can_id = config[CONF_CAN_ID]
+        id_ext = config[CONF_USE_EXTENDED_ID]
+        if not id_ext:
+            if can_id > 0x7FF:
+                raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
     return config
 
 
@@ -45,9 +46,13 @@ CanbusTrigger = canbus_ns.class_(
 CanSpeed = canbus_ns.enum("CAN_SPEED")
 
 CAN_SPEEDS = {
+    "1KBPS": CanSpeed.CAN_1KBPS,
     "5KBPS": CanSpeed.CAN_5KBPS,
     "10KBPS": CanSpeed.CAN_10KBPS,
+    "12K5BPS": CanSpeed.CAN_12K5BPS,
+    "16KBPS": CanSpeed.CAN_16KBPS,
     "20KBPS": CanSpeed.CAN_20KBPS,
+    "25KBPS": CanSpeed.CAN_25KBPS,
     "31K25BPS": CanSpeed.CAN_31K25BPS,
     "33KBPS": CanSpeed.CAN_33KBPS,
     "40KBPS": CanSpeed.CAN_40KBPS,
@@ -60,9 +65,9 @@ CAN_SPEEDS = {
     "200KBPS": CanSpeed.CAN_200KBPS,
     "250KBPS": CanSpeed.CAN_250KBPS,
     "500KBPS": CanSpeed.CAN_500KBPS,
+    "800KBPS": CanSpeed.CAN_800KBPS,
     "1000KBPS": CanSpeed.CAN_1000KBPS,
 }
-
 CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
@@ -147,22 +152,18 @@ async def canbus_action_to_code(config, action_id, template_arg, args):
     if can_id := config.get(CONF_CAN_ID):
         can_id = await cg.templatable(can_id, args, cg.uint32)
         cg.add(var.set_can_id(can_id))
-    use_extended_id = await cg.templatable(
-        config[CONF_USE_EXTENDED_ID], args, cg.uint32
-    )
-    cg.add(var.set_use_extended_id(use_extended_id))
+        cg.add(var.set_use_extended_id(config[CONF_USE_EXTENDED_ID]))
 
-    remote_transmission_request = await cg.templatable(
-        config[CONF_REMOTE_TRANSMISSION_REQUEST], args, bool
+    cg.add(
+        var.set_remote_transmission_request(config[CONF_REMOTE_TRANSMISSION_REQUEST])
     )
-    cg.add(var.set_remote_transmission_request(remote_transmission_request))
 
     data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = [int(x) for x in data]
     if cg.is_template(data):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
+        if isinstance(data, bytes):
+            data = [int(x) for x in data]
         cg.add(var.set_data_static(data))
     return var

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cinttypes>
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
