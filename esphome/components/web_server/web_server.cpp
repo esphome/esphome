@@ -926,6 +926,8 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_TIME
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
+  if (this->events_.count() == 0)
+    return;
   this->events_.send(this->time_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -969,6 +971,55 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
   });
 }
 #endif  // USE_DATETIME_TIME
+
+#ifdef USE_DATETIME_DATETIME
+void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
+  if (this->events_.count() == 0)
+    return;
+  this->events_.send(this->datetime_json(obj, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_datetimes()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      std::string data = this->datetime_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (!request->hasParam("value")) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("value")) {
+      std::string value = request->getParam("value")->value().c_str();
+      call.set_datetime(value);
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "datetime-" + obj->get_object_id(), start_config);
+    std::string value = str_sprintf("%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour,
+                                    obj->minute, obj->second);
+    root["value"] = value;
+    root["state"] = value;
+  });
+}
+#endif  // USE_DATETIME_DATETIME
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
@@ -1352,6 +1403,28 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
 }
 #endif
 
+#ifdef USE_EVENT
+void WebServer::on_event(event::Event *obj, const std::string &event_type) {
+  this->events_.send(this->event_json(obj, event_type, DETAIL_STATE).c_str(), "state");
+}
+
+std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
+  return json::build_json([obj, event_type, start_config](JsonObject root) {
+    set_json_id(root, obj, "event-" + obj->get_object_id(), start_config);
+    if (!event_type.empty()) {
+      root["event_type"] = event_type;
+    }
+    if (start_config == DETAIL_ALL) {
+      JsonArray event_types = root.createNestedArray("event_types");
+      for (auto const &event_type : obj->get_event_types()) {
+        event_types.add(event_type);
+      }
+      root["device_class"] = obj->get_device_class();
+    }
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -1433,6 +1506,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_DATETIME_TIME
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "time")
+    return true;
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "datetime")
     return true;
 #endif
 
@@ -1569,6 +1647,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_DATETIME_TIME
   if (match.domain == "time") {
     this->handle_time_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+  if (match.domain == "datetime") {
+    this->handle_datetime_request(request, match);
     return;
   }
 #endif

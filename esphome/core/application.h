@@ -45,6 +45,9 @@
 #ifdef USE_DATETIME_TIME
 #include "esphome/components/datetime/time_entity.h"
 #endif
+#ifdef USE_DATETIME_DATETIME
+#include "esphome/components/datetime/datetime_entity.h"
+#endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
 #endif
@@ -62,6 +65,9 @@
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+#endif
+#ifdef USE_EVENT
+#include "esphome/components/event/event.h"
 #endif
 
 namespace esphome {
@@ -138,6 +144,10 @@ class Application {
   void register_time(datetime::TimeEntity *time) { this->times_.push_back(time); }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+  void register_datetime(datetime::DateTimeEntity *datetime) { this->datetimes_.push_back(datetime); }
+#endif
+
 #ifdef USE_TEXT
   void register_text(text::Text *text) { this->texts_.push_back(text); }
 #endif
@@ -162,6 +172,10 @@ class Application {
   void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
     this->alarm_control_panels_.push_back(a_alarm_control_panel);
   }
+#endif
+
+#ifdef USE_EVENT
+  void register_event(event::Event *event) { this->events_.push_back(event); }
 #endif
 
   /// Register the component in this Application instance.
@@ -328,6 +342,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_DATETIME_DATETIME
+  const std::vector<datetime::DateTimeEntity *> &get_datetimes() { return this->datetimes_; }
+  datetime::DateTimeEntity *get_datetime_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->datetimes_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_TEXT
   const std::vector<text::Text *> &get_texts() { return this->texts_; }
   text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
@@ -386,6 +409,16 @@ class Application {
   }
 #endif
 
+#ifdef USE_EVENT
+  const std::vector<event::Event *> &get_events() { return this->events_; }
+  event::Event *get_event_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->events_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+
   Scheduler scheduler;
 
  protected:
@@ -408,6 +441,9 @@ class Application {
 #endif
 #ifdef USE_BUTTON
   std::vector<button::Button *> buttons_{};
+#endif
+#ifdef USE_EVENT
+  std::vector<event::Event *> events_{};
 #endif
 #ifdef USE_SENSOR
   std::vector<sensor::Sensor *> sensors_{};
@@ -435,6 +471,9 @@ class Application {
 #endif
 #ifdef USE_DATETIME_TIME
   std::vector<datetime::TimeEntity *> times_{};
+#endif
+#ifdef USE_DATETIME_DATETIME
+  std::vector<datetime::DateTimeEntity *> datetimes_{};
 #endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
