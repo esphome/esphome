@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_RAW_DATA_ID,
+    CONF_THRESHOLD,
     TYPE_GIT,
     TYPE_LOCAL,
 )
@@ -41,9 +42,13 @@ CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
 DOMAIN = "micro_wake_word"
 
+CONF_MODELS = "models"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_AVERAGE_SIZE = "sliding_window_average_size"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_VAD_MODEL = "vad_model"
+CONF_UPPER = "upper"
+CONF_LOWER = "lower"
 
 TYPE_HTTP = "http"
 
@@ -260,18 +265,42 @@ MODEL_SOURCE_SCHEMA = cv.Any(
     msg="Not a valid model name, local path, http(s) url, or github shorthand",
 )
 
+MODEL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
+        cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
+        cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+    }
+)
+
+VAD_MODEL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
+        cv.Optional(CONF_THRESHOLD, default=0.5): cv.Any(
+            cv.percentage,
+            cv.Schema(
+                {
+                    cv.Required(CONF_UPPER): cv.percentage,
+                    cv.Required(CONF_LOWER): cv.percentage,
+                }
+            ),
+        ),
+        cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MicroWakeWord),
             cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-            cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
-            cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+            cv.Required(CONF_MODELS): cv.ensure_list(MODEL_SCHEMA),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
                 single=True
             ),
-            cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
-            cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+            cv.Optional(CONF_VAD_MODEL): VAD_MODEL_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_esp_idf,
@@ -302,6 +331,16 @@ async def to_code(config):
     mic = await cg.get_variable(config[CONF_MICROPHONE])
     cg.add(var.set_microphone(mic))
 
+    esp32.add_idf_component(
+        name="esp-tflite-micro",
+        repo="https://github.com/espressif/esp-tflite-micro",
+        ref="v1.3.1",
+    )
+
+    cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
+    cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
+    cg.add_build_flag("-DESP_NN")
+
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
         await automation.build_automation(
             var.get_wake_word_detected_trigger(),
@@ -319,42 +358,103 @@ async def to_code(config):
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
 
-    model_config = config.get(CONF_MODEL)
-    data = []
-    if model_config[CONF_TYPE] == TYPE_GIT:
-        # compute path to model file
-        key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
-        base_dir = Path(CORE.data_dir) / DOMAIN
-        h = hashlib.new("sha256")
-        h.update(key.encode())
-        file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
+    if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
+        await automation.build_automation(
+            var.get_wake_word_detected_trigger(),
+            [(cg.std_string, "wake_word")],
+            on_wake_word_detection_config,
+        )
 
-    elif model_config[CONF_TYPE] == TYPE_LOCAL:
-        file = Path(model_config[CONF_PATH])
+    if vad_model := config.get(CONF_VAD_MODEL):
+        cg.add_define("USE_MWW_VAD")
+        model_config = vad_model.get(CONF_MODEL)
+        data = []
+        if model_config[CONF_TYPE] == TYPE_GIT:
+            # compute path to model file
+            key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
+            base_dir = Path(CORE.data_dir) / DOMAIN
+            h = hashlib.new("sha256")
+            h.update(key.encode())
+            file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
 
-    elif model_config[CONF_TYPE] == TYPE_HTTP:
-        file = _compute_local_file_path(model_config) / "manifest.json"
+        elif model_config[CONF_TYPE] == TYPE_LOCAL:
+            file = Path(model_config[CONF_PATH])
 
-    else:
-        raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
+        elif model_config[CONF_TYPE] == TYPE_HTTP:
+            file = _compute_local_file_path(model_config) / "manifest.json"
 
-    manifest, data = _load_model_data(file)
+        else:
+            raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
 
-    rhs = [HexInt(x) for x in data]
-    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.add(var.set_model_start(prog_arr))
+        manifest, data = _load_model_data(file)
 
-    probability_cutoff = config.get(
-        CONF_PROBABILITY_CUTOFF, manifest[KEY_MICRO][CONF_PROBABILITY_CUTOFF]
-    )
-    cg.add(var.set_probability_cutoff(probability_cutoff))
-    sliding_window_average_size = config.get(
-        CONF_SLIDING_WINDOW_AVERAGE_SIZE,
-        manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
-    )
-    cg.add(var.set_sliding_window_average_size(sliding_window_average_size))
+        rhs = [HexInt(x) for x in data]
+        prog_arr = cg.progmem_array(vad_model[CONF_RAW_DATA_ID], rhs)
 
-    cg.add(var.set_wake_word(manifest[KEY_WAKE_WORD]))
+        sliding_window_average_size = vad_model.get(
+            CONF_SLIDING_WINDOW_AVERAGE_SIZE,
+            manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
+        )
+
+        if isinstance(vad_model[CONF_THRESHOLD], float):
+            upper_threshold = vad_model[CONF_THRESHOLD]
+            lower_threshold = vad_model[CONF_THRESHOLD]
+        else:
+            upper_threshold = vad_model[CONF_THRESHOLD][CONF_UPPER]
+            lower_threshold = vad_model[CONF_THRESHOLD][CONF_LOWER]
+
+        cg.add(
+            var.add_vad_model(
+                prog_arr,
+                upper_threshold,
+                lower_threshold,
+                sliding_window_average_size,
+                22000,  # Tensor arena size for VAD model
+            )
+        )
+
+    for model_parameters in config[CONF_MODELS]:
+        model_config = model_parameters.get(CONF_MODEL)
+        data = []
+        if model_config[CONF_TYPE] == TYPE_GIT:
+            # compute path to model file
+            key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
+            base_dir = Path(CORE.data_dir) / DOMAIN
+            h = hashlib.new("sha256")
+            h.update(key.encode())
+            file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
+
+        elif model_config[CONF_TYPE] == TYPE_LOCAL:
+            file = model_config[CONF_PATH]
+
+        elif model_config[CONF_TYPE] == TYPE_HTTP:
+            file = _compute_local_file_path(model_config) / "manifest.json"
+
+        else:
+            raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
+
+        manifest, data = _load_model_data(file)
+
+        rhs = [HexInt(x) for x in data]
+        prog_arr = cg.progmem_array(model_parameters[CONF_RAW_DATA_ID], rhs)
+
+        probability_cutoff = model_parameters.get(
+            CONF_PROBABILITY_CUTOFF, manifest[KEY_MICRO][CONF_PROBABILITY_CUTOFF]
+        )
+        sliding_window_average_size = model_parameters.get(
+            CONF_SLIDING_WINDOW_AVERAGE_SIZE,
+            manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
+        )
+
+        cg.add(
+            var.add_wake_word_model(
+                prog_arr,
+                probability_cutoff,
+                sliding_window_average_size,
+                manifest[KEY_WAKE_WORD],
+                45672,  # Tensor arena size for original Inception-based models
+            )
+        )
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
