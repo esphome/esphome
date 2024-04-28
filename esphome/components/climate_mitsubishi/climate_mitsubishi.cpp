@@ -136,6 +136,7 @@ std::string ClimateMitsubishi::horizontal_vane_to_horizontal_airflow_select_(uin
     case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_SWING:
       return "Swing";
   }
+  return "|";
 }
 
 uint8_t ClimateMitsubishi::climate_mode_to_mode_(ClimateMode mode) {
@@ -242,7 +243,7 @@ void ClimateMitsubishi::setup() {
   this->write_array(mitsubishi_protocol::CONNECT_PACKET, mitsubishi_protocol::CONNECT_LEN);
   this->flush();
 
-  RequestSlot *slot = new RequestSlot();
+  RequestSlot *slot = new RequestSlot(); //NOLINT(cppcoreguidelines-owning-memory)
   slot->state_ = RequestState::RESPONSE_MAGIC_BYTE;
 
   int delay_count = 0;
@@ -258,10 +259,12 @@ void ClimateMitsubishi::setup() {
   if (slot->response_type_ != ResponseType::CONNECT_SUCCESS) {
     ESP_LOGE(TAG, "Invalid response to connect request received");
     this->connected_ = false;
+    delete slot;
     return;
   }
   ESP_LOGD(TAG, "connected");
   this->connected_ = true;
+  delete slot;
 }
 
 void ClimateMitsubishi::loop() {
@@ -322,7 +325,7 @@ void ClimateMitsubishi::loop() {
         break;
     }
     status_rotation_++;
-    if (status_rotation_ > 3)
+    if (status_rotation_ > 2)
       status_rotation_ = 0;
     last_status_request_timestamp_ = now;
     return;
@@ -336,7 +339,7 @@ void ClimateMitsubishi::loop() {
 }
 
 void ClimateMitsubishi::control(const esphome::climate::ClimateCall &call) {
-  RequestSlot *slot = new RequestSlot();
+  RequestSlot *slot = new RequestSlot(); //NOLINT(cppcoreguidelines-owning-memory)
   memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   if (call.get_mode().has_value()) {
@@ -383,7 +386,7 @@ void ClimateMitsubishi::control(const esphome::climate::ClimateCall &call) {
 }
 
 void ClimateMitsubishi::set_vertical_airflow_direction(const std::string &direction) {
-  RequestSlot *slot = new RequestSlot();
+  RequestSlot *slot = new RequestSlot(); //NOLINT(cppcoreguidelines-owning-memory)
   memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
@@ -395,7 +398,7 @@ void ClimateMitsubishi::set_vertical_airflow_direction(const std::string &direct
 }
 
 void ClimateMitsubishi::set_horizontal_airflow_direction(const std::string &direction) {
-  RequestSlot *slot = new RequestSlot();
+  RequestSlot *slot = new RequestSlot(); //NOLINT(cppcoreguidelines-owning-memory)
   memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_2] +=
@@ -417,18 +420,18 @@ void ClimateMitsubishi::inject_temperature(float temperature) {
   }
 
   this->current_temperature = temperature;
-
+  this->remote_temperature_number_->publish_state(temperature);
   temperature += this->temperature_offset_;
-  RequestSlot *slot = new RequestSlot();
+  RequestSlot *slot = new RequestSlot(); //NOLINT(cppcoreguidelines-owning-memory)
   memcpy(slot->request_packet_, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER,
          mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
   slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_ENABLE] = true;
 
   // round to 0.5 increments
-  temperature = temperature * 2;
-  temperature = (float) (int) temperature;
-  temperature = temperature / 2;
+  temperature = temperature * 2.0;
+  temperature = round(temperature);
+  temperature = temperature / 2.0;
 
   slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] =
       (uint8_t) (3 + ((temperature - 10) * 2));
@@ -439,7 +442,7 @@ void ClimateMitsubishi::inject_temperature(float temperature) {
 }
 
 void ClimateMitsubishi::disable_injection() {
-  RequestSlot *slot = new RequestSlot();
+  RequestSlot *slot = new RequestSlot(); //NOLINT(cppcoreguidelines-owning-memory)
   memcpy(slot->request_packet_, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER,
          mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
@@ -452,7 +455,7 @@ void ClimateMitsubishi::disable_injection() {
 }
 
 void ClimateMitsubishi::request_info_(uint8_t type) {
-  RequestSlot *slot = new RequestSlot();
+  RequestSlot *slot = new RequestSlot(); //NOLINT(cppcoreguidelines-owning-memory)
 
   memcpy(slot->request_packet_, mitsubishi_protocol::INFO_HEADER, mitsubishi_protocol::INFO_HEADER_LEN);
   slot->request_packet_[(int) mitsubishi_protocol::Offset::INFO_TYPE] = type;
@@ -465,8 +468,8 @@ void ClimateMitsubishi::request_info_(uint8_t type) {
 }
 
 RequestSlot::RequestSlot() {
-  this->request_packet_ = new uint8_t[mitsubishi_protocol::PACKET_LEN];
-  this->response_packet_ = new uint8_t[mitsubishi_protocol::PACKET_LEN];
+  this->request_packet_ = new uint8_t[mitsubishi_protocol::PACKET_LEN]; //NOLINT(cppcoreguidelines-owning-memory)
+  this->response_packet_ = new uint8_t[mitsubishi_protocol::PACKET_LEN]; //NOLINT(cppcoreguidelines-owning-memory)
   memset(this->request_packet_, 0, mitsubishi_protocol::PACKET_LEN);
   memset(this->response_packet_, 0, mitsubishi_protocol::PACKET_LEN);
   this->state_ = RequestState::CONSTRUCTED;
@@ -694,6 +697,11 @@ ResponseType ClimateMitsubishi::parse_packet_(uint8_t *packet) {
           break;
         default:
           ESP_LOGW(TAG, "got unknown info: %i", packet[(int) mitsubishi_protocol::Offset::INFO_TYPE]);
+          char buffer[50];
+          for(int i=0;i<packet[4];i++) {
+            sprintf(&buffer[3*i], "%02x,", packet[5+i]);
+          }
+          ESP_LOGI(TAG, "packet: %s", buffer);
           return ResponseType::UNKNOWN;
           break;
       }
