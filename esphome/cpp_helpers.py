@@ -142,11 +142,10 @@ async def build_registry_list(registry, config):
 
 async def past_safe_mode():
     ota_conf = {}
-    if CONF_OTA in CORE.config:
-        for ota_item in CORE.config.get(CONF_OTA):
-            if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
-                ota_conf = ota_item
-                break
+    for ota_item in CORE.config.get(CONF_OTA, []):
+        if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
+            ota_conf = ota_item
+            break
 
     if not ota_conf:
         return

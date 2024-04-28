@@ -332,11 +332,10 @@ def upload_program(config, args, host):
         return 1  # Unknown target platform
 
     ota_conf = {}
-    if ota := config.get(CONF_OTA):
-        for ota_item in ota:
-            if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
-                ota_conf = ota_item
-                break
+    for ota_item in config.get(CONF_OTA, []):
+        if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
+            ota_conf = ota_item
+            break
 
     if not ota_conf:
         raise EsphomeError(
