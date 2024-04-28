@@ -54,5 +54,7 @@ async def to_code(config):
         if CONF_SPEED in config:
             add_idf_sdkconfig_option(f"{SPIRAM_SPEEDS[config[CONF_SPEED]]}", True)
 
+    cg.add_define("USE_PSRAM")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

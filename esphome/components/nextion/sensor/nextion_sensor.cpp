@@ -30,7 +30,7 @@ void NextionSensor::add_to_wave_buffer(float state) {
 }
 
 void NextionSensor::update() {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
 
   if (this->wave_chan_id_ == UINT8_MAX) {
@@ -45,7 +45,7 @@ void NextionSensor::update() {
 }
 
 void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
 
   if (std::isnan(state))

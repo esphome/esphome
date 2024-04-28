@@ -12,6 +12,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP8266,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
@@ -146,7 +147,6 @@ def _parse_platform_version(value):
         return value
 
 
-CONF_PLATFORM_VERSION = "platform_version"
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {

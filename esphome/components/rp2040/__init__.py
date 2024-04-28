@@ -15,6 +15,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_RP2040,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
 from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
@@ -74,12 +75,12 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 6, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 7, 2)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 10, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(1, 12, 0)
 
 
 def _arduino_check_versions(value):
@@ -124,8 +125,6 @@ def _parse_platform_version(value):
     except cv.Invalid:
         return value
 
-
-CONF_PLATFORM_VERSION = "platform_version"
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
