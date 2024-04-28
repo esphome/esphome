@@ -10,7 +10,7 @@ static const char *const TAG = "mcp3426/7/8";
 void MCP3428Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MCP3426/7/8...");
   uint8_t anwser[3];
-  if (!this->read(anwser, 3)) {
+  if (this->read(anwser, 3) != i2c::ErrorCode::NO_ERROR) {
     this->mark_failed();
     return;
   }
@@ -39,7 +39,7 @@ void MCP3428Component::setup() {
   }
   // leave channel at 1, gain at 1x, and resolution at 12 bit
 
-  if (!this->write(&config, 1)) {
+  if (this->write(&config, 1) != i2c::ErrorCode::NO_ERROR) {
     this->mark_failed();
     return;
   }
@@ -74,7 +74,7 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
   // If continuous mode and config (besides ready bit) are the same there is no need to upload new config, reading the
   // result is enough
   if (!((this->prev_config_ & 0b00010000) > 0 and (this->prev_config_ & 0b01111111) == (config & 0b01111111))) {
-    if (!this->write(&config, 1)) {
+    if (this->write(&config, 1) != i2c::ErrorCode::NO_ERROR) {
       this->status_set_warning();
       return NAN;
     }
@@ -85,7 +85,7 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
   uint32_t start = millis();
   uint8_t anwser[3];
   while (true) {
-    if (!this->read(anwser, 3)) {
+    if (this->read(anwser, 3) != i2c::ErrorCode::NO_ERROR) {
       this->status_set_warning();
       return NAN;
     }
