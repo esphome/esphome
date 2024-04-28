@@ -22,7 +22,7 @@ bool BMP3XXI2CComponent::write_bytes(uint8_t a_register, uint8_t *data, size_t l
 
 void BMP3XXI2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);
-  BMP3XXI2CComponent::dump_config();
+  BMP3XXComponent::dump_config();
 }
 
 }  // namespace bmp3xx_i2c
