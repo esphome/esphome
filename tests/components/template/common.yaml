@@ -155,6 +155,11 @@ text:
     update_interval: 1s
     lambda: |
       return "Hello!";
+    set_action:
+      then:
+        - logger.log:
+            format: Template Text set to %s
+            args: ["x.c_str()"]
 
 alarm_control_panel:
   - platform: template

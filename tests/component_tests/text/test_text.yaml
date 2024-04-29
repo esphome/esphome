@@ -35,5 +35,10 @@ text:
   - platform: template
     name: "test 4 key"
     id: "it_4"
+    set_action:
+      - then:
+          - logger.log:
+              format: Template text set to %s
+              args: ["x.c_str()"]
     lambda: |
       return "Hello";
