@@ -102,6 +102,12 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
   }
 
   // got valid measurement, clean up unused bits from the anwser code and prepare tick size
+  bool negative = false;
+  if (anwser[0] & 0b10000000 != 0) {
+    // negative number, clean up bit and mark as negative
+    negative = true;
+    anwser[0] &= 0b01111111;
+  }
   float tick_voltage = 2.048f / 32768;  // ref voltage 2.048V/non-sign bits, default 15 bits
   switch (resolution) {
     case MCP3428Resolution::MCP3428_12_BITS:
@@ -132,6 +138,9 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
   }
   // convert code (first 2 bytes of cleaned up anwser) into voltage ticks
   int16_t ticks = anwser[0] << 8 | anwser[1];
+  if (negative) {
+    ticks *= (-1);
+  }
 
   this->status_clear_warning();
   return tick_voltage * ticks;
