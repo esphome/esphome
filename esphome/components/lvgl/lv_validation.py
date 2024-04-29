@@ -127,7 +127,7 @@ def join_enums(enums, prefix=""):
     return "|".join(map(lambda e: f"(int){prefix}{e.upper()}", enums))
 
 
-def lv_id_name(value):
+def id_name(value):
     if value == SCHEMA_EXTRACT:
         return "id"
     return cv.validate_id_name(value)
@@ -143,12 +143,12 @@ def pixels_or_percent(value):
     return f"lv_pct({int(cv.percentage(value) * 100)})"
 
 
-def lv_zoom(value):
+def zoom(value):
     value = cv.float_range(0.1, 10.0)(value)
     return int(value * 256)
 
 
-def lv_angle(value):
+def angle(value):
     """
     Validation for an angle in degrees, converted to an integer representing 0.1deg units
     :param value: The input in the range 0..360
@@ -157,7 +157,7 @@ def lv_angle(value):
     return int(cv.float_range(0.0, 360.0)(cv.angle(value)) * 10)
 
 
-def lv_pixels(value):
+def pixels(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
     if isinstance(value, str) and value.lower().endswith("px"):
         return cv.int_(value[:-2])
@@ -165,7 +165,7 @@ def lv_pixels(value):
 
 
 @schema_extractor("one_of")
-def lv_size(value):
+def size(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
         return ["size_content", "pixels", "..%"]
@@ -193,7 +193,7 @@ def opacity(value):
     return int(value * 255)
 
 
-def lv_stop_value(value):
+def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
@@ -203,13 +203,13 @@ def optional_boolean(value):
     return cv.boolean(value)
 
 
-def cv_int_list(il):
+def point_list(il):
     il = cv.string(il)
     nl = il.replace(" ", "").split(",")
     return list(map(int, nl))
 
 
-def lv_option_string(value):
+def option_string(value):
     value = cv.string(value).strip()
     if value.find("\n") != -1:
         raise cv.Invalid("Options strings must not contain newlines")
