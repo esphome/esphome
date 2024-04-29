@@ -91,7 +91,7 @@ esphome/components/daikin_arc/* @MagicBear
 esphome/components/daikin_brc/* @hagak
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
-esphome/components/datetime/* @rfdarter
+esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
@@ -115,9 +115,11 @@ esphome/components/esp32_ble_server/* @Rapsssito @clydebarrow @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
+esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
+esphome/components/event/* @nohat
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
@@ -358,11 +360,13 @@ esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
 esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter
+esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tlc5947/* @rnauber
+esphome/components/tlc5971/* @IJIJI
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
@@ -388,6 +392,7 @@ esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/uponor_smatrix/* @kroimon
+esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
@@ -397,13 +402,25 @@ esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/web_server_idf/* @dentra
+esphome/components/weikai/* @DrCoolZic
+esphome/components/weikai_i2c/* @DrCoolZic
+esphome/components/weikai_spi/* @DrCoolZic
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
+esphome/components/wk2132_i2c/* @DrCoolZic
+esphome/components/wk2132_spi/* @DrCoolZic
+esphome/components/wk2168_i2c/* @DrCoolZic
+esphome/components/wk2168_spi/* @DrCoolZic
+esphome/components/wk2204_i2c/* @DrCoolZic
+esphome/components/wk2204_spi/* @DrCoolZic
+esphome/components/wk2212_i2c/* @DrCoolZic
+esphome/components/wk2212_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xgzp68xx/* @gcormier
+esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs

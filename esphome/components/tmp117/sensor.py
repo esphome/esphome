@@ -30,37 +30,37 @@ CONFIG_SCHEMA = cv.All(
 
 
 def determine_config_register(polling_period):
-    if polling_period >= 16.0:
+    if polling_period >= 16000:
         # 64 averaged conversions, max conversion time
         # 0000 00 111 11 00000
         # 0000 0011 1110 0000
         return 0x03E0
-    if polling_period >= 8.0:
+    if polling_period >= 8000:
         # 64 averaged conversions, high conversion time
         # 0000 00 110 11 00000
         # 0000 0011 0110 0000
         return 0x0360
-    if polling_period >= 4.0:
+    if polling_period >= 4000:
         # 64 averaged conversions, mid conversion time
         # 0000 00 101 11 00000
         # 0000 0010 1110 0000
         return 0x02E0
-    if polling_period >= 1.0:
+    if polling_period >= 1000:
         # 64 averaged conversions, min conversion time
         # 0000 00 000 11 00000
         # 0000 0000 0110 0000
         return 0x0060
-    if polling_period >= 0.5:
+    if polling_period >= 500:
         # 32 averaged conversions, min conversion time
         # 0000 00 000 10 00000
         # 0000 0000 0100 0000
         return 0x0040
-    if polling_period >= 0.25:
+    if polling_period >= 250:
         # 8 averaged conversions, mid conversion time
         # 0000 00 010 01 00000
         # 0000 0001 0010 0000
         return 0x0120
-    if polling_period >= 0.125:
+    if polling_period >= 125:
         # 8 averaged conversions, min conversion time
         # 0000 00 000 01 00000
         # 0000 0000 0010 0000
@@ -76,5 +76,5 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    update_period = config[CONF_UPDATE_INTERVAL].total_seconds
+    update_period = config[CONF_UPDATE_INTERVAL].total_milliseconds
     cg.add(var.set_config(determine_config_register(update_period)))

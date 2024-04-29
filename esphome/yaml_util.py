@@ -321,8 +321,9 @@ class ESPHomeLoaderMixin:
             file, vars = node.value, None
 
         result = _load_yaml_internal(self._rel_path(file))
-        if vars:
-            result = substitute_vars(result, vars)
+        if not vars:
+            vars = {}
+        result = substitute_vars(result, vars)
         return result
 
     @_add_data_ref
