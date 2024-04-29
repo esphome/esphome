@@ -39,7 +39,7 @@ class Widget:
 
     def has_state(self, state):
         """
-        Return code that checks for a givens state
+        Return code that checks for a given state
         :param state: A state bit
         :return:
         """
