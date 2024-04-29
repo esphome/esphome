@@ -128,7 +128,7 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning();
         if (millis() - this->action_started_ > 5000) {
-          if (this->fast_connect_) {
+          if (this->fast_connect_ || this->retry_hidden_) {
             this->start_connecting(this->sta_[0], false);
           } else {
             this->start_scanning();
@@ -591,6 +591,9 @@ void WiFiComponent::check_connecting_finished() {
       return;
     }
 
+    // We won't retry hidden networks unless a reconnect fails more than three times again
+    this->retry_hidden_ = false;
+
     ESP_LOGI(TAG, "WiFi Connected!");
     this->print_connect_params_();
 
@@ -668,10 +671,11 @@ void WiFiComponent::retry_connect() {
       this->wifi_mode_(false, {});
       delay(100);  // NOLINT
       this->num_retried_ = 0;
+      this->retry_hidden_ = false;
     } else {
       // Try hidden networks after 3 failed retries
       ESP_LOGD(TAG, "Retrying with hidden networks...");
-      this->fast_connect_ = true;
+      this->retry_hidden_ = true;
       this->num_retried_++;
     }
   } else {

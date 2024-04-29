@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_ina260
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: ina260
+    address: 0x40
+    current:
+      name: INA260 Current
+    power:
+      name: INA260 Power
+    bus_voltage:
+      name: INA260 Voltage
+    update_interval: 60s
