@@ -1,9 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import i2c
-from ..bmp3xx_base.sensor import to_code_base, cv, CONFIG_SCHEMA_BASE
+from ..bmp3xx_base import to_code_base, cv, CONFIG_SCHEMA_BASE
 
-DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["bmp3xx_base"]
+CODEOWNERS = ["@latonita"]
+DEPENDENCIES = ["i2c"]
 
 bmp3xx_ns = cg.esphome_ns.namespace("bmp3xx_i2c")
 
@@ -17,4 +18,5 @@ CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
 
 
 async def to_code(config):
-    await to_code_base(config, func=i2c.register_i2c_device)
+    var = await to_code_base(config)
+    await i2c.register_i2c_device(var, config)

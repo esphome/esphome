@@ -1,9 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import spi
-from ..bmp3xx_base.sensor import to_code_base, cv, CONFIG_SCHEMA_BASE
+from ..bmp3xx_base import to_code_base, cv, CONFIG_SCHEMA_BASE
 
-DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["bmp3xx_base"]
+CODEOWNERS = ["@latonita"]
+DEPENDENCIES = ["spi"]
 
 bmp3xx_ns = cg.esphome_ns.namespace("bmp3xx_spi")
 
@@ -17,4 +18,5 @@ CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(spi.spi_device_schema()).extend(
 
 
 async def to_code(config):
-    await to_code_base(config, func=spi.register_spi_device)
+    var = await to_code_base(config)
+    await spi.register_spi_device(var, config)
