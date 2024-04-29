@@ -24,11 +24,11 @@ CONF_MAX_RESTORE_DATA_LENGTH = "max_restore_data_length"
 
 def validate(config):
     if CONF_LAMBDA in config:
-        if config[CONF_OPTIMISTIC]:
+        if config[CONF_OPTIMISTIC] and config[CONF_OPTIMISTIC]:
             raise cv.Invalid("optimistic cannot be used with lambda")
         if CONF_INITIAL_VALUE in config:
             raise cv.Invalid("initial_value cannot be used with lambda")
-        if CONF_RESTORE_VALUE in config:
+        if CONF_RESTORE_VALUE in config and config[CONF_RESTORE_VALUE]:
             raise cv.Invalid("restore_value cannot be used with lambda")
     elif CONF_INITIAL_VALUE not in config:
         config[CONF_INITIAL_VALUE] = ""
