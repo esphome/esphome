@@ -1,0 +1,56 @@
+esphome:
+  on_boot:
+    then:
+      - climate.pid.autotune: pid_climate
+      - climate.pid.autotune:
+          id: pid_climate
+          noiseband: 0.25
+          positive_output: 25%
+          negative_output: -25%
+      - climate.pid.set_control_parameters:
+          id: pid_climate
+          kp: 0.0
+          ki: 0.0
+          kd: 0.0
+      - climate.pid.reset_integral_term: pid_climate
+
+output:
+  - platform: slow_pwm
+    pin: 4
+    id: pid_slow_pwm
+    period: 15s
+    restart_cycle_on_state_change: false
+
+sensor:
+  - platform: template
+    id: template_sensor1
+    lambda: |-
+      if (millis() > 10000) {
+        return 42.0;
+      } else {
+        return 0.0;
+      }
+    update_interval: 60s
+
+climate:
+  - platform: pid
+    id: pid_climate
+    name: PID Climate Controller
+    sensor: template_sensor1
+    humidity_sensor: template_sensor1
+    default_target_temperature: 21°C
+    heat_output: pid_slow_pwm
+    control_parameters:
+      kp: 0.0
+      ki: 0.0
+      kd: 0.0
+      max_integral: 0.0
+      output_averaging_samples: 1
+      derivative_averaging_samples: 1
+    deadband_parameters:
+      threshold_high: 0.4
+      threshold_low: -2.0
+      kp_multiplier: 0.0
+      ki_multiplier: 0.0
+      kd_multiplier: 0.0
+      deadband_output_averaging_samples: 1
