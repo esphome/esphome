@@ -142,6 +142,11 @@ void MicroWakeWord::loop() {
 }
 
 void MicroWakeWord::start() {
+  if (!this->is_ready()) {
+    ESP_LOGW(TAG, "Wake word detection can't start as the component hasn't been setup yet");
+    return;
+  }
+
   if (this->is_failed()) {
     ESP_LOGW(TAG, "Wake word component is marked as failed. Please check setup logs");
     return;
