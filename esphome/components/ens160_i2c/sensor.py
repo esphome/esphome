@@ -1,11 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import i2c
-from ..ens160_base.sensor import to_code as to_code_base, cv, CONFIG_SCHEMA_BASE
+from ..ens160_base import to_code_base, cv, CONFIG_SCHEMA_BASE
 
-DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["ens160_base"]
+CODEOWNERS = ["@latonita"]
+DEPENDENCIES = ["i2c"]
 
 ens160_ns = cg.esphome_ns.namespace("ens160_i2c")
+
 ENS160I2CComponent = ens160_ns.class_(
     "ENS160I2CComponent", cg.PollingComponent, i2c.I2CDevice
 )
@@ -16,4 +18,5 @@ CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
 
 
 async def to_code(config):
-    await to_code_base(config, func=i2c.register_i2c_device)
+    var = await to_code_base(config)
+    await i2c.register_i2c_device(var, config)
