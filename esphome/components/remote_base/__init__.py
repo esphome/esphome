@@ -32,6 +32,10 @@ from esphome.const import (
     CONF_MAGNITUDE,
     CONF_WAND_ID,
     CONF_LEVEL,
+    CONF_DELTA,
+    CONF_ID,
+    CONF_BUTTON,
+    CONF_CHECK,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -511,6 +515,57 @@ async def dish_action(var, config, args):
     cg.add(var.set_command(template_))
 
 
+# Dooya
+DooyaData, DooyaBinarySensor, DooyaTrigger, DooyaAction, DooyaDumper = declare_protocol(
+    "Dooya"
+)
+DOOYA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.hex_int_range(0, 16777215),
+        cv.Required(CONF_CHANNEL): cv.hex_int_range(0, 255),
+        cv.Required(CONF_BUTTON): cv.hex_int_range(0, 15),
+        cv.Required(CONF_CHECK): cv.hex_int_range(0, 15),
+    }
+)
+
+
+@register_binary_sensor("dooya", DooyaBinarySensor, DOOYA_SCHEMA)
+def dooya_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DooyaData,
+                ("id", config[CONF_ID]),
+                ("channel", config[CONF_CHANNEL]),
+                ("button", config[CONF_BUTTON]),
+                ("check", config[CONF_CHECK]),
+            )
+        )
+    )
+
+
+@register_trigger("dooya", DooyaTrigger, DooyaData)
+def dooya_trigger(var, config):
+    pass
+
+
+@register_dumper("dooya", DooyaDumper)
+def dooya_dumper(var, config):
+    pass
+
+
+@register_action("dooya", DooyaAction, DOOYA_SCHEMA)
+async def dooya_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ID], args, cg.uint32)
+    cg.add(var.set_id(template_))
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+    cg.add(var.set_channel(template_))
+    template_ = await cg.templatable(config[CONF_BUTTON], args, cg.uint8)
+    cg.add(var.set_button(template_))
+    template_ = await cg.templatable(config[CONF_CHECK], args, cg.uint8)
+    cg.add(var.set_check(template_))
+
+
 # JVC
 JVCData, JVCBinarySensor, JVCTrigger, JVCAction, JVCDumper = declare_protocol("JVC")
 JVC_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
@@ -792,6 +847,7 @@ async def pioneer_action(var, config, args):
 PRONTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
+        cv.Optional(CONF_DELTA, default=-1): cv.int_,
     }
 )
 
@@ -803,6 +859,7 @@ def pronto_binary_sensor(var, config):
             cg.StructInitializer(
                 ProntoData,
                 ("data", config[CONF_DATA]),
+                ("delta", config[CONF_DELTA]),
             )
         )
     )
@@ -821,6 +878,45 @@ def pronto_dumper(var, config):
 @register_action("pronto", ProntoAction, PRONTO_SCHEMA)
 async def pronto_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.std_string)
+    cg.add(var.set_data(template_))
+
+
+# Roomba
+(
+    RoombaData,
+    RoombaBinarySensor,
+    RoombaTrigger,
+    RoombaAction,
+    RoombaDumper,
+) = declare_protocol("Roomba")
+ROOMBA_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint8_t})
+
+
+@register_binary_sensor("roomba", RoombaBinarySensor, ROOMBA_SCHEMA)
+def roomba_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RoombaData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("roomba", RoombaTrigger, RoombaData)
+def roomba_trigger(var, config):
+    pass
+
+
+@register_dumper("roomba", RoombaDumper)
+def roomba_dumper(var, config):
+    pass
+
+
+@register_action("roomba", RoombaAction, ROOMBA_SCHEMA)
+async def roomba_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint8)
     cg.add(var.set_data(template_))
 
 
@@ -1715,3 +1811,105 @@ async def haier_action(var, config, args):
     vec_ = cg.std_vector.template(cg.uint8)
     template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
     cg.add(var.set_code(template_))
+
+
+# ABBWelcome
+(
+    ABBWelcomeData,
+    ABBWelcomeBinarySensor,
+    ABBWelcomeTrigger,
+    ABBWelcomeAction,
+    ABBWelcomeDumper,
+) = declare_protocol("ABBWelcome")
+
+CONF_SOURCE_ADDRESS = "source_address"
+CONF_DESTINATION_ADDRESS = "destination_address"
+CONF_THREE_BYTE_ADDRESS = "three_byte_address"
+CONF_MESSAGE_TYPE = "message_type"
+CONF_MESSAGE_ID = "message_id"
+CONF_RETRANSMISSION = "retransmission"
+
+ABB_WELCOME_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE_ADDRESS): cv.hex_uint32_t,
+        cv.Required(CONF_DESTINATION_ADDRESS): cv.hex_uint32_t,
+        cv.Optional(CONF_RETRANSMISSION, default=False): cv.boolean,
+        cv.Optional(CONF_THREE_BYTE_ADDRESS, default=False): cv.boolean,
+        cv.Required(CONF_MESSAGE_TYPE): cv.Any(cv.hex_uint8_t, cv.uint8_t),
+        cv.Optional(CONF_MESSAGE_ID): cv.Any(cv.hex_uint8_t, cv.uint8_t),
+        cv.Optional(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=0, max=7),
+        ),
+    }
+)
+
+
+@register_binary_sensor("abbwelcome", ABBWelcomeBinarySensor, ABB_WELCOME_SCHEMA)
+def abbwelcome_binary_sensor(var, config):
+    cg.add(var.set_three_byte_address(config[CONF_THREE_BYTE_ADDRESS]))
+    cg.add(var.set_source_address(config[CONF_SOURCE_ADDRESS]))
+    cg.add(var.set_destination_address(config[CONF_DESTINATION_ADDRESS]))
+    cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
+    cg.add(var.set_message_type(config[CONF_MESSAGE_TYPE]))
+    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    if CONF_MESSAGE_ID in config:
+        cg.add(var.set_message_id(config[CONF_MESSAGE_ID]))
+    if CONF_DATA in config:
+        cg.add(var.set_data(config[CONF_DATA]))
+    cg.add(var.finalize())
+
+
+@register_trigger("abbwelcome", ABBWelcomeTrigger, ABBWelcomeData)
+def abbwelcome_trigger(var, config):
+    pass
+
+
+@register_dumper("abbwelcome", ABBWelcomeDumper)
+def abbwelcome_dumper(var, config):
+    pass
+
+
+@register_action("abbwelcome", ABBWelcomeAction, ABB_WELCOME_SCHEMA)
+async def abbwelcome_action(var, config, args):
+    cg.add(
+        var.set_three_byte_address(
+            await cg.templatable(config[CONF_THREE_BYTE_ADDRESS], args, cg.bool_)
+        )
+    )
+    cg.add(
+        var.set_source_address(
+            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_destination_address(
+            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_retransmission(
+            await cg.templatable(config[CONF_RETRANSMISSION], args, cg.bool_)
+        )
+    )
+    cg.add(
+        var.set_message_type(
+            await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
+        )
+    )
+    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    if CONF_MESSAGE_ID in config:
+        cg.add(
+            var.set_message_id(
+                await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)
+            )
+        )
+    if CONF_DATA in config:
+        data_ = config[CONF_DATA]
+        if cg.is_template(data_):
+            template_ = await cg.templatable(
+                data_, args, cg.std_vector.template(cg.uint8)
+            )
+            cg.add(var.set_data_template(template_))
+        else:
+            cg.add(var.set_data_static(data_))

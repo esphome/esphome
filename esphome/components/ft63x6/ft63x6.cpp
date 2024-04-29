@@ -32,7 +32,7 @@ void FT63X6Touchscreen::setup() {
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();
-    this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
+    this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_ANY_EDGE);
   }
 
   if (this->reset_pin_ != nullptr) {
@@ -78,12 +78,11 @@ void FT63X6Touchscreen::update_touches() {
   uint16_t touch_id, x, y;
 
   uint8_t touches = this->read_touch_number_();
+  ESP_LOGV(TAG, "Touches found: %d", touches);
   if ((touches == 0x00) || (touches == 0xff)) {
     // ESP_LOGD(TAG, "No touches detected");
     return;
   }
-
-  ESP_LOGV(TAG, "Touches found: %d", touches);
 
   for (auto point = 0; point < touches; point++) {
     if (((this->read_touch_event_(point)) & 0x01) == 0) {  // checking event flag bit 6 if it is null

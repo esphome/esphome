@@ -46,11 +46,20 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 
+NATIVE_UART_CLASSES = (
+    str(IDFUARTComponent),
+    str(ESP32ArduinoUARTComponent),
+    str(ESP8266UartComponent),
+    str(RP2040UartComponent),
+    str(LibreTinyUARTComponent),
+)
+
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
+MULTI_CONF_NO_DEFAULT = True
 
 
 def validate_raw_data(value):
@@ -299,17 +308,18 @@ def final_validate_device_schema(
     def validate_hub(hub_config):
         hub_schema = {}
         uart_id = hub_config[CONF_ID]
+        uart_id_type_str = str(uart_id.type)
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
-        if require_tx:
+        if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
                     CONF_TX_PIN,
                     msg=f"Component {name} requires this uart bus to declare a tx_pin",
                 )
             ] = validate_pin(CONF_TX_PIN, device)
-        if require_rx:
+        if require_rx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
                     CONF_RX_PIN,
