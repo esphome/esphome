@@ -11,12 +11,11 @@ from . import (
     add_init_lambda,
     LVGL_SCHEMA,
     CONF_LVGL_ID,
-    lvgl_ns,
-    lv_pseudo_button_t,
     CONF_WIDGET,
     get_widget,
 )
 from .lv_validation import requires_component
+from .types import lvgl_ns, lv_pseudo_button_t
 
 AUTO_LOAD = ["output"]
 

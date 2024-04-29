@@ -5,16 +5,15 @@ from esphome.const import (
     CONF_ID,
 )
 from . import (
-    lvgl_ns,
     LVGL_SCHEMA,
     CONF_LVGL_ID,
     add_init_lambda,
     CONF_DROPDOWN,
     CONF_WIDGET,
     get_widget,
-    lv_select_t,
 )
 from .lv_validation import requires_component
+from .types import lvgl_ns, lv_select_t
 
 LVGLSelect = lvgl_ns.class_("LVGLSelect", select.Select)
 

@@ -43,7 +43,7 @@ def requires_component(comp):
 
 
 @schema_extractor("one_of")
-def lv_color_validator(value):
+def color(value):
     if value == SCHEMA_EXTRACT:
         return ["hex color value", "color ID"]
     if isinstance(value, int):
@@ -51,7 +51,7 @@ def lv_color_validator(value):
     return cv.use_id(ColorStruct)(value)
 
 
-def lv_color_retmapper(value):
+def color_retmapper(value):
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
     if isinstance(value, int):
@@ -67,7 +67,7 @@ def lv_builtin_font(value):
     return "&lv_font_" + font
 
 
-def lv_font(value):
+def font(value):
     """Accept either the name of a built-in LVGL font, or the ID of an ESPHome font"""
     if value == SCHEMA_EXTRACT:
         return LV_FONTS
@@ -85,32 +85,32 @@ def is_esphome_font(font):
 
 
 @schema_extractor("one_of")
-def lv_bool_validator(value):
+def bool_(value):
     if value == SCHEMA_EXTRACT:
         return ["true", "false"]
     return "true" if cv.boolean(value) else "false"
 
 
-def lv_prefix(value, choices, prefix):
+def prefix(value, choices, prefix):
     if isinstance(value, str) and value.startswith(prefix):
         return cv.one_of(*list(map(lambda v: prefix + v, choices)), upper=True)(value)
     return prefix + cv.one_of(*choices, upper=True)(value)
 
 
-def lv_animated(value):
+def animated(value):
     if isinstance(value, bool):
         value = "ON" if value else "OFF"
-    return lv_one_of(LvConstant("LV_ANIM_", "OFF", "ON"))(value)
+    return one_of(LvConstant("LV_ANIM_", "OFF", "ON"))(value)
 
 
-def lv_key_code(value):
+def key_code(value):
     value = cv.Any(cv.All(cv.string_strict, cv.Length(min=1, max=1)), cv.uint8_t)(value)
     if isinstance(value, str):
         return ord(value[0])
     return value
 
 
-def lv_one_of(consts: LvConstant):
+def one_of(consts: LvConstant):
     """Allow one of a list of choices, mapped to upper case, and prepend the choice with the prefix.
     It's also permitted to include the prefix in the value"""
 
@@ -118,7 +118,7 @@ def lv_one_of(consts: LvConstant):
     def validator(value):
         if value == SCHEMA_EXTRACT:
             return consts.choices
-        return lv_prefix(value, consts.choices, consts.prefix)
+        return prefix(value, consts.choices, consts.prefix)
 
     return validator
 
@@ -182,10 +182,10 @@ def lv_size(value):
 
 
 @schema_extractor("one_of")
-def lv_opacity(value):
+def opacity(value):
     if value == SCHEMA_EXTRACT:
         return ["TRANSP", "COVER", "..%"]
-    value = cv.Any(cv.percentage, lv_one_of(LvConstant("LV_OPA_", "TRANSP", "COVER")))(
+    value = cv.Any(cv.percentage, one_of(LvConstant("LV_OPA_", "TRANSP", "COVER")))(
         value
     )
     if isinstance(value, str):

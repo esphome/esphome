@@ -5,17 +5,16 @@ from esphome.const import (
     CONF_ID,
 )
 from . import (
-    lvgl_ns,
     LVGL_SCHEMA,
     CONF_LVGL_ID,
     add_init_lambda,
     CONF_ANIMATED,
     lv_animated,
-    lv_number_t,
     CONF_WIDGET,
     get_widget,
 )
 from .lv_validation import requires_component
+from .types import lvgl_ns, lv_number_t
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number)
 

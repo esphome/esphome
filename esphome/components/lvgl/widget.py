@@ -1,7 +1,7 @@
 import sys
 
 import esphome.codegen as cg
-from .types import lv_number_t, lv_obj_t_ptr
+from . import types as ty
 from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
 from esphome.core import TimePeriod
 
@@ -25,6 +25,9 @@ class Widget:
 
     def set_parent(self, parent):
         self.parent = parent
+
+    def check_null(self):
+        return f"if ({self.obj} == nullptr) return"
 
     def add_state(self, state):
         return [f"lv_obj_add_state({self.obj}, {state})"]
@@ -79,16 +82,16 @@ class Widget:
         return init
 
     def get_value(self):
-        if self.type.inherits_from(lv_number_t):
+        if self.type.inherits_from(ty.lv_number_t):
             if self.scale == 1.0:
                 return f"lv_{self.type_base()}_get_value({self.obj})"
             return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
         return self.obj
 
     def get_args(self):
-        if self.type.inherits_from(lv_number_t):
+        if self.type.inherits_from(ty.lv_number_t):
             return [(cg.float_, "x")]
-        return [(lv_obj_t_ptr, "obj")]
+        return [(ty.lv_obj_t_ptr, "obj")]
 
     def set_value(self, value, animated: bool = False):
         if self.type_base() in (CONF_ARC, CONF_SPINBOX):
@@ -140,6 +143,9 @@ class MatrixButton(Widget):
 
     def get_obj(self):
         return self.var.obj
+
+    def check_null(self):
+        return None
 
     @staticmethod
     def map_ctrls(ctrls):

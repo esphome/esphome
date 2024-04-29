@@ -9,12 +9,12 @@ from . import (
     add_init_lambda,
     LVGL_SCHEMA,
     CONF_LVGL_ID,
-    lv_pseudo_button_t,
     CONF_WIDGET,
     get_widget,
     Widget,
 )
 from .lv_validation import requires_component
+from .types import lv_pseudo_button_t
 
 BASE_SCHEMA = binary_sensor_schema(BinarySensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(

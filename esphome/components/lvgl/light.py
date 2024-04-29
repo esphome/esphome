@@ -11,12 +11,11 @@ from . import (
     add_init_lambda,
     LVGL_SCHEMA,
     CONF_LVGL_ID,
-    lv_led_t,
-    lvgl_ns,
     get_widget,
 )
 
 from .lv_validation import requires_component
+from .types import lv_led_t, lvgl_ns
 
 LVLight = lvgl_ns.class_("LVLight", LightOutput)
 CONFIG_SCHEMA = cv.All(
