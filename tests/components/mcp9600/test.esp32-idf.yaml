@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_mcp9600
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: mcp9600
+    thermocouple_type: K
+    hot_junction:
+      name: Thermocouple Temperature
+    cold_junction:
+      name: Ambient Temperature
