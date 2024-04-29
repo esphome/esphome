@@ -35,6 +35,7 @@ text:
   - platform: template
     name: "test 4 key"
     id: "it_4"
+    mode: text
     set_action:
       - then:
           - logger.log:
