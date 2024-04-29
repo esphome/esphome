@@ -27,7 +27,8 @@ void WakeWordModel::log_model_config() {
 
 void VADModel::log_model_config() {
   ESP_LOGCONFIG(TAG, "  - VAD Model");
-  ESP_LOGCONFIG(TAG, "    Probability cutoff: %.3f", this->probability_cutoff_);
+  ESP_LOGCONFIG(TAG, "    Upper threshold: %.3f", this->upper_threshold_);
+  ESP_LOGCONFIG(TAG, "    Lower threshold: %.3f", this->lower_threshold_);
   ESP_LOGCONFIG(TAG, "    Sliding window size: %d", this->sliding_window_size_);
 }
 

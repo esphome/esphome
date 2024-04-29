@@ -40,7 +40,6 @@ class StreamingModel {
   void unload_model();
 
  protected:
-  float probability_cutoff_;
   size_t sliding_window_size_;
   size_t last_n_index_{0};
   size_t tensor_arena_size_;
@@ -65,6 +64,7 @@ class WakeWordModel : public StreamingModel {
   std::string get_wake_word() { return this->wake_word_; }
 
  protected:
+  float probability_cutoff_;
   std::string wake_word_;
 };
 
