@@ -42,4 +42,4 @@ text:
               format: Template text set to %s
               args: ["x.c_str()"]
     lambda: |
-      return "Hello";
+      return std::string{"Hello"};

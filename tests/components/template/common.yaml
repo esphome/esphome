@@ -154,7 +154,7 @@ text:
     mode: text
     update_interval: 1s
     lambda: |
-      return "Hello!";
+      return std::string{"Hello!"};
     set_action:
       then:
         - logger.log:

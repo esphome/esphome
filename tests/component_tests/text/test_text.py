@@ -67,4 +67,4 @@ def test_text_config_lamda_is_set(generate_main):
 
     # Then
     assert "it_4->set_template([=]() -> optional<std::string> {" in main_cpp
-    assert 'return "Hello";' in main_cpp
+    assert 'return std::string{"Hello"};' in main_cpp
