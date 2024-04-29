@@ -6,7 +6,6 @@ from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["md5"]
-DEPENDENCIES = ["network"]
 
 IS_PLATFORM_COMPONENT = True
 
