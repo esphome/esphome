@@ -101,17 +101,13 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
     yield();
   }
 
-  // got valid measurement, clean up unused bits from the anwser code and prepare tick size
+  // got valid measurement prepare tick size
   float tick_voltage = 2.048f / 32768;  // ref voltage 2.048V/non-sign bits, default 15 bits
   switch (resolution) {
     case MCP3428Resolution::MCP3428_12_BITS:
-      // Structure [sign][sign][sign][sign][sign][value][value][value], only keep sign at MSB for int16_t
-      anwser[0] &= 0b10000111;
       tick_voltage *= 16;
       break;
     case MCP3428Resolution::MCP3428_14_BITS:
-      // Structure [sign][sign][sign][value][value][value][value][value]
-      anwser[0] &= 0b10011111;
       tick_voltage *= 4;
       break;
     default:  // nothing to do for 16 bit
