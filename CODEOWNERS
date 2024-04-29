@@ -119,6 +119,7 @@ esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
+esphome/components/event/* @nohat
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
@@ -359,6 +360,7 @@ esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
 esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter
+esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
@@ -390,6 +392,7 @@ esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/uponor_smatrix/* @kroimon
+esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
@@ -399,10 +402,21 @@ esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/web_server_idf/* @dentra
+esphome/components/weikai/* @DrCoolZic
+esphome/components/weikai_i2c/* @DrCoolZic
+esphome/components/weikai_spi/* @DrCoolZic
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
+esphome/components/wk2132_i2c/* @DrCoolZic
+esphome/components/wk2132_spi/* @DrCoolZic
+esphome/components/wk2168_i2c/* @DrCoolZic
+esphome/components/wk2168_spi/* @DrCoolZic
+esphome/components/wk2204_i2c/* @DrCoolZic
+esphome/components/wk2204_spi/* @DrCoolZic
+esphome/components/wk2212_i2c/* @DrCoolZic
+esphome/components/wk2212_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xgzp68xx/* @gcormier

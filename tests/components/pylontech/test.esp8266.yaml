@@ -1,0 +1,48 @@
+uart:
+  - id: uart_pylontech0
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 115200
+
+pylontech:
+  - id: pylontech0
+  - id: pylontech1
+
+sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    voltage:
+      id: pyl01_voltage
+    current:
+      id: pyl01_current
+    coulomb:
+      id: pyl01_soc
+    mos_temperature:
+      id: pyl01_mos_temperature
+  - platform: pylontech
+    pylontech_id: pylontech1
+    battery: 1
+    voltage:
+      id: pyl13_voltage
+    temperature_low:
+      id: pyl13_temperature_low
+    temperature_high:
+      id: pyl13_temperature_high
+    voltage_low:
+      id: pyl13_voltage_low
+    voltage_high:
+      id: pyl13_voltage_high
+
+text_sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    base_state:
+      id: pyl0_base_state
+    voltage_state:
+      id: pyl0_voltage_state
+    current_state:
+      id: pyl0_current_state
+    temperature_state:
+      id: pyl0_temperature_state

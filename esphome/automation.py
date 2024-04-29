@@ -18,10 +18,20 @@ from esphome.util import Registry
 
 
 def maybe_simple_id(*validators):
+    """Allow a raw ID to be specified in place of a config block.
+    If the value that's being validated is a dictionary, it's passed as-is to the specified validators. Otherwise, it's
+    wrapped in a dict that looks like ``{"id": <value>}``, and that dict is then handed off to the specified validators.
+    """
     return maybe_conf(CONF_ID, *validators)
 
 
 def maybe_conf(conf, *validators):
+    """Allow a raw value to be specified in place of a config block.
+    If the value that's being validated is a dictionary, it's passed as-is to the specified validators. Otherwise, it's
+    wrapped in a dict that looks like ``{<conf>: <value>}``, and that dict is then handed off to the specified
+    validators.
+    (This is a general case of ``maybe_simple_id`` that allows the wrapping key to be something other than ``id``.)
+    """
     validator = cv.All(*validators)
 
     @schema_extractor("maybe")
