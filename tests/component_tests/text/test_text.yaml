@@ -31,3 +31,9 @@ text:
     optimistic: true
     internal: true
     max_length: 255
+
+  - platform: template
+    name: "test 4 key"
+    id: "it_4"
+    lambda: |
+      return "Hello";
