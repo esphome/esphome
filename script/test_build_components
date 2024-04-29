@@ -37,9 +37,9 @@ start_esphome() {
 
   # Start esphome process
   echo "> [$target_component] [$test_name] [$target_platform]"
-  echo "esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file"
+  echo "esphome -s component_name $target_component -s component_dir ../../components/$target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file"
   # TODO: Validate escape of Command line substitution value
-  esphome -s component_name $target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
+  esphome -s component_name $target_component -s component_dir ../../components/$target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
 }
 
 # Find all test yaml files.

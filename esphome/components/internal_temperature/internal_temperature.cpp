@@ -55,11 +55,13 @@ void InternalTemperatureSensor::update() {
   uint32_t raw, result;
   result = temp_single_get_current_temperature(&raw);
   success = (result == 0);
-#ifdef USE_LIBRETINY_VARIANT_BK7231T
+#if defined(USE_LIBRETINY_VARIANT_BK7231N)
+  temperature = raw * -0.38f + 156.0f;
+#elif defined(USE_LIBRETINY_VARIANT_BK7231T)
   temperature = raw * 0.04f;
-#else
+#else   // USE_LIBRETINY_VARIANT
   temperature = raw * 0.128f;
-#endif  // USE_LIBRETINY_VARIANT_BK7231T
+#endif  // USE_LIBRETINY_VARIANT
 #endif  // USE_BK72XX
   if (success && std::isfinite(temperature)) {
     this->publish_state(temperature);
