@@ -1,6 +1,11 @@
 #include "bmp3xx_spi.h"
 #include <cinttypes>
 
+namespace esphome {
+namespace bmp3xx_spi {
+
+static const char *const TAG = "bmp3xx_spi.sensor";
+
 uint8_t set_bit(uint8_t num, int position) {
   int mask = 1 << position;
   return num | mask;
@@ -10,11 +15,6 @@ uint8_t clear_bit(uint8_t num, int position) {
   int mask = 1 << position;
   return num & ~mask;
 }
-
-namespace esphome {
-namespace bmp3xx_spi {
-
-static const char *const TAG = "bmp3xx_spi.sensor";
 
 void BMP3XXSPIComponent::setup() {
   this->spi_setup();
