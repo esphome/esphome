@@ -52,7 +52,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
 
   // Allocate the buffer dynamically
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  uint8_t* buffer = allocator.allocate(4096);
+  uint8_t *buffer = allocator.allocate(4096);
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
     return -1;
