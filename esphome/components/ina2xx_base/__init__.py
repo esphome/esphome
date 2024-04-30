@@ -147,7 +147,6 @@ INA2XX_SCHEMA = cv.Schema(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_JOULE,
                 accuracy_decimals=8,
-                device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             key=CONF_NAME,
@@ -156,7 +155,6 @@ INA2XX_SCHEMA = cv.Schema(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE_HOURS,
                 accuracy_decimals=8,
-                device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             key=CONF_NAME,
@@ -165,7 +163,6 @@ INA2XX_SCHEMA = cv.Schema(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_COULOMB,
                 accuracy_decimals=8,
-                device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             key=CONF_NAME,
