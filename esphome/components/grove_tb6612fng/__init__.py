@@ -8,11 +8,14 @@ from esphome.const import (
     CONF_CHANNEL,
     CONF_SPEED,
     CONF_DIRECTION,
+    CONF_ADDRESS,
 )
 
 DEPENDENCIES = ["i2c"]
 
 CODEOWNERS = ["@max246"]
+
+MULTI_CONF = True
 
 grove_tb6612fng_ns = cg.esphome_ns.namespace("grove_tb6612fng")
 GROVE_TB6612FNG = grove_tb6612fng_ns.class_(
@@ -32,6 +35,9 @@ GROVETB6612FNGMotorStandbyAction = grove_tb6612fng_ns.class_(
 )
 GROVETB6612FNGMotorNoStandbyAction = grove_tb6612fng_ns.class_(
     "GROVETB6612FNGMotorNoStandbyAction", automation.Action
+)
+GROVETB6612FNGMotorChangeAddressAction = grove_tb6612fng_ns.class_(
+    "GROVETB6612FNGMotorChangeAddressAction", automation.Action
 )
 
 DIRECTION_TYPE = {
@@ -149,4 +155,23 @@ async def grove_tb6612fng_no_standby_to_code(config, action_id, template_arg, ar
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
+    return var
+
+
+@automation.register_action(
+    "grove_tb6612fng.change_address",
+    GROVETB6612FNGMotorChangeAddressAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
+            cv.Required(CONF_ADDRESS): cv.i2c_address,
+        }
+    ),
+)
+async def grove_tb6612fng_change_address_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+
+    template_channel = await cg.templatable(config[CONF_ADDRESS], args, int)
+    cg.add(var.set_address(template_channel))
     return var

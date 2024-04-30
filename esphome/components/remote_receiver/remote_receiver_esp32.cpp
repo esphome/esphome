@@ -62,7 +62,7 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
   ESP_LOGCONFIG(TAG, "  Tolerance: %u%%", this->tolerance_);
   ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);
-  ESP_LOGCONFIG(TAG, "  Signal is done after %u us of no changes", this->idle_us_);
+  ESP_LOGCONFIG(TAG, "  Signal is done after %" PRIu32 " us of no changes", this->idle_us_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring RMT driver failed: %s", esp_err_to_name(this->error_code_));
   }
@@ -92,14 +92,18 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   ESP_LOGVV(TAG, "START:");
   for (size_t i = 0; i < item_count; i++) {
     if (item[i].level0) {
-      ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%zu A: ON %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration0),
+                item[i].duration0);
     } else {
-      ESP_LOGVV(TAG, "%u A: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%zu A: OFF %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration0),
+                item[i].duration0);
     }
     if (item[i].level1) {
-      ESP_LOGVV(TAG, "%u B: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%zu B: ON %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration1),
+                item[i].duration1);
     } else {
-      ESP_LOGVV(TAG, "%u B: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%zu B: OFF %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration1),
+                item[i].duration1);
     }
   }
   ESP_LOGVV(TAG, "\n");

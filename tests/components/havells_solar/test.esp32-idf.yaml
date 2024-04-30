@@ -1,0 +1,79 @@
+uart:
+  - id: uart_havells_solar
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+
+modbus:
+  flow_control_pin: 3
+
+sensor:
+  - platform: havells_solar
+    update_interval: 60s
+    phase_a:
+      voltage:
+        name: Phase A Voltage
+      current:
+        name: Phase A Current
+    phase_b:
+      voltage:
+        name: Voltage Phase B
+      current:
+        name: Current Phase B
+    phase_c:
+      voltage:
+        name: Voltage Phase C
+      current:
+        name: Current Phase C
+    pv1:
+      voltage:
+        name: PV1 Voltage
+      current:
+        name: PV1 Current
+      active_power:
+        name: PV1 Active Power
+      voltage_sampled_by_secondary_cpu:
+        name: PV1 Voltage Sampled By Secondary CPU
+      insulation_of_p_to_ground:
+        name: PV1 Insulation Of +VE To Ground
+    pv2:
+      voltage:
+        name: PV2 Voltage
+      current:
+        name: PV2 Current
+      active_power:
+        name: PV2 Active Power
+      voltage_sampled_by_secondary_cpu:
+        name: PV2 Voltage Sampled By Secondary CPU
+      insulation_of_p_to_ground:
+        name: PV2 Insulation Of +VE To Ground
+    active_power:
+      name: Active Power
+    reactive_power:
+      name: Reactive Power
+    frequency:
+      name: Frequency
+    energy_production_day:
+      name: Today's Generation
+    total_energy_production:
+      name: Total Energy Production
+    total_generation_time:
+      name: Total Generation Time
+    today_generation_time:
+      name: Today Generation Time
+    inverter_module_temp:
+      name: Inverter Module Temp
+    inverter_inner_temp:
+      name: Inverter Inner Temp
+    inverter_bus_voltage:
+      name: Inverter BUS Voltage
+    insulation_of_pv_n_to_ground:
+      name: Insulation Of PV- To Ground
+    gfci_value:
+      name: GFCI Value
+    dci_of_r:
+      name: DCI Of R
+    dci_of_s:
+      name: DCI Of S
+    dci_of_t:
+      name: DCI Of T

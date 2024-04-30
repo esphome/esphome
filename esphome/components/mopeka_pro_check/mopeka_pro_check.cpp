@@ -54,7 +54,8 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   if (static_cast<SensorType>(manu_data.data[0]) != STANDARD_BOTTOM_UP &&
       static_cast<SensorType>(manu_data.data[0]) != LIPPERT_BOTTOM_UP &&
-      static_cast<SensorType>(manu_data.data[0]) != PLUS_BOTTOM_UP) {
+      static_cast<SensorType>(manu_data.data[0]) != PLUS_BOTTOM_UP &&
+      static_cast<SensorType>(manu_data.data[0]) != PRO_UNIVERSAL) {
     ESP_LOGE(TAG, "Unsupported Sensor Type (0x%X)", manu_data.data[0]);
     return false;
   }
@@ -69,7 +70,7 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
     uint32_t distance_value = this->parse_distance_(manu_data.data);
     SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
-    ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%dmm)", quality_value, distance_value);
+    ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%" PRId32 "mm)", quality_value, distance_value);
     if (quality_value < QUALITY_HIGH) {
       ESP_LOGW(TAG, "Poor read quality.");
     }

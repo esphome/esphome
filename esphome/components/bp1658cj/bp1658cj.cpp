@@ -37,10 +37,14 @@ void BP1658CJ::loop() {
   uint8_t data[12];
   if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
       this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
-    // Off / Sleep
-    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_STANDBY;
     for (int i = 1; i < 12; i++)
       data[i] = 0;
+
+    // First turn all channels off
+    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_START_5CH;
+    this->write_buffer_(data, 12);
+    // Then sleep
+    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_STANDBY;
     this->write_buffer_(data, 12);
   } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
              (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
@@ -86,40 +90,41 @@ void BP1658CJ::set_channel_value_(uint8_t channel, uint16_t value) {
 
 void BP1658CJ::write_bit_(bool value) {
   this->data_pin_->digital_write(value);
-  this->clock_pin_->digital_write(true);
-
   delayMicroseconds(BP1658CJ_DELAY);
-
+  this->clock_pin_->digital_write(true);
+  delayMicroseconds(BP1658CJ_DELAY);
   this->clock_pin_->digital_write(false);
+  delayMicroseconds(BP1658CJ_DELAY);
 }
 
 void BP1658CJ::write_byte_(uint8_t data) {
   for (uint8_t mask = 0x80; mask; mask >>= 1) {
     this->write_bit_(data & mask);
-    delayMicroseconds(BP1658CJ_DELAY);
   }
 
   // ack bit
   this->data_pin_->pin_mode(gpio::FLAG_INPUT);
   this->clock_pin_->digital_write(true);
-
   delayMicroseconds(BP1658CJ_DELAY);
-
   this->clock_pin_->digital_write(false);
+  delayMicroseconds(BP1658CJ_DELAY);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }
 
 void BP1658CJ::write_buffer_(uint8_t *buffer, uint8_t size) {
   this->data_pin_->digital_write(false);
+  delayMicroseconds(BP1658CJ_DELAY);
   this->clock_pin_->digital_write(false);
+  delayMicroseconds(BP1658CJ_DELAY);
 
   for (uint32_t i = 0; i < size; i++) {
     this->write_byte_(buffer[i]);
-    delayMicroseconds(BP1658CJ_DELAY);
   }
 
   this->clock_pin_->digital_write(true);
+  delayMicroseconds(BP1658CJ_DELAY);
   this->data_pin_->digital_write(true);
+  delayMicroseconds(BP1658CJ_DELAY);
 }
 
 }  // namespace bp1658cj
