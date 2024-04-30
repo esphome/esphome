@@ -437,7 +437,7 @@ static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c ==
 
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
 
-std::string base64_encode(const char *buf, unsigned int buf_len) {
+std::string base64_encode(const uint8_t *buf, size_t buf_len) {
   std::string ret;
   int i = 0;
   int j = 0;

@@ -51,15 +51,15 @@ void binary_sensor::MultiClickTrigger::on_state_(bool state) {
   MultiClickTriggerEvent evt = this->timing_[*this->at_index_];
 
   if (evt.max_length != 4294967294UL) {
-    ESP_LOGV(TAG, "A i=%u min=%" PRIu32 " max=%" PRIu32, *this->at_index_, evt.min_length, evt.max_length);  // NOLINT
+    ESP_LOGV(TAG, "A i=%zu min=%" PRIu32 " max=%" PRIu32, *this->at_index_, evt.min_length, evt.max_length);  // NOLINT
     this->schedule_is_valid_(evt.min_length);
     this->schedule_is_not_valid_(evt.max_length);
   } else if (*this->at_index_ + 1 != this->timing_.size()) {
-    ESP_LOGV(TAG, "B i=%u min=%" PRIu32, *this->at_index_, evt.min_length);  // NOLINT
+    ESP_LOGV(TAG, "B i=%zu min=%" PRIu32, *this->at_index_, evt.min_length);  // NOLINT
     this->cancel_timeout("is_not_valid");
     this->schedule_is_valid_(evt.min_length);
   } else {
-    ESP_LOGV(TAG, "C i=%u min=%" PRIu32, *this->at_index_, evt.min_length);  // NOLINT
+    ESP_LOGV(TAG, "C i=%zu min=%" PRIu32, *this->at_index_, evt.min_length);  // NOLINT
     this->is_valid_ = false;
     this->cancel_timeout("is_not_valid");
     this->set_timeout("trigger", evt.min_length, [this]() { this->trigger_(); });
