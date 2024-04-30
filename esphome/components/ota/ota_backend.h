@@ -68,7 +68,6 @@ class OTAComponent : public Component {
 #ifdef USE_OTA_STATE_CALLBACK
 class OTAGlobalCallback {
  public:
-  OTAGlobalCallback();
   void register_ota(OTAComponent *ota_caller) {
     ota_caller->add_on_state_callback([this, ota_caller](OTAState state, float progress, uint8_t error) {
       this->state_callback_.call(state, progress, error, ota_caller);
