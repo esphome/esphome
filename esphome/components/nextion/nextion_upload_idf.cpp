@@ -86,7 +86,9 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %" PRIu16 " of %" PRIu16 " bytes", read_len,
                buffer_size);
-      heap_caps_free(buffer);
+      // Deallocate buffer
+      allocator.deallocate(buffer, 4096);
+      buffer = nullptr;
       return -1;
     }
     ESP_LOGV(TAG, "%d bytes fetched, writing it to UART", read_len);
@@ -122,12 +124,16 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
         } else {
           range_start = range_end + 1;
         }
-        heap_caps_free(buffer);
+        // Deallocate buffer
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
         return range_end + 1;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
-        heap_caps_free(buffer);
+        // Deallocate buffer
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
         return -1;
       }
 
@@ -141,7 +147,9 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     }
   }
   range_start = range_end + 1;
-  heap_caps_free(buffer);
+  // Deallocate buffer
+  allocator.deallocate(buffer, 4096);
+  buffer = nullptr;
   return range_end + 1;
 }
 
