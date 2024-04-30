@@ -160,7 +160,7 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   return range_end + 1;
 }
 
-bool Nextion::upload_tft(bool exit_reparse) {
+bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
   ESP_LOGD(TAG, "Exit reparse: %s", YESNO(exit_reparse));
   ESP_LOGD(TAG, "url: %s", this->tft_url_.c_str());
@@ -184,6 +184,15 @@ bool Nextion::upload_tft(bool exit_reparse) {
       return false;
     }
   }
+
+  // Check if baud rate is supported
+  this->original_baud_rate_ = this->parent_->get_baud_rate();
+  static const std::vector<uint32_t> SUPPORTED_BAUD_RATES = {2400,   4800,   9600,   19200,  31250,  38400, 57600,
+                                                             115200, 230400, 250000, 256000, 512000, 921600};
+  if (std::find(SUPPORTED_BAUD_RATES.begin(), SUPPORTED_BAUD_RATES.end(), baud_rate) == SUPPORTED_BAUD_RATES.end()) {
+    baud_rate = this->original_baud_rate_;
+  }
+  ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
 
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG, "Establishing connection to HTTP server");
@@ -254,7 +263,7 @@ bool Nextion::upload_tft(bool exit_reparse) {
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
   // If it fails for any reason a power cycle of the display will be needed
-  sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, this->parent_->get_baud_rate());
+  sprintf(command, "whmi-wris %d,%" PRIu32 ",1", this->content_length_, baud_rate);
 
   // Clear serial receive buffer
   ESP_LOGV(TAG, "Clear serial receive buffer");
@@ -267,6 +276,12 @@ bool Nextion::upload_tft(bool exit_reparse) {
   ESP_LOGV(TAG, "Send update instruction: %s", command);
   ESP_LOGVV(TAG, "Available heap: %" PRIu32, esp_get_free_heap_size());
   this->send_command_(command);
+
+  if (baud_rate != this->original_baud_rate_) {
+    ESP_LOGD(TAG, "Changing baud rate from %" PRIu32 " to %" PRIu32 " bps", this->original_baud_rate_, baud_rate);
+    this->parent_->set_baud_rate(baud_rate);
+    this->parent_->load_settings();
+  }
 
   std::string response;
   ESP_LOGV(TAG, "Waiting for upgrade response");
@@ -308,6 +323,14 @@ bool Nextion::upload_tft(bool exit_reparse) {
 
 bool Nextion::upload_end(bool successful) {
   this->is_updating_ = false;
+
+  uint32_t baud_rate = this->parent_->get_baud_rate();
+  if (baud_rate != this->original_baud_rate_) {
+    ESP_LOGD(TAG, "Changing baud rate back from %" PRIu32 " to %" PRIu32 " bps", baud_rate, this->original_baud_rate_);
+    this->parent_->set_baud_rate(this->original_baud_rate_);
+    this->parent_->load_settings();
+  }
+
   ESP_LOGD(TAG, "Restarting Nextion");
   this->soft_reset();
   vTaskDelay(pdMS_TO_TICKS(1500));  // NOLINT
