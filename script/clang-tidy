@@ -1,21 +1,6 @@
 #!/usr/bin/env python3
 
-from helpers import (
-    print_error_for_file,
-    get_output,
-    filter_grep,
-    build_all_include,
-    temp_header_file,
-    git_ls_files,
-    filter_changed,
-    load_idedata,
-    root_path,
-    basepath,
-    get_binary,
-)
 import argparse
-import click
-import colorama
 import multiprocessing
 import os
 import queue
@@ -26,6 +11,20 @@ import sys
 import tempfile
 import threading
 
+from helpers import (
+    print_error_for_file,
+    filter_grep,
+    build_all_include,
+    temp_header_file,
+    git_ls_files,
+    filter_changed,
+    load_idedata,
+    root_path,
+    basepath,
+    get_binary,
+)
+import click
+import colorama
 
 
 def clang_options(idedata):
@@ -114,9 +113,10 @@ def clang_options(idedata):
 
 pids = set()
 
-def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
+
+def run_tidy(executable, args, options, tmpdir, task_queue, lock, failed_files):
     while True:
-        path = queue.get()
+        path = task_queue.get()
         invocation = [executable]
 
         if tmpdir is not None:
@@ -138,12 +138,14 @@ def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
         invocation.append("--")
         invocation.extend(options)
 
-        proc = subprocess.run(invocation, capture_output=True, encoding="utf-8")
+        proc = subprocess.run(
+            invocation, capture_output=True, encoding="utf-8", check=False
+        )
         if proc.returncode != 0:
             with lock:
                 print_error_for_file(path, proc.stdout)
                 failed_files.append(path)
-        queue.task_done()
+        task_queue.task_done()
 
 
 def progress_bar_show(value):
@@ -236,7 +238,15 @@ def main():
         for _ in range(args.jobs):
             t = threading.Thread(
                 target=run_tidy,
-                args=(executable, args, options, tmpdir, task_queue, lock, failed_files),
+                args=(
+                    executable,
+                    args,
+                    options,
+                    tmpdir,
+                    task_queue,
+                    lock,
+                    failed_files,
+                ),
             )
             t.daemon = True
             t.start()
@@ -244,14 +254,14 @@ def main():
         # Fill the queue with files.
         with click.progressbar(
             files, width=30, file=sys.stderr, item_show_func=progress_bar_show
-        ) as bar:
-            for name in bar:
+        ) as progressbar:
+            for name in progressbar:
                 task_queue.put(name)
 
         # Wait for all threads to be done.
         task_queue.join()
 
-    except FileNotFoundError as ex:
+    except FileNotFoundError:
         return 1
     except KeyboardInterrupt:
         print()
@@ -261,7 +271,7 @@ def main():
         # Kill subprocesses (and ourselves!)
         # No simple, clean alternative appears to be available.
         os.kill(0, 9)
-        return 2    # Will not execute.
+        return 2  # Will not execute.
 
     if args.fix and failed_files:
         print("Applying fixes ...")
