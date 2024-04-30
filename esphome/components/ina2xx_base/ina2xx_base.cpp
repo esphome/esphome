@@ -15,6 +15,40 @@ static const char *const TAG = "ina2xx";
 static const uint16_t ADC_TIMES[8] = {50, 84, 150, 280, 540, 1052, 2074, 4120};
 static const uint16_t ADC_SAMPLES[8] = {1, 4, 16, 64, 128, 256, 512, 1024};
 
+static const char *get_device_name(INAModel model) {
+  switch (model) {
+    case INAModel::INA_228:
+      return "INA228";
+    case INAModel::INA_229:
+      return "INA229";
+    case INAModel::INA_238:
+      return "INA238";
+    case INAModel::INA_239:
+      return "INA239";
+    case INAModel::INA_237:
+      return "INA237";
+    default:
+      return "UNKNOWN";
+  }
+};
+
+static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
+  switch (model) {
+    case INAModel::INA_228:
+      return dev_id == 0x228;
+    case INAModel::INA_229:
+      return dev_id == 0x229;
+    case INAModel::INA_238:
+      return dev_id == 0x238;
+    case INAModel::INA_239:
+      return dev_id == 0x239;
+    case INAModel::INA_237:
+      return dev_id == 0x237;
+    default:
+      return false;
+  }
+}
+
 void INA2XX::setup() {
   ESP_LOGCONFIG(TAG, "Setting up INA2xx...");
 
@@ -25,8 +59,8 @@ void INA2XX::setup() {
   }
   delay(2);
 
-  if (!this->check_device_type_()) {
-    ESP_LOGE(TAG, "Device not supported");
+  if (!this->check_device_model_()) {
+    ESP_LOGE(TAG, "Device not supported or model selected improperly in yaml file");
     this->mark_failed();
     return;
   }
@@ -59,8 +93,6 @@ void INA2XX::update() {
 }
 
 void INA2XX::loop() {
-  static bool all_ok = true;
-
   if (this->is_ready()) {
     switch (this->state_) {
       case State::NOT_INITIALIZED:
@@ -68,11 +100,11 @@ void INA2XX::loop() {
         break;
 
       case State::DATA_COLLECTION_1:
-        all_ok = true;
+        this->full_loop_is_okay_ = true;
 
         if (this->shunt_voltage_sensor_ != nullptr) {
           float shunt_voltage{0};
-          all_ok &= this->read_shunt_voltage_mv_(shunt_voltage);
+          this->full_loop_is_okay_ &= this->read_shunt_voltage_mv_(shunt_voltage);
           this->shunt_voltage_sensor_->publish_state(shunt_voltage);
         }
         this->state_ = State::DATA_COLLECTION_2;
@@ -81,7 +113,7 @@ void INA2XX::loop() {
       case State::DATA_COLLECTION_2:
         if (this->bus_voltage_sensor_ != nullptr) {
           float bus_voltage{0};
-          all_ok &= this->read_bus_voltage_(bus_voltage);
+          this->full_loop_is_okay_ &= this->read_bus_voltage_(bus_voltage);
           this->bus_voltage_sensor_->publish_state(bus_voltage);
         }
         this->state_ = State::DATA_COLLECTION_3;
@@ -90,7 +122,7 @@ void INA2XX::loop() {
       case State::DATA_COLLECTION_3:
         if (this->die_temperature_sensor_ != nullptr) {
           float die_temperature{0};
-          all_ok &= this->read_die_temp_c_(die_temperature);
+          this->full_loop_is_okay_ &= this->read_die_temp_c_(die_temperature);
           this->die_temperature_sensor_->publish_state(die_temperature);
         }
         this->state_ = State::DATA_COLLECTION_4;
@@ -99,7 +131,7 @@ void INA2XX::loop() {
       case State::DATA_COLLECTION_4:
         if (this->current_sensor_ != nullptr) {
           float current{0};
-          all_ok &= this->read_current_a_(current);
+          this->full_loop_is_okay_ &= this->read_current_a_(current);
           this->current_sensor_->publish_state(current);
         }
         this->state_ = State::DATA_COLLECTION_5;
@@ -108,21 +140,21 @@ void INA2XX::loop() {
       case State::DATA_COLLECTION_5:
         if (this->power_sensor_ != nullptr) {
           float power{0};
-          all_ok &= this->read_power_w_(power);
+          this->full_loop_is_okay_ &= this->read_power_w_(power);
           this->power_sensor_->publish_state(power);
         }
         this->state_ = State::DATA_COLLECTION_6;
         break;
 
       case State::DATA_COLLECTION_6:
-        if (this->ina_type_ == INAType::INA_228_229) {
+        if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
           if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr ||
               this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
             this->read_diagnostics_and_act_();
           }
           if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr) {
             double energy_j{0}, energy_wh{0};
-            all_ok &= this->read_energy_(energy_j, energy_wh);
+            this->full_loop_is_okay_ &= this->read_energy_(energy_j, energy_wh);
             if (this->energy_sensor_j_ != nullptr)
               this->energy_sensor_j_->publish_state(energy_j);
             if (this->energy_sensor_wh_ != nullptr)
@@ -133,10 +165,10 @@ void INA2XX::loop() {
         break;
 
       case State::DATA_COLLECTION_7:
-        if (this->ina_type_ == INAType::INA_228_229) {
+        if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
           if (this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
             double charge_c{0}, charge_ah{0};
-            all_ok &= this->read_charge_(charge_c, charge_ah);
+            this->full_loop_is_okay_ &= this->read_charge_(charge_c, charge_ah);
             if (this->charge_sensor_c_ != nullptr)
               this->charge_sensor_c_->publish_state(charge_c);
             if (this->charge_sensor_ah_ != nullptr)
@@ -147,7 +179,7 @@ void INA2XX::loop() {
         break;
 
       case State::DATA_COLLECTION_8:
-        if (all_ok) {
+        if (this->full_loop_is_okay_) {
           this->status_clear_warning();
         } else {
           this->status_set_warning();
@@ -164,12 +196,17 @@ void INA2XX::loop() {
 
 void INA2XX::dump_config() {
   ESP_LOGCONFIG(TAG, "INA2xx:");
+  ESP_LOGCONFIG(TAG, "  Device model = %s", get_device_name(this->ina_model_));
 
+  if (this->device_mismatch_) {
+    ESP_LOGE(TAG, "  Device model mismatch. Found device with ID = %x. Please check your configuration.",
+             this->dev_id_);
+  }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with INA2xx failed!");
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Shunt resistance = %f Ohm", shunt_resistance_ohm_);
+  ESP_LOGCONFIG(TAG, "  Shunt resistance = %f Ohm", this->shunt_resistance_ohm_);
   ESP_LOGCONFIG(TAG, "  Max current = %f A", this->max_current_a_);
   ESP_LOGCONFIG(TAG, "  Shunt temp coeff = %d ppm/°C", this->shunt_tempco_ppm_c_);
   ESP_LOGCONFIG(TAG, "  ADCRANGE = %d (%s)", (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV");
@@ -182,20 +219,7 @@ void INA2XX::dump_config() {
                 ADC_TIMES[0b111 & (uint8_t) this->adc_time_shunt_voltage_],
                 ADC_TIMES[0b111 & (uint8_t) this->adc_time_die_temperature_]);
 
-  auto get_device_name = [](INAType typ) {
-    switch (typ) {
-      case INAType::INA_228_229:
-        return "INA228/229";
-      case INAType::INA_238_239:
-        return "INA238/239";
-      case INAType::INA_237:
-        return "INA237";
-      default:
-        return "UNKNOWN";
-    }
-  };
-
-  ESP_LOGCONFIG(TAG, "  Device is %s", get_device_name(this->ina_type_));
+  ESP_LOGCONFIG(TAG, "  Device is %s", get_device_name(this->ina_model_));
 
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
@@ -203,7 +227,7 @@ void INA2XX::dump_config() {
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 
-  if (this->ina_type_ == INAType::INA_228_229) {
+  if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     LOG_SENSOR("  ", "Energy J", this->energy_sensor_j_);
     LOG_SENSOR("  ", "Energy Wh", this->energy_sensor_wh_);
     LOG_SENSOR("  ", "Charge C", this->charge_sensor_c_);
@@ -212,7 +236,7 @@ void INA2XX::dump_config() {
 }
 
 bool INA2XX::reset_energy_counters() {
-  if (this->ina_type_ != INAType::INA_228_229) {
+  if (this->ina_model_ != INAModel::INA_228 && this->ina_model_ != INAModel::INA_229) {
     return false;
   }
   ESP_LOGV(TAG, "reset_energy_counters");
@@ -235,40 +259,49 @@ bool INA2XX::reset_config_() {
   return this->write_unsigned_16_(RegisterMap::REG_CONFIG, cfg.raw_u16);
 }
 
-bool INA2XX::check_device_type_() {
+bool INA2XX::check_device_model_() {
   constexpr uint16_t manufacturer_ti = 0x5449;  // "TI"
 
-  uint16_t manufacturer_id{0}, dev_id{0}, rev_id{0};
+  uint16_t manufacturer_id{0}, rev_id{0};
   this->read_unsigned_16_(RegisterMap::REG_MANUFACTURER_ID, manufacturer_id);
-  if (!this->read_unsigned_16_(RegisterMap::REG_DEVICE_ID, dev_id)) {
-    dev_id = 0;
+  if (!this->read_unsigned_16_(RegisterMap::REG_DEVICE_ID, this->dev_id_)) {
+    this->dev_id_ = 0;
     ESP_LOGV(TAG, "Can't read device ID");
   };
-  rev_id = dev_id & 0x0F;
-  dev_id >>= 4;
-  ESP_LOGI(TAG, "Manufacturer: 0x%04X, Device ID: 0x%04X, Revision: %d", manufacturer_id, dev_id, rev_id);
+  rev_id = this->dev_id_ & 0x0F;
+  this->dev_id_ >>= 4;
+  ESP_LOGI(TAG, "Manufacturer: 0x%04X, Device ID: 0x%04X, Revision: %d", manufacturer_id, this->dev_id_, rev_id);
 
   if (manufacturer_id != manufacturer_ti) {
     ESP_LOGE(TAG, "Manufacturer ID doesn't match original 0x5449");
+    this->device_mismatch_ = true;
     return false;
   }
 
-  if (dev_id == 0x228 || dev_id == 0x229) {
-    this->ina_type_ = INAType::INA_228_229;
-    ESP_LOGI(TAG, "Supported device found: INA%x, 85-V, 20-Bit, Ultra-Precise Power/Energy/Charge Monitor", dev_id);
-  } else if (dev_id == 0x238 || dev_id == 0x239) {
-    this->ina_type_ = INAType::INA_238_239;
-    ESP_LOGI(TAG, "Supported device found: INA%x, 85-V, 16-Bit, High-Precision Power Monitor", dev_id);
-  } else if (dev_id == 0x0 || dev_id == 0xFF) {
+  if (this->dev_id_ == 0x228 || this->dev_id_ == 0x229) {
+    ESP_LOGI(TAG, "Supported device found: INA%x, 85-V, 20-Bit, Ultra-Precise Power/Energy/Charge Monitor",
+             this->dev_id_);
+  } else if (this->dev_id_ == 0x238 || this->dev_id_ == 0x239) {
+    ESP_LOGI(TAG, "Supported device found: INA%x, 85-V, 16-Bit, High-Precision Power Monitor", this->dev_id_);
+  } else if (this->dev_id_ == 0x0 || this->dev_id_ == 0xFF) {
     ESP_LOGI(TAG, "We assume device is: INA237 85-V, 16-Bit, Precision Power Monitor");
-    this->ina_type_ = INAType::INA_237;
+    this->dev_id_ = 0x237;
   } else {
-    ESP_LOGE(TAG, "Unknown device ID %x. Please do not hesitate to report to author.", dev_id);
+    ESP_LOGE(TAG, "Unknown device ID %x.", this->dev_id_);
+    this->device_mismatch_ = true;
+    return false;
+  }
+
+  // Check user-selected model agains what we have found. Mark as failed if selected model != found model
+  if (!check_model_and_device_match(this->ina_model_, this->dev_id_)) {
+    ESP_LOGE(TAG, "Selected model %s doesn't match found device INA%x", get_device_name(this->ina_model_),
+             this->dev_id_);
+    this->device_mismatch_ = true;
     return false;
   }
 
   // setup device coefficients
-  if (this->ina_type_ == INAType::INA_228_229) {
+  if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     this->cfg_.vbus_lsb = 0.0001953125f;
     this->cfg_.v_shunt_lsb_range0 = 0.0003125f;
     this->cfg_.v_shunt_lsb_range1 = 0.000078125f;
@@ -315,7 +348,7 @@ bool INA2XX::configure_adc_() {
 
 bool INA2XX::configure_shunt_() {
   this->current_lsb_ = ldexp(this->max_current_a_, this->cfg_.current_lsb_scale_factor);
-  this->shunt_cal_ = (uint16_t) (cfg_.shunt_cal_scale * this->current_lsb_ * this->shunt_resistance_ohm_);
+  this->shunt_cal_ = (uint16_t) (this->cfg_.shunt_cal_scale * this->current_lsb_ * this->shunt_resistance_ohm_);
   if (this->adc_range_)
     this->shunt_cal_ *= 4;
 
@@ -324,7 +357,7 @@ bool INA2XX::configure_shunt_() {
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
-  ESP_LOGV(TAG, "Given Rshunt=%f Ohm and Max_current=%.3f", shunt_resistance_ohm_, max_current_a_);
+  ESP_LOGV(TAG, "Given Rshunt=%f Ohm and Max_current=%.3f", this->shunt_resistance_ohm_, this->max_current_a_);
   ESP_LOGV(TAG, "New CURRENT_LSB=%f, SHUNT_CAL=%u", this->current_lsb_, this->shunt_cal_);
   return this->write_unsigned_16_(RegisterMap::REG_SHUNT_CAL, this->shunt_cal_);
 }
@@ -334,7 +367,8 @@ bool INA2XX::configure_shunt_tempco_() {
   // unsigned 14-bit value
   // 0x0000 = 0 ppm/°C
   // 0x3FFF = 16383 ppm/°C
-  if (this->ina_type_ == INAType::INA_228_229 && this->shunt_tempco_ppm_c_ > 0) {
+  if ((this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) &&
+      this->shunt_tempco_ppm_c_ > 0) {
     return this->write_unsigned_16_(RegisterMap::REG_SHUNT_TEMPCO, this->shunt_tempco_ppm_c_ & 0x3FFF);
   }
   return true;
@@ -348,7 +382,7 @@ bool INA2XX::read_shunt_voltage_mv_(float &volt_out) {
   bool ret{false};
   float volt_reading{0};
   uint64_t raw{0};
-  if (this->ina_type_ == INAType::INA_228_229) {
+  if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_VSHUNT, 3, raw);
     raw >>= 4;
     volt_reading = this->two_complement_(raw, 20);
@@ -357,8 +391,9 @@ bool INA2XX::read_shunt_voltage_mv_(float &volt_out) {
     volt_reading = this->two_complement_(raw, 16);
   }
 
-  if (ret)
+  if (ret) {
     volt_out = (this->adc_range_ ? this->cfg_.v_shunt_lsb_range1 : this->cfg_.v_shunt_lsb_range0) * volt_reading;
+  }
 
   ESP_LOGV(TAG, "read_shunt_voltage_mv_ ret=%s, shunt_cal=%d, reading_lsb=%f", OKFAILED(ret), this->shunt_cal_,
            volt_reading);
@@ -374,7 +409,7 @@ bool INA2XX::read_bus_voltage_(float &volt_out) {
   bool ret{false};
   float volt_reading{0};
   uint64_t raw{0};
-  if (this->ina_type_ == INAType::INA_228_229) {
+  if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_VBUS, 3, raw);
     raw >>= 4;
     volt_reading = this->two_complement_(raw, 20);
@@ -382,8 +417,9 @@ bool INA2XX::read_bus_voltage_(float &volt_out) {
     ret = this->read_unsigned_(RegisterMap::REG_VBUS, 2, raw);
     volt_reading = this->two_complement_(raw, 16);
   }
-  if (ret)
+  if (ret) {
     volt_out = this->cfg_.vbus_lsb * (float) volt_reading;
+  }
 
   ESP_LOGV(TAG, "read_bus_voltage_ ret=%s, reading_lsb=%f", OKFAILED(ret), volt_reading);
   return ret;
@@ -398,7 +434,7 @@ bool INA2XX::read_die_temp_c_(float &temp_out) {
   float temp_reading{0};
   uint64_t raw{0};
 
-  if (this->ina_type_ == INAType::INA_228_229) {
+  if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_DIETEMP, 2, raw);
     temp_reading = this->two_complement_(raw, 16);
   } else {
@@ -406,8 +442,9 @@ bool INA2XX::read_die_temp_c_(float &temp_out) {
     raw >>= 4;
     temp_reading = this->two_complement_(raw, 12);
   }
-  if (ret)
+  if (ret) {
     temp_out = this->cfg_.die_temp_lsb * (float) temp_reading;
+  }
 
   ESP_LOGV(TAG, "read_die_temp_c_ ret=%s, reading_lsb=%f", OKFAILED(ret), temp_reading);
   return ret;
@@ -421,7 +458,7 @@ bool INA2XX::read_current_a_(float &amps_out) {
   float amps_reading{0};
   uint64_t raw{0};
 
-  if (this->ina_type_ == INAType::INA_228_229) {
+  if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_CURRENT, 3, raw);
     raw >>= 4;
     amps_reading = this->two_complement_(raw, 20);
@@ -432,8 +469,9 @@ bool INA2XX::read_current_a_(float &amps_out) {
 
   ESP_LOGV(TAG, "read_current_a_ ret=%s. current_lsb=%f. reading_lsb=%f", OKFAILED(ret), this->current_lsb_,
            amps_reading);
-  if (ret)
+  if (ret) {
     amps_out = this->current_lsb_ * (float) amps_reading;
+  }
 
   return ret;
 }
@@ -446,8 +484,9 @@ bool INA2XX::read_power_w_(float &power_out) {
   auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_POWER, 3, power_reading);
 
   ESP_LOGV(TAG, "read_power_w_ ret=%s, reading_lsb=%d", OKFAILED(ret), (uint32_t) power_reading);
-  if (ret)
+  if (ret) {
     power_out = this->cfg_.power_coeff * this->current_lsb_ * (float) power_reading;
+  }
 
   return ret;
 }
@@ -456,7 +495,7 @@ bool INA2XX::read_energy_(double &joules_out, double &watt_hours_out) {
   // Unsigned value
   //      228, 229 - 40bit
   // 237, 238, 239 - not available
-  if (this->ina_type_ != INAType::INA_228_229) {
+  if (this->ina_model_ != INAModel::INA_228 && this->ina_model_ != INAModel::INA_229) {
     joules_out = 0;
     return false;
   }
@@ -477,7 +516,7 @@ bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
   // Two's complement value
   //      228, 229 - 40bit
   // 237, 238, 239 - not available
-  if (this->ina_type_ != INAType::INA_228_229) {
+  if (this->ina_model_ != INAModel::INA_228 && this->ina_model_ != INAModel::INA_229) {
     coulombs_out = 0;
     return false;
   }
@@ -499,7 +538,7 @@ bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
 }
 
 bool INA2XX::read_diagnostics_and_act_() {
-  if (this->ina_type_ != INAType::INA_228_229) {
+  if (this->ina_model_ != INAModel::INA_228 && this->ina_model_ != INAModel::INA_229) {
     return false;
   }
 
@@ -507,11 +546,13 @@ bool INA2XX::read_diagnostics_and_act_() {
   auto ret = this->read_unsigned_16_(RegisterMap::REG_DIAG_ALRT, diag.raw_u16);
   ESP_LOGV(TAG, "read_diagnostics_and_act_ ret=%s, 0x%04X", OKFAILED(ret), diag.raw_u16);
 
-  if (diag.ENERGYOF)
+  if (diag.ENERGYOF) {
     this->energy_overflows_count_++;  // 40-bit overflow
+  }
 
-  if (diag.CHARGEOF)
+  if (diag.CHARGEOF) {
     this->charge_overflows_count_++;  // 39-bit overflow
+  }
 
   return ret;
 }
@@ -528,8 +569,9 @@ bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
 bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
   static uint8_t rx_buf[5] = {0};  // max buffer size
 
-  if (reg_size > 5)
+  if (reg_size > 5) {
     return false;
+  }
 
   auto ret = this->read_ina_register(reg, rx_buf, reg_size);
 

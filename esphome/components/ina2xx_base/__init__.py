@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
     CONF_MAX_CURRENT,
+    CONF_MODEL,
     CONF_NAME,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
@@ -20,8 +21,8 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_VOLT,
-    UNIT_WATT,
     UNIT_WATT_HOURS,
+    UNIT_WATT,
 )
 
 CODEOWNERS = ["@latonita"]
@@ -34,8 +35,8 @@ CONF_CHARGE_COULOMBS = "charge_coulombs"
 CONF_ENERGY_JOULES = "energy_joules"
 CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
 UNIT_AMPERE_HOURS = "Ah"
-UNIT_JOULE = "J"
 UNIT_COULOMB = "C"
+UNIT_JOULE = "J"
 UNIT_MILLIVOLT = "mV"
 
 ina2xx_base_ns = cg.esphome_ns.namespace("ina2xx_base")
@@ -175,6 +176,8 @@ INA2XX_SCHEMA = cv.Schema(
 
 async def setup_ina2xx(var, config):
     await cg.register_component(var, config)
+
+    cg.add(var.set_model(config[CONF_MODEL]))
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))

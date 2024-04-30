@@ -31,7 +31,7 @@ bool INA2XXI2C::read_ina_register(uint8_t reg, uint8_t *data, size_t len) {
 bool INA2XXI2C::write_ina_register(uint8_t reg, const uint8_t *data, size_t len) {
   auto ret = this->write_register(reg, data, len);
   if (ret != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, "write_register failed. Reg=0x%02X Err=%d", reg, ret);
+    ESP_LOGE(TAG, "write_register failed. Reg=0x%02X Err=%d", reg, ret);
   }
   return ret == i2c::ERROR_OK;
 }
