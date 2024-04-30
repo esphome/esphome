@@ -1,19 +1,7 @@
-spi:
-  - id: spi_ina2xx
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO8
 
-sensor:
-  - platform: ina2xx_spi
-    cs_pin: 8
-    shunt_resistance: 0.001130 ohm
-    max_current: 40 A
-    adc_range: 1
-    temperature_coefficient: 50
-    shunt_voltage: "INA2xx Shunt Voltage"
-    bus_voltage: "INA2xx Bus Voltage"
-    current: "INA2xx Current"
-    power: "INA2xx Power"
-    energy: "INA2xx Energy"
-    charge: "INA2xx Charge"
+<<: !include common.yaml
