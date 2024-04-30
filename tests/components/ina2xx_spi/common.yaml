@@ -8,6 +8,7 @@ sensor:
   - platform: ina2xx_spi
     spi_id: spi_ina2xx
     cs_pin: ${cs_pin}
+    model: INA229
     shunt_resistance: 0.001130 ohm
     max_current: 40 A
     adc_range: 1
