@@ -56,7 +56,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   uint8_t* buffer = allocator.allocate(4096);
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
-    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
+    return -1;
   }
 
   std::string recv_string;
