@@ -992,14 +992,26 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #endif
 
   /**
-   * Upload the tft file and soft reset Nextion
+   * @brief Uploads the TFT file to the Nextion display.
+   *
+   * This function initiates the upload of a TFT file to the Nextion display. Users can specify a target baud rate for
+   * the transfer. If the provided baud rate is not supported by Nextion, the function defaults to using the current
+   * baud rate set for the display. If no baud rate is specified (or if 0 is passed), the current baud rate is used.
+   *
+   * Supported baud rates are: 2400, 4800, 9600, 19200, 31250, 38400, 57600, 115200, 230400, 250000, 256000, 512000
+   * and 921600. Selecting a baud rate supported by both the Nextion display and the host hardware is essential for
+   * ensuring a successful upload process.
+   *
+   * @param baud_rate The desired baud rate for the TFT file transfer, specified as an unsigned 32-bit integer.
+   * If the specified baud rate is not supported, or if 0 is passed, the function will use the current baud rate.
+   * The default value is 0, which implies using the current baud rate.
    * @param exit_reparse If true, the function exits reparse mode before uploading the TFT file. This parameter
    * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
    * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
    * the display properly processes the uploaded file command.
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool upload_tft(bool exit_reparse = true);
+  bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
   void dump_config() override;
 
