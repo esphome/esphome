@@ -160,8 +160,9 @@ int Nextion::upload_range(const std::string &url, int range_start) {
   return range_end + 1;
 }
 
-bool Nextion::upload_tft() {
+bool Nextion::upload_tft(bool exit_reparse) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
+  ESP_LOGD(TAG, "Exit reparse: %s", YESNO(exit_reparse));
   ESP_LOGD(TAG, "url: %s", this->tft_url_.c_str());
 
   if (this->is_updating_) {
@@ -175,6 +176,14 @@ bool Nextion::upload_tft() {
   }
 
   this->is_updating_ = true;
+
+  if (exit_reparse) {
+    ESP_LOGD(TAG, "Exiting Nextion reparse mode");
+    if (!this->set_protocol_reparse_mode(false)) {
+      ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
+      return false;
+    }
+  }
 
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG, "Establishing connection to HTTP server");
