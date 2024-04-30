@@ -16,7 +16,6 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(INA2XX_I2C),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x40)),
 )
 
