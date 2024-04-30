@@ -266,6 +266,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   if (baud_rate != this->original_baud_rate_) {
     ESP_LOGD(TAG, "Changing baud rate from %" PRIu32 " to %" PRIu32 " bps", this->original_baud_rate_, baud_rate);
     this->parent_->set_baud_rate(baud_rate);
+    this->parent_->load_settings();
   }
 
   App.feed_wdt();
@@ -354,6 +355,7 @@ bool Nextion::upload_end_(bool successful) {
   if (baud_rate != this->original_baud_rate_) {
     ESP_LOGD(TAG, "Changing baud rate back from %" PRIu32 " to %" PRIu32 " bps", baud_rate, this->original_baud_rate_);
     this->parent_->set_baud_rate(this->original_baud_rate_);
+    this->parent_->load_settings();
   }
 
   ESP_LOGD(TAG, "Restarting Nextion");
