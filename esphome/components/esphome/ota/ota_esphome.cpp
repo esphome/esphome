@@ -21,11 +21,11 @@ namespace esphome {
 static const char *const TAG = "esphome.ota";
 static constexpr u_int16_t OTA_BLOCK_SIZE = 8192;
 
-ESPHomeOTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-ESPHomeOTAComponent::ESPHomeOTAComponent() { global_ota_component = this; }
-
 void ESPHomeOTAComponent::setup() {
+#ifdef USE_OTA_STATE_CALLBACK
+  ota::global_ota_component->register_ota(this);
+#endif
+
   server_ = socket::socket_ip(SOCK_STREAM, 0);
   if (server_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket");

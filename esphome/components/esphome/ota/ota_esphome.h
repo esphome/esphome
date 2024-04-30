@@ -11,7 +11,6 @@ namespace esphome {
 /// ESPHomeOTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class ESPHomeOTAComponent : public ota::OTAComponent {
  public:
-  ESPHomeOTAComponent();
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
 #endif  // USE_OTA_PASSWORD
@@ -65,7 +64,5 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   static const uint32_t ENTER_SAFE_MODE_MAGIC =
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
 };
-
-extern ESPHomeOTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

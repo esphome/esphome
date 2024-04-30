@@ -1,11 +1,12 @@
 #pragma once
-#ifdef USE_OTA_STATE_CALLBACK
-#include "esphome/core/automation.h"
-#include "esphome/core/defines.h"
-#endif
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+
+#ifdef USE_OTA_STATE_CALLBACK
+#include "esphome/core/automation.h"
+#endif
 
 namespace esphome {
 namespace ota {
@@ -64,6 +65,25 @@ class OTAComponent : public Component {
 #endif
 };
 
+#ifdef USE_OTA_STATE_CALLBACK
+class OTAGlobalCallback {
+ public:
+  void register_ota(OTAComponent *ota_caller) {
+    ota_caller->add_on_state_callback([this, ota_caller](OTAState state, float progress, uint8_t error) {
+      this->state_callback_.call(state, progress, error, ota_caller);
+    });
+  }
+  void add_on_state_callback(std::function<void(OTAState, float, uint8_t, OTAComponent *)> &&callback) {
+    this->state_callback_.add(std::move(callback));
+  }
+
+ protected:
+  CallbackManager<void(OTAState, float, uint8_t, OTAComponent *)> state_callback_{};
+};
+
+extern OTAGlobalCallback *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 std::unique_ptr<ota::OTABackend> make_ota_backend();
+
 }  // namespace ota
 }  // namespace esphome

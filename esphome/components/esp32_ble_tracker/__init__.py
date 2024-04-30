@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_ON_BLE_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
-    CONF_OTA,
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
     KEY_CORE,
@@ -272,11 +271,6 @@ async def to_code(config):
         else:
             add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
         add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
-
-    if CONF_OTA in CORE.config:
-        for ota_config in CORE.config.get(CONF_OTA):
-            ota_platform = await cg.get_variable(ota_config[CONF_ID])
-            cg.add(var.add_ota_component(ota_platform))
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")

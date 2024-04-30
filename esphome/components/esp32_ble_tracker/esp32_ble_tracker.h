@@ -11,10 +11,6 @@
 
 #ifdef USE_ESP32
 
-#ifdef USE_OTA
-#include "esphome/components/ota/ota_backend.h"
-#endif
-
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
 #include <esp_bt_defs.h>
@@ -201,10 +197,6 @@ class ESP32BLETracker : public Component,
 
   void loop() override;
 
-#ifdef USE_OTA
-  void add_ota_component(ota::OTAComponent *ota_component) { this->ota_components_.push_back(ota_component); }
-#endif
-
   void register_listener(ESPBTDeviceListener *listener);
   void register_client(ESPBTClient *client);
   void recalculate_advertisement_parser_types();
@@ -235,11 +227,6 @@ class ESP32BLETracker : public Component,
   void gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
 
   int app_id_;
-
-#ifdef USE_OTA
-  /// Vector of OTA components we'll hook into so we can stop scanning when an OTA update begins
-  std::vector<ota::OTAComponent *> ota_components_{};
-#endif
 
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
