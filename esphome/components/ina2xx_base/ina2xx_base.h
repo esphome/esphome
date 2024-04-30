@@ -117,7 +117,7 @@ class INA2XX : public PollingComponent {
   void loop() override;
   void dump_config() override;
 
-  void set_shunt_resistance_ohm(float shunt_resistance_ohm) { shunt_resistance_ohm_ = shunt_resistance_ohm; }
+  void set_shunt_resistance_ohm(float shunt_resistance_ohm) { this->shunt_resistance_ohm_ = shunt_resistance_ohm; }
   void set_max_current_a(float max_current_a) { max_current_a_ = max_current_a; }
   void set_adc_range(uint8_t range) { adc_range_ = (range == 0) ? AdcRange::ADC_RANGE_0 : AdcRange::ADC_RANGE_1; }
   void set_adc_time_bus_voltage(AdcTime time) { adc_time_bus_voltage_ = time; }
