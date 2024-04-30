@@ -51,25 +51,14 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
     return -1;
   }
 
-#if defined(USE_ESP32) && defined(USE_PSRAM)
-  uint8_t *buffer = nullptr;
-  // Check if PSRAM is available
-  if (psramFound()) {
-    buffer = (uint8_t *) ps_malloc(4096);  // Try to allocate memory in PSRAM
-  }
+  // Allocate the buffer dynamically
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  uint8_t* buffer = allocator.allocate(4096);
   if (!buffer) {
-    ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM");
-    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails or isn't available
-    if (!buffer) {
-      ESP_LOGE(TAG, "Failed to allocate upload buffer");
-      return -1;
-    }
-  } else {
-    ESP_LOGD(TAG, "Successfully allocated upload buffer in PSRAM");
+    ESP_LOGE(TAG, "Failed to allocate upload buffer");
+    return Nextion::TFTUploadResult::MEMORY_ERROR_FAILED_TO_ALLOCATE;
   }
-#else
-  std::vector<uint8_t> buffer(4096);  // Initialize buffer
-#endif  // ESP32 & USE_PSRAM
+
   std::string recv_string;
   while (true) {
     App.feed_wdt();
@@ -354,7 +343,7 @@ bool Nextion::upload_end_(bool successful) {
 
   if (successful) {
     ESP_LOGD(TAG, "Restarting ESPHome");
-    delay(1500);    // NOLINT
+    delay(1500);  // NOLINT
     arch_restart();
   } else {
     ESP_LOGE(TAG, "Nextion TFT upload failed");
