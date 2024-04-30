@@ -81,7 +81,7 @@ class OTAGlobalCallback {
   CallbackManager<void(OTAState, float, uint8_t, OTAComponent *)> state_callback_{};
 };
 
-extern OTAGlobalCallback *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern OTAGlobalCallback *global_ota_component;  // NOLINT
 #endif
 std::unique_ptr<ota::OTABackend> make_ota_backend();
 
