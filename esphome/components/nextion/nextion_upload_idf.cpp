@@ -51,22 +51,8 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   }
 
   // Allocate the buffer dynamically
-  uint8_t *buffer = nullptr;
-#ifdef USE_PSRAM
-  buffer = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!buffer) {
-    ESP_LOGW(TAG, "Failed to allocate upload buffer in PSRAM");
-    buffer = (uint8_t *) malloc(4096);  // Fallback to DRAM if PSRAM allocation fails or isn't available
-    if (!buffer) {
-      ESP_LOGE(TAG, "Failed to allocate upload buffer");
-      return -1;
-    }
-  } else {
-    ESP_LOGD(TAG, "Successfully allocated upload buffer in PSRAM");
-  }
-#else
-  buffer = (uint8_t *) malloc(4096);
-#endif
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  uint8_t* buffer = allocator.allocate(4096);
   if (!buffer) {
     ESP_LOGE(TAG, "Failed to allocate upload buffer");
     return -1;
