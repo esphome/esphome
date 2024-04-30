@@ -159,8 +159,9 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   return range_end + 1;
 }
 
-bool Nextion::upload_tft() {
+bool Nextion::upload_tft(bool exit_reparse) {
   ESP_LOGD(TAG, "Nextion TFT upload requested");
+  ESP_LOGD(TAG, "Exit reparse: %s", YESNO(exit_reparse));
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
 
   if (this->is_updating_) {
@@ -174,6 +175,14 @@ bool Nextion::upload_tft() {
   }
 
   this->is_updating_ = true;
+
+  if (exit_reparse) {
+    ESP_LOGD(TAG, "Exiting Nextion reparse mode");
+    if (!this->set_protocol_reparse_mode(false)) {
+      ESP_LOGW(TAG, "Failed to request Nextion to exit reparse mode");
+      return false;
+    }
+  }
 
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG, "Initializing HTTP client");
