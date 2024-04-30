@@ -203,11 +203,7 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
     } else if (color.green > 85) {
       hex_code = 0x6;  // Orange
     } else {
-      if (color.blue > 127) {
-        hex_code = 0x4;  // Magenta -> Red
-      } else {
-        hex_code = 0x4;  // Red
-      }
+      hex_code = 0x4;  // Red (or Magenta)
     }
   } else {
     if (color.green > 127) {
@@ -1713,7 +1709,7 @@ void GDEY029T94::dump_config() {
 // ========================================================
 
 void GDEW0154M09::initialize() {
-  this->init_internal();
+  this->init_internal_();
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->lastbuff_ = allocator.allocate(this->get_buffer_length_());
   if (this->lastbuff_ != nullptr) {
@@ -1732,7 +1728,7 @@ void GDEW0154M09::reset_() {
   }
 }
 
-void GDEW0154M09::init_internal() {
+void GDEW0154M09::init_internal_() {
   this->reset_();
 
   // clang-format off
@@ -1803,7 +1799,7 @@ void GDEW0154M09::clear_() {
 }
 
 void HOT GDEW0154M09::display() {
-  this->init_internal();
+  this->init_internal_();
   // "Mode 0 display" for now
   this->command(CMD_DTM1_DATA_START_TRANS);
   for (int i = 0; i < this->get_buffer_length_(); i++) {
