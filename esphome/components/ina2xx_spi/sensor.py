@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import ina2xx_base, spi
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@latonita"]
 AUTO_LOAD = ["ina2xx_base"]
+CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["spi"]
 
 ina2xx_spi = cg.esphome_ns.namespace("ina2xx_spi")
