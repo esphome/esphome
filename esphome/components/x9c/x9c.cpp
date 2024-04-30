@@ -1,6 +1,6 @@
 #include "x9c.h"
 #include "esphome/core/log.h"
-#include <math.h>
+#include <cmath>
 
 namespace esphome {
 namespace x9c {
