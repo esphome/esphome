@@ -22,11 +22,11 @@ static const char *const TAG = "nextion.upload.arduino";
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
 inline uint32_t Nextion::get_free_heap_() {
-#ifdef ESP32
-  return ESP.getFreeHeap();
+#if defined(USE_ESP32)
+  return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
 #elif defined(USE_ESP8266)
   return EspClass::getFreeHeap();
-#endif  // ESP32 vs USE_ESP8266
+#endif  // USE_ESP32 vs USE_ESP8266
 }
 
 int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
