@@ -993,9 +993,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /**
    * Upload the tft file and soft reset Nextion
+   * @param exit_reparse If true, the function exits reparse mode before uploading the TFT file. This parameter
+   * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
+   * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
+   * the display properly processes the uploaded file command.
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool upload_tft();
+  bool upload_tft(bool exit_reparse = true);
 
   void dump_config() override;
 

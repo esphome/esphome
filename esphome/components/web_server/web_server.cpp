@@ -27,7 +27,11 @@
 #endif
 
 #ifdef USE_WEBSERVER_LOCAL
-#include "server_index.h"
+#if USE_WEBSERVER_VERSION == 2
+#include "server_index_v2.h"
+#elif USE_WEBSERVER_VERSION == 3
+#include "server_index_v3.h"
+#endif
 #endif
 
 namespace esphome {
