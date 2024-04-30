@@ -1005,9 +1005,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param baud_rate The desired baud rate for the TFT file transfer, specified as an unsigned 32-bit integer.
    * If the specified baud rate is not supported, or if 0 is passed, the function will use the current baud rate.
    * The default value is 0, which implies using the current baud rate.
+   * @param exit_reparse If true, the function exits reparse mode before uploading the TFT file. This parameter
+   * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
+   * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
+   * the display properly processes the uploaded file command.
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool upload_tft(uint32_t baud_rate = 0);
+  bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
   void dump_config() override;
 
