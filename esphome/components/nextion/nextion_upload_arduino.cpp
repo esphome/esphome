@@ -64,26 +64,14 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
     App.feed_wdt();
     const uint16_t buffer_size =
         this->content_length_ < 4096 ? this->content_length_ : 4096;  // Limits buffer to the remaining data
-#if defined(USE_ESP32) && defined(USE_PSRAM)
-#else
-    if (buffer_size != buffer.size()) {
-      ESP_LOGV(TAG, "Resizing buffer to %" PRIu16, buffer_size);
-      buffer.resize(buffer_size);
-    }
-#endif
     ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
     const uint32_t start_time = millis();
     while (read_len < buffer_size && millis() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
-#if defined(USE_ESP32) && defined(USE_PSRAM)
         partial_read_len =
             http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
-#else
-        partial_read_len = http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer.data()) + read_len,
-                                                                 buffer_size - read_len);
-#endif
         read_len += partial_read_len;
         if (partial_read_len > 0) {
           App.feed_wdt();
@@ -95,19 +83,15 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
       // Did not receive the full package within the timeout period
       ESP_LOGE(TAG, "Failed to read full package, received only %" PRIu16 " of %" PRIu16 " bytes", read_len,
                buffer_size);
-#if defined(USE_ESP32) && defined(USE_PSRAM)
-      free(buffer);
-#endif  // ESP32 & USE_PSRAM
+      // Deallocate buffer
+      allocator.deallocate(buffer, 4096);
+      buffer = nullptr;
       return -1;
     }
     ESP_LOGV(TAG, "%d bytes fetched, writing it to UART", read_len);
     if (read_len > 0) {
       recv_string.clear();
-#if defined(USE_ESP32) && defined(USE_PSRAM)
       this->write_array(buffer, buffer_size);
-#else
-      this->write_array(buffer);
-#endif  // ESP32 & USE_PSRAM
       App.feed_wdt();
       this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
@@ -137,16 +121,16 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
         } else {
           range_start = range_end + 1;
         }
-#if defined(USE_ESP32) && defined(USE_PSRAM)
-        free(buffer);
-#endif  // ESP32 & USE_PSRAM
+        // Deallocate buffer
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
         return range_end + 1;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
-#if defined(USE_ESP32) && defined(USE_PSRAM)
-        free(buffer);
-#endif  // ESP32 & USE_PSRAM
+        // Deallocate buffer
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
         return -1;
       }
 
@@ -160,9 +144,9 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
     }
   }
   range_start = range_end + 1;
-#if defined(USE_ESP32) && defined(USE_PSRAM)
-  free(buffer);
-#endif  // ESP32 & USE_PSRAM
+  // Deallocate buffer
+  allocator.deallocate(buffer, 4096);
+  buffer = nullptr;
   return range_end + 1;
 }
 
