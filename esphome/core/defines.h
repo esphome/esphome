@@ -35,6 +35,7 @@
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
+#define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_DATETIME
 #define USE_DATETIME_DATE
@@ -64,7 +65,6 @@
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
 #define USE_CAPTIVE_PORTAL
-#define USE_NEXTION_TFT_UPLOAD
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
 #define USE_WEBSERVER_PORT 80  // NOLINT
