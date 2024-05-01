@@ -26,14 +26,10 @@ void GenericHumidifier::setup() {
       this->mode = humidifier::HUMIDIFIER_MODE_NORMAL;
     } else if (supports_eco_) {
       this->mode = humidifier::HUMIDIFIER_MODE_ECO;
-    } else if (supports_away_) {
-      this->mode = humidifier::HUMIDIFIER_MODE_AWAY;
     } else if (supports_boost_) {
       this->mode = humidifier::HUMIDIFIER_MODE_BOOST;
     } else if (supports_comfort_) {
       this->mode = humidifier::HUMIDIFIER_MODE_COMFORT;
-    } else if (supports_home_) {
-      this->mode = humidifier::HUMIDIFIER_MODE_HOME;
     } else if (supports_sleep_) {
       this->mode = humidifier::HUMIDIFIER_MODE_SLEEP;
     } else if (supports_auto_) {
@@ -62,14 +58,10 @@ humidifier::HumidifierTraits GenericHumidifier::traits() {
     traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_NORMAL);
   if (supports_eco_)
     traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_ECO);
-  if (supports_away_)
-    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_AWAY);
   if (supports_boost_)
     traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_BOOST);
   if (supports_comfort_)
     traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_COMFORT);
-  if (supports_home_)
-    traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_HOME);
   if (supports_sleep_)
     traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_SLEEP);
   if (supports_auto_)
@@ -109,17 +101,11 @@ void GenericHumidifier::switch_to_action_(humidifier::HumidifierAction action) {
     case humidifier::HUMIDIFIER_ACTION_ECO:
       trig = this->eco_trigger_;
       break;
-    case humidifier::HUMIDIFIER_ACTION_AWAY:
-      trig = this->away_trigger_;
-      break;
     case humidifier::HUMIDIFIER_ACTION_BOOST:
       trig = this->boost_trigger_;
       break;
     case humidifier::HUMIDIFIER_ACTION_COMFORT:
       trig = this->comfort_trigger_;
-      break;
-    case humidifier::HUMIDIFIER_ACTION_HOME:
-      trig = this->home_trigger_;
       break;
     case humidifier::HUMIDIFIER_ACTION_SLEEP:
       trig = this->sleep_trigger_;
@@ -159,14 +145,10 @@ Trigger<> *GenericHumidifier::get_normal_trigger() const { return this->normal_t
 void GenericHumidifier::set_supports_normal(bool supports_normal) { this->supports_normal_ = supports_normal; }
 Trigger<> *GenericHumidifier::get_eco_trigger() const { return this->eco_trigger_; }
 void GenericHumidifier::set_supports_eco(bool supports_eco) { this->supports_eco_ = supports_eco; }
-Trigger<> *GenericHumidifier::get_away_trigger() const { return this->away_trigger_; }
-void GenericHumidifier::set_supports_away(bool supports_away) { this->supports_away_ = supports_away; }
 Trigger<> *GenericHumidifier::get_boost_trigger() const { return this->boost_trigger_; }
 void GenericHumidifier::set_supports_boost(bool supports_boost) { this->supports_boost_ = supports_boost; }
 Trigger<> *GenericHumidifier::get_comfort_trigger() const { return this->comfort_trigger_; }
 void GenericHumidifier::set_supports_comfort(bool supports_comfort) { this->supports_comfort_ = supports_comfort; }
-Trigger<> *GenericHumidifier::get_home_trigger() const { return this->home_trigger_; }
-void GenericHumidifier::set_supports_home(bool supports_home) { this->supports_home_ = supports_home; }
 Trigger<> *GenericHumidifier::get_sleep_trigger() const { return this->sleep_trigger_; }
 void GenericHumidifier::set_supports_sleep(bool supports_sleep) { this->supports_sleep_ = supports_sleep; }
 Trigger<> *GenericHumidifier::get_auto_trigger() const { return this->auto_trigger_; }
@@ -177,10 +159,8 @@ void GenericHumidifier::dump_config() {
   LOG_HUMIDIFIER("", "Generic Humidifier", this);
   ESP_LOGCONFIG(TAG, "  Supports Normal Mode: %s", YESNO(this->supports_normal_));
   ESP_LOGCONFIG(TAG, "  Supports Eco Mode: %s", YESNO(this->supports_eco_));
-  ESP_LOGCONFIG(TAG, "  Supports Away Mode: %s", YESNO(this->supports_away_));
   ESP_LOGCONFIG(TAG, "  Supports Boost Mode: %s", YESNO(this->supports_boost_));
   ESP_LOGCONFIG(TAG, "  Supports Comfort Mode: %s", YESNO(this->supports_comfort_));
-  ESP_LOGCONFIG(TAG, "  Supports Home Mode: %s", YESNO(this->supports_home_));
   ESP_LOGCONFIG(TAG, "  Supports Sleep Mode: %s", YESNO(this->supports_sleep_));
   ESP_LOGCONFIG(TAG, "  Supports Auto Mode: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports Baby Mode: %s", YESNO(this->supports_baby_));

@@ -18,10 +18,8 @@ GenericHumidifierTargetHumidityConfig = generic_humidifier_ns.struct(
 
 CONF_NORMAL_ACTION = "normal_action"
 CONF_ECO_ACTION = "eco_action"
-CONF_AWAY_ACTION = "away_action"
 CONF_BOOST_ACTION = "boost_action"
 CONF_COMFORT_ACTION = "comfort_action"
-CONF_HOME_ACTION = "home_action"
 CONF_SLEEP_ACTION = "sleep_action"
 CONF_AUTO_ACTION = "auto_action"
 CONF_BABY_ACTION = "baby_action"
@@ -36,12 +34,10 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_ECO_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_AWAY_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_BOOST_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_COMFORT_ACTION): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_HOME_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_SLEEP_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_AUTO_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_BABY_ACTION): automation.validate_automation(single=True),
@@ -50,10 +46,8 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(
         CONF_NORMAL_ACTION,
         CONF_ECO_ACTION,
-        CONF_AWAY_ACTION,
         CONF_BOOST_ACTION,
         CONF_COMFORT_ACTION,
-        CONF_HOME_ACTION,
         CONF_SLEEP_ACTION,
         CONF_AUTO_ACTION,
         CONF_BABY_ACTION,
@@ -82,11 +76,6 @@ async def to_code(config):
     if eco_action_config := config.get(CONF_ECO_ACTION):
         await automation.build_automation(var.get_eco_trigger(), [], eco_action_config)
         cg.add(var.set_supports_eco(True))
-    if away_action_config := config.get(CONF_AWAY_ACTION):
-        await automation.build_automation(
-            var.get_away_trigger(), [], away_action_config
-        )
-        cg.add(var.set_supports_away(True))
     if boost_action_config := config.get(CONF_BOOST_ACTION):
         await automation.build_automation(
             var.get_boost_trigger(), [], boost_action_config
@@ -97,11 +86,6 @@ async def to_code(config):
             var.get_comfort_trigger(), [], comfort_action_config
         )
         cg.add(var.set_supports_comfort(True))
-    if home_action_config := config.get(CONF_HOME_ACTION):
-        await automation.build_automation(
-            var.get_home_trigger(), [], home_action_config
-        )
-        cg.add(var.set_supports_home(True))
     if sleep_action_config := config.get(CONF_SLEEP_ACTION):
         await automation.build_automation(
             var.get_sleep_trigger(), [], sleep_action_config

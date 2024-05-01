@@ -27,14 +27,10 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
   void set_supports_normal(bool supports_normal);
   Trigger<> *get_eco_trigger() const;
   void set_supports_eco(bool supports_eco);
-  Trigger<> *get_away_trigger() const;
-  void set_supports_away(bool supports_away);
   Trigger<> *get_boost_trigger() const;
   void set_supports_boost(bool supports_boost);
   Trigger<> *get_comfort_trigger() const;
   void set_supports_comfort(bool supports_comfort);
-  Trigger<> *get_home_trigger() const;
-  void set_supports_home(bool supports_home);
   Trigger<> *get_sleep_trigger() const;
   void set_supports_sleep(bool supports_sleep);
   Trigger<> *get_auto_trigger() const;
@@ -74,14 +70,6 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
    */
   bool supports_eco_{false};
 
-  /** The trigger to call when the controller should switch to away mode.
-   */
-  Trigger<> *away_trigger_;
-  /** Whether the controller supports away mode.
-   * A false value for this attribute means that the controller has no away mode action
-   */
-  bool supports_away_{false};
-
   /** The trigger to call when the controller should switch to boost mode.
    */
   Trigger<> *boost_trigger_;
@@ -97,14 +85,6 @@ class GenericHumidifier : public humidifier::Humidifier, public Component {
    * A false value for this attribute means that the controller has no comfort mode action.
    */
   bool supports_comfort_{false};
-
-  /** The trigger to call when the controller should switch to home mode.
-   */
-  Trigger<> *home_trigger_;
-  /** Whether the controller supports home mode.
-   * A false value for this attribute means that the controller has no home mode action
-   */
-  bool supports_home_{false};
 
   /** The trigger to call when the controller should switch to sleep mode.
    */
