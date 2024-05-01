@@ -591,6 +591,24 @@ bool APIServerConnectionBase::send_valve_state_response(const ValveStateResponse
 #endif
 #ifdef USE_VALVE
 #endif
+#ifdef USE_DATETIME_DATETIME
+bool APIServerConnectionBase::send_list_entities_date_time_response(const ListEntitiesDateTimeResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_date_time_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesDateTimeResponse>(msg, 112);
+}
+#endif
+#ifdef USE_DATETIME_DATETIME
+bool APIServerConnectionBase::send_date_time_state_response(const DateTimeStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_date_time_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<DateTimeStateResponse>(msg, 113);
+}
+#endif
+#ifdef USE_DATETIME_DATETIME
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -1067,6 +1085,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 114: {
+#ifdef USE_DATETIME_DATETIME
+      DateTimeCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_date_time_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_date_time_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1377,6 +1406,19 @@ void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg)
     return;
   }
   this->time_command(msg);
+}
+#endif
+#ifdef USE_DATETIME_DATETIME
+void APIServerConnection::on_date_time_command_request(const DateTimeCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->datetime_command(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
