@@ -3,7 +3,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/spi/spi.h"
 
 namespace esphome {
 namespace ili9xxx {
