@@ -1013,7 +1013,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
-#endif
+#endif  // USE_NEXTION_TFT_UPLOAD
 
   void dump_config() override;
 
@@ -1142,6 +1142,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Sends commands ignoring of the Nextion has been setup.
    */
   bool ignore_is_setup_ = false;
+
   bool nextion_reports_is_setup_ = false;
   uint8_t nextion_event_;
 
@@ -1182,7 +1183,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
-#endif
+#endif  // USE_ESP8266
   std::string tft_url_;
   uint32_t content_length_ = 0;
   int tft_size_ = 0;
@@ -1193,11 +1194,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
-   * @param HTTPClient http HTTP client handler.
+   * @param HTTPClient http_client HTTP client handler.
    * @param int range_start Position of next byte to transfer.
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
+#elif defined(USE_ESP_IDF)
+  /**
+   * will request 4096 bytes chunks from the web server
+   * and send each to Nextion
+   * @param esp_http_client_handle_t http_client HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
+#endif  // ARDUINO vs USE_ESP_IDF
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1207,24 +1218,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_end_(bool successful);
 
-#elif defined(USE_ESP_IDF)
-  /**
-   * will request 4096 bytes chunks from the web server
-   * and send each to Nextion
-   * @param std::string url Full url for download.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_range(const std::string &url, int range_start);
-
-  /**
-   * Ends the upload process, restart Nextion and, if successful,
-   * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
-   */
-  bool upload_end(bool successful);
-#endif  // ARDUINO vs USE_ESP_IDF
   /**
    * Returns the ESP Free Heap memory. This is framework independent.
    * @return Free Heap in bytes.
@@ -1260,7 +1253,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef NEXTION_PROTOCOL_LOG
   void print_queue_members_();
-#endif
+#endif  // NEXTION_PROTOCOL_LOG
   void reset_(bool reset_nextion = true);
 
   std::string command_data_;
