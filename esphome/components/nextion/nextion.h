@@ -976,6 +976,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return Whether the send was successful.
    */
   bool send_command(const char *command);
+
   /**
    * Manually send a raw formatted command to the display.
    * @param format The printf-style command format, like "vis %s,0"
@@ -989,17 +990,30 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Set the tft file URL. https seems problematic with arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
-#endif
 
   /**
-   * Upload the tft file and soft reset Nextion
+   * @brief Uploads the TFT file to the Nextion display.
+   *
+   * This function initiates the upload of a TFT file to the Nextion display. Users can specify a target baud rate for
+   * the transfer. If the provided baud rate is not supported by Nextion, the function defaults to using the current
+   * baud rate set for the display. If no baud rate is specified (or if 0 is passed), the current baud rate is used.
+   *
+   * Supported baud rates are: 2400, 4800, 9600, 19200, 31250, 38400, 57600, 115200, 230400, 250000, 256000, 512000
+   * and 921600. Selecting a baud rate supported by both the Nextion display and the host hardware is essential for
+   * ensuring a successful upload process.
+   *
+   * @param baud_rate The desired baud rate for the TFT file transfer, specified as an unsigned 32-bit integer.
+   * If the specified baud rate is not supported, or if 0 is passed, the function will use the current baud rate.
+   * The default value is 0, which implies using the current baud rate.
    * @param exit_reparse If true, the function exits reparse mode before uploading the TFT file. This parameter
    * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
    * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
    * the display properly processes the uploaded file command.
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool upload_tft(bool exit_reparse = true);
+  bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
+
+#endif
 
   void dump_config() override;
 
@@ -1122,6 +1136,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void all_components_send_state_(bool force_update = false);
   uint64_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+
   /**
    * @brief
    * Sends commands ignoring of the Nextion has been setup.
@@ -1163,20 +1178,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void check_pending_waveform_();
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-  uint32_t content_length_ = 0;
-  int tft_size_ = 0;
-  uint32_t original_baud_rate_ = 0;
-  bool upload_first_chunk_sent_ = false;
-
-  std::string tft_url_;
-  uint8_t *transfer_buffer_{nullptr};
-  size_t transfer_buffer_size_;
-
 #ifdef USE_ESP8266
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
 #endif
+  std::string tft_url_;
+  uint32_t content_length_ = 0;
+  int tft_size_ = 0;
+  uint32_t original_baud_rate_ = 0;
+  bool upload_first_chunk_sent_ = false;
 
 #ifdef ARDUINO
   /**
@@ -1186,18 +1197,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param int range_start Position of next byte to transfer.
    * @return position of last byte transferred, -1 for failure.
    */
-  int upload_by_chunks_(HTTPClient *http, int range_start);
+  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
 
-  bool upload_with_range_(uint32_t range_start, uint32_t range_end);
-
-  /**
-   * start update tft file to nextion.
-   *
-   * @param const uint8_t *file_buf
-   * @param size_t buf_size
-   * @return true if success, false for failure.
-   */
-  bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
@@ -1205,6 +1206,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
+
 #elif defined(USE_ESP_IDF)
   /**
    * will request 4096 bytes chunks from the web server
@@ -1214,6 +1216,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_range(const std::string &url, int range_start);
+
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
@@ -1221,7 +1224,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end(bool successful);
-#endif  // ARDUINO vs ESP-IDF
+#endif  // ARDUINO vs USE_ESP_IDF
+  /**
+   * Returns the ESP Free Heap memory. This is framework independent.
+   * @return Free Heap in bytes.
+   */
+  uint32_t get_free_heap_();
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
