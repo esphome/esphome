@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.core import CORE
 
 from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM, CONF_TRIGGER_ID
 
@@ -66,3 +67,35 @@ BASE_OTA_SCHEMA = cv.Schema(
         ),
     }
 )
+
+
+async def ota_to_code(var, config):
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("Update", None)
+
+    if CORE.is_rp2040 and CORE.using_arduino:
+        cg.add_library("Updater", None)
+
+    use_state_callback = False
+    for conf in config.get(CONF_ON_STATE_CHANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(OTAState, "state")], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_BEGIN, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_PROGRESS, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(float, "x")], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_END, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_ERROR, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
+        use_state_callback = True
+    if use_state_callback:
+        cg.add_define("USE_OTA_STATE_CALLBACK")

@@ -1,8 +1,7 @@
 from esphome.cpp_generator import RawExpression
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.components import ota
+from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
 from esphome.const import (
     CONF_ID,
     CONF_NUM_ATTEMPTS,
@@ -11,7 +10,6 @@ from esphome.const import (
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
-    CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_PAST_SAFE_MODE,
 )
@@ -23,7 +21,7 @@ AUTO_LOAD = ["md5", "socket"]
 DEPENDENCIES = ["network"]
 
 esphome = cg.esphome_ns.namespace("esphome")
-ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", ota.OTAComponent)
+ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
 
 
 CONFIG_SCHEMA = (
@@ -47,7 +45,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
         }
     )
-    .extend(ota.BASE_OTA_SCHEMA)
+    .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
 
@@ -57,6 +55,7 @@ async def to_code(config):
     CORE.data[CONF_OTA] = {}
 
     var = cg.new_Pvariable(config[CONF_ID])
+    await ota_to_code(var, config)
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add_define("USE_OTA")
     if CONF_PASSWORD in config:
@@ -72,33 +71,3 @@ async def to_code(config):
         )
         cg.add(RawExpression(f"if ({condition}) return"))
         CORE.data[CONF_OTA][KEY_PAST_SAFE_MODE] = True
-
-    if CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Update", None)
-
-    if CORE.is_rp2040 and CORE.using_arduino:
-        cg.add_library("Updater", None)
-
-    use_state_callback = False
-    for conf in config.get(ota.CONF_ON_STATE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(ota.OTAState, "state")], conf)
-        use_state_callback = True
-    for conf in config.get(ota.CONF_ON_BEGIN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(ota.CONF_ON_PROGRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-        use_state_callback = True
-    for conf in config.get(ota.CONF_ON_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(ota.CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
-        use_state_callback = True
-    if use_state_callback:
-        cg.add_define("USE_OTA_STATE_CALLBACK")
