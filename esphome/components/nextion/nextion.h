@@ -1179,30 +1179,34 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void check_pending_waveform_();
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-  uint32_t content_length_ = 0;
-  int tft_size_ = 0;
-  uint32_t original_baud_rate_ = 0;
-  bool upload_first_chunk_sent_ = false;
-
-  std::string tft_url_;
-  uint8_t *transfer_buffer_{nullptr};
-  size_t transfer_buffer_size_;
-
 #ifdef USE_ESP8266
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
 #endif  // USE_ESP8266
+  std::string tft_url_;
+  uint32_t content_length_ = 0;
+  int tft_size_ = 0;
+  uint32_t original_baud_rate_ = 0;
+  bool upload_first_chunk_sent_ = false;
 
 #ifdef ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
-   * @param HTTPClient http HTTP client handler.
+   * @param HTTPClient http_client HTTP client handler.
    * @param int range_start Position of next byte to transfer.
    * @return position of last byte transferred, -1 for failure.
    */
-  int upload_by_chunks_(HTTPClient *http, int range_start);
+  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
+
+  /**
+   * Ends the upload process, restart Nextion and, if successful,
+   * restarts ESP
+   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   */
+  bool upload_end_(bool successful);
 
 #elif defined(USE_ESP_IDF)
   /**
@@ -1214,6 +1218,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
 #endif  // ARDUINO vs ESP-IDF
+
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
@@ -1221,6 +1226,14 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
+  bool upload_end(bool successful);
+#endif  // ARDUINO vs USE_ESP_IDF
+  /**
+   * Returns the ESP Free Heap memory. This is framework independent.
+   * @return Free Heap in bytes.
+   */
+  uint32_t get_free_heap_();
+
 #endif  // USE_NEXTION_TFT_UPLOAD
 
   bool get_is_connected_() { return this->is_connected_; }
