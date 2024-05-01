@@ -35,6 +35,7 @@
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
+#define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_DATETIME
 #define USE_DATETIME_DATE
@@ -78,10 +79,12 @@
 
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#define USE_ESP32_BLE
 #define USE_ESP32_BLE_CLIENT
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
 #define USE_IMPROV
+#define USE_PSRAM
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_WIFI_11KV_SUPPORT
 #define USE_BLUETOOTH_PROXY
