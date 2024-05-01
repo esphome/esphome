@@ -133,10 +133,8 @@ void GenericHumidifier::set_normal_config(const GenericHumidifierTargetHumidityC
 GenericHumidifier::GenericHumidifier()
     : normal_trigger_(new Trigger<>()),
       eco_trigger_(new Trigger<>()),
-      away_trigger_(new Trigger<>()),
       boost_trigger_(new Trigger<>()),
       comfort_trigger_(new Trigger<>()),
-      home_trigger_(new Trigger<>()),
       sleep_trigger_(new Trigger<>()),
       auto_trigger_(new Trigger<>()),
       baby_trigger_(new Trigger<>()) {}
