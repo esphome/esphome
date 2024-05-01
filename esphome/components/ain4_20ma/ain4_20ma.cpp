@@ -17,13 +17,10 @@ void Ain4_20maComponent::update() {
   uint8_t data[2];
 
   i2c::I2CDevice::ErrorCode err = this->read_register(0x20, &current, 2, true);
-  if (err != i2c::I2CDevice::ERROR_OK) 
-  {
+  if (err != i2c::I2CDevice::ERROR_OK) {
     ESP_LOGE(TAG, "Error reading data from AIN4-20mA");
     this->publish_state(NAN);
-  } 
-  else 
-  {
+  } else {
     uint16_t value;
     value = data[0] | (data[1] << 8);
     this->publish_state(value);

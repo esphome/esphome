@@ -7,7 +7,6 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
-CODEOWNERS = ["@erikveg"]
 
 ain4_20ma_ns = cg.esphome_ns.namespace("ain4_20ma")
 
@@ -26,6 +25,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(default_address=0x55))
 )
+
 
 async def to_code(config):
     var = await sensor.new_sensor(config)
