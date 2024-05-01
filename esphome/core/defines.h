@@ -65,7 +65,6 @@
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
 #define USE_CAPTIVE_PORTAL
-#define USE_NEXTION_TFT_UPLOAD
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
 #define USE_WEBSERVER_PORT 80  // NOLINT
