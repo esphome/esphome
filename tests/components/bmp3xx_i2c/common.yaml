@@ -1,10 +1,11 @@
 i2c:
   - id: i2c_bmp3xx
-    scl: 5
-    sda: 4
+    scl: ${scl_pin}
+    sda: ${sda_pin}
 
 sensor:
-  - platform: bmp3xx
+  - platform: bmp3xx_i2c
+    i2c_id: i2c_bmp3xx
     address: 0x77
     temperature:
       name: BMP Temperature
