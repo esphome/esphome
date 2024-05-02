@@ -23,7 +23,9 @@ class FileResource:
     resource: str
 
     def path(self) -> ContextManager[Path]:
-        return importlib.resources.path(self.package, self.resource)
+        return importlib.resources.as_file(
+            importlib.resources.files(self.package) / self.resource
+        )
 
 
 class ComponentManifest:
@@ -56,6 +58,10 @@ class ComponentManifest:
     @property
     def multi_conf(self) -> bool:
         return getattr(self.module, "MULTI_CONF", False)
+
+    @property
+    def multi_conf_no_default(self) -> bool:
+        return getattr(self.module, "MULTI_CONF_NO_DEFAULT", False)
 
     @property
     def to_code(self) -> Optional[Callable[[Any], None]]:
@@ -97,10 +103,15 @@ class ComponentManifest:
         loaded .py file (does not look through subdirectories)
         """
         ret = []
-        for resource in importlib.resources.contents(self.package):
+
+        for resource in (
+            r.name
+            for r in importlib.resources.files(self.package).iterdir()
+            if r.is_file()
+        ):
             if Path(resource).suffix not in SOURCE_FILE_EXTENSIONS:
                 continue
-            if not importlib.resources.is_resource(self.package, resource):
+            if not importlib.resources.files(self.package).joinpath(resource).is_file():
                 # Not a resource = this is a directory (yeah this is confusing)
                 continue
             ret.append(FileResource(self.package, resource))

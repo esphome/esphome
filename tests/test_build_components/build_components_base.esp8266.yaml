@@ -1,0 +1,15 @@
+esphome:
+  name: componenttestesp8266
+  friendly_name: $component_name
+
+esp8266:
+  board: d1_mini
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file
