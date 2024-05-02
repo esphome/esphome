@@ -10,13 +10,13 @@ DEPENDENCIES = ["i2c"]
 
 ain4_20ma_ns = cg.esphome_ns.namespace("ain4_20ma")
 
-Ain4_20maComponent = ain4_20ma_ns.class_(
-    "Ain4_20maComponent", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
+Ain420maComponent = ain4_20ma_ns.class_(
+    "Ain420maComponent", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        Ain4_20maComponent,
+        Ain420maComponent,
         unit_of_measurement="mA",
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_CURRENT,

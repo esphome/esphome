@@ -5,7 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace ain420ma {
+namespace ain4_20ma {
 
 class Ain420maComponent : public i2c::I2CDevice, public PollingComponent, public sensor::Sensor {
  public:
@@ -14,5 +14,5 @@ class Ain420maComponent : public i2c::I2CDevice, public PollingComponent, public
   void update() override;
 };
 
-}  // namespace ain420ma
+}  // namespace ain4_20ma
 }  // namespace esphome

@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace ain420ma {
+namespace ain4_20ma {
 
 static const char *const TAG = "ain4_20ma";
 
@@ -27,5 +27,5 @@ void Ain420maComponent::update() {
   }
 }
 
-}  // namespace ain420ma
+}  // namespace ain4_20ma
 }  // namespace esphome
