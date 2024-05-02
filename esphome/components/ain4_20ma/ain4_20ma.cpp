@@ -1,5 +1,6 @@
 #include "ain4_20ma.h"
 #include "esphome/core/log.h"
+#include "esphome/components/i2c/i2c_bus.h"
 
 namespace esphome {
 namespace ain4_20ma {
