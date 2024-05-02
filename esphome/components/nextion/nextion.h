@@ -1226,12 +1226,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /**
    * @brief Closes the HTTP client and cleans up resources.
-   * 
+   *
    * This function abstracts the details of closing an HTTP client across different platforms.
    * For Arduino, it simply ends the connection using the `end()` method of the HttpClient class.
    * For ESP-IDF, it first closes the HTTP connection using `esp_http_client_close()` and then
    * cleans up the allocated resources using `esp_http_client_cleanup()`.
-   * 
+   *
    * Usage of this function makes the code cleaner and reduces duplication across different parts
    * of the project where HTTP client needs to be closed.
    *
@@ -1239,11 +1239,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * depends on the platform:
    * - Arduino: HttpClient type from the ArduinoHttpClient library.
    * - ESP-IDF: esp_http_client_handle_t from the ESP HTTP Client library.
-   * 
+   *
    * @note Ensure that the HTTP client is initialized and not NULL before calling this function
    * to avoid runtime errors.
    */
-  void close_http_client_(auto& http_client);
+  void close_http_client_(auto &http_client);
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 

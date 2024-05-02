@@ -33,7 +33,7 @@ inline uint32_t Nextion::get_free_heap_() {
 
 #ifdef ARDUINO
 int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
-#else  // ESP-IDF
+#else   // ESP-IDF
 int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start) {
 #endif  // ARDUINO vs ESP-IDF
   uint32_t range_size = this->tft_size_ - range_start;
@@ -57,7 +57,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     ESP_LOGW(TAG, "HTTP Request failed; Error: %s", HTTPClient::errorToString(code).c_str());
     return -1;
   }
-#else  // ESP-IDF
+#else   // ESP-IDF
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Opening HTTP connetion");
   esp_err_t err;
@@ -104,7 +104,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
         }
       }
     }
-#else  // ESP-IDF
+#else   // ESP-IDF
     while (retries < 5 && read_len < buffer_size) {
       partial_read_len =
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
@@ -320,7 +320,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   std::string content_range_string = http_client.header("Content-Range");
   content_range_string.remove(0, 12);
   this->tft_size_ = content_range_string.toInt();
-#else  // ESP-IDF
+#else   // ESP-IDF
   this->tft_size_ = esp_http_client_get_content_length(http_client);
 #endif
 
@@ -423,11 +423,11 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   return upload_end_(true);
 }
 
-void Nextion::close_http_client_(auto& http_client) {
+void Nextion::close_http_client_(auto &http_client) {
   ESP_LOGD(TAG, "Close HTTP connection");
 #ifdef ARDUINO
   http_client.end();
-#else  // ESP-IDF
+#else   // ESP-IDF
   esp_http_client_close(http_client);
   esp_http_client_cleanup(http_client);
 #endif
