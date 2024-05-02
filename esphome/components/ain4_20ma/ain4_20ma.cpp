@@ -2,18 +2,18 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace ain4_20ma {
+namespace ain420ma {
 
 static const char *const TAG = "ain4_20ma";
 
-void Ain4_20maComponent::dump_config() {
+void Ain420maComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "AIN4-20mA Sensor:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Sensor:", this);
 }
 
-void Ain4_20maComponent::update() {
+void Ain420maComponent::update() {
   uint8_t data[2];
 
   i2c::ErrorCode err = this->read_register(0x20, data, 2);
@@ -27,5 +27,5 @@ void Ain4_20maComponent::update() {
   }
 }
 
-}  // namespace ain4_20ma
+}  // namespace ain420ma
 }  // namespace esphome
