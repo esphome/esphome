@@ -9,10 +9,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace bmp3xx {
+namespace bmp3xx_base {
 
 static const uint8_t BMP388_ID = 0x50;   // The BMP388 device ID
 static const uint8_t BMP390_ID = 0x60;   // The BMP390 device ID
@@ -69,8 +68,8 @@ enum IIRFilter {
   IIR_FILTER_128 = 0x07
 };
 
-/// This class implements support for the BMP3XX Temperature+Pressure i2c sensor.
-class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
+/// This class implements support for the BMP3XX Temperature+Pressure sensor.
+class BMP3XXComponent : public PollingComponent {
  public:
   void setup() override;
   void dump_config() override;
@@ -231,7 +230,13 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   float bmp388_compensate_temperature_(float uncomp_temp);
   // Bosch pressure compensation function
   float bmp388_compensate_pressure_(float uncomp_press, float t_lin);
+
+  // interface specific functions
+  virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
+  virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool write_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
 };
 
-}  // namespace bmp3xx
+}  // namespace bmp3xx_base
 }  // namespace esphome
