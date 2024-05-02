@@ -105,6 +105,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
       }
     }
 #else  // ESP-IDF
+    uint8_t retries = 0;
     while (retries < 5 && read_len < buffer_size) {
       partial_read_len =
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
@@ -228,6 +229,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG, "Initializing HTTP client");
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
+
 #ifdef ARDUINO
   HTTPClient http_client;
   http_client.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
@@ -274,7 +276,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     http_status_code = http_client.GET();
     ++tries;
   }
-#elif   // ESP-IDF
+#else   // ESP-IDF
   esp_http_client_config_t config = {
       .url = this->tft_url_.c_str(),
       .cert_pem = nullptr,
