@@ -17,14 +17,14 @@ CONF_ON_PROGRESS = "on_progress"
 CONF_ON_STATE_CHANGE = "on_state_change"
 
 
-ota = cg.esphome_ns.namespace("ota")
-OTAComponent = ota.class_("OTAComponent", cg.Component)
-OTAState = ota.enum("OTAState")
-OTAEndTrigger = ota.class_("OTAEndTrigger", automation.Trigger.template())
-OTAErrorTrigger = ota.class_("OTAErrorTrigger", automation.Trigger.template())
-OTAProgressTrigger = ota.class_("OTAProgressTrigger", automation.Trigger.template())
-OTAStartTrigger = ota.class_("OTAStartTrigger", automation.Trigger.template())
-OTAStateChangeTrigger = ota.class_(
+ota_ns = cg.esphome_ns.namespace("ota")
+OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
+OTAState = ota_ns.enum("OTAState")
+OTAEndTrigger = ota_ns.class_("OTAEndTrigger", automation.Trigger.template())
+OTAErrorTrigger = ota_ns.class_("OTAErrorTrigger", automation.Trigger.template())
+OTAProgressTrigger = ota_ns.class_("OTAProgressTrigger", automation.Trigger.template())
+OTAStartTrigger = ota_ns.class_("OTAStartTrigger", automation.Trigger.template())
+OTAStateChangeTrigger = ota_ns.class_(
     "OTAStateChangeTrigger", automation.Trigger.template()
 )
 
