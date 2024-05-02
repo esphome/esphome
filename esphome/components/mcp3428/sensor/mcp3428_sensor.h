@@ -21,11 +21,14 @@ class MCP3428Sensor : public sensor::Sensor,
   void set_multiplexer(MCP3428Multiplexer multiplexer) { this->multiplexer_ = multiplexer; }
   void set_gain(MCP3428Gain gain) { this->gain_ = gain; }
   void set_resolution(MCP3428Resolution resolution) { this->resolution_ = resolution; }
+  // the sample function should ONLY be used when one channel is read in continuous mode or 12 bit conversion is used as
+  // it blocks!
   float sample() override;
 
   void dump_config() override;
 
  protected:
+  int initial_measurement_request_ms_;
   MCP3428Multiplexer multiplexer_;
   MCP3428Gain gain_;
   MCP3428Resolution resolution_;

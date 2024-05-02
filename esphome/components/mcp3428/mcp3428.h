@@ -27,6 +27,10 @@ enum MCP3428Resolution {
   MCP3428_16_BITS = 0b10,
 };
 
+static const uint32_t MEASUREMENT_TIME_12BIT_MS = 5;
+static const uint32_t MEASUREMENT_TIME_14BIT_MS = 17;
+static const uint32_t MEASUREMENT_TIME_16BIT_MS = 67;
+
 class MCP3428Component : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -35,12 +39,24 @@ class MCP3428Component : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_continuous_mode(bool continuous_mode) { continuous_mode_ = continuous_mode; }
 
-  /// Helper method to request a measurement from a sensor.
-  float request_measurement(MCP3428Multiplexer multiplexer, MCP3428Gain gain, MCP3428Resolution resolution);
+  // Helper method to request a measurement from a sensor. Returns true if measurement is started and false if sensor is
+  // busy. Due to asyncronous measurement will return a best guess as to the necessary wait time for either request
+  // retry or polling.
+  bool request_measurement(MCP3428Multiplexer multiplexer, MCP3428Gain gain, MCP3428Resolution resolution,
+                           uint32_t &timeout_wait);
+  // poll component for a measurement. Returns true if value is available and sets voltage to the result.
+  bool poll_result(float &voltage);
+
+  void abandon_current_measurement() { single_measurement_active_ = false; }
 
  protected:
+  float convert_anwser_to_voltage(uint8_t *anwser);
+
   uint8_t prev_config_{0};
+  uint32_t last_config_write_ms_{0};
   bool continuous_mode_;
+
+  bool single_measurement_active_;
 };
 
 }  // namespace mcp3428

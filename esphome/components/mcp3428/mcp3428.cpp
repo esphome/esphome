@@ -44,6 +44,7 @@ void MCP3428Component::setup() {
     return;
   }
   this->prev_config_ = config;
+  single_measurement_active_ = false;
 }
 
 void MCP3428Component::dump_config() {
@@ -54,8 +55,14 @@ void MCP3428Component::dump_config() {
   }
 }
 
-float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3428Gain gain,
-                                            MCP3428Resolution resolution) {
+bool MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3428Gain gain,
+                                           MCP3428Resolution resolution, uint32_t &timeout_wait) {
+  if (single_measurement_active_) {
+    timeout_wait = MEASUREMENT_TIME_16BIT_MS;  // maximum time
+    return false;
+  }
+
+  // calculate config byte
   uint8_t config = 0;
   // set ready bit to 1, will starts measurement in single shot mode and mark measurement as not yet ready in continuous
   // mode
@@ -71,39 +78,68 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
   // set gain
   config |= gain;
 
+  // find measurement wait time
+  switch (resolution) {
+    case MCP3428Resolution::MCP3428_12_BITS:
+      timeout_wait = MEASUREMENT_TIME_12BIT_MS;
+      break;
+    case MCP3428Resolution::MCP3428_14_BITS:
+      timeout_wait = MEASUREMENT_TIME_14BIT_MS;
+      break;
+    default:
+      timeout_wait = MEASUREMENT_TIME_16BIT_MS;
+      break;
+  }
+
   // If continuous mode and config (besides ready bit) are the same there is no need to upload new config, reading the
-  // result is enough
-  if (!((this->prev_config_ & 0b00010000) > 0 and (this->prev_config_ & 0b01111111) == (config & 0b01111111))) {
+  // result should be enough
+  if ((this->prev_config_ & 0b00010000) != 0 and (this->prev_config_ & 0b01111111) == (config & 0b01111111)) {
+    if (millis() - this->last_config_write_ms_ > timeout_wait) {
+      timeout_wait = 0;  // measurement probably immediately available
+    }
+  } else {
     if (this->write(&config, 1) != i2c::ErrorCode::NO_ERROR) {
-      this->status_set_warning();
-      return NAN;
+      this->status_set_warning("Error writing configuration to chip.");
+      timeout_wait = 1000;
+      single_measurement_active_ = false;
+      return false;
     }
     this->prev_config_ = config;
+    this->last_config_write_ms_ = millis();
   }
 
-  // MCP is now configured, read output until ready flag is 0 for a valid measurement
-  uint32_t start = millis();
+  if (this->continuous_mode_) {
+    this->single_measurement_active_ = false;
+  } else {
+    this->single_measurement_active_ = true;
+  }
+  return true;
+}
+
+bool MCP3428Component::poll_result(float &voltage) {
   uint8_t anwser[3];
-  while (true) {
-    if (this->read(anwser, 3) != i2c::ErrorCode::NO_ERROR) {
-      this->status_set_warning();
-      return NAN;
-    }
-    if ((anwser[2] & 0b10000000) == 0) {
-      // ready flag is 0, valid measurement received
-      break;
-    }
-    if (millis() - start > 100) {
-      ESP_LOGW(TAG, "Reading MCP3428 measurement timed out");
-      this->status_set_warning();
-      return NAN;
-    }
-    yield();
+  voltage = NAN;
+  if (this->read(anwser, 3) != i2c::ErrorCode::NO_ERROR) {
+    this->status_set_warning("Communication error polling component");
+    return false;
   }
+  if ((anwser[2] & 0b10000000) == 0) {
+    // ready flag is 0, valid measurement received
+    voltage = this->convert_anwser_to_voltage(anwser);
+    single_measurement_active_ = false;
+    this->status_clear_warning();
+    return true;
+  } else {
+    return false;
+  }
+}
 
-  // got valid measurement prepare tick size
-  float tick_voltage = 2.048f / 32768;  // ref voltage 2.048V/non-sign bits, default 15 bits
-  switch (resolution) {
+float MCP3428Component::convert_anwser_to_voltage(uint8_t *anwser) {
+  uint8_t config_resolution = (this->prev_config_ >> 2) & 0b00000011;
+  uint8_t config_gain = this->prev_config_ & 0b00000011;
+
+  float tick_voltage = 2.048f / 32768;  // ref voltage 2.048V/non-sign bits, default 16 bits
+  switch (config_resolution) {
     case MCP3428Resolution::MCP3428_12_BITS:
       tick_voltage *= 16;
       break;
@@ -113,7 +149,7 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
     default:  // nothing to do for 16 bit
       break;
   }
-  switch (gain) {
+  switch (config_gain) {
     case MCP3428Gain::MCP3428_GAIN_2:
       tick_voltage /= 2;
       break;
@@ -126,10 +162,9 @@ float MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP3
     default:
       break;
   }
+
   // convert code (first 2 bytes of cleaned up anwser) into voltage ticks
   int16_t ticks = anwser[0] << 8 | anwser[1];
-
-  this->status_clear_warning();
   return tick_voltage * ticks;
 }
 
