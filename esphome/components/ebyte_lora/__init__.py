@@ -134,6 +134,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SUB_PACKET, default="SUB_200B"): cv.enum(
                 SUB_PACKET_OPTIONS, upper=True
             ),
+            cv.Optional(CONF_TRANSMISSION_MODE, default="TRANSPARENT"): cv.enum(
+                TRANSMISSION_MODE_OPTIONS, upper=True
+            ),
             cv.Optional(CONF_TRANSMISSION_POWER, default="TX_DEFAULT_MAX"): cv.enum(
                 TRANSMISSION_POWER_OPTIONS, upper=True
             ),
