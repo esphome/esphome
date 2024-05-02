@@ -4,8 +4,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-static const char *const TAG = "AIN4-20mA";
-
 namespace esphome {
 namespace ain4_20ma {
 
