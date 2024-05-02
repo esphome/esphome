@@ -104,7 +104,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
         }
       }
     }
-#else   // ESP-IDF
+#else  // ESP-IDF
     while (retries < 5 && read_len < buffer_size) {
       partial_read_len =
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
@@ -274,7 +274,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     http_status_code = http_client.GET();
     ++tries;
   }
-#elif  // ESP-IDF
+#elif   // ESP-IDF
   esp_http_client_config_t config = {
       .url = this->tft_url_.c_str(),
       .cert_pem = nullptr,
@@ -322,7 +322,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   this->tft_size_ = content_range_string.toInt();
 #else   // ESP-IDF
   this->tft_size_ = esp_http_client_get_content_length(http_client);
-#endif
+#endif  // ARDUINO vs ESP-IDF
 
   ESP_LOGD(TAG, "TFT file size: %zu bytes", this->tft_size_);
   if (this->tft_size_ < 4096) {
@@ -482,6 +482,5 @@ WiFiClient *Nextion::get_wifi_client_() {
 
 }  // namespace nextion
 }  // namespace esphome
-
 
 #endif  // USE_NEXTION_TFT_UPLOAD
