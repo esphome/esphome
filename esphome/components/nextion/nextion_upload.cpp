@@ -423,16 +423,20 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   return upload_end_(true);
 }
 
-void Nextion::close_http_client_(auto &http_client) {
-  ESP_LOGD(TAG, "Close HTTP connection");
 #ifdef ARDUINO
+void Nextion::close_http_client_(HttpClient &http_client) {
+  ESP_LOGD(TAG, "Close HTTP connection");
   http_client.end();
-#else   // ESP-IDF
-  esp_http_client_close(http_client);
-  esp_http_client_cleanup(http_client);
-#endif
   ESP_LOGV(TAG, "Connection closed");
 }
+#else   // ESP-IDF
+void Nextion::close_http_client_(esp_http_client_handle_t http_client) {
+  ESP_LOGD(TAG, "Close HTTP connection");
+  esp_http_client_close(http_client);
+  esp_http_client_cleanup(http_client);
+  ESP_LOGV(TAG, "Connection closed");
+}
+#endif  // ARDUINO vs ESP-IDF
 
 bool Nextion::upload_end_(bool successful) {
   ESP_LOGD(TAG, "Nextion TFT upload finished: %s", YESNO(successful));

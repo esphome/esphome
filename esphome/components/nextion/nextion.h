@@ -1243,7 +1243,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @note Ensure that the HTTP client is initialized and not NULL before calling this function
    * to avoid runtime errors.
    */
-  void close_http_client_(auto &http_client);
+#ifdef ARDUINO
+  void close_http_client_(HttpClient &http_client);
+#else   // ESP-IDF
+  void close_http_client_(esp_http_client_handle_t http_client);
+#endif  // ARDUINO vs ESP-IDF
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
