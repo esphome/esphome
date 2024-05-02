@@ -16,5 +16,5 @@ class Ain4_20maComponent : public i2c::I2CDevice, public PollingComponent, publi
   void update() override;
 };
 
-}  // namespace ain4_20ma 
+}  // namespace ain4_20ma
 }  // namespace esphome
