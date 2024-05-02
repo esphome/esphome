@@ -183,3 +183,25 @@ datetime:
             - x.hour
             - x.minute
             - x.second
+  - platform: template
+    name: DateTime
+    id: test_datetime
+    type: datetime
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "DateTime: %04d-%02d-%02d %02d:%02d:%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
+            - x.hour
+            - x.minute
+            - x.second
+
+time:
+  - platform: sntp  # Required for datetime
+
+wifi:  # Required for sntp time
+  ap:
