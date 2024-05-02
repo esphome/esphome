@@ -1,13 +1,13 @@
 #pragma once
 
+#include <iomanip>
 #include <map>
 #include <sstream>
-#include <iomanip>
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include "esphome/components/uart/uart.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -22,9 +22,6 @@
 #endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
-#endif
-#ifdef USE_API
-#include "esphome/components/api/custom_api_device.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -117,12 +114,7 @@ enum PeriodicDataStructure : uint8_t {
 enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
-// Use CustomAPIDevice if API is defined in YAML - used for service calls to set/reset zone
-#ifdef USE_API
-class LD2450Component : public Component, public uart::UARTDevice, public esphome::api::CustomAPIDevice {
-#else
 class LD2450Component : public Component, public uart::UARTDevice {
-#endif
 #ifdef USE_SENSOR
   SUB_SENSOR(target_count)
   SUB_SENSOR(still_target_count)
@@ -191,6 +183,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_zone_still_target_count_sensor(int zone, sensor::Sensor *s);
   void set_zone_moving_target_count_sensor(int zone, sensor::Sensor *s);
 #endif
+  void reset_radar_zone();
+  void set_radar_zone(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2, int32_t zone1_y2,
+                      int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
+                      int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
  protected:
   ESPPreferenceObject pref_;
@@ -207,14 +203,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void restart_();
   void send_set_zone_command_();
   void convert_int_values_to_hex_(const int *values, uint8_t *bytes);
-  void on_reset_radar_zone_();
   void save_to_flash_(float value);
   float restore_from_flash_();
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
-  void on_set_radar_zone_(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2, int32_t zone1_y2,
-                          int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
-                          int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
   int16_t decode_coordinate_(uint8_t low_byte, uint8_t high_byte) {
     int16_t coordinate = (high_byte & 0x7F) << 8 | low_byte;
     if ((high_byte & 0x80) == 0)

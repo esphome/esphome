@@ -28,27 +28,6 @@ void LD2450Component::setup() {
   ESP_LOGCONFIG(TAG, "Mac Address: %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "Firmware Version: %s", const_cast<char *>(this->version_.c_str()));
   ESP_LOGCONFIG(TAG, "HLK-LD2450 setup complete");
-#ifdef USE_API
-  ESP_LOGCONFIG(TAG, "Registering services");
-  CustomAPIDevice::register_service(&::esphome::ld2450::LD2450Component::on_set_radar_zone_, "set_radar_zone",
-                                    {
-                                        "zone_type",
-                                        "zone1_x1",
-                                        "zone1_y1",
-                                        "zone1_x2",
-                                        "zone1_y2",
-                                        "zone2_x1",
-                                        "zone2_y1",
-                                        "zone2_x2",
-                                        "zone2_y2",
-                                        "zone3_x1",
-                                        "zone3_y1",
-                                        "zone3_x2",
-                                        "zone3_y2",
-                                    });
-  CustomAPIDevice::register_service(&::esphome::ld2450::LD2450Component::on_reset_radar_zone_, "reset_radar_zone");
-  ESP_LOGCONFIG(TAG, "Services registration complete");
-#endif
 }
 
 void LD2450Component::dump_config() {
@@ -154,7 +133,7 @@ uint8_t LD2450Component::count_targets_in_zone_(const Zone &zone, bool is_moving
 }
 
 // Service reset_radar_zone
-void LD2450Component::on_reset_radar_zone_() {
+void LD2450Component::reset_radar_zone() {
   this->zone_type_ = 0;
   for (auto &i : zone_config_) {
     i.x1 = 0;
@@ -165,11 +144,10 @@ void LD2450Component::on_reset_radar_zone_() {
   this->send_set_zone_command_();
 }
 
-// Service set_radar_zone
-void LD2450Component::on_set_radar_zone_(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2,
-                                         int32_t zone1_y2, int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2,
-                                         int32_t zone2_y2, int32_t zone3_x1, int32_t zone3_y1, int32_t zone3_x2,
-                                         int32_t zone3_y2) {
+void LD2450Component::set_radar_zone(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2,
+                                     int32_t zone1_y2, int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2,
+                                     int32_t zone2_y2, int32_t zone3_x1, int32_t zone3_y1, int32_t zone3_x2,
+                                     int32_t zone3_y2) {
   this->zone_type_ = zone_type;
   int zone_parameters[12] = {zone1_x1, zone1_y1, zone1_x2, zone1_y2, zone2_x1, zone2_y1,
                              zone2_x2, zone2_y2, zone3_x1, zone3_y1, zone3_x2, zone3_y2};
