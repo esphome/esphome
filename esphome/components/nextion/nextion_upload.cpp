@@ -317,7 +317,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   }
 
 #ifdef ARDUINO
-  std::string content_range_string = http_client.header("Content-Range");
+  String content_range_string = http_client.header("Content-Range");
   content_range_string.remove(0, 12);
   this->tft_size_ = content_range_string.toInt();
 #else   // ESP-IDF
@@ -424,7 +424,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 }
 
 #ifdef ARDUINO
-void Nextion::close_http_client_(HttpClient &http_client) {
+void Nextion::close_http_client_(HTTPClient &http_client) {
   ESP_LOGD(TAG, "Close HTTP connection");
   http_client.end();
   ESP_LOGV(TAG, "Connection closed");

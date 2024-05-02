@@ -1237,14 +1237,14 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param http_client A reference to the HTTP client object. The exact type of this object
    * depends on the platform:
-   * - Arduino: HttpClient type from the ArduinoHttpClient library.
+   * - Arduino: HTTPClient type from the ArduinoHttpClient library.
    * - ESP-IDF: esp_http_client_handle_t from the ESP HTTP Client library.
    *
    * @note Ensure that the HTTP client is initialized and not NULL before calling this function
    * to avoid runtime errors.
    */
 #ifdef ARDUINO
-  void close_http_client_(HttpClient &http_client);
+  void close_http_client_(HTTPClient &http_client);
 #else   // ESP-IDF
   void close_http_client_(esp_http_client_handle_t http_client);
 #endif  // ARDUINO vs ESP-IDF
