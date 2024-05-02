@@ -31,6 +31,10 @@ TemplateTime = template_ns.class_(
     "TemplateTime", datetime.TimeEntity, cg.PollingComponent
 )
 
+TemplateDateTime = template_ns.class_(
+    "TemplateDateTime", datetime.DateTimeEntity, cg.PollingComponent
+)
+
 
 def validate(config):
     config = config.copy()
@@ -78,6 +82,13 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_INITIAL_VALUE): cv.date_time(allowed_date=False),
                 }
             ),
+            "DATETIME": datetime.datetime_schema(TemplateDateTime)
+            .extend(_BASE_SCHEMA)
+            .extend(
+                {
+                    cv.Optional(CONF_INITIAL_VALUE): cv.date_time(),
+                }
+            ),
         },
         upper=True,
     ),
@@ -116,6 +127,17 @@ async def to_code(config):
                     ("hour", initial_value[CONF_HOUR]),
                 )
                 cg.add(var.set_initial_value(time_struct))
+            elif config[CONF_TYPE] == "DATETIME":
+                datetime_struct = cg.StructInitializer(
+                    cg.ESPTime,
+                    ("second", initial_value[CONF_SECOND]),
+                    ("minute", initial_value[CONF_MINUTE]),
+                    ("hour", initial_value[CONF_HOUR]),
+                    ("day_of_month", initial_value[CONF_DAY]),
+                    ("month", initial_value[CONF_MONTH]),
+                    ("year", initial_value[CONF_YEAR]),
+                )
+                cg.add(var.set_initial_value(datetime_struct))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
