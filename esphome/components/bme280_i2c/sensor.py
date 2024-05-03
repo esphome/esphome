@@ -3,7 +3,6 @@ from esphome.components import i2c
 from ..bme280_base import to_code_base, cv, CONFIG_SCHEMA_BASE
 
 AUTO_LOAD = ["bme280_base"]
-CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["i2c"]
 
 bme280_ns = cg.esphome_ns.namespace("bme280_i2c")
