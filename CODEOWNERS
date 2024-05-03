@@ -63,7 +63,10 @@ esphome/components/bme280_base/* @esphome/core
 esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmi160/* @flaviut
-esphome/components/bmp3xx/* @martgras
+esphome/components/bmp3xx/* @latonita
+esphome/components/bmp3xx_base/* @latonita @martgras
+esphome/components/bmp3xx_i2c/* @latonita
+esphome/components/bmp3xx_spi/* @latonita
 esphome/components/bmp581/* @kahrendt
 esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
@@ -243,7 +246,7 @@ esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/ms8607/* @e28eta
 esphome/components/network/* @esphome/core
-esphome/components/nextion/* @senexcrenshaw
+esphome/components/nextion/* @edwardtfn @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
 esphome/components/nextion/sensor/* @senexcrenshaw
 esphome/components/nextion/switch/* @senexcrenshaw
