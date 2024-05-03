@@ -18,7 +18,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(
         Ain420maComponent,
         unit_of_measurement="mA",
-        accuracy_decimals=3,
+        accuracy_decimals=2,
         device_class=DEVICE_CLASS_CURRENT,
         state_class=STATE_CLASS_MEASUREMENT,
     )
