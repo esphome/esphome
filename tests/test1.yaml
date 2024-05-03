@@ -2112,10 +2112,6 @@ binary_sensor:
           1709,
         ]
   - platform: remote_receiver
-    id: hob2hood_light_on
-    hob2hood:
-      command: light_on
-  - platform: remote_receiver
     name: Coolix Test 1
     coolix: 0xB21F98
   - platform: remote_receiver
