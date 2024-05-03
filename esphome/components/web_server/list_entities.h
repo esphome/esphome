@@ -41,6 +41,15 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  bool on_date(datetime::DateEntity *date) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  bool on_time(datetime::TimeEntity *time) override;
+#endif
+#ifdef USE_DATETIME_DATETIME
+  bool on_datetime(datetime::DateTimeEntity *datetime) override;
+#endif
 #ifdef USE_TEXT
   bool on_text(text::Text *text) override;
 #endif
@@ -50,8 +59,14 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
+#ifdef USE_VALVE
+  bool on_valve(valve::Valve *valve) override;
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
+#endif
+#ifdef USE_EVENT
+  bool on_event(event::Event *event) override;
 #endif
 
  protected:

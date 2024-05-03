@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_sfa30
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: sfa30
+    formaldehyde:
+      name: "SFA30 formaldehyde"
+    temperature:
+      name: "SFA30 temperature"
+    humidity:
+      name: "SFA30 humidity"
+    address: 0x5D
+    update_interval: 30s
