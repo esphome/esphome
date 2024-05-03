@@ -42,8 +42,6 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x40))
 )
 
-
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -56,10 +54,10 @@ async def to_code(config):
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
-        
-    # if CONF_HEATER in config:
-    #     conf = config[CONF_HEATER]
-    #     if not conf:
-    #         cg.add(var.set_heater(0, 0))
-    #     else:
-    #         cg.add(var.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
+
+#if CONF_HEATER in config:
+#    conf = config[CONF_HEATER]
+#    if not conf:
+#        cg.add(var.set_heater(0, 0))
+#    else:
+#        cg.add(var.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
