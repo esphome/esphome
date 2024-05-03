@@ -24,7 +24,7 @@ void Ain420maComponent::update() {
     uint16_t value;
     value = data[0] | (data[1] << 8);
     float current;
-    current = value / 100;
+    current = value / 100.0;
     this->publish_state(current);
   }
 }
