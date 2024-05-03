@@ -69,7 +69,9 @@ def create_components_graph():
             sys.exit(1)
 
         for dependency in comp.dependencies:
-            add_item_to_components_graph(components_graph, dependency, name)
+            add_item_to_components_graph(
+                components_graph, dependency.split(".")[0], name
+            )
 
         for target_config in TARGET_CONFIGURATIONS:
             CORE.data[KEY_CORE] = target_config
@@ -87,7 +89,9 @@ def create_components_graph():
             add_item_to_components_graph(components_graph, platform_name, name)
 
             for dependency in platform.dependencies:
-                add_item_to_components_graph(components_graph, dependency, name)
+                add_item_to_components_graph(
+                    components_graph, dependency.split(".")[0], name
+                )
 
             for target_config in TARGET_CONFIGURATIONS:
                 CORE.data[KEY_CORE] = target_config
@@ -120,13 +124,22 @@ def main():
     parser.add_argument(
         "-c", "--changed", action="store_true", help="Only run on changed files"
     )
+    parser.add_argument(
+        "-b", "--branch", help="Branch to compare changed files against"
+    )
     args = parser.parse_args()
+
+    if args.branch and not args.changed:
+        parser.error("--branch requires --changed")
 
     files = git_ls_files()
     files = filter(filter_component_files, files)
 
     if args.changed:
-        changed = changed_files()
+        if args.branch:
+            changed = changed_files(args.branch)
+        else:
+            changed = changed_files()
         files = [f for f in files if f in changed]
 
     components = extract_component_names_array_from_files_array(files)

@@ -42,6 +42,17 @@ bool InitialStateIterator::on_number(number::Number *number) {
   return this->client_->send_number_state(number, number->state);
 }
 #endif
+#ifdef USE_DATETIME_DATE
+bool InitialStateIterator::on_date(datetime::DateEntity *date) { return this->client_->send_date_state(date); }
+#endif
+#ifdef USE_DATETIME_TIME
+bool InitialStateIterator::on_time(datetime::TimeEntity *time) { return this->client_->send_time_state(time); }
+#endif
+#ifdef USE_DATETIME_DATETIME
+bool InitialStateIterator::on_datetime(datetime::DateTimeEntity *datetime) {
+  return this->client_->send_datetime_state(datetime);
+}
+#endif
 #ifdef USE_TEXT
 bool InitialStateIterator::on_text(text::Text *text) { return this->client_->send_text_state(text, text->state); }
 #endif
@@ -52,6 +63,9 @@ bool InitialStateIterator::on_select(select::Select *select) {
 #endif
 #ifdef USE_LOCK
 bool InitialStateIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_state(a_lock, a_lock->state); }
+#endif
+#ifdef USE_VALVE
+bool InitialStateIterator::on_valve(valve::Valve *valve) { return this->client_->send_valve_state(valve); }
 #endif
 #ifdef USE_MEDIA_PLAYER
 bool InitialStateIterator::on_media_player(media_player::MediaPlayer *media_player) {

@@ -103,6 +103,7 @@ KEY_AUTHOR = "author"
 KEY_WEBSITE = "website"
 KEY_VERSION = "version"
 KEY_MICRO = "micro"
+KEY_MINIMUM_ESPHOME_VERSION = "minimum_esphome_version"
 
 MANIFEST_SCHEMA_V1 = cv.Schema(
     {
@@ -116,6 +117,9 @@ MANIFEST_SCHEMA_V1 = cv.Schema(
             {
                 cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
                 cv.Required(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+                cv.Optional(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
+                    cv.version_number, cv.validate_esphome_version
+                ),
             }
         ),
     }
@@ -283,7 +287,7 @@ def _load_model_data(manifest_path: Path):
     except cv.Invalid as e:
         raise EsphomeError(f"Invalid manifest file: {e}") from e
 
-    model_path = urljoin(str(manifest_path), manifest[CONF_MODEL])
+    model_path = manifest_path.parent / manifest[CONF_MODEL]
 
     with open(model_path, "rb") as f:
         model = f.read()
