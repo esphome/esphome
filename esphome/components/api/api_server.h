@@ -66,6 +66,15 @@ class APIServer : public Component, public Controller {
 #ifdef USE_NUMBER
   void on_number_update(number::Number *obj, float state) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  void on_date_update(datetime::DateEntity *obj) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  void on_time_update(datetime::TimeEntity *obj) override;
+#endif
+#ifdef USE_DATETIME_DATETIME
+  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+#endif
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
 #endif
@@ -74,6 +83,9 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;
+#endif
+#ifdef USE_VALVE
+  void on_valve_update(valve::Valve *obj) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
@@ -86,6 +98,9 @@ class APIServer : public Component, public Controller {
 
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+#endif
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
 #endif
 
   bool is_connected() const;

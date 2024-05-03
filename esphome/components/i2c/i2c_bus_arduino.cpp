@@ -24,7 +24,7 @@ void ArduinoI2CBus::setup() {
   }
   next_bus_num++;
 #elif defined(USE_ESP8266)
-  wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
+  wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
 #elif defined(USE_RP2040)
   static bool first = true;
   if (first) {
@@ -35,6 +35,16 @@ void ArduinoI2CBus::setup() {
   }
 #endif
 
+  this->set_pins_and_clock_();
+
+  this->initialized_ = true;
+  if (this->scan_) {
+    ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
+    this->i2c_scan_();
+  }
+}
+
+void ArduinoI2CBus::set_pins_and_clock_() {
 #ifdef USE_RP2040
   wire_->setSDA(this->sda_pin_);
   wire_->setSCL(this->scl_pin_);
@@ -42,18 +52,35 @@ void ArduinoI2CBus::setup() {
 #else
   wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
 #endif
-  wire_->setClock(frequency_);
-  initialized_ = true;
-  if (this->scan_) {
-    ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
-    this->i2c_scan_();
+  if (timeout_ > 0) {  // if timeout specified in yaml
+#if defined(USE_ESP32)
+    // https://github.com/espressif/arduino-esp32/blob/master/libraries/Wire/src/Wire.cpp
+    wire_->setTimeOut(timeout_ / 1000);  // unit: ms
+#elif defined(USE_ESP8266)
+    // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
+    wire_->setClockStretchLimit(timeout_);  // unit: us
+#elif defined(USE_RP2040)
+    // https://github.com/earlephilhower/ArduinoCore-API/blob/e37df85425e0ac020bfad226d927f9b00d2e0fb7/api/Stream.h
+    wire_->setTimeout(timeout_ / 1000);  // unit: ms
+#endif
   }
+  wire_->setClock(frequency_);
 }
+
 void ArduinoI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
+  if (timeout_ > 0) {
+#if defined(USE_ESP32)
+    ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
+#elif defined(USE_ESP8266)
+    ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
+#elif defined(USE_RP2040)
+    ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
+#endif
+  }
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -82,6 +109,10 @@ void ArduinoI2CBus::dump_config() {
 }
 
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
+#if defined(USE_ESP8266)
+  this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
+#endif
+
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -120,6 +151,10 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
   return ERROR_OK;
 }
 ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
+#if defined(USE_ESP8266)
+  this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
+#endif
+
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -164,7 +199,7 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
       return ERROR_UNKNOWN;
     case 2:
     case 3:
-      ESP_LOGVV(TAG, "TX failed: not acknowledged");
+      ESP_LOGVV(TAG, "TX failed: not acknowledged: %d", status);
       return ERROR_NOT_ACKNOWLEDGED;
     case 5:
       ESP_LOGVV(TAG, "TX failed: timeout");

@@ -12,7 +12,7 @@ bool is_connected();
 bool is_disabled();
 /// Get the active network hostname
 std::string get_use_address();
-IPAddress get_ip_address();
+IPAddresses get_ip_addresses();
 
 }  // namespace network
 }  // namespace esphome
