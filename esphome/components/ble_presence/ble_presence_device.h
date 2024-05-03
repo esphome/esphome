@@ -6,6 +6,16 @@
 
 #ifdef USE_ESP32
 
+#ifdef USE_ARDUINO
+#include "mbedtls/aes.h"
+#include "mbedtls/base64.h"
+#endif
+
+#ifdef USE_ESP_IDF
+#define MBEDTLS_AES_ALT
+#include <aes_alt.h>
+#endif
+
 namespace esphome {
 namespace ble_presence {
 
@@ -16,6 +26,10 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   void set_address(uint64_t address) {
     this->match_by_ = MATCH_BY_MAC_ADDRESS;
     this->address_ = address;
+  }
+  void set_irk(uint8_t *irk) {
+    this->match_by_ = MATCH_BY_IRK;
+    this->irk_ = irk;
   }
   void set_service_uuid16(uint16_t uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
@@ -45,11 +59,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     this->check_minimum_rssi_ = true;
     this->minimum_rssi_ = rssi;
   }
-  void on_scan_end() override {
-    if (!this->found_)
-      this->publish_state(false);
-    this->found_ = false;
-  }
+  void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     if (this->check_minimum_rssi_ && this->minimum_rssi_ > device.get_rssi()) {
       return false;
@@ -57,16 +67,20 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     switch (this->match_by_) {
       case MATCH_BY_MAC_ADDRESS:
         if (device.address_uint64() == this->address_) {
-          this->publish_state(true);
-          this->found_ = true;
+          this->set_found_(true);
+          return true;
+        }
+        break;
+      case MATCH_BY_IRK:
+        if (resolve_irk_(device.address_uint64(), this->irk_)) {
+          this->set_found_(true);
           return true;
         }
         break;
       case MATCH_BY_SERVICE_UUID:
         for (auto uuid : device.get_service_uuids()) {
           if (this->uuid_ == uuid) {
-            this->publish_state(true);
-            this->found_ = true;
+            this->set_found_(true);
             return true;
           }
         }
@@ -90,20 +104,31 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
           return false;
         }
 
-        this->publish_state(true);
-        this->found_ = true;
+        this->set_found_(true);
         return true;
     }
     return false;
+  }
+
+  void loop() override {
+    if (this->found_ && this->last_seen_ + this->timeout_ < millis())
+      this->set_found_(false);
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-  enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
+  void set_found_(bool state) {
+    this->found_ = state;
+    if (state)
+      this->last_seen_ = millis();
+    this->publish_state(state);
+  }
+  enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_IRK, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
   MatchType match_by_;
 
   uint64_t address_;
+  uint8_t *irk_;
 
   esp32_ble_tracker::ESPBTUUID uuid_;
 
@@ -117,7 +142,46 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   bool check_ibeacon_minor_{false};
   bool check_minimum_rssi_{false};
 
+  bool resolve_irk_(uint64_t addr64, const uint8_t *irk) {
+    uint8_t ecb_key[16];
+    uint8_t ecb_plaintext[16];
+    uint8_t ecb_ciphertext[16];
+
+    memcpy(&ecb_key, irk, 16);
+    memset(&ecb_plaintext, 0, 16);
+
+    ecb_plaintext[13] = (addr64 >> 40) & 0xff;
+    ecb_plaintext[14] = (addr64 >> 32) & 0xff;
+    ecb_plaintext[15] = (addr64 >> 24) & 0xff;
+
+    mbedtls_aes_context ctx = {0, 0, {0}};
+    mbedtls_aes_init(&ctx);
+
+    if (mbedtls_aes_setkey_enc(&ctx, ecb_key, 128) != 0) {
+      mbedtls_aes_free(&ctx);
+      return false;
+    }
+
+    if (mbedtls_aes_crypt_ecb(&ctx,
+#ifdef USE_ARDUINO
+                              MBEDTLS_AES_ENCRYPT,
+#elif defined(USE_ESP_IDF)
+                              ESP_AES_ENCRYPT,
+#endif
+                              ecb_plaintext, ecb_ciphertext) != 0) {
+      mbedtls_aes_free(&ctx);
+      return false;
+    }
+
+    mbedtls_aes_free(&ctx);
+
+    return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
+           ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
+  }
+
   bool found_{false};
+  uint32_t last_seen_{};
+  uint32_t timeout_{};
 };
 
 }  // namespace ble_presence

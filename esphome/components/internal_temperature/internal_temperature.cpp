@@ -14,6 +14,11 @@ uint8_t temprature_sens_read();
 #ifdef USE_RP2040
 #include "Arduino.h"
 #endif  // USE_RP2040
+#ifdef USE_BK72XX
+extern "C" {
+uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
+}
+#endif  // USE_BK72XX
 
 namespace esphome {
 namespace internal_temperature {
@@ -46,6 +51,18 @@ void InternalTemperatureSensor::update() {
   temperature = analogReadTemp();
   success = (temperature != 0.0f);
 #endif  // USE_RP2040
+#ifdef USE_BK72XX
+  uint32_t raw, result;
+  result = temp_single_get_current_temperature(&raw);
+  success = (result == 0);
+#if defined(USE_LIBRETINY_VARIANT_BK7231N)
+  temperature = raw * -0.38f + 156.0f;
+#elif defined(USE_LIBRETINY_VARIANT_BK7231T)
+  temperature = raw * 0.04f;
+#else   // USE_LIBRETINY_VARIANT
+  temperature = raw * 0.128f;
+#endif  // USE_LIBRETINY_VARIANT
+#endif  // USE_BK72XX
   if (success && std::isfinite(temperature)) {
     this->publish_state(temperature);
   } else {
