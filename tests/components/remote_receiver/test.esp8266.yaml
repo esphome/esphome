@@ -149,3 +149,9 @@ binary_sensor:
     panasonic:
       address: 0x4004
       command: 0x100BCBD
+  - platform: remote_receiver
+    name: TR-502MSV Remote Input
+    tr_502msv:
+      group: 0xABC
+      device: 1
+      command: turn_on
