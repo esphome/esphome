@@ -12,11 +12,21 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(HumidifierMode, mode)
   TEMPLATABLE_VALUE(float, target_humidity)
+  TEMPLATABLE_VALUE(float, target_humidity_low)
+  TEMPLATABLE_VALUE(float, target_humidity_high)
+  TEMPLATABLE_VALUE(bool, away)
+  TEMPLATABLE_VALUE(HumidifierPreset, preset)
 
   void play(Ts... x) override {
     auto call = this->humidifier_->make_call();
     call.set_mode(this->mode_.optional_value(x...));
     call.set_target_humidity(this->target_humidity_.optional_value(x...));
+    call.set_target_humidity_low(this->target_humidity_low_.optional_value(x...));
+    call.set_target_humidity_high(this->target_humidity_high_.optional_value(x...));
+    if (away_.has_value()) {
+      call.set_preset(away_.value(x...) ? HUMIDIFIER_PRESET_AWAY : HUMIDIFIER_PRESET_HOME);
+    }
+    call.set_preset(this->preset_.optional_value(x...));
     call.perform();
   }
 
@@ -24,17 +34,10 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   Humidifier *humidifier_;
 };
 
-class ControlTrigger : public Trigger<HumidifierCall &> {
- public:
-  ControlTrigger(Humidifier *humidifier) {
-    humidifier->add_on_control_callback([this](HumidifierCall &x) { this->trigger(x); });
-  }
-};
-
-class StateTrigger : public Trigger<Humidifier &> {
+class StateTrigger : public Trigger<> {
  public:
   StateTrigger(Humidifier *humidifier) {
-    humidifier->add_on_state_callback([this](Humidifier &x) { this->trigger(x); });
+    humidifier->add_on_state_callback([this]() { this->trigger(); });
   }
 };
 

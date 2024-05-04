@@ -7,24 +7,14 @@ const LogString *humidifier_mode_to_string(HumidifierMode mode) {
   switch (mode) {
     case HUMIDIFIER_MODE_OFF:
       return LOG_STR("OFF");
-    case HUMIDIFIER_MODE_NORMAL:
-      return LOG_STR("NORMAL");
-    case HUMIDIFIER_MODE_ECO:
-      return LOG_STR("ECO");
-    case HUMIDIFIER_MODE_AWAY:
-      return LOG_STR("AWAY");
-    case HUMIDIFIER_MODE_BOOST:
-      return LOG_STR("BOOST");
-    case HUMIDIFIER_MODE_COMFORT:
-      return LOG_STR("COMFORT");
-    case HUMIDIFIER_MODE_HOME:
-      return LOG_STR("HOME");
-    case HUMIDIFIER_MODE_SLEEP:
-      return LOG_STR("SLEEP");
+    case HUMIDIFIER_MODE_HUMIDIFY_DEHUMIDIFY:
+      return LOG_STR("HUMIDIFY_DEHUMIDIFY");
     case HUMIDIFIER_MODE_AUTO:
       return LOG_STR("AUTO");
-    case HUMIDIFIER_MODE_BABY:
-      return LOG_STR("BABY");
+    case HUMIDIFIER_MODE_HUMIDIFY:
+      return LOG_STR("HUMIDIFY");
+    case HUMIDIFIER_MODE_DEHUMIDIFY:
+      return LOG_STR("DEHUMIDIFY");
     default:
       return LOG_STR("UNKNOWN");
   }
@@ -33,24 +23,35 @@ const LogString *humidifier_action_to_string(HumidifierAction action) {
   switch (action) {
     case HUMIDIFIER_ACTION_OFF:
       return LOG_STR("OFF");
-    case HUMIDIFIER_ACTION_NORMAL:
+    case HUMIDIFIER_ACTION_HUMIDIFYING:
+      return LOG_STR("HUMIDIFYING");
+    case HUMIDIFIER_ACTION_IDLE:
+      return LOG_STR("IDLE");
+    case HUMIDIFIER_ACTION_DEHUMIDIFYING:
+      return LOG_STR("DEHUMIDIFYING");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
+const LogString *humidifier_preset_to_string(HumidifierPreset preset) {
+  switch (preset) {
+    case humidifier::HUMIDIFIER_PRESET_NORMAL:
       return LOG_STR("NORMAL");
-    case HUMIDIFIER_ACTION_ECO:
-      return LOG_STR("ECO");
-    case HUMIDIFIER_ACTION_AWAY:
-      return LOG_STR("AWAY");
-    case HUMIDIFIER_ACTION_BOOST:
-      return LOG_STR("BOOST");
-    case HUMIDIFIER_ACTION_COMFORT:
-      return LOG_STR("COMFORT");
-    case HUMIDIFIER_ACTION_HOME:
+    case humidifier::HUMIDIFIER_PRESET_HOME:
       return LOG_STR("HOME");
-    case HUMIDIFIER_ACTION_SLEEP:
+    case humidifier::HUMIDIFIER_PRESET_ECO:
+      return LOG_STR("ECO");
+    case humidifier::HUMIDIFIER_PRESET_AWAY:
+      return LOG_STR("AWAY");
+    case humidifier::HUMIDIFIER_PRESET_BOOST:
+      return LOG_STR("BOOST");
+    case humidifier::HUMIDIFIER_PRESET_COMFORT:
+      return LOG_STR("COMFORT");
+    case humidifier::HUMIDIFIER_PRESET_SLEEP:
       return LOG_STR("SLEEP");
-    case HUMIDIFIER_ACTION_AUTO:
-      return LOG_STR("AUTO");
-    case HUMIDIFIER_ACTION_BABY:
-      return LOG_STR("BABY");
+    case humidifier::HUMIDIFIER_PRESET_ACTIVITY:
+      return LOG_STR("ACTIVITY");
     default:
       return LOG_STR("UNKNOWN");
   }

@@ -1,14 +1,19 @@
 #include "humidifier_traits.h"
+#include <cstdio>
 
 namespace esphome {
 namespace humidifier {
 
-int8_t HumidifierTraits::get_target_humidity_accuracy_decimals() const {
-  return step_to_accuracy_decimals(this->visual_target_humidity_step_);
-}
+int8_t HumidifierTraits::get_humidity_accuracy_decimals() const {
+  // use printf %g to find number of digits based on humidity step
+  char buf[32];
+  sprintf(buf, "%.5g", this->visual_humidity_step_);
+  std::string str{buf};
+  size_t dot_pos = str.find('.');
+  if (dot_pos == std::string::npos)
+    return 0;
 
-int8_t HumidifierTraits::get_current_humidity_accuracy_decimals() const {
-  return step_to_accuracy_decimals(this->visual_current_humidity_step_);
+  return str.length() - dot_pos - 1;
 }
 
 }  // namespace humidifier

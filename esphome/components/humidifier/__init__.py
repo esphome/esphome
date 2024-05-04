@@ -5,6 +5,9 @@ from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
     CONF_ACTION_STATE_TOPIC,
+    CONF_AWAY,
+    CONF_AWAY_COMMAND_TOPIC,
+    CONF_AWAY_STATE_TOPIC,
     CONF_CURRENT_HUMIDITY_STATE_TOPIC,
     CONF_ID,
     CONF_MAX_HUMIDITY,
@@ -12,11 +15,17 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODE_COMMAND_TOPIC,
     CONF_MODE_STATE_TOPIC,
-    CONF_ON_CONTROL,
     CONF_ON_STATE,
+    CONF_PRESET,
     CONF_TARGET_HUMIDITY,
     CONF_TARGET_HUMIDITY_COMMAND_TOPIC,
     CONF_TARGET_HUMIDITY_STATE_TOPIC,
+    CONF_TARGET_HUMIDITY_HIGH,
+    CONF_TARGET_HUMIDITY_HIGH_COMMAND_TOPIC,
+    CONF_TARGET_HUMIDITY_HIGH_STATE_TOPIC,
+    CONF_TARGET_HUMIDITY_LOW,
+    CONF_TARGET_HUMIDITY_LOW_COMMAND_TOPIC,
+    CONF_TARGET_HUMIDITY_LOW_STATE_TOPIC,
     CONF_HUMIDITY_STEP,
     CONF_TRIGGER_ID,
     CONF_VISUAL,
@@ -26,7 +35,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
-CODEOWNERS = ["@Jaco1990"]
+CODEOWNERS = ["@alevaquero"]
 humidifier_ns = cg.esphome_ns.namespace("humidifier")
 
 Humidifier = humidifier_ns.class_("Humidifier", cg.EntityBase)
@@ -36,55 +45,30 @@ HumidifierTraits = humidifier_ns.class_("HumidifierTraits")
 HumidifierMode = humidifier_ns.enum("HumidifierMode")
 HUMIDIFIER_MODES = {
     "OFF": HumidifierMode.HUMIDIFIER_MODE_OFF,
-    "NORMAL": HumidifierMode.HUMIDIFIER_MODE_NORMAL,
-    "ECO": HumidifierMode.HUMIDIFIER_MODE_ECO,
-    "AWAY": HumidifierMode.HUMIDIFIER_MODE_AWAY,
-    "BOOST": HumidifierMode.HUMIDIFIER_MODE_BOOST,
-    "COMFORT": HumidifierMode.HUMIDIFIER_MODE_COMFORT,
-    "HOME": HumidifierMode.HUMIDIFIER_MODE_HOME,
-    "SLEEP": HumidifierMode.HUMIDIFIER_MODE_SLEEP,
+    "HUMIDIFY_DEHUMIDIFY": HumidifierMode.HUMIDIFIER_MODE_HUMIDIFY_DEHUMIDIFY,
+    "HUMIDIFY": HumidifierMode.HUMIDIFIER_MODE_HUMIDIFY,
+    "DEHUMIDIFY": HumidifierMode.HUMIDIFIER_MODE_DEHUMIDIFY,
     "AUTO": HumidifierMode.HUMIDIFIER_MODE_AUTO,
-    "BABY": HumidifierMode.HUMIDIFIER_MODE_BABY,
 }
-
 validate_humidifier_mode = cv.enum(HUMIDIFIER_MODES, upper=True)
 
-CONF_CURRENT_HUMIDITY = "current_humidity"
+HumidifierPreset = humidifier_ns.enum("HumidifierPreset")
+HUMIDIFIER_PRESETS = {
+    "NORMAL": HumidifierPreset.HUMIDIFIER_PRESET_NORMAL,
+    "ECO": HumidifierPreset.HUMIDIFIER_PRESET_ECO,
+    "AWAY": HumidifierPreset.HUMIDIFIER_PRESET_AWAY,
+    "BOOST": HumidifierPreset.HUMIDIFIER_PRESET_BOOST,
+    "COMFORT": HumidifierPreset.HUMIDIFIER_PRESET_COMFORT,
+    "HOME": HumidifierPreset.HUMIDIFIER_PRESET_HOME,
+    "SLEEP": HumidifierPreset.HUMIDIFIER_PRESET_SLEEP,
+    "ACTIVITY": HumidifierPreset.HUMIDIFIER_PRESET_ACTIVITY,
+}
 
-visual_humidity = cv.float_with_unit("visual_humidity", "(%)?")
-
-
-def single_visual_humidity(value):
-    if isinstance(value, dict):
-        return value
-
-    value = visual_humidity(value)
-    return VISUAL_HUMIDITY_STEP_SCHEMA(
-        {
-            CONF_TARGET_HUMIDITY: value,
-            CONF_CURRENT_HUMIDITY: value,
-        }
-    )
-
+validate_humidifier_preset = cv.enum(HUMIDIFIER_PRESETS, upper=True)
 
 # Actions
 ControlAction = humidifier_ns.class_("ControlAction", automation.Action)
-StateTrigger = humidifier_ns.class_(
-    "StateTrigger", automation.Trigger.template(Humidifier.operator("ref"))
-)
-ControlTrigger = humidifier_ns.class_(
-    "ControlTrigger", automation.Trigger.template(HumidifierCall.operator("ref"))
-)
-
-VISUAL_HUMIDITY_STEP_SCHEMA = cv.Any(
-    single_visual_humidity,
-    cv.Schema(
-        {
-            cv.Required(CONF_TARGET_HUMIDITY): visual_humidity,
-            cv.Required(CONF_CURRENT_HUMIDITY): visual_humidity,
-        }
-    ),
-)
+StateTrigger = humidifier_ns.class_("StateTrigger", automation.Trigger.template())
 
 HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     cv.MQTT_COMMAND_COMPONENT_SCHEMA
@@ -94,10 +78,18 @@ HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTHumidifierComponent),
         cv.Optional(CONF_VISUAL, default={}): cv.Schema(
             {
-                cv.Optional(CONF_HUMIDITY_STEP): VISUAL_HUMIDITY_STEP_SCHEMA,
+                cv.Optional(CONF_MIN_HUMIDITY): cv.humidity,
+                cv.Optional(CONF_MAX_HUMIDITY): cv.humidity,
+                cv.Optional(CONF_HUMIDITY_STEP): cv.humidity,
             }
         ),
         cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_AWAY_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_AWAY_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_CURRENT_HUMIDITY_STATE_TOPIC): cv.All(
@@ -115,10 +107,17 @@ HUMIDIFIER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
-        cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
-            }
+        cv.Optional(CONF_TARGET_HUMIDITY_HIGH_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_TARGET_HUMIDITY_HIGH_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_TARGET_HUMIDITY_LOW_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_TARGET_HUMIDITY_LOW_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {
@@ -138,12 +137,7 @@ async def setup_humidifier_core_(var, config):
     if CONF_MAX_HUMIDITY in visual:
         cg.add(var.set_visual_max_humidity_override(visual[CONF_MAX_HUMIDITY]))
     if CONF_HUMIDITY_STEP in visual:
-        cg.add(
-            var.set_visual_humidity_step_override(
-                visual[CONF_HUMIDITY_STEP][CONF_TARGET_HUMIDITY],
-                visual[CONF_HUMIDITY_STEP][CONF_CURRENT_HUMIDITY],
-            )
-        )
+        cg.add(var.set_visual_humidity_step_override(visual[CONF_HUMIDITY_STEP]))
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
@@ -151,6 +145,10 @@ async def setup_humidifier_core_(var, config):
 
         if CONF_ACTION_STATE_TOPIC in config:
             cg.add(mqtt_.set_custom_action_state_topic(config[CONF_ACTION_STATE_TOPIC]))
+        if CONF_AWAY_COMMAND_TOPIC in config:
+            cg.add(mqtt_.set_custom_away_command_topic(config[CONF_AWAY_COMMAND_TOPIC]))
+        if CONF_AWAY_STATE_TOPIC in config:
+            cg.add(mqtt_.set_custom_away_state_topic(config[CONF_AWAY_STATE_TOPIC]))
         if CONF_CURRENT_HUMIDITY_STATE_TOPIC in config:
             cg.add(
                 mqtt_.set_custom_current_humidity_state_topic(
@@ -161,6 +159,7 @@ async def setup_humidifier_core_(var, config):
             cg.add(mqtt_.set_custom_mode_command_topic(config[CONF_MODE_COMMAND_TOPIC]))
         if CONF_MODE_STATE_TOPIC in config:
             cg.add(mqtt_.set_custom_mode_state_topic(config[CONF_MODE_STATE_TOPIC]))
+
         if CONF_TARGET_HUMIDITY_COMMAND_TOPIC in config:
             cg.add(
                 mqtt_.set_custom_target_humidity_command_topic(
@@ -173,18 +172,34 @@ async def setup_humidifier_core_(var, config):
                     config[CONF_TARGET_HUMIDITY_STATE_TOPIC]
                 )
             )
+        if CONF_TARGET_HUMIDITY_HIGH_COMMAND_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_high_command_topic(
+                    config[CONF_TARGET_HUMIDITY_HIGH_COMMAND_TOPIC]
+                )
+            )
+        if CONF_TARGET_HUMIDITY_HIGH_STATE_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_high_state_topic(
+                    config[CONF_TARGET_HUMIDITY_HIGH_STATE_TOPIC]
+                )
+            )
+        if CONF_TARGET_HUMIDITY_LOW_COMMAND_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_low_command_topic(
+                    config[CONF_TARGET_HUMIDITY_LOW_COMMAND_TOPIC]
+                )
+            )
+        if CONF_TARGET_HUMIDITY_LOW_STATE_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_target_humidity_state_topic(
+                    config[CONF_TARGET_HUMIDITY_LOW_STATE_TOPIC]
+                )
+            )
 
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(Humidifier.operator("ref"), "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_CONTROL, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(HumidifierCall.operator("ref"), "x")], conf
-        )
+        await automation.build_automation(trigger, [], conf)
 
 
 async def register_humidifier(var, config):
@@ -198,7 +213,11 @@ HUMIDIFIER_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Humidifier),
         cv.Optional(CONF_MODE): cv.templatable(validate_humidifier_mode),
-        cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
+        cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.humidity),
+        cv.Optional(CONF_TARGET_HUMIDITY_LOW): cv.templatable(cv.humidity),
+        cv.Optional(CONF_TARGET_HUMIDITY_HIGH): cv.templatable(cv.humidity),
+        cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
+        cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_humidifier_preset),
     }
 )
 
@@ -214,7 +233,19 @@ async def humidifier_control_to_code(config, action_id, template_arg, args):
         cg.add(var.set_mode(template_))
     if CONF_TARGET_HUMIDITY in config:
         template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY], args, float)
-        cg.add(var.set_target_temperature(template_))
+        cg.add(var.set_target_humidity(template_))
+    if CONF_TARGET_HUMIDITY_LOW in config:
+        template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY_LOW], args, float)
+        cg.add(var.set_target_humidity_low(template_))
+    if CONF_TARGET_HUMIDITY_HIGH in config:
+        template_ = await cg.templatable(config[CONF_TARGET_HUMIDITY_HIGH], args, float)
+        cg.add(var.set_target_humidity_high(template_))
+    if CONF_AWAY in config:
+        template_ = await cg.templatable(config[CONF_AWAY], args, bool)
+        cg.add(var.set_away(template_))
+    if CONF_PRESET in config:
+        template_ = await cg.templatable(config[CONF_PRESET], args, HumidifierPreset)
+        cg.add(var.set_preset(template_))
     return var
 
 
