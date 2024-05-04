@@ -8,6 +8,8 @@
 namespace esphome {
 namespace ens160_i2c {
 
+static const char *const TAG = "ens160_i2c.sensor";
+
 bool ENS160I2CComponent::read_byte(uint8_t a_register, uint8_t *data) {
   return I2CDevice::read_byte(a_register, data);
 };
@@ -22,8 +24,8 @@ bool ENS160I2CComponent::write_bytes(uint8_t a_register, uint8_t *data, size_t l
 };
 
 void ENS160I2CComponent::dump_config() {
-  LOG_I2C_DEVICE(this);
   ENS160Component::dump_config();
+  LOG_I2C_DEVICE(this);
 }
 
 }  // namespace ens160_i2c
