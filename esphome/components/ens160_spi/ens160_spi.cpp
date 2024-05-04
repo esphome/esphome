@@ -7,30 +7,23 @@
 namespace esphome {
 namespace ens160_spi {
 
-uint8_t set_bit(uint8_t num, uint8_t position) {
-  uint8_t mask = 1 << position;
-  return num | mask;
-}
+inline uint8_t reg_read(uint8_t reg) { return (reg << 1) | 0x01; }
 
-uint8_t clear_bit(uint8_t num, uint8_t position) {
-  uint8_t mask = 1 << position;
-  return num & ~mask;
-}
+inline uint8_t reg_write(uint8_t reg) { return (reg << 1) & 0xFE; }
 
 void ENS160SPIComponent::setup() {
   this->spi_setup();
   ENS160Component::setup();
 };
 
-// In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
-// and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
-// Example: address 0xF7 is accessed by using SPI register address 0x77. For write access, the byte
-// 0x77 is transferred, for read access, the byte 0xF7 is transferred.
-// https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-ens160-ds002.pdf
+void ENS160SPIComponent::dump_config() {
+  ENS160Component::dump_config();
+  LOG_PIN("  CS Pin: ", this->cs_);
+}
 
 bool ENS160SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
-  this->transfer_byte(set_bit(a_register, 7));
+  this->transfer_byte(reg_read(a_register));
   *data = this->transfer_byte(0);
   this->disable();
   return true;
@@ -38,7 +31,7 @@ bool ENS160SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
 
 bool ENS160SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
   this->enable();
-  this->transfer_byte(clear_bit(a_register, 7));
+  this->transfer_byte(reg_write(a_register));
   this->transfer_byte(data);
   this->disable();
   return true;
@@ -46,7 +39,7 @@ bool ENS160SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
 
 bool ENS160SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
-  this->transfer_byte(set_bit(a_register, 7));
+  this->transfer_byte(reg_read(a_register));
   this->read_array(data, len);
   this->disable();
   return true;
@@ -54,7 +47,7 @@ bool ENS160SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t le
 
 bool ENS160SPIComponent::write_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
-  this->transfer_byte(clear_bit(a_register, 7));
+  this->transfer_byte(reg_write(a_register));
   this->transfer_array(data, len);
   this->disable();
   return true;
