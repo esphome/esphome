@@ -251,7 +251,7 @@ bool APIServerConnectionBase::send_list_entities_humidifier_response(const ListE
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_humidifier_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ListEntitiesHumidifierResponse>(msg, 107);
+  return this->send_message_<ListEntitiesHumidifierResponse>(msg, 66);
 }
 #endif
 #ifdef USE_HUMIDIFIER
@@ -259,7 +259,7 @@ bool APIServerConnectionBase::send_humidifier_state_response(const HumidifierSta
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_humidifier_state_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<HumidifierStateResponse>(msg, 108);
+  return this->send_message_<HumidifierStateResponse>(msg, 67);
 }
 #endif
 #ifdef USE_HUMIDIFIER
@@ -1089,17 +1089,6 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_voice_assistant_audio: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_audio(msg);
-#endif
-      break;
-    }
-    case 109: {
-#ifdef USE_HUMIDIFIER
-      HumidifierCommandRequest msg;
-      msg.decode(msg_data, msg_size);
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_humidifier_command_request: %s", msg.dump().c_str());
-#endif
-      this->on_humidifier_command_request(msg);
 #endif
       break;
     }
