@@ -11,8 +11,6 @@ esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
 # Integrations
-esphome/components/MCP3428/* @mdop
-esphome/components/MCP3428/sensor/* @mdop
 esphome/components/a01nyub/* @MrSuicideParrot
 esphome/components/a02yyuw/* @TH-Braemer
 esphome/components/absolute_humidity/* @DAVe3283
@@ -214,6 +212,8 @@ esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
+esphome/components/mcp3428/* @mdop
+esphome/components/mcp3428/sensor/* @mdop
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
 esphome/components/mcp9600/* @mreditor97
