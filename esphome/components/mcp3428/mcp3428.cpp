@@ -108,11 +108,7 @@ bool MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP34
     this->last_config_write_ms_ = millis();
   }
 
-  if (this->continuous_mode_) {
-    this->single_measurement_active_ = false;
-  } else {
-    this->single_measurement_active_ = true;
-  }
+  this->single_measurement_active_ = !this->continuous_mode_;
   return true;
 }
 
@@ -125,7 +121,7 @@ bool MCP3428Component::poll_result(float &voltage) {
   }
   if ((anwser[2] & 0b10000000) == 0) {
     // ready flag is 0, valid measurement received
-    voltage = this->convert_anwser_to_voltage(anwser);
+    voltage = this->convert_anwser_to_voltage_(anwser);
     single_measurement_active_ = false;
     this->status_clear_warning();
     return true;
@@ -134,7 +130,7 @@ bool MCP3428Component::poll_result(float &voltage) {
   }
 }
 
-float MCP3428Component::convert_anwser_to_voltage(uint8_t *anwser) {
+float MCP3428Component::convert_anwser_to_voltage_(uint8_t *anwser) {
   uint8_t config_resolution = (this->prev_config_ >> 2) & 0b00000011;
   uint8_t config_gain = this->prev_config_ & 0b00000011;
 
