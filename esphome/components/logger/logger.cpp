@@ -39,7 +39,23 @@ void Logger::write_header_(int level, const char *tag, int line) {
 
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
-  this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+#else
+  void *current_task = nullptr;
+#endif
+  if (current_task == main_task_) {
+    this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
+  } else {
+    const char *thread_name = "";
+#if defined(USE_ESP32)
+    thread_name = pcTaskGetName(current_task);
+#elif defined(USE_LIBRETINY)
+    thread_name = pcTaskGetTaskName(current_task);
+#endif
+    this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
+                            ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
+  }
 }
 
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
@@ -127,6 +143,9 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  this->main_task_ = xTaskGetCurrentTaskHandle();
+#endif
 }
 
 #ifdef USE_LOGGER_USB_CDC

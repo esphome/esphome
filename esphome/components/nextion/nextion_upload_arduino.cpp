@@ -1,13 +1,14 @@
 #include "nextion.h"
 
-#ifdef ARDUINO
 #ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef ARDUINO
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
+#include <cinttypes>
 
 #ifdef USE_ESP32
 #include <esp_heap_caps.h>
@@ -20,124 +21,132 @@ static const char *const TAG = "nextion.upload.arduino";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
-  int range_end = 0;
+inline uint32_t Nextion::get_free_heap_() {
+#if defined(USE_ESP32)
+  return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#elif defined(USE_ESP8266)
+  return EspClass::getFreeHeap();
+#endif  // USE_ESP32 vs USE_ESP8266
+}
 
-  if (range_start == 0 && this->transfer_buffer_size_ > 16384) {  // Start small at the first run in case of a big skip
-    range_end = 16384 - 1;
-  } else {
-    range_end = range_start + this->transfer_buffer_size_ - 1;
+int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
+  uint32_t range_size = this->tft_size_ - range_start;
+  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
+  uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
+  ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
+  if (range_size <= 0 or range_end <= range_start) {
+    ESP_LOGD(TAG, "Range end: %" PRIu32, range_end);
+    ESP_LOGD(TAG, "Range size: %" PRIu32, range_size);
+    ESP_LOGE(TAG, "Invalid range");
+    return -1;
   }
 
-  if (range_end > this->tft_size_)
-    range_end = this->tft_size_;
-
-#ifdef USE_ESP8266
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
-  http->setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-#elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-  http->setFollowRedirects(true);
-#endif
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-  http->setRedirectLimit(3);
-#endif
-#endif  // USE_ESP8266
-
-  char range_header[64];
-  sprintf(range_header, "bytes=%d-%d", range_start, range_end);
-
-  ESP_LOGD(TAG, "Requesting range: %s", range_header);
-
-  int tries = 1;
-  int code = 0;
-  bool begin_status = false;
-  while (tries <= 5) {
-#ifdef USE_ESP32
-    begin_status = http->begin(this->tft_url_.c_str());
-#endif
-#ifdef USE_ESP8266
-    begin_status = http->begin(*this->get_wifi_client_(), this->tft_url_.c_str());
-#endif
-
-    ++tries;
-    if (!begin_status) {
-      ESP_LOGD(TAG, "upload_by_chunks_: connection failed");
-      delay(500);  // NOLINT
-      continue;
-    }
-
-    http->addHeader("Range", range_header);
-
-    code = http->GET();
-    if (code == 200 || code == 206) {
-      break;
-    }
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s, retries(%d/5)", this->tft_url_.c_str(),
-             HTTPClient::errorToString(code).c_str(), tries);
-    http->end();
-    App.feed_wdt();
-    delay(500);  // NOLINT
+  char range_header[32];
+  sprintf(range_header, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
+  ESP_LOGV(TAG, "Requesting range: %s", range_header);
+  http_client.addHeader("Range", range_header);
+  int code = http_client.GET();
+  if (code != HTTP_CODE_OK and code != HTTP_CODE_PARTIAL_CONTENT) {
+    ESP_LOGW(TAG, "HTTP Request failed; Error: %s", HTTPClient::errorToString(code).c_str());
+    return -1;
   }
 
-  if (tries > 5) {
+  // Allocate the buffer dynamically
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  uint8_t *buffer = allocator.allocate(4096);
+  if (!buffer) {
+    ESP_LOGE(TAG, "Failed to allocate upload buffer");
     return -1;
   }
 
   std::string recv_string;
-  size_t size = 0;
-  int fetched = 0;
-  int range = range_end - range_start;
-
-  while (fetched < range) {
-    size = http->getStreamPtr()->available();
-    if (!size) {
-      App.feed_wdt();
-      delay(0);
-      continue;
-    }
-    int c = http->getStreamPtr()->readBytes(
-        &this->transfer_buffer_[fetched], ((size > this->transfer_buffer_size_) ? this->transfer_buffer_size_ : size));
-    fetched += c;
-  }
-  http->end();
-  ESP_LOGN(TAG, "Fetched %d of %d bytes", fetched, this->content_length_);
-
-  // upload fetched segments to the display in 4KB chunks
-  int write_len;
-  for (int i = 0; i < range; i += 4096) {
+  while (true) {
     App.feed_wdt();
-    write_len = this->content_length_ < 4096 ? this->content_length_ : 4096;
-    this->write_array(&this->transfer_buffer_[i], write_len);
-    this->content_length_ -= write_len;
-    ESP_LOGD(TAG, "Uploaded %0.2f %%; %d bytes remaining",
-             100.0 * (this->tft_size_ - this->content_length_) / this->tft_size_, this->content_length_);
-
-    if (!this->upload_first_chunk_sent_) {
-      this->upload_first_chunk_sent_ = true;
-      delay(500);  // NOLINT
-    }
-
-    this->recv_ret_string_(recv_string, 4096, true);
-    if (recv_string[0] != 0x05) {  // 0x05 == "ok"
-      ESP_LOGD(TAG, "recv_string [%s]",
-               format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
-    }
-
-    // handle partial upload request
-    if (recv_string[0] == 0x08 && recv_string.size() == 5) {
-      uint32_t result = 0;
-      for (int j = 0; j < 4; ++j) {
-        result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
-      }
-      if (result > 0) {
-        ESP_LOGD(TAG, "Nextion reported new range %d", result);
-        this->content_length_ = this->tft_size_ - result;
-        return result;
+    const uint16_t buffer_size =
+        this->content_length_ < 4096 ? this->content_length_ : 4096;  // Limits buffer to the remaining data
+    ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
+    uint16_t read_len = 0;
+    int partial_read_len = 0;
+    const uint32_t start_time = millis();
+    while (read_len < buffer_size && millis() - start_time < 5000) {
+      if (http_client.getStreamPtr()->available() > 0) {
+        partial_read_len =
+            http_client.getStreamPtr()->readBytes(reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
+        read_len += partial_read_len;
+        if (partial_read_len > 0) {
+          App.feed_wdt();
+          delay(2);
+        }
       }
     }
-    recv_string.clear();
+    if (read_len != buffer_size) {
+      // Did not receive the full package within the timeout period
+      ESP_LOGE(TAG, "Failed to read full package, received only %" PRIu16 " of %" PRIu16 " bytes", read_len,
+               buffer_size);
+      // Deallocate buffer
+      allocator.deallocate(buffer, 4096);
+      buffer = nullptr;
+      return -1;
+    }
+    ESP_LOGV(TAG, "%d bytes fetched, writing it to UART", read_len);
+    if (read_len > 0) {
+      recv_string.clear();
+      this->write_array(buffer, buffer_size);
+      App.feed_wdt();
+      this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
+      this->content_length_ -= read_len;
+      const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
+#if defined(USE_ESP32) && defined(USE_PSRAM)
+      ESP_LOGD(
+          TAG,
+          "Uploaded %0.2f%%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " (DRAM) + %" PRIu32 " (PSRAM) bytes",
+          upload_percentage, this->content_length_, static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+          static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
+#else
+      ESP_LOGD(TAG, "Uploaded %0.2f%%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " bytes", upload_percentage,
+               this->content_length_, this->get_free_heap_());
+#endif
+      upload_first_chunk_sent_ = true;
+      if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
+        ESP_LOGD(TAG, "recv_string [%s]",
+                 format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+        uint32_t result = 0;
+        for (int j = 0; j < 4; ++j) {
+          result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
+        }
+        if (result > 0) {
+          ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
+          this->content_length_ = this->tft_size_ - result;
+          range_start = result;
+        } else {
+          range_start = range_end + 1;
+        }
+        // Deallocate buffer
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
+        return range_end + 1;
+      } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
+        ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
+                 format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+        // Deallocate buffer
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
+        return -1;
+      }
+
+      recv_string.clear();
+    } else if (read_len == 0) {
+      ESP_LOGV(TAG, "End of HTTP response reached");
+      break;  // Exit the loop if there is no more data to read
+    } else {
+      ESP_LOGE(TAG, "Failed to read from HTTP client, error code: %d", read_len);
+      break;  // Exit the loop on error
+    }
   }
-
+  range_start = range_end + 1;
+  // Deallocate buffer
+  allocator.deallocate(buffer, 4096);
+  buffer = nullptr;
   return range_end + 1;
 }
 
@@ -147,12 +156,12 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
 
   if (this->is_updating_) {
-    ESP_LOGD(TAG, "Currently updating");
+    ESP_LOGW(TAG, "Currently uploading");
     return false;
   }
 
   if (!network::is_connected()) {
-    ESP_LOGD(TAG, "network is not connected");
+    ESP_LOGE(TAG, "Network is not connected");
     return false;
   }
 
@@ -175,43 +184,42 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   }
   ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
 
-  HTTPClient http;
-  http.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
+  // Define the configuration for the HTTP client
+  ESP_LOGV(TAG, "Initializing HTTP client");
+  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
+  HTTPClient http_client;
+  http_client.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
+
   bool begin_status = false;
 #ifdef USE_ESP32
-  begin_status = http.begin(this->tft_url_.c_str());
+  begin_status = http_client.begin(this->tft_url_.c_str());
 #endif
 #ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http_client.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 #elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-  http.setFollowRedirects(true);
+  http_client.setFollowRedirects(true);
 #endif
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-  http.setRedirectLimit(3);
+  http_client.setRedirectLimit(3);
 #endif
-  begin_status = http.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
-#endif
-
+  begin_status = http_client.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
+#endif  // USE_ESP8266
   if (!begin_status) {
     this->is_updating_ = false;
     ESP_LOGD(TAG, "Connection failed");
-    ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-    allocator.deallocate(this->transfer_buffer_, this->transfer_buffer_size_);
     return false;
   } else {
     ESP_LOGD(TAG, "Connected");
   }
-
-  http.addHeader("Range", "bytes=0-255");
+  http_client.addHeader("Range", "bytes=0-255");
   const char *header_names[] = {"Content-Range"};
-  http.collectHeaders(header_names, 1);
+  http_client.collectHeaders(header_names, 1);
   ESP_LOGD(TAG, "Requesting URL: %s", this->tft_url_.c_str());
-
-  http.setReuse(true);
+  http_client.setReuse(true);
   // try up to 5 times. DNS sometimes needs a second try or so
   int tries = 1;
-  int code = http.GET();
+  int code = http_client.GET();
   delay(100);  // NOLINT
 
   App.feed_wdt();
@@ -221,34 +229,41 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
     delay(250);  // NOLINT
     App.feed_wdt();
-    code = http.GET();
+    code = http_client.GET();
     ++tries;
   }
 
-  if ((code != 200 && code != 206) || tries > 5) {
+  if (code != 200 and code != 206) {
     return this->upload_end_(false);
   }
 
-  String content_range_string = http.header("Content-Range");
+  String content_range_string = http_client.header("Content-Range");
   content_range_string.remove(0, 12);
-  this->content_length_ = content_range_string.toInt();
-  this->tft_size_ = content_length_;
-  http.end();
+  this->tft_size_ = content_range_string.toInt();
 
-  if (this->content_length_ < 4096) {
-    ESP_LOGE(TAG, "Failed to get file size");
+  ESP_LOGD(TAG, "TFT file size: %zu bytes", this->tft_size_);
+  if (this->tft_size_ < 4096) {
+    ESP_LOGE(TAG, "File size check failed.");
+    ESP_LOGD(TAG, "Close HTTP connection");
+    http_client.end();
+    ESP_LOGV(TAG, "Connection closed");
     return this->upload_end_(false);
+  } else {
+    ESP_LOGV(TAG, "File size check passed. Proceeding...");
   }
+  this->content_length_ = this->tft_size_;
 
-  ESP_LOGD(TAG, "Updating Nextion %s...", this->device_model_.c_str());
-  // The Nextion will ignore the update command if it is sleeping
+  ESP_LOGD(TAG, "Uploading Nextion");
 
+  // The Nextion will ignore the upload command if it is sleeping
+  ESP_LOGV(TAG, "Wake-up Nextion");
+  this->ignore_is_setup_ = true;
   this->send_command_("sleep=0");
-  this->set_backlight_brightness(1.0);
+  this->send_command_("dim=100");
   delay(250);  // NOLINT
+  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
 
   App.feed_wdt();
-
   char command[128];
   // Tells the Nextion the content length of the tft file and baud rate it will be sent at
   // Once the Nextion accepts the command it will wait until the file is successfully uploaded
@@ -256,11 +271,12 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   sprintf(command, "whmi-wris %d,%d,1", this->content_length_, baud_rate);
 
   // Clear serial receive buffer
-  uint8_t d;
-  while (this->available()) {
-    this->read_byte(&d);
-  };
+  ESP_LOGV(TAG, "Clear serial receive buffer");
+  this->reset_(false);
+  delay(250);  // NOLINT
+  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
 
+  ESP_LOGV(TAG, "Send upload instruction: %s", command);
   this->send_command_(command);
 
   if (baud_rate != this->original_baud_rate_) {
@@ -272,84 +288,60 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   App.feed_wdt();
 
   std::string response;
-  ESP_LOGD(TAG, "Waiting for upgrade response");
-  this->recv_ret_string_(response, 2000, true);  // This can take some time to return
+  ESP_LOGV(TAG, "Waiting for upgrade response");
+  this->recv_ret_string_(response, 5000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
-  ESP_LOGD(TAG, "Upgrade response is [%s] - %zu bytes",
+  ESP_LOGD(TAG, "Upgrade response is [%s] - %zu byte(s)",
            format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
            response.length());
-
-  for (size_t i = 0; i < response.length(); i++) {
-    ESP_LOGD(TAG, "Available %d : 0x%02X", i, response[i]);
-  }
+  ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
 
   if (response.find(0x05) != std::string::npos) {
-    ESP_LOGD(TAG, "preparation for tft update done");
+    ESP_LOGV(TAG, "Preparation for TFT upload done");
   } else {
-    ESP_LOGD(TAG, "preparation for tft update failed %d \"%s\"", response[0], response.c_str());
+    ESP_LOGE(TAG, "Preparation for TFT upload failed %d \"%s\"", response[0], response.c_str());
+    ESP_LOGD(TAG, "Close HTTP connection");
+    http_client.end();
+    ESP_LOGV(TAG, "Connection closed");
     return this->upload_end_(false);
   }
 
-  // Nextion wants 4096 bytes at a time. Make chunk_size a multiple of 4096
-#ifdef USE_ESP32
-  uint32_t chunk_size = 8192;
-  if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > 0) {
-    chunk_size = this->content_length_;
-  } else {
-    if (ESP.getFreeHeap() > 81920) {  // Ensure some FreeHeap to other things and limit chunk size
-      chunk_size = ESP.getFreeHeap() - 65536;
-      chunk_size = int(chunk_size / 4096) * 4096;
-      chunk_size = chunk_size > 65536 ? 65536 : chunk_size;
-    } else if (ESP.getFreeHeap() < 32768) {
-      chunk_size = 4096;
-    }
-  }
-#else
-  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-  uint32_t chunk_size = ESP.getFreeHeap() < 16384 ? 4096 : 8192;
-#endif
+  ESP_LOGD(TAG, "Uploading TFT to Nextion:");
+  ESP_LOGD(TAG, "  URL: %s", this->tft_url_.c_str());
+  ESP_LOGD(TAG, "  File size: %d bytes", this->content_length_);
+  ESP_LOGD(TAG, "  Free heap: %" PRIu32, this->get_free_heap_());
 
-  if (this->transfer_buffer_ == nullptr) {
-    ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
-    this->transfer_buffer_ = allocator.allocate(chunk_size);
-    if (this->transfer_buffer_ == nullptr) {  // Try a smaller size
-      ESP_LOGD(TAG, "Could not allocate buffer size: %d trying 4096 instead", chunk_size);
-      chunk_size = 4096;
-      ESP_LOGD(TAG, "Allocating %d buffer", chunk_size);
-      this->transfer_buffer_ = allocator.allocate(chunk_size);
+  // Proceed with the content download as before
 
-      if (!this->transfer_buffer_)
-        return this->upload_end_(false);
-    }
+  ESP_LOGV(TAG, "Starting transfer by chunks loop");
 
-    this->transfer_buffer_size_ = chunk_size;
-  }
-
-  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-  ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d using %zu chunksize, Heap Size %d",
-           this->tft_url_.c_str(), this->content_length_, this->transfer_buffer_size_, ESP.getFreeHeap());
-
-  int result = 0;
+  uint32_t position = 0;
   while (this->content_length_ > 0) {
-    result = this->upload_by_chunks_(&http, result);
-    if (result < 0) {
-      ESP_LOGD(TAG, "Error updating Nextion!");
+    int upload_result = upload_by_chunks_(http_client, position);
+    if (upload_result < 0) {
+      ESP_LOGE(TAG, "Error uploading TFT to Nextion!");
+      ESP_LOGD(TAG, "Close HTTP connection");
+      http_client.end();
+      ESP_LOGV(TAG, "Connection closed");
       return this->upload_end_(false);
     }
     App.feed_wdt();
-    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    ESP_LOGD(TAG, "Heap Size %d, Bytes left %d", ESP.getFreeHeap(), this->content_length_);
+    ESP_LOGV(TAG, "Free heap: %" PRIu32 ", Bytes left: %" PRIu32, this->get_free_heap_(), this->content_length_);
   }
-  ESP_LOGD(TAG, "Successfully updated Nextion!");
 
-  return this->upload_end_(true);
+  ESP_LOGD(TAG, "Successfully uploaded TFT to Nextion!");
+
+  ESP_LOGD(TAG, "Close HTTP connection");
+  http_client.end();
+  ESP_LOGV(TAG, "Connection closed");
+  return upload_end_(true);
 }
 
 bool Nextion::upload_end_(bool successful) {
+  ESP_LOGD(TAG, "Nextion TFT upload finished: %s", YESNO(successful));
   this->is_updating_ = false;
+  this->ignore_is_setup_ = false;
 
   uint32_t baud_rate = this->parent_->get_baud_rate();
   if (baud_rate != this->original_baud_rate_) {
@@ -358,12 +350,12 @@ bool Nextion::upload_end_(bool successful) {
     this->parent_->load_settings();
   }
 
-  ESP_LOGD(TAG, "Restarting Nextion");
-  this->soft_reset();
   if (successful) {
+    ESP_LOGD(TAG, "Restarting ESPHome");
     delay(1500);  // NOLINT
-    ESP_LOGD(TAG, "Restarting esphome");
-    ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
+    arch_restart();
+  } else {
+    ESP_LOGE(TAG, "Nextion TFT upload failed");
   }
   return successful;
 }
@@ -386,9 +378,10 @@ WiFiClient *Nextion::get_wifi_client_() {
   }
   return this->wifi_client_;
 }
-#endif
+#endif  // USE_ESP8266
+
 }  // namespace nextion
 }  // namespace esphome
 
-#endif  // USE_NEXTION_TFT_UPLOAD
 #endif  // ARDUINO
+#endif  // USE_NEXTION_TFT_UPLOAD
