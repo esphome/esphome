@@ -45,6 +45,9 @@
 #ifdef USE_DATETIME_TIME
 #include "esphome/components/datetime/time_entity.h"
 #endif
+#ifdef USE_DATETIME_DATETIME
+#include "esphome/components/datetime/datetime_entity.h"
+#endif
 #ifdef USE_TEXT
 #include "esphome/components/text/text.h"
 #endif
@@ -141,6 +144,10 @@ class Application {
   void register_time(datetime::TimeEntity *time) { this->times_.push_back(time); }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+  void register_datetime(datetime::DateTimeEntity *datetime) { this->datetimes_.push_back(datetime); }
+#endif
+
 #ifdef USE_TEXT
   void register_text(text::Text *text) { this->texts_.push_back(text); }
 #endif
@@ -214,6 +221,8 @@ class Application {
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
   void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
+
+  uint32_t get_loop_interval() const { return this->loop_interval_; }
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
@@ -330,6 +339,15 @@ class Application {
   const std::vector<datetime::TimeEntity *> &get_times() { return this->times_; }
   datetime::TimeEntity *get_time_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->times_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_DATETIME_DATETIME
+  const std::vector<datetime::DateTimeEntity *> &get_datetimes() { return this->datetimes_; }
+  datetime::DateTimeEntity *get_datetime_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->datetimes_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
@@ -455,6 +473,9 @@ class Application {
 #endif
 #ifdef USE_DATETIME_TIME
   std::vector<datetime::TimeEntity *> times_{};
+#endif
+#ifdef USE_DATETIME_DATETIME
+  std::vector<datetime::DateTimeEntity *> datetimes_{};
 #endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};

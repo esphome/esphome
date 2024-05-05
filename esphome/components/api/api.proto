@@ -47,6 +47,7 @@ service APIConnection {
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
   rpc date_command (DateCommandRequest) returns (void) {}
   rpc time_command (TimeCommandRequest) returns (void) {}
+  rpc datetime_command (DateTimeCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -1776,4 +1777,41 @@ message ValveCommandRequest {
   bool has_position = 2;
   float position = 3;
   bool stop = 4;
+}
+
+// ==================== DATETIME DATETIME ====================
+message ListEntitiesDateTimeResponse {
+  option (id) = 112;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATETIME";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+}
+message DateTimeStateResponse {
+  option (id) = 113;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATETIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  // If the datetime does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 2;
+  fixed32 epoch_seconds = 3;
+}
+message DateTimeCommandRequest {
+  option (id) = 114;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DATETIME_DATETIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  fixed32 epoch_seconds = 2;
 }
