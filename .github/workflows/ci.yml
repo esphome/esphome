@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  DEFAULT_PYTHON: "3.10"
+  DEFAULT_PYTHON: "3.9"
   PYUPGRADE_TARGET: "--py39-plus"
 
 concurrency:
@@ -170,7 +170,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          # - "3.9"
+          - "3.9"
           - "3.10"
           - "3.11"
           - "3.12"
