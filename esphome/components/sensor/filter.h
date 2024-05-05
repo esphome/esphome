@@ -3,7 +3,6 @@
 #include <queue>
 #include <utility>
 #include <vector>
-#include <array>
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
