@@ -149,6 +149,17 @@ text:
     min_length: 0
     max_length: 100
     mode: text
+  - platform: template
+    name: "Template text lambda"
+    mode: text
+    update_interval: 1s
+    lambda: |
+      return std::string{"Hello!"};
+    set_action:
+      then:
+        - logger.log:
+            format: Template Text set to %s
+            args: ["x.c_str()"]
 
 alarm_control_panel:
   - platform: template
