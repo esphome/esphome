@@ -49,14 +49,13 @@ void Logger::write_header_(int level, const char *tag, int line) {
   if (current_task == main_task_) {
     this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
   } else {
-#if defined(USE_ESP32)
-    const char *thread_name = pcTaskGetName(current_task);
-#elif defined(USE_LIBRETINY)
-    const char *thread_name = pcTaskGetTaskName(current_task);
-#elif defined(USE_ZEPHYR)
-    const char *thread_name = k_thread_name_get(current_task);
-#else
     const char *thread_name = "";
+#if defined(USE_ESP32)
+    thread_name = pcTaskGetName(current_task);
+#elif defined(USE_LIBRETINY)
+    thread_name = pcTaskGetTaskName(current_task);
+#elif defined(USE_ZEPHYR)
+    thread_name = k_thread_name_get(current_task);
 #endif
     this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
                             ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
