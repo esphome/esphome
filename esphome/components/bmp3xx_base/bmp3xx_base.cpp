@@ -5,13 +5,13 @@
   http://github.com/MartinL1/BMP388_DEV
 */
 
-#include "bmp3xx.h"
+#include "bmp3xx_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
 namespace esphome {
-namespace bmp3xx {
+namespace bmp3xx_base {
 
 static const char *const TAG = "bmp3xx.sensor";
 
@@ -150,7 +150,6 @@ void BMP3XXComponent::setup() {
 void BMP3XXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP3XX:");
   ESP_LOGCONFIG(TAG, "  Type: %s (0x%X)", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
-  LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case NONE:
       break;
@@ -386,5 +385,5 @@ float BMP3XXComponent::bmp388_compensate_pressure_(float uncomp_press, float t_l
   return partial_out1 + partial_out2 + partial_data4;
 }
 
-}  // namespace bmp3xx
+}  // namespace bmp3xx_base
 }  // namespace esphome
