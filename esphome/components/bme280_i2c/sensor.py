@@ -1,6 +1,7 @@
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.components import i2c
-from ..bme280_base import to_code_base, cv, CONFIG_SCHEMA_BASE
+from ..bme280_base import to_code_base, CONFIG_SCHEMA_BASE
 
 AUTO_LOAD = ["bme280_base"]
 DEPENDENCIES = ["i2c"]
