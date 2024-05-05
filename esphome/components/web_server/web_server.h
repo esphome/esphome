@@ -275,6 +275,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string climate_json(climate::Climate *obj, JsonDetail start_config);
 #endif
 
+#ifdef USE_HUMIDIFIER
+  void on_humidifier_update(humidifier::Humidifier *obj) override;
+  /// Handle a humidifier request under '/humidifier/<id>'.
+  void handle_humidifier_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the humidifier details
+  std::string humidifier_json(humidifier::Humidifier *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;
 

@@ -26,6 +26,10 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
+#ifdef USE_HUMIDIFIER
+#include "esphome/components/humidifier/humidifier.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
@@ -338,6 +342,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   for (auto *obj : App.get_climates()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "climate", "");
+  }
+#endif
+
+#ifdef USE_HUMIDIFIER
+  for (auto *obj : App.get_humidifiers()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "humidifier", "");
   }
 #endif
 
@@ -1277,6 +1288,115 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 }
 #endif
 
+#ifdef USE_HUMIDIFIER
+void WebServer::on_humidifier_update(humidifier::Humidifier *obj) {
+  if (this->events_.count() == 0)
+    return;
+  this->events_.send(this->humidifier_json(obj, DETAIL_STATE).c_str(), "state");
+}
+
+void WebServer::handle_humidifier_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_humidifiers()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      std::string data = this->humidifier_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("mode")) {
+      auto mode = request->getParam("mode")->value();
+      call.set_mode(mode.c_str());
+    }
+
+    if (request->hasParam("target_humidity_high")) {
+      auto target_humidity_high = parse_number<float>(request->getParam("target_humidity_high")->value().c_str());
+      if (target_humidity_high.has_value())
+        call.set_target_humidity_high(*target_humidity_high);
+    }
+
+    if (request->hasParam("target_humidity_low")) {
+      auto target_humidity_low = parse_number<float>(request->getParam("target_humidity_low")->value().c_str());
+      if (target_humidity_low.has_value())
+        call.set_target_humidity_low(*target_humidity_low);
+    }
+
+    if (request->hasParam("target_humidity")) {
+      auto target_humidity = parse_number<float>(request->getParam("target_humidity")->value().c_str());
+      if (target_humidity.has_value())
+        call.set_target_humidity(*target_humidity);
+    }
+
+    this->schedule_([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::humidifier_json(humidifier::Humidifier *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "humidifier-" + obj->get_object_id(), start_config);
+    const auto traits = obj->get_traits();
+    // int8_t target_accuracy = traits.get_target_humidity_accuracy_decimals();
+    // int8_t current_accuracy = traits.get_current_humidity_accuracy_decimals();
+    char buf[16];
+
+    if (start_config == DETAIL_ALL) {
+      JsonArray opt = root.createNestedArray("modes");
+      for (humidifier::HumidifierMode m : traits.get_supported_modes())
+        opt.add(PSTR_LOCAL(humidifier::humidifier_mode_to_string(m)));
+      if (traits.get_supports_presets() && obj->preset.has_value()) {
+        JsonArray opt = root.createNestedArray("presets");
+        for (humidifier::HumidifierPreset m : traits.get_supported_presets())
+          opt.add(PSTR_LOCAL(humidifier::humidifier_preset_to_string(m)));
+      }
+    }
+
+    bool has_state = false;
+    root["mode"] = PSTR_LOCAL(humidifier_mode_to_string(obj->mode));
+    root["max_humi"] = traits.get_visual_max_humidity();
+    root["min_humi"] = traits.get_visual_min_humidity();
+    root["step"] = traits.get_visual_humidity_step();
+    if (traits.get_supports_action()) {
+      root["action"] = PSTR_LOCAL(humidifier_action_to_string(obj->action));
+      root["state"] = root["action"];
+      has_state = true;
+    }
+    if (traits.get_supports_presets() && obj->preset.has_value()) {
+      root["preset"] = PSTR_LOCAL(humidifier_preset_to_string(obj->preset.value()));
+    }
+    if (traits.get_supports_current_humidity()) {
+      if (!std::isnan(obj->current_humidity)) {
+        root["current_humidity"] = obj->current_humidity;
+      } else {
+        root["current_humidity"] = "NA";
+      }
+    }
+    if (traits.get_supports_two_point_target_humidity()) {
+      root["target_humidity_low"] = obj->target_humidity_low;
+      root["target_humidity_high"] = obj->target_humidity_high;
+      if (!has_state) {
+        root["state"] = (obj->target_humidity_high + obj->target_humidity_low) / 2.0f;
+      }
+    } else {
+      root["target_humidity"] = obj->target_humidity;
+      if (!has_state)
+        root["state"] = root["target_humidity"];
+    }
+  });
+}
+#endif
+
 #ifdef USE_LOCK
 void WebServer::on_lock_update(lock::Lock *obj) {
   if (this->events_.count() == 0)
@@ -1533,6 +1653,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_HUMIDIFIER
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "humidifier")
+    return true;
+#endif
+
 #ifdef USE_LOCK
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
     return true;
@@ -1679,6 +1804,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_CLIMATE
   if (match.domain == "climate") {
     this->handle_climate_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_HUMIDIFIER
+  if (match.domain == "humidifier") {
+    this->handle_humidifier_request(request, match);
     return;
   }
 #endif

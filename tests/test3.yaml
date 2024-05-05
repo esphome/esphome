@@ -1430,7 +1430,7 @@ alarm_control_panel:
 
 humidifier:
   - platform: hygrostat
-    sensor: my_humidity_sensor
+    sensor: ha_hello_world
     name: my_humidifier
     idle_action:
       - switch.turn_off: gpio_switch1
