@@ -35,7 +35,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
-CODEOWNERS = ["@alevaquero"]
+CODEOWNERS = ["@Jaco1990"]
 humidifier_ns = cg.esphome_ns.namespace("humidifier")
 
 Humidifier = humidifier_ns.class_("Humidifier", cg.EntityBase)
