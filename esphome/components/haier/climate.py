@@ -6,12 +6,14 @@ from esphome.components import uart, climate, logger
 from esphome import automation
 from esphome.const import (
     CONF_BEEPER,
+    CONF_DISPLAY,
     CONF_ID,
     CONF_LEVEL,
     CONF_LOGGER,
     CONF_LOGS,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_PROTOCOL,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
@@ -43,11 +45,9 @@ CONF_ALTERNATIVE_SWING_CONTROL = "alternative_swing_control"
 CONF_ANSWER_TIMEOUT = "answer_timeout"
 CONF_CONTROL_METHOD = "control_method"
 CONF_CONTROL_PACKET_SIZE = "control_packet_size"
-CONF_DISPLAY = "display"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_ON_ALARM_START = "on_alarm_start"
 CONF_ON_ALARM_END = "on_alarm_end"
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_VERTICAL_AIRFLOW = "vertical_airflow"
 CONF_WIFI_SIGNAL = "wifi_signal"
 
