@@ -6,6 +6,7 @@ from typing import Final
 from rich.pretty import pprint
 from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
+from esphome.espota2 import ProgressBar
 
 if sys.version_info >= (3, 10):
     from smpclient.transport.ble import SMPBLETransport
@@ -17,7 +18,6 @@ if sys.version_info >= (3, 10):
     from smpclient.generics import error, success
     from smp.exceptions import SMPBadStartDelimiter
 
-from esphome.espota2 import ProgressBar
 
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
 NUS_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
