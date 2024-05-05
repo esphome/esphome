@@ -42,7 +42,9 @@ void BLENUS::send_enabled_callback_(bt_nus_send_status status) {
     case BT_NUS_SEND_STATUS_ENABLED:
       atomic_set(&global_ble_nus->tx_status_, TX_ENABLED);
 #ifdef USE_LOGGER
-      App.schedule_dump_config();
+      if (global_ble_nus->expose_log_) {
+        App.schedule_dump_config();
+      }
 #endif
       ESP_LOGD(TAG, "NUS notification has been enabled");
       break;
@@ -101,7 +103,9 @@ void BLENUS::loop() {
   }
 
   if (!atomic_cas(&tx_status_, TX_ENABLED, TX_BUSY)) {
-    ring_buf_reset(&tx_ringbuf_);
+    if (atomic_get(&tx_status_) == TX_DISABLED) {
+      ring_buf_reset(&tx_ringbuf_);
+    }
     return;
   }
 
