@@ -28,7 +28,6 @@ switch:
 
 interval:
   - interval: 500ms
-  # - interval: 20s
     then:
       - switch.toggle: gpio_15
 
