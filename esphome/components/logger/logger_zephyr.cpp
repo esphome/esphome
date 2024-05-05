@@ -70,7 +70,7 @@ void HOT Logger::write_msg_(const char *msg) {
   uart_poll_out(uart_dev_, '\n');
 }
 
-const char *const UART_SELECTIONS[] = {"UART0", "USB_CDC"};
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
 
 const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
 
