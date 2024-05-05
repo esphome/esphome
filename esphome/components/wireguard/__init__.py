@@ -22,6 +22,8 @@ CONF_PEER_ALLOWED_IPS = "peer_allowed_ips"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
 CONF_REQUIRE_CONNECTION_TO_PROCEED = "require_connection_to_proceed"
 
+CONF_WIREGUARD_ID = "wireguard_id"
+
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
 

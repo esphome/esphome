@@ -28,7 +28,7 @@ def validate(config):
             raise cv.Invalid("optimistic cannot be used with lambda")
         if CONF_INITIAL_VALUE in config:
             raise cv.Invalid("initial_value cannot be used with lambda")
-        if CONF_RESTORE_VALUE in config:
+        if config[CONF_RESTORE_VALUE]:
             raise cv.Invalid("restore_value cannot be used with lambda")
     elif CONF_INITIAL_VALUE not in config:
         config[CONF_INITIAL_VALUE] = ""
