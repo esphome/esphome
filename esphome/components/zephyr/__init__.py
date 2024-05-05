@@ -89,6 +89,8 @@ def zephyr_to_code(conf):
     # preferences
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("FLASH_MAP", True)
+    zephyr_add_prj_conf("CONFIG_FLASH", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
