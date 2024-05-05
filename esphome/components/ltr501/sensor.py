@@ -3,47 +3,44 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import i2c, sensor
 from esphome.const import (
-    CONF_ID,
     CONF_ACTUAL_GAIN,
+    CONF_AMBIENT_LIGHT,
     CONF_AUTO_MODE,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
+    CONF_ID,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     CONF_REPEAT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
-    UNIT_LUX,
-    UNIT_MILLISECOND,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
     ICON_TIMER,
-    DEVICE_CLASS_ILLUMINANCE,
-    DEVICE_CLASS_DISTANCE,
     STATE_CLASS_MEASUREMENT,
+    UNIT_LUX,
+    UNIT_MILLISECOND,
 )
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 
-UNIT_COUNTS = "#"
-
-ICON_GAIN = "mdi:multiplication"
-ICON_BRIGHTNESS_7 = "mdi:brightness-7"
-ICON_PROXIMITY = "mdi:hand-wave-outline"
-
 CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
-CONF_AMBIENT_LIGHT = "ambient_light"
 CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
 CONF_INFRARED_COUNTS = "infrared_counts"
-
+CONF_ON_PS_HIGH_THRESHOLD = "on_ps_high_threshold"
+CONF_ON_PS_LOW_THRESHOLD = "on_ps_low_threshold"
 CONF_PS_COOLDOWN = "ps_cooldown"
 CONF_PS_COUNTS = "ps_counts"
 CONF_PS_GAIN = "ps_gain"
 CONF_PS_HIGH_THRESHOLD = "ps_high_threshold"
 CONF_PS_LOW_THRESHOLD = "ps_low_threshold"
-CONF_ON_PS_HIGH_THRESHOLD = "on_ps_high_threshold"
-CONF_ON_PS_LOW_THRESHOLD = "on_ps_low_threshold"
+ICON_BRIGHTNESS_7 = "mdi:brightness-7"
+ICON_GAIN = "mdi:multiplication"
+ICON_PROXIMITY = "mdi:hand-wave-outline"
+UNIT_COUNTS = "#"
 
 ltr501_ns = cg.esphome_ns.namespace("ltr501")
 
