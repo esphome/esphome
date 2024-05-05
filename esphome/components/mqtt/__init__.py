@@ -113,6 +113,7 @@ MQTTBinarySensorComponent = mqtt_ns.class_("MQTTBinarySensorComponent", MQTTComp
 MQTTClimateComponent = mqtt_ns.class_("MQTTClimateComponent", MQTTComponent)
 MQTTCoverComponent = mqtt_ns.class_("MQTTCoverComponent", MQTTComponent)
 MQTTFanComponent = mqtt_ns.class_("MQTTFanComponent", MQTTComponent)
+MQTTHumidifierComponent = mqtt_ns.class_("MQTTHumidifierComponent", MQTTComponent)
 MQTTJSONLightComponent = mqtt_ns.class_("MQTTJSONLightComponent", MQTTComponent)
 MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)

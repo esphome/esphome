@@ -54,6 +54,9 @@ class ComponentIterator {
 #ifdef USE_CLIMATE
   virtual bool on_climate(climate::Climate *climate) = 0;
 #endif
+#ifdef USE_HUMIDIFIER
+  virtual bool on_humidifier(humidifier::Humidifier *humidifier) = 0;
+#endif
 #ifdef USE_NUMBER
   virtual bool on_number(number::Number *number) = 0;
 #endif
@@ -125,6 +128,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_CLIMATE
     CLIMATE,
+#endif
+#ifdef USE_HUMIDIFIER
+    HUMIDIFIER,
 #endif
 #ifdef USE_NUMBER
     NUMBER,
