@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
+    CONF_COMPENSATION,
     CONF_ECO2,
     CONF_HUMIDITY,
     CONF_ID,
@@ -23,7 +24,6 @@ CODEOWNERS = ["@vincentscode", "@latonita"]
 ens160_ns = cg.esphome_ns.namespace("ens160_base")
 
 CONF_AQI = "aqi"
-CONF_COMPENSATION = "compensation"
 UNIT_INDEX = "index"
 
 CONFIG_SCHEMA_BASE = cv.Schema(
