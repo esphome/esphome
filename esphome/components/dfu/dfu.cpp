@@ -8,9 +8,8 @@ namespace dfu {
 
 volatile bool goto_dfu = false;
 
-static const uint8_t DFU_DBL_RESET_MEM = 0x20007F7C;
-const uint8_t DFU_DBL_RESET_MAGIC = 0x5A1AD5;  // SALADS
-uint32_t *dbl_reset_mem = ((uint32_t *) DFU_DBL_RESET_MEM);
+static const uint32_t DFU_DBL_RESET_MAGIC = 0x5A1AD5;  // SALADS
+static uint32_t *dbl_reset_mem = ((uint32_t *) 0x20007F7C);
 
 #define DEVICE_AND_COMMA(node_id) DEVICE_DT_GET(node_id),
 
