@@ -24,7 +24,7 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
 
 template<typename T, typename... X> class TemplatableValue {
  public:
-  TemplatableValue() : type_(EMPTY) {}
+  TemplatableValue() : type_(ESPHOME_EMPTY) {}
 
   template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F value) : type_(VALUE), value_(value) {}
@@ -32,7 +32,7 @@ template<typename T, typename... X> class TemplatableValue {
   template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
 
-  bool has_value() { return this->type_ != EMPTY; }
+  bool has_value() { return this->type_ != ESPHOME_EMPTY; }
 
   T value(X... x) {
     if (this->type_ == LAMBDA) {
@@ -58,7 +58,7 @@ template<typename T, typename... X> class TemplatableValue {
 
  protected:
   enum {
-    EMPTY,
+    ESPHOME_EMPTY,
     VALUE,
     LAMBDA,
   } type_;
