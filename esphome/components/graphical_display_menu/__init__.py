@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display, font, color
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_DISPLAY, CONF_ID, CONF_TRIGGER_ID
 from esphome import automation, core
 
 from esphome.components.display_menu_base import (
@@ -10,7 +10,6 @@ from esphome.components.display_menu_base import (
     display_menu_to_code,
 )
 
-CONF_DISPLAY = "display"
 CONF_FONT = "font"
 CONF_MENU_ITEM_VALUE = "menu_item_value"
 CONF_FOREGROUND_COLOR = "foreground_color"
@@ -38,7 +37,7 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GraphicalDisplayMenu),
-            cv.Optional(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
+            cv.Optional(CONF_DISPLAY): cv.use_id(display.Display),
             cv.Required(CONF_FONT): cv.use_id(font.Font),
             cv.Optional(CONF_MENU_ITEM_VALUE): cv.templatable(cv.string),
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),

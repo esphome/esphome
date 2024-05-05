@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS
+from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
 
 CODEOWNERS = ["@esphome/core"]
@@ -19,7 +19,6 @@ ParallelScript = script_ns.class_("ParallelScript", Script)
 
 CONF_SCRIPT = "script"
 CONF_SINGLE = "single"
-CONF_RESTART = "restart"
 CONF_QUEUED = "queued"
 CONF_PARALLEL = "parallel"
 CONF_MAX_RUNS = "max_runs"

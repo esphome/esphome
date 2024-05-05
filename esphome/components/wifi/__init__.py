@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_BTM,
+    CONF_ENABLE_ON_BOOT,
     CONF_ENABLE_RRM,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
@@ -268,7 +269,6 @@ def _validate(config):
 
 CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
-CONF_ENABLE_ON_BOOT = "enable_on_boot"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {

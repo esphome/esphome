@@ -1,0 +1,11 @@
+i2c:
+  - id: i2c_hyt271
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: hyt271
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity

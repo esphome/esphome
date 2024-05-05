@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_RESTART,
     DEVICE_CLASS_RESTART,
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
@@ -11,7 +12,6 @@ from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 RestartButton = mr24hpc1_ns.class_("RestartButton", button.Button)
 CustomSetEndButton = mr24hpc1_ns.class_("CustomSetEndButton", button.Button)
 
-CONF_RESTART = "restart"
 CONF_CUSTOM_SET_END = "custom_set_end"
 
 CONFIG_SCHEMA = {
