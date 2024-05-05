@@ -1,0 +1,16 @@
+apiVersion: v2
+name: esphome
+description: A Helm chart to instal ESPHome in kubernetes
+type: application
+version: "2024.4.2"
+appVersion: "2024.4.2"
+keywords:
+  - esp32
+  - home-assistant
+home: https://esphome.io/index.html
+icon: https://esphome.io/_images/logo-text.svg
+sources:
+  - https://github.com/esphome
+maintainers:
+  - name: XXXX?
+    email: XXXX?
