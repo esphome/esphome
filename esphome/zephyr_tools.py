@@ -1,18 +1,21 @@
 import asyncio
 import logging
 import re
+import sys
 from typing import Final
 from rich.pretty import pprint
 from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
-from smpclient.transport.ble import SMPBLETransport
-from smpclient.transport.serial import SMPSerialTransport
-from smpclient import SMPClient
-from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound, MCUBootImageError
-from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
-from smpclient.requests.os_management import ResetWrite
-from smpclient.generics import error, success
-from smp.exceptions import SMPBadStartDelimiter
+
+if sys.version_info >= (3, 10):
+    from smpclient.transport.ble import SMPBLETransport
+    from smpclient.transport.serial import SMPSerialTransport
+    from smpclient import SMPClient
+    from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound, MCUBootImageError
+    from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
+    from smpclient.requests.os_management import ResetWrite
+    from smpclient.generics import error, success
+    from smp.exceptions import SMPBadStartDelimiter
 
 from esphome.espota2 import ProgressBar
 
@@ -85,6 +88,9 @@ def get_image_tlv_sha256(file):
 
 
 async def smpmgr_upload(config, host, firmware):
+    if sys.version_info < (3, 10):
+        _LOGGER.error("smpmgr requires at least python 3.10")
+        return 1
     image_tlv_sha256 = get_image_tlv_sha256(firmware)
     if image_tlv_sha256 is None:
         return 1
