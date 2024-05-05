@@ -4,6 +4,7 @@ from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_ID,
     CONF_NUMBER,
+    CONF_REFERENCE_VOLTAGE,
     UNIT_VOLT,
     STATE_CLASS_MEASUREMENT,
     DEVICE_CLASS_VOLTAGE,
@@ -22,7 +23,6 @@ MCP3008Sensor = mcp3008_ns.class_(
     voltage_sampler.VoltageSampler,
     cg.Parented.template(MCP3008),
 )
-CONF_REFERENCE_VOLTAGE = "reference_voltage"
 CONF_MCP3008_ID = "mcp3008_id"
 
 CONFIG_SCHEMA = (

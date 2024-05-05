@@ -476,7 +476,7 @@ def lint_no_byte_datatype(fname, match):
 def lint_constants_usage():
     errs = []
     for constant, uses in CONSTANTS_USES.items():
-        if len(uses) < 4:
+        if len(uses) < 3:
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
