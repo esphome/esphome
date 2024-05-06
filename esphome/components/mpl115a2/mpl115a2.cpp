@@ -52,25 +52,26 @@ void MPL115A2Component::update() {
   // Wait a bit for the conversion to complete (3ms max)
   this->set_timeout(5, [this, cmd]() {
     uint8_t buffer[4];
-	  cmd[0] = MPL115A2_REGISTER_PRESSURE_MSB;
-	  this->write(cmd, 1);
-	  this->read(buffer, 4);
-	
-	  uint16_t pressure_in = encode_uint16(buffer[0], buffer[1]) >> 6;
-	  uint16_t temp_in = encode_uint16(buffer[2], buffer[3]) >> 6;
-	
-	  // See datasheet p.6 for evaluation sequence
-	  float pressure_comp = mpl115a2_a0_ + (mpl115a2_b1_ + mpl115a2_c12_ * temp_in) * pressure_in + mpl115a2_b2_ * temp_in;
-	
-	  float pressure_out = ((65.0f / 1023.0f) * pressure_comp) + 50.0f;
-	  if (this->pressure_ != nullptr)
-	    this->pressure_->publish_state(pressure_out);
-	
-	  float temperature_out = ((float) temp_in - 498.0f) / -5.35f + 25.0f;
-	  if (this->temperature_ != nullptr)
-	    this->temperature_->publish_state(temperature_out);
-	
-	  ESP_LOGD(TAG, "Got Temperature=%.1f°C Pressure=%.1f", temperature_out, pressure_out);
+    cmd[0] = MPL115A2_REGISTER_PRESSURE_MSB;
+    this->write(cmd, 1);
+    this->read(buffer, 4);
+
+    uint16_t pressure_in = encode_uint16(buffer[0], buffer[1]) >> 6;
+    uint16_t temp_in = encode_uint16(buffer[2], buffer[3]) >> 6;
+
+    // See datasheet p.6 for evaluation sequence
+    float pressure_comp =
+        mpl115a2_a0_ + (mpl115a2_b1_ + mpl115a2_c12_ * temp_in) * pressure_in + mpl115a2_b2_ * temp_in;
+
+    float pressure_out = ((65.0f / 1023.0f) * pressure_comp) + 50.0f;
+    if (this->pressure_ != nullptr)
+      this->pressure_->publish_state(pressure_out);
+
+    float temperature_out = ((float) temp_in - 498.0f) / -5.35f + 25.0f;
+    if (this->temperature_ != nullptr)
+      this->temperature_->publish_state(temperature_out);
+
+    ESP_LOGD(TAG, "Got Temperature=%.1f°C Pressure=%.1f", temperature_out, pressure_out);
   });
 }
 
