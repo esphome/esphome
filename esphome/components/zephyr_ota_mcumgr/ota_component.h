@@ -1,5 +1,5 @@
 #pragma once
-
+#ifdef USE_ZEPHYR
 #include "esphome/components/ota/ota_component.h"
 
 struct img_mgmt_upload_check;
@@ -26,3 +26,4 @@ class OTAComponent : public ota::OTAComponent {
 
 }  // namespace zephyr_ota_mcumgr
 }  // namespace esphome
+#endif

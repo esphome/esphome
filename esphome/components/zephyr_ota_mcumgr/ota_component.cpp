@@ -1,3 +1,4 @@
+#ifdef USE_ZEPHYR
 #include "ota_component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -115,3 +116,4 @@ void OTAComponent::update_pending() {
 
 }  // namespace zephyr_ota_mcumgr
 }  // namespace esphome
+#endif
