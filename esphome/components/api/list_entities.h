@@ -52,6 +52,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_DATETIME_TIME
   bool on_time(datetime::TimeEntity *time) override;
 #endif
+#ifdef USE_DATETIME_DATETIME
+  bool on_datetime(datetime::DateTimeEntity *datetime) override;
+#endif
 #ifdef USE_TEXT
   bool on_text(text::Text *text) override;
 #endif
