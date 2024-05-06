@@ -56,9 +56,9 @@ uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
   return crc;
 }
 
-bool MLX90614Component::write_register_(uint8_t reg, uint16_t data, uint8_t max_try) {
+i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, uint8_t max_try) {
   uint8_t buf[5];
-
+  i2c::ErrorCode ec = i2c::ERROR_UNKNOWN;
   auto init_buffer = [&]() {
     buf[0] = this->address_ << 1;
     buf[1] = reg;
@@ -75,6 +75,7 @@ bool MLX90614Component::write_register_(uint8_t reg, uint16_t data, uint8_t max_
     buf[4] = this->crc8_pec_(buf, 4);
     if (!this->write_bytes(reg, buf + 2, 3)) {
       ESP_LOGW(TAG, "Try %d: Can't clean register %x", i_try, reg);
+      ec = i2c::ERROR_UNKNOWN;
       continue;
     }
 
@@ -88,7 +89,7 @@ bool MLX90614Component::write_register_(uint8_t reg, uint16_t data, uint8_t max_
       buf[4] = this->crc8_pec_(buf, 4);
       if (!this->write_bytes(reg, buf + 2, 3)) {
         ESP_LOGW(TAG, "Try %d: Can't write register %x", i_try, reg);
-        continue;
+        ec = i2c::ERROR_UNKNOWN continue;
       }
 
       // 5. Wait at least 5ms (10ms to be on the safe side)
@@ -97,7 +98,8 @@ bool MLX90614Component::write_register_(uint8_t reg, uint16_t data, uint8_t max_
 
     uint8_t read_buf[3];
     // 6. Read back and compare if the write was successful
-    if (this->read_register(red, read_buff, 3, false) != i2c::ERROR_OK) {
+    ec = this->read_register(red, read_buff, 3, false);
+    if (ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Try %d: Can't check register value %x", i_try, reg);
       continue;
     }
@@ -105,14 +107,15 @@ bool MLX90614Component::write_register_(uint8_t reg, uint16_t data, uint8_t max_
     if (read_buff[0] != buff[2] || read_buff[1] != buff[3] || read_buff[2] != buff[4]) {
       ESP_LOGW(TAG, "Try %d: Read back value is not the same. Expected %x%x%x. Actural %x%x%x", i_try, buff[2], buff[3],
                buff[4], read_buff[0], read_buff[1], read_buff[2]);
+      ec = i2c : ERROR_CRC;
       continue;
     }
 
-    return true;
+    return i2c::ERROR_OK;
   }
 
   ESP_LOGE(TAG, "Out of tries");
-  return false;
+  return ec;
 }
 
 uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
