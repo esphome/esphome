@@ -56,7 +56,7 @@ uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
   return crc;
 }
 
-bool MLX90614Component::write_regiser_(uint8_t reg, uint16_t data, uint8_t max_try) {
+bool MLX90614Component::write_register_(uint8_t reg, uint16_t data, uint8_t max_try) {
   uint8_t buf[5];
 
   auto init_buffer = [&]() {
@@ -115,7 +115,7 @@ bool MLX90614Component::write_regiser_(uint8_t reg, uint16_t data, uint8_t max_t
   return false;
 }
 
-uint16_t MLX90614Component::read_regiser_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
+uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
   uint8_t delay_ms = 5;
   uint8_t buf[5] = {
       this->address_ << 1,
@@ -158,13 +158,13 @@ float MLX90614Component::get_setup_priority() const { return setup_priority::DAT
 void MLX90614Component::update() {
   i2c::ErrorCode ec = i2c::ERROR_OK;
 
-  const auto raw_object = read_regiser_(MLX90614_TEMPERATURE_OBJECT_1, ec);
+  const auto raw_object = read_register_(MLX90614_TEMPERATURE_OBJECT_1, ec);
   if (ec != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
 
-  const auto raw_ambient = read_regiser_(MLX90614_TEMPERATURE_AMBIENT, ec);
+  const auto raw_ambient = read_register_(MLX90614_TEMPERATURE_AMBIENT, ec);
   if (ec != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
