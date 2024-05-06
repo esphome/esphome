@@ -122,7 +122,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
   const uint8_t delay_ms = 5;
   uint8_t buf[5] = {
-      this->address_ << 1,
+      uint8_t(0x01) & uint8_t(this->address_ << 1),
       reg,
   };
   for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
