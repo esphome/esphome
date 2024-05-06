@@ -18,7 +18,7 @@ sensor:
       name: Status
     version:
       name: FW Version
-    meas_time:
+    measurement_duration:
       name: Measuring Time
 
 binary_sensor:
