@@ -4,18 +4,18 @@
 #include "bme280_spi.h"
 #include <esphome/components/bme280_base/bme280_base.h>
 
-int set_bit(uint8_t num, int position) {
+namespace esphome {
+namespace bme280_spi {
+
+uint8_t set_bit(uint8_t num, int position) {
   int mask = 1 << position;
   return num | mask;
 }
 
-int clear_bit(uint8_t num, int position) {
+uint8_t clear_bit(uint8_t num, int position) {
   int mask = 1 << position;
   return num & ~mask;
 }
-
-namespace esphome {
-namespace bme280_spi {
 
 void BME280SPIComponent::setup() {
   this->spi_setup();
@@ -30,34 +30,33 @@ void BME280SPIComponent::setup() {
 
 bool BME280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
-  // cause: *data = this->delegate_->transfer(tmp) doesnt work
-  this->delegate_->transfer(set_bit(a_register, 7));
-  *data = this->delegate_->transfer(0);
+  this->transfer_byte(set_bit(a_register, 7));
+  *data = this->transfer_byte(0);
   this->disable();
   return true;
 }
 
 bool BME280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
   this->enable();
-  this->delegate_->transfer(clear_bit(a_register, 7));
-  this->delegate_->transfer(data);
+  this->transfer_byte(clear_bit(a_register, 7));
+  this->transfer_byte(data);
   this->disable();
   return true;
 }
 
 bool BME280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
-  this->delegate_->transfer(set_bit(a_register, 7));
-  this->delegate_->read_array(data, len);
+  this->transfer_byte(set_bit(a_register, 7));
+  this->read_array(data, len);
   this->disable();
   return true;
 }
 
 bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   this->enable();
-  this->delegate_->transfer(set_bit(a_register, 7));
-  ((uint8_t *) data)[1] = this->delegate_->transfer(0);
-  ((uint8_t *) data)[0] = this->delegate_->transfer(0);
+  this->transfer_byte(set_bit(a_register, 7));
+  ((uint8_t *) data)[1] = this->transfer_byte(0);
+  ((uint8_t *) data)[0] = this->transfer_byte(0);
   this->disable();
   return true;
 }

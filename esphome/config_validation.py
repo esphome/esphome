@@ -2131,6 +2131,7 @@ GIT_SCHEMA = Schema(
         Optional(CONF_REF): git_ref,
         Optional(CONF_USERNAME): string,
         Optional(CONF_PASSWORD): string,
+        Optional(CONF_PATH): string,
     }
 )
 LOCAL_SCHEMA = Schema(
