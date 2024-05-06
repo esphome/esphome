@@ -29,8 +29,8 @@ pyparsing >= 3.0
 argcomplete>=2.0.0
 
 # for mcumgr
-smp @ git+https://github.com/tomaszduda23/smp/@69a997ae1e3838b477fbb6901fa534499515d859
-smpclient @ git+https://github.com/tomaszduda23/smpclient/@f9a4949bf85ac5e4ef2cf3652c1aefe8bfedeebe
+smp==1.0.0
+smpclient @ git+https://github.com/tomaszduda23/smpclient/@d25c8035ae2858fd41a106058297b619d58fbcb5
 bleak==0.21.1
 pydantic==2.7.0
 cbor2==5.6.1
