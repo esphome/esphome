@@ -705,35 +705,6 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280_i2c
-    temperature:
-      name: Outside Temperature
-      oversampling: 16x
-    pressure:
-      name: Outside Pressure
-      oversampling: none
-    humidity:
-      name: Outside Humidity
-      oversampling: 8x
-    address: 0x77
-    iir_filter: 16x
-    update_interval: 15s
-    i2c_id: i2c_bus
-  - platform: bme280_spi
-    temperature:
-      name: Outside Temperature
-      oversampling: 16x
-    pressure:
-      name: Outside Pressure
-      oversampling: none
-    humidity:
-      name: Outside Humidity
-      oversampling: 8x
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    iir_filter: 16x
-    update_interval: 15s
   - platform: bme680
     temperature:
       name: Outside Temperature
