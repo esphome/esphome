@@ -212,18 +212,13 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
 }
 
 RecoveryCode ArduinoI2CBus::recover() {
-#if defined(USE_ESP8266)
-  delete wire_;
-#else
+#if !defined(USE_ESP8266)
   wire_->end();
 #endif
 
   auto result = this->recover_();
 
-#if defined(USE_ESP8266)
-  wire_ = new TwoWire();
-#endif
-  wire_->begin();
+  this->set_pins_and_clock_();
   return result;
 }
 
