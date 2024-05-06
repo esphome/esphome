@@ -7,10 +7,12 @@ from esphome.components import (
 )
 from esphome.const import (
     CONF_DC_PIN,
+    CONF_HSYNC_PIN,
     CONF_RESET_PIN,
     CONF_DATA_PINS,
     CONF_ID,
     CONF_DIMENSIONS,
+    CONF_VSYNC_PIN,
     CONF_WIDTH,
     CONF_HEIGHT,
     CONF_LAMBDA,
@@ -44,8 +46,6 @@ from .init_sequences import (
 CONF_INIT_SEQUENCE = "init_sequence"
 CONF_DE_PIN = "de_pin"
 CONF_PCLK_PIN = "pclk_pin"
-CONF_HSYNC_PIN = "hsync_pin"
-CONF_VSYNC_PIN = "vsync_pin"
 
 CONF_HSYNC_PULSE_WIDTH = "hsync_pulse_width"
 CONF_HSYNC_BACK_PORCH = "hsync_back_porch"

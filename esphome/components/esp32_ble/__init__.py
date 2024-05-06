@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID
+from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant, const
 
@@ -11,7 +11,6 @@ CONFLICTS_WITH = ["esp32_ble_beacon"]
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
-CONF_ENABLE_ON_BOOT = "enable_on_boot"
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
