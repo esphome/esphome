@@ -26,6 +26,9 @@ class IDFI2CBus : public I2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
+ private:
+  RecoveryCode recover_();
+
  protected:
   i2c_port_t port_;
   uint8_t sda_pin_;
