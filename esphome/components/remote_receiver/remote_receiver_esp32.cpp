@@ -20,9 +20,11 @@ void RemoteReceiverComponent::setup() {
     rmt.rx_config.filter_en = false;
   } else {
     rmt.rx_config.filter_en = true;
-    rmt.rx_config.filter_ticks_thresh = this->from_microseconds_(this->filter_us_);
+    rmt.rx_config.filter_ticks_thresh = static_cast<uint8_t>(
+        std::min(this->from_microseconds_(this->filter_us_) * this->clock_divider_, (uint32_t) 255));
   }
-  rmt.rx_config.idle_threshold = this->from_microseconds_(this->idle_us_);
+  rmt.rx_config.idle_threshold =
+      static_cast<uint16_t>(std::min(this->from_microseconds_(this->idle_us_), (uint32_t) 65535));
 
   esp_err_t error = rmt_config(&rmt);
   if (error != ESP_OK) {
@@ -60,8 +62,9 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
   ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
-  ESP_LOGCONFIG(TAG, "  Tolerance: %u%%", this->tolerance_);
-  ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);
+  ESP_LOGCONFIG(TAG, "  Tolerance: %" PRIu32 "%s", this->tolerance_,
+                (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%");
+  ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %" PRIu32 " us", this->filter_us_);
   ESP_LOGCONFIG(TAG, "  Signal is done after %" PRIu32 " us of no changes", this->idle_us_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring RMT driver failed: %s", esp_err_to_name(this->error_code_));
@@ -88,6 +91,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   this->temp_.clear();
   int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
   size_t item_count = len / sizeof(rmt_item32_t);
+  uint32_t filter_ticks = this->from_microseconds_(this->filter_us_);
 
   ESP_LOGVV(TAG, "START:");
   for (size_t i = 0; i < item_count; i++) {
@@ -112,7 +116,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   for (size_t i = 0; i < item_count; i++) {
     if (item[i].duration0 == 0u) {
       // Do nothing
-    } else if (bool(item[i].level0) == prev_level) {
+    } else if ((bool(item[i].level0) == prev_level) || (item[i].duration0 < filter_ticks)) {
       prev_length += item[i].duration0;
     } else {
       if (prev_length > 0) {
@@ -128,7 +132,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
 
     if (item[i].duration1 == 0u) {
       // Do nothing
-    } else if (bool(item[i].level1) == prev_level) {
+    } else if ((bool(item[i].level1) == prev_level) || (item[i].duration1 < filter_ticks)) {
       prev_length += item[i].duration1;
     } else {
       if (prev_length > 0) {

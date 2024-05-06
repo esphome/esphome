@@ -1,5 +1,6 @@
 async_timeout==4.0.3; python_version <= "3.10"
-voluptuous==0.14.1
+cryptography==42.0.2
+voluptuous==0.14.2
 PyYAML==6.0.1
 paho-mqtt==1.6.1
 colorama==0.4.6
@@ -11,10 +12,11 @@ pyserial==3.5
 platformio==6.1.13  # When updating platformio, also update Dockerfile
 esptool==4.7.0
 click==8.1.7
-esphome-dashboard==20231107.0
-aioesphomeapi==21.0.1
-zeroconf==0.131.0
+esphome-dashboard==20240412.0
+aioesphomeapi==24.3.0
+zeroconf==0.132.2
 python-magic==0.4.27
+ruamel.yaml==0.18.6 # dashboard_import
 
 # esp-idf requires this, but doesn't bundle it by default
 # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24

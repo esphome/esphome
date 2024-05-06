@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, resistance_sampler
 from esphome.const import (
+    CONF_REFERENCE_VOLTAGE,
     CONF_SENSOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_OHM,
@@ -18,7 +19,6 @@ ResistanceSensor = resistance_ns.class_(
     resistance_sampler.ResistanceSampler,
 )
 
-CONF_REFERENCE_VOLTAGE = "reference_voltage"
 CONF_CONFIGURATION = "configuration"
 CONF_RESISTOR = "resistor"
 

@@ -218,7 +218,7 @@ template<typename... Ts> class ActionList {
   /// Return the number of actions in this action list that are currently running.
   int num_running() {
     if (this->actions_begin_ == nullptr)
-      return false;
+      return 0;
     return this->actions_begin_->num_running_total();
   }
 

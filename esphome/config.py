@@ -1,10 +1,11 @@
+from __future__ import annotations
 import abc
 import functools
 import heapq
 import logging
 import re
 
-from typing import Optional, Union
+from typing import Union, Any
 
 from contextlib import contextmanager
 import contextvars
@@ -76,7 +77,7 @@ def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
 
 @functools.total_ordering
 class _ValidationStepTask:
-    def __init__(self, priority: float, id_number: int, step: "ConfigValidationStep"):
+    def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
         self.priority = priority
         self.id_number = id_number
         self.step = step
@@ -130,7 +131,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             )
         self.errors.append(error)
 
-    def add_validation_step(self, step: "ConfigValidationStep"):
+    def add_validation_step(self, step: ConfigValidationStep):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
         heapq.heappush(
@@ -172,7 +173,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             conf = conf[key]
         conf[path[-1]] = value
 
-    def get_error_for_path(self, path: ConfigPath) -> Optional[vol.Invalid]:
+    def get_error_for_path(self, path: ConfigPath) -> vol.Invalid | None:
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 self.errors.remove(err)
@@ -181,7 +182,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
     def get_deepest_document_range_for_path(
         self, path: ConfigPath, get_key: bool = False
-    ) -> Optional[ESPHomeDataBase]:
+    ) -> ESPHomeDataBase | None:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):
@@ -292,8 +293,7 @@ class ConfigValidationStep(abc.ABC):
     priority: float = 0.0
 
     @abc.abstractmethod
-    def run(self, result: Config) -> None:
-        ...
+    def run(self, result: Config) -> None: ...  # noqa: E704
 
 
 class LoadValidationStep(ConfigValidationStep):
@@ -333,10 +333,11 @@ class LoadValidationStep(ConfigValidationStep):
             if load not in result:
                 result.add_validation_step(AutoLoadValidationStep(load))
 
+        result.add_validation_step(
+            MetadataValidationStep([self.domain], self.domain, self.conf, component)
+        )
+
         if not component.is_platform_component:
-            result.add_validation_step(
-                MetadataValidationStep([self.domain], self.domain, self.conf, component)
-            )
             return
 
         # This is a platform component, proceed to reading platform entries
@@ -373,7 +374,10 @@ class LoadValidationStep(ConfigValidationStep):
                         path + [CONF_ID],
                     )
                     continue
-                result.add_str_error("No platform specified! See 'platform' key.", path)
+                result.add_str_error(
+                    f"'{self.domain}' requires a 'platform' key but it was not specified.",
+                    path,
+                )
                 continue
             # Remove temp output path and construct new one
             result.remove_output_path(path, p_domain)
@@ -448,9 +452,28 @@ class MetadataValidationStep(ConfigValidationStep):
 
         success = True
         for dependency in self.comp.dependencies:
-            if dependency not in result:
+            dependency_parts = dependency.split(".")
+            if len(dependency_parts) > 2:
                 result.add_str_error(
-                    f"Component {self.domain} requires component {dependency}",
+                    "Dependencies must be specified as a single component or in component.platform format only",
+                    self.path,
+                )
+                return
+            component_dep = dependency_parts[0]
+            platform_dep = dependency_parts[-1]
+            if component_dep not in result:
+                result.add_str_error(
+                    f"Component {self.domain} requires component {component_dep}",
+                    self.path,
+                )
+                success = False
+            elif component_dep != platform_dep and (
+                not isinstance(platform_list := result.get(component_dep), list)
+                or not any(CONF_PLATFORM in p for p in platform_list)
+                or not any(p[CONF_PLATFORM] == platform_dep for p in platform_list)
+            ):
+                result.add_str_error(
+                    f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
                     self.path,
                 )
                 success = False
@@ -520,8 +543,6 @@ class SchemaValidationStep(ConfigValidationStep):
         self.comp = comp
 
     def run(self, result: Config) -> None:
-        if self.comp.config_schema is None:
-            return
         token = path_context.set(self.path)
         with result.catch_error(self.path):
             if self.comp.is_platform:
@@ -536,7 +557,7 @@ class SchemaValidationStep(ConfigValidationStep):
                 validated["platform"] = platform_val
                 validated.move_to_end("platform", last=False)
                 result.set_by_path(self.path, validated)
-            else:
+            elif self.comp.config_schema is not None:
                 schema = cv.Schema(self.comp.config_schema)
                 validated = schema(self.conf)
                 result.set_by_path(self.path, validated)
@@ -734,7 +755,9 @@ class PinUseValidationCheck(ConfigValidationStep):
         pins.PIN_SCHEMA_REGISTRY.final_validate(result)
 
 
-def validate_config(config, command_line_substitutions) -> Config:
+def validate_config(
+    config: dict[str, Any], command_line_substitutions: dict[str, Any]
+) -> Config:
     result = Config()
 
     loader.clear_component_meta_finders()
@@ -755,11 +778,11 @@ def validate_config(config, command_line_substitutions) -> Config:
     CORE.raw_config = config
 
     # 1. Load substitutions
-    if CONF_SUBSTITUTIONS in config:
+    if CONF_SUBSTITUTIONS in config or command_line_substitutions:
         from esphome.components import substitutions
 
         result[CONF_SUBSTITUTIONS] = {
-            **config[CONF_SUBSTITUTIONS],
+            **config.get(CONF_SUBSTITUTIONS, {}),
             **command_line_substitutions,
         }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
@@ -898,24 +921,23 @@ class InvalidYAMLError(EsphomeError):
         self.base_exc = base_exc
 
 
-def _load_config(command_line_substitutions):
+def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
+    """Load the configuration file."""
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
 
     try:
-        result = validate_config(config, command_line_substitutions)
+        return validate_config(config, command_line_substitutions)
     except EsphomeError:
         raise
     except Exception:
         _LOGGER.error("Unexpected exception while reading configuration:")
         raise
 
-    return result
 
-
-def load_config(command_line_substitutions):
+def load_config(command_line_substitutions: dict[str, Any]) -> Config:
     try:
         return _load_config(command_line_substitutions)
     except vol.Invalid as err:
