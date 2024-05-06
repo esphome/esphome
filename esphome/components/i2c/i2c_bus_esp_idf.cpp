@@ -245,6 +245,22 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
   return ERROR_OK;
 }
 
+void IDFI2CBus::recover() {
+  auto err = i2c_driver_delete(port_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_driver_delete failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+  }
+
+  this->recover_();
+
+  err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+  }
+}
+
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf

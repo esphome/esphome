@@ -211,6 +211,12 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
   }
 }
 
+void ArduinoI2CBus::recover() {
+  wire_->end();
+  this->recover_();
+  wire_->begin();
+}
+
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
