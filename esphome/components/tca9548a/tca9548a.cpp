@@ -22,7 +22,7 @@ i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffer
   this->parent_->disable_all_channels();
   return err;
 }
-RecoveryCode TCA9548AComponent::recover() {
+i2c::RecoveryCode TCA9548AComponent::recover() {
   auto err = this->parent_->switch_to_channel(channel_);
 
   if (err == i2c::ERROR_TIMEOUT) {
