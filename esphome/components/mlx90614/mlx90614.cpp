@@ -186,6 +186,7 @@ void MLX90614Component::update() {
     i2c::ErrorCode ec = i2c::ERROR_OK;
     const auto raw = read_register_(reg, ec);
     if (ec != i2c::ERROR_OK) {
+      sensor->publish_state(NAN);
       return false;
     }
     float value = raw & 0x8000 ? NAN : raw * 0.02f - 273.15f;
