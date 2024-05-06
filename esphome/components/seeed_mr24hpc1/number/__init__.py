@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_SENSITIVITY,
     ENTITY_CATEGORY_CONFIG,
 )
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
@@ -14,7 +15,6 @@ MotionTriggerTimeNumber = mr24hpc1_ns.class_("MotionTriggerTimeNumber", number.N
 MotionToRestTimeNumber = mr24hpc1_ns.class_("MotionToRestTimeNumber", number.Number)
 CustomUnmanTimeNumber = mr24hpc1_ns.class_("CustomUnmanTimeNumber", number.Number)
 
-CONF_SENSITIVITY = "sensitivity"
 CONF_CUSTOM_MODE = "custom_mode"
 CONF_EXISTENCE_THRESHOLD = "existence_threshold"
 CONF_MOTION_THRESHOLD = "motion_threshold"
