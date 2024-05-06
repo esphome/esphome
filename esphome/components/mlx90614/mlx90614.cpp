@@ -64,7 +64,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
     buf[1] = reg;
   };
 
-  // See 8.3.3.1. ERPROMwritesequence sequence sequence
+  // See 8.3.3.1. ERPROM write sequence
   // 1. Power up the device
   const uint8_t delay_ms = 10;
   for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
@@ -168,7 +168,7 @@ void MLX90614Component::update() {
     const auto read_emissivity = read_register_(MLX90614_EMISSIVITY, ec);
     if (ec == i2c::ERROR_OK) {
       const auto desired_emissivity = uint16_t(this->emissivity_ * 0xFFFF);
-      if (read_emisivity != desired_emissivity) {
+      if (read_emissivity != desired_emissivity) {
         if (i2c::ERROR_OK != this->write_register_(MLX90614_EMISSIVITY, desired_emissivity)) {
           write_emissivity_status = false;
         }
