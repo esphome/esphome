@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_NAME,
     CONF_SENSORS,
     CONF_BINARY_SENSORS,
-    CONF_UPDATE_INTERVAL,
 )
 
 CODEOWNERS = ["@Links2004"]
@@ -17,7 +16,6 @@ CONF_PREFIX = "prefix"
 
 statsd_component_ns = cg.esphome_ns.namespace("statsd")
 StatsdComponent = statsd_component_ns.class_("StatsdComponent", cg.PollingComponent)
-
 
 CONFIG_SENSORS_SCHEMA = cv.Schema(
     {
@@ -35,7 +33,7 @@ CONFIG_BINARY_SENSORS_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(statsdComponent),
+        cv.GenerateID(): cv.declare_id(StatsdComponent),
         cv.Required(CONF_HOST): cv.string_strict,
         cv.Optional(CONF_PORT, default=8125): cv.port,
         cv.Optional(CONF_PREFIX, default=""): cv.string_strict,

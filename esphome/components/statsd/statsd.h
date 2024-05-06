@@ -19,7 +19,7 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef USE_ARDUINO
+#ifdef ESP8266
 #include "WiFiUdp.h"
 #include "IPAddress.h"
 #endif
@@ -72,7 +72,7 @@ class StatsdComponent : public PollingComponent {
 
   std::vector<sensors_t> sensors_;
 
-#ifdef USE_ARDUINO
+#ifdef ESP8266
   WiFiUDP sock_;
 #else
   std::unique_ptr<esphome::socket::Socket> sock_;
