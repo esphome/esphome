@@ -156,7 +156,7 @@ void MLX90614Component::dump_config() {
 float MLX90614Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90614Component::update() {
-  i2c::ErrorCode ec = ERROR_OK;
+  i2c::ErrorCode ec = i2c::ERROR_OK;
 
   const auto raw_object = read_regiser_(MLX90614_TEMPERATURE_OBJECT_1, ec);
   if (ec != i2c::ERROR_OK) {
