@@ -1,5 +1,5 @@
 #pragma once
-
+#ifdef USE_ZEPHYR
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include <zephyr/sys/ring_buffer.h>
@@ -38,3 +38,4 @@ class BLENUS : public Component {
 
 }  // namespace zephyr_ble_nus
 }  // namespace esphome
+#endif

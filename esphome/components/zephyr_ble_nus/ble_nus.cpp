@@ -1,3 +1,4 @@
+#ifdef USE_ZEPHYR
 #include "ble_nus.h"
 #include <zephyr/kernel.h>
 #include <bluetooth/services/nus.h>
@@ -139,3 +140,4 @@ void BLENUS::loop() {
 
 }  // namespace zephyr_ble_nus
 }  // namespace esphome
+#endif

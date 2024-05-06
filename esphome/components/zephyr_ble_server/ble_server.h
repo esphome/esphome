@@ -1,5 +1,5 @@
 #pragma once
-
+#ifdef USE_ZEPHYR
 #include "esphome/core/component.h"
 
 namespace esphome {
@@ -12,3 +12,4 @@ class BLEServer : public Component {
 
 }  // namespace zephyr_ble_server
 }  // namespace esphome
+#endif

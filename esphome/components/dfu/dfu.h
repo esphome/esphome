@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_NRF52
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #ifdef USE_OUTPUT
@@ -21,3 +22,4 @@ class DeviceFirmwareUpdate : public Component {
 };
 }  // namespace dfu
 }  // namespace esphome
+#endif

@@ -1,3 +1,4 @@
+#ifdef USE_ZEPHYR
 #include "ble_server.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -77,3 +78,5 @@ void BLEServer::setup() {
 
 }  // namespace zephyr_ble_server
 }  // namespace esphome
+
+#endif

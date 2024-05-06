@@ -1,3 +1,4 @@
+#ifdef USE_NRF52
 #include "dfu.h"
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
@@ -15,7 +16,7 @@ static uint32_t *dbl_reset_mem = ((uint32_t *) 0x20007F7C);
 
 const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
 
-static void cdc_dte_rate_callback(const struct device *, uint32_t rate) {
+static void cdc_dte_rate_callback(const struct device * /*unused*/, uint32_t rate) {
   if (rate == 1200) {
     goto_dfu = true;
   }
@@ -30,6 +31,7 @@ void DeviceFirmwareUpdate::setup() {
 void DeviceFirmwareUpdate::loop() {
   if (goto_dfu) {
     goto_dfu = false;
+    // TODO this is not required for mcuboot
     (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
     reset_output_->set_state(true);
   }
@@ -37,3 +39,4 @@ void DeviceFirmwareUpdate::loop() {
 
 }  // namespace dfu
 }  // namespace esphome
+#endif
