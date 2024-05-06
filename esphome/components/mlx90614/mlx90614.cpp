@@ -56,7 +56,7 @@ uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
   return crc;
 }
 
-bool MLX90614Component::write_regiser_(const uint8_t reg, const uint16_t data, const uint8_t max_try) {
+bool MLX90614Component::write_regiser_(uint8_t reg, uint16_t data, uint8_t max_try) {
   uint8_t buf[5];
 
   auto init_buffer = [&]() {
@@ -115,7 +115,7 @@ bool MLX90614Component::write_regiser_(const uint8_t reg, const uint16_t data, c
   return false;
 }
 
-uint16_t MLX90614Component::read_regiser_(const uint8_t reg, i2c::ErrorCode &ec, const uint8_t max_try) {
+uint16_t MLX90614Component::read_regiser_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
   uint8_t delay_ms = 5;
   uint8_t buf[5] = {
       this->address_ << 1,
