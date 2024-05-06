@@ -121,20 +121,21 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 
 uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
   const uint8_t delay_ms = 5;
-  uint8_t buf[5] = {
+  uint8_t buf[6] = {
       uint8_t(this->address_ << 1),
       reg,
+      uint8_t(0x01 | (this->address_ << 1)),
   };
   for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
-    ec = this->read_register(reg, buf + 2, 3, false);
+    ec = this->read_register(reg, buf + 3, 3, false);
 
     if (ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Try %d: i2c read error %d", i_try, ec);
       continue;
     }
 
-    const auto expected_pec = this->crc8_pec_(buf, 4);
-    if (buf[4] != expected_pec) {
+    const auto expected_pec = this->crc8_pec_(buf, 5);
+    if (buf[5] != expected_pec) {
       ESP_LOGW(TAG, "Try %d: i2c CRC error. Expected %x. Actual %x", i_try, expected_pec, buf[4]);
       ec = i2c::ERROR_CRC;
       continue;
