@@ -387,16 +387,13 @@ def validate_click_timing(value):
 
 
 BINARY_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BinarySensor),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTBinarySensorComponent
-            ),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
             ),
             cv.Optional(CONF_PUBLISH_INITIAL_STATE): cv.boolean,
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,

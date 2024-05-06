@@ -45,14 +45,11 @@ validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
 BUTTON_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation(
                 {

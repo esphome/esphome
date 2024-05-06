@@ -78,11 +78,10 @@ AlarmControlPanelCondition = alarm_control_panel_ns.class_(
 )
 
 ALARM_CONTROL_PANEL_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
-    cv.WEBSERVER_SORTING_SCHEMA
+    web_server.WEBSERVER_SORTING_SCHEMA
 ).extend(
     {
         cv.GenerateID(): cv.declare_id(AlarmControlPanel),
-        cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(web_server.WebServer),
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),

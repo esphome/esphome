@@ -126,14 +126,11 @@ async def map_filter_to_code(config, filter_id):
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 TEXT_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.GenerateID(): cv.declare_id(TextSensor),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,

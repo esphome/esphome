@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_DATETIME_TIME
+#ifdef USE_DATETIME_DATETIME
 
 #include "esphome/components/datetime/datetime_entity.h"
 #include "esphome/core/automation.h"

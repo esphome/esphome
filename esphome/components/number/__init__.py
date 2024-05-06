@@ -170,14 +170,11 @@ validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.string_strict
 
 NUMBER_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),

@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
+    CONF_WEB_SERVER_ID,
     CONF_WEB_SERVER_SORTING_WEIGHT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -64,6 +65,15 @@ def validate_ota(config):
         raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
     return config
 
+
+WEBSERVER_SORTING_SCHEMA = cv.Schema(
+    {
+        cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
+        cv.OnlyWith(CONF_WEB_SERVER_SORTING_WEIGHT, "web_server", 50): cv.All(
+            cv.requires_component("web_server"), cv.float_
+        ),
+    }
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

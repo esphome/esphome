@@ -58,16 +58,13 @@ RESTORE_MODES = {
 }
 
 LIGHT_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTJSONLightComponent
-            ),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
             ),
             cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"

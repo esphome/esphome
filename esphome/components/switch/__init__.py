@@ -66,14 +66,11 @@ validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
 _SWITCH_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.Optional(CONF_INVERTED): cv.boolean,
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
                 {

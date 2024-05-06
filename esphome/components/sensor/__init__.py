@@ -254,14 +254,11 @@ validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.GenerateID(): cv.declare_id(Sensor),
             cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
             cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,

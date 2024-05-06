@@ -32,14 +32,11 @@ LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template(
 LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
 
 LOCK_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTLockComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.Optional(CONF_ON_LOCK): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockLockTrigger),

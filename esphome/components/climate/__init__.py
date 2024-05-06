@@ -152,15 +152,12 @@ VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Any(
 )
 
 CLIMATE_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(Climate),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
                     cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,

@@ -1005,11 +1005,16 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
   request->send(404);
 }
 std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject root) {
+  return json::build_json([this, obj, start_config](JsonObject root) {
     set_json_id(root, obj, "time-" + obj->get_object_id(), start_config);
     std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
     root["value"] = value;
     root["state"] = value;
+    if (start_config == DETAIL_ALL) {
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+      }
+    }
   });
 }
 #endif  // USE_DATETIME_TIME
@@ -1053,12 +1058,17 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
   request->send(404);
 }
 std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject root) {
+  return json::build_json([this, obj, start_config](JsonObject root) {
     set_json_id(root, obj, "datetime-" + obj->get_object_id(), start_config);
     std::string value = str_sprintf("%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour,
                                     obj->minute, obj->second);
     root["value"] = value;
     root["state"] = value;
+    if (start_config == DETAIL_ALL) {
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+      }
+    }
   });
 }
 #endif  // USE_DATETIME_DATETIME

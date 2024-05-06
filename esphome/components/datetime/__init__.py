@@ -74,7 +74,7 @@ _DATETIME_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
     }
 ).extend(
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA).extend(
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA).extend(
         cv.MQTT_COMMAND_COMPONENT_SCHEMA
     )
 )

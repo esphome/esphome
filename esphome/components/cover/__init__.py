@@ -90,15 +90,12 @@ CoverClosedTrigger = cover_ns.class_(
 CONF_ON_CLOSED = "on_closed"
 
 COVER_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(Cover),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic

@@ -81,7 +81,7 @@ FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.templa
 FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.template())
 
 FAN_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
@@ -90,9 +90,6 @@ FAN_SCHEMA = (
                 RESTORE_MODES, upper=True, space="_"
             ),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
-            cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(
-                web_server.WebServer
-            ),
             cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.publish_topic
             ),
