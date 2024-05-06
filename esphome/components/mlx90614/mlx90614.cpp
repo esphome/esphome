@@ -106,7 +106,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
     }
 
     if (read_buf[0] != buf[2] || read_buf[1] != buf[3] || read_buf[2] != buf[4]) {
-      ESP_LOGW(TAG, "Try %d: Read back value is not the same. Expected %x%x%x. Actural %x%x%x", i_try, buf[2], buf[3],
+      ESP_LOGW(TAG, "Try %d: Read back value is not the same. Expected %x%x%x. Actual %x%x%x", i_try, buf[2], buf[3],
                buf[4], read_buf[0], read_buf[1], read_buf[2]);
       ec = i2c::ERROR_CRC;
       continue;
@@ -122,7 +122,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
   const uint8_t delay_ms = 5;
   uint8_t buf[5] = {
-      uint8_t(0x01) & uint8_t(this->address_ << 1),
+      uint8_t(0x01) | uint8_t(this->address_ << 1),
       reg,
   };
   for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
@@ -135,7 +135,7 @@ uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint
 
     const auto expected_pec = this->crc8_pec_(buf, 4);
     if (buf[4] != expected_pec) {
-      ESP_LOGW(TAG, "Try %d: i2c CRC error. Expected %x. Actural %x", i_try, expected_pec, buf[4]);
+      ESP_LOGW(TAG, "Try %d: i2c CRC error. Expected %x. Actual %x", i_try, expected_pec, buf[4]);
       ec = i2c::ERROR_CRC;
       continue;
     }
