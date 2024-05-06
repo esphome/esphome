@@ -245,26 +245,28 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
   return ERROR_OK;
 }
 
-void IDFI2CBus::recover() {
+RecoveryCode IDFI2CBus::recover() {
   auto err = i2c_driver_delete(port_);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_driver_delete failed: %s", esp_err_to_name(err));
     this->mark_failed();
   }
 
-  this->recover_();
+  auto result = this->recover_();
 
   err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
   }
+
+  return result;
 }
 
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
-void IDFI2CBus::recover_() {
+RecoveryCode IDFI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing I2C bus recovery");
 
   const gpio_num_t scl_pin = static_cast<gpio_num_t>(scl_pin_);
@@ -303,8 +305,7 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   if (gpio_get_level(scl_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
-    recovery_result_ = RECOVERY_FAILED_SCL_LOW;
-    return;
+    return RECOVERY_FAILED_SCL_LOW;
   }
 
   // From the specification:
@@ -334,8 +335,7 @@ void IDFI2CBus::recover_() {
     }
     if (gpio_get_level(scl_pin) == 0) {
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
-      recovery_result_ = RECOVERY_FAILED_SCL_LOW;
-      return;
+      return RECOVERY_FAILED_SCL_LOW;
     }
   }
 
@@ -344,8 +344,7 @@ void IDFI2CBus::recover_() {
   // in SDA being pulled up.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
-    recovery_result_ = RECOVERY_FAILED_SDA_LOW;
-    return;
+    return RECOVERY_FAILED_SDA_LOW;
   }
 
   // From the specification:
@@ -371,7 +370,7 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   gpio_set_level(sda_pin, 1);
 
-  recovery_result_ = RECOVERY_COMPLETED;
+  return RECOVERY_COMPLETED;
 }
 
 }  // namespace i2c
