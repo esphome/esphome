@@ -89,7 +89,8 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
       buf[4] = this->crc8_pec_(buf, 4);
       if (!this->write_bytes(reg, buf + 2, 3)) {
         ESP_LOGW(TAG, "Try %d: Can't write register %x", i_try, reg);
-        ec = i2c::ERROR_UNKNOWN continue;
+        ec = i2c::ERROR_UNKNOWN;
+        continue;
       }
 
       // 5. Wait at least 5ms (10ms to be on the safe side)
@@ -98,16 +99,16 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 
     uint8_t read_buf[3];
     // 6. Read back and compare if the write was successful
-    ec = this->read_register(reg, read_buff, 3, false);
+    ec = this->read_register(reg, read_buf, 3, false);
     if (ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Try %d: Can't check register value %x", i_try, reg);
       continue;
     }
 
-    if (read_buff[0] != buff[2] || read_buff[1] != buff[3] || read_buff[2] != buff[4]) {
+    if (read_buf[0] != buff[2] || read_buf[1] != buff[3] || read_buf[2] != buff[4]) {
       ESP_LOGW(TAG, "Try %d: Read back value is not the same. Expected %x%x%x. Actural %x%x%x", i_try, buff[2], buff[3],
-               buff[4], read_buff[0], read_buff[1], read_buff[2]);
-      ec = i2c : ERROR_CRC;
+               buff[4], read_buf[0], read_buf[1], read_buf[2]);
+      ec = i2c::ERROR_CRC;
       continue;
     }
 
@@ -125,7 +126,7 @@ uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint
       reg,
   };
   for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
-    ec = this->read_register(reg, buf[2], 3, false) != i2c::ERROR_OK)
+    ec = this->read_register(reg, buf + 2, 3, false) != i2c::ERROR_OK)
     if(ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Try %d: i2c read error %d", i_try, ec);
       continue;
@@ -139,7 +140,7 @@ uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint
     }
 
     ec = i2c::ERROR_OK;
-    return encode_uint16(buf[4], buf[3]);
+    return encode_uint16(buf[3], buf[2]);
   }
 
   return 0;
