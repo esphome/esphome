@@ -16,7 +16,7 @@ CONF_HOST = "host"
 CONF_PREFIX = "prefix"
 
 statsd_component_ns = cg.esphome_ns.namespace("statsd")
-statsdComponent = statsd_component_ns.class_("StatsdComponent", cg.Component)
+StatsdComponent = statsd_component_ns.class_("StatsdComponent", cg.PollingComponent)
 
 
 CONFIG_SENSORS_SCHEMA = cv.Schema(
