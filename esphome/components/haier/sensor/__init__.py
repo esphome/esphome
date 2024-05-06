@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_POWER,
     CONF_HUMIDITY,
     DEVICE_CLASS_CURRENT,
@@ -41,7 +42,6 @@ CONF_OUTDOOR_COIL_TEMPERATURE = "outdoor_coil_temperature"
 CONF_OUTDOOR_DEFROST_TEMPERATURE = "outdoor_defrost_temperature"
 CONF_OUTDOOR_IN_AIR_TEMPERATURE = "outdoor_in_air_temperature"
 CONF_OUTDOOR_OUT_AIR_TEMPERATURE = "outdoor_out_air_temperature"
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 
 # Additional icons
 ICON_SNOWFLAKE_THERMOMETER = "mdi:snowflake-thermometer"
