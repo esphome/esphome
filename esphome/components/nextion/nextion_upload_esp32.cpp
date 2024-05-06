@@ -3,17 +3,17 @@
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
 
+#ifdef USE_ARDUINO
+#undef IPADDR_NONE
+#undef INADDR_NONE
+#endif  // USE_ARDUINO
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 #include <cinttypes>
-
-#ifdef USE_ARDUINO
-#undef IPADDR_NONE
-#undef INADDR_NONE
-#endif  // USE_ARDUINO
 
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
