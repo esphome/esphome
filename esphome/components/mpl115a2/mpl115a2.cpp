@@ -26,16 +26,15 @@ void MPL115A2Component::read_coefficients_() {
   this->write(&cmd, 1);
   this->read(buffer, 8);
 
-  a0coeff = (((uint16_t) buffer[0] << 8) | buffer[1]);
-  b1coeff = (((uint16_t) buffer[2] << 8) | buffer[3]);
-  b2coeff = (((uint16_t) buffer[4] << 8) | buffer[5]);
-  c12coeff = (((uint16_t) buffer[6] << 8) | buffer[7]) >> 2;
+  a0coeff = encode_uint16(buffer[0], buffer[1]);
+  b1coeff = encode_uint16(buffer[2], buffer[3]);
+  b2coeff = encode_uint16(buffer[4], buffer[5]);
+  c12coeff = encode_uint16(buffer[6], buffer[7]) >> 2;
 
-  mpl115a2_a0_ = (float) a0coeff / 8;
-  mpl115a2_b1_ = (float) b1coeff / 8192;
-  mpl115a2_b2_ = (float) b2coeff / 16384;
-  mpl115a2_c12_ = (float) c12coeff;
-  mpl115a2_c12_ /= 4194304.0;
+  this->mpl115a2_a0_ = a0coeff / 8.0f;
+  this->mpl115a2_b1_ = b1coeff / 8192.0f;
+  this->mpl115a2_b2_ = b2coeff / 16384.0f;
+  this->mpl115a2_c12_ = c12coeff / 4194304.0f;
 }
 
 void MPL115A2Component::dump_config() {
@@ -47,38 +46,32 @@ void MPL115A2Component::dump_config() {
 }
 
 void MPL115A2Component::update() {
-  uint16_t pressure_in, temp_in;
-  float pressure_comp;
-
   uint8_t cmd[2] = {MPL115A2_REGISTER_STARTCONVERSION, 0};
-  uint8_t buffer[4];
-
   this->write(cmd, 2);
 
   // Wait a bit for the conversion to complete (3ms max)
-  delay(5);
-
-  cmd[0] = MPL115A2_REGISTER_PRESSURE_MSB;
-  this->write(cmd, 1);
-  this->read(buffer, 4);
-
-  pressure_in = (((uint16_t) buffer[0] << 8) | buffer[1]) >> 6;
-  temp_in = (((uint16_t) buffer[2] << 8) | buffer[3]) >> 6;
-
-  // See datasheet p.6 for evaluation sequence
-  pressure_comp = mpl115a2_a0_ + (mpl115a2_b1_ + mpl115a2_c12_ * temp_in) * pressure_in + mpl115a2_b2_ * temp_in;
-
-  float pressure_out = ((65.0F / 1023.0F) * pressure_comp) + 50.0F;
-  if (this->pressure_ != nullptr)
-    this->pressure_->publish_state(pressure_out);
-
-  float temperature_out = ((float) temp_in - 498.0F) / -5.35F + 25.0F;
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(temperature_out);
-
-  ESP_LOGD(TAG, "Got Temperature=%.1f°C Pressure=%.1f", temperature_out, pressure_out);
-
-  this->status_clear_warning();
+  this->set_timeout(5, [this, cmd]() {
+    uint8_t buffer[4];
+	  cmd[0] = MPL115A2_REGISTER_PRESSURE_MSB;
+	  this->write(cmd, 1);
+	  this->read(buffer, 4);
+	
+	  uint16_t pressure_in = encode_uint16(buffer[0], buffer[1]) >> 6;
+	  uint16_t temp_in = encode_uint16(buffer[2], buffer[3]) >> 6;
+	
+	  // See datasheet p.6 for evaluation sequence
+	  float pressure_comp = mpl115a2_a0_ + (mpl115a2_b1_ + mpl115a2_c12_ * temp_in) * pressure_in + mpl115a2_b2_ * temp_in;
+	
+	  float pressure_out = ((65.0f / 1023.0f) * pressure_comp) + 50.0f;
+	  if (this->pressure_ != nullptr)
+	    this->pressure_->publish_state(pressure_out);
+	
+	  float temperature_out = ((float) temp_in - 498.0f) / -5.35f + 25.0f;
+	  if (this->temperature_ != nullptr)
+	    this->temperature_->publish_state(temperature_out);
+	
+	  ESP_LOGD(TAG, "Got Temperature=%.1f°C Pressure=%.1f", temperature_out, pressure_out);
+  });
 }
 
 }  // namespace mpl115a2

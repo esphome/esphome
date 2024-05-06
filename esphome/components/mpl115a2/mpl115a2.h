@@ -23,8 +23,8 @@ enum {
 
 class MPL115A2Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
+  void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
+  void set_pressure(sensor::Sensor *pressure) { this->pressure_ = pressure; }
 
   void setup() override;
   void dump_config() override;
