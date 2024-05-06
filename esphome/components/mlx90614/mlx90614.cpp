@@ -158,11 +158,6 @@ float MLX90614Component::get_setup_priority() const { return setup_priority::DAT
 
 void MLX90614Component::update() {
   i2c::ErrorCode ec = ERROR_OK;
-  const auto emissivity = read_regiser_(MLX90614_EMISSIVITY, ec);
-  if (ec != ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
 
   const auto raw_object = read_regiser_(MLX90614_TEMPERATURE_OBJECT_1, ec);
   if (ec != i2c::ERROR_OK) {
