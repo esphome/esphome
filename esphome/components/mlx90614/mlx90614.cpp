@@ -177,7 +177,7 @@ void MLX90614Component::update() {
   }
 
   float ambient = raw_ambient & 0x8000 ? NAN : raw_ambient * 0.02f - 273.15f;
-  float object = raw_object & 0x8000 ? NAN : raw_ambient * 0.02f - 273.15f;
+  float object = raw_object & 0x8000 ? NAN : raw_object * 0.02f - 273.15f;
 
   ESP_LOGD(TAG, "Got Temperature=%.1f°C Ambient=%.1f°C", object, ambient);
 
