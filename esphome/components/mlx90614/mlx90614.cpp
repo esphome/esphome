@@ -120,7 +120,6 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 }
 
 uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
-  const uint8_t delay_ms = 5;
   uint8_t buf[6] = {
       uint8_t(this->address_ << 1),
       reg,
@@ -184,7 +183,7 @@ void MLX90614Component::update() {
     }
   }
 
-  auto publishSensor = [&](sensor::Sensor *sensor, uint8_t reg) {
+  auto publish_sensor = [&](sensor::Sensor *sensor, uint8_t reg) {
     if (nullptr == sensor) {
       return true;
     }
@@ -200,8 +199,8 @@ void MLX90614Component::update() {
     return true;
   };
 
-  const auto object_updated = publishSensor(this->object_sensor_, MLX90614_TEMPERATURE_OBJECT_1);
-  const auto ambient_updated = publishSensor(this->ambient_sensor_, MLX90614_TEMPERATURE_AMBIENT);
+  const auto object_updated = publish_sensor(this->object_sensor_, MLX90614_TEMPERATURE_OBJECT_1);
+  const auto ambient_updated = publish_sensor(this->ambient_sensor_, MLX90614_TEMPERATURE_AMBIENT);
 
   if (object_updated && ambient_updated && write_emissivity_status) {
     this->status_clear_warning();
