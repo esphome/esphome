@@ -102,18 +102,6 @@ mqtt:
           ESP_LOGD("Mqtt Test", "testing/sensor/testing_sensor/state=[%s]", x.c_str());
       # yamllint enable rule:line-length
 
-statsd:
-  host: "192.168.1.1"
-  port: 8125
-  prefix: esphome
-  update_interval: 60s
-  sensors:
-    id: adc_sensor_p32
-    name: adc.32
-  binary_sensors:
-    id: io0_button
-    name: gpio.0
-
 vbus:
   - uart_id: uart_2
 
