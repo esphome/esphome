@@ -142,7 +142,7 @@ uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint
     }
 
     ec = i2c::ERROR_OK;
-    return encode_uint16(buf[3], buf[2]);
+    return encode_uint16(buf[4], buf[3]);
   }
 
   return 0;
