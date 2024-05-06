@@ -49,8 +49,7 @@ def _process_git_config(config: dict, refresh) -> str:
         password=config.get(CONF_PASSWORD),
     )
 
-    path = config.get(CONF_PATH)
-    if path is not None:
+    if path := config.get(CONF_PATH):
         if (repo_dir / path).is_dir():
             components_dir = repo_dir / path
         else:
