@@ -31,11 +31,11 @@ inline uint32_t Nextion::get_free_heap_() {
 #endif  // USE_ESP32 vs USE_ESP8266
 }
 
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
 int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
-#else   // ESP-IDF
+#else   // USE_ESP_IDF
 int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start) {
-#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
   uint32_t range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
@@ -50,14 +50,14 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   char range_header[32];
   sprintf(range_header, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
   ESP_LOGV(TAG, "Requesting range: %s", range_header);
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
   http_client.addHeader("Range", range_header);
   int code = http_client.GET();
   if (code != HTTP_CODE_OK and code != HTTP_CODE_PARTIAL_CONTENT) {
     ESP_LOGW(TAG, "HTTP Request failed; Error: %s", HTTPClient::errorToString(code).c_str());
     return -1;
   }
-#else   // ESP-IDF
+#else   // USE_ESP_IDF
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Opening HTTP connetion");
   esp_err_t err;
@@ -73,7 +73,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     ESP_LOGE(TAG, "Failed to get chunk's content length: %d", chunk_size);
     return -1;
   }
-#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 
   // Allocate the buffer dynamically
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
@@ -91,7 +91,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     ESP_LOGV(TAG, "Fetching %" PRIu16 " bytes from HTTP", buffer_size);
     uint16_t read_len = 0;
     int partial_read_len = 0;
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
     const uint32_t start_time = millis();
     while (read_len < buffer_size && millis() - start_time < 5000) {
       if (http_client.getStreamPtr()->available() > 0) {
@@ -104,7 +104,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
         }
       }
     }
-#else  // ESP-IDF
+#else  // USE_ESP_IDF
     uint8_t retries = 0;
     while (retries < 5 && read_len < buffer_size) {
       partial_read_len =
@@ -230,7 +230,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGV(TAG, "Initializing HTTP client");
   ESP_LOGV(TAG, "Free heap: %" PRIu32, this->get_free_heap_());
 
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
   HTTPClient http_client;
   http_client.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
 
@@ -276,7 +276,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     http_status_code = http_client.GET();
     ++tries;
   }
-#else   // ESP-IDF
+#else   // USE_ESP_IDF
   esp_http_client_config_t config = {
       .url = this->tft_url_.c_str(),
       .cert_pem = nullptr,
@@ -312,19 +312,19 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGV(TAG, "Check the HTTP Status Code");
   ESP_LOGV(TAG, "Free heap: %" PRIu32, esp_get_free_heap_size());
   int http_status_code = esp_http_client_get_status_code(http_client);
-#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 
   if (http_status_code != 200 and http_status_code != 206) {
     return this->upload_end_(false);
   }
 
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
   String content_range_string = http_client.header("Content-Range");
   content_range_string.remove(0, 12);
   this->tft_size_ = content_range_string.toInt();
-#else   // ESP-IDF
+#else   // USE_ESP_IDF
   this->tft_size_ = esp_http_client_get_content_length(http_client);
-#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 
   ESP_LOGD(TAG, "TFT file size: %zu bytes", this->tft_size_);
   if (this->tft_size_ < 4096) {
@@ -425,20 +425,20 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   return upload_end_(true);
 }
 
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
 void Nextion::close_http_client_(HTTPClient &http_client) {
   ESP_LOGD(TAG, "Close HTTP connection");
   http_client.end();
   ESP_LOGV(TAG, "Connection closed");
 }
-#else   // ESP-IDF
+#else   // USE_ESP_IDF
 void Nextion::close_http_client_(esp_http_client_handle_t http_client) {
   ESP_LOGD(TAG, "Close HTTP connection");
   esp_http_client_close(http_client);
   esp_http_client_cleanup(http_client);
   ESP_LOGV(TAG, "Connection closed");
 }
-#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 
 bool Nextion::upload_end_(bool successful) {
   ESP_LOGD(TAG, "Nextion TFT upload finished: %s", YESNO(successful));

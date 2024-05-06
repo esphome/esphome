@@ -12,7 +12,7 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
 #ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif  // USE_ESP32
@@ -22,7 +22,7 @@
 #endif  // USE_ESP8266
 #elif defined(USE_ESP_IDF)
 #include <esp_http_client.h>
-#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
@@ -987,7 +987,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problematic with arduino..
+   * Set the tft file URL. https seems problematic with Arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
@@ -1190,7 +1190,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
 
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
@@ -1208,7 +1208,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#endif  // ARDUINO vs USE_ESP_IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1237,17 +1237,17 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param http_client A reference to the HTTP client object. The exact type of this object
    * depends on the platform:
-   * - Arduino: HTTPClient type from the ArduinoHttpClient library.
+   * - Arduino: HTTPClient type from the Arduino HttpClient library.
    * - ESP-IDF: esp_http_client_handle_t from the ESP HTTP Client library.
    *
    * @note Ensure that the HTTP client is initialized and not NULL before calling this function
    * to avoid runtime errors.
    */
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
   void close_http_client_(HTTPClient &http_client);
-#else   // ESP-IDF
+#else   // USE_ESP_IDF
   void close_http_client_(esp_http_client_handle_t http_client);
-#endif  // ARDUINO vs ESP-IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
