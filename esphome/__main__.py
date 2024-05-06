@@ -115,6 +115,8 @@ def choose_upload_log_host(
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
     if default == "PYOCD":
+        if not mcuboot:
+            raise EsphomeError("PYOCD for adafruit is not implemented")
         options = [("pyocd", "PYOCD")]
         return choose_prompt(options, purpose=purpose)
     if mcuboot:
@@ -392,6 +394,7 @@ def upload_program(config, args, host):
         raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
 
     if host == "PYOCD":
+        print(CORE)
         return upload_using_platformio(config, host, ["-t", "flash_pyocd"])
     if host.startswith("mcumgr"):
         firmware = os.path.abspath(
