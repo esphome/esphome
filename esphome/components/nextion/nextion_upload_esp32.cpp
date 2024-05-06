@@ -13,6 +13,11 @@
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
 
+#ifdef USE_ARDUINO
+#ifdef INADDR_NONE
+#undef INADDR_NONE
+#endif
+
 namespace esphome {
 namespace nextion {
 static const char *const TAG = "nextion.upload.esp32";
