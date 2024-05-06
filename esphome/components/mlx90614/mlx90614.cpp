@@ -131,7 +131,7 @@ uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint
       // Recover bus
       ESP_LOGW(TAG, "Recovering bus on read timeout.");
       const auto recover_code = bus_->recover();
-      if (recover_code != RECOVERY_COMPLETED) {
+      if (recover_code != i2c::RECOVERY_COMPLETED) {
         ESP_LOGE(TAG, "Recovering failed with code %d.", recover_code);
       }
       continue;
