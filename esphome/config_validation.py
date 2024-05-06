@@ -827,23 +827,37 @@ def time_of_day(value):
 def date_time(allowed_date: bool = True, allowed_time: bool = True):
 
     pattern_str = r"^"  # Start of string
-    if allowed_date:
+    if allowed_date and not allowed_time:
         pattern_str += (
-            r"("  # 1. Optional Date group
+            r"("  # 1. Date group
             r"\d{4}-\d{1,2}-\d{1,2}"  # Date
-            r"(?:\s(?=.+))?"  # Space after date only if time is following
-            r")?"  # End optional Date group
+            r")"  # End Date group
         )
-    if allowed_time:
+    if allowed_time and not allowed_date:
         pattern_str += (
-            r"("  # 2. Optional Time group
+            r"("  # 1. Time group
+            r"(\d{1,2}:\d{2})"  # 2. Hour/Minute
+            r"(:\d{2})?"  # 3. Seconds
+            r"("  # 4. Optional AM/PM group
+            r"(\s)?"  # 5. Optional Space
+            r"(?:AM|PM|am|pm)"  # AM/PM string matching
+            r")?"  # End optional AM/PM group
+            r")"  # End Time group
+        )
+    if allowed_date and allowed_time:
+        pattern_str += (
+            r"("  # 1. Date group
+            r"\d{4}-\d{1,2}-\d{1,2}"  # Date
+            r")?"  # End Date group
+            r" "  # Space after date
+            r"("  # 2. Time group
             r"(\d{1,2}:\d{2})"  # 3. Hour/Minute
             r"(:\d{2})?"  # 4. Seconds
             r"("  # 5. Optional AM/PM group
             r"(\s)?"  # 6. Optional Space
             r"(?:AM|PM|am|pm)"  # AM/PM string matching
             r")?"  # End optional AM/PM group
-            r")?"  # End optional Time group
+            r")"  # End Time group
         )
     pattern_str += r"$"  # End of string
 
@@ -885,13 +899,21 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
             # pylint: disable=raise-missing-from
             raise Invalid(f"Invalid {exc_message}: {value}")
 
-        if allowed_date:
+        if allowed_date and not allowed_time:
+            print("only date!")
             has_date = match[1] is not None
-        if allowed_time:
-            has_time = match[2] is not None
+        if allowed_time and not allowed_date:
+            print("only time!")
+            has_time = match[1] is not None
             has_seconds = match[3] is not None
             has_ampm = match[4] is not None
             has_ampm_space = match[5] is not None
+        if allowed_time and allowed_date:
+            has_date = match[1] is not None
+            has_time = match[2] is not None
+            has_seconds = match[4] is not None
+            has_ampm = match[5] is not None
+            has_ampm_space = match[6] is not None
 
         format = ""
         if allowed_date and has_date:
@@ -2124,7 +2146,6 @@ GIT_SCHEMA = Schema(
         Optional(CONF_REF): git_ref,
         Optional(CONF_USERNAME): string,
         Optional(CONF_PASSWORD): string,
-        Optional(CONF_PATH): string,
     }
 )
 LOCAL_SCHEMA = Schema(
