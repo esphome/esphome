@@ -9,11 +9,6 @@ DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 CONF_GDK101_ID = "gdk101_id"
-CONF_RADIATION_DOSE_PER_1M = "radiation_dose_per_1m"
-CONF_RADIATION_DOSE_PER_10M = "radiation_dose_per_10m"
-CONF_VIBRATIONS = "vibrations"
-CONF_MEAS_TIME = "meas_time"
-
 
 gdk101_ns = cg.esphome_ns.namespace("gdk101")
 GDK101Component = gdk101_ns.class_(
