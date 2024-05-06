@@ -46,11 +46,11 @@ void MPL115A2Component::dump_config() {
 }
 
 void MPL115A2Component::update() {
-  uint8_t cmd[2] = {MPL115A2_REGISTER_STARTCONVERSION, 0};
-  this->write(cmd, 2);
-
   // Wait a bit for the conversion to complete (3ms max)
-  this->set_timeout(5, [this, cmd]() {
+  this->set_timeout(5, [this]() {
+    uint8_t cmd[2] = {MPL115A2_REGISTER_STARTCONVERSION, 0};
+    this->write(cmd, 2);
+
     uint8_t buffer[4];
     cmd[0] = MPL115A2_REGISTER_PRESSURE_MSB;
     this->write(cmd, 1);
