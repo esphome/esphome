@@ -1,14 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, DEVICE_CLASS_OCCUPANCY
+from esphome.const import CONF_ID, DEVICE_CLASS_OCCUPANCY, CONF_HAS_TARGET
 from .. import ld2420_ns, LD2420Component, CONF_LD2420_ID
 
 LD2420BinarySensor = ld2420_ns.class_(
     "LD2420BinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
-CONF_HAS_TARGET = "has_target"
 
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(

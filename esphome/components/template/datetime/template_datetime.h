@@ -43,4 +43,4 @@ class TemplateDateTime : public datetime::DateTimeEntity, public PollingComponen
 }  // namespace template_
 }  // namespace esphome
 
-#endif  // USE_DATETIME_TIME
+#endif  // USE_DATETIME_DATETIME
