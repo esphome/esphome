@@ -11,12 +11,8 @@
 #include <cinttypes>
 
 #ifdef USE_ARDUINO
-#ifdef IPADDR_NONE
 #undef IPADDR_NONE
-#endif  // IPADDR_NONE
-#ifdef INADDR_NONE
 #undef INADDR_NONE
-#endif  // INADDR_NONE
 #endif  // USE_ARDUINO
 
 #include <esp_heap_caps.h>
