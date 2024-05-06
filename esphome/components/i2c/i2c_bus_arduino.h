@@ -27,6 +27,7 @@ class ArduinoI2CBus : public I2CBus, public Component {
  private:
   RecoveryCode recover_();
   void set_pins_and_clock_();
+  RecoveryCode initial_recovery_result_;
 
  protected:
   TwoWire *wire_;

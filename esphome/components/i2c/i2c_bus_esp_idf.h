@@ -28,6 +28,7 @@ class IDFI2CBus : public I2CBus, public Component {
 
  private:
   RecoveryCode recover_();
+  RecoveryCode initial_recovery_result_;
 
  protected:
   i2c_port_t port_;

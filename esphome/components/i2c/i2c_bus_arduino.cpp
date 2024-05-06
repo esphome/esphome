@@ -13,7 +13,7 @@ namespace i2c {
 static const char *const TAG = "i2c.arduino";
 
 void ArduinoI2CBus::setup() {
-  recover_();
+  this->initial_recovery_result_ = recover_();
 
 #if defined(USE_ESP32)
   static uint8_t next_bus_num = 0;
@@ -81,7 +81,7 @@ void ArduinoI2CBus::dump_config() {
     ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
 #endif
   }
-  switch (this->recovery_result_) {
+  switch (this->initial_recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
       break;
@@ -90,6 +90,9 @@ void ArduinoI2CBus::dump_config() {
       break;
     case RECOVERY_FAILED_SDA_LOW:
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
+      break;
+    case RECOVERY_FAILURE_OTHER:
+      ESP_LOGCONFIG(TAG, "  Recovery: failed");
       break;
   }
   if (this->scan_) {

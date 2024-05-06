@@ -29,7 +29,7 @@ void IDFI2CBus::setup() {
     return;
   }
 
-  recover_();
+  this->initial_recovery_result_ = recover_();
 
   i2c_config_t conf{};
   memset(&conf, 0, sizeof(conf));
@@ -79,7 +79,7 @@ void IDFI2CBus::dump_config() {
   if (timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
   }
-  switch (this->recovery_result_) {
+  switch (this->initial_recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
       break;
@@ -88,6 +88,9 @@ void IDFI2CBus::dump_config() {
       break;
     case RECOVERY_FAILED_SDA_LOW:
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
+      break;
+    case RECOVERY_FAILURE_OTHER:
+      ESP_LOGCONFIG(TAG, "  Recovery: failed");
       break;
   }
   if (this->scan_) {
