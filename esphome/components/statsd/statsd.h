@@ -44,7 +44,6 @@ using sensors_t = struct {
 
 class StatsdComponent : public PollingComponent {
  public:
-  StatsdComponent() : PollingComponent(10000){};
   ~StatsdComponent();
 
   void setup() override;
