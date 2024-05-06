@@ -10,9 +10,6 @@
 #include "esphome/components/network/util.h"
 #include <cinttypes>
 
-#include <esp_heap_caps.h>
-#include <esp_http_client.h>
-
 #ifdef USE_ARDUINO
 #ifdef IPADDR_NONE
 #undef IPADDR_NONE
@@ -21,6 +18,9 @@
 #undef INADDR_NONE
 #endif  // INADDR_NONE
 #endif  // USE_ARDUINO
+
+#include <esp_heap_caps.h>
+#include <esp_http_client.h>
 
 namespace esphome {
 namespace nextion {
