@@ -12,7 +12,7 @@ static const uint16_t SEND_THRESHOLD = 1024;
 static const char *const TAG = "statsD";
 
 void StatsdComponent::setup() {
-#ifndef ESP8266
+#ifndef USE_ESP8266
   this->sock_ = esphome::socket::socket(AF_INET, SOCK_DGRAM, 0);
 
   struct sockaddr_in source;
@@ -28,7 +28,7 @@ void StatsdComponent::setup() {
 }
 
 StatsdComponent::~StatsdComponent() {
-#ifndef ESP8266
+#ifndef USE_ESP8266
   if (!this->sock_) {
     return;
   }
@@ -131,7 +131,7 @@ void StatsdComponent::send_(std::string *out) {
   if (out->empty()) {
     return;
   }
-#ifdef ESP8266
+#ifdef USE_ESP8266
   IPAddress ip;
   ip.fromString(this->host_);
 
