@@ -66,8 +66,8 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 
   // See 8.3.3.1. ERPROMwritesequence sequence sequence
   // 1. Power up the device
-  uint8_t delay_ms = 10;
-  for (uint8_t i_try = 0; i_try < max_try; ++i) {
+  const uint8_t delay_ms = 10;
+  for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
     init_buffer();
 
     // 2. Write 0x0000 into the cell of interest (effectively erasing the cell)
@@ -98,7 +98,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 
     uint8_t read_buf[3];
     // 6. Read back and compare if the write was successful
-    ec = this->read_register(red, read_buff, 3, false);
+    ec = this->read_register(reg, read_buff, 3, false);
     if (ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Try %d: Can't check register value %x", i_try, reg);
       continue;
@@ -119,12 +119,12 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data, ui
 }
 
 uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint8_t max_try) {
-  uint8_t delay_ms = 5;
+  const uint8_t delay_ms = 5;
   uint8_t buf[5] = {
       this->address_ << 1,
       reg,
   };
-  for (uint8_t i_try = 0; i_try < max_try; ++i, ++delay_ms) {
+  for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
     ec = this->read_register(reg, buf[2], 3, false) != i2c::ERROR_OK)
     if(ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Try %d: i2c read error %d", i_try, ec);
