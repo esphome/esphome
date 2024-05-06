@@ -38,7 +38,7 @@ void MLX90614Component::setup() {
 bool MLX90614Component::write_emissivity_() {
   if (std::isnan(this->emissivity_))
     return true;
-  return this->write_register_(MLX90614_EMISSIVITY, this->emissivity_ * 65535);
+  return this->write_register_(MLX90614_EMISSIVITY, this->emissivity_ * 0xFFFF);
 }
 
 uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
@@ -162,30 +162,45 @@ void MLX90614Component::dump_config() {
 float MLX90614Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90614Component::update() {
-  i2c::ErrorCode ec = i2c::ERROR_OK;
-
-  const auto raw_object = read_register_(MLX90614_TEMPERATURE_OBJECT_1, ec);
-  if (ec != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
+  bool write_emissivity_status = true;
+  if (!std::isnan(this->emissivity_)) {
+    i2c::ErrorCode ec = i2c::ERROR_OK;
+    const auto read_emissivity = read_register_(MLX90614_EMISSIVITY, ec);
+    if (ec == i2c::ERROR_OK) {
+      const auto desired_emissivity = uint16_t(this->emissivity_ * 0xFFFF);
+      if (read_emisivity != desired_emissivity) {
+        if (i2c::ERROR_OK != this->write_register_(MLX90614_EMISSIVITY, desired_emissivity)) {
+          write_emissivity_status = false;
+        }
+      }
+    } else {
+      write_emissivity_status = false;
+    }
   }
 
-  const auto raw_ambient = read_register_(MLX90614_TEMPERATURE_AMBIENT, ec);
-  if (ec != i2c::ERROR_OK) {
+  auto publishSensor = [&](sensor::Sensor *sensor, uint8_t reg) {
+    if (nullptr == sensor) {
+      return true;
+    }
+
+    i2c::ErrorCode ec = i2c::ERROR_OK;
+    const auto raw = read_register_(reg, ec);
+    if (ec != i2c::ERROR_OK) {
+      return false;
+    }
+    float value = raw & 0x8000 ? NAN : raw * 0.02f - 273.15f;
+    sensor->publish_state(value);
+    return true;
+  };
+
+  const auto object_updated = publishSensor(this->object_sensor_, MLX90614_TEMPERATURE_OBJECT_1);
+  const auto ambient_updated = publishSensor(this->ambient_sensor_, MLX90614_TEMPERATURE_AMBIENT);
+
+  if (object_updated && ambient_updated && write_emissivity_status) {
+    this->status_clear_warning();
+  } else {
     this->status_set_warning();
-    return;
   }
-
-  float ambient = raw_ambient & 0x8000 ? NAN : raw_ambient * 0.02f - 273.15f;
-  float object = raw_object & 0x8000 ? NAN : raw_object * 0.02f - 273.15f;
-
-  ESP_LOGD(TAG, "Got Temperature=%.1f°C Ambient=%.1f°C", object, ambient);
-
-  if (this->ambient_sensor_ != nullptr && !std::isnan(ambient))
-    this->ambient_sensor_->publish_state(ambient);
-  if (this->object_sensor_ != nullptr && !std::isnan(object))
-    this->object_sensor_->publish_state(object);
-  this->status_clear_warning();
 }
 
 }  // namespace mlx90614
