@@ -26,7 +26,9 @@ void setup() {
   wifi->add_sta(ap);
 
   auto *ota = new ota::OTAComponent();  // NOLINT
+#ifndef USE_ZEPHYR
   ota->set_port(8266);
+#endif
 
   App.setup();
 }
