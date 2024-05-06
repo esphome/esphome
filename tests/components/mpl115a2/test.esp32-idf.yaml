@@ -1,0 +1,13 @@
+i2c:
+  - id: i2c_mpl115a2
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: mpl115a2
+    temperature:
+      name: MPL115A2 Temperature
+    pressure:
+      name: MPL115A2 Pressure
+    update_interval: 10s
+
