@@ -22,6 +22,7 @@ class IDFI2CBus : public I2CBus, public Component {
   ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t cnt) override;
   ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
+  void recover() override { _recover(); }
 
   void set_scan(bool scan) { scan_ = scan; }
   void set_sda_pin(uint8_t sda_pin) { sda_pin_ = sda_pin; }
