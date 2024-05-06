@@ -12,17 +12,12 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef USE_ARDUINO
 #ifdef USE_ESP32
-#include <HTTPClient.h>
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
+#include <esp_http_client.h>
+#elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP8266
-#elif defined(USE_ESP_IDF)
-#include <esp_http_client.h>
-#endif  // USE_ARDUINO vs USE_ESP_IDF
+#endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
@@ -1179,36 +1174,31 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void check_pending_waveform_();
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef USE_ESP8266
-  WiFiClient *wifi_client_{nullptr};
-  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
-  WiFiClient *get_wifi_client_();
-#endif  // USE_ESP8266
   std::string tft_url_;
   uint32_t content_length_ = 0;
   int tft_size_ = 0;
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
 
-#ifdef USE_ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
-   * @param HTTPClient http_client HTTP client handler.
+   * @param http_client A reference to the HTTP client object. The exact type of this object
+   * depends on the platform:
+   * - ESP32: esp_http_client_handle_t from the ESP HTTP Client library.
+   * - ESP8266: HTTPClient type from the Arduino HttpClient library.
    * @param int range_start Position of next byte to transfer.
    * @return position of last byte transferred, -1 for failure.
    */
-  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#elif defined(USE_ESP_IDF)
-  /**
-   * will request 4096 bytes chunks from the web server
-   * and send each to Nextion
-   * @param esp_http_client_handle_t http_client HTTP client handler.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
+#ifdef USE_ESP32
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#endif  // USE_ARDUINO vs USE_ESP_IDF
+#elif defined(USE_ESP8266)
+  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
+
+  WiFiClient *wifi_client_{nullptr};
+  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
+  WiFiClient *get_wifi_client_();
+#endif  // USE_ESP32 vs USE_ESP8266
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1217,12 +1207,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
-
-  /**
-   * Returns the ESP Free Heap memory. This is framework independent.
-   * @return Free Heap in bytes.
-   */
-  uint32_t get_free_heap_();
 
   /**
    * @brief Closes the HTTP client and cleans up resources.
@@ -1237,18 +1221,22 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param http_client A reference to the HTTP client object. The exact type of this object
    * depends on the platform:
-   * - Arduino: HTTPClient type from the Arduino HttpClient library.
-   * - ESP-IDF: esp_http_client_handle_t from the ESP HTTP Client library.
+   * - ESP32: esp_http_client_handle_t from the ESP HTTP Client library.
+   * - ESP8266: HTTPClient type from the Arduino HttpClient library.
    *
    * @note Ensure that the HTTP client is initialized and not NULL before calling this function
    * to avoid runtime errors.
    */
-#ifdef USE_ARDUINO
-  void close_http_client_(HTTPClient &http_client);
-#else   // USE_ESP_IDF
+#ifdef USE_ESP32
   void close_http_client_(esp_http_client_handle_t http_client);
-#endif  // USE_ARDUINO vs USE_ESP_IDF
+#elif defined(USE_ESP8266)
+  void close_http_client_(HTTPClient &http_client);
+#endif  // USE_ESP32 vs USE_ESP8266
 
+  /**
+   * Prints the upload progress to the log.
+   */
+  void log_upload_progress_();
 #endif  // USE_NEXTION_TFT_UPLOAD
 
   bool get_is_connected_() { return this->is_connected_; }
