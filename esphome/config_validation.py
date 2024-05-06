@@ -848,7 +848,7 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
         pattern_str += (
             r"("  # 1. Date group
             r"\d{4}-\d{1,2}-\d{1,2}"  # Date
-            r")?"  # End Date group
+            r")"  # End Date group
             r" "  # Space after date
             r"("  # 2. Time group
             r"(\d{1,2}:\d{2})"  # 3. Hour/Minute
