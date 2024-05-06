@@ -41,9 +41,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PREFIX, default=""): cv.string_strict,
         cv.Optional(CONF_SENSORS): cv.ensure_list(CONFIG_SENSORS_SCHEMA),
         cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(CONFIG_BINARY_SENSORS_SCHEMA),
-        cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.polling_component_schema("10s"))
 
 
 async def to_code(config):
