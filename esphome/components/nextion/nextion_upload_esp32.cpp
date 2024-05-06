@@ -14,8 +14,8 @@
 #include <esp_http_client.h>
 
 #ifdef USE_ARDUINO
-#ifdef INADDR_NONE
-#undef INADDR_NONE
+#ifdef IPADDR_NONE
+#undef IPADDR_NONE
 #endif
 
 namespace esphome {
