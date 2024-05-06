@@ -126,8 +126,9 @@ uint16_t MLX90614Component::read_register_(uint8_t reg, i2c::ErrorCode &ec, uint
       reg,
   };
   for (uint8_t i_try = 0; i_try < max_try; ++i_try) {
-    ec = this->read_register(reg, buf + 2, 3, false) != i2c::ERROR_OK)
-    if(ec != i2c::ERROR_OK) {
+    ec = this->read_register(reg, buf + 2, 3, false);
+
+    if (ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Try %d: i2c read error %d", i_try, ec);
       continue;
     }
