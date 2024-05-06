@@ -1,4 +1,3 @@
-import os
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,12 +12,8 @@ from esphome.const import (
     CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.helpers import (
-    copy_file_if_changed,
-)
 
 from esphome.components.zephyr import (
-    zephyr_copy_files,
     zephyr_set_core_data,
     zephyr_to_code,
 )
@@ -153,27 +148,7 @@ async def to_code(config):
         cg.add_platformio_option("board_upload.require_upload_port", "true")
         cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
     #
-    cg.add_platformio_option(
-        "extra_scripts", [f"pre:build_{CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]}.py"]
-    )
     if CORE.using_zephyr:
         zephyr_to_code(conf)
     else:
         raise NotImplementedError
-
-
-# Called by writer.py
-def copy_files():
-    if CORE.using_zephyr:
-        zephyr_copy_files()
-
-    dir = os.path.dirname(__file__)
-    build_zephyr_file = os.path.join(
-        dir, f"build_{CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]}.py.script"
-    )
-    copy_file_if_changed(
-        build_zephyr_file,
-        CORE.relative_build_path(
-            f"build_{CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]}.py"
-        ),
-    )

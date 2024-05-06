@@ -8,7 +8,7 @@ from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
 from esphome.espota2 import ProgressBar
 
-if sys.version_info >= (3, 10):
+try:
     from smpclient.transport.ble import SMPBLETransport
     from smpclient.transport.serial import SMPSerialTransport
     from smpclient import SMPClient
@@ -17,6 +17,8 @@ if sys.version_info >= (3, 10):
     from smpclient.requests.os_management import ResetWrite
     from smpclient.generics import error, success
     from smp.exceptions import SMPBadStartDelimiter
+except ModuleNotFoundError:
+    pass
 
 
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
@@ -89,7 +91,7 @@ def get_image_tlv_sha256(file):
 
 async def smpmgr_upload(config, host, firmware):
     if sys.version_info < (3, 10):
-        _LOGGER.error("smpmgr requires at least python 3.10")
+        _LOGGER.error("BLE OTA requires at least python 3.10")
         return 1
     image_tlv_sha256 = get_image_tlv_sha256(firmware)
     if image_tlv_sha256 is None:

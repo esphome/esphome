@@ -1,0 +1,10 @@
+Import("env")
+
+import sys
+
+try:
+    import smp
+    import smpclient
+except ImportError:
+    if sys.version_info >= (3, 10):
+        env.Execute("$PYTHONEXE -m pip install smp==1.0.0 git+https://github.com/tomaszduda23/smpclient/@d25c8035ae2858fd41a106058297b619d58fbcb5")

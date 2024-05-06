@@ -1,12 +1,15 @@
+import os
 from typing import Union
 import esphome.codegen as cg
 from esphome.core import CORE
 from esphome.helpers import (
     write_file_if_changed,
+    copy_file_if_changed,
 )
 from esphome.const import (
     CONF_VARIANT,
     CONF_BOARD,
+    KEY_NAME,
 )
 from .const import (
     ZEPHYR_VARIANT_GENERIC,
@@ -16,6 +19,8 @@ from .const import (
     KEY_OVERLAY,
     zephyr_ns,
     BOOTLOADER_MCUBOOT,
+    KEY_EXTRA_BUILD_FILES,
+    KEY_PATH,
 )
 
 
@@ -31,6 +36,7 @@ def zephyr_set_core_data(config):
     CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF] = {}
     CORE.data[KEY_ZEPHYR][KEY_OVERLAY] = ""
     CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] = config[KEY_BOOTLOADER]
+    CORE.data[KEY_ZEPHYR][KEY_EXTRA_BUILD_FILES] = {}
     return config
 
 
@@ -56,6 +62,24 @@ def zephyr_add_overlay(content):
     if not CORE.using_zephyr:
         raise ValueError("Not an zephyr project")
     CORE.data[KEY_ZEPHYR][KEY_OVERLAY] += content
+
+
+def add_extra_build_file(filename: str, path: str) -> bool:
+    """Add an extra build file to the project."""
+    if filename not in CORE.data[KEY_ZEPHYR][KEY_EXTRA_BUILD_FILES]:
+        CORE.data[KEY_ZEPHYR][KEY_EXTRA_BUILD_FILES][filename] = {
+            KEY_NAME: filename,
+            KEY_PATH: path,
+        }
+        return True
+    return False
+
+
+def add_extra_script(stage: str, filename: str, path: str):
+    """Add an extra script to the project."""
+    key = f"{stage}:{filename}"
+    if add_extra_build_file(filename, path):
+        cg.add_platformio_option("extra_scripts", [key])
 
 
 def zephyr_to_code(conf):
@@ -110,6 +134,17 @@ def zephyr_to_code(conf):
 
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
 
+    add_extra_script(
+        "pre",
+        "pre_build.py",
+        os.path.join(os.path.dirname(__file__), "pre_build.py.script"),
+    )
+    add_extra_script(
+        "post",
+        "post_build.py",
+        os.path.join(os.path.dirname(__file__), "post_build.py.script"),
+    )
+
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
     if isinstance(value, bool):
@@ -121,7 +156,8 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_copy_files():
+# Called by writer.py
+def copy_files():
     want_opts = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF]
     contents = (
         "\n".join(
@@ -155,4 +191,10 @@ def zephyr_copy_files():
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{CORE.data[KEY_ZEPHYR][KEY_BOARD]}.json"),
             fake_board_manifest,
+        )
+
+    for _, file in CORE.data[KEY_ZEPHYR][KEY_EXTRA_BUILD_FILES].items():
+        copy_file_if_changed(
+            file[KEY_PATH],
+            CORE.relative_build_path(file[KEY_NAME]),
         )

@@ -29,11 +29,6 @@ pyparsing >= 3.0
 argcomplete>=2.0.0
 
 # for mcumgr
-smp==1.0.0
-smpclient @ git+https://github.com/tomaszduda23/smpclient/@d25c8035ae2858fd41a106058297b619d58fbcb5
 bleak==0.21.1
-pydantic==2.7.0
 cbor2==5.6.1
-crcmod==1.7
-# pretty print by logging?
 rich==13.7.0
