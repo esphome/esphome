@@ -335,9 +335,8 @@ bool Nextion::upload_end_(bool successful) {
 inline void Nextion::log_upload_progress_() {
   const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
   ESP_LOGD(TAG, "Uploaded %0.2f%%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " bytes", upload_percentage,
-           this->content_length_, heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+           this->content_length_, EspClass::getFreeHeap());
 }
-
 
 WiFiClient *Nextion::get_wifi_client_() {
   if (this->tft_url_.compare(0, 6, "https:") == 0) {

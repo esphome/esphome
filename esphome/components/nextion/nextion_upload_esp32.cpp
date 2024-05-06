@@ -311,7 +311,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
       return this->upload_end_(false);
     }
     App.feed_wdt();
-    ESP_LOGV(TAG, "Free heap: %" PRIu32 ", Bytes left: %" PRIu32, heap_caps_get_free_size(MALLOC_CAP_INTERNAL), this->content_length_);
+    ESP_LOGV(TAG, "Free heap: %" PRIu32 ", Bytes left: %" PRIu32, heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             this->content_length_);
   }
 
   ESP_LOGD(TAG, "Successfully uploaded TFT to Nextion!");
@@ -352,11 +353,10 @@ bool Nextion::upload_end_(bool successful) {
 inline void Nextion::log_upload_progress_() {
   const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
 #ifdef USE_PSRAM
-  ESP_LOGD(TAG,
-           "Uploaded %0.2f%%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " (DRAM) + %" PRIu32 " (PSRAM) bytes",
-           upload_percentage, this->content_length_,
-           static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
-           static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
+  ESP_LOGD(
+      TAG, "Uploaded %0.2f%%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " (DRAM) + %" PRIu32 " (PSRAM) bytes",
+      upload_percentage, this->content_length_, static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+      static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
 #else
   ESP_LOGD(TAG, "Uploaded %0.2f%%, remaining %" PRIu32 " bytes, free heap: %" PRIu32 " bytes", upload_percentage,
            this->content_length_, heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
