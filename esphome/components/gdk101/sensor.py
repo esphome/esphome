@@ -80,4 +80,4 @@ async def to_code(config):
 
     if measurement_duration_config := config.get(CONF_MEASUREMENT_DURATION):
         sens = await sensor.new_sensor(measurement_duration_config)
-        cg.add(hub.set_meas_time_sensor(sens))
+        cg.add(hub.set_measurement_duration_sensor(sens))
