@@ -16,7 +16,11 @@
 #ifdef USE_ARDUINO
 #ifdef IPADDR_NONE
 #undef IPADDR_NONE
-#endif
+#endif  // IPADDR_NONE
+#ifdef INADDR_NONE
+#undef INADDR_NONE
+#endif  // INADDR_NONE
+#endif  // USE_ARDUINO
 
 namespace esphome {
 namespace nextion {
