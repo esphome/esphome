@@ -900,10 +900,8 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
             raise Invalid(f"Invalid {exc_message}: {value}")
 
         if allowed_date and not allowed_time:
-            print("only date!")
             has_date = match[1] is not None
         if allowed_time and not allowed_date:
-            print("only time!")
             has_time = match[1] is not None
             has_seconds = match[3] is not None
             has_ampm = match[4] is not None
