@@ -38,7 +38,7 @@ void MLX90614Component::setup() {
 bool MLX90614Component::write_emissivity_() {
   if (std::isnan(this->emissivity_))
     return true;
-  return this->write_register_(MLX90614_EMISSIVITY, this->emissivity_ * 65535));
+  return this->write_register_(MLX90614_EMISSIVITY, this->emissivity_ * 65535);
 }
 
 uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
