@@ -10,7 +10,7 @@
 #include <Updater.h>
 
 namespace esphome {
-namespace ota_network {
+namespace ota {
 
 OTAResponseTypes ArduinoRP2040OTABackend::begin(size_t image_size) {
   bool ret = Update.begin(image_size, U_FLASH);
@@ -52,7 +52,7 @@ void ArduinoRP2040OTABackend::abort() {
   rp2040::preferences_prevent_write(false);
 }
 
-}  // namespace ota_network
+}  // namespace ota
 }  // namespace esphome
 
 #endif  // USE_RP2040

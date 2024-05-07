@@ -1,16 +1,14 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include "ota_component.h"
 #include "ota_backend.h"
-#include <esp_ota_ops.h>
-#include "esphome/components/md5/md5.h"
 
 namespace esphome {
-namespace ota_network {
+namespace ota {
 
-class IDFOTABackend : public OTABackend {
+class ArduinoESP32OTABackend : public OTABackend {
  public:
   OTAResponseTypes begin(size_t image_size) override;
   void set_update_md5(const char *md5) override;
@@ -18,14 +16,9 @@ class IDFOTABackend : public OTABackend {
   OTAResponseTypes end() override;
   void abort() override;
   bool supports_compression() override { return false; }
-
- private:
-  esp_ota_handle_t update_handle_{0};
-  const esp_partition_t *partition_;
-  md5::MD5Digest md5_{};
-  char expected_bin_md5_[32];
 };
 
-}  // namespace ota_network
+}  // namespace ota
 }  // namespace esphome
-#endif
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

@@ -2,7 +2,7 @@
 #include "ota_component.h"
 
 namespace esphome {
-namespace ota_network {
+namespace ota {
 
 class OTABackend {
  public:
@@ -15,5 +15,5 @@ class OTABackend {
   virtual bool supports_compression() = 0;
 };
 
-}  // namespace ota_network
+}  // namespace ota
 }  // namespace esphome

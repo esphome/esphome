@@ -8,7 +8,7 @@
 #include "ota_component.h"
 
 namespace esphome {
-namespace ota_network {
+namespace ota {
 
 class ArduinoRP2040OTABackend : public OTABackend {
  public:
@@ -20,7 +20,7 @@ class ArduinoRP2040OTABackend : public OTABackend {
   bool supports_compression() override { return false; }
 };
 
-}  // namespace ota_network
+}  // namespace ota
 }  // namespace esphome
 
 #endif  // USE_RP2040

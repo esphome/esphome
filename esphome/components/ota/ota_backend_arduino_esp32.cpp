@@ -1,16 +1,16 @@
 #include "esphome/core/defines.h"
-#ifdef USE_LIBRETINY
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#include "ota_backend_arduino_libretiny.h"
+#include "ota_backend_arduino_esp32.h"
 #include "ota_component.h"
 #include "ota_backend.h"
 
 #include <Update.h>
 
 namespace esphome {
-namespace ota_network {
+namespace ota {
 
-OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
+OTAResponseTypes ArduinoESP32OTABackend::begin(size_t image_size) {
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
     return OTA_RESPONSE_OK;
@@ -22,9 +22,9 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
-void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) { Update.setMD5(md5); }
+void ArduinoESP32OTABackend::set_update_md5(const char *md5) { Update.setMD5(md5); }
 
-OTAResponseTypes ArduinoLibreTinyOTABackend::write(uint8_t *data, size_t len) {
+OTAResponseTypes ArduinoESP32OTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
   if (written != len) {
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
@@ -32,15 +32,15 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::write(uint8_t *data, size_t len) {
   return OTA_RESPONSE_OK;
 }
 
-OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
+OTAResponseTypes ArduinoESP32OTABackend::end() {
   if (!Update.end())
     return OTA_RESPONSE_ERROR_UPDATE_END;
   return OTA_RESPONSE_OK;
 }
 
-void ArduinoLibreTinyOTABackend::abort() { Update.abort(); }
+void ArduinoESP32OTABackend::abort() { Update.abort(); }
 
-}  // namespace ota_network
+}  // namespace ota
 }  // namespace esphome
 
-#endif  // USE_LIBRETINY
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
