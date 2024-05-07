@@ -1,0 +1,221 @@
+sensor:
+  - platform: template
+    name: "Template Sensor"
+    id: template_sens
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return 42.0;
+      } else {
+        return 0.0;
+      }
+    update_interval: 60s
+
+esphome:
+  on_boot:
+    - sensor.template.publish:
+        id: template_sens
+        state: 42.0
+
+    # Templated
+    - sensor.template.publish:
+        id: template_sens
+        state: !lambda "return 42.0;"
+
+    - datetime.date.set:
+        id: test_date
+        date:
+          year: 2021
+          month: 1
+          day: 1
+    - datetime.date.set:
+        id: test_date
+        date: !lambda "return {.day_of_month = 1, .month = 1, .year = 2021};"
+    - datetime.date.set:
+        id: test_date
+        date: "2021-01-01"
+
+binary_sensor:
+  - platform: template
+    id: some_binary_sensor
+    name: "Garage Door Open"
+    lambda: |-
+      if (id(template_sens).state > 30) {
+        // Garage Door is open.
+        return true;
+      } else {
+        // Garage Door is closed.
+        return false;
+      }
+
+output:
+  - platform: template
+    id: outputsplit
+    type: float
+    write_action:
+      - logger.log: "write_action"
+
+switch:
+  - platform: template
+    name: "Template Switch"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+      - logger.log: "turn_on_action"
+    turn_off_action:
+      - logger.log: "turn_off_action"
+
+button:
+  - platform: template
+    name: "Template Button"
+    on_press:
+      - logger.log: Button Pressed
+
+cover:
+  - platform: template
+    name: "Template Cover"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      } else {
+        return COVER_CLOSED;
+      }
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+
+number:
+  - platform: template
+    name: "Template number"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
+select:
+  - platform: template
+    name: "Template select"
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+lock:
+  - platform: template
+    name: "Template Lock"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return LOCK_STATE_LOCKED;
+      } else {
+        return LOCK_STATE_UNLOCKED;
+      }
+    lock_action:
+      - logger.log: lock_action
+    unlock_action:
+      - logger.log: unlock_action
+    open_action:
+      - logger.log: open_action
+
+valve:
+  - platform: template
+    name: "Template Valve"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return VALVE_OPEN;
+      } else {
+        return VALVE_CLOSED;
+      }
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+
+text:
+  - platform: template
+    name: "Template text"
+    optimistic: true
+    min_length: 0
+    max_length: 100
+    mode: text
+  - platform: template
+    name: "Template text lambda"
+    mode: text
+    update_interval: 1s
+    lambda: |
+      return std::string{"Hello!"};
+    set_action:
+      then:
+        - logger.log:
+            format: Template Text set to %s
+            args: ["x.c_str()"]
+
+alarm_control_panel:
+  - platform: template
+    name: Alarm Panel
+    codes:
+      - "1234"
+
+datetime:
+  - platform: template
+    name: Date
+    id: test_date
+    type: date
+    initial_value: "2000-1-2"
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Date: %04d-%02d-%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
+  - platform: template
+    name: Time
+    id: test_time
+    type: time
+    initial_value: "12:34:56am"
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Time: %02d:%02d:%02d"
+          args:
+            - x.hour
+            - x.minute
+            - x.second
+  - platform: template
+    name: DateTime
+    id: test_datetime
+    type: datetime
+    initial_value: "2000-1-2 12:34:56"
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "DateTime: %04d-%02d-%02d %02d:%02d:%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
+            - x.hour
+            - x.minute
+            - x.second
+
+time:
+  - platform: sntp  # Required for datetime
+
+wifi:  # Required for sntp time
+  ap:

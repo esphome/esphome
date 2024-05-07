@@ -26,7 +26,9 @@ void Am43::setup() {
 void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
-      this->logged_in_ = false;
+      if (param->open.status == ESP_GATT_OK) {
+        this->logged_in_ = false;
+      }
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {

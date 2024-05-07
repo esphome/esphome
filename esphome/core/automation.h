@@ -24,7 +24,7 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
 
 template<typename T, typename... X> class TemplatableValue {
  public:
-  TemplatableValue() : type_(EMPTY) {}
+  TemplatableValue() : type_(NONE) {}
 
   template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F value) : type_(VALUE), value_(value) {}
@@ -32,13 +32,13 @@ template<typename T, typename... X> class TemplatableValue {
   template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
 
-  bool has_value() { return this->type_ != EMPTY; }
+  bool has_value() { return this->type_ != NONE; }
 
   T value(X... x) {
     if (this->type_ == LAMBDA) {
       return this->f_(x...);
     }
-    // return value also when empty
+    // return value also when none
     return this->value_;
   }
 
@@ -58,7 +58,7 @@ template<typename T, typename... X> class TemplatableValue {
 
  protected:
   enum {
-    EMPTY,
+    NONE,
     VALUE,
     LAMBDA,
   } type_;
@@ -218,7 +218,7 @@ template<typename... Ts> class ActionList {
   /// Return the number of actions in this action list that are currently running.
   int num_running() {
     if (this->actions_begin_ == nullptr)
-      return false;
+      return 0;
     return this->actions_begin_->num_running_total();
   }
 

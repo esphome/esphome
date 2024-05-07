@@ -57,7 +57,8 @@ file_types = (
     "",
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
-ignore_types = (".ico", ".png", ".woff", ".woff2", "")
+py_include = ("*.py",)
+ignore_types = (".ico", ".png", ".woff", ".woff2", "", ".ttf", ".otf")
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
@@ -265,7 +266,8 @@ def lint_end_newline(fname, content):
     return None
 
 
-CPP_RE_EOL = r"\s*?(?://.*?)?$"
+CPP_RE_EOL = r".*?(?://.*?)?$"
+PY_RE_EOL = r".*?(?:#.*?)?$"
 
 
 def highlight(s):
@@ -273,7 +275,7 @@ def highlight(s):
 
 
 @lint_re_check(
-    r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
+    r"^#define\s+([a-zA-Z0-9_]+)\s+(0b[10]+|0x[0-9a-fA-F]+|\d+)\s*?(?:\/\/.*?)?$",
     include=cpp_include,
     exclude=[
         "esphome/core/log.h",
@@ -474,7 +476,7 @@ def lint_no_byte_datatype(fname, match):
 def lint_constants_usage():
     errs = []
     for constant, uses in CONSTANTS_USES.items():
-        if len(uses) < 4:
+        if len(uses) < 3:
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
@@ -574,11 +576,6 @@ def lint_pragma_once(fname, content):
     return None
 
 
-@lint_re_check(
-    r"(whitelist|blacklist|slave)",
-    exclude=["script/ci-custom.py"],
-    flags=re.IGNORECASE | re.MULTILINE,
-)
 def lint_inclusive_language(fname, match):
     # From https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb
     return (
@@ -596,6 +593,21 @@ def lint_inclusive_language(fname, match):
     )
 
 
+lint_re_check(
+    r"(whitelist|blacklist|slave)" + PY_RE_EOL,
+    include=py_include,
+    exclude=["script/ci-custom.py"],
+    flags=re.IGNORECASE | re.MULTILINE,
+)(lint_inclusive_language)
+
+
+lint_re_check(
+    r"(whitelist|blacklist|slave)" + CPP_RE_EOL,
+    include=cpp_include,
+    flags=re.IGNORECASE | re.MULTILINE,
+)(lint_inclusive_language)
+
+
 @lint_re_check(r"[\t\r\f\v ]+$")
 def lint_trailing_whitespace(fname, match):
     return "Trailing whitespace detected"
@@ -609,7 +621,11 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/button/button.h",
         "esphome/components/climate/climate.h",
         "esphome/components/cover/cover.h",
+        "esphome/components/datetime/date_entity.h",
+        "esphome/components/datetime/time_entity.h",
+        "esphome/components/datetime/datetime_entity.h",
         "esphome/components/display/display.h",
+        "esphome/components/event/event.h",
         "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/lock/lock.h",
@@ -624,6 +640,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text_sensor/text_sensor.h",
+        "esphome/components/valve/valve.h",
         "esphome/core/component.h",
         "esphome/core/gpio.h",
         "esphome/core/log.h",

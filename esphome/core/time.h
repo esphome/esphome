@@ -9,6 +9,10 @@ namespace esphome {
 
 template<typename T> bool increment_time_value(T &current, uint16_t begin, uint16_t end);
 
+bool is_leap_year(uint32_t year);
+
+uint8_t days_in_month(uint8_t month, uint16_t year);
+
 /// A more user-friendly version of struct tm from time.h
 struct ESPTime {
   /** seconds after the minute [0-60]
@@ -63,6 +67,13 @@ struct ESPTime {
            this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
 
+  /** Convert a string to ESPTime struct as specified by the format argument.
+   * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
+   * @param esp_time an instance of a ESPTime struct
+   * @return the success sate of the parsing
+   */
+  static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
+
   /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.
   static ESPTime from_c_tm(struct tm *c_tm, time_t c_time);
 
@@ -87,6 +98,9 @@ struct ESPTime {
 
   /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
   void recalc_timestamp_utc(bool use_day_of_year = true);
+
+  /// Recalculate the timestamp field from the other fields of this ESPTime instance assuming local fields.
+  void recalc_timestamp_local(bool use_day_of_year = true);
 
   /// Convert this ESPTime instance back to a tm struct.
   struct tm to_c_tm();

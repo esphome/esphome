@@ -70,6 +70,7 @@ class EthernetComponent : public Component {
   void set_manual_ip(const ManualIP &manual_ip);
 
   network::IPAddresses get_ip_addresses();
+  network::IPAddress get_dns_address(uint8_t num);
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
   bool powerdown();
