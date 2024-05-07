@@ -173,6 +173,23 @@ def copy_files():
         CORE.data[KEY_ZEPHYR][KEY_OVERLAY],
     )
 
+    write_file_if_changed(
+        CORE.relative_build_path("zephyr/child_image/mcuboot.conf"),
+        """
+CONFIG_MCUBOOT_SERIAL=y
+CONFIG_BOOT_SERIAL_PIN_RESET=y
+CONFIG_UART_CONSOLE=n
+CONFIG_BOOT_SERIAL_ENTRANCE_GPIO=n
+CONFIG_BOOT_SERIAL_CDC_ACM=y
+CONFIG_UART_NRFX=n
+CONFIG_LOG=n
+CONFIG_ASSERT_VERBOSE=n
+CONFIG_BOOT_BANNER=n
+CONFIG_PRINTK=n
+CONFIG_CBPRINTF_LIBC_SUBSTS=n
+""",
+    )
+
     if CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         fake_board_manifest = """
 {
