@@ -1,0 +1,14 @@
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: radon_eye_blec
+
+sensor:
+  - platform: radon_eye_rd200
+    ble_client_id: radon_eye_blec
+    radon:
+      name: RD200 Radon
+    radon_long_term:
+      name: RD200 Radon Long Term
+    update_interval: 10min

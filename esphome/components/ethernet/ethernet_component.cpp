@@ -340,6 +340,11 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   return addresses;
 }
 
+network::IPAddress EthernetComponent::get_dns_address(uint8_t num) {
+  const ip_addr_t *dns_ip = dns_getserver(num);
+  return dns_ip;
+}
+
 void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event, void *event_data) {
   const char *event_name;
 

@@ -67,16 +67,12 @@ struct ESPTime {
            this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
 
-#ifdef USE_DATETIME
-
   /** Convert a string to ESPTime struct as specified by the format argument.
    * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
    * @param esp_time an instance of a ESPTime struct
    * @return the success sate of the parsing
    */
   static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
-
-#endif
 
   /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.
   static ESPTime from_c_tm(struct tm *c_tm, time_t c_time);
@@ -102,6 +98,9 @@ struct ESPTime {
 
   /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
   void recalc_timestamp_utc(bool use_day_of_year = true);
+
+  /// Recalculate the timestamp field from the other fields of this ESPTime instance assuming local fields.
+  void recalc_timestamp_local(bool use_day_of_year = true);
 
   /// Convert this ESPTime instance back to a tm struct.
   struct tm to_c_tm();
