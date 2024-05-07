@@ -310,6 +310,8 @@ async def to_code(config):
     if CORE.using_zephyr:
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == UART1:
+            zephyr_add_overlay("""&uart1 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == USB_CDC:
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
             zephyr_add_cdc_acm(config)

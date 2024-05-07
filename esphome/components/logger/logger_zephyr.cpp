@@ -39,6 +39,9 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART0:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
         break;
+      case UART_SELECTION_UART1:
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
+        break;
       case UART_SELECTION_USB_CDC:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
         if (device_is_ready(uart_dev)) {
