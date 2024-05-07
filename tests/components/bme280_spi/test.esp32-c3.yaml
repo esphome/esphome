@@ -1,19 +1,7 @@
-spi:
-  - id: spi_bme280
-    clk_pin: 6
-    mosi_pin: 7
-    miso_pin: 5
+substitutions:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO5
+  cs_pin: GPIO8
 
-sensor:
-  - platform: bme280_spi
-    cs_pin: 8
-    temperature:
-      id: bme280_temperature
-      name: BME280 Temperature
-    humidity:
-      id: bme280_humidity
-      name: BME280 Humidity
-    pressure:
-      id: bme280_pressure
-      name: BME280 Pressure
-    update_interval: 15s
+<<: !include common.yaml
