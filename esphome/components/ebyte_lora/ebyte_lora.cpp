@@ -446,7 +446,7 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
       this->current_config_.channel = data[i];
     }
     // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
-    if (i == 7) {
+    if (i == 8) {
       ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
       this->current_config_.wor_period = (data[i] >> 0) & 0b111;
       this->current_config_.enable_lbt = (data[i] >> 4) & 0b1;
