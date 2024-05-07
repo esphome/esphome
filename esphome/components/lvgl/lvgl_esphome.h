@@ -11,6 +11,14 @@
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/component.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "lvgl_hal.h"
+#include <lvgl.h>
+#include <vector>
 #include <map>
 
 #if LV_USE_IMG
@@ -25,21 +33,13 @@
 #if LV_USE_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif
-#include "esphome/components/display/display_color_utils.h"
-#include "esphome/core/component.h"
-#include "esphome/core/log.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
-#include "lvgl_hal.h"
-#include <lvgl.h>
-#include <vector>
-
 namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
 
 #ifdef LVGL_USES_COLOR
 static lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
+typedef lv_color_t LvColorType;
 #endif
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
@@ -54,9 +54,6 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 // to work-around this these typedefs are used.
 #if LV_USE_SLIDER
 typedef lv_slider_t LvSliderType;
-#endif
-#if LV_USE_COLOR
-typedef lv_color_t LvColorType;
 #endif
 #if LV_USE_FONT
 typedef lv_font_t LvFontType;
@@ -143,6 +140,39 @@ class LvCompound {
   lv_obj_t *obj{};
 };
 
+#if LV_USE_KEYBOARD
+static const char *const kb_special_keys[] = {
+    "abc", "ABC", "1#",
+    // maybe add other special keys here
+};
+class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
+ public:
+  void set_obj(lv_obj_t *lv_obj) override {
+    LvCompound::set_obj(lv_obj);
+    lv_obj_add_event_cb(
+        lv_obj,
+        [](lv_event_t *event) {
+          LvKeyboardType *self = (LvKeyboardType *) event->user_data;
+          if (self->key_callback_.size() == 0)
+            return;
+
+          auto key_idx = lv_btnmatrix_get_selected_btn(self->obj);
+          if (key_idx == LV_BTNMATRIX_BTN_NONE)
+            return;
+          const char *txt = lv_btnmatrix_get_btn_text(self->obj, key_idx);
+          if (txt == NULL)
+            return;
+          for (auto i = 0; i != sizeof(kb_special_keys) / sizeof(kb_special_keys[0]); i++) {
+            if (strcmp(txt, kb_special_keys[i]) == 0)
+              return;
+          }
+          while (*txt != 0)
+            self->send_key_(*txt++);
+        },
+        LV_EVENT_PRESSED, this);
+  }
+};
+#endif
 #if LV_USE_BTNMATRIX
 class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
  public:

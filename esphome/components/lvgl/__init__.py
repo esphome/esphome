@@ -54,6 +54,10 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_DURATION,
     CONF_STEP,
+    CONF_ANGLE,
+    CONF_ROW,
+    CONF_DISPLAY_ID,
+    CONF_ON_IDLE,
 )
 from esphome.cpp_generator import (
     LambdaExpression,
@@ -85,7 +89,6 @@ CONF_ACTION = "action"
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
-CONF_ANGLE = "angle"
 CONF_ANGLE_RANGE = "angle_range"
 CONF_ANIMATED = "animated"
 CONF_ANIMATION = "animation"
@@ -110,7 +113,6 @@ CONF_CONTROL = "control"
 CONF_DEFAULT = "default"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DIR = "dir"
-CONF_DISPLAY_ID = "display_id"
 CONF_DISPLAYS = "displays"
 CONF_END_ANGLE = "end_angle"
 CONF_END_VALUE = "end_value"
@@ -142,7 +144,6 @@ CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
-CONF_ON_IDLE = "on_idle"
 CONF_ON_SELECT = "on_select"
 CONF_ONE_CHECKED = "one_checked"
 CONF_NEXT = "next"
@@ -152,11 +153,10 @@ CONF_PIVOT_Y = "pivot_y"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_REPEAT_COUNT = "repeat_count"
-CONF_ROWS = "rows"
 CONF_R_MOD = "r_mod"
 CONF_RECOLOR = "recolor"
 CONF_ROLLOVER = "rollover"
-CONF_ROW = "row"
+CONF_ROWS = "rows"
 CONF_SCALES = "scales"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
@@ -1268,6 +1268,12 @@ async def label_to_code(var: Widget, label_conf):
         init.extend(await lv_text.set_text(var, value))
     init.extend(var.set_property(CONF_LONG_MODE, label_conf))
     init.extend(var.set_property(CONF_RECOLOR, label_conf))
+    return init
+
+
+async def keyboard_to_code(var: Widget, kb_conf: dict):
+    init = []
+    init.extend(var.set_property(CONF_MODE, kb_conf))
     return init
 
 
