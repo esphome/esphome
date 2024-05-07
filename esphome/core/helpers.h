@@ -24,7 +24,7 @@
 
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
-#define ALWAYS_INLINE __attribute__((always_inline))
+#define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
 // Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
@@ -434,6 +434,16 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
+
+static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        "abcdefghijklmnopqrstuvwxyz"
+                                        "0123456789+/";
+
+std::string base64_encode(const uint8_t *buf, size_t buf_len);
+std::string base64_encode(const std::vector<uint8_t> &buf);
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string);
+size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 
 ///@}
 

@@ -1,0 +1,13 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_gcls002
+    mac_address: 94:2B:FF:5C:91:61
+    temperature:
+      name: GCLS02 Temperature
+    moisture:
+      name: GCLS02 Moisture
+    conductivity:
+      name: GCLS02 Soil Conductivity
+    illuminance:
+      name: GCLS02 Illuminance

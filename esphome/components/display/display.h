@@ -258,6 +258,13 @@ class Display : public PollingComponent {
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
   void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
 
+  /// Draw a straight line at the given angle based on the origin [x, y] for a specified length with the given color.
+  void line_at_angle(int x, int y, int angle, int length, Color color = COLOR_ON);
+
+  /// Draw a straight line at the given angle based on the origin [x, y] from a specified start and stop radius with the
+  /// given color.
+  void line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color = COLOR_ON);
+
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
   void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
 
@@ -624,6 +631,9 @@ class Display : public PollingComponent {
    */
   bool clip(int x, int y);
 
+  void test_card();
+  void show_test_card() { this->show_test_card_ = true; }
+
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
@@ -652,6 +662,7 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+  bool show_test_card_{false};
 };
 
 class DisplayPage {

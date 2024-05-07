@@ -1,0 +1,25 @@
+uart:
+  - id: uart_gcja5
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+    parity: EVEN
+
+sensor:
+  - platform: gcja5
+    pm_1_0:
+      name: "Particulate Matter <1.0µm Concentration"
+    pm_2_5:
+      name: "Particulate Matter <2.5µm Concentration"
+    pm_10_0:
+      name: "Particulate Matter <10.0µm Concentration"
+    pmc_0_5:
+      name: "PMC 0.5"
+    pmc_1_0:
+      name: "PMC 1.0"
+    pmc_2_5:
+      name: "PMC 2.5"
+    pmc_5_0:
+      name: "PMC 5.0"
+    pmc_10_0:
+      name: "PMC 10.0"

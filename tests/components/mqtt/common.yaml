@@ -1,0 +1,428 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+
+mqtt:
+  broker: "192.168.178.84"
+  port: 1883
+  username: debug
+  password: debug
+  client_id: someclient
+  use_abbreviations: false
+  discovery: true
+  discovery_retain: false
+  discovery_prefix: discovery
+  discovery_unique_id_generator: legacy
+  topic_prefix: helloworld
+  log_topic:
+    topic: helloworld/hi
+    level: INFO
+  birth_message:
+  will_message:
+  shutdown_message:
+    topic: topic/to/send/to
+    payload: hi
+    qos: 2
+    retain: true
+  keepalive: 60s
+  reboot_timeout: 60s
+  on_message:
+    - topic: my/custom/topic
+      qos: 0
+      then:
+        - lambda: >-
+            ESP_LOGD("main", "Got message %s", x.c_str());
+    - topic: bedroom/ota_mode
+      then:
+        - logger.log: Got bedroom/ota_mode
+    - topic: livingroom/ota_mode
+      then:
+        - logger.log: Got livingroom/ota_mode
+  on_json_message:
+    topic: the/topic
+    then:
+      - if:
+          condition:
+            - wifi.connected:
+            - mqtt.connected:
+          then:
+            - logger.log: on_json_message
+  on_connect:
+    - mqtt.publish:
+        topic: some/topic
+        payload: Hello
+  on_disconnect:
+    - mqtt.publish:
+        topic: some/topic
+        payload: Good-bye
+
+binary_sensor:
+  - platform: template
+    id: some_binary_sensor
+    name: Garage Door Open
+    state_topic: some/topic/binary_sensor
+    qos: 2
+    lambda: |-
+      if (id(template_sens).state > 30) {
+        // Garage Door is open.
+        return true;
+      } else {
+        // Garage Door is closed.
+        return false;
+      }
+    on_state:
+      - mqtt.publish:
+          topic: some/topic/binary_sensor
+          payload: Hello
+          qos: 2
+          retain: true
+
+button:
+  - platform: template
+    name: "Template Button"
+    state_topic: some/topic/button
+    qos: 2
+    on_press:
+      - mqtt.publish:
+          topic: some/topic/button
+          payload: Hello
+          qos: 2
+          retain: true
+
+climate:
+  - platform: thermostat
+    name: Test Thermostat
+    sensor: template_sens
+    humidity_sensor: template_sens
+    action_state_topic: some/topicaction_state
+    current_temperature_state_topic: some/topiccurrent_temperature_state
+    current_humidity_state_topic: some/topiccurrent_humidity_state
+    fan_mode_state_topic: some/topicfan_mode_state
+    fan_mode_command_topic: some/topicfan_mode_command
+    mode_state_topic: some/topicmode_state
+    mode_command_topic: some/topicmode_command
+    preset_state_topic: some/topicpreset_state
+    preset_command_topic: some/topicpreset_command
+    swing_mode_state_topic: some/topicswing_mode_state
+    swing_mode_command_topic: some/topicswing_mode_command
+    target_temperature_state_topic: some/topictarget_temperature_state
+    target_temperature_command_topic: some/topictarget_temperature_command
+    target_temperature_high_state_topic: some/topictarget_temperature_high_state
+    target_temperature_high_command_topic: some/topictarget_temperature_high_command
+    target_temperature_low_state_topic: some/topictarget_temperature_low_state
+    target_temperature_low_command_topic: some/topictarget_temperature_low_command
+    target_humidity_state_topic: some/topictarget_humidity_state
+    target_humidity_command_topic: some/topictarget_humidity_command
+    preset:
+      - name: Default Preset
+        default_target_temperature_low: 18°C
+        default_target_temperature_high: 24°C
+      - name: Away
+        default_target_temperature_low: 16°C
+        default_target_temperature_high: 20°C
+    idle_action:
+      - logger.log: idle_action
+    cool_action:
+      - logger.log: cool_action
+    supplemental_cooling_action:
+      - logger.log: supplemental_cooling_action
+    heat_action:
+      - logger.log: heat_action
+    supplemental_heating_action:
+      - logger.log: supplemental_heating_action
+    dry_action:
+      - logger.log: dry_action
+    fan_only_action:
+      - logger.log: fan_only_action
+    auto_mode:
+      - logger.log: auto_mode
+    off_mode:
+      - logger.log: off_mode
+    heat_mode:
+      - logger.log: heat_mode
+    cool_mode:
+      - logger.log: cool_mode
+    dry_mode:
+      - logger.log: dry_mode
+    fan_only_mode:
+      - logger.log: fan_only_mode
+    fan_mode_auto_action:
+      - logger.log: fan_mode_auto_action
+    fan_mode_on_action:
+      - logger.log: fan_mode_on_action
+    fan_mode_off_action:
+      - logger.log: fan_mode_off_action
+    fan_mode_low_action:
+      - logger.log: fan_mode_low_action
+    fan_mode_medium_action:
+      - logger.log: fan_mode_medium_action
+    fan_mode_high_action:
+      - logger.log: fan_mode_high_action
+    fan_mode_middle_action:
+      - logger.log: fan_mode_middle_action
+    fan_mode_focus_action:
+      - logger.log: fan_mode_focus_action
+    fan_mode_diffuse_action:
+      - logger.log: fan_mode_diffuse_action
+    fan_mode_quiet_action:
+      - logger.log: fan_mode_quiet_action
+    swing_off_action:
+      - logger.log: swing_off_action
+    swing_horizontal_action:
+      - logger.log: swing_horizontal_action
+    swing_vertical_action:
+      - logger.log: swing_vertical_action
+    swing_both_action:
+      - logger.log: swing_both_action
+    startup_delay: true
+    supplemental_cooling_delta: 2.0
+    cool_deadband: 0.5
+    cool_overrun: 0.5
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    max_cooling_run_time: 600s
+    supplemental_heating_delta: 2.0
+    heat_deadband: 0.5
+    heat_overrun: 0.5
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    max_heating_run_time: 600s
+    min_fanning_off_time: 30s
+    min_fanning_run_time: 30s
+    min_fan_mode_switching_time: 15s
+    min_idle_time: 30s
+    set_point_minimum_differential: 0.5
+    fan_only_action_uses_fan_mode_timer: true
+    fan_only_cooling: true
+    fan_with_cooling: true
+    fan_with_heating: true
+
+cover:
+  - platform: template
+    name: Template Cover
+    state_topic: some/topic/cover
+    qos: 2
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      } else {
+        return COVER_CLOSED;
+      }
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+
+datetime:
+  - platform: template
+    name: Date
+    id: test_date
+    type: date
+    state_topic: some/topic/date
+    qos: 2
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Date: %04d-%02d-%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
+  - platform: template
+    name: Time
+    id: test_time
+    type: time
+    state_topic: some/topic/time
+    qos: 2
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Time: %02d:%02d:%02d"
+          args:
+            - x.hour
+            - x.minute
+            - x.second
+  - platform: template
+    name: DateTime
+    id: test_datetime
+    type: datetime
+    state_topic: some/topic/datetime
+    qos: 2
+    set_action:
+      - logger.log: set_value
+    on_value:
+      - logger.log:
+          format: "DateTime: %04d-%02d-%02d %02d:%02d:%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
+            - x.hour
+            - x.minute
+            - x.second
+
+event:
+  - platform: template
+    name: Template Event
+    state_topic: some/topic/event
+    qos: 2
+    event_types:
+      - "custom_event_1"
+      - "custom_event_2"
+
+fan:
+  - platform: template
+    name: Template Fan
+    state_topic: some/topic/fan
+    qos: 2
+    on_state:
+      - logger.log: on_state
+    on_speed_set:
+      - logger.log: on_speed_set
+
+light:
+  - platform: binary
+    name: Desk Lamp
+    output: light_output
+    state_topic: some/topic/light
+    qos: 2
+
+output:
+  - id: light_output
+    platform: gpio
+    pin: 0
+
+lock:
+  - platform: template
+    name: "Template Lock"
+    state_topic: some/topic/lock
+    qos: 2
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return LOCK_STATE_LOCKED;
+      } else {
+        return LOCK_STATE_UNLOCKED;
+      }
+    lock_action:
+      - logger.log: lock_action
+    unlock_action:
+      - logger.log: unlock_action
+    open_action:
+      - logger.log: open_action
+
+number:
+  - platform: template
+    name: "Template number"
+    state_topic: some/topic/number
+    qos: 2
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
+select:
+  - platform: template
+    name: "Template select"
+    state_topic: some/topic/select
+    qos: 2
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+sensor:
+  - platform: template
+    name: Template Sensor
+    id: template_sens
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return 42.0;
+      } else {
+        return 0.0;
+      }
+    update_interval: 60s
+    on_value:
+      - mqtt.publish:
+          topic: some/topic/sensor
+          payload: Hello
+          qos: 2
+          retain: true
+  - platform: mqtt_subscribe
+    name: MQTT Subscribe Sensor
+    topic: mqtt/topic
+    id: the_sensor
+    qos: 2
+    on_value:
+      - mqtt.publish_json:
+          topic: the/topic
+          payload: |-
+            root["key"] = id(template_sens).state;
+            root["greeting"] = "Hello World";
+
+switch:
+  - platform: template
+    name: Template Switch
+    state_topic: some/topic/switch
+    qos: 2
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+      - logger.log: turn_on_action
+    turn_off_action:
+      - logger.log: turn_off_action
+
+text_sensor:
+  - platform: template
+    name: Template Text Sensor
+    id: tts_text
+    state_topic: some/topic/text_sensor
+    qos: 2
+  - platform: mqtt_subscribe
+    name: MQTT Subscribe Text
+    topic: some/topic/text_sensor
+    qos: 2
+    on_value:
+      - text_sensor.template.publish:
+          id: tts_text
+          state: Hello World
+      - text_sensor.template.publish:
+          id: tts_text
+          state: |-
+            return "Hello World2";
+
+text:
+  - platform: template
+    name: Template Text
+    optimistic: true
+    min_length: 0
+    max_length: 100
+    mode: text
+    state_topic: some/topic/text
+    qos: 2
+
+valve:
+  - platform: template
+    name: Template Valve
+    state_topic: some/topic/valve
+    qos: 2
+    optimistic: true
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return VALVE_OPEN;
+      } else {
+        return VALVE_CLOSED;
+      }

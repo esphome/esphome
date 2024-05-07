@@ -1,0 +1,55 @@
+esphome:
+  on_boot:
+    then:
+      - script.execute: my_script
+      - script.execute:
+          id: my_script_with_params
+          prefix: "Test"
+          param2: 0
+          param3: true
+      - script.wait: my_script
+      - script.stop: my_script
+      - if:
+          condition:
+            - script.is_running: my_script
+          then:
+            - logger.log: my_script is running
+
+script:
+  - id: my_script
+    mode: single
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_queued
+    mode: queued
+    max_runs: 2
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_parallel
+    mode: parallel
+    max_runs: 2
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_restart
+    mode: restart
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_with_params
+    parameters:
+      prefix: string
+      param2: uint8_t
+      param3: bool
+    then:
+      - lambda: 'ESP_LOGD(prefix.c_str(), "Hello World! %u %u", param2, param3);'
+      - if:
+          condition:
+            for:
+              time: !lambda "return param2;"
+              condition:
+                script.is_running: my_script
+          then:
+            - lambda: 'ESP_LOGD("main", "API has stayed connected for at least %u minutes", param2);'
+      - repeat:
+          count: 5
+          then:
+            - logger.log: looping!
