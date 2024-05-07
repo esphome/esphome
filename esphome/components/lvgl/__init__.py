@@ -1128,7 +1128,7 @@ def add_group(name):
         return None
     fullname = f"lv_esp_group_{name}"
     if name not in lv_groups:
-        cgen(f"static ty.lv_group_t * {fullname} = lv_group_create()")
+        cgen(f"static lv_group_t * {fullname} = lv_group_create()")
         lv_groups.add(name)
     return fullname
 
@@ -2002,6 +2002,15 @@ async def generate_triggers(lv_component):
     return init
 
 
+async def disp_update(disp, config: dict):
+    init = []
+    if bg_color := config.get(CONF_DISP_BG_COLOR):
+        init.append(f"lv_disp_set_bg_color({disp}, {await lv_color.process(bg_color)})")
+    if bg_image := config.get(CONF_DISP_BG_IMAGE):
+        init.append(f"lv_disp_set_bg_image({disp}, lv_img_from({bg_image}))")
+    return init
+
+
 async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
     add_define("USE_LVGL", "1")
@@ -2118,11 +2127,7 @@ async def to_code(config):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await automation.build_automation(trigger, [], conf)
 
-    if bg_color := config.get(CONF_DISP_BG_COLOR):
-        init.append(f"lv_disp_set_bg_color(lv_disp, {bg_color})")
-    if bg_image := config.get(CONF_DISP_BG_IMAGE):
-        init.append(f"lv_disp_set_bg_image(lv_disp, lv_img_from({bg_image}))")
-        # add_define("LV_COLOR_SCREEN_TRANSP", "1")
+    init.extend(await disp_update("lv_disp", config))
     await add_init_lambda(lv_component, init)
     for use in lv.lv_uses:
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
@@ -2150,6 +2155,13 @@ async def update_to_code(config, action_id, widget: Widget, init, template_arg, 
         init.extend(await set_obj_properties(widget, config))
     return await action_to_code(init, action_id, widget, template_arg, args)
 
+
+DISP_BG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_DISP_BG_IMAGE): cv.use_id(Image_),
+        cv.Optional(CONF_DISP_BG_COLOR): lv_color,
+    }
+)
 
 CONFIG_SCHEMA = (
     cv.polling_component_schema("1s")
@@ -2235,10 +2247,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_THEME): cv.Schema(
                 {cv.Optional(w): obj_schema(w) for w in WIDGET_TYPES}
             ),
-            cv.Exclusive(CONF_DISP_BG_IMAGE, CONF_DISP_BG_COLOR): cv.use_id(Image_),
-            cv.Exclusive(CONF_DISP_BG_COLOR, CONF_DISP_BG_COLOR): lv_color,
         }
     )
+    .extend(DISP_BG_SCHEMA)
 ).add_extra(
     cv.All(
         cv.has_at_least_one_key(CONF_PAGES, CONF_WIDGETS),
@@ -2326,6 +2337,27 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
     widget = await get_widget(obj_id)
     action = widget.add_flag("LV_OBJ_FLAG_HIDDEN")
     return await action_to_code(action, action_id, widget, template_arg, args)
+
+
+@automation.register_action(
+    "lvgl.update",
+    ty.LvglAction,
+    DISP_BG_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.use_id(ty.LvglComponent),
+        }
+    ),
+)
+async def lvgl_update_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    action = await disp_update("lvgl_comp->get_disp()", config)
+    lamb = await cg.process_lambda(
+        Lambda(";\n".join([*action, ""])),
+        [(ty.LvglComponentPtr, "lvgl_comp")],
+    )
+    cg.add(var.set_action(lamb))
+    return var
 
 
 @automation.register_action(

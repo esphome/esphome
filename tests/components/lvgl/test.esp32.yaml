@@ -43,6 +43,43 @@ touchscreen:
           then:
             - lvgl.resume:
 
+number:
+  - platform: lvgl
+    widget: slider_id
+    id: lvgl_slider_sensor
+    name: LVGL Slider
+  - platform: lvgl
+    widget: arc_id
+    id: lvgl_arc_sensor
+    name: LVGL Arc
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_sensor
+    name: LVGL Bar
+  - platform: lvgl
+    widget: spinbox_id
+    id: lvgl_spinbox_number
+    name: LVGL Spinbox
+
+switch:
+  - platform: lvgl
+    name: Button switch
+    widget: spin_down
+  - platform: lvgl
+    name: Matrix switch
+    widget: button_1
+  - platform: lvgl
+    name: Switch switch
+    widget: switch_id
+
+select:
+  - platform: lvgl
+    widget: dropdown_id
+    name: LVGL Dropdown
+  - platform: lvgl
+    widget: roller_id
+    name: LVGL Roller
+
 image:
   - id: cat_image
     file: $component_dir/cat.png
@@ -69,6 +106,7 @@ lvgl:
   color_depth: 16
   default_font: montserrat_14
   bg_color: my_light_red
+  disp_bg_image: cat_image
   style_definitions:
     - id: style_test
       bg_color: 0x2F8CD8
@@ -89,6 +127,7 @@ lvgl:
   theme:
     obj:
       border_width: 1
+      group: general
   top_layer:
     widgets:
       - label:
@@ -109,6 +148,8 @@ lvgl:
           text: "\uF00D"
           on_click:
             then:
+              - lvgl.update:
+                  disp_bg_color: 0xFFFF00
               - lvgl.widget.hide: message_box
               - lvgl.widget.show: message_box
               - lvgl.widget.enable: message_box

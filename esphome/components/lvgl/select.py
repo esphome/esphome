@@ -4,11 +4,12 @@ from esphome.components import select
 from esphome.const import (
     CONF_ID,
 )
+from . import defines as df
+
 from . import (
     LVGL_SCHEMA,
     CONF_LVGL_ID,
     add_init_lambda,
-    CONF_DROPDOWN,
     CONF_WIDGET,
     get_widget,
 )
@@ -35,7 +36,7 @@ async def to_code(config):
     paren = await cg.get_variable(config[CONF_LVGL_ID])
     init = []
     widget = await get_widget(config[CONF_WIDGET])
-    if widget.type_base() == CONF_DROPDOWN:
+    if widget.type_base() == df.CONF_DROPDOWN:
         animated = ""
     else:
         animated = ", LV_ANIM_OFF"

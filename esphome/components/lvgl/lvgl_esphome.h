@@ -480,6 +480,8 @@ class LvglComponent : public PollingComponent {
     this->show_page(next, anim, time);
   }
 
+  lv_disp_t *get_disp() { return this->disp_; }
+
  protected:
   void write_random() {
     // length of 2 lines in 32 bit units
