@@ -3,11 +3,13 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
 from esphome.const import (
+    CONF_HSYNC_PIN,
     CONF_RESET_PIN,
     CONF_DATA_PINS,
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_DIMENSIONS,
+    CONF_VSYNC_PIN,
     CONF_WIDTH,
     CONF_HEIGHT,
     CONF_LAMBDA,
@@ -29,8 +31,6 @@ DEPENDENCIES = ["esp32"]
 
 CONF_DE_PIN = "de_pin"
 CONF_PCLK_PIN = "pclk_pin"
-CONF_HSYNC_PIN = "hsync_pin"
-CONF_VSYNC_PIN = "vsync_pin"
 
 CONF_HSYNC_FRONT_PORCH = "hsync_front_porch"
 CONF_HSYNC_PULSE_WIDTH = "hsync_pulse_width"
