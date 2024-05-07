@@ -228,15 +228,8 @@ bool SSD1306::is_ssd1305_() const {
   return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_64;
 }
 void SSD1306::update() {
-  uint32_t ccount, ccount2, ccount3;
-  asm volatile("rsr %0, ccount" : "=a"(ccount));
   this->do_update_();
-  asm volatile("rsr %0, ccount" : "=a"(ccount2));
   this->display();
-  asm volatile("rsr %0, ccount" : "=a"(ccount3));
-  uint32_t cpu_freq = esp_clk_cpu_freq();
-  ESP_LOGE(TAG, "do_update() took %i cycles (%.1fms), display() took %i cycles (%.1fms).", ccount2 - ccount,
-           (ccount2 - ccount) * 1000.0f / cpu_freq, ccount3 - ccount2, (ccount3 - ccount2) * 1000.0f / cpu_freq);
 }
 
 void SSD1306::set_invert(bool invert) {
