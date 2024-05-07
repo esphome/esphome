@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate_ir
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_USE_FAHRENHEIT
 
 AUTO_LOAD = ["climate_ir", "coolix"]
 CODEOWNERS = ["@dudanov"]
@@ -9,7 +9,6 @@ CODEOWNERS = ["@dudanov"]
 midea_ir_ns = cg.esphome_ns.namespace("midea_ir")
 MideaIR = midea_ir_ns.class_("MideaIR", climate_ir.ClimateIR)
 
-CONF_USE_FAHRENHEIT = "use_fahrenheit"
 
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {

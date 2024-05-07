@@ -54,3 +54,17 @@ def test_text_config_value_mode_set(generate_main):
     # Then
     assert "it_1->traits.set_mode(text::TEXT_MODE_TEXT);" in main_cpp
     assert "it_3->traits.set_mode(text::TEXT_MODE_PASSWORD);" in main_cpp
+
+
+def test_text_config_lamda_is_set(generate_main):
+    """
+    Test if lambda is set for lambda mode
+    """
+    # Given
+
+    # When
+    main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
+
+    # Then
+    assert "it_4->set_template([=]() -> optional<std::string> {" in main_cpp
+    assert 'return std::string{"Hello"};' in main_cpp
