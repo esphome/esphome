@@ -30,7 +30,7 @@ void MLX90614Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90614...");
   this->emissivity_write_ec_ = this->write_emissivity_();
   if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with MLX90614 failed!");
+    ESP_LOGE(TAG, "Communication with MLX90614 failed! Error code %d", this->emissivity_write_ec_);
     this->mark_failed();
     return;
   }
@@ -44,6 +44,7 @@ i2c::ErrorCode MLX90614Component::write_emissivity_() {
   uint16_t read_emissivity;
   const auto ec = read_register_(MLX90614_EMISSIVITY, read_emissivity);
   if (i2c::ERROR_OK != ec) {
+    ESP_LOGW(TAG, "Failed to read emissivity, error %d", ec);
     return ec;
   }
 
