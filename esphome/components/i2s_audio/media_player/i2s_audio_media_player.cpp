@@ -10,9 +10,9 @@ namespace i2s_audio {
 static const char *const TAG = "audio";
 
 void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
-  MediaPlayerState play_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-  if (call.get_annoucement().has_value()) {
-    play_state = call.get_annoucement().value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+  media_player::MediaPlayerState play_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+  if (call.get_announcement().has_value()) {
+    play_state = call.get_announcement().value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
                                                 : media_player::MEDIA_PLAYER_STATE_PLAYING;
   }
   if (call.get_media_url().has_value()) {
@@ -172,7 +172,7 @@ void I2SAudioMediaPlayer::start_() {
     this->audio_->connecttohost(this->current_url_.value().c_str());
     this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
     if (this->is_announcement_.has_value()) {
-      this->is_announcement.value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+      this->is_announcement_.value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
                                     : media_player::MEDIA_PLAYER_STATE_PLAYING;
     }
     this->publish_state();
