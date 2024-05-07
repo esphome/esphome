@@ -188,6 +188,7 @@ void Husb238Component::dump_config() {
 
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Last Request Status", this->status_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Capabilities", this->capabilities_text_sensor_);
 #endif
 }
 
@@ -296,11 +297,18 @@ bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
 */
 std::string Husb238Component::get_capabilities() {
   char buffer[128];
-  snprintf(
-      buffer, sizeof(buffer), "5V: %.2fA, 9V: %.2fA, 12V: %.2fA, 15V: %.2fA, 18V: %.2fA, 20V: %.2fA",
-      current_to_float(this->registers_.src_pdo_5v.current), current_to_float(this->registers_.src_pdo_9v.current),
-      current_to_float(this->registers_.src_pdo_12v.current), current_to_float(this->registers_.src_pdo_15v.current),
-      current_to_float(this->registers_.src_pdo_18v.current), current_to_float(this->registers_.src_pdo_20v.current));
+
+  auto src_pdo_to_current = [](RegSrcPdo pdo) {
+    if (!pdo.detected) {
+      return 0.0f;
+    }
+    return current_to_float(pdo.current);
+  };
+
+  snprintf(buffer, sizeof(buffer), "5V: %.2fA, 9V: %.2fA, 12V: %.2fA, 15V: %.2fA, 18V: %.2fA, 20V: %.2fA",
+           src_pdo_to_current(this->registers_.src_pdo_5v), src_pdo_to_current(this->registers_.src_pdo_9v),
+           src_pdo_to_current(this->registers_.src_pdo_12v), src_pdo_to_current(this->registers_.src_pdo_15v),
+           src_pdo_to_current(this->registers_.src_pdo_18v), src_pdo_to_current(this->registers_.src_pdo_20v));
   return std::string(buffer);
 }
 

@@ -4,9 +4,9 @@ from esphome.components import text_sensor
 from esphome.const import CONF_NAME, CONF_STATUS, ENTITY_CATEGORY_DIAGNOSTIC
 from . import Husb238Component, CONF_HUSB238_ID
 
-TYPES = [CONF_STATUS]
-
 CONF_CAPABILITIES = "capabilities"
+
+TYPES = [CONF_STATUS, CONF_CAPABILITIES]
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
