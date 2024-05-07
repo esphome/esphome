@@ -473,6 +473,7 @@ optional<float> RoundFilter::new_value(float value) {
 }
 
 HighPassFilter::HighPassFilter(float alpha) : alpha_(alpha) {}
+void HighPassFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 optional<float> HighPassFilter::new_value(float value) {
   if (std::isnan(value)) {
     return {};
@@ -483,6 +484,24 @@ optional<float> HighPassFilter::new_value(float value) {
     this->last_input_ = value;
   } else {
     this->last_output_ = this->alpha_ * (this->last_output_ + value - this->last_input_);
+    this->last_input_ = value;
+  }
+
+  return this->last_output_;
+}
+
+LowPassFilter::LowPassFilter(float alpha) : alpha_(alpha) {}
+void LowPassFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
+optional<float> LowPassFilter::new_value(float value) {
+  if (std::isnan(value)) {
+    return {};
+  }
+
+  if (std::isnan(this->last_input_)) {
+    this->last_output_ = value;
+    this->last_input_ = value;
+  } else {
+    this->last_output_ = this->last_output_ + this->alpha_ * (value - this->last_output_);
     this->last_input_ = value;
   }
 
