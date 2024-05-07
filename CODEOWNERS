@@ -64,7 +64,10 @@ esphome/components/bme280_base/* @esphome/core
 esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmi160/* @flaviut
-esphome/components/bmp3xx/* @martgras
+esphome/components/bmp3xx/* @latonita
+esphome/components/bmp3xx_base/* @latonita @martgras
+esphome/components/bmp3xx_i2c/* @latonita
+esphome/components/bmp3xx_spi/* @latonita
 esphome/components/bmp581/* @kahrendt
 esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
@@ -120,6 +123,7 @@ esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
+esphome/components/event/* @nohat
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
@@ -242,7 +246,7 @@ esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/ms8607/* @e28eta
 esphome/components/network/* @esphome/core
-esphome/components/nextion/* @senexcrenshaw
+esphome/components/nextion/* @edwardtfn @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
 esphome/components/nextion/sensor/* @senexcrenshaw
 esphome/components/nextion/switch/* @senexcrenshaw
@@ -360,6 +364,7 @@ esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
 esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter
+esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
@@ -401,10 +406,21 @@ esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/web_server_idf/* @dentra
+esphome/components/weikai/* @DrCoolZic
+esphome/components/weikai_i2c/* @DrCoolZic
+esphome/components/weikai_spi/* @DrCoolZic
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
+esphome/components/wk2132_i2c/* @DrCoolZic
+esphome/components/wk2132_spi/* @DrCoolZic
+esphome/components/wk2168_i2c/* @DrCoolZic
+esphome/components/wk2168_spi/* @DrCoolZic
+esphome/components/wk2204_i2c/* @DrCoolZic
+esphome/components/wk2204_spi/* @DrCoolZic
+esphome/components/wk2212_i2c/* @DrCoolZic
+esphome/components/wk2212_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xgzp68xx/* @gcormier

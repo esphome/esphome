@@ -476,7 +476,7 @@ def lint_no_byte_datatype(fname, match):
 def lint_constants_usage():
     errs = []
     for constant, uses in CONSTANTS_USES.items():
-        if len(uses) < 4:
+        if len(uses) < 3:
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
@@ -623,7 +623,9 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/cover/cover.h",
         "esphome/components/datetime/date_entity.h",
         "esphome/components/datetime/time_entity.h",
+        "esphome/components/datetime/datetime_entity.h",
         "esphome/components/display/display.h",
+        "esphome/components/event/event.h",
         "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/lock/lock.h",

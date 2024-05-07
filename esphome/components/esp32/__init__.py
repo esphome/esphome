@@ -32,6 +32,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     __version__,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, HexInt, TimePeriod
 import esphome.config_validation as cv
@@ -364,8 +365,6 @@ def final_validate(config):
 
     return config
 
-
-CONF_PLATFORM_VERSION = "platform_version"
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(

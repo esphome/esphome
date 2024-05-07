@@ -15,6 +15,11 @@
 namespace esphome {
 namespace remote_base {
 
+enum ToleranceMode : uint8_t {
+  TOLERANCE_MODE_PERCENTAGE = 0,
+  TOLERANCE_MODE_TIME = 1,
+};
+
 using RawTimings = std::vector<int32_t>;
 
 class RemoteTransmitData {
@@ -42,8 +47,8 @@ class RemoteTransmitData {
 
 class RemoteReceiveData {
  public:
-  explicit RemoteReceiveData(const RawTimings &data, uint8_t tolerance)
-      : data_(data), index_(0), tolerance_(tolerance) {}
+  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+      : data_(data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
   const RawTimings &get_raw_data() const { return this->data_; }
   uint32_t get_index() const { return index_; }
@@ -65,13 +70,35 @@ class RemoteReceiveData {
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
 
+  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
+    this->tolerance_ = tolerance;
+    this->tolerance_mode_ = tolerance_mode;
+  }
+  uint32_t get_tolerance() { return tolerance_; }
+  ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
+
  protected:
-  int32_t lower_bound_(uint32_t length) const { return int32_t(100 - this->tolerance_) * length / 100U; }
-  int32_t upper_bound_(uint32_t length) const { return int32_t(100 + this->tolerance_) * length / 100U; }
+  int32_t lower_bound_(uint32_t length) const {
+    if (this->tolerance_mode_ == TOLERANCE_MODE_TIME) {
+      return int32_t(length - this->tolerance_);
+    } else if (this->tolerance_mode_ == TOLERANCE_MODE_PERCENTAGE) {
+      return int32_t(100 - this->tolerance_) * length / 100U;
+    }
+    return 0;
+  }
+  int32_t upper_bound_(uint32_t length) const {
+    if (this->tolerance_mode_ == TOLERANCE_MODE_TIME) {
+      return int32_t(length + this->tolerance_);
+    } else if (this->tolerance_mode_ == TOLERANCE_MODE_PERCENTAGE) {
+      return int32_t(100 + this->tolerance_) * length / 100U;
+    }
+    return 0;
+  }
 
   const RawTimings &data_;
   uint32_t index_;
-  uint8_t tolerance_;
+  uint32_t tolerance_;
+  ToleranceMode tolerance_mode_;
 };
 
 class RemoteComponentBase {
@@ -162,7 +189,10 @@ class RemoteReceiverBase : public RemoteComponentBase {
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
   void register_dumper(RemoteReceiverDumperBase *dumper);
-  void set_tolerance(uint8_t tolerance) { tolerance_ = tolerance; }
+  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
+    this->tolerance_ = tolerance;
+    this->tolerance_mode_ = tolerance_mode;
+  }
 
  protected:
   void call_listeners_();
@@ -176,7 +206,8 @@ class RemoteReceiverBase : public RemoteComponentBase {
   std::vector<RemoteReceiverDumperBase *> dumpers_;
   std::vector<RemoteReceiverDumperBase *> secondary_dumpers_;
   RawTimings temp_;
-  uint8_t tolerance_;
+  uint32_t tolerance_{25};
+  ToleranceMode tolerance_mode_{TOLERANCE_MODE_PERCENTAGE};
 };
 
 class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitiallyOff,
