@@ -331,8 +331,8 @@ void SEN5XComponent::update() {
   this->update_measured_values_();
 
   if (this->get_pm_number_concentration_and_tps_) {
-    // delay the extra reading otherwise the device throws errors or the data is corrupted (CRC errors)
-    this->set_timeout(200, [this]() { this->update_measured_pm_(); });
+    // delay the extra reading to allow update_measured_values to complete.
+    this->set_timeout(30, [this]() { this->update_measured_pm_(); });
   }
 }
 
