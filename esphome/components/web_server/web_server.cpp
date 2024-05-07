@@ -1426,13 +1426,16 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject root) {
+  return json::build_json([this, obj, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "valve-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
                               obj->position, start_config);
     root["current_operation"] = valve::valve_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_position())
       root["position"] = obj->position;
+    if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+      root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+    }
   });
 }
 #endif
