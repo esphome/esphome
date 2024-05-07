@@ -31,7 +31,7 @@ void MLX90614Component::setup() {
   this->emissivity_write_ec_ = this->write_emissivity_();
   if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with MLX90614 failed! Error code %d", this->emissivity_write_ec_);
-    this->mark_failed();
+    this->status_set_warning();
     return;
   }
 }
