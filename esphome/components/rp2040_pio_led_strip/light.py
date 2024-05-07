@@ -143,7 +143,15 @@ RP2040PIOLEDStripLightOutput = rp2040_pio_led_strip_ns.class_(
 
 RGBOrder = rp2040_pio_led_strip_ns.enum("RGBOrder")
 
-Chipsets = rp2040_pio_led_strip_ns.enum("Chipset")
+Chipset = rp2040_pio_led_strip_ns.enum("Chipset")
+
+CHIPSETS = {
+    "WS2812": Chipset.CHIPSET_WS2812,
+    "WS2812B": Chipset.CHIPSET_WS2812B,
+    "SK6812": Chipset.CHIPSET_SK6812,
+    "SM16703": Chipset.CHIPSET_SM16703,
+    "CUSTOM": Chipset.CHIPSET_CUSTOM,
+}
 
 
 @dataclass
@@ -163,7 +171,7 @@ RGB_ORDERS = {
     "BRG": RGBOrder.ORDER_BRG,
 }
 
-CHIPSETS = {
+CHIPSET_TIMINGS = {
     "WS2812": LEDStripTimings(20, 40, 46, 34),
     "WS2812B": LEDStripTimings(23, 49, 46, 26),
     "SK6812": LEDStripTimings(17, 52, 34, 34),
@@ -197,7 +205,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
             cv.Required(CONF_PIO): cv.one_of(0, 1, int=True),
-            cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
+            cv.Optional(CONF_CHIPSET): cv.enum(CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
@@ -243,8 +251,8 @@ async def to_code(config):
 
     key = f"led_strip_{id}"
 
-    if CONF_CHIPSET in config:
-        cg.add(var.set_chipset("CHIPSET_" + config[CONF_CHIPSET]))
+    if chipset := config.get(CONF_CHIPSET):
+        cg.add(var.set_chipset(chipset))
         _LOGGER.info("Generating PIO assembly code")
         rp2040.add_pio_file(
             __name__,
@@ -252,14 +260,14 @@ async def to_code(config):
             generate_assembly_code(
                 id,
                 config[CONF_IS_RGBW],
-                CHIPSETS[config[CONF_CHIPSET]].T0H,
-                CHIPSETS[config[CONF_CHIPSET]].T0L,
-                CHIPSETS[config[CONF_CHIPSET]].T1H,
-                CHIPSETS[config[CONF_CHIPSET]].T1L,
+                CHIPSET_TIMINGS[chipset].T0H,
+                CHIPSET_TIMINGS[chipset].T0L,
+                CHIPSET_TIMINGS[chipset].T1H,
+                CHIPSET_TIMINGS[chipset].T1L,
             ),
         )
     else:
-        cg.add(var.set_chipset("CHIPSET_CUSTOM"))
+        cg.add(var.set_chipset(Chipset.CHIPSET_CUSTOM))
         _LOGGER.info("Generating custom PIO assembly code")
         rp2040.add_pio_file(
             __name__,

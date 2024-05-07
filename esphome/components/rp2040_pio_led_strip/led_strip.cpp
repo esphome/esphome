@@ -6,8 +6,8 @@
 #include "esphome/core/log.h"
 
 #include <hardware/clocks.h>
-#include <hardware/pio.h>
 #include <hardware/dma.h>
+#include <hardware/pio.h>
 #include <pico/stdlib.h>
 
 namespace esphome {
@@ -179,20 +179,6 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  RGBW: %s", YESNO(this->is_rgbw_));
   ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order_to_string(this->rgb_order_));
   ESP_LOGCONFIG(TAG, "  Max Refresh Rate: %f Hz", this->max_refresh_rate_);
-}
-
-void RP2040PIOLEDStripLightOutput::set_chipset(std::string chipset) {
-  if (strncmp(chipset.c_str(), "WS2812", 6) == 0) {
-    this->chipset_ = CHIPSET_WS2812;
-  } else if (strncmp(chipset.c_str(), "WS2812B", 7) == 0) {
-    this->chipset_ = CHIPSET_WS2812B;
-  } else if (strncmp(chipset.c_str(), "SK6812", 6) == 0) {
-    this->chipset_ = CHIPSET_SK6812;
-  } else if (strncmp(chipset.c_str(), "SM16703", 7) == 0) {
-    this->chipset_ = CHIPSET_SM16703;
-  } else {
-    this->chipset_ = CHIPSET_CUSTOM;
-  }
 }
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

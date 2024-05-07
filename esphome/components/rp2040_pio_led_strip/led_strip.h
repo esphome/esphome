@@ -9,8 +9,8 @@
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/light/light_output.h"
 
-#include <hardware/pio.h>
 #include <hardware/dma.h>
+#include <hardware/pio.h>
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
 #include <map>
@@ -80,7 +80,7 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   void set_program(const pio_program_t *program) { this->program_ = program; }
   void set_init_function(init_fn init) { this->init_ = init; }
 
-  void set_chipset(std::string chipset);
+  void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++) {
