@@ -431,5 +431,16 @@ class RoundFilter : public Filter {
   uint8_t precision_;
 };
 
+class HighPassFilter : public Filter {
+ public:
+  explicit HighPassFilter(float alpha);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float alpha_;
+  float last_input_{NAN};
+  float last_output_{NAN};
+};
+
 }  // namespace sensor
 }  // namespace esphome

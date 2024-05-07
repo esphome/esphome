@@ -246,6 +246,7 @@ CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
+HighPassFilter = sensor_ns.class_("HighPassFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -722,6 +723,23 @@ async def round_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
         config[CONF_ACCURACY_DECIMALS],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "high_pass",
+    HighPassFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ALPHA): cv.positive_float,
+        },
+        key=CONF_ALPHA,
+    ),
+)
+async def high_pass_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_ALPHA],
     )
 
 
