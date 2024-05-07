@@ -64,18 +64,18 @@ DATETIME_MODES = [
 ]
 
 
-_DATETIME_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
-            }
-        ),
-        cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-    }
-).extend(
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA).extend(
-        cv.MQTT_COMMAND_COMPONENT_SCHEMA
+_DATETIME_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
+                }
+            ),
+            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+        }
     )
 )
 
