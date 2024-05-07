@@ -1038,6 +1038,9 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   if (msg.has_media_url) {
     call.set_media_url(msg.media_url);
   }
+  if (msg.has_announcement) {
+    call.set_announcement(msg.announcement);
+  }
   call.perform();
 }
 #endif
