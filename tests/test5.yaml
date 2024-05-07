@@ -474,14 +474,28 @@ sensor:
     co2:
       name: CO2 Sensor
 
-  - platform: bmp3xx
+  - platform: ms8607
     temperature:
-      name: BMP Temperature
-      oversampling: 16x
+      name: Temperature
+    humidity:
+      name: Humidity
     pressure:
-      name: BMP Pressure
+      name: Pressure
+  - platform: ms8607
+    id: ms8607_more_config
+    temperature:
+      name: Indoor Temperature
+      accuracy_decimals: 1
+    pressure:
+      name: Indoor Pressure
+      internal: true
+    humidity:
+      name: Indoor Humidity
+      address: 0x41
+      i2c_id:
+    i2c_id:
     address: 0x77
-    iir_filter: 2X
+    update_interval: 10min
 
   - platform: sen5x
     id: sen54

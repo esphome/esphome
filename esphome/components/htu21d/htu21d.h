@@ -8,6 +8,8 @@
 namespace esphome {
 namespace htu21d {
 
+enum HTU21DSensorModels { HTU21D_SENSOR_MODEL_HTU21D = 0, HTU21D_SENSOR_MODEL_SI7021, HTU21D_SENSOR_MODEL_SHT21 };
+
 class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
@@ -17,6 +19,7 @@ class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
   /// Setup (reset) the sensor and check connection.
   void setup() override;
   void dump_config() override;
+  void set_sensor_model(HTU21DSensorModels sensor_model) { sensor_model_ = sensor_model; }
   /// Update the sensor values (temperature+humidity).
   void update() override;
 
@@ -31,6 +34,7 @@ class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *heater_{nullptr};
+  HTU21DSensorModels sensor_model_{HTU21D_SENSOR_MODEL_HTU21D};
 };
 
 template<typename... Ts> class SetHeaterLevelAction : public Action<Ts...>, public Parented<HTU21DComponent> {

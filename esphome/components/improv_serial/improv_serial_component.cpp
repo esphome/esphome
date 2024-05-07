@@ -196,7 +196,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);
-      wifi::global_wifi_component->start_scanning();
+      wifi::global_wifi_component->start_connecting(sta, false);
       this->set_state_(improv::STATE_PROVISIONING);
       ESP_LOGD(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
