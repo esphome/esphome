@@ -13,7 +13,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   media_player::MediaPlayerState play_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
   if (call.get_announcement().has_value()) {
     play_state = call.get_announcement().value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
-                                                : media_player::MEDIA_PLAYER_STATE_PLAYING;
+                                                 : media_player::MEDIA_PLAYER_STATE_PLAYING;
   }
   if (call.get_media_url().has_value()) {
     this->current_url_ = call.get_media_url();
@@ -173,7 +173,7 @@ void I2SAudioMediaPlayer::start_() {
     this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
     if (this->is_announcement_.has_value()) {
       this->is_announcement_.value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
-                                    : media_player::MEDIA_PLAYER_STATE_PLAYING;
+                                     : media_player::MEDIA_PLAYER_STATE_PLAYING;
     }
     this->publish_state();
   }
