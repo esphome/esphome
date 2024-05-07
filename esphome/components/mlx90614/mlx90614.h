@@ -32,7 +32,7 @@ class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
   float emissivity_{NAN};
   i2c::ErrorCode emissivity_write_ec_{i2c::ERROR_OK};
   i2c::ErrorCode object_read_ec_{i2c::ERROR_OK};
-  i2c::ErrorCode ambient_read_ec_{i2c::ERROR_OK}З;
+  i2c::ErrorCode ambient_read_ec_{i2c::ERROR_OK};
 };
 }  // namespace mlx90614
 }  // namespace esphome
