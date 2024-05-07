@@ -172,8 +172,8 @@ void I2SAudioMediaPlayer::start_() {
     this->audio_->connecttohost(this->current_url_.value().c_str());
     this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
     if (this->is_announcement_.has_value()) {
-      this->is_announcement_.value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
-                                     : media_player::MEDIA_PLAYER_STATE_PLAYING;
+      this->state = this->is_announcement_.value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+                                                   : media_player::MEDIA_PLAYER_STATE_PLAYING;
     }
     this->publish_state();
   }
