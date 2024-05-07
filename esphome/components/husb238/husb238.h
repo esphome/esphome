@@ -153,12 +153,11 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(voltage)
   SUB_SENSOR(current)
   SUB_SENSOR(selected_voltage)
-  SUB_SENSOR(voltage5v)
-  SUB_SENSOR(current5v)
 #endif
 
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(status)
+  SUB_TEXT_SENSOR(capabilities)
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -188,6 +187,7 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
 
   RegSrcPdo get_detected_current_();
   bool select_pdo_voltage_(SrcVoltageSelection voltage);
+  std::string get_capabilities();
 };
 
 }  // namespace husb238

@@ -144,25 +144,30 @@ void Husb238Component::update() {
   }
 #endif
 #ifdef USE_SENSOR
-  if (this->current_sensor_ != nullptr) {
-    this->current_sensor_->publish_state(current_to_float(this->registers_.pd_status0.current));
-  }
   if (this->voltage_sensor_ != nullptr) {
     this->voltage_sensor_->publish_state(voltage_to_float(this->registers_.pd_status0.voltage));
+  }
+  if (this->current_sensor_ != nullptr) {
+    float current{0.0f};
+    if (this->registers_.pd_status1.voltage_5v) {
+      current = current5v_to_float(this->registers_.pd_status1.current_5v);
+    } else {
+      current = current_to_float(this->registers_.pd_status0.current);
+    }
+    this->current_sensor_->publish_state(current);
   }
   if (this->selected_voltage_sensor_ != nullptr) {
     this->selected_voltage_sensor_->publish_state(selected_voltage_to_float(this->registers_.src_pdo_sel.voltage));
   }
-  if (this->voltage5v_sensor_ != nullptr) {
-    this->voltage5v_sensor_->publish_state(this->registers_.pd_status1.voltage_5v ? 5.0f : 0.0f);
-  }
-  if (this->current5v_sensor_ != nullptr) {
-    this->current5v_sensor_->publish_state(current5v_to_float(this->registers_.pd_status1.current_5v));
-  }
+
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->status_text_sensor_ != nullptr) {
     this->status_text_sensor_->publish_state(status_to_string(this->registers_.pd_status1.response));
+  }
+
+  if (this->capabilities_text_sensor_ != nullptr) {
+    this->capabilities_text_sensor_->publish_state(this->get_capabilities());
   }
 #endif
 }
@@ -179,8 +184,6 @@ void Husb238Component::dump_config() {
   LOG_SENSOR("  ", "Source Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Source Current", this->current_sensor_);
   LOG_SENSOR("  ", "Selected Voltage", this->selected_voltage_sensor_);
-  LOG_SENSOR("  ", "5V Voltage", this->voltage5v_sensor_);
-  LOG_SENSOR("  ", "5V Current", this->current5v_sensor_);
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -286,6 +289,19 @@ bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
     ESP_LOGE(TAG, "Error setting PDO voltage");
   }
   return err;
+}
+
+/*
+5V: 3.00A, 9V: 1.50A, 12V: 3.00A, 15V: 2.00A, 18V: 1.50A, 20V: 1.50A
+*/
+std::string Husb238Component::get_capabilities() {
+  char buffer[128];
+  snprintf(
+      buffer, sizeof(buffer), "5V: %.2fA, 9V: %.2fA, 12V: %.2fA, 15V: %.2fA, 18V: %.2fA, 20V: %.2fA",
+      current_to_float(this->registers_.src_pdo_5v.current), current_to_float(this->registers_.src_pdo_9v.current),
+      current_to_float(this->registers_.src_pdo_12v.current), current_to_float(this->registers_.src_pdo_15v.current),
+      current_to_float(this->registers_.src_pdo_18v.current), current_to_float(this->registers_.src_pdo_20v.current));
+  return std::string(buffer);
 }
 
 }  // namespace husb238

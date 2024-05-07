@@ -6,11 +6,19 @@ from . import Husb238Component, CONF_HUSB238_ID
 
 TYPES = [CONF_STATUS]
 
+CONF_CAPABILITIES = "capabilities"
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_HUSB238_ID): cv.use_id(Husb238Component),
             cv.Optional(CONF_STATUS): cv.maybe_simple_value(
+                text_sensor.text_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                key=CONF_NAME,
+            ),
+            cv.Optional(CONF_CAPABILITIES): cv.maybe_simple_value(
                 text_sensor.text_sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
