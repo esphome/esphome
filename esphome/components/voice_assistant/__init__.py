@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_MEDIA_PLAYER,
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
+    CONF_ON_IDLE,
 )
 from esphome import automation
 from esphome.automation import register_action, register_condition
@@ -32,7 +33,6 @@ CONF_ON_TTS_START = "on_tts_start"
 CONF_ON_TTS_STREAM_START = "on_tts_stream_start"
 CONF_ON_TTS_STREAM_END = "on_tts_stream_end"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
-CONF_ON_IDLE = "on_idle"
 
 CONF_SILENCE_DETECTION = "silence_detection"
 CONF_USE_WAKE_WORD = "use_wake_word"
