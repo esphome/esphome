@@ -1,11 +1,8 @@
 #pragma once
-
-#include "esphome/core/defines.h"
 #ifdef USE_OTA_STATE_CALLBACK
+#include "ota_backend.h"
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/components/ota/ota_component.h"
 
 namespace esphome {
 namespace ota {
@@ -67,5 +64,4 @@ class OTAErrorTrigger : public Trigger<uint8_t> {
 
 }  // namespace ota
 }  // namespace esphome
-
-#endif  // USE_OTA_STATE_CALLBACK
+#endif

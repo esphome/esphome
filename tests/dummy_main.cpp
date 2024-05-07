@@ -5,7 +5,7 @@
 
 #include <esphome/components/gpio/switch/gpio_switch.h>
 #include <esphome/components/logger/logger.h>
-#include <esphome/components/ota/ota_component.h>
+#include <esphome/components/esphome/ota/ota_esphome.h>
 #include <esphome/components/wifi/wifi_component.h>
 #include <esphome/core/application.h>
 
@@ -25,10 +25,8 @@ void setup() {
   ap.set_password("password1");
   wifi->add_sta(ap);
 
-  auto *ota = new ota::OTAComponent();  // NOLINT
-#ifndef USE_ZEPHYR
+  auto *ota = new esphome::ESPHomeOTAComponent();  // NOLINT
   ota->set_port(8266);
-#endif
 
   App.setup();
 }
