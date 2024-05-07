@@ -1,12 +1,1 @@
-cover:
-  - platform: time_based
-    name: Time Based Cover
-    id: time_based_cover
-    stop_action:
-      - logger.log: stop_action
-    open_action:
-      - logger.log: open_action
-    open_duration: 5min
-    close_action:
-      - logger.log: close_action
-    close_duration: 4.5min
+<<: !include common.yaml

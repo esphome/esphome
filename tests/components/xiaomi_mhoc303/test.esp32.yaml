@@ -1,11 +1,1 @@
-esp32_ble_tracker:
-
-sensor:
-  - platform: xiaomi_mhoc303
-    mac_address: E7:50:59:32:A0:1C
-    temperature:
-      name: MHO-C303 Temperature
-    humidity:
-      name: MHO-C303 Humidity
-    battery_level:
-      name: MHO-C303 Battery Level
+<<: !include common.yaml
