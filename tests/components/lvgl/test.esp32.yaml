@@ -106,6 +106,7 @@ lvgl:
   color_depth: 16
   default_font: montserrat_14
   bg_color: my_light_red
+  disp_bg_color: my_light_red
   disp_bg_image: cat_image
   style_definitions:
     - id: style_test

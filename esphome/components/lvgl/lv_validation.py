@@ -62,9 +62,9 @@ def color_retmapper(value):
 
 
 def lv_builtin_font(value):
-    font = cv.one_of(*LV_FONTS, lower=True)(value)
-    lv_fonts_used.add(font)
-    return "&lv_font_" + font
+    fontval = cv.one_of(*LV_FONTS, lower=True)(value)
+    lv_fonts_used.add(fontval)
+    return "&lv_font_" + fontval
 
 
 def font(value):
@@ -74,14 +74,14 @@ def font(value):
     if isinstance(value, str) and value.lower() in LV_FONTS:
         return lv_builtin_font(value)
     lv_uses.add("FONT")
-    font = cv.use_id(Font)(value)
-    esphome_fonts_used.add(font)
+    fontval = cv.use_id(Font)(value)
+    esphome_fonts_used.add(fontval)
     lvgl_components_required.add("font")
-    return cv.requires_component("font")(f"{font}_as_lv_font_")
+    return cv.requires_component("font")(f"{fontval}_as_lv_font_")
 
 
-def is_esphome_font(font):
-    return "_as_lv_font_" in font
+def is_esphome_font(fontval):
+    return "_as_lv_font_" in fontval
 
 
 @schema_extractor("one_of")
@@ -89,12 +89,6 @@ def bool_(value):
     if value == SCHEMA_EXTRACT:
         return ["true", "false"]
     return "true" if cv.boolean(value) else "false"
-
-
-def prefix(value, choices, prefix):
-    if isinstance(value, str) and value.startswith(prefix):
-        return cv.one_of(*list(map(lambda v: prefix + v, choices)), upper=True)(value)
-    return prefix + cv.one_of(*choices, upper=True)(value)
 
 
 def animated(value):
@@ -118,7 +112,11 @@ def one_of(consts: LvConstant):
     def validator(value):
         if value == SCHEMA_EXTRACT:
             return consts.choices
-        return prefix(value, consts.choices, consts.prefix)
+        if isinstance(value, str) and value.startswith(consts.prefix):
+            return cv.one_of(
+                *list(map(lambda v: consts.prefix + v, consts.choices)), upper=True
+            )(value)
+        return consts.prefix + cv.one_of(*consts.choices, upper=True)(value)
 
     return validator
 

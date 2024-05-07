@@ -1,9 +1,9 @@
 import sys
 
 import esphome.codegen as cg
-from . import types as ty
-from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
 from esphome.core import TimePeriod
+from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
+from . import types as ty
 
 EVENT_LAMB = "event_lamb__"
 
