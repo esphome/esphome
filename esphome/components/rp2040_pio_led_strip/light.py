@@ -5,6 +5,7 @@ from esphome.components import light, rp2040
 from esphome.const import (
     CONF_CHIPSET,
     CONF_ID,
+    CONF_IS_RGBW,
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
     CONF_PIN,
@@ -165,7 +166,6 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(17, 52, 52, 17),
 }
 
-CONF_IS_RGBW = "is_rgbw"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"

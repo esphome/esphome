@@ -6,6 +6,7 @@ from esphome import pins
 from esphome.components import libretiny, light
 from esphome.const import (
     CONF_CHIPSET,
+    CONF_IS_RGBW,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
@@ -56,7 +57,6 @@ CHIPSETS = {
 }
 
 
-CONF_IS_RGBW = "is_rgbw"
 CONF_IS_WRGB = "is_wrgb"
 
 SUPPORTED_PINS = {
