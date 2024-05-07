@@ -84,10 +84,10 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
   buf[2] = buf[3] = 0;
   buf[4] = this->crc8_pec_(buf, 4);
   ec = this->write_register(reg, buf + 2, 3);
-  if (i2c::ERROR_OK != ec)) {
-      ESP_LOGW(TAG, "Can't clean register %x, error %d", reg, ec);
-      return ec;
-    }
+  if (i2c::ERROR_OK != ec) {
+    ESP_LOGW(TAG, "Can't clean register %x, error %d", reg, ec);
+    return ec;
+  }
 
   // 3. Wait at least 5ms (10ms to be on the safe side)
   delay(delay_ms);
@@ -191,7 +191,7 @@ void MLX90614Component::update() {
   this->object_read_ec_ = publish_sensor(this->object_sensor_, MLX90614_TEMPERATURE_OBJECT_1);
   this->ambient_read_ec_ = publish_sensor(this->ambient_sensor_, MLX90614_TEMPERATURE_AMBIENT);
 
-  if (this->ambient_read_ec_ == Зi2c::ERROR_OK && this->object_read_ec_ == i2c::ERROR_OK &&
+  if (this->ambient_read_ec_ == i2c::ERROR_OK && this->object_read_ec_ == i2c::ERROR_OK &&
       this->emissivity_write_ec_ == i2c::ERROR_OK) {
     this->status_clear_warning();
   } else {
