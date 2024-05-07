@@ -29,7 +29,7 @@ static const char *const TAG = "mlx90614";
 void MLX90614Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90614...");
   this->emissivity_write_ec_ = this->write_emissivity_();
-  if(this->emissivity_write_ec_ != i2c::ERROR_OK) {
+  if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with MLX90614 failed!");
     this->mark_failed();
     return;
@@ -134,13 +134,13 @@ i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
   const auto ec = this->read_register(reg, buf + 3, 3, false);
 
   if (i2c::ERROR_OK != ec) {
-    ESP_LOGW(TAG, "Try %d: i2c read error %d", i_try, ec);
+    ESP_LOGW(TAG, "i2c read error %d", ec);
     return ec;
   }
 
   const auto expected_pec = this->crc8_pec_(buf, 5);
   if (buf[5] != expected_pec) {
-    ESP_LOGW(TAG, "Try %d: i2c CRC error. Expected %x. Actual %x", i_try, expected_pec, buf[4]);
+    ESP_LOGW(TAG, "i2c CRC error. Expected %x. Actual %x", expected_pec, buf[4]);
     return i2c::ERROR_CRC;
   }
 
@@ -154,16 +154,16 @@ void MLX90614Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with MLX90614 failed!");
   }
-  
-  if(i2c::ERROR_OK != this->emissivity_write_ec_) {
+
+  if (i2c::ERROR_OK != this->emissivity_write_ec_) {
     ESP_LOGE(TAG, "Emissivity update error %d", this->emissivity_write_ec_);
   }
 
-  if(i2c::ERROR_OK != this->object_read_ec_) {
+  if (i2c::ERROR_OK != this->object_read_ec_) {
     ESP_LOGE(TAG, "Object temperature read error %d", this->object_read_ec_);
   }
 
-  if(i2c::ERROR_OK != this->ambient_read_ec_) {
+  if (i2c::ERROR_OK != this->ambient_read_ec_) {
     ESP_LOGE(TAG, "Ambient temperature read error %d", this->ambient_read_ec_);
   }
 
