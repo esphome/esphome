@@ -6,9 +6,6 @@
 #include "esphome/core/helpers.h"
 #include "preferences.h"
 
-void setup();
-void loop();
-
 namespace esphome {
 
 void IRAM_ATTR HOT yield() { ::yield(); }
@@ -27,7 +24,7 @@ void arch_init() {
 
 void arch_restart() {
   lt_reboot();
-  while (1) {
+  while (true) {
   }
 }
 void IRAM_ATTR HOT arch_feed_wdt() { lt_wdt_feed(); }

@@ -1,12 +1,12 @@
 #ifdef USE_LIBRETINY
 
 #include "esphome/core/preferences.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 #include <flashdb.h>
 #include <cstring>
-#include <vector>
 #include <string>
+#include <vector>
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace libretiny {
@@ -74,7 +74,7 @@ class LibreTinyPreferences : public ESPPreferences {
 
   void open() {
     //
-    fdb_err_t err = fdb_kvdb_init(&db, "esphome", "kvs", NULL, NULL);
+    fdb_err_t err = fdb_kvdb_init(&db, "esphome", "kvs", nullptr, nullptr);
     if (err != FDB_NO_ERR) {
       LT_E("fdb_kvdb_init(...) failed: %d", err);
     } else {
