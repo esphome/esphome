@@ -541,6 +541,17 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
+class HighPassFilter : public Filter {
+ public:
+  explicit HighPassFilter(float alpha);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float alpha_;
+  float last_input_{NAN};
+  float last_output_{NAN};
+};
+
 class ToNTCResistanceFilter : public Filter {
  public:
   ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
