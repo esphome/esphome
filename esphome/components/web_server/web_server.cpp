@@ -586,7 +586,11 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state"); }
+void WebServer::on_fan_update(fan::Fan *obj) {
+  if (this->events_.count() == 0)
+    return;
+  this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
+}
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
     if (obj->get_object_id() != match.id)
