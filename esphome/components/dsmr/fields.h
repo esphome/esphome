@@ -206,7 +206,6 @@ struct units {
   static constexpr char kHz[] = "kHz";
 };
 
-
 #ifdef DSMR_GAS_MBUS_ID
 const uint8_t GAS_MBUS_ID = DSMR_GAS_MBUS_ID;
 #else

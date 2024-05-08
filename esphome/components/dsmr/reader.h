@@ -70,8 +70,8 @@ class P1Reader {
    */
   P1Reader(Stream *stream, uint8_t req_pin)
       : stream(stream), req_pin(req_pin), once(false), state(State::DISABLED_STATE) {
-    pinMode(req_pin, OUTPUT); // NOLINT
-    digitalWrite(req_pin, LOW); // NOLINT
+    pinMode(req_pin, OUTPUT);    // NOLINT
+    digitalWrite(req_pin, LOW);  // NOLINT
   }
 
   /**
@@ -83,7 +83,7 @@ class P1Reader {
    *                 periodically.
    */
   void enable(bool once) {
-    digitalWrite(this->req_pin, HIGH); // NOLINT
+    digitalWrite(this->req_pin, HIGH);  // NOLINT
     this->state = State::WAITING_STATE;
     this->once = once;
   }
@@ -94,7 +94,7 @@ class P1Reader {
    * clear() is called.
    */
   void disable() {
-    digitalWrite(this->req_pin, LOW); // NOLINT
+    digitalWrite(this->req_pin, LOW);  // NOLINT
     this->state = State::DISABLED_STATE;
     if (!this->_available)
       this->buffer = "";
