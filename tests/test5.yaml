@@ -506,43 +506,20 @@ sensor:
       name: Humidity
       accuracy_decimals: 0
     pm_1_0:
-      name: PM <1µm Mass concentration
+      name: PM <1µm Weight concentration
       id: pm_1_0
       accuracy_decimals: 1
     pm_2_5:
-      name: PM <2.5µm Mass concentration
+      name: PM <2.5µm Weight concentration
       id: pm_2_5
       accuracy_decimals: 1
     pm_4_0:
-      name: PM <4µm Mass concentration
+      name: PM <4µm Weight concentration
       id: pm_4_0
       accuracy_decimals: 1
     pm_10_0:
-      name: PM <10µm Mass concentration
+      name: PM <10µm Weight concentration
       id: pm_10_0
-      accuracy_decimals: 1
-    pm_n_0_5:
-      name: PM <0.5µm Number concentration
-      id: pm_n_0_5
-      accuracy_decimals: 1
-    pm_n_1_0:
-      name: PM <1.0µm Number concentration
-      id: pm_n_1_0
-      accuracy_decimals: 1
-    pm_n_2_5:
-      name: PM <2.5µm Number concentration
-      id: pm_n_2_5
-      accuracy_decimals: 1
-    pm_n_4_0:
-      name: PM <4µm Number concentration
-      id: pm_n_4_0
-      accuracy_decimals: 1
-    pm_n_10_0:
-      name: PM <10µm Number concentration
-      accuracy_decimals: 1
-    pm_tps:
-      name: Typical Particle size
-      id: pm_tps
       accuracy_decimals: 1
     nox:
       name: NOx
