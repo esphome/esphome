@@ -14,7 +14,6 @@ namespace apds9306 {
   public:
     void setup() override;
     void dump_config() override;
-    float get_setup_priority() const override;
     void update() override;
 
     void set_bit_width(uint8_t measurement_bit_width) {this->bit_width_ = measurement_bit_width;}
