@@ -3,10 +3,10 @@
 #include <cstdint>
 
 namespace esphome {
-namespace ota_http {
+namespace ota_http_request {
 namespace watchdog {
 
-static const char *const TAG = "ota_http.watchdog";
+static const char *const TAG = "ota_http_request.watchdog";
 
 class Watchdog {
  public:
@@ -21,5 +21,5 @@ class Watchdog {
 };
 
 }  // namespace watchdog
-}  // namespace ota_http
+}  // namespace ota_http_request
 }  // namespace esphome

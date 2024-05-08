@@ -1,7 +1,7 @@
-#include "ota_http.h"
+#include "ota_http_request.h"
 
 #ifdef USE_ARDUINO
-#include "ota_http_arduino.h"
+#include "ota_http_request_arduino.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -9,14 +9,14 @@
 #include "esphome/components/md5/md5.h"
 
 namespace esphome {
-namespace ota_http {
+namespace ota_http_request {
 
 struct Header {
   const char *name;
   const char *value;
 };
 
-void OtaHttpArduino::http_init() {
+void OtaHttpRequestComponentArduino::http_init() {
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
@@ -62,7 +62,7 @@ void OtaHttpArduino::http_init() {
 #endif
 }
 
-int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
+int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len) {
 #ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
   if (!this->secure_()) {
@@ -93,9 +93,9 @@ int OtaHttpArduino::http_read(uint8_t *buf, const size_t max_len) {
   return bufsize;
 }
 
-void OtaHttpArduino::http_end() { this->client_.end(); }
+void OtaHttpRequestComponentArduino::http_end() { this->client_.end(); }
 
-int OtaHttpArduino::set_stream_ptr_() {
+int OtaHttpRequestComponentArduino::set_stream_ptr_() {
 #ifdef USE_ESP8266
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   if (this->secure_()) {
@@ -123,7 +123,7 @@ int OtaHttpArduino::set_stream_ptr_() {
   return 0;
 }
 
-}  // namespace ota_http
+}  // namespace ota_http_request
 }  // namespace esphome
 
 #endif  // USE_ARDUINO

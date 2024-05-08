@@ -1,16 +1,15 @@
 #pragma once
 
-#include "ota_http.h"
+#include "ota_http_request.h"
 
 #ifdef USE_ARDUINO
-
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
 #include <memory>
-#include <utility>
 #include <string>
+#include <utility>
 
 #if defined(USE_ESP32) || defined(USE_RP2040)
 #include <HTTPClient.h>
@@ -23,9 +22,9 @@
 #endif
 
 namespace esphome {
-namespace ota_http {
+namespace ota_http_request {
 
-class OtaHttpArduino : public OtaHttpComponent {
+class OtaHttpRequestComponentArduino : public OtaHttpRequestComponent {
  public:
   void http_init() override;
   int http_read(uint8_t *buf, size_t len) override;
@@ -37,7 +36,7 @@ class OtaHttpArduino : public OtaHttpComponent {
   std::unique_ptr<WiFiClient> stream_ptr_;
 };
 
-}  // namespace ota_http
+}  // namespace ota_http_request
 }  // namespace esphome
 
 #endif  // USE_ARDUINO

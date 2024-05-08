@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_FORCE_UPDATE,
 )
 from esphome.components import esp32
+from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
 from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@oarcher"]
@@ -20,17 +21,24 @@ CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["md5", "ota"]
 
-ota_http_ns = cg.esphome_ns.namespace("ota_http")
-OtaHttpComponent = ota_http_ns.class_("OtaHttpComponent", cg.Component)
-OtaHttpArduino = ota_http_ns.class_("OtaHttpArduino", OtaHttpComponent)
-OtaHttpIDF = ota_http_ns.class_("OtaHttpIDF", OtaHttpComponent)
-
-OtaHttpFlashAction = ota_http_ns.class_("OtaHttpFlashAction", automation.Action)
-
 CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
+CONF_MAX_URL_LENGTH = "max_url_length"
 CONF_MD5_URL = "md5_url"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
-CONF_MAX_URL_LENGTH = "max_url_length"
+
+ota_http_request_ns = cg.esphome_ns.namespace("ota_http_request")
+OtaHttpRequestComponent = ota_http_request_ns.class_(
+    "OtaHttpRequestComponent", OTAComponent
+)
+OtaHttpRequestComponentArduino = ota_http_request_ns.class_(
+    "OtaHttpRequestComponentArduino", OtaHttpRequestComponent
+)
+OtaHttpRequestComponentIDF = ota_http_request_ns.class_(
+    "OtaHttpRequestComponentIDF", OtaHttpRequestComponent
+)
+OtaHttpRequestComponentFlashAction = ota_http_request_ns.class_(
+    "OtaHttpRequestComponentFlashAction", automation.Action
+)
 
 
 def validate_certificate_bundle(config):
@@ -77,10 +85,10 @@ def validate_safe_mode(config):
 
 def _declare_request_class(value):
     if CORE.using_esp_idf:
-        return cv.declare_id(OtaHttpIDF)(value)
+        return cv.declare_id(OtaHttpRequestComponentIDF)(value)
 
     if CORE.is_esp8266 or CORE.is_esp32 or CORE.is_rp2040:
-        return cv.declare_id(OtaHttpArduino)(value)
+        return cv.declare_id(OtaHttpRequestComponentArduino)(value)
     return NotImplementedError
 
 
@@ -103,9 +111,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, "fallback"
             ),
             cv.Optional(CONF_MAX_URL_LENGTH, default=240): cv.uint16_t,
-            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(BASE_OTA_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
         esp8266_arduino=cv.Version(2, 5, 1),
         esp32_arduino=cv.Version(0, 0, 0),
@@ -115,15 +124,15 @@ CONFIG_SCHEMA = cv.All(
     validate_certificate_bundle,
 )
 
-FINAL_VALIDATE_SCHEMA = cv.All(validate_safe_mode)
+FINAL_VALIDATE_SCHEMA = validate_safe_mode
 
 
 @coroutine_with_priority(50.0)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    await ota_to_code(var, config)
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add_define("CONFIG_MAX_URL_LENGTH", config[CONF_MAX_URL_LENGTH])
-    cg.add_define("CONFIG_FORCE_UPDATE", config[CONF_FORCE_UPDATE])
     if (
         config.get(CONF_WATCHDOG_TIMEOUT, None)
         and config[CONF_WATCHDOG_TIMEOUT].total_milliseconds > 0
@@ -165,18 +174,19 @@ async def to_code(config):
         cg.add(var.check_upgrade())
 
 
-OTA_HTTP_ACTION_SCHEMA = cv.Schema(
+OTA_HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.use_id(OtaHttpComponent),
+        cv.GenerateID(): cv.use_id(OtaHttpRequestComponent),
         cv.Required(CONF_MD5_URL): cv.templatable(validate_url),
         cv.Required(CONF_URL): cv.templatable(validate_url),
+        cv.Optional(CONF_FORCE_UPDATE, default=False): cv.templatable(cv.boolean),
     }
 )
 
 
-OTA_HTTP_FLASH_ACTION_SCHEMA = automation.maybe_conf(
+OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL,
-    OTA_HTTP_ACTION_SCHEMA.extend(
+    OTA_HTTP_REQUEST_ACTION_SCHEMA.extend(
         {
             cv.Optional(CONF_METHOD, default="flash"): cv.string,
         }
@@ -185,9 +195,11 @@ OTA_HTTP_FLASH_ACTION_SCHEMA = automation.maybe_conf(
 
 
 @automation.register_action(
-    "ota_http.flash", OtaHttpFlashAction, OTA_HTTP_FLASH_ACTION_SCHEMA
+    "ota_http_request.flash",
+    OtaHttpRequestComponentFlashAction,
+    OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA,
 )
-async def ota_http_action_to_code(config, action_id, template_arg, args):
+async def ota_http_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -195,4 +207,6 @@ async def ota_http_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_md5_url(template_))
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
+    template_ = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
+    cg.add(var.set_force_update(template_))
     return var

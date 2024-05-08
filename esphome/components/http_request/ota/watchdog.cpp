@@ -1,25 +1,25 @@
 #include "watchdog.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 #include <cinttypes>
 #include <cstdint>
 #ifdef USE_ESP32
-#include "esp_task_wdt.h"
 #include "esp_idf_version.h"
+#include "esp_task_wdt.h"
 #endif
 #ifdef USE_RP2040
-#include "pico/stdlib.h"
 #include "hardware/watchdog.h"
+#include "pico/stdlib.h"
 #endif
 #ifdef USE_ESP8266
 #include "Esp.h"
 #endif
 
 namespace esphome {
-namespace ota_http {
+namespace ota_http_request {
 namespace watchdog {
 
 uint32_t Watchdog::timeout_ms = 0;                             // NOLINT
@@ -73,5 +73,5 @@ uint32_t Watchdog::get_timeout() {
 void Watchdog::reset() { Watchdog::set_timeout(Watchdog::init_timeout_ms); }
 
 }  // namespace watchdog
-}  // namespace ota_http
+}  // namespace ota_http_request
 }  // namespace esphome

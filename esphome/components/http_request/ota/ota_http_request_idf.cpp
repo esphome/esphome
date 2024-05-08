@@ -1,21 +1,27 @@
-#ifdef USE_ESP_IDF
+#include "ota_http_request_idf.h"
 
-#include "ota_http_idf.h"
+#ifdef USE_ESP_IDF
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include "esphome/components/network/util.h"
 #include "esphome/components/md5/md5.h"
+#include "esphome/components/network/util.h"
 
 #include "esp_event.h"
+#include "esp_http_client.h"
+#include "esp_idf_version.h"
 #include "esp_log.h"
 #include "esp_netif.h"
-#include "esp_tls.h"
-#include "nvs_flash.h"
+#include "esp_system.h"
 #include "esp_task_wdt.h"
-#include "esp_idf_version.h"
-#include <cinttypes>
+#include "esp_tls.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "nvs_flash.h"
+
 #include <cctype>
+#include <cinttypes>
 #include <cstdlib>
 #include <cstring>
 #include <sys/param.h>
@@ -23,16 +29,10 @@
 #include "esp_crt_bundle.h"
 #endif
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_system.h"
-
-#include "esp_http_client.h"
-
 namespace esphome {
-namespace ota_http {
+namespace ota_http_request {
 
-void OtaHttpIDF::http_init() {
+void OtaHttpRequestComponentIDF::http_init() {
   App.feed_wdt();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -58,7 +58,7 @@ void OtaHttpIDF::http_init() {
   this->status_ = esp_http_client_get_status_code(this->client_);
 }
 
-int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
+int OtaHttpRequestComponentIDF::http_read(uint8_t *buf, const size_t max_len) {
   int bufsize = std::min(max_len, this->body_length_ - this->bytes_read_);
   App.feed_wdt();
   int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
@@ -70,12 +70,12 @@ int OtaHttpIDF::http_read(uint8_t *buf, const size_t max_len) {
   return read_len;
 }
 
-void OtaHttpIDF::http_end() {
+void OtaHttpRequestComponentIDF::http_end() {
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
 }
 
-}  // namespace ota_http
+}  // namespace ota_http_request
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF
