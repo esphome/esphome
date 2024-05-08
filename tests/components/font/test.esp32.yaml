@@ -1,38 +1,7 @@
-font:
-  - file: "gfonts://Roboto"
-    id: roboto
-    size: 20
-    glyphs: "0123456789."
-    extras:
-      - file: "gfonts://Roboto"
-        glyphs: ["\u00C4", "\u00C5", "\U000000C7"]
-  - file: "gfonts://Roboto"
-    id: roboto_web
-    size: 20
-  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
-    id: monocraft
-    size: 20
-  - file:
-      type: web
-      url: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
-    id: monocraft2
-    size: 24
+substitutions:
+  i2c_scl: GPIO16
+  i2c_sda: GPIO17
+  display_reset_pin: GPIO13
 
-spi:
-  clk_pin: 14
-  mosi_pin: 13
-
-display:
-  - id: my_display
-    platform: ili9xxx
-    dimensions: 480x320
-    model: ST7796
-    cs_pin: 15
-    dc_pin: 21
-    reset_pin: 22
-    transform:
-      swap_xy: true
-      mirror_x: true
-      mirror_y: true
-    auto_clear_enabled: false
-
+packages:
+  common: !include common.yaml

@@ -6,9 +6,8 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
-from . import Wireguard
+from . import CONF_WIREGUARD_ID, Wireguard
 
-CONF_WIREGUARD_ID = "wireguard_id"
 CONF_LATEST_HANDSHAKE = "latest_handshake"
 
 DEPENDENCIES = ["wireguard"]
