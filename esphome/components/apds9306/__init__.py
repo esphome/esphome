@@ -45,8 +45,8 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(APDS9306),
             cv.Optional(CONF_AMBIENT_LIGHT_GAIN, "1"): cv.enum(AMBIANT_LIGHT_GAINS, lower=True),
-            cv.Optional(CONF_BIT_WIDTH, "18"): cv.enum(MEASUREMENT_BIT_WIDTHS, 2),
-            cv.Optional(CONF_MEASUREMENT_RATE, "100ms"): cv.enum(MEASUREMENT_RATES, 2)
+            cv.Optional(CONF_BIT_WIDTH, "18"): cv.enum(MEASUREMENT_BIT_WIDTHS, lower=True),
+            cv.Optional(CONF_MEASUREMENT_RATE, "100ms"): cv.enum(MEASUREMENT_RATES, lower=True)
         }
     )
     .extend(cv.polling_component_schema("60s"))
