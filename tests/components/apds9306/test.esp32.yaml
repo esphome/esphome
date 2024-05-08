@@ -1,7 +1,6 @@
 i2c:
-  - id: i2c_apds9960
-    scl: 16
-    sda: 17
+  scl: 22
+  sda: 21
 
 apds9306:
   address: 0x52
