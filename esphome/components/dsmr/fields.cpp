@@ -325,8 +325,8 @@ constexpr char apparent_return_power_l3::name[];
 constexpr ObisId active_demand_power::id;
 constexpr char active_demand_power::name[];
 
-//constexpr ObisId active_demand_net::id;
-//constexpr char active_demand_net::name[];
+// constexpr ObisId active_demand_net::id;
+// constexpr char active_demand_net::name[];
 
 constexpr ObisId active_demand_abs::id;
 constexpr char active_demand_abs::name[];

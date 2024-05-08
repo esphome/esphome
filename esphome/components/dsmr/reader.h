@@ -37,10 +37,9 @@
 
 #include "parser.h"
 
-namespace dsmr
-{
+namespace dsmr {
 
-  /**
+/**
  * Controls the request pin on the P1 port to enable (periodic)
  * transmission of messages and reads those messages.
  *
@@ -61,114 +60,99 @@ namespace dsmr
  * partial message is discarded. Any bytes received while disabled are
  * dropped.
  */
-  class P1Reader
-  {
-  public:
-    /**
-     * Create a new P1Reader. The stream passed should be the serial
-     * port to which the P1 TX pin is connected. The req_pin is the
-     * pin connected to the request pin. The pin is configured as an
-     * output, the Stream is assumed to be already set up (e.g. baud
-     * rate configured).
-     */
-    P1Reader(Stream *stream, uint8_t req_pin)
-        : stream(stream), req_pin(req_pin), once(false), state(State::DISABLED_STATE)
-    {
-      pinMode(req_pin, OUTPUT);
-      digitalWrite(req_pin, LOW);
-    }
+class P1Reader {
+ public:
+  /**
+   * Create a new P1Reader. The stream passed should be the serial
+   * port to which the P1 TX pin is connected. The req_pin is the
+   * pin connected to the request pin. The pin is configured as an
+   * output, the Stream is assumed to be already set up (e.g. baud
+   * rate configured).
+   */
+  P1Reader(Stream *stream, uint8_t req_pin)
+      : stream(stream), req_pin(req_pin), once(false), state(State::DISABLED_STATE) {
+    pinMode(req_pin, OUTPUT);
+    digitalWrite(req_pin, LOW);
+  }
 
-    /**
-     * Enable the request pin, to request data on the P1 port.
-     * @param  once    When true, the request pin is automatically
-     *                 disabled once a complete and correct message was
-     *                 receivedc. When false, the request pin stays
-     *                 enabled, so messages will continue to be sent
-     *                 periodically.
-     */
-    void enable(bool once)
-    {
-      digitalWrite(this->req_pin, HIGH);
-      this->state = State::WAITING_STATE;
-      this->once = once;
-    }
+  /**
+   * Enable the request pin, to request data on the P1 port.
+   * @param  once    When true, the request pin is automatically
+   *                 disabled once a complete and correct message was
+   *                 receivedc. When false, the request pin stays
+   *                 enabled, so messages will continue to be sent
+   *                 periodically.
+   */
+  void enable(bool once) {
+    digitalWrite(this->req_pin, HIGH);
+    this->state = State::WAITING_STATE;
+    this->once = once;
+  }
 
-    /* Disable the request pin again, to stop data from being sent on
-     * the P1 port. This will also clear any incomplete data that was
-     * previously received, but a complete message will be kept until
-     * clear() is called.
-     */
-    void disable()
-    {
-      digitalWrite(this->req_pin, LOW);
-      this->state = State::DISABLED_STATE;
-      if (!this->_available)
-        this->buffer = "";
-      // Clear any pending bytes
-      while (this->stream->read() >= 0) /* nothing */
-        ;
-    }
+  /* Disable the request pin again, to stop data from being sent on
+   * the P1 port. This will also clear any incomplete data that was
+   * previously received, but a complete message will be kept until
+   * clear() is called.
+   */
+  void disable() {
+    digitalWrite(this->req_pin, LOW);
+    this->state = State::DISABLED_STATE;
+    if (!this->_available)
+      this->buffer = "";
+    // Clear any pending bytes
+    while (this->stream->read() >= 0) /* nothing */
+      ;
+  }
 
-    /**
-     * Returns true when a complete and correct message was received,
-     * until it is cleared.
-     */
-    bool available()
-    {
-      return this->_available;
-    }
+  /**
+   * Returns true when a complete and correct message was received,
+   * until it is cleared.
+   */
+  bool available() { return this->_available; }
 
-    /**
-     * Check for new data to read. Should be called regularly, such as
-     * once every loop. Returns true if a complete message is available
-     * (just like available).
-     */
-    bool loop()
-    {
-      while (true)
-      {
-        if (state == State::CHECKSUM_STATE)
-        {
-          // Let the Stream buffer the CRC bytes. Convert to size_t to
-          // prevent unsigned vs signed comparison
-          if ((size_t)this->stream->available() < CrcParser::CRC_LEN)
-            return false;
+  /**
+   * Check for new data to read. Should be called regularly, such as
+   * once every loop. Returns true if a complete message is available
+   * (just like available).
+   */
+  bool loop() {
+    while (true) {
+      if (state == State::CHECKSUM_STATE) {
+        // Let the Stream buffer the CRC bytes. Convert to size_t to
+        // prevent unsigned vs signed comparison
+        if ((size_t) this->stream->available() < CrcParser::CRC_LEN)
+          return false;
 
-          char buf[CrcParser::CRC_LEN];
-          for (uint8_t i = 0; i < CrcParser::CRC_LEN; ++i)
-            buf[i] = this->stream->read();
+        char buf[CrcParser::CRC_LEN];
+        for (uint8_t i = 0; i < CrcParser::CRC_LEN; ++i)
+          buf[i] = this->stream->read();
 
-          ParseResult<uint16_t> crc = CrcParser::parse(buf, buf + lengthof(buf));
+        ParseResult<uint16_t> crc = CrcParser::parse(buf, buf + lengthof(buf));
 
-          // Prepare for next message
-          state = State::WAITING_STATE;
+        // Prepare for next message
+        state = State::WAITING_STATE;
 
-          if (!crc.err && crc.result == this->crc)
-          {
-            // Message complete, checksum correct
-            this->_available = true;
+        if (!crc.err && crc.result == this->crc) {
+          // Message complete, checksum correct
+          this->_available = true;
 
-            if (once)
-              this->disable();
+          if (once)
+            this->disable();
 
-            return true;
-          }
+          return true;
         }
-        else
-        {
-          // For other states, read bytes one by one
-          int c = this->stream->read();
-          if (c < 0)
-            return false;
+      } else {
+        // For other states, read bytes one by one
+        int c = this->stream->read();
+        if (c < 0)
+          return false;
 
-          switch (this->state)
-          {
+        switch (this->state) {
           case State::DISABLED_STATE:
             // Where did this byte come from? Just toss it
             break;
           case State::WAITING_STATE:
-            if (c == '/')
-            {
+            if (c == '/') {
               this->state = State::READING_STATE;
               // Include the / in the CRC
               this->crc = _crc16_update(0, c);
@@ -181,7 +165,7 @@ namespace dsmr
             if (c == '!')
               this->state = State::CHECKSUM_STATE;
             else
-              buffer.concat((char)c);
+              buffer.concat((char) c);
 
             break;
           case State::CHECKSUM_STATE:
@@ -190,73 +174,65 @@ namespace dsmr
             // case to prevent a warning.
             abort();
             break;
-          }
         }
       }
-      return false;
     }
+    return false;
+  }
 
-    /**
-     * Returns the data read so far.
-     */
-    const String &raw()
-    {
-      return buffer;
+  /**
+   * Returns the data read so far.
+   */
+  const String &raw() { return buffer; }
+
+  /**
+   * If a complete message has been received, parse it and store the
+   * result into the ParsedData object passed.
+   *
+   * After parsing, the message is cleared.
+   *
+   * If parsing fails, false is returned. If err is passed, the error
+   * message is appended to that string.
+   */
+  template<typename... Ts> bool parse(ParsedData<Ts...> *data, String *err) {
+    const char *str = buffer.c_str(), *end = buffer.c_str() + buffer.length();
+    ParseResult<void> res = P1Parser::parse_data(data, str, end);
+
+    if (res.err && err)
+      *err = res.fullError(str, end);
+
+    // Clear the message
+    this->clear();
+
+    return res.err == NULL;
+  }
+
+  /**
+   * Clear any complete message from the buffer.
+   */
+  void clear() {
+    if (_available) {
+      buffer = "";
+      _available = false;
     }
+  }
 
-    /**
-     * If a complete message has been received, parse it and store the
-     * result into the ParsedData object passed.
-     *
-     * After parsing, the message is cleared.
-     *
-     * If parsing fails, false is returned. If err is passed, the error
-     * message is appended to that string.
-     */
-    template <typename... Ts>
-    bool parse(ParsedData<Ts...> *data, String *err)
-    {
-      const char *str = buffer.c_str(), *end = buffer.c_str() + buffer.length();
-      ParseResult<void> res = P1Parser::parse_data(data, str, end);
-
-      if (res.err && err)
-        *err = res.fullError(str, end);
-
-      // Clear the message
-      this->clear();
-
-      return res.err == NULL;
-    }
-
-    /**
-     * Clear any complete message from the buffer.
-     */
-    void clear()
-    {
-      if (_available)
-      {
-        buffer = "";
-        _available = false;
-      }
-    }
-
-  protected:
-    Stream *stream;
-    uint8_t req_pin;
-    enum class State : uint8_t
-    {
-      DISABLED_STATE,
-      WAITING_STATE,
-      READING_STATE,
-      CHECKSUM_STATE,
-    };
-    bool _available;
-    bool once;
-    State state;
-    String buffer;
-    uint16_t crc;
+ protected:
+  Stream *stream;
+  uint8_t req_pin;
+  enum class State : uint8_t {
+    DISABLED_STATE,
+    WAITING_STATE,
+    READING_STATE,
+    CHECKSUM_STATE,
   };
+  bool _available;
+  bool once;
+  State state;
+  String buffer;
+  uint16_t crc;
+};
 
-} // namespace dsmr
+}  // namespace dsmr
 
-#endif // DSMR_INCLUDE_READER_H
+#endif  // DSMR_INCLUDE_READER_H
