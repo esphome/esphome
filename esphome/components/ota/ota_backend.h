@@ -40,7 +40,13 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
 
-enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
+enum OTAState {
+  OTA_COMPLETED = 0,
+  OTA_STARTED,
+  OTA_IN_PROGRESS,
+  OTA_ABORT,
+  OTA_ERROR,
+};
 
 class OTABackend {
  public:
