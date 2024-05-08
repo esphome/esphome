@@ -1,12 +1,1 @@
-ethernet:
-  type: LAN8720
-  mdc_pin: 23
-  mdio_pin: 25
-  clk_mode: GPIO0_IN
-  phy_addr: 0
-  power_pin: 26
-  manual_ip:
-    static_ip: 192.168.178.56
-    gateway: 192.168.178.1
-    subnet: 255.255.255.0
-  domain: .local
+<<: !include common.yaml
