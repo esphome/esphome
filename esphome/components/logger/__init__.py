@@ -40,14 +40,11 @@ from esphome.components.libretiny.const import (
     COMPONENT_BK72XX,
     COMPONENT_RTL87XX,
 )
-from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
-from esphome.components.zephyr_uart import zephyr_add_cdc_acm
-
-
-def AUTO_LOAD():
-    if CORE.using_zephyr:
-        return ["zephyr_uart"]
-    return []
+from esphome.components.zephyr import (
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+    zephyr_add_cdc_acm,
+)
 
 
 CODEOWNERS = ["@esphome/core"]

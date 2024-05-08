@@ -51,7 +51,7 @@ def zephyr_add_prj_conf(name: str, value: PrjConfValueType):
         old_value = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name]
         if old_value != value:
             raise ValueError(
-                f"{name} alread set with value {old_value}, new value {value}"
+                f"{name} already set with value '{old_value}', cannot set again to '{value}'"
             )
     CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = value
 
@@ -116,7 +116,8 @@ def zephyr_to_code(conf):
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False)
+    # TODO disable when no OTA USB CDC
+    # zephyr_add_prj_conf("CONSOLE", False)
     # TODO debug only
     zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
     # zephyr_add_prj_conf("DEBUG", True)
@@ -150,6 +151,23 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     if isinstance(value, str):
         return f'"{value}"'
     raise ValueError
+
+
+def zephyr_add_cdc_acm(config):
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
+    # prevent device to go to susspend, without this communication stop working in python
+    # there should be a way to solve it
+    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+    zephyr_add_overlay(
+        """
+&zephyr_udc0 {
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};
+"""
+    )
 
 
 # Called by writer.py

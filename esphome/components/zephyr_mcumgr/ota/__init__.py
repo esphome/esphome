@@ -10,7 +10,11 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+    zephyr_add_cdc_acm,
+    zephyr_add_overlay,
+)
 
 AUTO_LOAD = ["zephyr_mcumgr"]
 
@@ -78,8 +82,6 @@ def _final_validate(config):
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
-# TODO cdc ota
-
 
 @coroutine_with_priority(50.0)
 async def to_code(config):
@@ -107,7 +109,6 @@ async def to_code(config):
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
-    # mcumgr ble
     if config[CONF_BLE]:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
@@ -116,3 +117,17 @@ async def to_code(config):
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+    if config[CONF_USB_CDC]:
+        zephyr_add_cdc_acm(config)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
+        zephyr_add_prj_conf("BASE64", True)
+        zephyr_add_prj_conf("CONSOLE", True)
+        zephyr_add_overlay(
+            """
+/ {
+    chosen {
+        zephyr,uart-mcumgr = &cdc_acm_uart0;
+    };
+};
+"""
+        )

@@ -6,6 +6,7 @@
 #include <zephyr/mgmt/mcumgr/mgmt/callbacks.h>
 #include <zephyr/sys/math_extras.h>
 #include <zephyr/dfu/mcuboot.h>
+#include <zephyr/usb/usb_device.h>
 
 struct img_mgmt_upload_action {
   /** The total size of the image. */
@@ -54,7 +55,15 @@ OTAComponent::OTAComponent() {
 #endif
 }
 
-void OTAComponent::setup() { mgmt_callback_register(&IMG_MGMT_CALLBACK); }
+void OTAComponent::setup() {
+  mgmt_callback_register(&IMG_MGMT_CALLBACK);
+  // TODO check if ota cdc is set
+  // use zephyr,uart-mcumgr
+  auto uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
+  if (device_is_ready(uart_dev)) {
+    usb_enable(NULL);
+  }
+}
 
 void OTAComponent::loop() {
   if (!is_confirmed_) {
