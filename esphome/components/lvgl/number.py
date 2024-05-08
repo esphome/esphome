@@ -53,8 +53,8 @@ async def to_code(config):
                lv_event_send({widget.obj}, {paren}->get_custom_change_event(), nullptr);
                {publish};
             }})""",
-            f"{var}->traits.set_max_value({widget.get_max_value()})",
-            f"{var}->traits.set_min_value({widget.get_min_value()})",
+            f"""{var}->traits.set_max_value({widget.get_mxx_value("max")})""",
+            f"""{var}->traits.set_min_value({widget.get_mxx_value("min")})""",
             publish,
         ]
     )

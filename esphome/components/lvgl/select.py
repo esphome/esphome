@@ -10,9 +10,9 @@ from . import (
     add_init_lambda,
     get_widget,
 )
-from .defines import CONF_WIDGET, CONF_LVGL_ID, CONF_DROPDOWN
+from .defines import CONF_WIDGET, CONF_LVGL_ID, CONF_ANIMATED
 from .lv_validation import requires_component
-from .types import lvgl_ns, lv_select_t
+from .types import lvgl_ns, LvSelect
 
 LVGLSelect = lvgl_ns.class_("LVGLSelect", select.Select)
 
@@ -21,7 +21,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(LVGL_SCHEMA)
     .extend(
         {
-            cv.Required(CONF_WIDGET): cv.use_id(lv_select_t),
+            cv.Required(CONF_WIDGET): cv.use_id(LvSelect),
+            cv.Optional(CONF_ANIMATED, default=False): cv.boolean,
         }
     ),
     requires_component("select"),
@@ -34,27 +35,18 @@ async def to_code(config):
     paren = await cg.get_variable(config[CONF_LVGL_ID])
     init = []
     widget = await get_widget(config[CONF_WIDGET])
-    if widget.type_base() == CONF_DROPDOWN:
-        animated = ""
-    else:
-        animated = ", LV_ANIM_OFF"
-    publish = (
-        f"{var}->publish_index(lv_{widget.type_base()}_get_selected({widget.obj}))"
-    )
+    publish = f"""{var}->publish_index({widget.get_property("selected")[0]})"""
     init.extend(
         widget.set_event_cb(
             publish,
             "LV_EVENT_VALUE_CHANGED",
         )
     )
-    init.extend(
-        [
-            f"""{var}->set_options(lv_{widget.type_base()}_get_options({widget.obj}));
+    init.append(
+        f"""{var}->set_options({widget.get_property("options")[0]});
             {var}->set_control_lambda([] (size_t v) {{
-                lv_{widget.type_base()}_set_selected({widget.obj}, v {animated});
-               {publish};
-            }})""",
-            publish,
-        ]
+            """
     )
+    init.extend(widget.set_property("selected", "v", animated=config[CONF_ANIMATED]))
+    init.extend([publish, "})", publish])
     await add_init_lambda(paren, init)

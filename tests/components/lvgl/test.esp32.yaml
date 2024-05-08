@@ -79,6 +79,7 @@ select:
   - platform: lvgl
     widget: roller_id
     name: LVGL Roller
+    animated: true
 
 image:
   - id: cat_image

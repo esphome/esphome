@@ -2196,9 +2196,8 @@ async def widget_to_code(w_cnfig, w_type, parent: Widget):
         init.append(f"{var} = {creator}")
         obj = var
 
-    widget = Widget(var, ty.get_widget_type(w_type), w_cnfig, obj)
+    widget = Widget(var, ty.get_widget_type(w_type), w_cnfig, obj, parent)
     widget_map[id] = widget
-    widget.set_parent(parent)
     if theme := theme_widget_map.get(w_type):
         init.append(f"{theme}({obj})")
     init.extend(await set_obj_properties(widget, w_cnfig))

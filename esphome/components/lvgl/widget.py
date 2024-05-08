@@ -9,7 +9,9 @@ EVENT_LAMB = "event_lamb__"
 
 
 class Widget:
-    def __init__(self, var, wtype: cg.MockObjClass, config: dict = None, obj=None):
+    def __init__(
+        self, var, wtype: cg.MockObjClass, config: dict = None, obj=None, parent=None
+    ):
         self.var = var
         self.type = wtype
         self.config = config
@@ -19,11 +21,6 @@ class Widget:
         self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
-
-    def get_obj(self):
-        return self.obj
-
-    def set_parent(self, parent):
         self.parent = parent
 
     def check_null(self):
@@ -60,15 +57,23 @@ class Widget:
     def clear_flag(self, flag):
         return [f"lv_obj_clear_flag({self.obj}, {flag})"]
 
-    def set_property(self, prop, value, ltype=None):
+    def set_property(self, prop, value, ltype=None, animated: bool = None):
+        if animated is None or self.type.animated is not True:
+            animated = ""
+        else:
+            animated = f""", {"LV_ANIM_ON" if animated else "LV_ANIM_OFF"}"""
         if isinstance(value, dict):
             value = value.get(prop)
         if value is None:
             return []
         if isinstance(value, TimePeriod):
             value = value.total_milliseconds
-        ltype = ltype or self.type_base()
-        return [f"lv_{ltype}_set_{prop}({self.obj}, {value})"]
+        ltype = ltype or self.__type_base()
+        return [f"lv_{ltype}_set_{prop}({self.obj}, {value} {animated})"]
+
+    def get_property(self, prop, ltype=None):
+        ltype = ltype or self.__type_base()
+        return [f"lv_{ltype}_get_{prop}({self.obj})"]
 
     def set_style(self, prop, value, state):
         return [f"lv_obj_set_style_{prop}({self.obj}, {value}, {state})"]
@@ -86,8 +91,8 @@ class Widget:
 
     def get_number_value(self):
         if self.scale == 1.0:
-            return f"lv_{self.type_base()}_get_value({self.obj})"
-        return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
+            return f"lv_{self.__type_base()}_get_value({self.obj})"
+        return f"lv_{self.__type_base()}_get_value({self.obj})/{self.scale:#f}f"
 
     def get_value(self):
         if isinstance(self.type, ty.LvType):
@@ -99,33 +104,27 @@ class Widget:
             return self.type.args
         return [(ty.lv_obj_t_ptr, "obj")]
 
-    def set_value(self, value, animated: bool = False):
-        if self.type_base() in (CONF_ARC, CONF_SPINBOX):
+    def set_value(self, value, animated: bool = None):
+        if animated is None or self.__type_base() in (CONF_ARC, CONF_SPINBOX):
             animated = ""
         else:
-            animated = f", {animated}"
+            animated = f""", {"LV_ANIM_ON" if animated else "LV_ANIM_OFF"}"""
         if self.scale != 1.0:
             value = f"{value} * {self.scale:#f}"
-        return [f"lv_{self.type_base()}_set_value({self.obj}, {value} {animated})"]
+        return [f"lv_{self.__type_base()}_set_value({self.obj}, {value} {animated})"]
 
     def get_mxx_value(self, which: str):
         if self.scale == 1.0:
             mult = ""
         else:
             mult = f"/ {self.scale:#f}"
-        if self.type_base() == CONF_SPINBOX and which in ("max", "min"):
+        if self.__type_base() == CONF_SPINBOX and which in ("max", "min"):
             gval = f"((lv_spinbox_t *){self.obj})->range_{which}"
         else:
-            gval = f"lv_{self.type_base()}_get_{which}_value({self.obj})"
+            gval = f"lv_{self.__type_base()}_get_{which}_value({self.obj})"
         return f"({gval} {mult})"
 
-    def get_max_value(self):
-        return self.get_mxx_value("max")
-
-    def get_min_value(self):
-        return self.get_mxx_value("min")
-
-    def type_base(self):
+    def __type_base(self):
         base = str(self.type)
         if base.startswith("Lv"):
             return f"{self.type}".removeprefix("Lv").removesuffix("Type").lower()

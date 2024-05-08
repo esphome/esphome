@@ -43,6 +43,7 @@ class LvType(cg.MockObjClass):
         self.args = kwargs.pop("largs", [(lv_obj_t_ptr, "obj")])
         self.value = kwargs.pop("lvalue", lambda w: w.obj)
         self.has_on_value = kwargs.pop("has_on_value", False)
+        self.animated = kwargs.pop("animated", False)
 
     def get_arg_type(self):
         return self.args[0][0] if len(self.args) else None
@@ -65,7 +66,18 @@ class LvBoolean(LvType):
             largs=[(cg.bool_, "x")],
             lvalue=lambda w: w.is_checked(),
             has_on_value=True,
-            *kwargs,
+            **kwargs,
+        )
+
+
+class LvSelect(LvType):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            largs=[(cg.int_, "x")],
+            lvalue=lambda w: w.get_property("selected")[0],
+            has_on_value=True,
+            **kwargs,
         )
 
 
@@ -86,9 +98,8 @@ lv_bar_t = LvNumber("LvBarType")
 lv_slider_t = LvNumber("LvSliderType")
 lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
 lv_canvas_t = LvType("LvCanvasType")
-lv_select_t = lvgl_ns.class_("LvPseudoSelect")
-lv_dropdown_t = LvType("LvDropdownType", parents=(lv_select_t,))
-lv_roller_t = LvType("LvRollerType", parents=(lv_select_t,))
+lv_dropdown_t = LvSelect("LvDropdownType")
+lv_roller_t = LvSelect("LvRollerType", animated=True)
 lv_led_t = LvType("LvLedType")
 lv_switch_t = LvBoolean("LvSwitchType")
 lv_table_t = LvType("LvTableType")
@@ -117,5 +128,5 @@ lv_ticks_t = lv_obj_t
 lv_tick_style_t = lv_obj_t
 
 
-def get_widget_type(typestr: str) -> cg.MockObjClass:
+def get_widget_type(typestr: str) -> LvType:
     return globals()[f"lv_{typestr}_t"]
