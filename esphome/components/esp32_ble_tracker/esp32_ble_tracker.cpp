@@ -721,8 +721,7 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
     return false;
   }
 
-  if (mbedtls_aes_crypt_ecb(&ctx, ESP_AES_ENCRYPT,
-                            ecb_plaintext, ecb_ciphertext) != 0) {
+  if (mbedtls_aes_crypt_ecb(&ctx, ESP_AES_ENCRYPT, ecb_plaintext, ecb_ciphertext) != 0) {
     mbedtls_aes_free(&ctx);
     return false;
   }
