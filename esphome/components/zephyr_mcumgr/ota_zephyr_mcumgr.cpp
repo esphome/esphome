@@ -1,5 +1,5 @@
 #ifdef USE_ZEPHYR
-#include "ota_component.h"
+#include "ota_zephyr_mcumgr.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -18,9 +18,10 @@ struct img_mgmt_upload_req {
 };
 
 namespace esphome {
-namespace zephyr_ota_mcumgr {
+namespace zephyr_mcumgr {
 
-static const char *const TAG = "zephyr_ota_mcumgr";
+static const char *const TAG = "zephyr_mcumgr";
+static OTAComponent *global_ota_component = nullptr;
 
 #define IMAGE_HASH_LEN 32 /* Size of SHA256 TLV hash */
 
@@ -28,13 +29,13 @@ static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_retur
                                               uint16_t *group, bool *abort_more, void *data, size_t data_size) {
   if (MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK == event) {
     const img_mgmt_upload_check &upload = *static_cast<img_mgmt_upload_check *>(data);
-    static_cast<OTAComponent *>(ota::global_ota_component)->update_chunk(upload);
+    static_cast<OTAComponent *>(global_ota_component)->update_chunk(upload);
   } else if (MGMT_EVT_OP_IMG_MGMT_DFU_STARTED == event) {
-    static_cast<OTAComponent *>(ota::global_ota_component)->update_started();
+    static_cast<OTAComponent *>(global_ota_component)->update_started();
   } else if (MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK_WRITE_COMPLETE == event) {
-    static_cast<OTAComponent *>(ota::global_ota_component)->update_chunk_wrote();
+    static_cast<OTAComponent *>(global_ota_component)->update_chunk_wrote();
   } else if (MGMT_EVT_OP_IMG_MGMT_DFU_PENDING == event) {
-    static_cast<OTAComponent *>(ota::global_ota_component)->update_pending();
+    static_cast<OTAComponent *>(global_ota_component)->update_pending();
   } else {
     ESP_LOGD(TAG, "MCUmgr Image Management Event with the %d ID", u32_count_trailing_zeros(MGMT_EVT_GET_ID(event)));
   }
@@ -46,7 +47,12 @@ static struct mgmt_callback IMG_MGMT_CALLBACK = {
     .event_id = MGMT_EVT_OP_IMG_MGMT_ALL,
 };
 
-OTAComponent::OTAComponent() { ota::global_ota_component = this; }
+OTAComponent::OTAComponent() {
+  global_ota_component = this;
+#ifdef USE_OTA_STATE_CALLBACK
+  ota::register_ota_platform(this);
+#endif
+}
 
 void OTAComponent::setup() { mgmt_callback_register(&IMG_MGMT_CALLBACK); }
 
@@ -114,6 +120,6 @@ void OTAComponent::update_pending() {
 #endif
 }
 
-}  // namespace zephyr_ota_mcumgr
+}  // namespace zephyr_mcumgr
 }  // namespace esphome
 #endif

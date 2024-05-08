@@ -4,7 +4,8 @@ from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_add_overlay
 def zephyr_add_cdc_acm(config):
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
-    # prevent device to go to susspend
+    # prevent device to go to susspend, without this communication stop working in python
+    # there should be a way to solve it
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     zephyr_add_overlay(
         """
