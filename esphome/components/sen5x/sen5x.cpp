@@ -336,6 +336,13 @@ void SEN5XComponent::update() {
   }
 }
 
+float SEN5XComponent::get_valid_measurement_(uint16_t measurement, uint16_t invalid_value, float scaling) {
+  if (measurement >= invalid_value) {
+    return NAN;
+  }
+  return measurement / scaling;
+}
+
 void SEN5XComponent::write_voc_baseline_() {
   if (this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE)) {
     // run it a bit later to avoid adding a delay here
@@ -380,24 +387,12 @@ void SEN5XComponent::update_measured_pm_() {
       return;
     }
 
-    float pm_n_0_5 = measurements[4] / 10.0;
-    if (measurements[4] == 0xFFFF)
-      pm_n_0_5 = NAN;
-    float pm_n_1_0 = measurements[5] / 10.0;
-    if (measurements[5] == 0xFFFF)
-      pm_n_1_0 = NAN;
-    float pm_n_2_5 = measurements[6] / 10.0;
-    if (measurements[6] == 0xFFFF)
-      pm_n_2_5 = NAN;
-    float pm_n_4_0 = measurements[7] / 10.0;
-    if (measurements[7] == 0xFFFF)
-      pm_n_4_0 = NAN;
-    float pm_n_10_0 = measurements[8] / 10.0;
-    if (measurements[8] == 0xFFFF)
-      pm_n_10_0 = NAN;
-    float pm_tps = measurements[9] / 1000.0;
-    if (measurements[9] == 0xFFFF)
-      pm_tps = NAN;
+    float pm_n_0_5 = this->get_valid_measurement_(measurements[4], 0xFFFF, 10.0f);
+    float pm_n_1_0 = this->get_valid_measurement_(measurements[5], 0xFFFF, 10.0f);
+    float pm_n_2_5 = this->get_valid_measurement_(measurements[6], 0xFFFF, 10.0f);
+    float pm_n_4_0 = this->get_valid_measurement_(measurements[7], 0xFFFF, 10.0f);
+    float pm_n_10_0 = this->get_valid_measurement_(measurements[8], 0xFFFF, 10.0f);
+    float pm_tps = this->get_valid_measurement_(measurements[9], 0xFFFF, 10.0f);
 
     if (this->pm_n_0_5_sensor_ != nullptr)
       this->pm_n_0_5_sensor_->publish_state(pm_n_0_5);
@@ -432,30 +427,19 @@ void SEN5XComponent::update_measured_values_() {
       return;
     }
 
-    float pm_1_0 = measurements[0] / 10.0;
-    if (measurements[0] == 0xFFFF)
-      pm_1_0 = NAN;
-    float pm_2_5 = measurements[1] / 10.0;
-    if (measurements[1] == 0xFFFF)
-      pm_2_5 = NAN;
-    float pm_4_0 = measurements[2] / 10.0;
-    if (measurements[2] == 0xFFFF)
-      pm_4_0 = NAN;
-    float pm_10_0 = measurements[3] / 10.0;
-    if (measurements[3] == 0xFFFF)
-      pm_10_0 = NAN;
-    float humidity = measurements[4] / 100.0;
-    if (measurements[4] >= 0x7FFF)
-      humidity = NAN;
-    float temperature = (int16_t) measurements[5] / 200.0;
-    if (measurements[5] >= 0x7FFF)
-      temperature = NAN;
-    float voc = measurements[6] / 10.0;
-    if (measurements[6] == 0xFFFF)
-      voc = NAN;
-    float nox = measurements[7] / 10.0;
-    if (measurements[7] == 0xFFFF)
-      nox = NAN;
+    float pm_1_0 = this->get_valid_measurement_(measurements[0], 0xFFFF, 10.0f);
+    float pm_2_5 = this->get_valid_measurement_(measurements[1], 0xFFFF, 10.0f);
+    float pm_4_0 = this->get_valid_measurement_(measurements[2], 0xFFFF, 10.0f);
+    float pm_10_0 = this->get_valid_measurement_(measurements[3], 0xFFFF, 10.0f);
+    float humidity = this->get_valid_measurement_(measurements[4], 0x7FFF, 100.0f);
+    float voc = this->get_valid_measurement_(measurements[6], 0xFFFF, 10.0f);
+    float nox = this->get_valid_measurement_(measurements[7], 0xFFFF, 10.0f);
+
+    // special case for signed temperature
+    float temperature = NAN;
+    if (measurements[5] < 0x7FFF) {
+      temperature = (int16_t) measurements[5] / 200.0f;
+    }
 
     if (this->pm_1_0_sensor_ != nullptr)
       this->pm_1_0_sensor_->publish_state(pm_1_0);
