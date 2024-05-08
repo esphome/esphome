@@ -10,10 +10,9 @@ from esphome.components.switch import (
 from . import (
     add_init_lambda,
     LVGL_SCHEMA,
-    CONF_LVGL_ID,
     get_widget,
 )
-from .defines import CONF_WIDGET
+from .defines import CONF_WIDGET, CONF_LVGL_ID
 from .lv_validation import requires_component
 from .types import lvgl_ns, lv_pseudo_button_t
 

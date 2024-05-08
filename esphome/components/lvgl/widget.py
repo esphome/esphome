@@ -81,16 +81,19 @@ class Widget:
             )
         return init
 
+    def get_number_value(self):
+        if self.scale == 1.0:
+            return f"lv_{self.type_base()}_get_value({self.obj})"
+        return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
+
     def get_value(self):
-        if self.type.inherits_from(ty.lv_number_t):
-            if self.scale == 1.0:
-                return f"lv_{self.type_base()}_get_value({self.obj})"
-            return f"lv_{self.type_base()}_get_value({self.obj})/{self.scale:#f}f"
+        if isinstance(self.type, ty.LvType):
+            return self.type.value(self)
         return self.obj
 
     def get_args(self):
-        if self.type.inherits_from(ty.lv_number_t):
-            return [(cg.float_, "x")]
+        if isinstance(self.type, ty.LvType):
+            return self.type.args
         return [(ty.lv_obj_t_ptr, "obj")]
 
     def set_value(self, value, animated: bool = False):

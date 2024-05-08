@@ -59,10 +59,7 @@ from esphome.const import (
     CONF_DISPLAY_ID,
     CONF_ON_IDLE,
 )
-from esphome.cpp_generator import (
-    LambdaExpression,
-    MockObj,
-)
+from esphome.cpp_generator import LambdaExpression
 
 from . import types as ty
 
@@ -189,7 +186,7 @@ class TextValidator(LValidator):
             return value
         return super().__call__(value)
 
-    async def set_text(self, var: Widget, value):
+    async def set_text(self, var: Widget, value, propname: str = df.CONF_TEXT):
         """
         Set the text property
         :param var:     The widget
@@ -204,7 +201,7 @@ class TextValidator(LValidator):
             return var.set_property(
                 "text", f"str_sprintf({format}, {arg_expr}).c_str()"
             )
-        return var.set_property("text", await self.process(value))
+        return var.set_property(propname, await self.process(value))
 
 
 lv_text = TextValidator()
@@ -379,13 +376,15 @@ def part_schema(parts):
     )
 
 
-def automation_schema(type: cg.MockObjClass = ty.lv_obj_t):
-    if type.inherits_from(ty.lv_number_t):
+def automation_schema(type: ty.LvType):
+    if type.has_on_value:
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
-        template = automation.Trigger.template(cg.float_)
     else:
         events = df.LV_EVENT_TRIGGERS
-        template = automation.Trigger.template(ty.lv_obj_t_ptr)
+    if isinstance(type, ty.LvType):
+        template = automation.Trigger.template(type.get_arg_type())
+    else:
+        template = automation.Trigger.template()
     return {
         cv.Optional(event): automation.validate_automation(
             {
@@ -419,30 +418,9 @@ def validate_printf(value):
 # Map typenames to action types and templates
 
 
-class TypeArg:
-
-    def __init__(self, type: MockObj, args: list, value):
-        self.type = type
-        self.args = args
-        self.value = value
-
-    def get_value(self, widget: Widget):
-        return self.value(widget)
-
-
-TYPE_ARGS = (
-    TypeArg(ty.lv_number_t, [(cg.float_, "x")], lambda w: w.get_value()),
-    TypeArg(
-        ty.lv_tileview_t,
-        [(ty.lv_obj_t_ptr, "tile")],
-        lambda w: f"lv_tileview_get_tile_act({w.obj})",
-    ),
-    TypeArg(ty.lv_keyboard_t, [(cg.int_, "key")], lambda w: f"({w.obj})"),
-)
-
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Exclusive(df.CONF_TEXT, df.CONF_TEXT): cv.Any(
+        cv.Optional(df.CONF_TEXT): cv.Any(
             cv.All(
                 cv.Schema(
                     {
@@ -560,7 +538,7 @@ BTNM_BTN_SCHEMA = cv.Schema(
             cv.Schema({cv.Optional(k.lower()): cv.boolean for k in df.BTNMATRIX_CTRLS})
         ),
     }
-).extend(automation_schema())
+).extend(automation_schema(ty.lv_btn_t))
 
 BTNMATRIX_SCHEMA = cv.Schema(
     {
@@ -722,6 +700,16 @@ LABEL_SCHEMA = TEXT_SCHEMA.extend(
     }
 )
 
+TEXTAREA_SCHEMA = TEXT_SCHEMA.extend(
+    {
+        cv.Optional(df.CONF_PLACEHOLDER_TEXT): lv_text,
+        cv.Optional(df.CONF_ACCEPTED_CHARS): lv_text,
+        cv.Optional(df.CONF_ONE_LINE): lv_bool,
+        cv.Optional(df.CONF_PASSWORD_MODE): lv_bool,
+        cv.Optional(df.CONF_MAX_LENGTH): lv_int,
+    }
+)
+
 CHECKBOX_SCHEMA = TEXT_SCHEMA
 
 DROPDOWN_BASE_SCHEMA = cv.Schema(
@@ -792,6 +780,7 @@ SPINBOX_MODIFY_SCHEMA = {
 
 KEYBOARD_SCHEMA = {
     cv.Optional(CONF_MODE, default="TEXT_UPPER"): lv.one_of(df.KEYBOARD_MODES),
+    cv.Optional(df.CONF_TEXTAREA): cv.use_id(ty.lv_textarea_t),
 }
 
 # For use by platform components
@@ -1168,9 +1157,36 @@ async def label_to_code(var: Widget, label_conf):
     return init
 
 
+async def textarea_to_code(var: Widget, ta_conf: dict):
+    init = []
+    for prop in (df.CONF_TEXT, df.CONF_PLACEHOLDER_TEXT, df.CONF_ACCEPTED_CHARS):
+        if value := ta_conf.get(prop):
+            init.extend(await lv_text.set_text(var, value, prop))
+    init.extend(
+        var.set_property(
+            df.CONF_MAX_LENGTH, await lv_int.process(ta_conf.get(df.CONF_MAX_LENGTH))
+        )
+    )
+    init.extend(
+        var.set_property(
+            df.CONF_PASSWORD_MODE,
+            await lv_bool.process(ta_conf.get(df.CONF_PASSWORD_MODE)),
+        )
+    )
+    init.extend(
+        var.set_property(
+            df.CONF_ONE_LINE, await lv_bool.process(ta_conf.get(df.CONF_ONE_LINE))
+        )
+    )
+    return init
+
+
 async def keyboard_to_code(var: Widget, kb_conf: dict):
     init = []
     init.extend(var.set_property(CONF_MODE, kb_conf))
+    if ta := kb_conf.get(df.CONF_TEXTAREA):
+        ta = await get_widget(ta)
+        init.extend(var.set_property(df.CONF_TEXTAREA, ta.obj))
     return init
 
 
@@ -1488,9 +1504,9 @@ async def get_button_data(config, id, btnm: Widget):
     width_list = []
     key_list = []
     for row in config:
-        for btnconf in row[df.CONF_BUTTONS]:
+        for btnconf in row.get(df.CONF_BUTTONS) or ():
             bid = btnconf[CONF_ID]
-            widget = MatrixButton(btnm, ty.lv_obj_t, btnconf, len(width_list))
+            widget = MatrixButton(btnm, ty.LvBtnmBtn, btnconf, len(width_list))
             widget_map[bid] = widget
             if text := btnconf.get(df.CONF_TEXT):
                 text_list.append(f"{cg.safe_exp(text)}")
@@ -1552,7 +1568,7 @@ async def msgbox_to_code(conf):
     :return: code to add to the init lambda
     """
     lv.lv_uses.add("FLEX")
-    lv.lv_uses.add("btnm")
+    lv.lv_uses.add("btnmatrix")
     lv.lv_uses.add("label")
     init = []
     id = conf[CONF_ID]
@@ -1868,12 +1884,8 @@ async def generate_triggers(lv_component):
                 event = df.LV_EVENT[event[3:].upper()]
                 conf = conf[0]
                 trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-                if isinstance(widget.type, cg.MockObjClass):
-                    args = widget.get_args()
-                    value = widget.get_value()
-                else:
-                    args = []
-                    value = ""
+                args = widget.get_args()
+                value = widget.get_value()
                 await automation.build_automation(trigger, args, conf)
                 init.extend(widget.add_flag("LV_OBJ_FLAG_CLICKABLE"))
                 init.extend(
@@ -1884,15 +1896,8 @@ async def generate_triggers(lv_component):
             if on_value := widget.config.get(CONF_ON_VALUE):
                 for conf in on_value:
                     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-                    # It would be nice to abstract this out to Widget.
-                    if isinstance(
-                        widget.type, cg.MockObjClass
-                    ) and widget.type.inherits_from(ty.lv_tileview_t):
-                        args = [(ty.lv_obj_t_ptr, "tile")]
-                        value = f"lv_tileview_get_tile_act({widget.obj})"
-                    else:
-                        args = [(cg.float_, "x")]
-                        value = widget.get_value()
+                    args = widget.get_args()
+                    value = widget.get_value()
                     await automation.build_automation(trigger, args, conf)
                     init.extend(
                         widget.set_event_cb(
@@ -1924,7 +1929,7 @@ async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
     add_define("USE_LVGL", "1")
     # suppress default enabling of extra widgets
-    add_define("LV_df.CONF_SKIP", "1")
+    add_define("LV_CONF_SKIP", "1")
     add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
     add_define("LV_DRAW_COMPLEX", "1")
@@ -2303,6 +2308,17 @@ async def checkbox_update_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
     init = await checkbox_to_code(widget, config)
     return await update_to_code(config, action_id, widget, init, template_arg, args)
+
+
+@automation.register_action(
+    "lvgl.keyboard.update",
+    ty.ObjUpdateAction,
+    modify_schema(df.CONF_KEYBOARD),
+)
+async def keyboard_update_to_code(config, action_id, template_arg, args):
+    obj = await get_widget(config[CONF_ID])
+    init = await keyboard_to_code(obj, config)
+    return await update_to_code(config, action_id, obj, init, template_arg, args)
 
 
 @automation.register_action(

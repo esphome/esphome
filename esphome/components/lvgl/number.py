@@ -4,15 +4,15 @@ from esphome.components import number
 from esphome.const import (
     CONF_ID,
 )
-from . import lv_validation as lv, CONF_ANIMATED, CONF_LVGL_ID
+from . import lv_validation as lv
 from . import (
     LVGL_SCHEMA,
     add_init_lambda,
     get_widget,
 )
-from .defines import CONF_WIDGET
+from .defines import CONF_WIDGET, CONF_ANIMATED, CONF_LVGL_ID
 from .lv_validation import requires_component
-from .types import lvgl_ns, lv_number_t
+from .types import lvgl_ns, LvNumber
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number)
 
@@ -21,7 +21,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(LVGL_SCHEMA)
     .extend(
         {
-            cv.Required(CONF_WIDGET): cv.use_id(lv_number_t),
+            cv.Required(CONF_WIDGET): cv.use_id(LvNumber),
             cv.Optional(CONF_ANIMATED, default=True): lv.animated,
         }
     ),

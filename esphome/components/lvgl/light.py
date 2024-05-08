@@ -10,9 +10,9 @@ from esphome.const import (
 from . import (
     add_init_lambda,
     LVGL_SCHEMA,
-    CONF_LVGL_ID,
     get_widget,
 )
+from .defines import CONF_LVGL_ID
 
 from .lv_validation import requires_component
 from .types import lv_led_t, lvgl_ns

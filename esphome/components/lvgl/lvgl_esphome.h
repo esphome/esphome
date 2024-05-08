@@ -152,7 +152,7 @@ class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
     lv_obj_add_event_cb(
         lv_obj,
         [](lv_event_t *event) {
-          LvKeyboardType *self = (LvKeyboardType *) event->user_data;
+          auto *self = (LvKeyboardType *) event->user_data;
           if (self->key_callback_.size() == 0)
             return;
 

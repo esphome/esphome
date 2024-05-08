@@ -507,3 +507,67 @@ lvgl:
                           id: tv_id
                           tile_id: cat_tile
                           animated: true
+    - id: keyboard_page
+      widgets:
+        - label:
+            id: kb_code
+            align: center
+            y: -40
+        - textarea:
+            height: 150
+            id: textarea_1
+            align: TOP_LEFT
+            on_focus:
+              then:
+                lvgl.keyboard.update:
+                  id: keyboard_id
+                  mode: text_lower
+                  textarea: textarea_1
+        - textarea:
+            one_line: true
+            password_mode: true
+            height: 150
+            id: textarea_2
+            align: TOP_RIGHT
+            on_focus:
+              then:
+                lvgl.keyboard.update:
+                  id: keyboard_id
+                  mode: number
+                  textarea: textarea_2
+            on_value:
+              then:
+                - logger.log:
+                    format: "textarea on_value, value %s"
+                    args: [text]
+            on_ready:
+              then:
+                - logger.log:
+                    format: "textarea ready, value %s"
+                    args: [text]
+        - keyboard:
+            id: keyboard_id
+            align: BOTTOM_MID
+            textarea: textarea_1
+            y: -30
+            on_ready:
+              then:
+                - logger.log: Keyboard is ready
+
+sensor:
+  - platform: lvgl
+    name: "LVGL Arc Sensor"
+    widget: arc_id
+
+text:
+  - platform: lvgl
+    id: text_text
+    name: "Textarea_1 text"
+    widget: textarea_1
+    mode: text
+
+text_sensor:
+  - platform: lvgl
+    id: text_sensor_1
+    widget: textarea_2
+    name: Textarea 2

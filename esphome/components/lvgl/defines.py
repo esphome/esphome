@@ -69,6 +69,7 @@ LV_EVENT = {
     "SCROLL": "SCROLL",
     "FOCUS": "FOCUSED",
     "DEFOCUS": "DEFOCUSED",
+    "READY": "READY",
 }
 
 LV_EVENT_TRIGGERS = tuple(map(lambda x: "on_" + x.lower(), LV_EVENT))
@@ -263,6 +264,8 @@ LV_CHART_AXES = (
     "PRIMARY_X",
     "SECONDARY_X",
 )
+
+CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
@@ -317,16 +320,20 @@ CONF_LVGL_COMPONENT = "lvgl_component"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MAJOR = "major"
+CONF_MAX_LENGTH = "max_length"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
+CONF_ONE_LINE = "one_line"
 CONF_ON_SELECT = "on_select"
 CONF_ONE_CHECKED = "one_checked"
 CONF_NEXT = "next"
 CONF_PAGE_WRAP = "page_wrap"
+CONF_PASSWORD_MODE = "password_mode"
 CONF_PIVOT_X = "pivot_x"
 CONF_PIVOT_Y = "pivot_y"
+CONF_PLACEHOLDER_TEXT = "placeholder_text"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_REPEAT_COUNT = "repeat_count"
