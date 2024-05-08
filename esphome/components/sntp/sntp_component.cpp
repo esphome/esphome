@@ -24,6 +24,10 @@ namespace sntp {
 
 static const char *const TAG = "sntp";
 
+static std::function<void(struct timeval *tv)> g_sync_callback = nullptr;
+
+void sntp_sync_time_cb(struct timeval *tv) { g_sync_callback(tv); }
+
 void SNTPComponent::setup() {
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
@@ -32,6 +36,22 @@ void SNTPComponent::setup() {
     sntp_stop();
   }
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
+  g_sync_callback = [this](struct timeval *tv) {
+    static struct timeval time_val = tv ? *tv : {};
+    switch (sntp_get_sync_status()) {
+      case SNTP_SYNC_STATUS_RESET:
+        ESP_LOGD(TAG, "Time sync reset");
+        break;
+      case SNTP_SYNC_STATUS_COMPLETED:
+        ESP_LOGD(TAG, "Time sync completed. Delta is %ds", tv->tv_sec - timeval.tv_sec);
+        this->time_sync_callback_.call();
+        break;
+      case SNTP_SYNC_STATUS_IN_PROGRESS:
+        ESP_LOGD(TAG, "Time sync in progress");
+        break;
+    }
+  };
+  sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 #endif
 #ifdef USE_ESP8266
   sntp_stop();
