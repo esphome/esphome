@@ -588,9 +588,8 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 
 #undef KSZ80XX_PC2R_REG_ADDR
 }
-
+constexpr uint8_t RTL8201_RMSR_REG_ADDR = 0x10;
 void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
-  constexpr uint8_t RTL8201_RMSR_REG_ADDR = 0x10;
 
   esp_err_t err;
   uint32_t phy_rmii_mode;
