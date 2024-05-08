@@ -1,10 +1,1 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-api:
-
-time:
-  - platform: homeassistant
-  - platform: sntp
-    id: sntp_time
+<<: !include common.yaml

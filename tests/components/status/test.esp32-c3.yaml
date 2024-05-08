@@ -1,10 +1,1 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-api:
-
-binary_sensor:
-  - platform: status
-    id: node_status
-    name: Node Status
+<<: !include common.yaml
