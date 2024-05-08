@@ -1,0 +1,13 @@
+i2c:
+  - id: i2c_apds9960
+    scl: 16
+    sda: 17
+
+apds9306:
+  address: 0x52
+  update_interval: 60s
+
+sensor:
+  - platform: apds9306
+    type: light_level
+    name: APDS9306 Light Level
