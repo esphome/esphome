@@ -37,6 +37,8 @@
 
 #include <stdint.h>
 
+namespace dsmr {
+
 static inline uint16_t _crc16_update(uint16_t crc, uint8_t data) __attribute__((always_inline, unused));
 static inline uint16_t _crc16_update(uint16_t crc, uint8_t data) {
   unsigned int i;
@@ -89,3 +91,5 @@ static inline uint8_t _crc_ibutton_update(uint8_t crc, uint8_t data) {
   }
   return crc;
 }
+
+}  // namespace dsmr
