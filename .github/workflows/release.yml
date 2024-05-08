@@ -132,6 +132,13 @@ jobs:
           suffix: lint
           version: ${{ needs.init.outputs.tag }}
 
+      - name: Upload digests
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: digests-${{ matrix.platform }}
+          path: /tmp/digests
+          retention-days: 1
+
   deploy-manifest:
     name: Publish ESPHome ${{ matrix.image.title }} to ${{ matrix.registry }}
     runs-on: ubuntu-latest
@@ -160,11 +167,14 @@ jobs:
           - dockerhub
     steps:
       - uses: actions/checkout@v4.1.5
+
       - name: Download digests
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.7
         with:
-          name: digests-${{ matrix.image.target }}-${{ matrix.registry }}
+          pattern: digests-*
           path: /tmp/digests
+          merge-multiple: true
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.3.0
 
@@ -195,7 +205,7 @@ jobs:
           done
 
       - name: Create manifest list and push
-        working-directory: /tmp/digests
+        working-directory: /tmp/digests/${{ matrix.image.target }}/${{ matrix.registry }}
         run: |
           docker buildx imagetools create $(jq -Rcnr 'inputs | . / "," | map("-t " + .) | join(" ")' <<< "${{ steps.tags.outputs.tags}}") \
             $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)
