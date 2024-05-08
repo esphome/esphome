@@ -2311,6 +2311,17 @@ async def checkbox_update_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
+    "lvgl.textarea.update",
+    ty.ObjUpdateAction,
+    modify_schema(df.CONF_TEXTAREA),
+)
+async def textarea_update_to_code(config, action_id, template_arg, args):
+    obj = await get_widget(config[CONF_ID])
+    init = await textarea_to_code(obj, config)
+    return await update_to_code(config, action_id, obj, init, template_arg, args)
+
+
+@automation.register_action(
     "lvgl.keyboard.update",
     ty.ObjUpdateAction,
     modify_schema(df.CONF_KEYBOARD),

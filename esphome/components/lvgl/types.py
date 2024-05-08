@@ -58,13 +58,24 @@ class LvNumber(LvType):
         )
 
 
+class LvBoolean(LvType):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            largs=[(cg.bool_, "x")],
+            lvalue=lambda w: w.is_checked(),
+            has_on_value=True,
+            *kwargs,
+        )
+
+
 lv_obj_t = LvType("LvObjType")
-LvBtnmBtn = LvType("LvBtnmBtn", parents=(lv_pseudo_button_t,))
+LvBtnmBtn = LvBoolean("LvBtnmBtn", parents=(lv_pseudo_button_t,))
 lv_label_t = LvType("LvLabelType")
 lv_dropdown_list_t = LvType("LvDropdownListType")
 lv_meter_t = LvType("LvMeterType")
-lv_btn_t = LvType("LvBtnType")
-lv_checkbox_t = LvType("LvCheckboxType")
+lv_btn_t = LvBoolean("LvBtnType")
+lv_checkbox_t = LvBoolean("LvCheckboxType")
 lv_line_t = LvType("LvLineType")
 lv_img_t = LvType("LvImgType")
 lv_animimg_t = LvType("LvAnimImgType")
@@ -79,7 +90,7 @@ lv_select_t = lvgl_ns.class_("LvPseudoSelect")
 lv_dropdown_t = LvType("LvDropdownType", parents=(lv_select_t,))
 lv_roller_t = LvType("LvRollerType", parents=(lv_select_t,))
 lv_led_t = LvType("LvLedType")
-lv_switch_t = LvType("LvSwitchType")
+lv_switch_t = LvBoolean("LvSwitchType")
 lv_table_t = LvType("LvTableType")
 lv_chart_t = LvType("LvChartType")
 lv_btnmatrix_t = LvType("LvBtnmatrixType", parents=(KeyProvider, LvCompound))

@@ -51,6 +51,9 @@ class Widget:
     def is_pressed(self):
         return self.has_state("LV_STATE_PRESSED")
 
+    def is_checked(self):
+        return self.has_state("LV_STATE_CHECKED")
+
     def add_flag(self, flag):
         return [f"lv_obj_add_flag({self.obj}, {flag})"]
 
@@ -200,6 +203,9 @@ class MatrixButton(Widget):
 
     def is_pressed(self):
         return f'({self.index_check()} && {self.var.has_state("LV_STATE_PRESSED")})'
+
+    def is_checked(self):
+        return f'({self.index_check()} && {self.var.has_state("LV_STATE_CHECKED")})'
 
     def set_event_cb(self, code, *varargs):
         init = add_temp_var("event_callback_t", EVENT_LAMB)
