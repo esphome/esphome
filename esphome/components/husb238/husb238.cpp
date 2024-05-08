@@ -335,12 +335,11 @@ std::string Husb238Component::get_capabilities_() {
 
   const uint8_t voltages[] = {5, 9, 12, 15, 18, 20};
 
-  RegSrcPdo *src_pdo;
-
+  RegSrcPdo src_pdo;
   for (uint8_t i = 0; i < 6; i++) {
-    src_pdo = (RegSrcPdo *) (this->registers_.raw[2 + i]);
-    if (src_pdo->detected) {
-      snprintf(buffer, sizeof(buffer), "%dV: %.2fA", voltages[i], src_pdo_to_current(*src_pdo));
+    src_pdo.raw = this->registers_.raw[2 + i];
+    if (src_pdo.detected) {
+      snprintf(buffer, sizeof(buffer), "%dV: %.2fA", voltages[i], src_pdo_to_current(src_pdo));
       if (capabilities.length() > 0) {
         capabilities += ", ";
       }
