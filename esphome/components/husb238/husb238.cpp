@@ -148,10 +148,12 @@ void Husb238Component::update() {
   }
   if (this->current_sensor_ != nullptr) {
     float current{0.0f};
-    if (this->registers_.pd_status1.voltage_5v) {
-      current = current5v_to_float(this->registers_.pd_status1.current_5v);
-    } else {
-      current = current_to_float(this->registers_.pd_status0.current);
+    if (this->registers_.pd_status1.attached) {
+      if (this->registers_.pd_status1.voltage_5v) {
+        current = current5v_to_float(this->registers_.pd_status1.current_5v);
+      } else {
+        current = current_to_float(this->registers_.pd_status0.current);
+      }
     }
     this->current_sensor_->publish_state(current);
   }
