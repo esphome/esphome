@@ -58,6 +58,7 @@ from esphome.const import (
     CONF_ROW,
     CONF_DISPLAY_ID,
     CONF_ON_IDLE,
+    CONF_MAX_LENGTH,
 )
 from esphome.cpp_generator import LambdaExpression
 
@@ -706,7 +707,7 @@ TEXTAREA_SCHEMA = TEXT_SCHEMA.extend(
         cv.Optional(df.CONF_ACCEPTED_CHARS): lv_text,
         cv.Optional(df.CONF_ONE_LINE): lv_bool,
         cv.Optional(df.CONF_PASSWORD_MODE): lv_bool,
-        cv.Optional(df.CONF_MAX_LENGTH): lv_int,
+        cv.Optional(CONF_MAX_LENGTH): lv_int,
     }
 )
 

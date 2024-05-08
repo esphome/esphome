@@ -149,6 +149,9 @@ lvgl:
           text: "\uF00D"
           on_click:
             then:
+              - lvgl.textarea.update:
+                  id: textarea_1
+                  text: "Updated text"
               - lvgl.update:
                   disp_bg_color: 0xFFFF00
               - lvgl.widget.hide: message_box
@@ -265,6 +268,9 @@ lvgl:
                     state:
                       checked: true
                     text: Checked
+                - logger.log:
+                    format: "Checkbox checked = %s"
+                    args: ['x ? "true" : "false"']
         - dropdown:
             id: dropdown_id
             width: 90
