@@ -45,6 +45,7 @@ static float current_to_float(SrcCurrent current) {
   }
 }
 
+/*
 static float current5v_to_float(SrcCurrent5V current) {
   switch (current) {
     case SrcCurrent5V::I_0_5_A:
@@ -59,6 +60,7 @@ static float current5v_to_float(SrcCurrent5V current) {
       return 0.0f;
   }
 }
+*/
 
 static float voltage_to_float(SrcVoltage voltage) {
   switch (voltage) {
