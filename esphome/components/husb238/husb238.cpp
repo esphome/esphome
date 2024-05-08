@@ -133,7 +133,6 @@ void Husb238Component::update() {
   if (!this->is_ready()) {
     return;
   }
-  this->read_all_();
 
 #ifdef BINARY_SENSOR
   if (this->attached_binary_sensor_ != nullptr) {
@@ -218,7 +217,19 @@ bool Husb238Component::read_all_() {
     ESP_LOGE(TAG, "Component not ready");
     return false;
   }
-  auto err = this->read_bytes(static_cast<uint8_t>(CommandRegister::PD_STATUS0), &this->registers_.raw[0], REG_NUM);
+  auto err = !this->read_bytes(static_cast<uint8_t>(CommandRegister::PD_STATUS0), &this->registers_.raw[0], REG_NUM);
+  if (err) {
+    ESP_LOGE(TAG, "Error reading HUSB238");
+  }
+  return err;
+}
+
+bool Husb238Component::read_status_() {
+  if (!this->is_ready()) {
+    ESP_LOGE(TAG, "Component not ready");
+    return false;
+  }
+  auto err = !this->read_bytes(static_cast<uint8_t>(CommandRegister::PD_STATUS0), &this->registers_.raw[0], 2);
   if (err) {
     ESP_LOGE(TAG, "Error reading HUSB238");
   }
@@ -231,13 +242,13 @@ bool Husb238Component::send_command_(CommandFunction function) {
     return false;
   }
   RegGoCommand go_command;
-  auto err = this->read_byte(static_cast<uint8_t>(CommandRegister::GO_COMMAND), &go_command.raw);
+  auto err = !this->read_byte(static_cast<uint8_t>(CommandRegister::GO_COMMAND), &go_command.raw);
   if (err) {
     ESP_LOGE(TAG, "Error reading HUSB238");
     return false;
   }
   go_command.function = function;
-  err = this->write_byte(static_cast<uint8_t>(CommandRegister::GO_COMMAND), go_command.raw);
+  err = !this->write_byte(static_cast<uint8_t>(CommandRegister::GO_COMMAND), go_command.raw);
   if (err) {
     ESP_LOGE(TAG, "Error sending command to HUSB238");
   }
@@ -285,7 +296,7 @@ bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
   }
 
   this->registers_.src_pdo_sel.voltage = voltage;
-  auto err = this->write_byte(static_cast<uint8_t>(CommandRegister::SRC_PDO), this->registers_.src_pdo_sel.raw);
+  auto err = !this->write_byte(static_cast<uint8_t>(CommandRegister::SRC_PDO), this->registers_.src_pdo_sel.raw);
   if (err) {
     ESP_LOGE(TAG, "Error setting PDO voltage");
   }
@@ -296,6 +307,15 @@ bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
 5V: 3.00A, 9V: 1.50A, 12V: 3.00A, 15V: 2.00A, 18V: 1.50A, 20V: 1.50A
 */
 std::string Husb238Component::get_capabilities() {
+  bool nothing_detected = !this->registers_.src_pdo_5v.detected && !this->registers_.src_pdo_9v.detected &&
+                          !this->registers_.src_pdo_12v.detected && !this->registers_.src_pdo_15v.detected &&
+                          !this->registers_.src_pdo_18v.detected && !this->registers_.src_pdo_20v.detected;
+  if (nothing_detected) {
+    return "No capabilities detected";
+  }
+
+  std::string capabilities = "";
+  capabilities.reserve(128);
   char buffer[128];
 
   auto src_pdo_to_current = [](RegSrcPdo pdo) {
@@ -305,11 +325,22 @@ std::string Husb238Component::get_capabilities() {
     return current_to_float(pdo.current);
   };
 
-  snprintf(buffer, sizeof(buffer), "5V: %.2fA, 9V: %.2fA, 12V: %.2fA, 15V: %.2fA, 18V: %.2fA, 20V: %.2fA",
-           src_pdo_to_current(this->registers_.src_pdo_5v), src_pdo_to_current(this->registers_.src_pdo_9v),
-           src_pdo_to_current(this->registers_.src_pdo_12v), src_pdo_to_current(this->registers_.src_pdo_15v),
-           src_pdo_to_current(this->registers_.src_pdo_18v), src_pdo_to_current(this->registers_.src_pdo_20v));
-  return std::string(buffer);
+  const uint8_t voltages[] = {5, 9, 12, 15, 18, 20};
+
+  RegSrcPdo *src_pdo;
+
+  for (uint8_t i = 0; i < 6; i++) {
+    src_pdo = (RegSrcPdo *) (this->registers_.raw[2 + i]);
+    if (src_pdo->detected) {
+      snprintf(buffer, sizeof(buffer), "%dV: %.2fA", voltages[i], src_pdo_to_current(*src_pdo));
+      if (capabilities.length() > 0) {
+        capabilities += ", ";
+      }
+      capabilities += buffer;
+    }
+  }
+
+  return capabilities;
 }
 
 }  // namespace husb238

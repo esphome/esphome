@@ -183,6 +183,7 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
   } registers_;
 
   bool read_all_();
+  bool read_status_();
   bool send_command_(CommandFunction function);
 
   RegSrcPdo get_detected_current_();
