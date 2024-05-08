@@ -43,7 +43,7 @@ void SNTPComponent::setup() {
         ESP_LOGD(TAG, "Time sync reset");
         break;
       case SNTP_SYNC_STATUS_COMPLETED:
-        ESP_LOGD(TAG, "Time sync completed. Delta is %ds", tv->tv_sec - timeval.tv_sec);
+        ESP_LOGD(TAG, "Time sync completed. Delta is %ds", tv->tv_sec - time_val.tv_sec);
         this->time_sync_callback_.call();
         break;
       case SNTP_SYNC_STATUS_IN_PROGRESS:
