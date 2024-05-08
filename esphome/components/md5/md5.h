@@ -27,12 +27,6 @@
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
 
-#if defined(USE_ZEPHYR)
-// TODO implement
-#include <zephyr/crypto/crypto.h>
-#define MD5_CTX_TYPE hash_ctx
-#endif
-
 namespace esphome {
 namespace md5 {
 
