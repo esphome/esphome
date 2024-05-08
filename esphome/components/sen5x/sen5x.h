@@ -108,7 +108,10 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool start_fan_cleaning();
 
  protected:
-  float get_valid_measurement_(uint16_t measurement, uint16_t invalid_value, float scaling);
+  // Returns a valid measurement for an unsigned int, NAN otherwise
+  float get_valid_measurement_(uint16_t measurement, float scaling);
+  // Returns a valid measurement for a signed int, NAN otherwise
+  float get_valid_measurement_signed_(uint16_t measurement, float scaling);
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   void write_voc_baseline_();
