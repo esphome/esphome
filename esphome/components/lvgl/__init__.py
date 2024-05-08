@@ -1165,7 +1165,7 @@ async def textarea_to_code(var: Widget, ta_conf: dict):
             init.extend(await lv_text.set_text(var, value, prop))
     init.extend(
         var.set_property(
-            df.CONF_MAX_LENGTH, await lv_int.process(ta_conf.get(df.CONF_MAX_LENGTH))
+            CONF_MAX_LENGTH, await lv_int.process(ta_conf.get(CONF_MAX_LENGTH))
         )
     )
     init.extend(
