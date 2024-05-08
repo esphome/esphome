@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
-from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_add_cdc_acm,
@@ -56,7 +56,7 @@ CONFIG_SCHEMA = cv.All(
 def _validate_mcumgr(config):
     fconf = fv.full_config.get()
     try:
-        bootloader = fconf.get_config_for_path(["nrf52", "bootloader"])
+        bootloader = fconf.get_config_for_path(["nrf52", KEY_BOOTLOADER])
         if bootloader != BOOTLOADER_MCUBOOT:
             raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
     except KeyError:

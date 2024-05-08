@@ -21,13 +21,12 @@ from .const import (
     BOOTLOADER_MCUBOOT,
     KEY_EXTRA_BUILD_FILES,
     KEY_PATH,
+    KEY_BOOTLOADER,
 )
 
 
 AUTO_LOAD = ["preferences"]
 KEY_BOARD = "board"
-
-KEY_BOOTLOADER = "bootloader"
 
 
 def zephyr_set_core_data(config):
