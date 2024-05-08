@@ -186,9 +186,10 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
   bool read_status_();
   bool send_command_(CommandFunction function);
 
-  RegSrcPdo get_detected_current_();
+  // RegSrcPdo get_detected_current_();
+
   bool select_pdo_voltage_(SrcVoltageSelection voltage);
-  std::string get_capabilities();
+  std::string get_capabilities_();
 };
 
 }  // namespace husb238

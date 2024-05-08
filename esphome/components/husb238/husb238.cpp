@@ -136,7 +136,7 @@ void Husb238Component::update() {
 
 #ifdef BINARY_SENSOR
   if (this->attached_binary_sensor_ != nullptr) {
-    this->attached_binary_sensor_->publish_state(this->registers_.pd_status1.attached);
+    this->attached_binary_sensor_->publish_state(this->is_attached());
   }
   if (this->cc_direction_binary_sensor_ != nullptr) {
     this->cc_direction_binary_sensor_->publish_state(this->registers_.pd_status1.cc_dir);
@@ -144,16 +144,21 @@ void Husb238Component::update() {
 #endif
 #ifdef USE_SENSOR
   if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(voltage_to_float(this->registers_.pd_status0.voltage));
+    float voltage{0.0f};
+    if (this->is_attached()) {
+      voltage = voltage_to_float(this->registers_.pd_status0.voltage);
+    }
+    this->voltage_sensor_->publish_state(voltage);
   }
+
   if (this->current_sensor_ != nullptr) {
     float current{0.0f};
-    if (this->registers_.pd_status1.attached) {
-      if (this->registers_.pd_status1.voltage_5v) {
-        current = current5v_to_float(this->registers_.pd_status1.current_5v);
-      } else {
-        current = current_to_float(this->registers_.pd_status0.current);
-      }
+    if (this->is_attached()) {
+      // if (this->registers_.pd_status1.voltage_5v) {
+      //   current = current5v_to_float(this->registers_.pd_status1.current_5v);
+      // } else {
+      current = current_to_float(this->registers_.pd_status0.current);
+      //      }
     }
     this->current_sensor_->publish_state(current);
   }
@@ -168,7 +173,7 @@ void Husb238Component::update() {
   }
 
   if (this->capabilities_text_sensor_ != nullptr) {
-    this->capabilities_text_sensor_->publish_state(this->get_capabilities());
+    this->capabilities_text_sensor_->publish_state(this->get_capabilities_());
   }
 #endif
 }
@@ -208,7 +213,6 @@ bool Husb238Component::command_request_pdo(SrcVoltageSelection voltage) {
 
 bool Husb238Component::is_attached() {
   if (!this->is_ready()) {
-    ESP_LOGE(TAG, "Component not ready");
     return false;
   }
   return this->registers_.pd_status1.attached;
@@ -257,6 +261,7 @@ bool Husb238Component::send_command_(CommandFunction function) {
   return err;
 }
 
+/*
 RegSrcPdo Husb238Component::get_detected_current_() {
   RegSrcPdo pdo_default_data;
   pdo_default_data.current = SrcCurrent::I_0_5_A;
@@ -290,6 +295,7 @@ RegSrcPdo Husb238Component::get_detected_current_() {
       return pdo_default_data;
   }
 }
+*/
 
 bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
   if (!this->is_ready()) {
@@ -308,7 +314,7 @@ bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
 /*
 5V: 3.00A, 9V: 1.50A, 12V: 3.00A, 15V: 2.00A, 18V: 1.50A, 20V: 1.50A
 */
-std::string Husb238Component::get_capabilities() {
+std::string Husb238Component::get_capabilities_() {
   bool nothing_detected = !this->registers_.src_pdo_5v.detected && !this->registers_.src_pdo_9v.detected &&
                           !this->registers_.src_pdo_12v.detected && !this->registers_.src_pdo_15v.detected &&
                           !this->registers_.src_pdo_18v.detected && !this->registers_.src_pdo_20v.detected;
