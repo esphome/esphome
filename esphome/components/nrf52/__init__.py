@@ -148,7 +148,4 @@ async def to_code(config):
         cg.add_platformio_option("board_upload.require_upload_port", "true")
         cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
     #
-    if CORE.using_zephyr:
-        zephyr_to_code(conf)
-    else:
-        raise NotImplementedError
+    zephyr_to_code(conf)

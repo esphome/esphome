@@ -45,8 +45,6 @@ PrjConfValueType = Union[bool, str, int]
 
 def zephyr_add_prj_conf(name: str, value: PrjConfValueType):
     """Set an zephyr prj conf value."""
-    if not CORE.using_zephyr:
-        raise ValueError("Not an zephyr project")
     if not name.startswith("CONFIG_"):
         name = "CONFIG_" + name
     if name in CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF]:
@@ -59,8 +57,6 @@ def zephyr_add_prj_conf(name: str, value: PrjConfValueType):
 
 
 def zephyr_add_overlay(content):
-    if not CORE.using_zephyr:
-        raise ValueError("Not an zephyr project")
     CORE.data[KEY_ZEPHYR][KEY_OVERLAY] += content
 
 

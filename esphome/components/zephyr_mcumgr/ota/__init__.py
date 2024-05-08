@@ -12,7 +12,6 @@ import esphome.final_validate as fv
 from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT
 from esphome.components.zephyr import zephyr_add_prj_conf
 
-DEPENDENCIES = ["zephyr_ble_server"]
 AUTO_LOAD = ["zephyr_mcumgr"]
 
 esphome = cg.esphome_ns.namespace("esphome")
@@ -20,7 +19,19 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
     "OTAComponent", cg.Component
 )
 
-CONFIG_SCHEMA = (
+CONF_BLE_MODE = "ble"
+CONF_USB_CDC_MODE = "usb_cdc"
+
+
+def _validate_transport(conf):
+    if conf[CONF_BLE_MODE] or conf[CONF_USB_CDC_MODE]:
+        return conf
+    raise cv.Invalid(
+        f"At least one trasnport protocol has to be enabled. Set '{CONF_BLE_MODE}' or '{CONF_USB_CDC_MODE}'"
+    )
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ZephyrMcumgrOTAComponent),
@@ -28,27 +39,46 @@ CONFIG_SCHEMA = (
                 CONF_REBOOT_TIMEOUT, default="5min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
+            cv.Optional(CONF_BLE_MODE, default=True): cv.boolean,
+            cv.Optional(CONF_USB_CDC_MODE, default=False): cv.boolean,
         }
     )
     .extend(BASE_OTA_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _validate_transport,
 )
 
 
 def _validate_mcumgr(config):
-    if CORE.using_zephyr:
-        fconf = fv.full_config.get()
-        try:
-            bootloader = fconf.get_config_for_path(["nrf52", "bootloader"])
-            if bootloader != BOOTLOADER_MCUBOOT:
-                raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
-        except KeyError:
-            pass
+    fconf = fv.full_config.get()
+    try:
+        bootloader = fconf.get_config_for_path(["nrf52", "bootloader"])
+        if bootloader != BOOTLOADER_MCUBOOT:
+            raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+    except KeyError:
+        pass
 
 
-FINAL_VALIDATE_SCHEMA = _validate_mcumgr
+KEY_ZEPHYR_BLE_SERVER = "zephyr_ble_server"
 
-# TODO cdc ota, check if ble server is enabled
+
+def _validate_ble_server(config):
+    if config[CONF_BLE_MODE]:
+        has_ble_server = KEY_ZEPHYR_BLE_SERVER in fv.full_config.get()
+        if not has_ble_server:
+            raise cv.Invalid(
+                f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA"
+            )
+
+
+def _final_validate(config):
+    _validate_mcumgr(config)
+    _validate_ble_server(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+# TODO cdc ota
 
 
 @coroutine_with_priority(50.0)
@@ -78,10 +108,11 @@ async def to_code(config):
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
     # mcumgr ble
-    zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
-    zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
+    if config[CONF_BLE_MODE]:
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
 
-    zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
-    zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
+        zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
+        zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
-    zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+        zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
