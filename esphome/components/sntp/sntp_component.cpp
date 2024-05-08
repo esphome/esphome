@@ -37,7 +37,7 @@ void SNTPComponent::setup() {
   }
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
   g_sync_callback = [this](struct timeval *tv) {
-    static struct timeval time_val = tv ? *tv : {};
+    static struct timeval time_val;
     switch (sntp_get_sync_status()) {
       case SNTP_SYNC_STATUS_RESET:
         ESP_LOGD(TAG, "Time sync reset");
@@ -50,6 +50,8 @@ void SNTPComponent::setup() {
         ESP_LOGD(TAG, "Time sync in progress");
         break;
     }
+    if (tv)
+      time_val = *tv;
   };
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 #endif
