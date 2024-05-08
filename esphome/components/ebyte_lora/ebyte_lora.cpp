@@ -213,7 +213,9 @@ void EbyteLoraComponent::update() {
     this->get_current_config_();
     return;
   } else {
-    if (!this->check_config_()) {
+    if (this->check_config_()) {
+      ESP_LOGD(TAG, "Config is good to go!");
+    } else {
       ESP_LOGD(TAG, "Config is not right, have to do something about that!");
     }
   }
