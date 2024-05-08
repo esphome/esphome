@@ -614,12 +614,17 @@ void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
    * Hex: 0x1FFA
    *
    */
+
+  err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
+  ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
+  ESP_LOGV(TAG, "Hardware default RTL8201 RMII Mode Register is: 0x%04X", phy_rmii_mode);
+
   err = mac->write_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, 0x1FFA);
   ESPHL_ERROR_CHECK(err, "Setting Register 16 RMII Mode Setting failed");
 
   err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
   ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
-  ESP_LOGV(TAG, "Set RTL8201 RMII Mode Register: %s", format_hex_pretty((u_int8_t *) &phy_rmii_mode, 2).c_str());
+  ESP_LOGV(TAG, "Setting RTL8201 RMII Mode Register to: 0x%04X", phy_rmii_mode);
 
   err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x0);
   ESPHL_ERROR_CHECK(err, "Setting Page 0 failed");
