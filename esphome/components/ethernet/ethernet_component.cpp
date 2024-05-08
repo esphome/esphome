@@ -554,9 +554,10 @@ bool EthernetComponent::powerdown() {
 }
 
 #ifndef USE_ETHERNET_SPI
-void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
-  constexpr uint8_t KSZ80XX_PC2R_REG_ADDR = 0x1F;
 
+constexpr uint8_t KSZ80XX_PC2R_REG_ADDR = 0x1F;
+
+void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
   esp_err_t err;
 
   uint32_t phy_control_2;
