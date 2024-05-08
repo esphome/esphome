@@ -590,7 +590,7 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 }
 
 void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
-#define RTL8201_RMSR_REG_ADDR (0x10)
+  constexpr uint8_t RTL8201_RMSR_REG_ADDR = 0x10;
 
   esp_err_t err;
   uint32_t phy_rmii_mode;
@@ -628,8 +628,6 @@ void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
 
   err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x0);
   ESPHL_ERROR_CHECK(err, "Setting Page 0 failed");
-
-#undef RTL8201_RMSR_REG_ADDR
 }
 
 #endif
