@@ -1,4 +1,3 @@
-#include <cinttypes>
 #include "led_strip.h"
 
 #ifdef USE_BK72XX
@@ -7,8 +6,8 @@
 #include "esphome/core/log.h"
 
 extern "C" {
-#include "../../beken378/os/include/rtos_pub.h"
-#include "../../beken378/driver/spi/spi.h"
+#include "rtos_pub.h"
+#include "spi.h"
 #include "arm_arch.h"
 #include "general_dma_pub.h"
 #include "gpio_pub.h"
