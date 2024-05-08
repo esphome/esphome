@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
+    CONF_COMPENSATION,
     CONF_ECO2,
     CONF_HUMIDITY,
     CONF_ID,
@@ -27,7 +28,6 @@ ENS160Component = ens160_ns.class_(
 )
 
 CONF_AQI = "aqi"
-CONF_COMPENSATION = "compensation"
 UNIT_INDEX = "index"
 
 CONFIG_SCHEMA = (

@@ -1,0 +1,37 @@
+esphome:
+  on_boot:
+    then:
+      - http_request.get:
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          verify_ssl: false
+          on_response:
+            then:
+              - logger.log:
+                  format: 'Response status: %d, Duration: %u ms'
+                  args:
+                    - status_code
+                    - duration_ms
+      - http_request.post:
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          json:
+            key: value
+          verify_ssl: false
+      - http_request.send:
+          method: PUT
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          body: "Some data"
+          verify_ssl: false
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  useragent: esphome/tagreader
+  timeout: 10s

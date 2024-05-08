@@ -333,10 +333,11 @@ class LoadValidationStep(ConfigValidationStep):
             if load not in result:
                 result.add_validation_step(AutoLoadValidationStep(load))
 
+        result.add_validation_step(
+            MetadataValidationStep([self.domain], self.domain, self.conf, component)
+        )
+
         if not component.is_platform_component:
-            result.add_validation_step(
-                MetadataValidationStep([self.domain], self.domain, self.conf, component)
-            )
             return
 
         # This is a platform component, proceed to reading platform entries
@@ -373,7 +374,10 @@ class LoadValidationStep(ConfigValidationStep):
                         path + [CONF_ID],
                     )
                     continue
-                result.add_str_error("No platform specified! See 'platform' key.", path)
+                result.add_str_error(
+                    f"'{self.domain}' requires a 'platform' key but it was not specified.",
+                    path,
+                )
                 continue
             # Remove temp output path and construct new one
             result.remove_output_path(path, p_domain)
@@ -448,9 +452,28 @@ class MetadataValidationStep(ConfigValidationStep):
 
         success = True
         for dependency in self.comp.dependencies:
-            if dependency not in result:
+            dependency_parts = dependency.split(".")
+            if len(dependency_parts) > 2:
                 result.add_str_error(
-                    f"Component {self.domain} requires component {dependency}",
+                    "Dependencies must be specified as a single component or in component.platform format only",
+                    self.path,
+                )
+                return
+            component_dep = dependency_parts[0]
+            platform_dep = dependency_parts[-1]
+            if component_dep not in result:
+                result.add_str_error(
+                    f"Component {self.domain} requires component {component_dep}",
+                    self.path,
+                )
+                success = False
+            elif component_dep != platform_dep and (
+                not isinstance(platform_list := result.get(component_dep), list)
+                or not any(CONF_PLATFORM in p for p in platform_list)
+                or not any(p[CONF_PLATFORM] == platform_dep for p in platform_list)
+            ):
+                result.add_str_error(
+                    f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
                     self.path,
                 )
                 success = False
@@ -520,8 +543,6 @@ class SchemaValidationStep(ConfigValidationStep):
         self.comp = comp
 
     def run(self, result: Config) -> None:
-        if self.comp.config_schema is None:
-            return
         token = path_context.set(self.path)
         with result.catch_error(self.path):
             if self.comp.is_platform:
@@ -536,7 +557,7 @@ class SchemaValidationStep(ConfigValidationStep):
                 validated["platform"] = platform_val
                 validated.move_to_end("platform", last=False)
                 result.set_by_path(self.path, validated)
-            else:
+            elif self.comp.config_schema is not None:
                 schema = cv.Schema(self.comp.config_schema)
                 validated = schema(self.conf)
                 result.set_by_path(self.path, validated)
@@ -757,11 +778,11 @@ def validate_config(
     CORE.raw_config = config
 
     # 1. Load substitutions
-    if CONF_SUBSTITUTIONS in config:
+    if CONF_SUBSTITUTIONS in config or command_line_substitutions:
         from esphome.components import substitutions
 
         result[CONF_SUBSTITUTIONS] = {
-            **config[CONF_SUBSTITUTIONS],
+            **config.get(CONF_SUBSTITUTIONS, {}),
             **command_line_substitutions,
         }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
