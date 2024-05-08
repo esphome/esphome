@@ -19,15 +19,15 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
     "OTAComponent", cg.Component
 )
 
-CONF_BLE_MODE = "ble"
-CONF_USB_CDC_MODE = "usb_cdc"
+CONF_BLE = "ble"
+CONF_USB_CDC = "usb_cdc"
 
 
 def _validate_transport(conf):
-    if conf[CONF_BLE_MODE] or conf[CONF_USB_CDC_MODE]:
+    if conf[CONF_BLE] or conf[CONF_USB_CDC]:
         return conf
     raise cv.Invalid(
-        f"At least one trasnport protocol has to be enabled. Set '{CONF_BLE_MODE}' or '{CONF_USB_CDC_MODE}'"
+        f"At least one trasnport protocol has to be enabled. Set '{CONF_BLE}' or '{CONF_USB_CDC}'"
     )
 
 
@@ -39,8 +39,8 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="5min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
-            cv.Optional(CONF_BLE_MODE, default=True): cv.boolean,
-            cv.Optional(CONF_USB_CDC_MODE, default=False): cv.boolean,
+            cv.Optional(CONF_BLE, default=True): cv.boolean,
+            cv.Optional(CONF_USB_CDC, default=False): cv.boolean,
         }
     )
     .extend(BASE_OTA_SCHEMA)
@@ -63,7 +63,7 @@ KEY_ZEPHYR_BLE_SERVER = "zephyr_ble_server"
 
 
 def _validate_ble_server(config):
-    if config[CONF_BLE_MODE]:
+    if config[CONF_BLE]:
         has_ble_server = KEY_ZEPHYR_BLE_SERVER in fv.full_config.get()
         if not has_ble_server:
             raise cv.Invalid(
@@ -108,7 +108,7 @@ async def to_code(config):
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
     # mcumgr ble
-    if config[CONF_BLE_MODE]:
+    if config[CONF_BLE]:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
 
