@@ -29,6 +29,8 @@ static const uint16_t SEN5X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 void SEN5XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen5x...");
 
+  this->fsm_ = IDLE;
+
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
     // Check if measurement is ready before reading the value
@@ -331,8 +333,16 @@ void SEN5XComponent::update() {
   this->update_measured_values_();
 
   if (this->get_pm_number_concentration_and_tps_) {
-    // delay the extra reading to allow update_measured_values to complete.
-    this->set_timeout(30, [this]() { this->update_measured_pm_(); });
+    this->set_timeout(10, [this]() { this->trigger_update_measured_pm_(); });
+  }
+}
+
+void SEN5XComponent::trigger_update_measured_pm_() {
+  ESP_LOGD(TAG, "fsm: %d", this->fsm_);
+  if (this->fsm_ != VALUE_UPDATE_DONE) {
+    this->set_timeout(20, [this]() { this->trigger_update_measured_pm_(); });
+  } else if (this->fsm_ == VALUE_UPDATE_DONE) {
+    this->update_measured_pm_();
   }
 }
 
@@ -415,10 +425,12 @@ void SEN5XComponent::update_measured_pm_() {
       this->pm_tps_sensor_->publish_state(pm_tps);
 
     this->status_clear_warning();
+    this->fsm_ = IDLE;
   });
 }
 
 void SEN5XComponent::update_measured_values_() {
+  this->fsm_ = VALUE_UPDATE_ONGOING;
   if (!this->write_command(SEN5X_CMD_READ_MEASUREMENT)) {
     this->status_set_warning();
     ESP_LOGD(TAG, "write error read measurement (%d)", this->last_error_);
@@ -460,7 +472,9 @@ void SEN5XComponent::update_measured_values_() {
       this->voc_sensor_->publish_state(voc);
     if (this->nox_sensor_ != nullptr)
       this->nox_sensor_->publish_state(nox);
+
     this->status_clear_warning();
+    this->fsm_ = VALUE_UPDATE_DONE;
   });
 }
 

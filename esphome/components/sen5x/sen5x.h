@@ -117,6 +117,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void write_voc_baseline_();
   void update_measured_values_();
   void update_measured_pm_();
+  void trigger_update_measured_pm_();
   ERRORCODE error_code_;
   bool initialized_{false};
   sensor::Sensor *pm_1_0_sensor_{nullptr};
@@ -152,6 +153,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<TemperatureCompensation> temperature_compensation_;
   // Driver state variables
   bool get_pm_number_concentration_and_tps_;
+  enum FsmStates { IDLE, VALUE_UPDATE_ONGOING, VALUE_UPDATE_DONE };
+  FsmStates fsm_;
 };
 
 }  // namespace sen5x
