@@ -9,10 +9,10 @@ from . import (
     add_init_lambda,
     LVGL_SCHEMA,
     CONF_LVGL_ID,
-    CONF_WIDGET,
     get_widget,
     Widget,
 )
+from .defines import CONF_WIDGET
 from .lv_validation import requires_component
 from .types import lv_pseudo_button_t
 

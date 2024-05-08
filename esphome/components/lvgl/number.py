@@ -4,15 +4,13 @@ from esphome.components import number
 from esphome.const import (
     CONF_ID,
 )
-from . import lv_validation as lv
+from . import lv_validation as lv, CONF_ANIMATED, CONF_LVGL_ID
 from . import (
     LVGL_SCHEMA,
-    CONF_LVGL_ID,
     add_init_lambda,
-    CONF_ANIMATED,
-    CONF_WIDGET,
     get_widget,
 )
+from .defines import CONF_WIDGET
 from .lv_validation import requires_component
 from .types import lvgl_ns, lv_number_t
 

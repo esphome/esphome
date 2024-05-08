@@ -69,6 +69,7 @@ from . import types as ty
 from . import defines as df
 
 from . import lv_validation as lv
+
 from .widget import (
     Widget,
     add_temp_var,
@@ -84,110 +85,6 @@ DEPENDENCIES = ("display",)
 AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
-
-CONF_ACTION = "action"
-CONF_ADJUSTABLE = "adjustable"
-CONF_ALIGN = "align"
-CONF_ALIGN_TO = "align_to"
-CONF_ANGLE_RANGE = "angle_range"
-CONF_ANIMATED = "animated"
-CONF_ANIMATION = "animation"
-CONF_ANTIALIAS = "antialias"
-CONF_ARC_LENGTH = "arc_length"
-CONF_AUTO_START = "auto_start"
-CONF_BACKGROUND_STYLE = "background_style"
-CONF_DECIMAL_PLACES = "decimal_places"
-CONF_COLUMN = "column"
-CONF_DIGITS = "digits"
-CONF_DISP_BG_COLOR = "disp_bg_color"
-CONF_DISP_BG_IMAGE = "disp_bg_image"
-CONF_BODY = "body"
-CONF_BUTTONS = "buttons"
-CONF_BYTE_ORDER = "byte_order"
-CONF_CHANGE_RATE = "change_rate"
-CONF_CLOSE_BUTTON = "close_button"
-CONF_COLOR_DEPTH = "color_depth"
-CONF_COLOR_END = "color_end"
-CONF_COLOR_START = "color_start"
-CONF_CONTROL = "control"
-CONF_DEFAULT = "default"
-CONF_DEFAULT_FONT = "default_font"
-CONF_DIR = "dir"
-CONF_DISPLAYS = "displays"
-CONF_END_ANGLE = "end_angle"
-CONF_END_VALUE = "end_value"
-CONF_FLAGS = "flags"
-CONF_FLEX_FLOW = "flex_flow"
-CONF_FULL_REFRESH = "full_refresh"
-CONF_GRID_CELL_ROW_POS = "grid_cell_row_pos"
-CONF_GRID_CELL_COLUMN_POS = "grid_cell_column_pos"
-CONF_GRID_CELL_ROW_SPAN = "grid_cell_row_span"
-CONF_GRID_CELL_COLUMN_SPAN = "grid_cell_column_span"
-CONF_GRID_COLUMN_ALIGN = "grid_column_align"
-CONF_GRID_COLUMNS = "grid_columns"
-CONF_GRID_ROW_ALIGN = "grid_row_align"
-CONF_GRID_ROWS = "grid_rows"
-CONF_HOME = "home"
-CONF_INDICATORS = "indicators"
-CONF_KEY_CODE = "key_code"
-CONF_LABEL_GAP = "label_gap"
-CONF_LAYOUT = "layout"
-CONF_LINE_WIDTH = "line_width"
-CONF_LOG_LEVEL = "log_level"
-CONF_LONG_PRESS_TIME = "long_press_time"
-CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
-CONF_LVGL_COMPONENT = "lvgl_component"
-CONF_LVGL_ID = "lvgl_id"
-CONF_LONG_MODE = "long_mode"
-CONF_MAJOR = "major"
-CONF_MSGBOXES = "msgboxes"
-CONF_OBJ = "obj"
-CONF_OFFSET_X = "offset_x"
-CONF_OFFSET_Y = "offset_y"
-CONF_ON_SELECT = "on_select"
-CONF_ONE_CHECKED = "one_checked"
-CONF_NEXT = "next"
-CONF_PAGE_WRAP = "page_wrap"
-CONF_PIVOT_X = "pivot_x"
-CONF_PIVOT_Y = "pivot_y"
-CONF_POINTS = "points"
-CONF_PREVIOUS = "previous"
-CONF_REPEAT_COUNT = "repeat_count"
-CONF_R_MOD = "r_mod"
-CONF_RECOLOR = "recolor"
-CONF_ROLLOVER = "rollover"
-CONF_ROWS = "rows"
-CONF_SCALES = "scales"
-CONF_SCALE_LINES = "scale_lines"
-CONF_SCROLLBAR_MODE = "scrollbar_mode"
-CONF_SELECTED_INDEX = "selected_index"
-CONF_SHOW_SNOW = "show_snow"
-CONF_SPIN_TIME = "spin_time"
-CONF_SRC = "src"
-CONF_START_ANGLE = "start_angle"
-CONF_START_VALUE = "start_value"
-CONF_STATES = "states"
-CONF_STRIDE = "stride"
-CONF_STYLE = "style"
-CONF_STYLES = "styles"
-CONF_STYLE_DEFINITIONS = "style_definitions"
-CONF_STYLE_ID = "style_id"
-CONF_SKIP = "skip"
-CONF_SYMBOL = "symbol"
-CONF_TEXT = "text"
-CONF_TILE = "tile"
-CONF_TILE_ID = "tile_id"
-CONF_TILES = "tiles"
-CONF_TITLE = "title"
-CONF_TOP_LAYER = "top_layer"
-CONF_TRANSPARENCY_KEY = "transparency_key"
-CONF_THEME = "theme"
-CONF_VISIBLE_ROW_COUNT = "visible_row_count"
-CONF_WIDGET = "widget"
-CONF_WIDGETS = "widgets"
-CONF_X = "x"
-CONF_Y = "y"
-CONF_ZOOM = "zoom"
 
 # list of widgets and the parts allowed
 WIDGET_TYPES = {
@@ -216,7 +113,7 @@ WIDGET_TYPES = {
     df.CONF_LINE: (df.CONF_MAIN,),
     df.CONF_DROPDOWN_LIST: (df.CONF_MAIN, df.CONF_SCROLLBAR, df.CONF_SELECTED),
     df.CONF_METER: (df.CONF_MAIN,),
-    CONF_OBJ: (df.CONF_MAIN,),
+    df.CONF_OBJ: (df.CONF_MAIN,),
     # df.CONF_PAGE: (df.CONF_MAIN,),
     df.CONF_ROLLER: (df.CONF_MAIN, df.CONF_SELECTED),
     df.CONF_SLIDER: (df.CONF_MAIN, df.CONF_INDICATOR, df.CONF_KNOB),
@@ -419,16 +316,16 @@ def validate_max_min(config):
 
 
 def validate_grid(config):
-    if config.get(CONF_LAYOUT) == "LV_LAYOUT_GRID":
-        if CONF_GRID_ROWS not in config or CONF_GRID_COLUMNS not in config:
+    if config.get(df.CONF_LAYOUT) == "LV_LAYOUT_GRID":
+        if df.CONF_GRID_ROWS not in config or df.CONF_GRID_COLUMNS not in config:
             raise cv.Invalid("grid layout requires grid_rows and grid_columns")
     elif any((key in config) for key in list(GRID_CONTAINER_SCHEMA.keys())):
         raise cv.Invalid("grid items apply to grid layout only")
-    if CONF_GRID_CELL_COLUMN_POS in config or CONF_GRID_CELL_ROW_POS in config:
-        if CONF_GRID_CELL_ROW_SPAN not in config:
-            config[CONF_GRID_CELL_ROW_SPAN] = 1
-        if CONF_GRID_CELL_COLUMN_SPAN not in config:
-            config[CONF_GRID_CELL_COLUMN_SPAN] = 1
+    if df.CONF_GRID_CELL_COLUMN_POS in config or df.CONF_GRID_CELL_ROW_POS in config:
+        if df.CONF_GRID_CELL_ROW_SPAN not in config:
+            config[df.CONF_GRID_CELL_ROW_SPAN] = 1
+        if df.CONF_GRID_CELL_COLUMN_SPAN not in config:
+            config[df.CONF_GRID_CELL_COLUMN_SPAN] = 1
     return config
 
 
@@ -467,8 +364,8 @@ def cv_point_list(value):
         raise cv.Invalid("Points must be a list of x,y integer pairs")
     lv.lv_uses.add("POINT")
     return {
-        CONF_ID: cv.declare_id(ty.lv_point_t)(generate_id(CONF_POINTS)),
-        CONF_POINTS: values,
+        CONF_ID: cv.declare_id(ty.lv_point_t)(generate_id(df.CONF_POINTS)),
+        df.CONF_POINTS: values,
     }
 
 
@@ -545,7 +442,7 @@ TYPE_ARGS = (
 
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Exclusive(CONF_TEXT, CONF_TEXT): cv.Any(
+        cv.Exclusive(df.CONF_TEXT, df.CONF_TEXT): cv.Any(
             cv.All(
                 cv.Schema(
                     {
@@ -564,8 +461,8 @@ TEXT_SCHEMA = cv.Schema(
 
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
-        cv.Optional(CONF_STYLES): cv.ensure_list(cv.use_id(ty.lv_style_t)),
-        cv.Optional(CONF_SCROLLBAR_MODE): lv.one_of(
+        cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(ty.lv_style_t)),
+        cv.Optional(df.CONF_SCROLLBAR_MODE): lv.one_of(
             df.LvConstant("LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO")
         ),
     }
@@ -583,13 +480,13 @@ BAR_SCHEMA = cv.Schema(
         cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
         cv.Optional(CONF_MAX_VALUE, default=100): cv.int_,
         cv.Optional(CONF_MODE, default="NORMAL"): lv.one_of(df.BAR_MODES),
-        cv.Optional(CONF_ANIMATED, default=True): lv.animated,
+        cv.Optional(df.CONF_ANIMATED, default=True): lv.animated,
     }
 )
 
 SLIDER_SCHEMA = BAR_SCHEMA
 
-LINE_SCHEMA = {cv.Optional(CONF_POINTS): cv_point_list}
+LINE_SCHEMA = {cv.Optional(df.CONF_POINTS): cv_point_list}
 
 
 def lv_repeat_count(value):
@@ -601,7 +498,7 @@ def lv_repeat_count(value):
 def validate_spinbox(config):
     max_val = 2**31 - 1
     min_val = -1 - max_val
-    scale = 10 ** config[CONF_DECIMAL_PLACES]
+    scale = 10 ** config[df.CONF_DECIMAL_PLACES]
     range_from = int(config[CONF_RANGE_FROM] * scale)
     range_to = int(config[CONF_RANGE_TO] * scale)
     step = int(config[CONF_STEP] * scale)
@@ -614,21 +511,21 @@ def validate_spinbox(config):
         raise cv.Invalid("Range outside allowed limits")
     if step <= 0 or step >= (range_to - range_from) / 2:
         raise cv.Invalid("Invalid step value")
-    if config[CONF_DIGITS] <= config[CONF_DECIMAL_PLACES]:
+    if config[df.CONF_DIGITS] <= config[df.CONF_DECIMAL_PLACES]:
         raise cv.Invalid("Number of digits must exceed number of decimal places")
     return config
 
 
 ANIMIMG_BASE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_REPEAT_COUNT, default="forever"): lv_repeat_count,
-        cv.Optional(CONF_AUTO_START, default=True): cv.boolean,
+        cv.Optional(df.CONF_REPEAT_COUNT, default="forever"): lv_repeat_count,
+        cv.Optional(df.CONF_AUTO_START, default=True): cv.boolean,
     }
 )
 ANIMIMG_SCHEMA = ANIMIMG_BASE_SCHEMA.extend(
     {
         cv.Required(CONF_DURATION): lv_milliseconds,
-        cv.Required(CONF_SRC): cv.ensure_list(cv.use_id(Image_)),
+        cv.Required(df.CONF_SRC): cv.ensure_list(cv.use_id(Image_)),
     }
 )
 
@@ -639,14 +536,14 @@ ANIMIMG_MODIFY_SCHEMA = ANIMIMG_BASE_SCHEMA.extend(
 )
 
 IMG_SCHEMA = {
-    cv.Required(CONF_SRC): cv.use_id(Image_),
-    cv.Optional(CONF_PIVOT_X, default="50%"): lv.size,
-    cv.Optional(CONF_PIVOT_Y, default="50%"): lv.size,
+    cv.Required(df.CONF_SRC): cv.use_id(Image_),
+    cv.Optional(df.CONF_PIVOT_X, default="50%"): lv.size,
+    cv.Optional(df.CONF_PIVOT_Y, default="50%"): lv.size,
     cv.Optional(CONF_ANGLE): lv.angle,
-    cv.Optional(CONF_ZOOM): lv.zoom,
-    cv.Optional(CONF_OFFSET_X): lv.size,
-    cv.Optional(CONF_OFFSET_Y): lv.size,
-    cv.Optional(CONF_ANTIALIAS): lv_bool,
+    cv.Optional(df.CONF_ZOOM): lv.zoom,
+    cv.Optional(df.CONF_OFFSET_X): lv.size,
+    cv.Optional(df.CONF_OFFSET_Y): lv.size,
+    cv.Optional(df.CONF_ANTIALIAS): lv_bool,
     cv.Optional(CONF_MODE): lv.one_of(
         df.LvConstant("LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL")
     ),
@@ -655,11 +552,11 @@ IMG_SCHEMA = {
 # Schema for a single button in a btnmatrix
 BTNM_BTN_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_TEXT): cv.string,
-        cv.Optional(CONF_KEY_CODE): lv.key_code,
+        cv.Optional(df.CONF_TEXT): cv.string,
+        cv.Optional(df.CONF_KEY_CODE): lv.key_code,
         cv.GenerateID(): cv.declare_id(ty.LvBtnmBtn),
         cv.Optional(CONF_WIDTH, default=1): cv.positive_int,
-        cv.Optional(CONF_CONTROL): cv.ensure_list(
+        cv.Optional(df.CONF_CONTROL): cv.ensure_list(
             cv.Schema({cv.Optional(k.lower()): cv.boolean for k in df.BTNMATRIX_CTRLS})
         ),
     }
@@ -667,11 +564,11 @@ BTNM_BTN_SCHEMA = cv.Schema(
 
 BTNMATRIX_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_ONE_CHECKED, default=False): lv_bool,
-        cv.Required(CONF_ROWS): cv.ensure_list(
+        cv.Optional(df.CONF_ONE_CHECKED, default=False): lv_bool,
+        cv.Required(df.CONF_ROWS): cv.ensure_list(
             cv.Schema(
                 {
-                    cv.Required(CONF_BUTTONS): cv.ensure_list(BTNM_BTN_SCHEMA),
+                    cv.Required(df.CONF_BUTTONS): cv.ensure_list(BTNM_BTN_SCHEMA),
                 }
             )
         ),
@@ -685,12 +582,12 @@ ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
         cv.Optional(CONF_MAX_VALUE, default=100): cv.int_,
-        cv.Optional(CONF_START_ANGLE, default=135): lv.angle,
-        cv.Optional(CONF_END_ANGLE, default=45): lv.angle,
+        cv.Optional(df.CONF_START_ANGLE, default=135): lv.angle,
+        cv.Optional(df.CONF_END_ANGLE, default=45): lv.angle,
         cv.Optional(CONF_ROTATION, default=0.0): lv.angle,
-        cv.Optional(CONF_ADJUSTABLE, default=False): bool,
+        cv.Optional(df.CONF_ADJUSTABLE, default=False): bool,
         cv.Optional(CONF_MODE, default="NORMAL"): lv.one_of(df.ARC_MODES),
-        cv.Optional(CONF_CHANGE_RATE, default=720): cv.uint16_t,
+        cv.Optional(df.CONF_CHANGE_RATE, default=720): cv.uint16_t,
     }
 )
 
@@ -703,7 +600,7 @@ ARC_MODIFY_SCHEMA = cv.Schema(
 BAR_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_ANIMATED, default=True): lv.animated,
+        cv.Optional(df.CONF_ANIMATED, default=True): lv.animated,
     }
 )
 
@@ -711,8 +608,8 @@ SLIDER_MODIFY_SCHEMA = BAR_MODIFY_SCHEMA
 
 SPINNER_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ARC_LENGTH): lv.angle,
-        cv.Required(CONF_SPIN_TIME): cv.positive_time_period_milliseconds,
+        cv.Required(df.CONF_ARC_LENGTH): lv.angle,
+        cv.Required(df.CONF_SPIN_TIME): cv.positive_time_period_milliseconds,
     }
 )
 
@@ -722,15 +619,15 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): lv.size,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_R_MOD, default=0): lv.size,
+        cv.Optional(df.CONF_R_MOD, default=0): lv.size,
         cv.Optional(CONF_VALUE): lv_float,
     }
 )
 INDICATOR_IMG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_SRC): cv.use_id(Image_),
-        cv.Required(CONF_PIVOT_X): lv.pixels,
-        cv.Required(CONF_PIVOT_Y): lv.pixels,
+        cv.Required(df.CONF_SRC): cv.use_id(Image_),
+        cv.Required(df.CONF_PIVOT_X): lv.pixels,
+        cv.Required(df.CONF_PIVOT_Y): lv.pixels,
         cv.Optional(CONF_VALUE): lv_float,
     }
 )
@@ -738,42 +635,42 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): lv.size,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_R_MOD, default=0): lv.size,
+        cv.Optional(df.CONF_R_MOD, default=0): lv.size,
         cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
-        cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
-        cv.Optional(CONF_END_VALUE): lv_float,
+        cv.Exclusive(df.CONF_START_VALUE, CONF_VALUE): lv_float,
+        cv.Optional(df.CONF_END_VALUE): lv_float,
     }
 )
 INDICATOR_TICKS_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): lv.size,
-        cv.Optional(CONF_COLOR_START, default=0): lv_color,
-        cv.Optional(CONF_COLOR_END): lv_color,
+        cv.Optional(df.CONF_COLOR_START, default=0): lv_color,
+        cv.Optional(df.CONF_COLOR_END): lv_color,
         cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
-        cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
-        cv.Optional(CONF_END_VALUE): lv_float,
+        cv.Exclusive(df.CONF_START_VALUE, CONF_VALUE): lv_float,
+        cv.Optional(df.CONF_END_VALUE): lv_float,
         cv.Optional(CONF_LOCAL, default=False): lv_bool,
     }
 )
 INDICATOR_SCHEMA = cv.Schema(
     {
-        cv.Exclusive(df.CONF_LINE, CONF_INDICATORS): INDICATOR_LINE_SCHEMA.extend(
+        cv.Exclusive(df.CONF_LINE, df.CONF_INDICATORS): INDICATOR_LINE_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
             }
         ),
-        cv.Exclusive(df.CONF_IMG, CONF_INDICATORS): INDICATOR_IMG_SCHEMA.extend(
+        cv.Exclusive(df.CONF_IMG, df.CONF_INDICATORS): INDICATOR_IMG_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
             }
         ),
-        cv.Exclusive(df.CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
+        cv.Exclusive(df.CONF_ARC, df.CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
             }
         ),
         cv.Exclusive(
-            df.CONF_TICK_STYLE, CONF_INDICATORS
+            df.CONF_TICK_STYLE, df.CONF_INDICATORS
         ): INDICATOR_TICKS_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
@@ -790,38 +687,38 @@ SCALE_SCHEMA = cv.Schema(
                 cv.Optional(CONF_WIDTH, default=2): lv.size,
                 cv.Optional(CONF_LENGTH, default=10): lv.size,
                 cv.Optional(CONF_COLOR, default=0x808080): lv_color,
-                cv.Optional(CONF_MAJOR): cv.Schema(
+                cv.Optional(df.CONF_MAJOR): cv.Schema(
                     {
-                        cv.Optional(CONF_STRIDE, default=3): cv.positive_int,
+                        cv.Optional(df.CONF_STRIDE, default=3): cv.positive_int,
                         cv.Optional(CONF_WIDTH, default=5): lv.size,
                         cv.Optional(CONF_LENGTH, default="15%"): lv.size,
                         cv.Optional(CONF_COLOR, default=0): lv_color,
-                        cv.Optional(CONF_LABEL_GAP, default=4): lv.size,
+                        cv.Optional(df.CONF_LABEL_GAP, default=4): lv.size,
                     }
                 ),
             }
         ),
         cv.Optional(CONF_RANGE_FROM, default=0.0): cv.float_,
         cv.Optional(CONF_RANGE_TO, default=100.0): cv.float_,
-        cv.Optional(CONF_ANGLE_RANGE, default=270): cv.int_range(0, 360),
+        cv.Optional(df.CONF_ANGLE_RANGE, default=270): cv.int_range(0, 360),
         cv.Optional(CONF_ROTATION): lv.angle,
-        cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
+        cv.Optional(df.CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
     }
 )
 
-METER_SCHEMA = {cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA)}
+METER_SCHEMA = {cv.Optional(df.CONF_SCALES): cv.ensure_list(SCALE_SCHEMA)}
 
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
-    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=CONF_TEXT
+    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
 )
 PAGE_SCHEMA = {
-    cv.Optional(CONF_SKIP, default=False): lv_bool,
+    cv.Optional(df.CONF_SKIP, default=False): lv_bool,
 }
 
 LABEL_SCHEMA = TEXT_SCHEMA.extend(
     {
-        cv.Optional(CONF_RECOLOR): lv_bool,
-        cv.Optional(CONF_LONG_MODE): lv.one_of(df.LV_LONG_MODES),
+        cv.Optional(df.CONF_RECOLOR): lv_bool,
+        cv.Optional(df.CONF_LONG_MODE): lv.one_of(df.LV_LONG_MODES),
     }
 )
 
@@ -829,9 +726,9 @@ CHECKBOX_SCHEMA = TEXT_SCHEMA
 
 DROPDOWN_BASE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_SYMBOL): lv_text,
-        cv.Optional(CONF_SELECTED_INDEX): cv.templatable(cv.int_),
-        cv.Optional(CONF_DIR, default="BOTTOM"): lv.one_of(df.DIRECTIONS),
+        cv.Optional(df.CONF_SYMBOL): lv_text,
+        cv.Optional(df.CONF_SELECTED_INDEX): cv.templatable(cv.int_),
+        cv.Optional(df.CONF_DIR, default="BOTTOM"): lv.one_of(df.DIRECTIONS),
         cv.Optional(df.CONF_DROPDOWN_LIST): part_schema(df.CONF_DROPDOWN_LIST),
     }
 )
@@ -846,8 +743,8 @@ DROPDOWN_MODIFY_SCHEMA = DROPDOWN_BASE_SCHEMA
 
 ROLLER_BASE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_SELECTED_INDEX): cv.templatable(cv.int_),
-        cv.Optional(CONF_VISIBLE_ROW_COUNT): lv_int,
+        cv.Optional(df.CONF_SELECTED_INDEX): cv.templatable(cv.int_),
+        cv.Optional(df.CONF_VISIBLE_ROW_COUNT): lv_int,
         cv.Optional(CONF_MODE, default="NORMAL"): lv.one_of(df.ROLLER_MODES),
     }
 )
@@ -860,7 +757,7 @@ ROLLER_SCHEMA = ROLLER_BASE_SCHEMA.extend(
 
 ROLLER_MODIFY_SCHEMA = ROLLER_BASE_SCHEMA.extend(
     {
-        cv.Optional(CONF_ANIMATED, default=True): lv.animated,
+        cv.Optional(df.CONF_ANIMATED, default=True): lv.animated,
     }
 )
 
@@ -883,10 +780,10 @@ SPINBOX_SCHEMA = {
     cv.Optional(CONF_VALUE): lv_float,
     cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
     cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
-    cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
+    cv.Optional(df.CONF_DIGITS, default=4): cv.int_range(1, 10),
     cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
-    cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
-    cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
+    cv.Optional(df.CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
+    cv.Optional(df.CONF_ROLLOVER, default=False): lv_bool,
 }
 
 SPINBOX_MODIFY_SCHEMA = {
@@ -900,7 +797,7 @@ KEYBOARD_SCHEMA = {
 # For use by platform components
 LVGL_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
+        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
     }
 )
 
@@ -908,8 +805,8 @@ LVGL_SCHEMA = cv.Schema(
 def get_layout(layout=cv.UNDEFINED, flow="ROW_WRAP"):
     return cv.Schema(
         {
-            cv.Optional(CONF_FLEX_FLOW, default=flow): lv.one_of(df.FLEX_FLOWS),
-            cv.Optional(CONF_LAYOUT, default=layout): lv.one_of(
+            cv.Optional(df.CONF_FLEX_FLOW, default=flow): lv.one_of(df.FLEX_FLOWS),
+            cv.Optional(df.CONF_LAYOUT, default=layout): lv.one_of(
                 df.LvConstant("LV_LAYOUT_", "FLEX", "GRID")
             ),
         }
@@ -917,12 +814,12 @@ def get_layout(layout=cv.UNDEFINED, flow="ROW_WRAP"):
 
 
 ALIGN_TO_SCHEMA = {
-    cv.Optional(CONF_ALIGN_TO): cv.Schema(
+    cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(ty.lv_obj_t),
-            cv.Required(CONF_ALIGN): lv.one_of(df.ALIGN_ALIGNMENTS),
-            cv.Optional(CONF_X, default=0): lv.pixels_or_percent,
-            cv.Optional(CONF_Y, default=0): lv.pixels_or_percent,
+            cv.Required(df.CONF_ALIGN): lv.one_of(df.ALIGN_ALIGNMENTS),
+            cv.Optional(df.CONF_X, default=0): lv.pixels_or_percent,
+            cv.Optional(df.CONF_Y, default=0): lv.pixels_or_percent,
         }
     )
 }
@@ -941,10 +838,10 @@ grid_spec = cv.Any(
 )
 
 GRID_CONTAINER_SCHEMA = {
-    cv.Optional(CONF_GRID_ROWS): grid_spec,
-    cv.Optional(CONF_GRID_COLUMNS): grid_spec,
-    cv.Optional(CONF_GRID_COLUMN_ALIGN): grid_alignments,
-    cv.Optional(CONF_GRID_ROW_ALIGN): grid_alignments,
+    cv.Optional(df.CONF_GRID_ROWS): grid_spec,
+    cv.Optional(df.CONF_GRID_COLUMNS): grid_spec,
+    cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
+    cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
 }
 
 
@@ -979,7 +876,7 @@ def container_schema(widget_type, extras=None):
     def validator(value):
         widgets = cv.Schema(
             {
-                cv.Optional(CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
+                cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             }
         )
         result = schema.extend(widgets)
@@ -994,7 +891,7 @@ def widget_schema(name, extras=None):
     validator = cv.All(container_schema(name, extras=extras), validate_grid)
     if required := lv.REQUIRED_COMPONENTS.get(name):
         validator = cv.All(validator, lv.requires_component(required))
-    return cv.Exclusive(name, CONF_WIDGETS), validator
+    return cv.Exclusive(name, df.CONF_WIDGETS), validator
 
 
 def any_widget_schema(extras=None):
@@ -1004,14 +901,14 @@ def any_widget_schema(extras=None):
 TILE_SCHEMA = any_widget_schema(
     {
         cv.Required(CONF_ROW): lv_int,
-        cv.Required(CONF_COLUMN): lv_int,
-        cv.GenerateID(CONF_TILE_ID): cv.declare_id(ty.lv_tile_t),
-        cv.Optional(CONF_DIR, default="ALL"): lv.one_of(df.TILE_DIRECTIONS),
+        cv.Required(df.CONF_COLUMN): lv_int,
+        cv.GenerateID(df.CONF_TILE_ID): cv.declare_id(ty.lv_tile_t),
+        cv.Optional(df.CONF_DIR, default="ALL"): lv.one_of(df.TILE_DIRECTIONS),
     }
 )
 
 TILEVIEW_SCHEMA = {
-    cv.Required(CONF_TILES): cv.ensure_list(TILE_SCHEMA),
+    cv.Required(df.CONF_TILES): cv.ensure_list(TILE_SCHEMA),
     cv.Optional(CONF_ON_VALUE): automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -1026,11 +923,11 @@ WIDGET_SCHEMA = any_widget_schema()
 MSGBOX_SCHEMA = STYLE_SCHEMA.extend(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(ty.lv_obj_t),
-        cv.Required(CONF_TITLE): STYLED_TEXT_SCHEMA,
-        cv.Optional(CONF_BODY): STYLED_TEXT_SCHEMA,
-        cv.Optional(CONF_BUTTONS): cv.ensure_list(BTNM_BTN_SCHEMA),
-        cv.Optional(CONF_CLOSE_BUTTON): lv_bool,
-        cv.Optional(CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
+        cv.Required(df.CONF_TITLE): STYLED_TEXT_SCHEMA,
+        cv.Optional(df.CONF_BODY): STYLED_TEXT_SCHEMA,
+        cv.Optional(df.CONF_BUTTONS): cv.ensure_list(BTNM_BTN_SCHEMA),
+        cv.Optional(df.CONF_CLOSE_BUTTON): lv_bool,
+        cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
     }
 )
 
@@ -1042,12 +939,12 @@ async def get_color_value(value):
 
 
 async def get_end_value(config):
-    return await lv_int.process(config.get(CONF_END_VALUE))
+    return await lv_int.process(config.get(df.CONF_END_VALUE))
 
 
 async def get_start_value(config):
-    if CONF_START_VALUE in config:
-        value = config[CONF_START_VALUE]
+    if df.CONF_START_VALUE in config:
+        value = config[df.CONF_START_VALUE]
     else:
         value = config.get(CONF_VALUE)
     return await lv_int.process(value)
@@ -1143,14 +1040,14 @@ def add_define(macro, value="1"):
 
 def collect_props(config):
     props = {}
-    for prop in [*STYLE_PROPS, *df.OBJ_FLAGS, CONF_STYLES, CONF_GROUP]:
+    for prop in [*STYLE_PROPS, *df.OBJ_FLAGS, df.CONF_STYLES, CONF_GROUP]:
         if prop in config:
             props[prop] = config[prop]
     return props
 
 
 def collect_states(config):
-    states = {CONF_DEFAULT: collect_props(config)}
+    states = {df.CONF_DEFAULT: collect_props(config)}
     for state in df.STATES:
         if state in config:
             states[state] = collect_props(config[state])
@@ -1172,7 +1069,7 @@ async def set_obj_properties(widget: Widget, config):
     for part, states in parts.items():
         for state, props in states.items():
             lv_state = f"(int)LV_STATE_{state.upper()}|(int)LV_PART_{part.upper()}"
-            if styles := props.get(CONF_STYLES):
+            if styles := props.get(df.CONF_STYLES):
                 for style_id in styles:
                     init.append(
                         f"lv_obj_add_style({widget.obj}, {style_id}, {lv_state})"
@@ -1187,7 +1084,7 @@ async def set_obj_properties(widget: Widget, config):
         init.append(f"lv_group_add_obj({group}, {widget.obj})")
     flag_clr = set()
     flag_set = set()
-    props = parts[df.CONF_MAIN][CONF_DEFAULT]
+    props = parts[df.CONF_MAIN][df.CONF_DEFAULT]
     for prop, value in {k: v for k, v in props.items() if k in df.OBJ_FLAGS}.items():
         if value:
             flag_set.add(prop)
@@ -1200,7 +1097,7 @@ async def set_obj_properties(widget: Widget, config):
         clrs = lv.join_enums(flag_clr, "LV_OBJ_FLAG_")
         init.extend(widget.clear_flag(clrs))
 
-    if layout := config.get(CONF_LAYOUT):
+    if layout := config.get(df.CONF_LAYOUT):
         layout = layout.upper()
         init.extend(widget.set_property("layout", layout, "obj"))
         if layout == "LV_LAYOUT_FLEX":
@@ -1235,18 +1132,18 @@ async def set_obj_properties(widget: Widget, config):
                     lv_obj_clear_state({widget.obj}, LV_STATE_{key.upper()});
                 """
             )
-    if scrollbar_mode := config.get(CONF_SCROLLBAR_MODE):
+    if scrollbar_mode := config.get(df.CONF_SCROLLBAR_MODE):
         init.append(f"lv_obj_set_scrollbar_mode({widget.obj}, {scrollbar_mode})")
-    if config.get(CONF_LAYOUT) == "LV_LAYOUT_GRID":
+    if config.get(df.CONF_LAYOUT) == "LV_LAYOUT_GRID":
         wid = config[CONF_ID]
-        for key in (CONF_GRID_COLUMN_ALIGN, CONF_GRID_COLUMN_ALIGN):
+        for key in (df.CONF_GRID_COLUMN_ALIGN, df.CONF_GRID_COLUMN_ALIGN):
             init.extend(widget.set_property(key, config))
-        rows = "{" + ",".join(config[CONF_GRID_ROWS]) + ", ty.LV_GRID_TEMPLATE_LAST}"
+        rows = "{" + ",".join(config[df.CONF_GRID_ROWS]) + ", ty.LV_GRID_TEMPLATE_LAST}"
         row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=ty.lv_coord_t)
         row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
         init.extend(widget.set_style("grid_row_dsc_array", row_array, 0))
         columns = (
-            "{" + ",".join(config[CONF_GRID_COLUMNS]) + ", ty.LV_GRID_TEMPLATE_LAST}"
+            "{" + ",".join(config[df.CONF_GRID_COLUMNS]) + ", ty.LV_GRID_TEMPLATE_LAST}"
         )
         column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=ty.lv_coord_t)
         column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
@@ -1256,7 +1153,7 @@ async def set_obj_properties(widget: Widget, config):
 
 async def checkbox_to_code(var: Widget, checkbox_conf):
     """For a text object, create and set text"""
-    if value := checkbox_conf.get(CONF_TEXT):
+    if value := checkbox_conf.get(df.CONF_TEXT):
         return await lv_text.set_text(var, value)
     return []
 
@@ -1264,10 +1161,10 @@ async def checkbox_to_code(var: Widget, checkbox_conf):
 async def label_to_code(var: Widget, label_conf):
     """For a text object, create and set text"""
     init = []
-    if value := label_conf.get(CONF_TEXT):
+    if value := label_conf.get(df.CONF_TEXT):
         init.extend(await lv_text.set_text(var, value))
-    init.extend(var.set_property(CONF_LONG_MODE, label_conf))
-    init.extend(var.set_property(CONF_RECOLOR, label_conf))
+    init.extend(var.set_property(df.CONF_LONG_MODE, label_conf))
+    init.extend(var.set_property(df.CONF_RECOLOR, label_conf))
     return init
 
 
@@ -1283,14 +1180,14 @@ async def obj_to_code(var, obj):
 
 async def tileview_to_code(var: Widget, config: dict):
     init = []
-    for widg in config[CONF_TILES]:
+    for widg in config[df.CONF_TILES]:
         w_type, wc = next(iter(widg.items()))
-        w_id = wc[CONF_TILE_ID]
+        w_id = wc[df.CONF_TILE_ID]
         tile_obj = cg.Pvariable(w_id, cg.nullptr, type_=ty.lv_obj_t)
         tile = Widget(tile_obj, ty.lv_tile_t)
         widget_map[w_id] = tile
         init.append(
-            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {wc[CONF_COLUMN]}, {wc[CONF_ROW]}, {wc[CONF_DIR]})"
+            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {wc[df.CONF_COLUMN]}, {wc[CONF_ROW]}, {wc[df.CONF_DIR]})"
         )
         ext_init = await widget_to_code(wc, w_type, tile)
         init.extend(ext_init)
@@ -1305,13 +1202,13 @@ async def page_to_code(config, pconf, index):
     widget_map[id] = page
     init.append(f"{page.var}->index = {index}")
     init.append(f"{page.obj} = lv_obj_create(nullptr)")
-    skip = pconf[CONF_SKIP]
+    skip = pconf[df.CONF_SKIP]
     init.append(f"{var}->skip = {skip}")
     # Set outer config first
     init.extend(await set_obj_properties(page, config))
     init.extend(await set_obj_properties(page, pconf))
-    if CONF_WIDGETS in pconf:
-        for widg in pconf[CONF_WIDGETS]:
+    if df.CONF_WIDGETS in pconf:
+        for widg in pconf[df.CONF_WIDGETS]:
             w_type, w_cnfig = next(iter(widg.items()))
             ext_init = await widget_to_code(w_cnfig, w_type, page)
             init.extend(ext_init)
@@ -1341,7 +1238,7 @@ async def led_to_code(var: Widget, config):
 
 SHOW_SCHEMA = LVGL_SCHEMA.extend(
     {
-        cv.Optional(CONF_ANIMATION, default="NONE"): lv.one_of(df.LV_ANIM),
+        cv.Optional(df.CONF_ANIMATION, default="NONE"): lv.one_of(df.LV_ANIM),
         cv.Optional(CONF_TIME, default="50ms"): lv_milliseconds,
     }
 )
@@ -1349,8 +1246,8 @@ SHOW_SCHEMA = LVGL_SCHEMA.extend(
 
 def tile_select_validate(config):
     row = CONF_ROW in config
-    column = CONF_COLUMN in config
-    tile = CONF_TILE_ID in config
+    column = df.CONF_COLUMN in config
+    tile = df.CONF_TILE_ID in config
     if tile and (row or column) or not tile and not (row and column):
         raise cv.Invalid("Specify either a tile id, or both a row and a column")
     return config
@@ -1362,21 +1259,21 @@ def tile_select_validate(config):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(ty.lv_tileview_t),
-            cv.Optional(CONF_ANIMATED, default=False): lv.animated,
+            cv.Optional(df.CONF_ANIMATED, default=False): lv.animated,
             cv.Optional(CONF_ROW): lv_int,
-            cv.Optional(CONF_COLUMN): lv_int,
-            cv.Optional(CONF_TILE_ID): cv.use_id(ty.lv_tile_t),
+            cv.Optional(df.CONF_COLUMN): lv_int,
+            cv.Optional(df.CONF_TILE_ID): cv.use_id(ty.lv_tile_t),
         },
     ).add_extra(tile_select_validate),
 )
 async def tileview_select(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
-    if tile := config.get(CONF_TILE_ID):
+    if tile := config.get(df.CONF_TILE_ID):
         tile = await cg.get_variable(tile)
-        init = [f"lv_obj_set_tile({widget.obj}, {tile}, {config[CONF_ANIMATED]})"]
+        init = [f"lv_obj_set_tile({widget.obj}, {tile}, {config[df.CONF_ANIMATED]})"]
     else:
         init = [
-            f"lv_obj_set_tile_id({widget.obj}, {config[CONF_COLUMN]}, {config[CONF_ROW]}, {config[CONF_ANIMATED]})"
+            f"lv_obj_set_tile_id({widget.obj}, {config[df.CONF_COLUMN]}, {config[CONF_ROW]}, {config[df.CONF_ANIMATED]})"
         ]
     return await action_to_code(init, action_id, widget, template_arg, args)
 
@@ -1462,8 +1359,8 @@ async def animimg_update_to_code(config, action_id, template_arg, args):
     SHOW_SCHEMA,
 )
 async def page_next_to_code(config, action_id, template_arg, args):
-    lv_comp = await get_widget(config[CONF_LVGL_ID])
-    animation = config[CONF_ANIMATION]
+    lv_comp = await get_widget(config[df.CONF_LVGL_ID])
+    animation = config[df.CONF_ANIMATION]
     time = await lv_milliseconds.process(config[CONF_TIME])
     init = [f"{lv_comp.obj}->show_next_page(false, {animation}, {time})"]
     return await action_to_code(init, action_id, lv_comp, template_arg, args)
@@ -1475,8 +1372,8 @@ async def page_next_to_code(config, action_id, template_arg, args):
     SHOW_SCHEMA,
 )
 async def page_previous_to_code(config, action_id, template_arg, args):
-    lv_comp = await get_widget(config[CONF_LVGL_ID])
-    animation = config[CONF_ANIMATION]
+    lv_comp = await get_widget(config[df.CONF_LVGL_ID])
+    animation = config[df.CONF_ANIMATION]
     time = config[CONF_TIME].total_milliseconds
     init = [f"{lv_comp.obj}->show_next_page(true, {animation}, {time})"]
     return await action_to_code(init, action_id, lv_comp, template_arg, args)
@@ -1496,8 +1393,8 @@ async def page_previous_to_code(config, action_id, template_arg, args):
 )
 async def page_show_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
-    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-    animation = config[CONF_ANIMATION]
+    lv_comp = await cg.get_variable(config[df.CONF_LVGL_ID])
+    animation = config[df.CONF_ANIMATION]
     time = config[CONF_TIME].total_milliseconds
     init = [f"{lv_comp}->show_page({widget.var}->index, {animation}, {time})"]
     return await action_to_code(init, action_id, widget, template_arg, args)
@@ -1521,14 +1418,14 @@ async def roller_to_code(var, config):
     if options := config.get(CONF_OPTIONS):
         text = cg.safe_exp("\n".join(options))
         init.append(f"lv_roller_set_options({var.obj}, {text}, {mode})")
-    animated = config.get(CONF_ANIMATED) or "LV_ANIM_OFF"
-    if selected := config.get(CONF_SELECTED_INDEX):
+    animated = config.get(df.CONF_ANIMATED) or "LV_ANIM_OFF"
+    if selected := config.get(df.CONF_SELECTED_INDEX):
         value = await lv_int.process(selected)
         init.append(f"lv_roller_set_selected({var.obj}, {value}, {animated})")
     init.extend(
         var.set_property(
-            CONF_VISIBLE_ROW_COUNT,
-            await lv_int.process(config.get(CONF_VISIBLE_ROW_COUNT)),
+            df.CONF_VISIBLE_ROW_COUNT,
+            await lv_int.process(config.get(df.CONF_VISIBLE_ROW_COUNT)),
         )
     )
     return init
@@ -1552,12 +1449,12 @@ async def dropdown_to_code(dropdown: Widget, config):
     if options := config.get(CONF_OPTIONS):
         text = cg.safe_exp("\n".join(options))
         init.extend(dropdown.set_property("options", text))
-    if symbol := config.get(CONF_SYMBOL):
+    if symbol := config.get(df.CONF_SYMBOL):
         init.extend(dropdown.set_property("symbol", await lv_text.process(symbol)))
-    if selected := config.get(CONF_SELECTED_INDEX):
+    if selected := config.get(df.CONF_SELECTED_INDEX):
         value = await lv_int.process(selected)
         init.extend(dropdown.set_property("selected", value))
-    if dir := config.get(CONF_DIR):
+    if dir := config.get(df.CONF_DIR):
         init.extend(dropdown.set_property("dir", dir))
     if list := config.get(df.CONF_DROPDOWN_LIST):
         s = Widget(dropdown, ty.lv_dropdown_list_t, list, f"{dropdown.obj}__list")
@@ -1591,18 +1488,18 @@ async def get_button_data(config, id, btnm: Widget):
     width_list = []
     key_list = []
     for row in config:
-        for btnconf in row[CONF_BUTTONS]:
+        for btnconf in row[df.CONF_BUTTONS]:
             bid = btnconf[CONF_ID]
             widget = MatrixButton(btnm, ty.lv_obj_t, btnconf, len(width_list))
             widget_map[bid] = widget
-            if text := btnconf.get(CONF_TEXT):
+            if text := btnconf.get(df.CONF_TEXT):
                 text_list.append(f"{cg.safe_exp(text)}")
             else:
                 text_list.append("")
-            key_list.append(btnconf.get(CONF_KEY_CODE) or 0)
+            key_list.append(btnconf.get(df.CONF_KEY_CODE) or 0)
             width_list.append(btnconf[CONF_WIDTH])
             ctrl = ["(int)LV_BTNMATRIX_CTRL_CLICK_TRIG"]
-            if controls := btnconf.get(CONF_CONTROL):
+            if controls := btnconf.get(df.CONF_CONTROL):
                 for item in controls:
                     ctrl.extend(
                         [
@@ -1634,11 +1531,13 @@ def set_btn_data(btnm: Widget, ctrl_list, width_list):
 async def btnmatrix_to_code(btnm: Widget, conf):
     id = conf[CONF_ID]
     text_id, ctrl_list, width_list, key_list = await get_button_data(
-        conf[CONF_ROWS], id, btnm
+        conf[df.CONF_ROWS], id, btnm
     )
     init = [f"lv_btnmatrix_set_map({btnm.obj}, {text_id})"]
     init.extend(set_btn_data(btnm, ctrl_list, width_list))
-    init.append(f"lv_btnmatrix_set_one_checked({btnm.obj}, {conf[CONF_ONE_CHECKED]})")
+    init.append(
+        f"lv_btnmatrix_set_one_checked({btnm.obj}, {conf[df.CONF_ONE_CHECKED]})"
+    )
     for index, key in enumerate(key_list):
         if key != 0:
             init.append(f"{btnm.var}->set_key({index}, {key})")
@@ -1669,9 +1568,9 @@ async def msgbox_to_code(conf):
     btnm_widg = Widget(btnm, ty.lv_btnmatrix_t)
     widget_map[id] = btnm_widg
     text_id, ctrl_list, width_list, _ = await get_button_data((conf,), id, btnm_widg)
-    text = await lv_text.process(conf.get(CONF_BODY))
-    title = await lv_text.process(conf.get(CONF_TITLE))
-    close_button = conf[CONF_CLOSE_BUTTON]
+    text = await lv_text.process(conf.get(df.CONF_BODY))
+    title = await lv_text.process(conf.get(df.CONF_TITLE))
+    close_button = conf[df.CONF_CLOSE_BUTTON]
     init.append(
         f"""{outer} = lv_obj_create(lv_disp_get_layer_top(lv_disp));
                     lv_obj_set_width({outer}, lv_pct(100));
@@ -1707,8 +1606,8 @@ async def spinbox_to_code(widget: Widget, config):
     init = []
     lv.lv_uses.add("TEXTAREA")
     lv.lv_uses.add("LABEL")
-    digits = config[CONF_DIGITS]
-    scale = 10 ** config[CONF_DECIMAL_PLACES]
+    digits = config[df.CONF_DIGITS]
+    scale = 10 ** config[df.CONF_DECIMAL_PLACES]
     range_from = int(config[CONF_RANGE_FROM])
     range_to = int(config[CONF_RANGE_TO])
     step = int(config[CONF_STEP])
@@ -1722,9 +1621,9 @@ async def spinbox_to_code(widget: Widget, config):
     if value := config.get(CONF_VALUE):
         init.extend(widget.set_value(await lv_float.process(value)))
     init.extend(widget.set_property(CONF_STEP, step * scale))
-    init.extend(widget.set_property(CONF_ROLLOVER, config))
+    init.extend(widget.set_property(df.CONF_ROLLOVER, config))
     init.append(
-        f"lv_spinbox_set_digit_format({widget.obj}, {digits}, {digits - config[CONF_DECIMAL_PLACES]})"
+        f"lv_spinbox_set_digit_format({widget.obj}, {digits}, {digits - config[df.CONF_DECIMAL_PLACES]})"
     )
     return init
 
@@ -1734,37 +1633,39 @@ async def animimg_to_code(var: Widget, config):
     lv.lv_uses.add("img")
     init = []
     wid = config[CONF_ID]
-    if CONF_SRC in config:
-        srcs = "{" + ",".join([f"lv_img_from({x.id})" for x in config[CONF_SRC]]) + "}"
+    if df.CONF_SRC in config:
+        srcs = (
+            "{" + ",".join([f"lv_img_from({x.id})" for x in config[df.CONF_SRC]]) + "}"
+        )
         src_id = ID(f"{wid}_src", is_declaration=True, type=ty.void_ptr)
         src_arry = cg.static_const_array(src_id, cg.RawExpression(srcs))
-        count = len(config[CONF_SRC])
+        count = len(config[df.CONF_SRC])
         init.append(f"lv_animimg_set_src({wid}, {src_arry}, {count})")
-    init.extend(var.set_property(CONF_REPEAT_COUNT, config))
+    init.extend(var.set_property(df.CONF_REPEAT_COUNT, config))
     init.extend(var.set_property(CONF_DURATION, config))
-    if config.get(CONF_AUTO_START):
+    if config.get(df.CONF_AUTO_START):
         init.append(f"lv_animimg_start({var.obj})")
     return init
 
 
 async def img_to_code(var: Widget, img):
-    init = [f"lv_img_set_src({var.obj}, lv_img_from({img[CONF_SRC]}))"]
+    init = [f"lv_img_set_src({var.obj}, lv_img_from({img[df.CONF_SRC]}))"]
     if angle := img.get(CONF_ANGLE):
-        pivot_x = img[CONF_PIVOT_X]
-        pivot_y = img[CONF_PIVOT_Y]
+        pivot_x = img[df.CONF_PIVOT_X]
+        pivot_y = img[df.CONF_PIVOT_Y]
         init.extend(
             [
                 f"lv_img_set_pivot({var.obj}, {pivot_x}, {pivot_y})",
                 f"lv_img_set_angle({var.obj}, {angle})",
             ]
         )
-    if zoom := img.get(CONF_ZOOM):
+    if zoom := img.get(df.CONF_ZOOM):
         init.append(f"lv_img_set_zoom({var.obj}, {zoom})")
-    if offset_x := img.get(CONF_OFFSET_X):
+    if offset_x := img.get(df.CONF_OFFSET_X):
         init.append(f"lv_img_set_offset_x({var.obj}, {offset_x})")
-    if offset_y := img.get(CONF_OFFSET_Y):
+    if offset_y := img.get(df.CONF_OFFSET_Y):
         init.append(f"lv_img_set_offset_y({var.obj}, {offset_y})")
-    if antialias := img.get(CONF_ANTIALIAS):
+    if antialias := img.get(df.CONF_ANTIALIAS):
         init.append(f"lv_img_set_antialias({var.obj}, {antialias})")
     if mode := img.get(CONF_MODE):
         init.append(f"lv_img_set_size_mode({var.obj}, {mode})")
@@ -1773,8 +1674,8 @@ async def img_to_code(var: Widget, img):
 
 async def line_to_code(var: Widget, line):
     """For a line object, create and add the points"""
-    data = line[CONF_POINTS]
-    point_list = data[CONF_POINTS]
+    data = line[df.CONF_POINTS]
+    point_list = data[df.CONF_POINTS]
     initialiser = cg.RawExpression(
         "{" + ",".join(map(lambda p: "{" + f"{p[0]}, {p[1]}" + "}", point_list)) + "}"
     )
@@ -1803,14 +1704,14 @@ async def meter_to_code(meter: Widget, meter_conf):
     init = []
     s = "meter_var"
     init.extend(add_temp_var("lv_meter_scale_t", s))
-    for scale in meter_conf.get(CONF_SCALES) or ():
-        rotation = 90 + (360 - scale[CONF_ANGLE_RANGE]) / 2
+    for scale in meter_conf.get(df.CONF_SCALES) or ():
+        rotation = 90 + (360 - scale[df.CONF_ANGLE_RANGE]) / 2
         if CONF_ROTATION in scale:
             rotation = scale[CONF_ROTATION] // 10
         init.append(f"{s} = lv_meter_add_scale({var})")
         init.append(
             f"lv_meter_set_scale_range({var}, {s}, {scale[CONF_RANGE_FROM]},"
-            + f"{scale[CONF_RANGE_TO]}, {scale[CONF_ANGLE_RANGE]}, {rotation})",
+            + f"{scale[CONF_RANGE_TO]}, {scale[df.CONF_ANGLE_RANGE]}, {rotation})",
         )
         if ticks := scale.get(df.CONF_TICKS):
             color = await lv_color.process(ticks[CONF_COLOR])
@@ -1818,15 +1719,15 @@ async def meter_to_code(meter: Widget, meter_conf):
                 f"lv_meter_set_scale_ticks({var}, {s}, {ticks[CONF_COUNT]},"
                 + f"{ticks[CONF_WIDTH]}, {ticks[CONF_LENGTH]}, {color})"
             )
-            if CONF_MAJOR in ticks:
-                major = ticks[CONF_MAJOR]
+            if df.CONF_MAJOR in ticks:
+                major = ticks[df.CONF_MAJOR]
                 color = await lv_color.process(major[CONF_COLOR])
                 init.append(
-                    f"lv_meter_set_scale_major_ticks({var}, {s}, {major[CONF_STRIDE]},"
+                    f"lv_meter_set_scale_major_ticks({var}, {s}, {major[df.CONF_STRIDE]},"
                     + f"{major[CONF_WIDTH]}, {major[CONF_LENGTH]}, {color},"
-                    + f"{major[CONF_LABEL_GAP]})"
+                    + f"{major[df.CONF_LABEL_GAP]})"
                 )
-        for indicator in scale.get(CONF_INDICATORS) or ():
+        for indicator in scale.get(df.CONF_INDICATORS) or ():
             (t, v) = next(iter(indicator.items()))
             iid = v[CONF_ID]
             ivar = cg.new_variable(iid, cg.nullptr, type_=ty.lv_meter_indicator_t_ptr)
@@ -1836,17 +1737,19 @@ async def meter_to_code(meter: Widget, meter_conf):
                 color = await lv_color.process(v[CONF_COLOR])
                 init.append(
                     f"{ivar} = lv_meter_add_needle_line({var}, {s}, {v[CONF_WIDTH]},"
-                    + f"{color}, {v[CONF_R_MOD]})"
+                    + f"{color}, {v[df.CONF_R_MOD]})"
                 )
             if t == df.CONF_ARC:
                 color = await lv_color.process(v[CONF_COLOR])
                 init.append(
                     f"{ivar} = lv_meter_add_arc({var}, {s}, {v[CONF_WIDTH]},"
-                    + f"{color}, {v[CONF_R_MOD]})"
+                    + f"{color}, {v[df.CONF_R_MOD]})"
                 )
             if t == df.CONF_TICK_STYLE:
-                color_start = await lv_color.process(v[CONF_COLOR_START])
-                color_end = await lv_color.process(v.get(CONF_COLOR_END) or color_start)
+                color_start = await lv_color.process(v[df.CONF_COLOR_START])
+                color_end = await lv_color.process(
+                    v.get(df.CONF_COLOR_END) or color_start
+                )
                 init.append(
                     f"{ivar} = lv_meter_add_scale_lines({var}, {s}, {color_start},"
                     + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_WIDTH]})"
@@ -1854,8 +1757,8 @@ async def meter_to_code(meter: Widget, meter_conf):
             if t == df.CONF_IMG:
                 lv.lv_uses.add("img")
                 init.append(
-                    f"{ivar} = lv_meter_add_needle_img({var}, {s}, lv_img_from({v[CONF_SRC]}),"
-                    + f"{v[CONF_PIVOT_X]}, {v[CONF_PIVOT_Y]})"
+                    f"{ivar} = lv_meter_add_needle_img({var}, {s}, lv_img_from({v[df.CONF_SRC]}),"
+                    + f"{v[df.CONF_PIVOT_X]}, {v[df.CONF_PIVOT_Y]})"
                 )
             start_value = await get_start_value(v)
             end_value = await get_end_value(v)
@@ -1873,12 +1776,12 @@ async def arc_to_code(arc: Widget, config):
     var = arc.obj
     init = [
         f"lv_arc_set_range({var}, {config[CONF_MIN_VALUE]}, {config[CONF_MAX_VALUE]})",
-        f"lv_arc_set_bg_angles({var}, {config[CONF_START_ANGLE] // 10}, {config[CONF_END_ANGLE] // 10})",
+        f"lv_arc_set_bg_angles({var}, {config[df.CONF_START_ANGLE] // 10}, {config[df.CONF_END_ANGLE] // 10})",
         f"lv_arc_set_rotation({var}, {config[CONF_ROTATION] // 10})",
         f"lv_arc_set_mode({var}, {config[CONF_MODE]})",
-        f"lv_arc_set_change_rate({var}, {config[CONF_CHANGE_RATE]})",
+        f"lv_arc_set_change_rate({var}, {config[df.CONF_CHANGE_RATE]})",
     ]
-    if not config[CONF_ADJUSTABLE]:
+    if not config[df.CONF_ADJUSTABLE]:
         init.extend(
             [
                 f"lv_obj_remove_style({var}, nullptr, LV_PART_KNOB)",
@@ -1911,8 +1814,8 @@ async def rotary_encoders_to_code(var, config):
     lv.lv_uses.add("ROTARY_ENCODER")
     for enc_conf in config[df.CONF_ROTARY_ENCODERS]:
         sensor = await cg.get_variable(enc_conf[CONF_SENSOR])
-        lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
-        lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
+        lpt = enc_conf[df.CONF_LONG_PRESS_TIME].total_milliseconds
+        lprt = enc_conf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(enc_conf[CONF_ID], lpt, lprt)
         await cg.register_parented(listener, var)
         if group := add_group(enc_conf.get(CONF_GROUP)):
@@ -1939,8 +1842,8 @@ async def touchscreens_to_code(var, config):
     lv.lv_uses.add("TOUCHSCREEN")
     for touchconf in config[df.CONF_TOUCHSCREENS]:
         touchscreen = await cg.get_variable(touchconf[CONF_TOUCHSCREEN_ID])
-        lpt = touchconf[CONF_LONG_PRESS_TIME].total_milliseconds
-        lprt = touchconf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
+        lpt = touchconf[df.CONF_LONG_PRESS_TIME].total_milliseconds
+        lprt = touchconf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(touchconf[CONF_ID], lpt, lprt)
         await cg.register_parented(listener, var)
         init.extend(
@@ -1998,11 +1901,11 @@ async def generate_triggers(lv_component):
                             f"{lv_component}->get_custom_change_event()",
                         )
                     )
-            if align_to := widget.config.get(CONF_ALIGN_TO):
+            if align_to := widget.config.get(df.CONF_ALIGN_TO):
                 target = widget_map[align_to[CONF_ID]].obj
-                align = align_to[CONF_ALIGN]
-                x = align_to[CONF_X]
-                y = align_to[CONF_Y]
+                align = align_to[df.CONF_ALIGN]
+                x = align_to[df.CONF_X]
+                y = align_to[df.CONF_Y]
                 init.append(f"lv_obj_align_to({obj}, {target}, {align}, {x}, {y})")
 
     return init
@@ -2010,9 +1913,9 @@ async def generate_triggers(lv_component):
 
 async def disp_update(disp, config: dict):
     init = []
-    if bg_color := config.get(CONF_DISP_BG_COLOR):
+    if bg_color := config.get(df.CONF_DISP_BG_COLOR):
         init.append(f"lv_disp_set_bg_color({disp}, {await lv_color.process(bg_color)})")
-    if bg_image := config.get(CONF_DISP_BG_IMAGE):
+    if bg_image := config.get(df.CONF_DISP_BG_IMAGE):
         init.append(f"lv_disp_set_bg_image({disp}, lv_img_from({bg_image}))")
     return init
 
@@ -2021,7 +1924,7 @@ async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
     add_define("USE_LVGL", "1")
     # suppress default enabling of extra widgets
-    add_define("LV_CONF_SKIP", "1")
+    add_define("LV_df.CONF_SKIP", "1")
     add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
     add_define("LV_DRAW_COMPLEX", "1")
@@ -2040,21 +1943,22 @@ async def to_code(config):
         "LV_MEM_CUSTOM_INCLUDE", "_STRINGIFY(esphome/components/lvgl/lvgl_hal.h)"
     )
 
-    add_define("LV_LOG_LEVEL", f"LV_LOG_LEVEL_{config[CONF_LOG_LEVEL]}")
+    add_define("LV_LOG_LEVEL", f"LV_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}")
     for font in lv.lv_fonts_used:
         add_define(f"LV_FONT_{font.upper()}")
-    add_define("LV_COLOR_DEPTH", config[CONF_COLOR_DEPTH])
-    default_font = config[CONF_DEFAULT_FONT]
+    add_define("LV_COLOR_DEPTH", config[df.CONF_COLOR_DEPTH])
+    default_font = config[df.CONF_DEFAULT_FONT]
     add_define("LV_FONT_DEFAULT", default_font)
     if lv.is_esphome_font(default_font):
         add_define("LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{default_font})")
 
-    if config[CONF_COLOR_DEPTH] == 16:
+    if config[df.CONF_COLOR_DEPTH] == 16:
         add_define(
-            "LV_COLOR_16_SWAP", "1" if config[CONF_BYTE_ORDER] == "big_endian" else "0"
+            "LV_COLOR_16_SWAP",
+            "1" if config[df.CONF_BYTE_ORDER] == "big_endian" else "0",
         )
     add_define(
-        "LV_COLOR_CHROMA_KEY", await lv_color.process(config[CONF_TRANSPARENCY_KEY])
+        "LV_COLOR_CHROMA_KEY", await lv_color.process(config[df.CONF_TRANSPARENCY_KEY])
     )
     CORE.add_build_flag("-Isrc")
 
@@ -2065,7 +1969,7 @@ async def to_code(config):
     displays = set()
     if display := config.get(CONF_DISPLAY_ID):
         displays.add(display)
-    for display in config.get(CONF_DISPLAYS, []):
+    for display in config.get(df.CONF_DISPLAYS, []):
         displays.add(display[CONF_DISPLAY_ID])
     for display in displays:
         cg.add(lv_component.add_display(await cg.get_variable(display)))
@@ -2079,7 +1983,7 @@ async def to_code(config):
     else:
         frac = 8
     cg.add(lv_component.set_buffer_frac(int(frac)))
-    cg.add(lv_component.set_full_refresh(config[CONF_FULL_REFRESH]))
+    cg.add(lv_component.set_full_refresh(config[df.CONF_FULL_REFRESH]))
     cgen("lv_init()")
     if df.CONF_ROTARY_ENCODERS in config:  # or df.CONF_KEYBOARDS in config
         cgen("lv_group_set_default(lv_group_create())")
@@ -2091,25 +1995,25 @@ async def to_code(config):
             cg.Pvariable(
                 ID(f"{font}_as_lv_font_", True, ty.lv_font_t.operator("const")), getter
             )
-    if style_defs := config.get(CONF_STYLE_DEFINITIONS, []):
+    if style_defs := config.get(df.CONF_STYLE_DEFINITIONS, []):
         await styles_to_code(style_defs)
-    if theme := config.get(CONF_THEME):
+    if theme := config.get(df.CONF_THEME):
         lv.lv_uses.add("THEME")
         await theme_to_code(theme)
-    if msgboxes := config.get(CONF_MSGBOXES):
+    if msgboxes := config.get(df.CONF_MSGBOXES):
         lv.lv_uses.add("MSGBOX")
         for msgbox in msgboxes:
             init.extend(await msgbox_to_code(msgbox))
     lv_scr_act = Widget("lv_scr_act()", ty.lv_obj_t, config, "lv_scr_act()")
-    if top_conf := config.get(CONF_TOP_LAYER):
+    if top_conf := config.get(df.CONF_TOP_LAYER):
         top_layer = Widget("lv_disp_get_layer_top(lv_disp)", ty.lv_obj_t)
         init.extend(await set_obj_properties(top_layer, top_conf))
-        if widgets := top_conf.get(CONF_WIDGETS):
+        if widgets := top_conf.get(df.CONF_WIDGETS):
             for widg in widgets:
                 w_type, w_cnfig = next(iter(widg.items()))
                 ext_init = await widget_to_code(w_cnfig, w_type, top_layer)
                 init.extend(ext_init)
-    if widgets := config.get(CONF_WIDGETS):
+    if widgets := config.get(df.CONF_WIDGETS):
         init.extend(await set_obj_properties(lv_scr_act, config))
         for widg in widgets:
             w_type, w_cnfig = next(iter(widg.items()))
@@ -2123,7 +2027,7 @@ async def to_code(config):
 
     global widgets_completed
     widgets_completed = True
-    init.append(f"{lv_component}->set_page_wrap({config[CONF_PAGE_WRAP]})")
+    init.append(f"{lv_component}->set_page_wrap({config[df.CONF_PAGE_WRAP]})")
     init.extend(await generate_triggers(lv_component))
     init.extend(await touchscreens_to_code(lv_component, config))
     init.extend(await rotary_encoders_to_code(lv_component, config))
@@ -2164,8 +2068,8 @@ async def update_to_code(config, action_id, widget: Widget, init, template_arg, 
 
 DISP_BG_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_DISP_BG_IMAGE): cv.use_id(Image_),
-        cv.Optional(CONF_DISP_BG_COLOR): lv_color,
+        cv.Optional(df.CONF_DISP_BG_IMAGE): cv.use_id(Image_),
+        cv.Optional(df.CONF_DISP_BG_COLOR): lv_color,
     }
 )
 
@@ -2174,11 +2078,11 @@ CONFIG_SCHEMA = (
     .extend(obj_schema("obj"))
     .extend(
         {
-            cv.Optional(CONF_ID, default=CONF_LVGL_COMPONENT): cv.declare_id(
+            cv.Optional(CONF_ID, default=df.CONF_LVGL_COMPONENT): cv.declare_id(
                 ty.LvglComponent
             ),
             cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(Display),
-            cv.Optional(CONF_DISPLAYS): cv.ensure_list(
+            cv.Optional(df.CONF_DISPLAYS): cv.ensure_list(
                 cv.maybe_simple_value(
                     {
                         cv.Required(CONF_DISPLAY_ID): cv.use_id(Display),
@@ -2191,10 +2095,10 @@ CONFIG_SCHEMA = (
                     {
                         cv.Required(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
                         cv.Optional(
-                            CONF_LONG_PRESS_TIME, default="400ms"
+                            df.CONF_LONG_PRESS_TIME, default="400ms"
                         ): cv.positive_time_period_milliseconds,
                         cv.Optional(
-                            CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
+                            df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
                         ): cv.positive_time_period_milliseconds,
                         cv.GenerateID(): cv.declare_id(ty.LVTouchListener),
                     },
@@ -2207,10 +2111,10 @@ CONFIG_SCHEMA = (
                         {
                             cv.Required(CONF_SENSOR): cv.use_id(RotaryEncoderSensor),
                             cv.Optional(
-                                CONF_LONG_PRESS_TIME, default="400ms"
+                                df.CONF_LONG_PRESS_TIME, default="400ms"
                             ): cv.positive_time_period_milliseconds,
                             cv.Optional(
-                                CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
+                                df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
                             ): cv.positive_time_period_milliseconds,
                             cv.Optional(CONF_BINARY_SENSOR): cv.use_id(BinarySensor),
                             cv.Optional(CONF_GROUP): lv.id_name,
@@ -2219,17 +2123,17 @@ CONFIG_SCHEMA = (
                     )
                 ),
             ),
-            cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(1, 8, 16, 32),
-            cv.Optional(CONF_DEFAULT_FONT, default="montserrat_14"): lv.font,
-            cv.Optional(CONF_FULL_REFRESH, default=False): cv.boolean,
+            cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(1, 8, 16, 32),
+            cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lv.font,
+            cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
-            cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
+            cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                 *df.LOG_LEVELS, upper=True
             ),
-            cv.Optional(CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
+            cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
                 "big_endian", "little_endian"
             ),
-            cv.Optional(CONF_STYLE_DEFINITIONS): cv.ensure_list(
+            cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
                 cv.Schema({cv.Required(CONF_ID): cv.declare_id(ty.lv_style_t)}).extend(
                     STYLE_SCHEMA
                 )
@@ -2242,15 +2146,15 @@ CONFIG_SCHEMA = (
                     ),
                 }
             ),
-            cv.Exclusive(CONF_WIDGETS, CONF_PAGES): cv.ensure_list(WIDGET_SCHEMA),
+            cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(WIDGET_SCHEMA),
             cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
                 container_schema(df.CONF_PAGE)
             ),
-            cv.Optional(CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
-            cv.Optional(CONF_PAGE_WRAP, default=True): lv_bool,
-            cv.Optional(CONF_TOP_LAYER): container_schema(CONF_OBJ),
-            cv.Optional(CONF_TRANSPARENCY_KEY, default=0x000400): lv_color,
-            cv.Optional(CONF_THEME): cv.Schema(
+            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(df.CONF_OBJ),
+            cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lv_color,
+            cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(w): obj_schema(w) for w in WIDGET_TYPES}
             ),
         }
@@ -2258,13 +2162,13 @@ CONFIG_SCHEMA = (
     .extend(DISP_BG_SCHEMA)
 ).add_extra(
     cv.All(
-        cv.has_at_least_one_key(CONF_PAGES, CONF_WIDGETS),
+        cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS),
     )
 )
 
 
 def spinner_obj_creator(parent: Widget, config: dict):
-    return f"lv_spinner_create({parent.obj}, {config[CONF_SPIN_TIME].total_milliseconds}, {config[CONF_ARC_LENGTH] // 10})"
+    return f"lv_spinner_create({parent.obj}, {config[df.CONF_SPIN_TIME].total_milliseconds}, {config[df.CONF_ARC_LENGTH] // 10})"
 
 
 async def widget_to_code(w_cnfig, w_type, parent: Widget):
@@ -2292,7 +2196,7 @@ async def widget_to_code(w_cnfig, w_type, parent: Widget):
     if theme := theme_widget_map.get(w_type):
         init.append(f"{theme}({obj})")
     init.extend(await set_obj_properties(widget, w_cnfig))
-    if widgets := w_cnfig.get(CONF_WIDGETS):
+    if widgets := w_cnfig.get(df.CONF_WIDGETS):
         for widg in widgets:
             sub_type, sub_config = next(iter(widg.items()))
             ext_init = await widget_to_code(sub_config, sub_type, widget)
@@ -2367,7 +2271,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "lvgl.widget.update", ty.ObjUpdateAction, modify_schema(CONF_OBJ)
+    "lvgl.widget.update", ty.ObjUpdateAction, modify_schema(df.CONF_OBJ)
 )
 async def obj_update_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
@@ -2419,8 +2323,8 @@ async def label_update_to_code(config, action_id, template_arg, args):
         {
             cv.Required(CONF_ID): cv.use_id(ty.lv_meter_indicator_t),
             cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
-            cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
-            cv.Optional(CONF_END_VALUE): lv_float,
+            cv.Exclusive(df.CONF_START_VALUE, CONF_VALUE): lv_float,
+            cv.Optional(df.CONF_END_VALUE): lv_float,
         }
     ),
 )
@@ -2439,7 +2343,7 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Optional(CONF_WIDTH): cv.positive_int,
-            cv.Optional(CONF_CONTROL): cv.ensure_list(
+            cv.Optional(df.CONF_CONTROL): cv.ensure_list(
                 cv.Schema(
                     {cv.Optional(k.lower()): cv.boolean for k in df.BTNMATRIX_CTRLS}
                 ),
@@ -2457,7 +2361,7 @@ async def button_update_to_code(config, action_id, template_arg, args):
         init.extend(widget.set_width(width))
     if config.get(df.CONF_SELECTED):
         init.extend(widget.set_selected())
-    if controls := config.get(CONF_CONTROL):
+    if controls := config.get(df.CONF_CONTROL):
         adds = []
         clrs = []
         for item in controls:
@@ -2514,7 +2418,7 @@ async def bar_update_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
     init = []
     value = await lv_int.process(config.get(CONF_VALUE))
-    animated = config[CONF_ANIMATED]
+    animated = config[df.CONF_ANIMATED]
     init.append(f"lv_bar_set_value({widget.obj}, {value}, {animated})")
     return await update_to_code(config, action_id, widget, init, template_arg, args)
 
@@ -2540,7 +2444,7 @@ async def slider_to_code(slider: Widget, config):
 async def slider_update_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
     init = []
-    animated = config[CONF_ANIMATED]
+    animated = config[df.CONF_ANIMATED]
     value = await lv_int.process(config.get(CONF_VALUE))
     init.append(f"lv_slider_set_value({widget.obj}, {value}, {animated})")
     return await update_to_code(config, action_id, widget, init, template_arg, args)
@@ -2554,7 +2458,7 @@ async def slider_update_to_code(config, action_id, template_arg, args):
 async def img_update_to_code(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
     init = []
-    if src := config.get(CONF_SRC):
+    if src := config.get(df.CONF_SRC):
         init.append(f"lv_img_set_src({widget.obj}, lv_img_from({src}))")
     return await update_to_code(config, action_id, widget, init, template_arg, args)
 
@@ -2565,13 +2469,13 @@ async def img_update_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Optional(CONF_ID): cv.use_id(ty.lv_obj_t),
-            cv.GenerateID(CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
+            cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
         }
     ),
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_LVGL_ID])
+    await cg.register_parented(var, config[df.CONF_LVGL_ID])
     if obj_id := config.get(CONF_ID):
         obj = cg.get_variable(obj_id)
     else:
@@ -2588,14 +2492,14 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
     ty.LvglAction,
     {
         cv.GenerateID(): cv.use_id(ty.LvglComponent),
-        cv.Optional(CONF_SHOW_SNOW, default="false"): lv_bool,
+        cv.Optional(df.CONF_SHOW_SNOW, default="false"): lv_bool,
     },
 )
 async def pause_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     lamb = await cg.process_lambda(
-        Lambda(f"lvgl_comp->set_paused(true, {config[CONF_SHOW_SNOW]});"),
+        Lambda(f"lvgl_comp->set_paused(true, {config[df.CONF_SHOW_SNOW]});"),
         [(ty.LvglComponentPtr, "lvgl_comp")],
     )
     cg.add(var.set_action(lamb))
@@ -2633,7 +2537,7 @@ async def resume_action_to_code(config, action_id, template_arg, args):
 )
 async def lvgl_is_idle(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
-    lvgl = config[CONF_LVGL_ID]
+    lvgl = config[df.CONF_LVGL_ID]
     timeout = await cg.templatable(config[CONF_TIMEOUT], [], cg.uint32)
     if isinstance(timeout, LambdaExpression):
         timeout = f"({timeout}())"
@@ -2655,7 +2559,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
 )
 async def lvgl_is_paused(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
-    lvgl = config[CONF_LVGL_ID]
+    lvgl = config[df.CONF_LVGL_ID]
     await cg.register_parented(var, lvgl)
     lamb = await cg.process_lambda(
         Lambda("return lvgl_comp->is_paused();"), [(ty.LvglComponentPtr, "lvgl_comp")]
