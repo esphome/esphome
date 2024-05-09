@@ -68,7 +68,7 @@ void APDS9306::setup() {
 }
 
 void APDS9306::dump_config() {
-  LOG_SENSOR("", TAG, this);
+  LOG_SENSOR("", "apds9306", this);
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
