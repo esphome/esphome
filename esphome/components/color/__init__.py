@@ -26,8 +26,20 @@ def hex_color(value):
         raise cv.Invalid("Color must be hexadecimal") from exc
 
 
+components = {
+    CONF_RED,
+    CONF_RED_INT,
+    CONF_GREEN,
+    CONF_GREEN_INT,
+    CONF_BLUE,
+    CONF_BLUE_INT,
+    CONF_WHITE,
+    CONF_WHITE_INT,
+}
+
+
 def validate_color(config):
-    if CONF_HEX in config and len(config) != 2:
+    if CONF_HEX in config and set(config) & components:
         raise cv.Invalid("Hex color value may not be combined with component values")
     return config
 
