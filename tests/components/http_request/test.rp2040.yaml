@@ -1,5 +1,4 @@
 substitutions:
   ecb: "true"
 
-<<: !include common_http_request.yaml
 <<: !include common_ota.yaml

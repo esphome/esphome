@@ -1,0 +1,4 @@
+substitutions:
+  ecb: "false"
+
+<<: !include common_ota.yaml
