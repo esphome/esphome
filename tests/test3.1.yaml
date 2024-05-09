@@ -49,7 +49,8 @@ spi:
     number: GPIO14
 
 ota:
-  version: 2
+  - platform: esphome
+    version: 2
 
 logger:
 
