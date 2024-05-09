@@ -11,7 +11,7 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 CONF_APDS9306_ID = "apds9306_id"
-CONF_AMBIENT_LIGHT_GAIN = "gain"
+CONF_GAIN = "gain"
 CONF_BIT_WIDTH = "bit_width"
 CONF_MEASUREMENT_RATE = "measurement_rate"
 
@@ -57,7 +57,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(CONF_AMBIENT_LIGHT_GAIN, default="1"): cv.enum(
+            cv.Optional(CONF_GAIN, default="1"): cv.enum(
                 AMBIENT_LIGHT_GAINS, lower=True
             ),
             cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
