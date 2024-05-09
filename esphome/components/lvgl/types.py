@@ -18,20 +18,19 @@ ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
 LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
 LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
 lv_lambda_t = lvgl_ns.class_("LvLambdaType")
+lv_indicator_t = lvgl_ns.class_("lv_indicator_t")
 lv_lambda_ptr_t = lvgl_ns.class_("LvLambdaType").operator("ptr")
 LvCompound = lvgl_ns.class_("LvCompound")
 lv_pseudo_button_t = lvgl_ns.class_("LvPseudoButton")
-lv_font_t = cg.global_ns.class_("LvFontType")
+lv_font_t = cg.global_ns.class_("lv_font_t")
 lv_page_t = cg.global_ns.class_("LvPageType")
-lv_screen_t = cg.global_ns.class_("LvScreenType")
-lv_point_t = cg.global_ns.struct("LvPointType")
-lv_msgbox_t = cg.global_ns.struct("LvMsgBoxType")
-lv_style_t = cg.global_ns.struct("LvStyleType")
-lv_color_t = cg.global_ns.struct("LvColorType")
-lv_meter_indicator_t = cg.global_ns.struct("LvMeterIndicatorType")
-lv_indicator_t = cg.global_ns.struct("LvMeterIndicatorType")
+lv_point_t = cg.global_ns.struct("lv_point_t")
+lv_msgbox_t = cg.global_ns.struct("lv_msgbox_t")
+lv_style_t = cg.global_ns.struct("lv_style_t")
+lv_color_t = cg.global_ns.struct("lv_color_t")
+lv_meter_indicator_t = cg.global_ns.struct("lv_meter_indicator_t")
 lv_meter_indicator_t_ptr = lv_meter_indicator_t.operator("ptr")
-lv_obj_base_t = cg.global_ns.class_("LvObjType", lv_pseudo_button_t)
+lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
 
 
@@ -81,29 +80,29 @@ class LvSelect(LvType):
         )
 
 
-lv_obj_t = LvType("LvObjType")
-LvBtnmBtn = LvBoolean("LvBtnmBtn", parents=(lv_pseudo_button_t,))
-lv_label_t = LvType("LvLabelType")
-lv_dropdown_list_t = LvType("LvDropdownListType")
-lv_meter_t = LvType("LvMeterType")
-lv_btn_t = LvBoolean("LvBtnType")
-lv_checkbox_t = LvBoolean("LvCheckboxType")
-lv_line_t = LvType("LvLineType")
-lv_img_t = LvType("LvImgType")
-lv_animimg_t = LvType("LvAnimImgType")
-lv_tile_t = LvType("LvTileType")
-lv_spinbox_t = LvNumber("LvSpinBoxType")
-lv_arc_t = LvNumber("LvArcType")
-lv_bar_t = LvNumber("LvBarType")
-lv_slider_t = LvNumber("LvSliderType")
+lv_obj_t = LvType("lv_obj_t")
+LvBtnmBtn = LvBoolean("lv_obj_t", parents=(lv_pseudo_button_t,))
+lv_label_t = LvType("lv_label_t")
+lv_dropdown_list_t = LvType("lv_dropdown_list_t")
+lv_meter_t = LvType("lv_meter_t")
+lv_btn_t = LvBoolean("lv_btn_t")
+lv_checkbox_t = LvBoolean("lv_checkbox_t")
+lv_line_t = LvType("lv_line_t")
+lv_img_t = LvType("lv_img_t")
+lv_animimg_t = LvType("lv_animimg_t")
+lv_tile_t = LvType("lv_tileview_tile_t")
+lv_spinbox_t = LvNumber("lv_spinbox_t")
+lv_arc_t = LvNumber("lv_arc_t")
+lv_bar_t = LvNumber("lv_bar_t")
+lv_slider_t = LvNumber("lv_slider_t")
 lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
-lv_canvas_t = LvType("LvCanvasType")
-lv_dropdown_t = LvSelect("LvDropdownType")
-lv_roller_t = LvSelect("LvRollerType", animated=True)
-lv_led_t = LvType("LvLedType")
-lv_switch_t = LvBoolean("LvSwitchType")
-lv_table_t = LvType("LvTableType")
-lv_chart_t = LvType("LvChartType")
+lv_canvas_t = LvType("lv_canvas_t")
+lv_dropdown_t = LvSelect("lv_dropdown_t")
+lv_roller_t = LvSelect("lv_roller_t", animated=True)
+lv_led_t = LvType("lv_led_t")
+lv_switch_t = LvBoolean("lv_switch_t")
+lv_table_t = LvType("lv_table_t")
+lv_chart_t = LvType("lv_chart_t")
 lv_btnmatrix_t = LvType("LvBtnmatrixType", parents=(KeyProvider, LvCompound))
 lv_keyboard_t = LvType(
     "LvKeyboardType",
@@ -112,14 +111,14 @@ lv_keyboard_t = LvType(
     lvalue=lambda w: f"lv_textarea_get_text({w.obj})",
 )
 lv_textarea_t = LvType(
-    "LvTextareaType",
+    "lv_textarea_t",
     largs=[(cg.const_char_ptr, "text")],
     lvalue=lambda w: f"lv_textarea_get_text({w.obj})",
     has_on_value=True,
 )
 
 lv_tileview_t = LvType(
-    "LvTileViewtype",
+    "lv_tileview_t",
     largs=[(lv_obj_t_ptr, "tile")],
     lvalue=lambda w: f"lv_tileview_get_tile_act({w.obj})",
 )
