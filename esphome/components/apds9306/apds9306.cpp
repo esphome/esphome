@@ -163,7 +163,7 @@ void APDS9306::update() {
 
   uint32_t light_level = 0x0000 | ( (als_data[0]) + (als_data[1] << 8) + (als_data[2] << 16));
 
-  float lux = (light_level / gain_val_) * (100.0f / rate_val_);
+  float lux = ((float)light_level / gain_val_) * (100.0f / rate_val_);
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx", lux);
   this->publish_state(lux);
