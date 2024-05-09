@@ -42,7 +42,9 @@ AMBIENT_LIGHT_GAINS = {
 }
 
 apds9306_nds = cg.esphome_ns.namespace("apds9306")
-APDS9306 = apds9306_nds.class_("APDS9306", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice)
+APDS9306 = apds9306_nds.class_(
+    "APDS9306", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
+)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -55,9 +57,15 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(CONF_AMBIENT_LIGHT_GAIN, default="1"): cv.enum(AMBIENT_LIGHT_GAINS, lower=True),
-            cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(MEASUREMENT_BIT_WIDTHS, lower=True),
-            cv.Optional(CONF_MEASUREMENT_RATE, default="100ms"): cv.enum(MEASUREMENT_RATES, lower=True),
+            cv.Optional(CONF_AMBIENT_LIGHT_GAIN, default="1"): cv.enum(
+                AMBIENT_LIGHT_GAINS, lower=True
+            ),
+            cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
+                MEASUREMENT_BIT_WIDTHS, lower=True
+            ),
+            cv.Optional(CONF_MEASUREMENT_RATE, default="100ms"): cv.enum(
+                MEASUREMENT_RATES, lower=True
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
