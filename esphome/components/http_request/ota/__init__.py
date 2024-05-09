@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_FORCE_UPDATE,
 )
 from esphome.components import esp32
+from esphome.components.http_request import http_request_ns
 from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
 from esphome.core import CORE, coroutine_with_priority
 
@@ -26,17 +27,16 @@ CONF_MAX_URL_LENGTH = "max_url_length"
 CONF_MD5_URL = "md5_url"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 
-ota_http_request_ns = cg.esphome_ns.namespace("ota_http_request")
-OtaHttpRequestComponent = ota_http_request_ns.class_(
+OtaHttpRequestComponent = http_request_ns.class_(
     "OtaHttpRequestComponent", OTAComponent
 )
-OtaHttpRequestComponentArduino = ota_http_request_ns.class_(
+OtaHttpRequestComponentArduino = http_request_ns.class_(
     "OtaHttpRequestComponentArduino", OtaHttpRequestComponent
 )
-OtaHttpRequestComponentIDF = ota_http_request_ns.class_(
+OtaHttpRequestComponentIDF = http_request_ns.class_(
     "OtaHttpRequestComponentIDF", OtaHttpRequestComponent
 )
-OtaHttpRequestComponentFlashAction = ota_http_request_ns.class_(
+OtaHttpRequestComponentFlashAction = http_request_ns.class_(
     "OtaHttpRequestComponentFlashAction", automation.Action
 )
 
