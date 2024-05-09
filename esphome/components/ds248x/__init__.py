@@ -7,7 +7,6 @@ from esphome.components import i2c
 CODEOWNERS = ["@alainstark"]
 
 MULTI_CONF = True
-AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["i2c"]
 
 CONF_BUS_SLEEP = "bus_sleep"
