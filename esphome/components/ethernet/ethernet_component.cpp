@@ -1,12 +1,12 @@
 #include "ethernet_component.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/core/application.h"
 
 #ifdef USE_ESP32
 
-#include <cinttypes>
 #include <lwip/dns.h>
+#include <cinttypes>
 #include "esp_event.h"
 
 #ifdef USE_ETHERNET_SPI
@@ -554,9 +554,10 @@ bool EthernetComponent::powerdown() {
 }
 
 #ifndef USE_ETHERNET_SPI
-void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
-#define KSZ80XX_PC2R_REG_ADDR (0x1F)
 
+constexpr uint8_t KSZ80XX_PC2R_REG_ADDR = 0x1F;
+
+void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
   esp_err_t err;
 
   uint32_t phy_control_2;
@@ -581,8 +582,6 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
     ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
     ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
   }
-
-#undef KSZ80XX_PC2R_REG_ADDR
 }
 #endif
 
