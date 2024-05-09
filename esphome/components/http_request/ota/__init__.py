@@ -13,9 +13,9 @@ from esphome.const import (
     CONF_FORCE_UPDATE,
 )
 from esphome.components import esp32
-from esphome.components.http_request import http_request_ns
 from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
 from esphome.core import CORE, coroutine_with_priority
+from .. import http_request_ns
 
 CODEOWNERS = ["@oarcher"]
 
