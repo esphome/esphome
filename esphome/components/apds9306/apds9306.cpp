@@ -35,6 +35,10 @@ namespace apds9306 {
       return;
     }
 
+    // MAIN_CTRL (0x00)
+    // Set to active mode
+    APDS9306_WRITE_BYTE(0x00, 0x02);
+
     // ALS_MEAS_RATE (0x04)
     uint8_t als_meas_rate = 0;
     APDS9306_ERROR_CHECK(this->read_byte(0x04, &als_meas_rate));
@@ -56,8 +60,6 @@ namespace apds9306 {
     APDS9306_WRITE_BYTE(0x05, als_gain);
 
     // MAIN_CTRL (0x00)
-    // Set to active mode
-    APDS9306_WRITE_BYTE(0x00, 0x02);
     // Trigger software reset
     APDS9306_WRITE_BYTE(0x00, 0x10);
   }
