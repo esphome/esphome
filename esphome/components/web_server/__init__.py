@@ -1,6 +1,7 @@
 import gzip
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.const import (
@@ -66,14 +67,46 @@ def validate_ota(config):
     return config
 
 
+def check_if_sorting_weight_is_in_config(config):
+    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
+        return True
+    for value in config.values():
+        if isinstance(value, dict):
+            if check_if_sorting_weight_is_in_config(value):
+                return True
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    if check_if_sorting_weight_is_in_config(item):
+                        return True
+    return False
+
+
+def final_validate_sorting_weight(config):
+    if (
+        check_if_sorting_weight_is_in_config(fv.full_config.get())
+        and (webserver_version := config.get(CONF_VERSION)) != 3
+    ):
+        raise cv.Invalid(
+            f"'{CONF_WEB_SERVER_SORTING_WEIGHT}' is not supported in webserver version {webserver_version}"
+        )
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = final_validate_sorting_weight
+
+
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
     {
         cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
         cv.OnlyWith(CONF_WEB_SERVER_SORTING_WEIGHT, "web_server", 50): cv.All(
-            cv.requires_component("web_server"), cv.float_
+            cv.requires_component("web_server"),
+            cv.float_,
         ),
     }
 )
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
