@@ -94,6 +94,10 @@ void SNTPComponent::loop() {
         ESP_LOGD(TAG, "Time sync in progress");
         break;
     }
+
+    if (item.first) {
+      ESP_LOGD(TAG, "Time value is %ds %dus", item.first->tv_sec, item.first->tv_usec);
+    }
   }
   callback_args_.clear();
 
