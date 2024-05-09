@@ -14,10 +14,10 @@ CONF_HEX = "hex"
 
 
 def hex_color(value):
-    if value is None:
-        raise cv.Invalid("Missing value for hex color")
     if isinstance(value, int):
         value = str(value)
+    if not isinstance(value, str):
+        raise cv.Invalid("Invalid value for hex color")
     if len(value) != 6:
         raise cv.Invalid("Hex color must have six digits")
     try:
