@@ -60,8 +60,8 @@ namespace apds9306 {
     APDS9306_WRITE_BYTE(0x05, als_gain);
 
     // MAIN_CTRL (0x00)
-    // Trigger software reset
-    APDS9306_WRITE_BYTE(0x00, 0x10);
+    // Trigger software reset and enable
+    APDS9306_WRITE_BYTE(0x00, 0x12);
   }
 
   void APDS9306::dump_config() {
