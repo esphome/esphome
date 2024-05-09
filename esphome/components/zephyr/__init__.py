@@ -39,17 +39,20 @@ def zephyr_set_core_data(config):
 PrjConfValueType = Union[bool, str, int]
 
 
-def zephyr_add_prj_conf(name: str, value: PrjConfValueType):
+def zephyr_add_prj_conf(name: str, value: PrjConfValueType, required: bool = True):
     """Set an zephyr prj conf value."""
     if not name.startswith("CONFIG_"):
         name = "CONFIG_" + name
     if name in CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF]:
         old_value = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name]
-        if old_value != value:
+        if old_value[0] != value and old_value[1]:
             raise ValueError(
-                f"{name} already set with value '{old_value}', cannot set again to '{value}'"
+                f"{name} already set with value '{old_value[0]}', cannot set again to '{value}'"
             )
-    CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = value
+        if required:
+            CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = (value, required)
+    else:
+        CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = (value, required)
 
 
 def zephyr_add_overlay(content):
@@ -96,8 +99,7 @@ def zephyr_to_code(conf):
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
-    # TODO disable when no OTA USB CDC
-    # zephyr_add_prj_conf("CONSOLE", False)
+    zephyr_add_prj_conf("CONSOLE", False, False)
 
     add_extra_script(
         "pre",
@@ -143,7 +145,7 @@ def copy_files():
     want_opts = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF]
     contents = (
         "\n".join(
-            f"{name}={_format_prj_conf_val(value)}"
+            f"{name}={_format_prj_conf_val(value[0])}"
             for name, value in sorted(want_opts.items())
         )
         + "\n"

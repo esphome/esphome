@@ -8,6 +8,19 @@ from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
 from esphome.espota2 import ProgressBar
 
+try:
+    from smpclient.transport.ble import SMPBLETransport
+    from smpclient.transport.serial import SMPSerialTransport
+    from smpclient import SMPClient
+    from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound, MCUBootImageError
+    from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
+    from smpclient.requests.os_management import ResetWrite
+    from smpclient.generics import error, success
+    from smp.exceptions import SMPBadStartDelimiter
+except ModuleNotFoundError:
+    pass
+
+
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
 NUS_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 NUS_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -59,8 +72,6 @@ async def smpmgr_scan(name):
 
 def get_image_tlv_sha256(file):
     _LOGGER.info("Checking image: %s", str(file))
-    from smpclient.mcuboot import MCUBootImageError, ImageInfo, TLVNotFound, IMAGE_TLV
-
     try:
         image_info = ImageInfo.load_file(str(file))
         pprint(image_info.header)
@@ -82,14 +93,6 @@ async def smpmgr_upload(config, host, firmware):
     if sys.version_info < (3, 10):
         _LOGGER.error("BLE OTA requires at least python 3.10")
         return 1
-    from smpclient.transport.ble import SMPBLETransport
-    from smpclient.transport.serial import SMPSerialTransport
-    from smpclient import SMPClient
-    from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
-    from smpclient.requests.os_management import ResetWrite
-    from smpclient.generics import error, success
-    from smp.exceptions import SMPBadStartDelimiter
-
     image_tlv_sha256 = get_image_tlv_sha256(firmware)
     if image_tlv_sha256 is None:
         return 1
