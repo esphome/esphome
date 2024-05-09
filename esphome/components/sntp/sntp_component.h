@@ -27,6 +27,8 @@ class SNTPComponent : public time::RealTimeClock {
   void update() override;
   void loop() override;
 
+  bool is_in_progress() const { return !has_time_; }
+
  protected:
   std::string server_1_;
   std::string server_2_;
