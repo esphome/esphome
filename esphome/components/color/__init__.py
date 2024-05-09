@@ -39,8 +39,12 @@ components = {
 
 
 def validate_color(config):
-    if CONF_HEX in config and set(config) & components:
+    has_components = set(config) & components
+    has_hex = CONF_HEX in config
+    if has_hex and has_components:
         raise cv.Invalid("Hex color value may not be combined with component values")
+    if not has_hex and not has_components:
+        raise cv.Invalid("Must provide at least one color option")
     return config
 
 
