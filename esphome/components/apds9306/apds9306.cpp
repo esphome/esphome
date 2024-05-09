@@ -36,8 +36,8 @@ namespace apds9306 {
     }
 
     // MAIN_CTRL (0x00)
-    // Set to active mode
-    APDS9306_WRITE_BYTE(0x00, 0x02);
+    // Trigger software reset
+    APDS9306_WRITE_BYTE(0x00, 0x10);
 
     // ALS_MEAS_RATE (0x04)
     uint8_t als_meas_rate = 0;
@@ -60,8 +60,8 @@ namespace apds9306 {
     APDS9306_WRITE_BYTE(0x05, als_gain);
 
     // MAIN_CTRL (0x00)
-    // Trigger software reset and enable
-    APDS9306_WRITE_BYTE(0x00, 0x12);
+    // Set to active mode
+    APDS9306_WRITE_BYTE(0x00, 0x02);
   }
 
   void APDS9306::dump_config() {
@@ -106,8 +106,6 @@ namespace apds9306 {
     light_level &= als_data[0];
     light_level &= als_data[1] << 8;
     light_level &= als_data[2] << 16;
-
-    ESP_LOGVV(TAG, "APDS9306:", "  ", als_data[0], "  ", als_data[1], "  ", als_data[2]);
 
     if (this->light_level_sensor_ != nullptr)
       this->light_level_sensor_->publish_state(light_level);
