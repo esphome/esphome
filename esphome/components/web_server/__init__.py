@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import gzip
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -67,19 +69,33 @@ def validate_ota(config):
     return config
 
 
-def final_validate_sorting_weight(config):
-    if (
-        check_if_sorting_weight_is_in_config(fv.full_config.get())
-        and (webserver_version := config.get(CONF_VERSION)) != 3
-    ):
-        raise cv.Invalid(
-            f"'{CONF_WEB_SERVER_SORTING_WEIGHT}' is not supported in webserver version {webserver_version}"
+def _validate_no_sorting_weight(
+    webserver_version: int, config: dict, path: list[str] | None = None
+) -> None:
+    if path is None:
+        path = []
+    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
+        raise cv.FinalExternalInvalid(
+            f"Sorting weight on entities is not supported in web_server version {webserver_version}",
+            path=path + [CONF_WEB_SERVER_SORTING_WEIGHT],
         )
+    for p, value in config.items():
+        if isinstance(value, dict):
+            _validate_no_sorting_weight(webserver_version, value, path + [p])
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, dict):
+                    _validate_no_sorting_weight(webserver_version, item, path + [p, i])
+
+
+def _final_validate_sorting_weight(config):
+    if (webserver_version := config.get(CONF_VERSION)) != 3:
+        _validate_no_sorting_weight(webserver_version, fv.full_config.get())
 
     return config
 
 
-FINAL_VALIDATE_SCHEMA = final_validate_sorting_weight
+FINAL_VALIDATE_SCHEMA = _final_validate_sorting_weight
 
 
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
@@ -135,21 +151,6 @@ CONFIG_SCHEMA = cv.All(
     validate_local,
     validate_ota,
 )
-
-
-def check_if_sorting_weight_is_in_config(config):
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
-        return True
-    for value in config.values():
-        if isinstance(value, dict):
-            if check_if_sorting_weight_is_in_config(value):
-                return True
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict):
-                    if check_if_sorting_weight_is_in_config(item):
-                        return True
-    return False
 
 
 def add_entity_to_sorting_list(web_server, entity, config):
