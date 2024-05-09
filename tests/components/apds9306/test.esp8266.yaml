@@ -1,0 +1,12 @@
+i2c:
+  scl: 5
+  sda: 4
+
+apds9306:
+  address: 0x52
+  update_interval: 60s
+
+sensor:
+  - platform: apds9306
+    type: light_level
+    name: APDS9306 Light Level
