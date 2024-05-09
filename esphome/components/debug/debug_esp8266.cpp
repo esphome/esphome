@@ -76,6 +76,7 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
   if (this->block_sensor_ != nullptr) {
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
   }
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
