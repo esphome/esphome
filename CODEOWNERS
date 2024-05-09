@@ -160,6 +160,7 @@ esphome/components/honeywellabp2_i2c/* @jpfaff
 esphome/components/host/* @esphome/core
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
+esphome/components/http_request/ota/* @oarcher
 esphome/components/htu31d/* @betterengineering
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/hyt271/* @Philippe12
@@ -254,7 +255,6 @@ esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
-esphome/components/ota_http/* @oarcher
 esphome/components/output/* @esphome/core
 esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @clydebarrow @hwstar
