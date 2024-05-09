@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
+    CONF_GAIN,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
     ICON_LIGHTBULB,
@@ -11,8 +12,7 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 CONF_APDS9306_ID = "apds9306_id"
-CONF_AMBIENT_LIGHT_GAIN = "ambient_light_gain"
-CONF_BIT_WIDTH = "measurement_bit_width"
+CONF_BIT_WIDTH = "bit_width"
 CONF_MEASUREMENT_RATE = "measurement_rate"
 
 MEASUREMENT_BIT_WIDTHS = {
@@ -57,14 +57,15 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(CONF_AMBIENT_LIGHT_GAIN, default="1"): cv.enum(
+            cv.Optional(CONF_GAIN, default="1"): cv.enum(
                 AMBIENT_LIGHT_GAINS, lower=True
             ),
             cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
                 MEASUREMENT_BIT_WIDTHS, lower=True
             ),
             cv.Optional(CONF_MEASUREMENT_RATE, default="100ms"): cv.enum(
-                MEASUREMENT_RATES, lower=True),
+                MEASUREMENT_RATES, lower=True
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
