@@ -3,7 +3,13 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID, CONF_VOLUME
+from esphome.const import (
+    CONF_ID,
+    CONF_ON_STATE,
+    CONF_TRIGGER_ID,
+    CONF_VOLUME,
+    CONF_ON_IDLE,
+)
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -43,7 +49,6 @@ VolumeSetAction = media_player_ns.class_(
 )
 
 
-CONF_ON_IDLE = "on_idle"
 CONF_ON_PLAY = "on_play"
 CONF_ON_PAUSE = "on_pause"
 CONF_MEDIA_URL = "media_url"
