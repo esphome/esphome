@@ -55,6 +55,7 @@ void SNTPComponent::setup() {
   }
 #ifdef USE_ESP_IDF
   sntp_set_sync_interval(this->get_update_interval());
+  this->stop_poller();
 #endif
 
   ESP_LOGD(TAG, "Set notification callback");
@@ -78,6 +79,9 @@ void SNTPComponent::update() {
     this->has_time_ = false;
     sntp_init();
   }
+#endif
+#if defined(USE_ESP_IDF)
+  sntp_restart();
 #endif
 }
 void SNTPComponent::loop() {
