@@ -1,1 +1,1 @@
-debug:
+<<: !include common.yaml

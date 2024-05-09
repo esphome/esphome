@@ -1,15 +1,1 @@
-esp32_ble_tracker:
-
-sensor:
-  # Example using 11kg 100% propane tank.
-  - platform: mopeka_std_check
-    mac_address: D3:75:F2:DC:16:91
-    tank_type: Europe_11kg
-    temperature:
-      name: "Propane test temp"
-    level:
-      name: "Propane test level"
-    distance:
-      name: "Propane test distance"
-    battery_level:
-      name: "Propane test battery level"
+<<: !include common.yaml

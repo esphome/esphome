@@ -1,7 +1,1 @@
-output:
-  - platform: rp2040_pwm
-    id: light_output_1
-    pin: 2
-  - platform: rp2040_pwm
-    id: light_output_2
-    pin: 3
+<<: !include common.yaml

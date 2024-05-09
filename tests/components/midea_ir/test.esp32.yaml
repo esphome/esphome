@@ -1,8 +1,1 @@
-remote_transmitter:
-  pin: 4
-  carrier_duty_percent: 50%
-
-climate:
-  - platform: midea_ir
-    name: Midea IR
-    use_fahrenheit: true
+<<: !include common.yaml
