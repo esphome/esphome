@@ -26,12 +26,12 @@ lv_page_t = cg.global_ns.class_("LvPageType")
 lv_screen_t = cg.global_ns.class_("LvScreenType")
 lv_point_t = cg.global_ns.struct("LvPointType")
 lv_msgbox_t = cg.global_ns.struct("LvMsgBoxType")
-lv_style_t = cg.global_ns.struct("lv_style_t")
-lv_color_t = cg.global_ns.struct("lv_color_t")
+lv_style_t = cg.global_ns.struct("LvStyleType")
+lv_color_t = cg.global_ns.struct("LvColorType")
 lv_meter_indicator_t = cg.global_ns.struct("LvMeterIndicatorType")
 lv_indicator_t = cg.global_ns.struct("LvMeterIndicatorType")
 lv_meter_indicator_t_ptr = lv_meter_indicator_t.operator("ptr")
-lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
+lv_obj_base_t = cg.global_ns.class_("LvObjType", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
 
 
@@ -81,7 +81,7 @@ class LvSelect(LvType):
         )
 
 
-lv_obj_t = LvType("lv_obj_t")
+lv_obj_t = LvType("LvObjType")
 LvBtnmBtn = LvBoolean("LvBtnmBtn", parents=(lv_pseudo_button_t,))
 lv_label_t = LvType("LvLabelType")
 lv_dropdown_list_t = LvType("LvDropdownListType")
