@@ -17,7 +17,9 @@ if(!(func)) { \
   this->status_set_warning(); \
   return; \
 }
-#define APDS9306_WRITE_BYTE(reg, value) APDS9306_ERROR_CHECK(this->write_byte(reg, value));
+#define APDS9306_WRITE_BYTE(reg, value) \
+ESP_LOGVV(TAG, "WRITE_BYTE: ", reg, value); \
+APDS9306_ERROR_CHECK(this->write_byte(reg, value));
 
 void APDS9306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
