@@ -81,10 +81,12 @@ void SNTPComponent::update() {
   }
 #endif
 #if defined(USE_ESP_IDF)
+  this->has_time_ = false;
   sntp_restart();
 #endif
 }
 void SNTPComponent::loop() {
+#if defined(USE_ESP_IDF)
   for (const auto &item : callback_args_) {
     switch (item.second) {
       case SNTP_SYNC_STATUS_RESET:
@@ -92,6 +94,7 @@ void SNTPComponent::loop() {
         break;
       case SNTP_SYNC_STATUS_COMPLETED:
         ESP_LOGD(TAG, "Time sync completed");
+        this->has_time_ = true;
         this->time_sync_callback_.call();
         break;
       case SNTP_SYNC_STATUS_IN_PROGRESS:
@@ -104,7 +107,7 @@ void SNTPComponent::loop() {
     }
   }
   callback_args_.clear();
-
+#else
   if (this->has_time_)
     return;
 
@@ -116,6 +119,7 @@ void SNTPComponent::loop() {
            time.minute, time.second);
   this->time_sync_callback_.call();
   this->has_time_ = true;
+#endif
 }
 
 }  // namespace sntp
