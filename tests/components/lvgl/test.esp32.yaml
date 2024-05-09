@@ -302,6 +302,12 @@ lvgl:
                 - lvgl.roller.update:
                     id: roller_id
                     selected_index: 5
+            on_value:
+              then:
+                - logger.log:
+                    format: "Roller changed = %d"
+                    args: [x]
+
         - bar:
             id: bar_id
             value: 75
@@ -560,6 +566,9 @@ lvgl:
             on_ready:
               then:
                 - logger.log: Keyboard is ready
+            on_cancel:
+              then:
+                - logger.log: Keyboard cancelled
 
 sensor:
   - platform: lvgl

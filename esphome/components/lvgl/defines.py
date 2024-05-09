@@ -70,6 +70,7 @@ LV_EVENT = {
     "FOCUS": "FOCUSED",
     "DEFOCUS": "DEFOCUSED",
     "READY": "READY",
+    "CANCEL": "CANCEL",
 }
 
 LV_EVENT_TRIGGERS = tuple(map(lambda x: "on_" + x.lower(), LV_EVENT))

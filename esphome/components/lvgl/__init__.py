@@ -1215,7 +1215,7 @@ async def page_to_code(config, pconf, index):
     init = []
     id = pconf[CONF_ID]
     var = cg.new_Pvariable(id)
-    page = Widget(var, ty.lv_page_t, config, f"{var}->page")
+    page = Widget(var, ty.lv_obj_t, config, f"{var}->page")
     widget_map[id] = page
     init.append(f"{page.var}->index = {index}")
     init.append(f"{page.obj} = lv_obj_create(nullptr)")
@@ -1428,19 +1428,19 @@ async def led_update_to_code(config, action_id, template_arg, args):
     return await update_to_code(config, action_id, obj, init, template_arg, args)
 
 
-async def roller_to_code(var, config):
+async def roller_to_code(roller, config):
     lv.lv_uses.add("label")
     init = []
     mode = config[CONF_MODE]
     if options := config.get(CONF_OPTIONS):
         text = cg.safe_exp("\n".join(options))
-        init.append(f"lv_roller_set_options({var.obj}, {text}, {mode})")
+        init.append(f"lv_roller_set_options({roller.obj}, {text}, {mode})")
     animated = config.get(df.CONF_ANIMATED) or "LV_ANIM_OFF"
     if selected := config.get(df.CONF_SELECTED_INDEX):
         value = await lv_int.process(selected)
-        init.append(f"lv_roller_set_selected({var.obj}, {value}, {animated})")
+        init.extend(roller.set_property("selected", value, animated))
     init.extend(
-        var.set_property(
+        roller.set_property(
             df.CONF_VISIBLE_ROW_COUNT,
             await lv_int.process(config.get(df.CONF_VISIBLE_ROW_COUNT)),
         )
