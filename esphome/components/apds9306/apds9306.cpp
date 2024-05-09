@@ -96,13 +96,13 @@ namespace apds9306 {
   }
 
   void APDS9306::get_light_level_(uint8_t status) {
-    //if (!(status &= 0b00001000)) // No new data
-    //  return;
+    if (!(status &= 0b00001000)) // No new data
+      return;
 
     uint8_t als_data[3];
     APDS9306_WARNING_CHECK(this->read_byte(0x0D, als_data, 3), "Reading ALS data has failed.");
 
-    uint32_t light_level = 0x0000 | als_data[0] | als_data[1] << 8 | als_data[2] << 16;
+    uint32_t light_level = 0x0000 | ( als_data[0] + als_data[1] << 8 + als_data[2] << 16);
 
     if (this->light_level_sensor_ != nullptr)
       this->light_level_sensor_->publish_state(light_level);
