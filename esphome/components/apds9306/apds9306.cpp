@@ -12,7 +12,7 @@ static const char *const TAG = "apds9306";
     return; \
   }
 #define APDS9306_WARNING_CHECK(func, warning) \
-  if(!(func)) { \
+  if (!(func)) { \
     ESP_LOGW(TAG, warning); \
     this->status_set_warning(); \
     return; \

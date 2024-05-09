@@ -37,6 +37,7 @@ esphome/components/am43/sensor/* @buxtronix
 esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
+esphome/components/apds9306/* @aodrenah
 esphome/components/api/* @OttoWinter
 esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
