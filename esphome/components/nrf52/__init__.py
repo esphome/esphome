@@ -8,7 +8,6 @@ from esphome.const import (
     PLATFORM_NRF52,
     CONF_TYPE,
     CONF_FRAMEWORK,
-    CONF_VARIANT,
     CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -18,8 +17,6 @@ from esphome.components.zephyr import (
     zephyr_to_code,
 )
 from esphome.components.zephyr.const import (
-    ZEPHYR_VARIANT_GENERIC,
-    ZEPHYR_VARIANT_NRF_SDK,
     KEY_ZEPHYR,
     KEY_BOOTLOADER,
     BOOTLOADER_MCUBOOT,
@@ -41,53 +38,6 @@ def set_core_data(config):
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
     return config
 
-
-# https://github.com/platformio/platform-nordicnrf52/releases
-NORDICNRF52_PLATFORM_VERSION = cv.Version(10, 3, 0)
-
-
-def _platform_check_versions(value):
-    value = value.copy()
-    value[CONF_PLATFORM_VERSION] = value.get(
-        CONF_PLATFORM_VERSION,
-        _parse_platform_version(str(NORDICNRF52_PLATFORM_VERSION)),
-    )
-    return value
-
-
-def _parse_platform_version(value):
-    try:
-        # if platform version is a valid version constraint, prefix the default package
-        cv.platformio_version_constraint(value)
-        return f"platformio/nordicnrf52@{value}"
-    except cv.Invalid:
-        return value
-
-
-PLATFORM_FRAMEWORK_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
-        }
-    ),
-    _platform_check_versions,
-)
-
-ZEPHYR_VARIANTS = [
-    ZEPHYR_VARIANT_GENERIC,
-    ZEPHYR_VARIANT_NRF_SDK,
-]
-
-FRAMEWORK_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_VARIANT, default=ZEPHYR_VARIANT_NRF_SDK): cv.one_of(
-                *ZEPHYR_VARIANTS, lower=True
-            ),
-        }
-    ),
-    _platform_check_versions,
-)
 
 BOOTLOADERS = [
     BOOTLOADER_ADAFRUIT,
@@ -121,7 +71,6 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
-            cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
         }
     ),
@@ -136,7 +85,7 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
-    conf = config[CONF_FRAMEWORK]
+    conf = {"platform_version": "platformio/nordicnrf52@10.3.0"}
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 

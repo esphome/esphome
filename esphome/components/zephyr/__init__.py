@@ -7,13 +7,10 @@ from esphome.helpers import (
     copy_file_if_changed,
 )
 from esphome.const import (
-    CONF_VARIANT,
     CONF_BOARD,
     KEY_NAME,
 )
 from .const import (
-    ZEPHYR_VARIANT_GENERIC,
-    ZEPHYR_VARIANT_NRF_SDK,
     KEY_ZEPHYR,
     KEY_PRJ_CONF,
     KEY_OVERLAY,
@@ -80,25 +77,16 @@ def add_extra_script(stage: str, filename: str, path: str):
 def zephyr_to_code(conf):
     cg.add(zephyr_ns.setup_preferences())
     cg.add_build_flag("-DUSE_ZEPHYR")
-    if conf[CONF_VARIANT] == ZEPHYR_VARIANT_GENERIC:
-        cg.add_platformio_option(
-            "platform_packages",
-            [
-                "platformio/framework-zephyr@^2.30500.231204",
-            ],
-        )
-    elif conf[CONF_VARIANT] == ZEPHYR_VARIANT_NRF_SDK:
-        cg.add_platformio_option(
-            "platform_packages",
-            [
-                "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf",
-                "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng",
-            ],
-        )
-        # build is done by west so bypass board checking in platformio
-        cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
-    else:
-        raise NotImplementedError
+    cg.add_platformio_option(
+        "platform_packages",
+        [
+            "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf",
+            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng",
+        ],
+    )
+    # build is done by west so bypass board checking in platformio
+    cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
+
     # c++ support
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
     zephyr_add_prj_conf("CONFIG_FPU", True)
