@@ -80,4 +80,4 @@ async def to_code(config):
 
     cg.add(var.set_bit_width(config[CONF_BIT_WIDTH]))
     cg.add(var.set_measurement_rate(config[CONF_MEASUREMENT_RATE]))
-    cg.add(var.set_ambient_light_gain(config[CONF_AMBIENT_LIGHT_GAIN]))
+    cg.add(var.set_ambient_light_gain(config[CONF_GAIN]))
