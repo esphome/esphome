@@ -1,6 +1,1 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-mdns:
-  disabled: false
+<<: !include common.yaml
