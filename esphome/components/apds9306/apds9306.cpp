@@ -7,30 +7,30 @@ namespace apds9306 {
 static const char *const TAG = "apds9306";
 
 #define APDS9306_ERROR_CHECK(func) \
-if (!(func)) {\
-  this->mark_failed();\
-  return;\
-}
+  if (!(func)) {\
+    this->mark_failed();\
+    return;\
+  }
 #define APDS9306_WARNING_CHECK(func, warning) \
-if(!(func)) { \
-  ESP_LOGW(TAG, warning); \
-  this->status_set_warning(); \
-  return; \
-}
+  if(!(func)) { \
+    ESP_LOGW(TAG, warning); \
+    this->status_set_warning(); \
+    return; \
+  }
 #define APDS9306_WRITE_BYTE(reg, value) \
-ESP_LOGVV(TAG, "WRITE_BYTE: ", reg, value); \
-APDS9306_ERROR_CHECK(this->write_byte(reg, value));
+  ESP_LOGVV(TAG, "WRITE_BYTE: ", reg, value); \
+  APDS9306_ERROR_CHECK(this->write_byte(reg, value));
 
 void APDS9306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
   uint8_t id;
-  if (!this->read_byte(0x06, &id)) { // Part ID register
+  if (!this->read_byte(0x06, &id)) {  // Part ID register
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
 
-  if (id != 0xB1 && id != 0xB3) { //0xB1 for APDS9306 0xB3 for APDS9306-065
+  if (id != 0xB1 && id != 0xB3) {  //0xB1 for APDS9306 0xB3 for APDS9306-065
     this->error_code_ = WRONG_ID;
     this->mark_failed();
     return;
@@ -98,7 +98,7 @@ void APDS9306::update() {
 
   this->status_clear_warning();
 
-  if (!(status &= 0b00001000)) // No new data
+  if (!(status &= 0b00001000))  // No new data
     return;
 
   // Conversions
@@ -165,9 +165,9 @@ void APDS9306::update() {
   uint8_t als_data[3];
   APDS9306_WARNING_CHECK(this->read_byte(0x0D, als_data, 3), "Reading ALS data has failed.");
 
-  uint32_t light_level = 0x0000 | ( (als_data[0]) + (als_data[1] << 8) + (als_data[2] << 16));
+  uint32_t light_level = 0x0000 | ((als_data[0]) + (als_data[1] << 8) + (als_data[2] << 16));
 
-  float lux = ((float)light_level / gain_val_) * (100.0f / rate_val_);
+  float lux = ((float) light_level / gain_val_) * (100.0f / rate_val_);
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx", lux);
   this->publish_state(lux);
