@@ -22,7 +22,7 @@
 #endif
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 
 class OtaHttpRequestComponentArduino : public OtaHttpRequestComponent {
  public:
@@ -36,7 +36,7 @@ class OtaHttpRequestComponentArduino : public OtaHttpRequestComponent {
   std::unique_ptr<WiFiClient> stream_ptr_;
 };
 
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome
 
 #endif  // USE_ARDUINO

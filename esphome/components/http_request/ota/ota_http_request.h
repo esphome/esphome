@@ -10,7 +10,7 @@
 #include <utility>
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 
 enum OtaHttpRequestState {
   OTA_HTTP_REQUEST_STATE_OK,
@@ -101,5 +101,5 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
   OtaHttpRequestComponent *parent_;
 };
 
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome

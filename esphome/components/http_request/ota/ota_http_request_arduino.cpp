@@ -9,7 +9,7 @@
 #include "esphome/components/md5/md5.h"
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 
 struct Header {
   const char *name;
@@ -123,7 +123,7 @@ int OtaHttpRequestComponentArduino::set_stream_ptr_() {
   return 0;
 }
 
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome
 
 #endif  // USE_ARDUINO

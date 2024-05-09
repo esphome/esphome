@@ -6,7 +6,7 @@
 #include "esp_http_client.h"
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 
 class OtaHttpRequestComponentIDF : public OtaHttpRequestComponent {
  public:
@@ -18,7 +18,7 @@ class OtaHttpRequestComponentIDF : public OtaHttpRequestComponent {
   esp_http_client_handle_t client_{};
 };
 
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF

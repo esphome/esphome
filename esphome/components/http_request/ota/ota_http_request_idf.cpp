@@ -30,7 +30,7 @@
 #endif
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 
 void OtaHttpRequestComponentIDF::http_init() {
   App.feed_wdt();
@@ -75,7 +75,7 @@ void OtaHttpRequestComponentIDF::http_end() {
   esp_http_client_cleanup(this->client_);
 }
 
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF

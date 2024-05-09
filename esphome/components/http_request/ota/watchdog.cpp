@@ -19,7 +19,7 @@
 #endif
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 namespace watchdog {
 
 uint32_t Watchdog::timeout_ms = 0;                             // NOLINT
@@ -73,5 +73,5 @@ uint32_t Watchdog::get_timeout() {
 void Watchdog::reset() { Watchdog::set_timeout(Watchdog::init_timeout_ms); }
 
 }  // namespace watchdog
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome

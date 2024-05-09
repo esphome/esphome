@@ -23,7 +23,7 @@
 #endif
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 
 OtaHttpRequestComponent::OtaHttpRequestComponent() {
   this->pref_obj_.load(&this->pref_);
@@ -371,5 +371,5 @@ void OtaHttpRequestComponent::set_safe_url_() {
   strlcat(this->safe_url_, at + 1, sizeof(this->safe_url_));
 }
 
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome

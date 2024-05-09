@@ -3,7 +3,7 @@
 #include <cstdint>
 
 namespace esphome {
-namespace ota_http_request {
+namespace http_request {
 namespace watchdog {
 
 static const char *const TAG = "ota_http_request.watchdog";
@@ -21,5 +21,5 @@ class Watchdog {
 };
 
 }  // namespace watchdog
-}  // namespace ota_http_request
+}  // namespace http_request
 }  // namespace esphome
