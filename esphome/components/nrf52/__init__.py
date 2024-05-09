@@ -85,9 +85,16 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
-    conf = {"platform_version": "platformio/nordicnrf52@10.3.0"}
+    conf = {CONF_PLATFORM_VERSION: "platformio/nordicnrf52@10.3.0"}
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+    cg.add_platformio_option(
+        "platform_packages",
+        [
+            "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf",
+            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng",
+        ],
+    )
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
         # make sure that firmware.zip is created

@@ -77,13 +77,6 @@ def add_extra_script(stage: str, filename: str, path: str):
 def zephyr_to_code(conf):
     cg.add(zephyr_ns.setup_preferences())
     cg.add_build_flag("-DUSE_ZEPHYR")
-    cg.add_platformio_option(
-        "platform_packages",
-        [
-            "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf",
-            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng",
-        ],
-    )
     # build is done by west so bypass board checking in platformio
     cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
 
@@ -105,18 +98,6 @@ def zephyr_to_code(conf):
     zephyr_add_prj_conf("UART_CONSOLE", False)
     # TODO disable when no OTA USB CDC
     # zephyr_add_prj_conf("CONSOLE", False)
-    # TODO debug only
-    zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
-    # zephyr_add_prj_conf("DEBUG", True)
-    ###
-    zephyr_add_prj_conf("USE_SEGGER_RTT", True)
-    zephyr_add_prj_conf("RTT_CONSOLE", True)
-    zephyr_add_prj_conf("LOG", True)
-    zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
-    zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
-    zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
-
-    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
 
     add_extra_script(
         "pre",
