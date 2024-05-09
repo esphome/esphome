@@ -36,6 +36,22 @@ void SNTPComponent::setup() {
     sntp_stop();
   }
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
+#endif
+#ifdef USE_ESP8266
+  sntp_stop();
+#endif
+
+  sntp_setservername(0, strdup(this->server_1_.c_str()));
+  if (!this->server_2_.empty()) {
+    sntp_setservername(1, strdup(this->server_2_.c_str()));
+  }
+  if (!this->server_3_.empty()) {
+    sntp_setservername(2, strdup(this->server_3_.c_str()));
+  }
+#ifdef USE_ESP_IDF
+  sntp_set_sync_interval(this->get_update_interval());
+#endif
+
   g_sync_callback = [this](struct timeval *tv) {
     static struct timeval time_val;
     switch (sntp_get_sync_status()) {
@@ -53,22 +69,8 @@ void SNTPComponent::setup() {
     if (tv)
       time_val = *tv;
   };
+  ESP_LOGD(TAG, "Set notification callback");
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
-#endif
-#ifdef USE_ESP8266
-  sntp_stop();
-#endif
-
-  sntp_setservername(0, strdup(this->server_1_.c_str()));
-  if (!this->server_2_.empty()) {
-    sntp_setservername(1, strdup(this->server_2_.c_str()));
-  }
-  if (!this->server_3_.empty()) {
-    sntp_setservername(2, strdup(this->server_3_.c_str()));
-  }
-#ifdef USE_ESP_IDF
-  sntp_set_sync_interval(this->get_update_interval());
-#endif
 
   sntp_init();
 #endif
