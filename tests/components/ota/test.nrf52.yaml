@@ -1,3 +1,5 @@
+zephyr_ble_server:
+
 ota:
   - platform: zephyr_mcumgr
     on_begin:
