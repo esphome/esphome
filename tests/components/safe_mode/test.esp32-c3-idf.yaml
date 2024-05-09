@@ -1,13 +1,1 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-ota:
-
-button:
-  - platform: safe_mode
-    name: Safe Mode Button
-
-switch:
-  - platform: safe_mode
-    name: Safe Mode Switch
+<<: !include common.yaml

@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_DATA_PIN,
     CONF_CLOCK_PIN,
+    CONF_OE_PIN,
     CONF_OUTPUT,
     CONF_TYPE,
 )
@@ -30,7 +31,6 @@ SN74HC595GPIOPin = sn74hc595_ns.class_(
 
 CONF_SN74HC595 = "sn74hc595"
 CONF_LATCH_PIN = "latch_pin"
-CONF_OE_PIN = "oe_pin"
 CONF_SR_COUNT = "sr_count"
 
 TYPE_GPIO = "gpio"
