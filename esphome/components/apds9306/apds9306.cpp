@@ -102,10 +102,12 @@ namespace apds9306 {
     uint8_t als_data[3];
     APDS9306_WARNING_CHECK(this->read_byte(0x0D, als_data, 3), "Reading ALS data has failed.");
 
-    uint32_t light_level = 0x0000;
-    light_level |= als_data[0];
-    light_level |= als_data[1] << 8;
-    light_level |= als_data[2] << 16;
+    uint32_t light_level = 0x0FFF;
+    light_level &= als_data[0];
+    light_level &= als_data[1] << 8;
+    light_level &= als_data[2] << 16;
+
+    ESP_LOGVV(TAG, "APDS9306:", "  ", als_data[0], "  ", als_data[1], "  ", als_data[2]);
 
     if (this->light_level_sensor_ != nullptr)
       this->light_level_sensor_->publish_state(light_level);
