@@ -100,7 +100,7 @@ namespace apds9306 {
       return;
 
     uint8_t als_data[3];
-    APDS9306_WARNING_CHECK(this->read_byte(0x0A, als_data, 3), "Reading ALS data has failed.");
+    APDS9306_WARNING_CHECK(this->read_byte(0x0D, als_data, 3), "Reading ALS data has failed.");
 
     uint32_t light_level = 0x0000 | ( als_data[0] + als_data[1] << 8 + ( 0x0F & als_data[2]) << 16);
 
