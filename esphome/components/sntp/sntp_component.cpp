@@ -54,7 +54,13 @@ void SNTPComponent::setup() {
   sntp_set_sync_interval(this->get_update_interval());
 #endif
 
-  g_sync_callback = [this](struct timeval *tv) { callback_args_.push_back({tv ? *tv : {}, sntp_get_sync_status()}); };
+  g_sync_callback = [](struct timeval *tv) {
+    callback_args_.push_back({});
+    if (tv)
+      callback_args_.back().first = *tv;
+    callback_args_.back().second = sntp_get_sync_status();
+  };
+
   ESP_LOGD(TAG, "Set notification callback");
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 
