@@ -32,7 +32,6 @@ class SNTPComponent : public time::RealTimeClock {
   std::string server_2_;
   std::string server_3_;
   bool has_time_{false};
-  std::vector<std::pair<optional<struct timeval>, sntp_sync_status_t>> callback_args_;
 };
 
 }  // namespace sntp

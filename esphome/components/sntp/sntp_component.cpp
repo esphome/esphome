@@ -24,6 +24,8 @@ namespace sntp {
 
 static const char *const TAG = "sntp";
 
+std::vector<std::pair<optional<struct timeval>, sntp_sync_status_t>> callback_args_;
+
 static std::function<void(struct timeval *tv)> g_sync_callback = nullptr;
 
 void sntp_sync_time_cb(struct timeval *tv) { g_sync_callback(tv); }
@@ -79,7 +81,7 @@ void SNTPComponent::update() {
 #endif
 }
 void SNTPComponent::loop() {
-  for (const auto &item : this->callback_args_) {
+  for (const auto &item : callback_args_) {
     switch (item.second) {
       case SNTP_SYNC_STATUS_RESET:
         ESP_LOGD(TAG, "Time sync reset");
