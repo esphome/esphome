@@ -18,7 +18,7 @@ static const char *const TAG = "apds9306";
     return; \
   }
 #define APDS9306_WRITE_BYTE(reg, value) \
-  ESP_LOGVV(TAG, "WRITE_BYTE: ", reg, value); \
+  ESP_LOGVV(TAG, "WRITE_BYTE: %d, %d", reg, value); \
   APDS9306_ERROR_CHECK(this->write_byte(reg, value));
 
 void APDS9306::setup() {
