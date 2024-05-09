@@ -7,9 +7,9 @@ namespace apds9306 {
 static const char *const TAG = "apds9306";
 
 #define APDS9306_ERROR_CHECK(func) \
-  if (!(func)) {\
-    this->mark_failed();\
-    return;\
+  if (!(func)) { \
+    this->mark_failed(); \
+    return; \
   }
 #define APDS9306_WARNING_CHECK(func, warning) \
   if(!(func)) { \
@@ -30,7 +30,7 @@ void APDS9306::setup() {
     return;
   }
 
-  if (id != 0xB1 && id != 0xB3) {  //0xB1 for APDS9306 0xB3 for APDS9306-065
+  if (id != 0xB1 && id != 0xB3) {  // 0xB1 for APDS9306 0xB3 for APDS9306-065
     this->error_code_ = WRONG_ID;
     this->mark_failed();
     return;
@@ -173,5 +173,5 @@ void APDS9306::update() {
   this->publish_state(lux);
 }
 
-} // namespace apds9306
-} // namespace esphome
+}  // namespace apds9306
+}  // namespace esphome
