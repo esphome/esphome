@@ -23,14 +23,10 @@
 
 #ifdef USE_ARDUINO
 #include <esp32-hal-bt.h>
-#include "mbedtls/aes.h"
-#include "mbedtls/base64.h"
 #endif
 
-#ifdef USE_ESP_IDF
 #define MBEDTLS_AES_ALT
 #include <aes_alt.h>
-#endif
 
 // bt_trace.h
 #undef TAG
