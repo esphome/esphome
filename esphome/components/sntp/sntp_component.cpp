@@ -26,9 +26,12 @@ static const char *const TAG = "sntp";
 
 std::vector<std::pair<optional<struct timeval>, sntp_sync_status_t>> callback_args_;
 
-static std::function<void(struct timeval *tv)> g_sync_callback = nullptr;
-
-void sntp_sync_time_cb(struct timeval *tv) { g_sync_callback(tv); }
+void sntp_sync_time_cb(struct timeval *tv) {
+  callback_args_.push_back({});
+  if (tv)
+    callback_args_.back().first = *tv;
+  callback_args_.back().second = sntp_get_sync_status();
+}
 
 void SNTPComponent::setup() {
 #ifndef USE_HOST
@@ -53,13 +56,6 @@ void SNTPComponent::setup() {
 #ifdef USE_ESP_IDF
   sntp_set_sync_interval(this->get_update_interval());
 #endif
-
-  g_sync_callback = [](struct timeval *tv) {
-    callback_args_.push_back({});
-    if (tv)
-      callback_args_.back().first = *tv;
-    callback_args_.back().second = sntp_get_sync_status();
-  };
 
   ESP_LOGD(TAG, "Set notification callback");
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
