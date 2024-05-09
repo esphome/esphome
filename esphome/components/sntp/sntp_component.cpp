@@ -53,21 +53,7 @@ void SNTPComponent::setup() {
 #endif
 
   g_sync_callback = [this](struct timeval *tv) {
-    static struct timeval time_val;
-    switch (sntp_get_sync_status()) {
-      case SNTP_SYNC_STATUS_RESET:
-        ESP_LOGD(TAG, "Time sync reset");
-        break;
-      case SNTP_SYNC_STATUS_COMPLETED:
-        ESP_LOGD(TAG, "Time sync completed. Delta is %ds", tv->tv_sec - time_val.tv_sec);
-        this->time_sync_callback_.call();
-        break;
-      case SNTP_SYNC_STATUS_IN_PROGRESS:
-        ESP_LOGD(TAG, "Time sync in progress");
-        break;
-    }
-    if (tv)
-      time_val = *tv;
+    this->callback_args_.push_back({tv ? *tv : {}, sntp_get_sync_status()});
   };
   ESP_LOGD(TAG, "Set notification callback");
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
@@ -93,6 +79,22 @@ void SNTPComponent::update() {
 #endif
 }
 void SNTPComponent::loop() {
+  for (const auto &item : this->callback_args_) {
+    switch (item.second) {
+      case SNTP_SYNC_STATUS_RESET:
+        ESP_LOGD(TAG, "Time sync reset");
+        break;
+      case SNTP_SYNC_STATUS_COMPLETED:
+        ESP_LOGD(TAG, "Time sync completed");
+        this->time_sync_callback_.call();
+        break;
+      case SNTP_SYNC_STATUS_IN_PROGRESS:
+        ESP_LOGD(TAG, "Time sync in progress");
+        break;
+    }
+  }
+  callback_args_.clear();
+
   if (this->has_time_)
     return;
 
