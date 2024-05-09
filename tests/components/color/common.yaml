@@ -9,3 +9,12 @@ color:
     blue: 100%
   - id: kbx_green
     hex: "3DEC55"
+  - id: kbx_green_1
+    hex: 3DEC55
+  - id: cps_red
+    hex: 800000
+  - id: cps_green
+    hex: 008000
+  - id: cps_blue
+    hex: 000080
+
