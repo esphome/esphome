@@ -1,0 +1,29 @@
+sensor:
+  - platform: template
+    id: fake_temp
+    name: "Fake Temperature"
+    lambda: |-
+      return 20.5;
+
+uart:
+  - id: hp_uart
+    baud_rate: 2400
+    parity: EVEN
+    rx_pin:
+      number: GPIO0
+    tx_pin:
+      number: GPIO1
+  - id: tstat_uart
+    baud_rate: 2400
+    parity: EVEN
+    rx_pin:
+      number: GPIO3
+    tx_pin:
+      number: GPIO4
+
+mitsubishi_uart:
+  heatpump_uart: hp_uart
+  thermostat_uart: tstat_uart
+  update_interval: 12s
+  temperature_sources:
+    - fake_temp
