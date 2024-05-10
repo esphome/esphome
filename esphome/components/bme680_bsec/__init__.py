@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, esp32
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TEMPERATURE_OFFSET
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
@@ -9,7 +9,6 @@ AUTO_LOAD = ["sensor", "text_sensor"]
 MULTI_CONF = True
 
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
-CONF_TEMPERATURE_OFFSET = "temperature_offset"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_SUPPLY_VOLTAGE = "supply_voltage"
 CONF_SAMPLE_RATE = "sample_rate"
