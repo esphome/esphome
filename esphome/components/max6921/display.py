@@ -2,12 +2,17 @@ from esphome import pins, automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display, spi
-from esphome.const import CONF_ID, CONF_BRIGHTNESS, CONF_LAMBDA
+from esphome.const import (
+    CONF_ID,
+    CONF_BRIGHTNESS,
+    CONF_LAMBDA,
+    CONF_MODE,
+    # CONF_POSITION,
+)
 
 
 DEPENDENCIES = ["spi", "esp32"]
 CODEOWNERS = ["@endym"]
-CONF_DEMO_MODE = "demo_mode"
 CONF_LOAD_PIN = "load_pin"
 CONF_BLANK_PIN = "blank_pin"
 CONF_OUT_PIN_MAPPING = "out_pin_mapping"
@@ -34,6 +39,9 @@ CONF_POS_9_PIN = "pos_9_pin"
 CONF_POS_10_PIN = "pos_10_pin"
 CONF_POS_11_PIN = "pos_11_pin"
 CONF_POS_12_PIN = "pos_12_pin"
+# CONF_DEMO_MODE = "demo_mode"
+CONF_CYCLE_NUM = "cycle_num"
+CONF_TEXT = "text"
 
 
 max6921_ns = cg.esphome_ns.namespace("max6921")
@@ -42,6 +50,8 @@ MAX6921Component = max6921_ns.class_(
 )
 MAX6921ComponentRef = MAX6921Component.operator("ref")
 SetBrightnessAction = max6921_ns.class_("SetBrightnessAction", automation.Action)
+SetDemoModeAction = max6921_ns.class_("SetDemoModeAction", automation.Action)
+SetTextAction = max6921_ns.class_("SetTextAction", automation.Action)
 
 
 # optional "demo_mode" configuration
@@ -116,9 +126,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_BLANK_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_OUT_PIN_MAPPING): OUT_PIN_MAPPING_SCHEMA,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.templatable(cv.percentage),
-            cv.Optional(CONF_DEMO_MODE, default=CONF_DEMO_MODE_OFF): cv.enum(
-                DEMO_MODES
-            ),
+            # cv.Optional(CONF_DEMO_MODE, default=CONF_DEMO_MODE_OFF): cv.enum(
+            #     DEMO_MODES
+            # ),
         }
     )
     .extend(cv.polling_component_schema("500ms"))
@@ -154,7 +164,7 @@ async def to_code(config):
         )
     )
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
-    cg.add(var.set_demo_mode(config[CONF_DEMO_MODE]))
+    # cg.add(var.set_demo_mode(config[CONF_DEMO_MODE]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -191,4 +201,67 @@ async def max6921_set_brightness_to_code(config, action_id, template_arg, args):
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
     cg.add(var.set_brightness(template_))
+    return var
+
+
+"""
+def validate_action_set_text(value):
+    print(f"validate_action_set_text: {value}")
+    return value
+
+
+ACTION_SET_TEXT_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        ACTION_SCHEMA.extend(
+            cv.Schema(
+                {
+                    cv.Required(CONF_TEXT): cv.templatable(cv.string),
+                    cv.Optional(CONF_POSITION): cv.templatable(cv.int_range(min=0, max=13))
+                }
+            )
+        )
+    ),
+    validate_action_set_text,
+)
+
+
+@automation.register_action(
+    "max6921.set_text", SetTextAction, ACTION_SET_TEXT_SCHEMA
+)
+async def max6921_set_text_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_TEXT], args, cg.std_string)
+    cg.add(var.set_text(template_))
+    return var
+"""
+
+
+ACTION_SET_DEMO_MODE_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        ACTION_SCHEMA.extend(
+            cv.Schema(
+                {
+                    # cv.Required(CONF_MODE): cv.templatable(cv.enum(DEMO_MODES, lower=True)),
+                    cv.Required(CONF_MODE): cv.templatable(cv.string),
+                    cv.Optional(CONF_CYCLE_NUM, default=0): cv.templatable(cv.uint8_t),
+                }
+            )
+        )
+    ),
+)
+
+
+@automation.register_action(
+    "max6921.set_demo_mode", SetDemoModeAction, ACTION_SET_DEMO_MODE_SCHEMA
+)
+async def max6921_set_demo_mode_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    # template_ = await cg.templatable(config[CONF_MODE], args, DemoMode)
+    template_ = await cg.templatable(config[CONF_MODE], args, cg.std_string)
+    cg.add(var.set_mode(template_))
+    if CONF_CYCLE_NUM in config:
+        template_ = await cg.templatable(config[CONF_CYCLE_NUM], args, cg.uint8)
+        cg.add(var.set_cycle_num(template_))
     return var
