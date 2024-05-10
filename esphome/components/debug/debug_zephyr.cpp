@@ -10,7 +10,7 @@ namespace debug {
 
 static const char *const TAG = "debug";
 
-static void set_reset_reason(std::string &reset_reason, bool set, const char *reason) {
+static void show_reset_reason(std::string &reset_reason, bool set, const char *reason) {
   if (!set) {
     return;
   }
@@ -29,21 +29,21 @@ std::string DebugComponent::get_reset_reason_() {
   }
   std::string reset_reason;
 
-  set_reset_reason(reset_reason, cause & RESET_PIN, "External pin");
-  set_reset_reason(reset_reason, cause & RESET_SOFTWARE, "Software reset");
-  set_reset_reason(reset_reason, cause & RESET_BROWNOUT, "Brownout (drop in voltage)");
-  set_reset_reason(reset_reason, cause & RESET_POR, "Power-on reset (POR)");
-  set_reset_reason(reset_reason, cause & RESET_WATCHDOG, "Watchdog timer expiration");
-  set_reset_reason(reset_reason, cause & RESET_DEBUG, "Debug event");
-  set_reset_reason(reset_reason, cause & RESET_SECURITY, "Security violation");
-  set_reset_reason(reset_reason, cause & RESET_LOW_POWER_WAKE, "Waking up from low power mode");
-  set_reset_reason(reset_reason, cause & RESET_CPU_LOCKUP, "CPU lock-up detected");
-  set_reset_reason(reset_reason, cause & RESET_PARITY, "Parity error");
-  set_reset_reason(reset_reason, cause & RESET_PLL, "PLL error");
-  set_reset_reason(reset_reason, cause & RESET_CLOCK, "Clock error");
-  set_reset_reason(reset_reason, cause & RESET_HARDWARE, "Hardware reset");
-  set_reset_reason(reset_reason, cause & RESET_USER, "User reset");
-  set_reset_reason(reset_reason, cause & RESET_TEMPERATURE, "Temperature reset");
+  show_reset_reason(reset_reason, cause & RESET_PIN, "External pin");
+  show_reset_reason(reset_reason, cause & RESET_SOFTWARE, "Software reset");
+  show_reset_reason(reset_reason, cause & RESET_BROWNOUT, "Brownout (drop in voltage)");
+  show_reset_reason(reset_reason, cause & RESET_POR, "Power-on reset (POR)");
+  show_reset_reason(reset_reason, cause & RESET_WATCHDOG, "Watchdog timer expiration");
+  show_reset_reason(reset_reason, cause & RESET_DEBUG, "Debug event");
+  show_reset_reason(reset_reason, cause & RESET_SECURITY, "Security violation");
+  show_reset_reason(reset_reason, cause & RESET_LOW_POWER_WAKE, "Waking up from low power mode");
+  show_reset_reason(reset_reason, cause & RESET_CPU_LOCKUP, "CPU lock-up detected");
+  show_reset_reason(reset_reason, cause & RESET_PARITY, "Parity error");
+  show_reset_reason(reset_reason, cause & RESET_PLL, "PLL error");
+  show_reset_reason(reset_reason, cause & RESET_CLOCK, "Clock error");
+  show_reset_reason(reset_reason, cause & RESET_HARDWARE, "Hardware reset");
+  show_reset_reason(reset_reason, cause & RESET_USER, "User reset");
+  show_reset_reason(reset_reason, cause & RESET_TEMPERATURE, "Temperature reset");
 
   ESP_LOGD(TAG, "Reset Reason: %s", reset_reason.c_str());
   return reset_reason;
