@@ -93,22 +93,22 @@ void HDC2010Component::update() {
 
 // void HDC2010::enableHeater()
 // {
-// uint16_t configContents; //Stores current contents of config register
+//   uint16_t configContents; //Stores current contents of config register
 
-//  configContents = readReg(CONFIG);
+//   configContents = readReg(CONFIG);
 
-//  //set bit 3 to 1 to enable heater
-// 	configContents = (configContents | 0x08);
+//   //set bit 3 to 1 to enable heater
+//   configContents = (configContents | 0x08);
 
-// 	writeReg(CONFIG, configContents);
+// writeReg(CONFIG, configContents);
 
 // }
 
 // void HDC2010::disableHeater()
 // {
-// uint16_t configContents; //Stores current contents of config register
+//   uint16_t configContents; //Stores current contents of config register
 
-//  configContents = readReg(CONFIG);
+//   configContents = readReg(CONFIG);
 
 // 	//set bit 3 to 0 to disable heater (all other bits 1)
 // 	configContents = (configContents & 0xF7);
