@@ -205,6 +205,10 @@ lvgl:
               pressed:
                 bg_color: 0xFFFF00
             id: b_matrix
+            on_click:
+              logger.log:
+                format: "matrix button clicked: %d, is button_1 = %u"
+                args: ["*x", "id(button_1) == x"]
             rows:
               - buttons:
                   - id: button_1

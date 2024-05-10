@@ -2,8 +2,9 @@ import esphome.codegen as cg
 from esphome import automation
 from esphome.components.key_provider import KeyProvider
 
+uint16_t_ptr = cg.uint16.operator("ptr")
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
-char_ptr_const = cg.global_ns.namespace("char").operator("ptr")
+char_ptr = cg.global_ns.namespace("char").operator("ptr")
 void_ptr = cg.void.operator("ptr")
 lv_coord_t = cg.global_ns.namespace("lv_coord_t")
 lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
@@ -81,7 +82,7 @@ class LvSelect(LvType):
 
 
 lv_obj_t = LvType("lv_obj_t")
-LvBtnmBtn = LvBoolean("lv_obj_t", parents=(lv_pseudo_button_t,))
+LvBtnmBtn = LvBoolean(str(cg.uint16), parents=(lv_pseudo_button_t,))
 lv_label_t = LvType("lv_label_t")
 lv_dropdown_list_t = LvType("lv_dropdown_list_t")
 lv_meter_t = LvType("lv_meter_t")
@@ -103,7 +104,12 @@ lv_led_t = LvType("lv_led_t")
 lv_switch_t = LvBoolean("lv_switch_t")
 lv_table_t = LvType("lv_table_t")
 lv_chart_t = LvType("lv_chart_t")
-lv_btnmatrix_t = LvType("LvBtnmatrixType", parents=(KeyProvider, LvCompound))
+lv_btnmatrix_t = LvType(
+    "LvBtnmatrixType",
+    parents=(KeyProvider, LvCompound),
+    largs=[(uint16_t_ptr, "x")],
+    lvalue=lambda w: f"{w.var}->get_selected( )",
+)
 lv_keyboard_t = LvType(
     "LvKeyboardType",
     parents=(KeyProvider, LvCompound),

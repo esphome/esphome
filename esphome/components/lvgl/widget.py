@@ -144,7 +144,7 @@ class MatrixButton(Widget):
         self.index = index
 
     def get_value(self):
-        return self.var.obj
+        return self.is_checked()
 
     def get_obj(self):
         return self.var.obj
@@ -204,7 +204,7 @@ class MatrixButton(Widget):
         return f'({self.index_check()} && {self.var.has_state("LV_STATE_PRESSED")})'
 
     def is_checked(self):
-        return f'({self.index_check()} && {self.var.has_state("LV_STATE_CHECKED")})'
+        return f'({self.index_check()} && {self.has_state("LV_STATE_CHECKED")})'
 
     def set_event_cb(self, code, *varargs):
         init = add_temp_var("event_callback_t", EVENT_LAMB)

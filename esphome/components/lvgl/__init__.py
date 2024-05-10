@@ -1504,11 +1504,14 @@ async def get_button_data(config, id, btnm: Widget):
     ctrl_list = []
     width_list = []
     key_list = []
+    btn_id_list = []
     for row in config:
         for btnconf in row.get(df.CONF_BUTTONS) or ():
             bid = btnconf[CONF_ID]
-            widget = MatrixButton(btnm, ty.LvBtnmBtn, btnconf, len(width_list))
+            index = len(width_list)
+            widget = MatrixButton(btnm, ty.LvBtnmBtn, btnconf, index)
             widget_map[bid] = widget
+            btn_id_list.append(cg.new_Pvariable(bid, index))
             if text := btnconf.get(df.CONF_TEXT):
                 text_list.append(f"{cg.safe_exp(text)}")
             else:
@@ -1529,11 +1532,11 @@ async def get_button_data(config, id, btnm: Widget):
         text_list.append('"\\n"')
     text_list = text_list[:-1]
     text_list.append("NULL")
-    text_id = ID(f"{id.id}_text_array", is_declaration=True, type=ty.char_ptr_const)
+    text_id = ID(f"{id.id}_text_array", is_declaration=True, type=ty.char_ptr)
     text_id = cg.static_const_array(
         text_id, cg.RawExpression("{" + ",".join(text_list) + "}")
     )
-    return text_id, ctrl_list, width_list, key_list
+    return text_id, ctrl_list, width_list, key_list, btn_id_list
 
 
 def set_btn_data(btnm: Widget, ctrl_list, width_list):
@@ -1547,7 +1550,7 @@ def set_btn_data(btnm: Widget, ctrl_list, width_list):
 
 async def btnmatrix_to_code(btnm: Widget, conf):
     id = conf[CONF_ID]
-    text_id, ctrl_list, width_list, key_list = await get_button_data(
+    text_id, ctrl_list, width_list, key_list, btn_id_list = await get_button_data(
         conf[df.CONF_ROWS], id, btnm
     )
     init = [f"lv_btnmatrix_set_map({btnm.obj}, {text_id})"]
@@ -1558,6 +1561,8 @@ async def btnmatrix_to_code(btnm: Widget, conf):
     for index, key in enumerate(key_list):
         if key != 0:
             init.append(f"{btnm.var}->set_key({index}, {key})")
+    for bid in btn_id_list:
+        init.append(f"{btnm.var}->add_btn({bid})")
     return init
 
 
@@ -1584,7 +1589,7 @@ async def msgbox_to_code(conf):
     )
     btnm_widg = Widget(btnm, ty.lv_btnmatrix_t)
     widget_map[id] = btnm_widg
-    text_id, ctrl_list, width_list, _ = await get_button_data((conf,), id, btnm_widg)
+    text_id, ctrl_list, width_list, _, _ = await get_button_data((conf,), id, btnm_widg)
     text = await lv_text.process(conf.get(df.CONF_BODY))
     title = await lv_text.process(conf.get(df.CONF_TITLE))
     close_button = conf[df.CONF_CLOSE_BUTTON]

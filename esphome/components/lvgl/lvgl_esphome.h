@@ -114,10 +114,20 @@ class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
         LV_EVENT_PRESSED, this);
   }
 
+  uint16_t *get_selected() { return this->get_btn(lv_btnmatrix_get_selected_btn(this->obj)); }
+
+  uint16_t *get_btn(uint16_t index) {
+    if (index >= this->btn_ids_.size())
+      return nullptr;
+    return this->btn_ids_[index];
+  }
+
   void set_key(size_t idx, uint8_t key) { this->key_map_[idx] = key; }
+  void add_btn(uint16_t *id) { this->btn_ids_.push_back(id); }
 
  protected:
   std::map<size_t, uint8_t> key_map_{};
+  std::vector<uint16_t *> btn_ids_{};
 };
 #endif
 
