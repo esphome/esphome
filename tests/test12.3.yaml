@@ -42,3 +42,12 @@ zephyr_ble_nus:
   log: true
 
 zephyr_debug:
+
+debug:
+
+text_sensor:
+  - platform: debug
+    device:
+      name: "Device Info"
+    reset_reason:
+      name: "Reset Reason"

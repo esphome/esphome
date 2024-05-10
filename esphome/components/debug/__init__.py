@@ -8,6 +8,9 @@ from esphome.const import (
     CONF_ID,
     CONF_LOOP_TIME,
 )
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+)
 
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["logger"]
@@ -42,5 +45,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    zephyr_add_prj_conf("HWINFO", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
