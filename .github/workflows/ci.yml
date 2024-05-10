@@ -364,12 +364,20 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+
       - name: Cache platformio
+        if: github.ref == 'refs/heads/dev'
         uses: actions/cache@v4.0.2
         with:
           path: ~/.platformio
-          # yamllint disable-line rule:line-length
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}
+
+      - name: Cache platformio
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@v4.0.2
+        with:
+          path: ~/.platformio
+          key: platformio-${{ matrix.pio_cache_key }}
 
       - name: Install clang-tidy
         run: sudo apt-get install clang-tidy-14
