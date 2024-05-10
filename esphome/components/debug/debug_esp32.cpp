@@ -4,6 +4,7 @@
 
 #include <esp_heap_caps.h>
 #include <esp_system.h>
+#include <esp_chip_info.h>
 
 #if defined(USE_ESP32_VARIANT_ESP32)
 #include <esp32/rom/rtc.h>
