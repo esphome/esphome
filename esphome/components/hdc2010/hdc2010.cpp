@@ -93,7 +93,7 @@ void HDC2010Component::update() {
 
 // void HDC2010::enableHeater()
 // {
-// 	uint16_t configContents;	//Stores current contents of config register
+// 	uint16_t configContents; //Stores current contents of config register
 
 // 	configContents = readReg(CONFIG);
 
@@ -106,14 +106,13 @@ void HDC2010Component::update() {
 
 // void HDC2010::disableHeater()
 // {
-// 	uint16_t configContents;	//Stores current contents of config register
+// 	uint16_t configContents; //Stores current contents of config register
 
 // 	configContents = readReg(CONFIG);
 
 // 	//set bit 3 to 0 to disable heater (all other bits 1)
 // 	configContents = (configContents & 0xF7);
 // 	writeReg(CONFIG, configContents);
-
 // }
 
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
