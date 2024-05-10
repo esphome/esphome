@@ -110,9 +110,9 @@ void HDC2010Component::update() {
 
 //   configContents = readReg(CONFIG);
 
-// 	//set bit 3 to 0 to disable heater (all other bits 1)
-// 	configContents = (configContents & 0xF7);
-// 	writeReg(CONFIG, configContents);
+////set bit 3 to 0 to disable heater (all other bits 1)
+// configContents = (configContents & 0xF7);
+// writeReg(CONFIG, configContents);
 // }
 
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
