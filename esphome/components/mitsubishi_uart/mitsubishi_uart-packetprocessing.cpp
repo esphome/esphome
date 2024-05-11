@@ -70,18 +70,26 @@ void MitsubishiUART::processPacket(const SettingsGetResponsePacket &packet) {
   if (packet.getPower()) {
     switch (packet.getMode()) {
       case 0x01:
+      case 0x09: // i-see
         mode = climate::CLIMATE_MODE_HEAT;
         break;
       case 0x02:
+      case 0x0A: // i-see
         mode = climate::CLIMATE_MODE_DRY;
         break;
       case 0x03:
+      case 0x0B: // i-see
         mode = climate::CLIMATE_MODE_COOL;
         break;
       case 0x07:
         mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case 0x08:
+        mode = climate::CLIMATE_MODE_HEAT_COOL;
+        break;
+      case 0x21:
+      case 0x23:
+        // unsure when these would ever be sent, as they seem to be Kumo exclusive, but let's handle them anyways.
         mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       default:
@@ -92,6 +100,13 @@ void MitsubishiUART::processPacket(const SettingsGetResponsePacket &packet) {
   }
 
   publishOnUpdate |= (old_mode != mode);
+
+  // Mode (i-see)
+  if (isee_status_sensor) {
+    const bool old_isee_status = isee_status_sensor->state;
+    isee_status_sensor->state = packet.getiSeeStatus();
+    publishOnUpdate |= (old_isee_status != isee_status_sensor->state);
+  }
 
   // Temperature
   const float old_target_temperature = target_temperature;

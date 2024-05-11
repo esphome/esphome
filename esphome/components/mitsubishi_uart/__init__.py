@@ -41,6 +41,7 @@ CONF_TS_UART = "thermostat_uart"
 CONF_SENSORS = "sensors"
 CONF_SENSORS_THERMOSTAT_TEMP = "thermostat_temperature"
 CONF_SENSORS_ERROR_CODE = "error_code"
+CONF_SENSORS_ISEE_STATUS ="isee_status"
 
 CONF_SELECTS = "selects"
 CONF_TEMPERATURE_SOURCE_SELECT = "temperature_source_select"  # This is to create a Select object for selecting a source
@@ -164,6 +165,13 @@ SENSORS = {
         "Standby",
         binary_sensor.binary_sensor_schema(),
         binary_sensor.register_binary_sensor,
+    ),
+    CONF_SENSORS_ISEE_STATUS: (
+        "i-see Status",
+        binary_sensor.binary_sensor_schema(
+            icon="mdi:eye"
+        ),
+        binary_sensor.register_binary_sensor
     ),
     CONF_SENSORS_ERROR_CODE: (
         "Error Code",
