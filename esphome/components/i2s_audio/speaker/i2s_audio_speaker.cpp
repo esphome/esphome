@@ -22,13 +22,12 @@ void I2SAudioSpeaker::setup() {
   this->event_queue_ = xQueueCreate(BUFFER_COUNT, sizeof(TaskEvent));
 }
 
-void I2SAudioSpeaker::start() { this->state_ = speaker::STATE_STARTING; }
+void I2SAudioSpeaker::start() { this->state_ = speaker::STATE_WAITING_FOR_LOCK; }
 void I2SAudioSpeaker::start_() {
   if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s component to return lock
   }
-  this->state_ = speaker::STATE_RUNNING;
-
+  this->state_ = speaker::STATE_STARTING;
   xTaskCreate(I2SAudioSpeaker::player_task, "speaker_task", 8192, (void *) this, 1, &this->player_task_handle_);
 }
 
@@ -93,8 +92,11 @@ void I2SAudioSpeaker::player_task(void *params) {
   int16_t buffer[BUFFER_SIZE / 2];
 
   while (true) {
-    if (xQueueReceive(this_speaker->buffer_queue_, &data_event, 100 / portTICK_PERIOD_MS) != pdTRUE) {
-      break;  // End of audio from main thread
+    esp_err_t ret = xQueueReceive(this_speaker->buffer_queue_, &data_event, 100 / portTICK_PERIOD_MS);
+    if (ret != pdTRUE) {
+      event = {.type = TaskEventType::WARNING, .err = ret};
+      xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
+      continue;
     }
     if (data_event.stop) {
       // Stop signal from main thread
@@ -153,6 +155,19 @@ void I2SAudioSpeaker::stop() {
   xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
 }
 
+void I2SAudioSpeaker::finish() {
+  if (this->state_ == speaker::STATE_STOPPED)
+    return;
+  if (this->state_ == speaker::STATE_STARTING) {
+    this->state_ = speaker::STATE_STOPPED;
+    return;
+  }
+  this->state_ = speaker::STATE_STOPPING;
+  DataEvent data;
+  data.stop = true;
+  xQueueSend(this->buffer_queue_, &data, portMAX_DELAY);
+}
+
 void I2SAudioSpeaker::watch_() {
   TaskEvent event;
   if (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
@@ -162,6 +177,7 @@ void I2SAudioSpeaker::watch_() {
         break;
       case TaskEventType::STARTED:
         ESP_LOGD(TAG, "Started I2S Audio Speaker");
+        this->state_ = speaker::STATE_RUNNING;
         break;
       case TaskEventType::STOPPING:
         ESP_LOGD(TAG, "Stopping I2S Audio Speaker");
@@ -187,8 +203,11 @@ void I2SAudioSpeaker::watch_() {
 
 void I2SAudioSpeaker::loop() {
   switch (this->state_) {
-    case speaker::STATE_STARTING:
+    case speaker::STATE_WAITING_FOR_LOCK:
       this->start_();
+      break;
+    case speaker::STATE_STARTING:
+      this->watch_();
       break;
     case speaker::STATE_RUNNING:
     case speaker::STATE_STOPPING:
@@ -201,7 +220,8 @@ void I2SAudioSpeaker::loop() {
 
 size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length) {
   if (this->state_ != speaker::STATE_RUNNING && this->state_ != speaker::STATE_STARTING) {
-    this->start();
+    esph_log_d(TAG, "Called play while speaker not running.");
+    return 0;
   }
   size_t remaining = length;
   size_t index = 0;

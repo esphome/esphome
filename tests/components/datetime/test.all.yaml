@@ -1,3 +1,1 @@
-datetime:
-
-time:
+<<: !include common.yaml

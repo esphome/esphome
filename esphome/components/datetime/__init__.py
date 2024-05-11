@@ -169,7 +169,7 @@ async def to_code(config):
         {
             cv.Required(CONF_ID): cv.use_id(DateEntity),
             cv.Required(CONF_DATE): cv.Any(
-                cv.returning_lambda, cv.date_time(allowed_time=False)
+                cv.returning_lambda, cv.date_time(date=True, time=False)
             ),
         }
     ),
@@ -200,7 +200,7 @@ async def datetime_date_set_to_code(config, action_id, template_arg, args):
         {
             cv.Required(CONF_ID): cv.use_id(TimeEntity),
             cv.Required(CONF_TIME): cv.Any(
-                cv.returning_lambda, cv.date_time(allowed_date=False)
+                cv.returning_lambda, cv.date_time(date=False, time=True)
             ),
         }
     ),
@@ -230,7 +230,9 @@ async def datetime_time_set_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(DateTimeEntity),
-            cv.Required(CONF_DATETIME): cv.Any(cv.returning_lambda, cv.date_time()),
+            cv.Required(CONF_DATETIME): cv.Any(
+                cv.returning_lambda, cv.date_time(date=True, time=True)
+            ),
         },
     ),
 )

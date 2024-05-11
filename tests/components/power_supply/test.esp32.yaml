@@ -1,6 +1,1 @@
-power_supply:
-  - id: atx_power_supply
-    enable_time: 20ms
-    keep_on_time: 10s
-    enable_on_boot: true
-    pin: 4
+<<: !include common.yaml
