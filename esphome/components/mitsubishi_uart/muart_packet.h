@@ -206,7 +206,7 @@ class SettingsGetResponsePacket : public Packet {
 
   float getTargetTemp() const;
 
-  bool getiSeeStatus() const;
+  bool isISeeEnabled() const;
 
   std::string to_string() const override;
 };

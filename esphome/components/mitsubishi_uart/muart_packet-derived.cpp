@@ -138,7 +138,7 @@ float SettingsGetResponsePacket::getTargetTemp() const {
   return MUARTUtils::TempScaleAToDegC(enhancedRawTemp);
 }
 
-bool SettingsGetResponsePacket::getiSeeStatus() const {
+bool SettingsGetResponsePacket::isISeeEnabled() const {
   uint8_t mode = pkt_.getPayloadByte(PLINDEX_MODE);
 
   // so far only modes 0x09 to 0x11 are known to be i-see.

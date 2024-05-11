@@ -104,7 +104,7 @@ void MitsubishiUART::processPacket(const SettingsGetResponsePacket &packet) {
   // Mode (i-see)
   if (isee_status_sensor) {
     const bool old_isee_status = isee_status_sensor->state;
-    isee_status_sensor->state = packet.getiSeeStatus();
+    isee_status_sensor->state = packet.isISeeEnabled();
     publishOnUpdate |= (old_isee_status != isee_status_sensor->state);
   }
 
