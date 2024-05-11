@@ -138,6 +138,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    cg.add_define("MP_ANNOUNCE")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

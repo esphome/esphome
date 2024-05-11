@@ -148,7 +148,6 @@ enum MediaPlayerState : uint32_t {
   MEDIA_PLAYER_STATE_IDLE = 1,
   MEDIA_PLAYER_STATE_PLAYING = 2,
   MEDIA_PLAYER_STATE_PAUSED = 3,
-  MEDIA_PLAYER_STATE_ANNOUNCING = 4,
 };
 enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_PLAY = 0,
@@ -1299,8 +1298,6 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   float volume{0.0f};
   bool has_media_url{false};
   std::string media_url{};
-  bool has_announcement{false};
-  bool announcement{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
