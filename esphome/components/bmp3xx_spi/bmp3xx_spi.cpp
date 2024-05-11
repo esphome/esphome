@@ -21,9 +21,16 @@ void BMP3XXSPIComponent::setup() {
   BMP3XXComponent::setup();
 }
 
+// SPI read
+// Reading is done by lowering CSB and first sending one control byte. The control bytes consist of the SPI register
+// address (= full register address without bit 7) and the read command (bit 7 = RW = ‘1’). After writing the control
+// byte, one dummy byte is sent and there after data bytes. The register address is automatically incremented.
+// https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp390-ds002.pdf
+
 bool BMP3XXSPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
   this->transfer_byte(set_bit(a_register, 7));
+  this->transfer_byte(0);
   *data = this->transfer_byte(0);
   this->disable();
   return true;
