@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <vector>
 #include <limits>
+#include <array>
 
 #include "esphome/core/optional.h"
 
