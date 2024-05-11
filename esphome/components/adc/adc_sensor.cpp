@@ -158,7 +158,8 @@ void ADCSensor::dump_config() {
 #endif  // USE_RP2040
 
 #ifdef USE_ZEPHYR
-  ESP_LOGCONFIG(TAG, "  Name: %s, channel_id: %d", adc_chan_->dev->name, adc_chan_->channel_id);
+  ESP_LOGCONFIG(TAG, "  Name: %s, channel_id: %d, vref_mv: %d, resolution %d, oversampling %d", adc_chan_->dev->name,
+                adc_chan_->channel_id, adc_chan_->vref_mv, adc_chan_->resolution, adc_chan_->oversampling);
 #endif
 
   LOG_UPDATE_INTERVAL(this);
