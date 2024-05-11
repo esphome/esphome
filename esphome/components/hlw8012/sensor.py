@@ -26,8 +26,6 @@ from esphome.const import (
     UNIT_WATT_HOURS,
 )
 
-AUTO_LOAD = ["pulse_counter"]
-
 hlw8012_ns = cg.esphome_ns.namespace("hlw8012")
 HLW8012Component = hlw8012_ns.class_("HLW8012Component", cg.PollingComponent)
 HLW8012InitialMode = hlw8012_ns.enum("HLW8012InitialMode")

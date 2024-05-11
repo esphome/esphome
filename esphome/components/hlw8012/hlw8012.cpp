@@ -5,17 +5,38 @@ namespace esphome {
 namespace hlw8012 {
 
 static const char *const TAG = "hlw8012";
+static const float MICROSECONDS_IN_SECONDS = 1000000.0f;
 
 // valid for HLW8012 and CSE7759
 static const uint32_t HLW8012_CLOCK_FREQUENCY = 3579000;
+
+void IRAM_ATTR HLW8012Component::cf_intr(HLW8012Component *arg) {
+  const uint32_t now = micros();
+
+  if (arg->cf_pulses_ == 0) {
+    arg->cf_first_pulse_micros_ = now;
+  }
+  arg->cf_pulses_++;
+  arg->cf_last_pulse_micros_ = now;
+}
+void IRAM_ATTR HLW8012Component::cf1_intr(HLW8012Component *arg) {
+  const uint32_t now = micros();
+
+  if (arg->cf1_pulses_ == 0) {
+    arg->cf1_first_pulse_micros_ = now;
+  }
+  arg->cf1_pulses_++;
+  arg->cf1_last_pulse_micros_ = now;
+}
 
 void HLW8012Component::setup() {
   float reference_voltage = 0;
   ESP_LOGCONFIG(TAG, "Setting up HLW8012...");
   this->sel_pin_->setup();
   this->sel_pin_->digital_write(this->current_mode_);
-  this->cf_store_.pulse_counter_setup(this->cf_pin_);
-  this->cf1_store_.pulse_counter_setup(this->cf1_pin_);
+
+  this->cf_pin_->attach_interrupt(HLW8012Component::cf_intr, this, gpio::INTERRUPT_RISING_EDGE);
+  this->cf1_pin_->attach_interrupt(HLW8012Component::cf1_intr, this, gpio::INTERRUPT_RISING_EDGE);
 
   // Initialize multipliers
   if (this->sensor_model_ == HLW8012_SENSOR_MODEL_BL0937) {
@@ -50,22 +71,31 @@ void HLW8012Component::dump_config() {
 float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {
   // HLW8012 has 50% duty cycle
-  pulse_counter::pulse_counter_t raw_cf = this->cf_store_.read_raw_value();
-  pulse_counter::pulse_counter_t raw_cf1 = this->cf1_store_.read_raw_value();
-  float cf_hz = raw_cf / (this->get_update_interval() / 1000.0f);
-  if (raw_cf <= 1) {
-    // don't count single pulse as power
-    cf_hz = 0.0f;
-  }
-  float cf1_hz = raw_cf1 / (this->get_update_interval() / 1000.0f);
-  if (raw_cf1 <= 1) {
-    // don't count single pulse as anything
-    cf1_hz = 0.0f;
+
+  uint32_t cf_pulses;
+  uint32_t cf1_pulses;
+  uint32_t cf_diff_micros;
+  uint32_t cf1_diff_micros;
+
+  {
+    InterruptLock lock{};
+    cf_pulses = this->cf_pulses_;
+    cf1_pulses = this->cf1_pulses_;
+    cf_diff_micros = this->cf_last_pulse_micros_ - this->cf_first_pulse_micros_;
+    cf1_diff_micros = this->cf1_last_pulse_micros_ - this->cf1_first_pulse_micros_;
+    this->cf_pulses_ = 0;
+    this->cf1_pulses_ = 0;
   }
 
   if (this->nth_value_++ < 2) {
     return;
   }
+
+  ESP_LOGV(TAG, "CF: Got %" PRIu32 " pulses in %" PRIu32 " µs", cf_pulses, (cf_pulses == 0 ? 0 : cf_diff_micros));
+  ESP_LOGV(TAG, "CF1: Got %" PRIu32 " pulses in %" PRIu32 " µs", cf1_pulses, (cf1_pulses == 0 ? 0 : cf1_diff_micros));
+
+  float cf_hz = (cf_pulses > 1) ? (cf_pulses / (cf_diff_micros / MICROSECONDS_IN_SECONDS)) : 0.0f;
+  float cf1_hz = (cf1_pulses > 1) ? (cf1_pulses / (cf1_diff_micros / MICROSECONDS_IN_SECONDS)) : 0.0f;
 
   float power = cf_hz * this->power_multiplier_;
 
@@ -84,6 +114,8 @@ void HLW8012Component::update() {
         this->voltage_sensor_->publish_state(voltage);
       }
     }
+  } else {
+    ESP_LOGD(TAG, "Got power=%.1fW", power);
   }
 
   if (this->power_sensor_ != nullptr) {
@@ -91,7 +123,7 @@ void HLW8012Component::update() {
   }
 
   if (this->energy_sensor_ != nullptr) {
-    cf_total_pulses_ += raw_cf;
+    cf_total_pulses_ += cf_pulses;
     float energy = cf_total_pulses_ * this->power_multiplier_ / 3600;
     this->energy_sensor_->publish_state(energy);
   }
