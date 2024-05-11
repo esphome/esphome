@@ -21,6 +21,10 @@ from . import (
     ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
     validate_adc_pin,
 )
+from esphome.components.zephyr import (
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+)
 
 AUTO_LOAD = ["voltage_sampler"]
 
@@ -85,6 +89,52 @@ async def to_code(config):
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
         cg.add(var.set_is_temperature())
+    elif CORE.using_zephyr:
+        zephyr_add_prj_conf("ADC", True)
+        zephyr_add_overlay(
+            """
+/ {
+    zephyr,user {
+        io-channels = <&adc 0>, <&adc 1>, <&adc 7>;
+    };
+};
+
+&adc {
+    #address-cells = <1>;
+    #size-cells = <0>;
+
+    channel@0 {
+        reg = <0>;
+        zephyr,gain = "ADC_GAIN_1_6";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_AIN1>; /* P0.03 */
+        zephyr,resolution = <12>;
+    };
+
+    channel@1 {
+        reg = <1>;
+        zephyr,gain = "ADC_GAIN_1_6";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_VDD>;
+        zephyr,resolution = <14>;
+        zephyr,oversampling = <8>;
+    };
+
+    channel@7 {
+        reg = <7>;
+        zephyr,gain = "ADC_GAIN_1_5";
+        zephyr,reference = "ADC_REF_VDD_1_4";
+        zephyr,vref-mv = <750>;
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_AIN6>; /* P0.30 */
+        zephyr,input-negative = <NRF_SAADC_AIN7>; /* P0.31 */
+        zephyr,resolution = <12>;
+    };
+};
+"""
+        )
     else:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))

@@ -10,6 +10,9 @@
 #include "driver/adc.h"
 #include <esp_adc_cal.h>
 #endif
+#ifdef USE_ZEPHYR
+#include <zephyr/drivers/adc.h>
+#endif
 
 namespace esphome {
 namespace adc {
@@ -37,7 +40,9 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void dump_config() override;
   /// `HARDWARE_LATE` setup priority
   float get_setup_priority() const override;
+#ifndef USE_ZEPHYR
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
+#endif
   void set_output_raw(bool output_raw) { output_raw_ = output_raw; }
   float sample() override;
 
@@ -50,7 +55,11 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #endif
 
  protected:
+#ifndef USE_ZEPHYR
   InternalGPIOPin *pin_;
+#else
+  const struct adc_dt_spec *adc_chan_;
+#endif
   bool output_raw_{false};
 
 #ifdef USE_RP2040

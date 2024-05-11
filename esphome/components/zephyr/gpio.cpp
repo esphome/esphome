@@ -6,7 +6,7 @@
 namespace esphome {
 namespace zephyr {
 
-static const char *const TAG = "nrf52";
+static const char *const TAG = "zephyr";
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin, bool inverted, bool value) {
   int ret = 0;

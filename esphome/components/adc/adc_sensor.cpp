@@ -18,6 +18,10 @@ ADC_MODE(ADC_VCC)
 #include <hardware/adc.h>
 #endif
 
+#ifdef USE_ZEPHYR
+static const struct adc_dt_spec adc_chan = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 1);
+#endif
+
 namespace esphome {
 namespace adc {
 
@@ -45,7 +49,7 @@ extern "C"
     void
     ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
-#if !defined(USE_ADC_SENSOR_VCC) && !defined(USE_RP2040)
+#if !defined(USE_ADC_SENSOR_VCC) && !defined(USE_RP2040) && !defined(USE_ZEPHYR)
   pin_->setup();
 #endif
 
@@ -87,6 +91,20 @@ extern "C"
   if (!initialized) {
     adc_init();
     initialized = true;
+  }
+#endif
+
+#ifdef USE_ZEPHYR
+  adc_chan_ = &adc_chan;
+  if (!adc_is_ready_dt(adc_chan_)) {
+    ESP_LOGE(TAG, "ADC controller device %s not ready", adc_chan_->dev->name);
+    return;
+  }
+
+  auto err = adc_channel_setup_dt(adc_chan_);
+  if (err < 0) {
+    ESP_LOGE(TAG, "Could not setup channel %s (%d)", adc_chan_->dev->name, err);
+    return;
   }
 #endif
 
@@ -138,6 +156,10 @@ void ADCSensor::dump_config() {
 #endif  // USE_ADC_SENSOR_VCC
   }
 #endif  // USE_RP2040
+
+#ifdef USE_ZEPHYR
+  ESP_LOGCONFIG(TAG, "  Name: %s, channel_id: %d", adc_chan_->dev->name, adc_chan_->channel_id);
+#endif
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -296,6 +318,50 @@ float ADCSensor::sample() {
 
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
+#endif
+
+#ifdef USE_ZEPHYR
+float ADCSensor::sample() {
+  uint16_t buf;
+  struct adc_sequence sequence = {
+      .buffer = &buf,
+      /* buffer size in bytes, not number of samples */
+      .buffer_size = sizeof(buf),
+  };
+  int32_t val_mv;
+
+  adc_sequence_init_dt(adc_chan_, &sequence);
+
+  auto err = adc_read(adc_chan_->dev, &sequence);
+  if (err < 0) {
+    ESP_LOGE(TAG, "Could not read %s (%d)", adc_chan_->dev->name, err);
+    return 0.0;
+  }
+
+  /*
+   * If using differential mode, the 16 bit value
+   * in the ADC sample buffer should be a signed 2's
+   * complement value.
+   */
+  if (adc_chan_->channel_cfg.differential) {
+    val_mv = (int32_t) ((int16_t) buf);
+  } else {
+    val_mv = (int32_t) buf;
+  }
+
+  if (output_raw_) {
+    return val_mv;
+  }
+
+  err = adc_raw_to_millivolts_dt(adc_chan_, &val_mv);
+  /* conversion to mV may not be supported, skip if not */
+  if (err < 0) {
+    ESP_LOGE(TAG, "Value in mV not available %s (%d)", adc_chan_->dev->name, err);
+    return 0.0;
+  }
+
+  return val_mv / 1000.0f;
+}
 #endif
 
 }  // namespace adc
