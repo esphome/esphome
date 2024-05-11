@@ -104,7 +104,7 @@ void LTR390Component::read_mode_(int mode_index) {
 
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
   ctrl[LTR390_CTRL_MODE] = mode;
-  ctrl[LTR390_CTRL_EN] = 1;
+  ctrl[LTR390_CTRL_EN] = true;
   this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
 
   // After the sensor integration time do the following
@@ -120,7 +120,7 @@ void LTR390Component::read_mode_(int mode_index) {
                       } else {
                         // put sensor in standby
                         std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
-                        ctrl[LTR390_CTRL_EN] = 0;
+                        ctrl[LTR390_CTRL_EN] = false;
                         this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
                         this->reading_ = false;
                       }
