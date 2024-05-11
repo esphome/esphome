@@ -1,0 +1,26 @@
+sensor:
+  - platform: adc
+    id: my_sensor
+    pin: 32
+    attenuation: 11db
+  - platform: resistance
+    sensor: my_sensor
+    configuration: DOWNSTREAM
+    resistor: 10kΩ
+    reference_voltage: 3.3V
+    name: Resistance
+    id: resist
+  - platform: ntc
+    sensor: resist
+    name: NTC Sensor
+    calibration:
+      b_constant: 3950
+      reference_resistance: 10k
+      reference_temperature: 25°C
+  - platform: ntc
+    sensor: resist
+    name: NTC Sensor2
+    calibration:
+      - 10.0kOhm -> 25°C
+      - 27.219kOhm -> 0°C
+      - 14.674kOhm -> 15°C

@@ -69,7 +69,9 @@ def create_components_graph():
             sys.exit(1)
 
         for dependency in comp.dependencies:
-            add_item_to_components_graph(components_graph, dependency, name)
+            add_item_to_components_graph(
+                components_graph, dependency.split(".")[0], name
+            )
 
         for target_config in TARGET_CONFIGURATIONS:
             CORE.data[KEY_CORE] = target_config
@@ -87,7 +89,9 @@ def create_components_graph():
             add_item_to_components_graph(components_graph, platform_name, name)
 
             for dependency in platform.dependencies:
-                add_item_to_components_graph(components_graph, dependency, name)
+                add_item_to_components_graph(
+                    components_graph, dependency.split(".")[0], name
+                )
 
             for target_config in TARGET_CONFIGURATIONS:
                 CORE.data[KEY_CORE] = target_config

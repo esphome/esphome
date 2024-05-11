@@ -343,9 +343,10 @@ def upload_program(config, args, host):
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        not is_ip_address(CORE.address)
+        not is_ip_address(CORE.address)  # pylint: disable=too-many-boolean-expressions
         and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
         and CONF_MQTT in config
+        and (not args.device or args.device == "MQTT")
     ):
         from esphome import mqtt
 
@@ -768,7 +769,9 @@ def parse_args(argv):
     )
 
     parser_upload = subparsers.add_parser(
-        "upload", help="Validate the configuration and upload the latest binary."
+        "upload",
+        help="Validate the configuration and upload the latest binary.",
+        parents=[mqtt_options],
     )
     parser_upload.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
@@ -785,6 +788,7 @@ def parse_args(argv):
     parser_logs = subparsers.add_parser(
         "logs",
         help="Validate the configuration and show all logs.",
+        aliases=["log"],
         parents=[mqtt_options],
     )
     parser_logs.add_argument(

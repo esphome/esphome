@@ -6,6 +6,8 @@ from esphome.components import nfc
 from esphome.const import (
     CONF_ID,
     CONF_IRQ_PIN,
+    CONF_MESSAGE,
+    CONF_ON_FINISHED_WRITE,
     CONF_ON_TAG_REMOVED,
     CONF_ON_TAG,
     CONF_TRIGGER_ID,
@@ -18,8 +20,6 @@ CONF_EMULATION_MESSAGE = "emulation_message"
 CONF_EMULATION_OFF = "emulation_off"
 CONF_EMULATION_ON = "emulation_on"
 CONF_INCLUDE_ANDROID_APP_RECORD = "include_android_app_record"
-CONF_MESSAGE = "message"
-CONF_ON_FINISHED_WRITE = "on_finished_write"
 CONF_ON_EMULATED_TAG_SCAN = "on_emulated_tag_scan"
 CONF_PN7150_ID = "pn7150_id"
 CONF_POLLING_OFF = "polling_off"

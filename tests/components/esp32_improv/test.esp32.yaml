@@ -1,18 +1,1 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-binary_sensor:
-  - platform: gpio
-    pin: 0
-    id: io0_button
-
-output:
-  - platform: gpio
-    pin: 2
-    id: built_in_led
-
-esp32_improv:
-  authorizer: io0_button
-  authorized_duration: 1min
-  status_indicator: built_in_led
+<<: !include common.yaml
