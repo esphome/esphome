@@ -109,6 +109,9 @@ def zephyr_to_code(conf):
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
     zephyr_add_prj_conf("CONSOLE", False, False)
+    # TODO move to nrf52
+    # use NFC pins as GPIO
+    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
 
     add_extra_script(
         "pre",
