@@ -340,7 +340,7 @@ void VoiceAssistant::loop() {
           break;
         } else if (this->speaker_->is_running()) {
           this->speaker_->finish();
-        } else if (this->speaker_->has_stopped()) {
+        } else if (this->speaker_->is_stopped()) {
           ESP_LOGD(TAG, "Speaker has finished outputting all audio");
           this->cancel_timeout("speaker-timeout");
           this->cancel_timeout("playing");

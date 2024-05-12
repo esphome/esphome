@@ -218,7 +218,7 @@ void I2SAudioSpeaker::loop() {
 
 size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length) {
   if (this->state_ != speaker::STATE_RUNNING && this->state_ != speaker::STATE_STARTING) {
-    esph_log_d(TAG, "Called play while speaker not running.");
+    ESP_LOGD(TAG, "Called play while speaker not running.");
     return 0;
   }
   size_t remaining = length;
