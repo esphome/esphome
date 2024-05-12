@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome import automation
 from esphome.components.key_provider import KeyProvider
-from esphome.components.lvgl.defines import CONF_TEXT
+from .defines import CONF_TEXT
 from esphome.const import CONF_VALUE
 
 uint16_t_ptr = cg.uint16.operator("ptr")

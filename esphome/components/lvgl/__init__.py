@@ -961,6 +961,7 @@ async def styles_to_code(styles):
             if value := style.get(prop):
                 if isinstance(validator, LValidator):
                     value = await validator.process(value)
+
                 if isinstance(value, list):
                     value = "|".join(value)
                 cgen(f"lv_style_set_{prop}({svar}, {value})")
