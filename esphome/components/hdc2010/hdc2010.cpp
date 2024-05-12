@@ -1,6 +1,6 @@
-#include "hdc2010.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "hdc2010.h"
 // https://github.com/vigsterkr/homebridge-hdc2010/blob/main/src/hdc2010.js
 // https://github.com/lime-labs/HDC2080-Arduino/blob/master/src/HDC2080.cpp
 namespace esphome {
@@ -27,7 +27,8 @@ void HDC2010Component::setup() {
   };
 
   if (!this->write_bytes(HDC2010_CMD_CONFIGURATION_MEASUREMENT, data, 2)) {
-    // as instruction is same as powerup defaults (for now), interpret as warning if this fails
+    // as instruction is same as powerup defaults (for now), interpret as
+    // warning if this fails
     ESP_LOGW(TAG, "HDC2010 initial config instruction error");
     this->status_set_warning();
     return;
@@ -44,34 +45,33 @@ void HDC2010Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 void HDC2010Component::update() {
-// Temperature
-    uint8_t temp_byte[2];
-    uint16_t temp;
-    
-    temp_byte[0] = readReg(HDC2010_CMD_TEMPERATURE_LOW);
-    temp_byte[1] = readReg(HDC2010_CMD_TEMPERATURE_HIGH);
-    
-    temp = (uint16_t)(temp_byte[1]) << 8 | (uint16_t)temp_byte[0];
-    
-    float temperature = (float)temp * 165.0 / 65536.0 - 40.0;
-    
-    this->temperature_->publish_state(temperature);
-    
-    uint8_t humid_byte[2];
-    uint16_t humidity;
-// Humidity
-    humid_byte[0] = readReg(HDC2010_CMD_HUMIDITY_LOW);
-    humid_byte[1] = readReg(HDC2010_CMD_HUMIDITY_HIGH);
-    
-    humidity = (uint16_t)(humid_byte[1]) << 8 | (uint16_t)humid_byte[0];
-    
-    float humidity_value = (float)humidity / 65536.0 * 100.0;
-    
-    this->humidity_->publish_state(humidity_value);
-    
-    ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity_value);
-}
+  // Temperature
+  uint8_t temp_byte[2];
+  uint16_t temp;
 
+  temp_byte[0] = readReg(HDC2010_CMD_TEMPERATURE_LOW);
+  temp_byte[1] = readReg(HDC2010_CMD_TEMPERATURE_HIGH);
+
+  temp = (uint16_t) (temp_byte[1]) << 8 | (uint16_t) temp_byte[0];
+
+  float temperature = (float) temp * 165.0 / 65536.0 - 40.0;
+
+  this->temperature_->publish_state(temperature);
+
+  uint8_t humid_byte[2];
+  uint16_t humidity;
+  // Humidity
+  humid_byte[0] = readReg(HDC2010_CMD_HUMIDITY_LOW);
+  humid_byte[1] = readReg(HDC2010_CMD_HUMIDITY_HIGH);
+
+  humidity = (uint16_t) (humid_byte[1]) << 8 | (uint16_t) humid_byte[0];
+
+  float humidity_value = (float) humidity / 65536.0 * 100.0;
+
+  this->humidity_->publish_state(humidity_value);
+
+  ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity_value);
+}
 // void HDC2010::enableHeater()
 // {
 //   uint16_t configContents; //Stores current contents of config register
