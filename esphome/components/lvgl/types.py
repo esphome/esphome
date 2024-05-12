@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 from esphome import automation
 from esphome.components.key_provider import KeyProvider
-from .defines import CONF_TEXT
 from esphome.const import CONF_VALUE
+from .defines import CONF_TEXT
 
 uint16_t_ptr = cg.uint16.operator("ptr")
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
