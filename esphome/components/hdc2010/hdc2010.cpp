@@ -10,7 +10,6 @@ static const char *const TAG = "hdc2010";
 
 static const uint8_t HDC2010_ADDRESS = 0x40;  // 0b1000000 or 0b1000001 from datasheet
 static const uint8_t HDC2010_CMD_CONFIGURATION_MEASUREMENT = 0x0F;
-static const uint8_t HDC2010_CMD_CONFIG = 0x0E;
 static const uint8_t HDC2010_CMD_TEMPERATURE_LOW = 0x00;
 static const uint8_t HDC2010_CMD_TEMPERATURE_HIGH = 0x01;
 static const uint8_t HDC2010_CMD_HUMIDITY_LOW = 0x02;
@@ -45,50 +44,32 @@ void HDC2010Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 void HDC2010Component::update() {
-  // Temperature
-  uint16_t raw_temp;
-  if (this->write(&HDC2010_CMD_TEMPERATURE_LOW, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  if (this->write(&HDC2010_CMD_TEMPERATURE_HIGH, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  delay(20);
-  if (this->read(reinterpret_cast<uint8_t *>(&raw_temp), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  raw_temp = (unsigned int) (HDC2010_CMD_TEMPERATURE_HIGH) << 8 | (unsigned int) (HDC2010_CMD_TEMPERATURE_LOW);
-  raw_temp = i2c::i2ctohs(raw_temp);
-
-  float temp = raw_temp * (-39.99748229980468f);  // raw * 2^-16 * 165 - 40
-  this->temperature_->publish_state(temp);
-
-  // Humidity
-
-  uint16_t raw_humidity;
-  if (this->write(&HDC2010_CMD_HUMIDITY_LOW, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  if (this->write(&HDC2010_CMD_HUMIDITY_HIGH, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  delay(20);
-  if (this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  raw_humidity = (unsigned int) HDC2010_CMD_HUMIDITY_HIGH << 8 | HDC2010_CMD_HUMIDITY_LOW;
-  raw_humidity = i2c::i2ctohs(raw_humidity);
-  float humidity = raw_humidity * 0.00152587890625f;  // raw * 2^-16 * 100
-  this->humidity_->publish_state(humidity);
-
-  ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temp, humidity);
-  this->status_clear_warning();
+// Temperature
+    uint8_t temp_byte[2];
+    uint16_t temp;
+    
+    temp_byte[0] = readReg(HDC2010_CMD_TEMPERATURE_LOW);
+    temp_byte[1] = readReg(HDC2010_CMD_TEMPERATURE_HIGH);
+    
+    temp = (uint16_t)(temp_byte[1]) << 8 | (uint16_t)temp_byte[0];
+    
+    float temperature = (float)temp * 165.0 / 65536.0 - 40.0;
+    
+    this->temperature_->publish_state(temperature);
+    
+    uint8_t humid_byte[2];
+    uint16_t humidity;
+// Humidity
+    humid_byte[0] = readReg(HDC2010_CMD_HUMIDITY_LOW);
+    humid_byte[1] = readReg(HDC2010_CMD_HUMIDITY_HIGH);
+    
+    humidity = (uint16_t)(humid_byte[1]) << 8 | (uint16_t)humid_byte[0];
+    
+    float humidity_value = (float)humidity / 65536.0 * 100.0;
+    
+    this->humidity_->publish_state(humidity_value);
+    
+    ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity_value);
 }
 
 // void HDC2010::enableHeater()
