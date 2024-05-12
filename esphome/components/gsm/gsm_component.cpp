@@ -17,11 +17,11 @@
 #include <iostream>
 #include "sdkconfig.h"
 
-#define CONFIG_MODEM_UART_RX_BUFFER_SIZE 1024
-#define CONFIG_MODEM_UART_TX_BUFFER_SIZE 512
-#define CONFIG_MODEM_UART_EVENT_QUEUE_SIZE 30
-#define CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE 2048
-#define CONFIG_MODEM_UART_EVENT_TASK_PRIORITY 5
+static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 1024;
+static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 512;
+static const uint8_t CONFIG_MODEM_UART_EVENT_QUEUE_SIZE = 30;
+static const size_t CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE = 2048;
+static const uint8_t CONFIG_MODEM_UART_EVENT_TASK_PRIORITY = 5;
 
 namespace esphome {
 namespace gsm {
