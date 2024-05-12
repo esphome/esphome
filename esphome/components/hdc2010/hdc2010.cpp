@@ -63,7 +63,7 @@ void HDC2010Component::update() {
   raw_temp = (unsigned int) (HDC2010_CMD_TEMPERATURE_HIGH) << 8 | (unsigned int) (HDC2010_CMD_TEMPERATURE_LOW);
   raw_temp = i2c::i2ctohs(raw_temp);
 
-  float temp = raw_temp * 0.0025177001953125f - 40.0f;  // raw * 2^-16 * 165 - 40
+  float temp = raw_temp * (-39.99748229980468f);  // raw * 2^-16 * 165 - 40
   this->temperature_->publish_state(temp);
 
   // Humidity
