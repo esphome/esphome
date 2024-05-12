@@ -25,12 +25,15 @@ from .const import (
 AUTO_LOAD = ["preferences"]
 KEY_BOARD = "board"
 
+KEY_USER = "user"
+
 
 def zephyr_set_core_data(config):
     CORE.data[KEY_ZEPHYR] = {}
     CORE.data[KEY_ZEPHYR][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF] = {}
     CORE.data[KEY_ZEPHYR][KEY_OVERLAY] = ""
+    CORE.data[KEY_ZEPHYR][KEY_USER] = {}
     CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] = config[KEY_BOOTLOADER]
     CORE.data[KEY_ZEPHYR][KEY_EXTRA_BUILD_FILES] = {}
     return config
@@ -53,6 +56,12 @@ def zephyr_add_prj_conf(name: str, value: PrjConfValueType, required: bool = Tru
             CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = (value, required)
     else:
         CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = (value, required)
+
+
+def zephyr_add_user(key, value):
+    if key not in CORE.data[KEY_ZEPHYR][KEY_USER]:
+        CORE.data[KEY_ZEPHYR][KEY_USER][key] = []
+    CORE.data[KEY_ZEPHYR][KEY_USER][key] += [value]
 
 
 def zephyr_add_overlay(content):
@@ -143,7 +152,8 @@ def zephyr_add_cdc_acm(config):
 # Called by writer.py
 def copy_files():
     want_opts = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF]
-    contents = (
+
+    prj_conf = (
         "\n".join(
             f"{name}={_format_prj_conf_val(value[0])}"
             for name, value in sorted(want_opts.items())
@@ -151,7 +161,17 @@ def copy_files():
         + "\n"
     )
 
-    write_file_if_changed(CORE.relative_build_path("zephyr/prj.conf"), contents)
+    write_file_if_changed(CORE.relative_build_path("zephyr/prj.conf"), prj_conf)
+
+    zephyr_add_overlay(
+        f"""
+/ {{
+    zephyr,user {{
+        {[f"{key} = {', '.join(value)};" for key, value in CORE.data[KEY_ZEPHYR][KEY_USER].items()][0]}
+}};
+}};"""
+    )
+
     write_file_if_changed(
         CORE.relative_build_path("zephyr/app.overlay"),
         CORE.data[KEY_ZEPHYR][KEY_OVERLAY],

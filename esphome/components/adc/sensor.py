@@ -25,6 +25,7 @@ from . import (
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_add_user,
 )
 
 AUTO_LOAD = ["voltage_sampler"]
@@ -105,14 +106,7 @@ async def to_code(config):
         adc = cg.new_Pvariable(nrf_saadc, rhs)
         cg.add(var.set_adc_channel(adc))
         gain = "ADC_GAIN_1_6"
-        zephyr_add_overlay(
-            """
-/ {
-    zephyr,user {
-        io-channels = <&adc 0>, <&adc 1>, <&adc 2>;
-    };
-};"""
-        )
+        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
         zephyr_add_overlay(
             f"""
 &adc {{
