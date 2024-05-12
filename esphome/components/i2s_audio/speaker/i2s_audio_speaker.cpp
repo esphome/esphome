@@ -207,8 +207,6 @@ void I2SAudioSpeaker::loop() {
       this->start_();
       break;
     case speaker::STATE_STARTING:
-      this->watch_();
-      break;
     case speaker::STATE_RUNNING:
     case speaker::STATE_STOPPING:
       this->watch_();
