@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 from esphome import automation
 from esphome.components.key_provider import KeyProvider
+from esphome.components.lvgl.defines import CONF_TEXT
+from esphome.const import CONF_VALUE
 
 uint16_t_ptr = cg.uint16.operator("ptr")
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
@@ -44,6 +46,7 @@ class LvType(cg.MockObjClass):
         self.value = kwargs.pop("lvalue", lambda w: w.obj)
         self.has_on_value = kwargs.pop("has_on_value", False)
         self.animated = kwargs.pop("animated", False)
+        self.value_property = None
 
     def get_arg_type(self):
         return self.args[0][0] if len(self.args) else None
@@ -57,6 +60,18 @@ class LvNumber(LvType):
             lvalue=lambda w: w.get_number_value(),
             has_on_value=True,
         )
+        self.value_property = CONF_VALUE
+
+
+class LvText(LvType):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            largs=[(cg.std_string, "text")],
+            lvalue=lambda w: w.get_property("text")[0],
+            **kwargs,
+        )
+        self.value_property = CONF_TEXT
 
 
 class LvBoolean(LvType):
@@ -83,7 +98,6 @@ class LvSelect(LvType):
 
 lv_obj_t = LvType("lv_obj_t")
 LvBtnmBtn = LvBoolean(str(cg.uint16), parents=(lv_pseudo_button_t,))
-lv_label_t = LvType("lv_label_t")
 lv_dropdown_list_t = LvType("lv_dropdown_list_t")
 lv_meter_t = LvType("lv_meter_t")
 lv_btn_t = LvBoolean("lv_btn_t")
@@ -100,7 +114,6 @@ lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
 lv_canvas_t = LvType("lv_canvas_t")
 lv_dropdown_t = LvSelect("lv_dropdown_t")
 lv_roller_t = LvSelect("lv_roller_t", animated=True)
-lv_led_t = LvType("lv_led_t")
 lv_switch_t = LvBoolean("lv_switch_t")
 lv_table_t = LvType("lv_table_t")
 lv_chart_t = LvType("lv_chart_t")
@@ -116,10 +129,13 @@ lv_keyboard_t = LvType(
     largs=[(cg.const_char_ptr, "text")],
     lvalue=lambda w: f"lv_textarea_get_text({w.obj})",
 )
-lv_textarea_t = LvType(
+lv_label_t = LvText(
+    "lv_label_t",
+)
+
+lv_led_t = LvType("lv_led_t")
+lv_textarea_t = LvText(
     "lv_textarea_t",
-    largs=[(cg.const_char_ptr, "text")],
-    lvalue=lambda w: f"lv_textarea_get_text({w.obj})",
     has_on_value=True,
 )
 

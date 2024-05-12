@@ -237,7 +237,7 @@ STYLE_PROPS = {
     "border_color": lv_color,
     "border_opa": lv.opacity,
     "border_post": cv.boolean,
-    "border_side": lv.one_of(
+    "border_side": lv.several_of(
         df.LvConstant(
             "LV_BORDER_SIDE_", "NONE", "TOP", "BOTTOM", "LEFT", "RIGHT", "INTERNAL"
         )
@@ -281,7 +281,7 @@ STYLE_PROPS = {
         df.LvConstant("LV_TEXT_ALIGN_", "LEFT", "CENTER", "RIGHT", "AUTO")
     ),
     "text_color": lv_color,
-    "text_decor": lv.one_of(
+    "text_decor": lv.several_of(
         df.LvConstant("LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH")
     ),
     "text_font": lv.font,
@@ -893,7 +893,7 @@ TILE_SCHEMA = any_widget_schema(
         cv.Required(CONF_ROW): lv_int,
         cv.Required(df.CONF_COLUMN): lv_int,
         cv.GenerateID(df.CONF_TILE_ID): cv.declare_id(ty.lv_tile_t),
-        cv.Optional(df.CONF_DIR, default="ALL"): lv.one_of(df.TILE_DIRECTIONS),
+        cv.Optional(df.CONF_DIR, default="ALL"): lv.several_of(df.TILE_DIRECTIONS),
     }
 )
 
@@ -961,6 +961,8 @@ async def styles_to_code(styles):
             if value := style.get(prop):
                 if isinstance(validator, LValidator):
                     value = await validator.process(value)
+                if isinstance(value, list):
+                    value = "|".join(value)
                 cgen(f"lv_style_set_{prop}({svar}, {value})")
 
 
@@ -1203,8 +1205,11 @@ async def tileview_to_code(var: Widget, config: dict):
         tile_obj = cg.Pvariable(w_id, cg.nullptr, type_=ty.lv_obj_t)
         tile = Widget(tile_obj, ty.lv_tile_t)
         widget_map[w_id] = tile
+        dirs = wc[df.CONF_DIR]
+        if isinstance(dirs, list):
+            dirs = "|".join(dirs)
         init.append(
-            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {wc[df.CONF_COLUMN]}, {wc[CONF_ROW]}, {wc[df.CONF_DIR]})"
+            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {wc[df.CONF_COLUMN]}, {wc[CONF_ROW]}, {dirs})"
         )
         ext_init = await widget_to_code(wc, w_type, tile)
         init.extend(ext_init)
@@ -2074,6 +2079,15 @@ async def action_to_code(action, action_id, widg: Widget, template_arg, args):
 async def update_to_code(config, action_id, widget: Widget, init, template_arg, args):
     if config is not None:
         init.extend(await set_obj_properties(widget, config))
+        if (
+            widget.type.value_property is not None
+            and widget.type.value_property in config
+        ):
+            init.append(
+                f"""
+                lv_event_send({widget.obj}, LV_EVENT_VALUE_CHANGED, nullptr);
+                        """
+            )
     return await action_to_code(init, action_id, widget, template_arg, args)
 
 

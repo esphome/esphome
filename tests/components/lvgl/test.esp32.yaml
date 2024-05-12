@@ -126,6 +126,8 @@ lvgl:
       text_color: 0xFFFFFF
       width: 100%
       height: 30
+      border_side: [left, top]
+      text_decor: [underline, strikethrough]
   theme:
     obj:
       border_width: 1
@@ -501,7 +503,7 @@ lvgl:
             tiles:
               - img:
                   tile_id: cat_tile
-                  dir: VER
+                  dir: [LEFT, top]
                   row: 0
                   column: 0
                   align: center

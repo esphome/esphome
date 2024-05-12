@@ -121,6 +121,10 @@ def one_of(consts: LvConstant):
     return validator
 
 
+def several_of(consts: LvConstant):
+    return cv.ensure_list(one_of(consts))
+
+
 def join_enums(enums, prefix=""):
     return "|".join(map(lambda e: f"(int){prefix}{e.upper()}", enums))
 

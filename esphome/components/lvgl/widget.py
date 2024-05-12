@@ -76,6 +76,8 @@ class Widget:
         return [f"lv_{ltype}_get_{prop}({self.obj})"]
 
     def set_style(self, prop, value, state):
+        if isinstance(value, list):
+            value = "|".join(value)
         return [f"lv_obj_set_style_{prop}({self.obj}, {value}, {state})"]
 
     def set_event_cb(self, code, *varargs):

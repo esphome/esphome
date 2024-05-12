@@ -13,13 +13,13 @@ from . import (
 )
 from .defines import CONF_WIDGET, CONF_LVGL_ID
 from .lv_validation import requires_component
-from .types import lv_textarea_t
+from .types import LvText
 
 BASE_SCHEMA = text_sensor_schema(TextSensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_WIDGET): cv.use_id(lv_textarea_t),
+            cv.Required(CONF_WIDGET): cv.use_id(LvText),
         }
     ),
     requires_component("text_sensor"),
