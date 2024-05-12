@@ -1,12 +1,12 @@
 #include "ethernet_component.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/core/application.h"
 
 #ifdef USE_ESP32
 
-#include <cinttypes>
 #include <lwip/dns.h>
+#include <cinttypes>
 #include "esp_event.h"
 
 #ifdef USE_ETHERNET_SPI
@@ -183,6 +183,10 @@ void EthernetComponent::setup() {
   if (this->type_ == ETHERNET_TYPE_KSZ8081RNA && this->clk_mode_ == EMAC_CLK_OUT) {
     // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
     this->ksz8081_set_clock_reference_(mac);
+  }
+  if (this->type_ == ETHERNET_TYPE_RTL8201 && this->clk_mode_ == EMAC_CLK_EXT_IN) {
+    // Change in default behavior of RTL8201FI may require register setting to enable external clock
+    this->rtl8201_set_rmii_mode_(mac);
   }
 #endif
 
@@ -554,9 +558,10 @@ bool EthernetComponent::powerdown() {
 }
 
 #ifndef USE_ETHERNET_SPI
-void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
-#define KSZ80XX_PC2R_REG_ADDR (0x1F)
 
+constexpr uint8_t KSZ80XX_PC2R_REG_ADDR = 0x1F;
+
+void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
   esp_err_t err;
 
   uint32_t phy_control_2;
@@ -581,9 +586,47 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
     ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
     ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
   }
-
-#undef KSZ80XX_PC2R_REG_ADDR
 }
+constexpr uint8_t RTL8201_RMSR_REG_ADDR = 0x10;
+void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
+  esp_err_t err;
+  uint32_t phy_rmii_mode;
+  err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x07);
+  ESPHL_ERROR_CHECK(err, "Setting Page 7 failed");
+
+  /*
+   * RTL8201 RMII Mode Setting Register (RMSR)
+   * Page 7 Register 16
+   *
+   * bit 0      Reserved            0
+   * bit 1      Rg_rmii_rxdsel      1 (default)
+   * bit 2      Rg_rmii_rxdv_sel:   0 (default)
+   * bit 3      RMII Mode:          1 (RMII Mode)
+   * bit 4~7    Rg_rmii_rx_offset:  1111 (default)
+   * bit 8~11   Rg_rmii_tx_offset:  1111 (default)
+   * bit 12     Rg_rmii_clkdir:     1 (Input)
+   * bit 13~15  Reserved            000
+   *
+   * Binary: 0001 1111 1111 1010
+   * Hex: 0x1FFA
+   *
+   */
+
+  err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
+  ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
+  ESP_LOGV(TAG, "Hardware default RTL8201 RMII Mode Register is: 0x%04X", phy_rmii_mode);
+
+  err = mac->write_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, 0x1FFA);
+  ESPHL_ERROR_CHECK(err, "Setting Register 16 RMII Mode Setting failed");
+
+  err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
+  ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
+  ESP_LOGV(TAG, "Setting RTL8201 RMII Mode Register to: 0x%04X", phy_rmii_mode);
+
+  err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x0);
+  ESPHL_ERROR_CHECK(err, "Setting Page 0 failed");
+}
+
 #endif
 
 }  // namespace ethernet
