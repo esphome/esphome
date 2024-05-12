@@ -8,7 +8,7 @@ namespace zephyr {
 
 static const char *const TAG = "zephyr";
 
-static int flags_to_mode(gpio::Flags flags, uint8_t pin, bool inverted, bool value) {
+static int flags_to_mode(gpio::Flags flags, bool inverted, bool value) {
   int ret = 0;
   if (flags & gpio::FLAG_INPUT) {
     ret |= GPIO_INPUT;
@@ -79,7 +79,7 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
   if (nullptr == gpio_) {
     return;
   }
-  gpio_pin_configure(gpio_, pin_, flags_to_mode(flags, pin_, inverted_, value_));
+  gpio_pin_configure(gpio_, pin_ % 32, flags_to_mode(flags, inverted_, value_));
 }
 
 std::string ZephyrGPIOPin::dump_summary() const {
@@ -92,7 +92,7 @@ bool ZephyrGPIOPin::digital_read() {
   if (nullptr == gpio_) {
     return false;
   }
-  return bool(gpio_pin_get(gpio_, pin_) != inverted_);
+  return bool(gpio_pin_get(gpio_, pin_ % 32) != inverted_);
 }
 
 void ZephyrGPIOPin::digital_write(bool value) {
@@ -102,7 +102,7 @@ void ZephyrGPIOPin::digital_write(bool value) {
   if (nullptr == gpio_) {
     return;
   }
-  gpio_pin_set(gpio_, pin_, value != inverted_ ? 1 : 0);
+  gpio_pin_set(gpio_, pin_ % 32, value != inverted_ ? 1 : 0);
 }
 void ZephyrGPIOPin::detach_interrupt() const {
   // TODO
