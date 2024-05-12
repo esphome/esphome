@@ -424,7 +424,7 @@ std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
 
 #ifdef USE_ZEPHYR
 float ADCSensor::sample() {
-  uint16_t buf;
+  int16_t buf = 0;
   struct adc_sequence sequence = {
       .buffer = &buf,
       /* buffer size in bytes, not number of samples */
@@ -432,9 +432,13 @@ float ADCSensor::sample() {
   };
   int32_t val_mv;
 
-  adc_sequence_init_dt(adc_channel_, &sequence);
+  auto err = adc_sequence_init_dt(adc_channel_, &sequence);
+  if (err < 0) {
+    ESP_LOGE(TAG, "Could sequence init %s (%d)", adc_channel_->dev->name, err);
+    return 0.0;
+  }
 
-  auto err = adc_read(adc_channel_->dev, &sequence);
+  err = adc_read(adc_channel_->dev, &sequence);
   if (err < 0) {
     ESP_LOGE(TAG, "Could not read %s (%d)", adc_channel_->dev->name, err);
     return 0.0;
@@ -449,6 +453,10 @@ float ADCSensor::sample() {
     val_mv = (int32_t) ((int16_t) buf);
   } else {
     val_mv = (int32_t) buf;
+    // https://github.com/adafruit/Adafruit_nRF52_Arduino/blob/0ed4d9ffc674ae407be7cacf5696a02f5e789861/cores/nRF5/wiring_analog_nRF52.c#L222
+    if (val_mv < 0) {
+      val_mv = 0;
+    }
   }
 
   if (output_raw_) {

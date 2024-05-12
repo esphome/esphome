@@ -138,6 +138,8 @@ def zephyr_add_cdc_acm(config):
     # prevent device to go to susspend, without this communication stop working in python
     # there should be a way to solve it
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+    # prevent logging when buffer is full
+    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
     zephyr_add_overlay(
         """
 &zephyr_udc0 {
@@ -163,14 +165,15 @@ def copy_files():
 
     write_file_if_changed(CORE.relative_build_path("zephyr/prj.conf"), prj_conf)
 
-    zephyr_add_overlay(
-        f"""
+    if CORE.data[KEY_ZEPHYR][KEY_USER]:
+        zephyr_add_overlay(
+            f"""
 / {{
     zephyr,user {{
         {[f"{key} = {', '.join(value)};" for key, value in CORE.data[KEY_ZEPHYR][KEY_USER].items()][0]}
 }};
 }};"""
-    )
+        )
 
     write_file_if_changed(
         CORE.relative_build_path("zephyr/app.overlay"),

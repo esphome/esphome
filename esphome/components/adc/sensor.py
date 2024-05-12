@@ -104,6 +104,8 @@ async def to_code(config):
         adc = cg.new_Pvariable(nrf_saadc, rhs)
         cg.add(var.set_adc_channel(adc))
         gain = "ADC_GAIN_1_6"
+        if config[CONF_PIN][CONF_NUMBER] == "VDDHDIV5":
+            gain = "ADC_GAIN_1_2"
         zephyr_add_user("io-channels", f"<&adc {channel_id}>")
         zephyr_add_overlay(
             f"""
