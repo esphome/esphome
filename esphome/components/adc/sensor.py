@@ -16,16 +16,16 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
+from esphome.components.zephyr import (
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+    zephyr_add_user,
+)
 from . import (
     ATTENUATION_MODES,
     ESP32_VARIANT_ADC1_PIN_TO_CHANNEL,
     ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
     validate_adc_pin,
-)
-from esphome.components.zephyr import (
-    zephyr_add_overlay,
-    zephyr_add_prj_conf,
-    zephyr_add_user,
 )
 
 AUTO_LOAD = ["voltage_sampler"]
