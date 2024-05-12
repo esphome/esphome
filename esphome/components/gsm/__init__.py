@@ -76,8 +76,8 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_PPP_NOTIFY_PHASE_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_CHAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_VJ_HEADER_COMPRESSION", True)
-    add_idf_sdkconfig_option("CONFIG_EXAMPLE_MODEM_PPP_APN", "orange")
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT", True)
+    add_idf_sdkconfig_option("CONFIG_LWIP_PPP_DEBUG_ON", True)
 
     cg.add_define("USE_GSM")
 
