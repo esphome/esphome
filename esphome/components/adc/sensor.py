@@ -77,9 +77,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
             ),
-            cv.GenerateID(CONF_NRF_SAADC): cv.All(
-                cv.only_on_nrf52, cv.declare_id(adc_dt_spec)
-            ),
+            cv.GenerateID(CONF_NRF_SAADC): cv.declare_id(adc_dt_spec),
         }
     )
     .extend(cv.polling_component_schema("60s")),
