@@ -1,6 +1,6 @@
-#include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 #include "hdc2010.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 // https://github.com/vigsterkr/homebridge-hdc2010/blob/main/src/hdc2010.js
 // https://github.com/lime-labs/HDC2080-Arduino/blob/master/src/HDC2080.cpp
 namespace esphome {
@@ -27,8 +27,7 @@ void HDC2010Component::setup() {
   };
 
   if (!this->write_bytes(HDC2010_CMD_CONFIGURATION_MEASUREMENT, data, 2)) {
-    // as instruction is same as powerup defaults (for now), interpret as
-    // warning if this fails
+    // as instruction is same as powerup defaults (for now), interpret as warning if this fails
     ESP_LOGW(TAG, "HDC2010 initial config instruction error");
     this->status_set_warning();
     return;
@@ -46,32 +45,49 @@ void HDC2010Component::dump_config() {
 }
 void HDC2010Component::update() {
   // Temperature
-  uint8_t temp_byte[2];
-  uint16_t temp;
+  uint16_t raw_temp;
+  if (this->write(&HDC2010_CMD_TEMPERATURE_LOW, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  if (this->write(&HDC2010_CMD_TEMPERATURE_HIGH, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  delay(20);
+  uint8_t temp_bytes[2];
+  if (this->read(temp_bytes, 2) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  uint16_t raw_temp = (temp_bytes[1] << 8) | temp_bytes[0];
+  float temp = raw_temp * 0.00251770019531f - 40.0f;  // raw * 2^-16 * 165 - 40
+  this->temperature_->publish_state(temp);
 
-  temp_byte[0] = readReg(HDC2010_CMD_TEMPERATURE_LOW);
-  temp_byte[1] = readReg(HDC2010_CMD_TEMPERATURE_HIGH);
-
-  temp = (uint16_t) (temp_byte[1]) << 8 | (uint16_t) temp_byte[0];
-
-  float temperature = (float) temp * 165.0 / 65536.0 - 40.0;
-
-  this->temperature_->publish_state(temperature);
-
-  uint8_t humid_byte[2];
-  uint16_t humidity;
   // Humidity
-  humid_byte[0] = readReg(HDC2010_CMD_HUMIDITY_LOW);
-  humid_byte[1] = readReg(HDC2010_CMD_HUMIDITY_HIGH);
+  uint16_t raw_humidity;
+  if (this->write(&HDC2010_CMD_HUMIDITY_LOW, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  if (this->write(&HDC2010_CMD_HUMIDITY_HIGH, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  delay(20);
+  uint8_t humid_bytes[2];
+  if (this->read(humid_bytes, 2) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  uint16_t raw_humidity = (humid_bytes[1] << 8) | humid_bytes[0];
+  float humidity = raw_humidity * 0.00152587890625f;  // raw * 2^-16 * 100
+  this->humidity_->publish_state(humidity);
 
-  humidity = (uint16_t) (humid_byte[1]) << 8 | (uint16_t) humid_byte[0];
-
-  float humidity_value = (float) humidity / 65536.0 * 100.0;
-
-  this->humidity_->publish_state(humidity_value);
-
-  ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity_value);
+  ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temp, humidity);
+  this->status_clear_warning();
 }
+
 // void HDC2010::enableHeater()
 // {
 //   uint16_t configContents; //Stores current contents of config register
