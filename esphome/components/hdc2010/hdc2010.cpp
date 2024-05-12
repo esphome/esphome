@@ -44,8 +44,11 @@ void HDC2010Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 void HDC2010Component::update() {
-  // Temperature
   uint16_t raw_temp;
+  uint8_t temp_bytes[2];
+  uint16_t raw_humidity;
+  uint8_t humid_bytes[2];
+
   if (this->write(&HDC2010_CMD_TEMPERATURE_LOW, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
@@ -55,17 +58,14 @@ void HDC2010Component::update() {
     return;
   }
   delay(20);
-  uint8_t temp_bytes[2];
   if (this->read(temp_bytes, 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  uint16_t raw_temp = (temp_bytes[1] << 8) | temp_bytes[0];
+  raw_temp = (temp_bytes[1] << 8) | temp_bytes[0];
   float temp = raw_temp * 0.00251770019531f - 40.0f;  // raw * 2^-16 * 165 - 40
   this->temperature_->publish_state(temp);
 
-  // Humidity
-  uint16_t raw_humidity;
   if (this->write(&HDC2010_CMD_HUMIDITY_LOW, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
@@ -75,12 +75,11 @@ void HDC2010Component::update() {
     return;
   }
   delay(20);
-  uint8_t humid_bytes[2];
   if (this->read(humid_bytes, 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  uint16_t raw_humidity = (humid_bytes[1] << 8) | humid_bytes[0];
+  raw_humidity = (humid_bytes[1] << 8) | humid_bytes[0];
   float humidity = raw_humidity * 0.00152587890625f;  // raw * 2^-16 * 100
   this->humidity_->publish_state(humidity);
 
