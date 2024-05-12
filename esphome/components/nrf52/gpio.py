@@ -46,7 +46,7 @@ ADC_INPUTS = [
     "AIN6",
     "AIN7",
     "VDD",
-    "VDDH",
+    "VDDHDIV5",
 ]
 
 

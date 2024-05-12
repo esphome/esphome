@@ -42,6 +42,8 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   float get_setup_priority() const override;
 #ifndef USE_ZEPHYR
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
+#else
+  void set_adc_channel(const adc_dt_spec *adc_channel) { this->adc_channel_ = adc_channel; }
 #endif
   void set_output_raw(bool output_raw) { output_raw_ = output_raw; }
   float sample() override;
@@ -58,7 +60,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #ifndef USE_ZEPHYR
   InternalGPIOPin *pin_;
 #else
-  const struct adc_dt_spec *adc_chan_;
+  const struct adc_dt_spec *adc_channel_ = nullptr;
 #endif
   bool output_raw_{false};
 

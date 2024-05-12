@@ -1,3 +1,4 @@
+from esphome.cpp_generator import MockObj
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
@@ -56,6 +57,10 @@ ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
 
+CONF_NRF_SAADC = "nrf_saadc"
+
+adc_dt_spec = cg.global_ns.class_("adc_dt_spec").operator("const")
+
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         ADCSensor,
@@ -70,6 +75,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RAW, default=False): cv.boolean,
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
+            ),
+            cv.GenerateID(CONF_NRF_SAADC): cv.All(
+                cv.only_on_nrf52, cv.declare_id(adc_dt_spec)
             ),
         }
     )
@@ -91,48 +99,36 @@ async def to_code(config):
         cg.add(var.set_is_temperature())
     elif CORE.using_zephyr:
         zephyr_add_prj_conf("ADC", True)
+        nrf_saadc = config[CONF_NRF_SAADC]
+        channel_id = int(str(nrf_saadc)[str(nrf_saadc).find("_id") + 4 :] or "1") - 1
+        rhs = MockObj(f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})")
+        adc = cg.new_Pvariable(nrf_saadc, rhs)
+        cg.add(var.set_adc_channel(adc))
+        gain = "ADC_GAIN_1_6"
         zephyr_add_overlay(
             """
 / {
     zephyr,user {
-        io-channels = <&adc 0>, <&adc 1>, <&adc 7>;
+        io-channels = <&adc 0>, <&adc 1>, <&adc 2>;
     };
-};
-
-&adc {
+};"""
+        )
+        zephyr_add_overlay(
+            f"""
+&adc {{
     #address-cells = <1>;
     #size-cells = <0>;
 
-    channel@0 {
-        reg = <0>;
-        zephyr,gain = "ADC_GAIN_1_6";
+    channel@{channel_id} {{
+        reg = <{channel_id}>;
+        zephyr,gain = "{gain}";
         zephyr,reference = "ADC_REF_INTERNAL";
         zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <NRF_SAADC_AIN1>; /* P0.03 */
-        zephyr,resolution = <12>;
-    };
-
-    channel@1 {
-        reg = <1>;
-        zephyr,gain = "ADC_GAIN_1_6";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <NRF_SAADC_VDD>;
+        zephyr,input-positive = <NRF_SAADC_{config[CONF_PIN][CONF_NUMBER]}>;
         zephyr,resolution = <14>;
         zephyr,oversampling = <8>;
-    };
-
-    channel@7 {
-        reg = <7>;
-        zephyr,gain = "ADC_GAIN_1_5";
-        zephyr,reference = "ADC_REF_VDD_1_4";
-        zephyr,vref-mv = <750>;
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <NRF_SAADC_AIN6>; /* P0.30 */
-        zephyr,input-negative = <NRF_SAADC_AIN7>; /* P0.31 */
-        zephyr,resolution = <12>;
-    };
-};
+    }};
+}};
 """
         )
     else:

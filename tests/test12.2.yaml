@@ -80,10 +80,15 @@ zephyr_debug:
 debug:
 
 sensor:
+  - platform: uptime
+    name: Uptime Sensor
+    update_interval: 5sec
   - platform: adc
-    pin: VDDH
+    pin: VDDHDIV5
     name: "VDDH Voltage"
     update_interval: 5sec
+    filters:
+      - multiply: 5
   - platform: adc
     pin: VDD
     name: "VDD Voltage"

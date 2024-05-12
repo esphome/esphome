@@ -16,7 +16,7 @@ class BLENUS : public Component {
   };
 
  public:
-  BLENUS(size_t buffer_size = 1024);
+  BLENUS(size_t buffer_size = 2048);
   void setup() override;
   void dump_config() override;
   void loop() override;
