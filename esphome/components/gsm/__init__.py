@@ -67,9 +67,6 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_PAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_PAP_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_LOG_DEFAULT_LEVEL_VERBOSE", True)
-    # add_idf_sdkconfig_option("CONFIG_LOG_DEFAULT_LEVEL_DEBUG", True)
-    add_idf_sdkconfig_option("CONFIG_EXAMPLE_CLOSE_CMUX_AT_END", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP", 0)
     add_idf_sdkconfig_option("CONFIG_PPP_SUPPORT", True)
@@ -77,7 +74,6 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_PPP_CHAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_VJ_HEADER_COMPRESSION", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_LWIP_PPP_DEBUG_ON", True)
 
     cg.add_define("USE_GSM")
 
