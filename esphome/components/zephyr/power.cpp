@@ -1,4 +1,4 @@
-
+#ifdef USE_ZEPHYR
 #include <zephyr/init.h>
 #include <hal/nrf_power.h>
 
@@ -30,3 +30,4 @@ static int board_esphome_init(void) {
 }
 
 SYS_INIT(board_esphome_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+#endif
