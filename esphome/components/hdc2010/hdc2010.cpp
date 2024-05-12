@@ -44,9 +44,9 @@ void HDC2010Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 void HDC2010Component::update() {
-  uint16_t raw_temp;
+  uint8_t raw_temp;
   uint8_t temp_bytes[2];
-  uint16_t raw_humidity;
+  uint8_t raw_humidity;
   uint8_t humid_bytes[2];
 
   if (this->write(&HDC2010_CMD_TEMPERATURE_LOW, 1) != i2c::ERROR_OK) {
@@ -63,7 +63,7 @@ void HDC2010Component::update() {
     return;
   }
   raw_temp = (temp_bytes[1] << 8) | temp_bytes[0];
-  float temp = raw_temp * 0.00251770019531f - 40.0f;  // raw * 2^-16 * 165 - 40
+  float temp = raw_temp * 0.0025177f - 40.0f;  // raw * 2^-16 * 165 - 40
   this->temperature_->publish_state(temp);
 
   if (this->write(&HDC2010_CMD_HUMIDITY_LOW, 1) != i2c::ERROR_OK) {
@@ -80,7 +80,7 @@ void HDC2010Component::update() {
     return;
   }
   raw_humidity = (humid_bytes[1] << 8) | humid_bytes[0];
-  float humidity = raw_humidity * 0.00152587890625f;  // raw * 2^-16 * 100
+  float humidity = raw_humidity * 0.0015258f;  // raw * 2^-16 * 100
   this->humidity_->publish_state(humidity);
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temp, humidity);
