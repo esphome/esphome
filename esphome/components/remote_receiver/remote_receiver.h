@@ -58,6 +58,7 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   void decode_rmt_(rmt_item32_t *item, size_t len);
   RingbufHandle_t ringbuf_;
   esp_err_t error_code_{ESP_OK};
+  std::string error_string_{""};
 #endif
 
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
