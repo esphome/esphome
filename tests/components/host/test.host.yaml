@@ -1,15 +1,1 @@
-time:
-  - platform: sntp
-    id: esptime
-    timezone: Australia/Sydney
-
-logger:
-  level: VERBOSE
-  logs:
-    lvgl: INFO
-    display: DEBUG
-    sensor: INFO
-    vnc: DEBUG
-
-host:
-  mac_address: "62:23:45:AF:B3:DD"
+<<: !include common.yaml
