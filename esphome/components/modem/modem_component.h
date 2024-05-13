@@ -16,21 +16,21 @@ using esphome::esp_log_printf_;  // esp_modem will use esphome logger (needed if
 #include <utility>
 
 namespace esphome {
-namespace gsm {
+namespace modem {
 
-static const char *const TAG = "gsm";
+static const char *const TAG = "modem";
 
-enum class GSMComponentState {
+enum class ModemComponentState {
   STOPPED,
   CONNECTING,
   CONNECTED,
 };
 
-enum class GSMModel { BG96, SIM800, SIM7000, SIM7070, SIM7070_GNSS, SIM7600, UNKNOWN };
+enum class ModemModel { BG96, SIM800, SIM7000, SIM7070, SIM7070_GNSS, SIM7600, UNKNOWN };
 
-class GSMComponent : public Component {
+class ModemComponent : public Component {
  public:
-  GSMComponent();
+  ModemComponent();
   void dump_config() override;
   void setup() override;
   void loop() override;
@@ -54,7 +54,7 @@ class GSMComponent : public Component {
   void set_status_pin(gpio_num_t status_pin) { this->status_pin_ = status_pin; }
   void set_dtr_pin(gpio_num_t dtr_pin) { this->dtr_pin_ = dtr_pin; }
   void set_model(const std::string &model) {
-    this->model_ = this->gsm_model_map_.count(model) ? gsm_model_map_[model] : GSMModel::UNKNOWN;
+    this->model_ = this->modem_model_map_.count(model) ? modem_model_map_[model] : ModemModel::UNKNOWN;
   }
   bool get_status() { return gpio_get_level(this->status_pin_); }
 
@@ -70,18 +70,18 @@ class GSMComponent : public Component {
   std::string username_;
   std::string password_;
   std::string apn_;
-  GSMModel model_;
-  std::unordered_map<std::string, GSMModel> gsm_model_map_ = {{"BG96", GSMModel::BG96},
-                                                              {"SIM800", GSMModel::SIM800},
-                                                              {"SIM7000", GSMModel::SIM7000},
-                                                              {"SIM7070", GSMModel::SIM7070},
-                                                              {"SIM7070_GNSS", GSMModel::SIM7070_GNSS},
-                                                              {"SIM7600", GSMModel::SIM7600}};
+  ModemModel model_;
+  std::unordered_map<std::string, ModemModel> modem_model_map_ = {{"BG96", ModemModel::BG96},
+                                                                  {"SIM800", ModemModel::SIM800},
+                                                                  {"SIM7000", ModemModel::SIM7000},
+                                                                  {"SIM7070", ModemModel::SIM7070},
+                                                                  {"SIM7070_GNSS", ModemModel::SIM7070_GNSS},
+                                                                  {"SIM7600", ModemModel::SIM7600}};
   std::shared_ptr<esp_modem::DTE> dte_;
   std::unique_ptr<esp_modem::DCE> dce_;  // public ?
   esp_modem::esp_netif_t *ppp_netif_{nullptr};
   esp_modem_dte_config_t dte_config_;
-  GSMComponentState state_{GSMComponentState::STOPPED};
+  ModemComponentState state_{ModemComponentState::STOPPED};
   void start_connect_();
   bool started_{false};
   bool connected_{false};
@@ -94,9 +94,9 @@ class GSMComponent : public Component {
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-extern GSMComponent *global_gsm_component;
+extern ModemComponent *global_modem_component;
 
-}  // namespace gsm
+}  // namespace modem
 }  // namespace esphome
 
 #endif

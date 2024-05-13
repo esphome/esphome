@@ -9,8 +9,8 @@
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
 
-#ifdef USE_GSM
-#include "esphome/components/gsm/gsm_component.h"
+#ifdef USE_MODEM
+#include "esphome/components/modem/modem_component.h"
 #endif
 
 namespace esphome {
@@ -27,9 +27,9 @@ bool is_connected() {
     return wifi::global_wifi_component->is_connected();
 #endif
 
-#ifdef USE_GSM
-  if (gsm::global_gsm_component != nullptr)
-    return gsm::global_gsm_component->is_connected();
+#ifdef USE_MODEM
+  if (modem::global_modem_component != nullptr)
+    return modem::global_modem_component->is_connected();
 #endif
 
 #ifdef USE_HOST
@@ -68,9 +68,9 @@ std::string get_use_address() {
   if (wifi::global_wifi_component != nullptr)
     return wifi::global_wifi_component->get_use_address();
 #endif
-#ifdef USE_GSM
-  if (gsm::global_gsm_component != nullptr)
-    return gsm::global_gsm_component->get_use_address();
+#ifdef USE_MODEM
+  if (modem::global_modem_component != nullptr)
+    return modem::global_modem_component->get_use_address();
 #endif
   return "";
 }

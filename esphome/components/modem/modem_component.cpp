@@ -1,5 +1,5 @@
 #ifdef USE_ESP_IDF
-#include "gsm_component.h"
+#include "modem_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -22,9 +22,9 @@ static const size_t CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE = 2048;
 static const uint8_t CONFIG_MODEM_UART_EVENT_TASK_PRIORITY = 5;
 
 namespace esphome {
-namespace gsm {
+namespace modem {
 
-GSMComponent *global_gsm_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \
@@ -35,15 +35,15 @@ GSMComponent *global_gsm_component;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 using namespace esp_modem;
 
-GSMComponent::GSMComponent() { global_gsm_component = this; }
+ModemComponent::ModemComponent() { global_modem_component = this; }
 
-void GSMComponent::dump_config() { ESP_LOGCONFIG(TAG, "Config GSM:"); }
+void ModemComponent::dump_config() { ESP_LOGCONFIG(TAG, "Config Modem:"); }
 
-float GSMComponent::get_setup_priority() const { return setup_priority::WIFI; }
+float ModemComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
-bool GSMComponent::can_proceed() { return this->is_connected(); }
+bool ModemComponent::can_proceed() { return this->is_connected(); }
 
-network::IPAddresses GSMComponent::get_ip_addresses() {
+network::IPAddresses ModemComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
   ESP_LOGV(TAG, "get_ip_addresses");
@@ -58,19 +58,19 @@ network::IPAddresses GSMComponent::get_ip_addresses() {
   return addresses;
 }
 
-std::string GSMComponent::get_use_address() const {
+std::string ModemComponent::get_use_address() const {
   if (this->use_address_.empty()) {
     return App.get_name() + ".local";
   }
   return this->use_address_;
 }
 
-void GSMComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+void ModemComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
 
-bool GSMComponent::is_connected() { return this->state_ == GSMComponentState::CONNECTED; }
+bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
 
-void GSMComponent::setup() {
-  ESP_LOGI(TAG, "Setting up GSM...");
+void ModemComponent::setup() {
+  ESP_LOGI(TAG, "Setting up Modem...");
 
   this->config_gpio_();
 
@@ -124,22 +124,22 @@ void GSMComponent::setup() {
   // ESPHL_ERROR_CHECK(esp_netif_set_dns_info(this->ppp_netif_, ESP_NETIF_DNS_MAIN, &dns_main), "dns_main");
 
   // Register user defined event handers
-  err = esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_GOT_IP, &GSMComponent::got_ip_event_handler, nullptr);
+  err = esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_GOT_IP, &ModemComponent::got_ip_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "GOT IP event handler register error");
 
   ESP_LOGV(TAG, "DCE setup");
 
   switch (this->model_) {
-    case GSMModel::BG96:
+    case ModemModel::BG96:
       this->dce_ = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
-    case GSMModel::SIM800:
+    case ModemModel::SIM800:
       this->dce_ = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
-    case GSMModel::SIM7000:
+    case ModemModel::SIM7000:
       this->dce_ = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
-    case GSMModel::SIM7600:
+    case ModemModel::SIM7600:
       this->dce_ = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     default:
@@ -155,7 +155,7 @@ void GSMComponent::setup() {
   ESP_LOGV(TAG, "Setup finished");
 }
 
-void GSMComponent::start_connect_() {
+void ModemComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning("Starting connection");
 
@@ -169,7 +169,7 @@ void GSMComponent::start_connect_() {
   //   ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   // }
 
-  global_gsm_component->got_ipv4_address_ = false;  // why not this ?
+  global_modem_component->got_ipv4_address_ = false;  // why not this ?
 
   this->dce_->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
   vTaskDelay(pdMS_TO_TICKS(2000));
@@ -232,56 +232,56 @@ void GSMComponent::start_connect_() {
   vTaskDelay(pdMS_TO_TICKS(2000));
 }
 
-void GSMComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGW(TAG, "[IP event] Got IP " IPSTR, IP2STR(&ip_info->ip));
   vTaskDelay(pdMS_TO_TICKS(1000));  // FIXME tmp
-  global_gsm_component->got_ipv4_address_ = true;
-  global_gsm_component->connected_ = true;
+  global_modem_component->got_ipv4_address_ = true;
+  global_modem_component->connected_ = true;
 }
 
-void GSMComponent::loop() {
+void ModemComponent::loop() {
   const uint32_t now = millis();
 
   switch (this->state_) {
-    case GSMComponentState::STOPPED:
+    case ModemComponentState::STOPPED:
       if (this->started_) {
-        ESP_LOGI(TAG, "Starting gsm connection");
-        this->state_ = GSMComponentState::CONNECTING;
+        ESP_LOGI(TAG, "Starting modem connection");
+        this->state_ = ModemComponentState::CONNECTING;
         this->start_connect_();
       }
       break;
-    case GSMComponentState::CONNECTING:
+    case ModemComponentState::CONNECTING:
       if (!this->started_) {
         ESP_LOGI(TAG, "Stopped ethernet connection");
-        this->state_ = GSMComponentState::STOPPED;
+        this->state_ = ModemComponentState::STOPPED;
       } else if (this->connected_) {
         // connection established
-        ESP_LOGI(TAG, "Connected via GSM");
-        this->state_ = GSMComponentState::CONNECTED;
+        ESP_LOGI(TAG, "Connected via Modem");
+        this->state_ = ModemComponentState::CONNECTED;
 
         this->dump_connect_params_();
         this->status_clear_warning();
       } else if (now - this->connect_begin_ > 45000) {
-        ESP_LOGW(TAG, "Connecting via GSM failed! Re-connecting...");
+        ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
         this->start_connect_();
       }
       break;
-    case GSMComponentState::CONNECTED:
+    case ModemComponentState::CONNECTED:
       if (!this->started_) {
-        ESP_LOGI(TAG, "Stopped GSM connection");
-        this->state_ = GSMComponentState::STOPPED;
+        ESP_LOGI(TAG, "Stopped Modem connection");
+        this->state_ = ModemComponentState::STOPPED;
       } else if (!this->connected_) {
-        ESP_LOGW(TAG, "Connection via GSM lost! Re-connecting...");
-        this->state_ = GSMComponentState::CONNECTING;
+        ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
+        this->state_ = ModemComponentState::CONNECTING;
         this->start_connect_();
       }
       break;
   }
 }
 
-void GSMComponent::dump_connect_params_() {
+void ModemComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->ppp_netif_, &ip);
   ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
@@ -298,7 +298,7 @@ void GSMComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
 }
 
-void GSMComponent::config_gpio_() {
+void ModemComponent::config_gpio_() {
   ESP_LOGV(TAG, "Configuring GPIOs...");
   gpio_config_t io_conf = {};
   io_conf.intr_type = GPIO_INTR_DISABLE;
@@ -328,7 +328,7 @@ void GSMComponent::config_gpio_() {
   gpio_config(&io_conf);
 }
 
-void GSMComponent::poweron() {
+void ModemComponent::poweron() {
   ESP_LOGI(TAG, "Power on  modem");
 
   if (this->get_status()) {
@@ -372,7 +372,7 @@ void GSMComponent::poweron() {
   App.feed_wdt();
 }
 
-void GSMComponent::powerdown() {
+void ModemComponent::powerdown() {
   ESP_LOGI(TAG, "Power down modem");
   if (this->get_status()) {
     // https://github.com/Xinyuan-LilyGO/T-SIM7600X/blob/master/examples/PowefOffModem/PowefOffModem.ino#L69-L71
@@ -393,7 +393,7 @@ void GSMComponent::powerdown() {
   }
 }
 
-}  // namespace gsm
+}  // namespace modem
 }  // namespace esphome
 
 #endif

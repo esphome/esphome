@@ -24,14 +24,14 @@ CONF_STATUS_PIN = "status_pin"
 CONF_DTR_PIN = "dtr_pin"
 
 
-gsm_ns = cg.esphome_ns.namespace("gsm")
-GSMComponent = gsm_ns.class_("GSMComponent", cg.Component)
+modem_ns = cg.esphome_ns.namespace("modem")
+ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
 
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(GSMComponent),
+            cv.GenerateID(): cv.declare_id(ModemComponent),
             cv.Required(CONF_TX_PIN): cv.positive_int,
             cv.Required(CONF_RX_PIN): cv.positive_int,
             cv.Required(CONF_MODEL): cv.string,
@@ -75,7 +75,7 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_VJ_HEADER_COMPRESSION", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT", True)
 
-    cg.add_define("USE_GSM")
+    cg.add_define("USE_MODEM")
 
     var = cg.new_Pvariable(config[CONF_ID])
     if use_address := config.get(CONF_USE_ADDRESS, None):
