@@ -712,7 +712,7 @@ async def templatable(
     value: Any,
     args: list[tuple[SafeExpType, str]],
     output_type: Optional[SafeExpType],
-    to_exp: Callable | dict = None,
+    to_exp: Union[Callable, dict] = None,
 ):
     """Generate code for a templatable config option.
 
