@@ -5,7 +5,6 @@ namespace speaker {
 
 enum State : uint8_t {
   STATE_STOPPED = 0,
-  STATE_WAITING_FOR_LOCK,
   STATE_STARTING,
   STATE_RUNNING,
   STATE_STOPPING,

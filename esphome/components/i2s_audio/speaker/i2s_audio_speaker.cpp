@@ -22,13 +22,19 @@ void I2SAudioSpeaker::setup() {
   this->event_queue_ = xQueueCreate(BUFFER_COUNT, sizeof(TaskEvent));
 }
 
-void I2SAudioSpeaker::start() { this->state_ = speaker::STATE_WAITING_FOR_LOCK; }
+void I2SAudioSpeaker::start() {
+  this->task_created_ = false;
+  this->state_ = speaker::STATE_STARTING;
+}
 void I2SAudioSpeaker::start_() {
+  if (this->task_created_) {
+    return;
+  }
   if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s component to return lock
   }
-  this->state_ = speaker::STATE_STARTING;
   xTaskCreate(I2SAudioSpeaker::player_task, "speaker_task", 8192, (void *) this, 1, &this->player_task_handle_);
+  this->task_created_ = true;
 }
 
 void I2SAudioSpeaker::player_task(void *params) {
@@ -188,6 +194,7 @@ void I2SAudioSpeaker::watch_() {
       case TaskEventType::STOPPED:
         this->state_ = speaker::STATE_STOPPED;
         vTaskDelete(this->player_task_handle_);
+        this->task_created_ = false;
         this->player_task_handle_ = nullptr;
         this->parent_->unlock();
         xQueueReset(this->buffer_queue_);
@@ -203,10 +210,10 @@ void I2SAudioSpeaker::watch_() {
 
 void I2SAudioSpeaker::loop() {
   switch (this->state_) {
-    case speaker::STATE_WAITING_FOR_LOCK:
-      this->start_();
-      break;
     case speaker::STATE_STARTING:
+      this->start_();
+      this->watch_();
+      break;
     case speaker::STATE_RUNNING:
     case speaker::STATE_STOPPING:
       this->watch_();
