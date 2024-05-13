@@ -82,7 +82,7 @@ def _validate_num_leds(value):
     max_num_leds = 165  # 170
     if value[CONF_IS_RGBW] or value[CONF_IS_WRGB]:
         max_num_leds = 123  # 127
-    if value.get(CONF_NUM_LEDS) > max_num_leds:
+    if value[CONF_NUM_LEDS] > max_num_leds:
         raise cv.Invalid(
             f"The maximum number of LEDs for this configuration is {max_num_leds}."
         )
