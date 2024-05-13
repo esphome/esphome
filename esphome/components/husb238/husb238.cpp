@@ -337,7 +337,7 @@ RegSrcPdo Husb238Component::get_detected_current_() {
 */
 
 bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
-  ESP_LOGV(TAG, "Setting PDO voltage selector to %.0f", voltage_to_float());
+  ESP_LOGV(TAG, "Setting PDO voltage selector to %.0f", selected_voltage_to_float(voltage));
   if (!this->is_ready()) {
     ESP_LOGE(TAG, "Component not ready");
     return false;
