@@ -806,7 +806,9 @@ LAYOUT_SCHEMA = {
                 cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
             },
             df.TYPE_FLEX: {
-                cv.Optional(df.CONF_FLEX_FLOW): df.FLEX_FLOWS.one_of,
+                cv.Optional(
+                    df.CONF_FLEX_FLOW, default="row_wrap"
+                ): df.FLEX_FLOWS.one_of,
                 cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
@@ -826,7 +828,7 @@ GRID_CELL_SCHEMA = {
 }
 
 FLEX_OBJ_SCHEMA = {
-    cv.Optional(df.CONF_FLEX_GROW, default=1): cv.int_,
+    cv.Optional(df.CONF_FLEX_GROW): cv.int_,
 }
 
 

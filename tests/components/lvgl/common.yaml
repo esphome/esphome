@@ -162,6 +162,8 @@ lvgl:
                     type: grid
                     grid_rows: 2
                     grid_columns: 2
+                    grid_column_align: space_evenly
+                    grid_row_align: center
                   checkable: true
                   widgets:
                     - label:
@@ -416,6 +418,9 @@ lvgl:
             layout:
               type: flex
               flex_flow: column_wrap
+              flex_align_main: space_evenly
+              flex_align_cross: center
+              flex_align_track: start
             align: CENTER
             src: cat_image
             id: img_id
