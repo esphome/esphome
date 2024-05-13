@@ -80,7 +80,7 @@ def _validate_pin(value):
 
 def _validate_num_leds(value):
     max_num_leds = 165  # 170
-    if value.get(CONF_IS_RGBW, False) or value.get(CONF_IS_WRGB, False):
+    if value[CONF_IS_RGBW] or value[CONF_IS_WRGB]:
         max_num_leds = 123  # 127
     if value.get(CONF_NUM_LEDS) > max_num_leds:
         raise cv.Invalid(
