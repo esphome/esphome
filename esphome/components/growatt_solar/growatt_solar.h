@@ -26,6 +26,8 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
 
   void set_protocol_version(GrowattProtocolVersion protocol_version) { this->protocol_version_ = protocol_version; }
 
+  void set_warm_up_time(uint8_t warm_up_time) { this->warm_up_time_ = warm_up_time; }
+
   void set_inverter_status_sensor(sensor::Sensor *sensor) { this->inverter_status_ = sensor; }
 
   void set_grid_frequency_sensor(sensor::Sensor *sensor) { this->grid_frequency_sensor_ = sensor; }
@@ -81,6 +83,7 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *total_energy_production_{nullptr};
   sensor::Sensor *inverter_module_temp_{nullptr};
   GrowattProtocolVersion protocol_version_;
+  uint8_t warm_up_time_;
 };
 
 }  // namespace growatt_solar

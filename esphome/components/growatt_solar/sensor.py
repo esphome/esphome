@@ -39,6 +39,7 @@ CONF_INVERTER_STATUS = "inverter_status"
 CONF_PV_ACTIVE_POWER = "pv_active_power"
 CONF_INVERTER_MODULE_TEMP = "inverter_module_temp"
 CONF_PROTOCOL_VERSION = "protocol_version"
+CONF_WARM_UP_TIME = "warm_up_time"
 
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@leeuwte"]
@@ -108,6 +109,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PROTOCOL_VERSION, default="RTU"): cv.enum(
                 PROTOCOL_VERSIONS, upper=True
             ),
+            cv.Optional(CONF_WARM_UP_TIME, default=0): cv.uint8_t,
             cv.Optional(CONF_PHASE_A): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_B): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
@@ -162,6 +164,9 @@ async def to_code(config):
     await modbus.register_modbus_device(var, config)
 
     cg.add(var.set_protocol_version(config[CONF_PROTOCOL_VERSION]))
+
+    if CONF_WARM_UP_TIME in config:
+        cg.add(var.set_warm_up_time(int(config[CONF_WARM_UP_TIME])))
 
     if CONF_INVERTER_STATUS in config:
         sens = await sensor.new_sensor(config[CONF_INVERTER_STATUS])

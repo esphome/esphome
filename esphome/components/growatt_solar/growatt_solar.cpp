@@ -28,9 +28,9 @@ void GrowattSolar::update() {
     this->waiting_to_update_ = true;
     return;
   }
-  
+
   // Ignore when device uptime is too low, preventing invalid readouts during inverter boot cycle
-  if (millis() < 30000)
+  if (this->warm_up_time_ * 1000 > millis())
     return;
 
   this->waiting_to_update_ = false;
