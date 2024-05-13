@@ -220,6 +220,31 @@ void DebugComponent::get_device_info_(std::string &device_info) {
   }
   ESP_LOGD(TAG, "%s", pof.c_str());
   device_info += "|" + pof;
+
+  auto package = [](uint32_t value) {
+    switch (value) {
+      case 0x2004:
+        return "QIxx - 7x7 73-pin aQFN";
+      case 0x2000:
+        return "QFxx - 6x6 48-pin QFN";
+      case 0x2005:
+        return "CKxx - 3.544 x 3.607 WLCSP";
+    }
+    return "Unspecified";
+  };
+
+  ESP_LOGD(TAG, "Code page size: %u, code size: %u, device id: 0x%08x%08x", NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE,
+           NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0]);
+  ESP_LOGD(TAG, "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x", NRF_FICR->ER[0],
+           NRF_FICR->ER[1], NRF_FICR->ER[2], NRF_FICR->ER[3], NRF_FICR->IR[0], NRF_FICR->IR[1], NRF_FICR->IR[2],
+           NRF_FICR->IR[3]);
+  ESP_LOGD(TAG, "Device address type: %s, address: %s", (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"),
+           get_mac_address_pretty().c_str());
+  ESP_LOGD(TAG, "Part code: nRF%x, version: %c%c%c%c, package: %s", NRF_FICR->INFO.PART,
+           NRF_FICR->INFO.VARIANT >> 24 & 0xFF, NRF_FICR->INFO.VARIANT >> 16 & 0xFF, NRF_FICR->INFO.VARIANT >> 8 & 0xFF,
+           NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE));
+  ESP_LOGD(TAG, "RAM: %ukB, Flash: %ukB, production test: %sdone", NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH,
+           (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
 }
 
 void DebugComponent::update_platform_() {}

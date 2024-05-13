@@ -692,10 +692,16 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   WiFi.macAddress(mac);
 #elif defined(USE_LIBRETINY)
   WiFi.macAddress(mac);
+#elif defined(USE_NRF52)
+  mac[0] = ((NRF_FICR->DEVICEADDR[1] & 0xFFFF) >> 8) | 0xC0;
+  mac[1] = NRF_FICR->DEVICEADDR[1] & 0xFFFF;
+  mac[2] = NRF_FICR->DEVICEADDR[0] >> 24;
+  mac[3] = NRF_FICR->DEVICEADDR[0] >> 16;
+  mac[4] = NRF_FICR->DEVICEADDR[0] >> 8;
+  mac[5] = NRF_FICR->DEVICEADDR[0];
 #else
 // this should be an error, but that messes with CI checks. #error No mac address method defined
 #endif
-  // TODO
 }
 std::string get_mac_address() {
   uint8_t mac[6];
