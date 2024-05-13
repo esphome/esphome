@@ -84,7 +84,7 @@ enum class SrcVoltageSelection : uint8_t {
   SRC_PDO_20V = 0b1010,
 };
 
-enum class CommandFunction : u_int8_t {
+enum class CommandFunction : uint8_t {
   REQUEST_PDO = 0b00001,
   GET_SRC_CAP = 0b00100,
   HARD_RESET = 0b10000,
