@@ -654,7 +654,7 @@ async def process_lambda(
     parameters: list[tuple[SafeExpType, str]],
     capture: str = "=",
     return_type: SafeExpType = None,
-) -> Optional[LambdaExpression]:
+) -> Union[LambdaExpression, None]:
     """Process the given lambda value into a LambdaExpression.
 
     This is a coroutine because lambdas can depend on other IDs,
