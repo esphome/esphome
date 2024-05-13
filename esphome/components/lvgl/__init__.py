@@ -62,6 +62,8 @@ from esphome.const import (
     CONF_TYPE,
     CONF_NAME,
     CONF_POSITION,
+    CONF_SIZE,
+    CONF_INDEX,
 )
 from esphome.cpp_generator import LambdaExpression
 
@@ -864,7 +866,7 @@ def container_schema(widget_type, extras=None):
     def validator(value):
         result = schema
         ltype = df.TYPE_NONE
-        if layout := value.get(df.CONF_LAYOUT):
+        if value and (layout := value.get(df.CONF_LAYOUT)):
             if not isinstance(layout, dict):
                 raise cv.Invalid("Layout value must be a dict")
             ltype = layout.get(CONF_TYPE)
@@ -887,14 +889,15 @@ def any_widget_schema(extras=None):
     return cv.Any(dict(map(lambda wt: widget_schema(wt, extras), WIDGET_TYPES)))
 
 
-TILE_SCHEMA = any_widget_schema(
-    {
-        cv.Required(CONF_ROW): lv_int,
-        cv.Required(df.CONF_COLUMN): lv_int,
-        cv.GenerateID(df.CONF_TILE_ID): cv.declare_id(ty.lv_tile_t),
-        cv.Optional(df.CONF_DIR, default="ALL"): df.TILE_DIRECTIONS.several_of,
-    }
-)
+WIDGET_SCHEMA = any_widget_schema()
+
+TILE_SCHEMA = {
+    cv.Required(CONF_ROW): lv_int,
+    cv.Required(df.CONF_COLUMN): lv_int,
+    cv.GenerateID(): cv.declare_id(ty.lv_tile_t),
+    cv.Optional(df.CONF_DIR, default="ALL"): df.TILE_DIRECTIONS.several_of,
+    cv.Required(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
+}
 
 TILEVIEW_SCHEMA = {
     cv.Required(df.CONF_TILES): cv.ensure_list(TILE_SCHEMA),
@@ -907,15 +910,16 @@ TILEVIEW_SCHEMA = {
     ),
 }
 
-TAB_SCHEMA = any_widget_schema(
-    {
-        cv.Required(CONF_NAME): cv.string,
-        cv.GenerateID(df.CONF_TILE_ID): cv.declare_id(ty.lv_tab_t),
-        cv.Optional(CONF_POSITION, default="ALL"): df.DIRECTIONS.one_of,
-    }
-)
+TAB_SCHEMA = {
+    cv.Required(CONF_NAME): cv.string,
+    cv.GenerateID(): cv.declare_id(ty.lv_tab_t),
+    cv.Required(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
+}
+
 TABVIEW_SCHEMA = {
     cv.Required(df.CONF_TABS): cv.ensure_list(TAB_SCHEMA),
+    cv.Optional(CONF_POSITION, default="top"): df.DIRECTIONS.one_of,
+    cv.Optional(CONF_SIZE, default="10%"): lv.size,
     cv.Optional(CONF_ON_VALUE): automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -925,7 +929,6 @@ TABVIEW_SCHEMA = {
     ),
 }
 
-WIDGET_SCHEMA = any_widget_schema()
 
 MSGBOX_SCHEMA = STYLE_SCHEMA.extend(
     {
@@ -1086,6 +1089,16 @@ def collect_parts(config):
     return parts
 
 
+async def add_widgets(parent: Widget, config: dict):
+    init = []
+    if widgets := config.get(df.CONF_WIDGETS):
+        for widg in widgets:
+            w_type, w_cnfig = next(iter(widg.items()))
+            ext_init = await widget_to_code(w_cnfig, w_type, parent)
+            init.extend(ext_init)
+    return init
+
+
 async def set_obj_properties(widg: Widget, config):
     """Return a list of C++ statements to apply properties to an ty.lv_obj_t"""
     init = []
@@ -1234,22 +1247,38 @@ async def obj_to_code(_, __):
     return []
 
 
+def tabview_obj_creator(parent: Widget, config: dict):
+    return (
+        f"lv_tabview_create({parent.obj}, {config[CONF_POSITION]}, {config[CONF_SIZE]})"
+    )
+
+
+async def tabview_to_code(tv: Widget, config: dict):
+    init = []
+    for widg in config[df.CONF_TABS]:
+        w_id = widg[CONF_ID]
+        tab_obj = cg.Pvariable(w_id, cg.nullptr, type_=ty.lv_tab_t)
+        tab = Widget(tab_obj, ty.lv_tab_t)
+        widget_map[w_id] = tab
+        init.append(f'{tab_obj} = lv_tabview_add_tab({tv.obj}, "{widg[CONF_NAME]}")')
+        init.extend(await add_widgets(tab, widg))
+    return init
+
+
 async def tileview_to_code(var: Widget, config: dict):
     init = []
     for widg in config[df.CONF_TILES]:
-        w_type, wc = next(iter(widg.items()))
-        w_id = wc[df.CONF_TILE_ID]
+        w_id = widg[CONF_ID]
         tile_obj = cg.Pvariable(w_id, cg.nullptr, type_=ty.lv_obj_t)
         tile = Widget(tile_obj, ty.lv_tile_t)
         widget_map[w_id] = tile
-        dirs = wc[df.CONF_DIR]
+        dirs = widg[df.CONF_DIR]
         if isinstance(dirs, list):
             dirs = "|".join(dirs)
         init.append(
-            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {wc[df.CONF_COLUMN]}, {wc[CONF_ROW]}, {dirs})"
+            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {widg[df.CONF_COLUMN]}, {widg[CONF_ROW]}, {dirs})"
         )
-        ext_init = await widget_to_code(wc, w_type, tile)
-        init.extend(ext_init)
+        init.extend(await add_widgets(tile, widg))
     return init
 
 
@@ -1266,11 +1295,7 @@ async def page_to_code(config, pconf, index):
     # Set outer config first
     init.extend(await set_obj_properties(page, config))
     init.extend(await set_obj_properties(page, pconf))
-    if df.CONF_WIDGETS in pconf:
-        for widg in pconf[df.CONF_WIDGETS]:
-            w_type, w_cnfig = next(iter(widg.items()))
-            ext_init = await widget_to_code(w_cnfig, w_type, page)
-            init.extend(ext_init)
+    init.extend(await add_widgets(page, pconf))
     return var, init
 
 
@@ -1332,8 +1357,35 @@ async def tileview_select(config, action_id, template_arg, args):
         init = [f"lv_obj_set_tile({widget.obj}, {tile}, {config[df.CONF_ANIMATED]})"]
     else:
         init = [
-            f"lv_obj_set_tile_id({widget.obj}, {config[df.CONF_COLUMN]}, {config[CONF_ROW]}, {config[df.CONF_ANIMATED]})"
+            f"lv_obj_set_tile_id({widget.obj}, {config[df.CONF_COLUMN]}, {config[CONF_ROW]}, {config[df.CONF_ANIMATED]})",
+            f" lv_event_send({widget.obj}, LV_EVENT_VALUE_CHANGED, nullptr);",
         ]
+    return await action_to_code(init, action_id, widget, template_arg, args)
+
+
+@automation.register_action(
+    "lvgl.tabview.select",
+    ty.ObjUpdateAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(ty.lv_tabview_t),
+            cv.Optional(df.CONF_ANIMATED, default=False): lv.animated,
+            cv.Exclusive(CONF_INDEX, CONF_INDEX): lv_int,
+            cv.Exclusive(df.CONF_TAB_ID, CONF_INDEX): cv.use_id(ty.lv_tab_t),
+        },
+    ).add_extra(cv.has_at_least_one_key(CONF_INDEX, df.CONF_TAB_ID)),
+)
+async def tabview_select(config, action_id, template_arg, args):
+    widget = await get_widget(config[CONF_ID])
+    if tab := config.get(df.CONF_TAB_ID):
+        tab = await cg.get_variable(tab)
+        index = f"lv_obj_get_index(lv_tabview_get_content({tab}))"
+    else:
+        index = config[CONF_INDEX]
+    init = [
+        f"lv_tabview_set_act({widget.obj}, {index}, {config[df.CONF_ANIMATED]})",
+        f" lv_event_send({widget.obj}, LV_EVENT_VALUE_CHANGED, nullptr);",
+    ]
     return await action_to_code(init, action_id, widget, template_arg, args)
 
 
@@ -2121,9 +2173,7 @@ async def update_to_code(config, action_id, widget: Widget, init, template_arg, 
             and widget.type.value_property in config
         ):
             init.append(
-                f"""
-                lv_event_send({widget.obj}, LV_EVENT_VALUE_CHANGED, nullptr);
-                        """
+                f" lv_event_send({widget.obj}, LV_EVENT_VALUE_CHANGED, nullptr);"
             )
     return await action_to_code(init, action_id, widget, template_arg, args)
 
@@ -2229,6 +2279,10 @@ def spinner_obj_creator(parent: Widget, config: dict):
     return f"lv_spinner_create({parent.obj}, {config[df.CONF_SPIN_TIME].total_milliseconds}, {config[df.CONF_ARC_LENGTH] // 10})"
 
 
+def tab_obj_creator(parent: Widget, config: dict):
+    return f"lv_tabview_add_tab({parent.obj}, {config[CONF_NAME]})"
+
+
 async def widget_to_code(w_cnfig, w_type, parent: Widget):
     init = []
 
@@ -2256,8 +2310,7 @@ async def widget_to_code(w_cnfig, w_type, parent: Widget):
     if widgets := w_cnfig.get(df.CONF_WIDGETS):
         for widg in widgets:
             sub_type, sub_config = next(iter(widg.items()))
-            ext_init = await widget_to_code(sub_config, sub_type, widget)
-            init.extend(ext_init)
+            init.extend(await widget_to_code(sub_config, sub_type, widget))
     fun = f"{w_type}_to_code"
     if fun := globals().get(fun):
         init.extend(await fun(widget, w_cnfig))

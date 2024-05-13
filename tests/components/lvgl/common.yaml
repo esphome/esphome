@@ -56,7 +56,7 @@ select:
     animated: true
 
 image:
-  - id: cat_image
+  - id: cat_img
     file: $component_dir/cat.png
   - id: dog_img
     file: $component_dir/dog.png
@@ -82,7 +82,7 @@ lvgl:
   default_font: montserrat_14
   bg_color: my_light_red
   disp_bg_color: my_light_red
-  disp_bg_image: cat_image
+  disp_bg_image: cat_img
   style_definitions:
     - id: style_test
       bg_color: 0x2F8CD8
@@ -361,7 +361,7 @@ lvgl:
                       r_mod: -4
                   - img:
                       id: needle_img
-                      src: cat_image
+                      src: cat_img
                       value: 4
                       pivot_x: 31
                       pivot_y: 9
@@ -422,7 +422,7 @@ lvgl:
               flex_align_cross: center
               flex_align_track: start
             align: CENTER
-            src: cat_image
+            src: cat_img
             id: img_id
             radius: 11
             clip_corner: true
@@ -434,7 +434,7 @@ lvgl:
         - animimg:
             align: CENTER
             id: anim_id
-            src: [cat_image, dog_img]
+            src: [cat_img, dog_img]
             duration: 600ms
             on_click:
               then:
@@ -493,31 +493,71 @@ lvgl:
                     then:
                       - logger.log: "Cat tile is now showing"
             tiles:
-              - img:
-                  tile_id: cat_tile
-                  dir: [LEFT, top]
-                  row: 0
-                  column: 0
-                  align: center
-                  src: cat_image
-                  on_click:
-                    then:
-                      - lvgl.tileview.select:
-                          id: tv_id
-                          row: 1
-                          column: 0
-                          animated: false
+              - id: cat_tile
+                dir: [LEFT, top]
+                row: 0
+                column: 0
+                widgets:
+                  - img:
+                      align: center
+                      src: cat_img
+                      on_click:
+                        then:
+                          - lvgl.tileview.select:
+                              id: tv_id
+                              row: 1
+                              column: 0
+                              animated: false
 
-              - img:
-                  row: 1
-                  column: 0
-                  src: dog_img
-                  on_click:
+              - id: dog_tile
+                row: 1
+                column: 0
+                widgets:
+                  - img:
+                      src: dog_img
+                      on_click:
+                        then:
+                          - lvgl.tileview.select:
+                              id: tv_id
+                              tile_id: cat_tile
+                              animated: true
+    - id: tabview_page
+      widgets:
+        - tabview:
+            id: tabview_id
+            width: 100%
+            height: 100%
+            position: top
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tab == id(tabview_tab_1);
                     then:
-                      - lvgl.tileview.select:
-                          id: tv_id
-                          tile_id: cat_tile
-                          animated: true
+                      - logger.log: "Dog tab is now showing"
+            tabs:
+              - name: Tab1
+                id: tabview_tab_1
+                widgets:
+                  - img:
+                      src: dog_img
+                      on_click:
+                        then:
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              tab_id: tabview_tab_2
+                              animated: true
+              - name: Tab1
+                id: tabview_tab_2
+                widgets:
+                  - img:
+                      src: cat_img
+                      on_click:
+                        then:
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              tab_id: tabview_tab_1
+                              animated: true
     - id: keyboard_page
       widgets:
         - label:

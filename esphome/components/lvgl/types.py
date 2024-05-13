@@ -106,7 +106,7 @@ lv_line_t = LvType("lv_line_t")
 lv_img_t = LvType("lv_img_t")
 lv_animimg_t = LvType("lv_animimg_t")
 lv_tile_t = LvType("lv_tileview_tile_t")
-lv_tab_t = LvType("lv_tabview_tab_t")
+lv_tab_t = LvType("lv_obj_t")
 lv_spinbox_t = LvNumber("lv_spinbox_t")
 lv_arc_t = LvNumber("lv_arc_t")
 lv_bar_t = LvNumber("lv_bar_t")
@@ -144,6 +144,11 @@ lv_tileview_t = LvType(
     "lv_tileview_t",
     largs=[(lv_obj_t_ptr, "tile")],
     lvalue=lambda w: f"lv_tileview_get_tile_act({w.obj})",
+)
+lv_tabview_t = LvType(
+    "lv_tabview_t",
+    largs=[(lv_obj_t_ptr, "tab")],
+    lvalue=lambda w: f"lv_obj_get_child(lv_tabview_get_content({w.obj}), lv_tabview_get_tab_act({w.obj}))",
 )
 lv_spinner_t = lv_obj_t
 lv_ticks_t = lv_obj_t
