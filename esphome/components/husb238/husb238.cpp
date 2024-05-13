@@ -200,6 +200,34 @@ void Husb238Component::dump_config() {
 #endif
 }
 
+bool Husb238Component::command_request_voltage(int volt) {
+  SrcVoltageSelection voltage;
+  switch (volt) {
+    case 5:
+      voltage = SrcVoltageSelection::SRC_PDO_5V;
+      break;
+    case 9:
+      voltage = SrcVoltageSelection::SRC_PDO_9V;
+      break;
+    case 12:
+      voltage = SrcVoltageSelection::SRC_PDO_12V;
+      break;
+    case 15:
+      voltage = SrcVoltageSelection::SRC_PDO_15V;
+      break;
+    case 18:
+      voltage = SrcVoltageSelection::SRC_PDO_18V;
+      break;
+    case 20:
+      voltage = SrcVoltageSelection::SRC_PDO_20V;
+      break;
+    default:
+      ESP_LOGE(TAG, "Invalid voltage");
+      return false;
+  }
+  return this->command_request_pdo(voltage);
+}
+
 bool Husb238Component::command_request_pdo(SrcVoltageSelection voltage) {
   if (!this->is_ready()) {
     ESP_LOGE(TAG, "Component not ready");

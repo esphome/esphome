@@ -143,6 +143,7 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void dump_config() override;
 
+  bool command_request_voltage(int volt);
   bool command_request_pdo(SrcVoltageSelection voltage);
   bool command_get_src_cap() { return this->send_command_(CommandFunction::GET_SRC_CAP); };
   bool command_reset() { return this->send_command_(CommandFunction::HARD_RESET); };
