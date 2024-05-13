@@ -815,7 +815,8 @@ LAYOUT_SCHEMA = {
                 cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
             },
-        }
+        },
+        lower=True,
     )
 }
 
@@ -870,7 +871,7 @@ def container_schema(widget_type, extras=None):
             if not isinstance(layout, dict):
                 raise cv.Invalid("Layout value must be a dict")
             ltype = layout.get(CONF_TYPE)
-        result = result.extend(WIDGET_SCHEMAS[ltype])
+        result = result.extend(WIDGET_SCHEMAS[ltype.lower()])
         if value == SCHEMA_EXTRACT:
             return result
         return result(value)
@@ -1103,12 +1104,14 @@ async def set_obj_properties(widg: Widget, config):
     """Return a list of C++ statements to apply properties to an ty.lv_obj_t"""
     init = []
     if layout := config.get(df.CONF_LAYOUT):
-        layout_type: str = layout[CONF_TYPE].upper()
-        lv.lv_uses.add(layout_type)
+        layout_type: str = layout[CONF_TYPE]
+        lv.lv_uses.add(layout_type.upper())
         init.extend(
-            widg.set_property(df.CONF_LAYOUT, f"LV_LAYOUT_{layout_type}", ltype="obj")
+            widg.set_property(
+                df.CONF_LAYOUT, f"LV_LAYOUT_{layout_type.upper()}", ltype="obj"
+            )
         )
-        if layout_type.lower() == df.TYPE_GRID:
+        if layout_type == df.TYPE_GRID:
             wid = config[CONF_ID]
             rows = (
                 "{" + ",".join(layout[df.CONF_GRID_ROWS]) + ", LV_GRID_TEMPLATE_LAST}"
@@ -1124,7 +1127,7 @@ async def set_obj_properties(widg: Widget, config):
             column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=ty.lv_coord_t)
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
             init.extend(widg.set_style("grid_column_dsc_array", column_array, 0))
-        if layout_type.lower() == df.TYPE_FLEX:
+        if layout_type == df.TYPE_FLEX:
             lv.lv_uses.add(df.TYPE_FLEX)
             init.extend(widg.set_property(df.CONF_FLEX_FLOW, layout, ltype="obj"))
             main = layout[df.CONF_FLEX_ALIGN_MAIN]

@@ -416,7 +416,7 @@ lvgl:
                   value: 100
         - img:
             layout:
-              type: flex
+              type: FLEX
               flex_flow: column_wrap
               flex_align_main: space_evenly
               flex_align_cross: center
