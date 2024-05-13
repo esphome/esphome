@@ -148,6 +148,8 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         path = path or []
         try:
             yield
+        except cv.FinalExternalInvalid as e:
+            self.add_error(e)
         except vol.Invalid as e:
             e.prepend(path)
             self.add_error(e)
