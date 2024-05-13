@@ -10,9 +10,10 @@
 using esphome::esp_log_printf_;  // esp_modem will use esphome logger (needed if other components include
                                  // esphome/core/log.h)
 #include <cxx_include/esp_modem_api.hpp>
-#include <esp_modem_config.h>
 #include <driver/gpio.h>
+#include <esp_modem_config.h>
 #include <unordered_map>
+#include <utility>
 
 namespace esphome {
 namespace gsm {
@@ -46,13 +47,13 @@ class GSMComponent : public Component {
   void set_tx_pin(gpio_num_t tx_pin) { this->tx_pin_ = tx_pin; }
   void set_power_pin(gpio_num_t power_pin) { this->power_pin_ = power_pin; }
   void set_flight_pin(gpio_num_t flight_pin) { this->flight_pin_ = flight_pin; }
-  void set_username(std::string username) { this->username_ = username; }
-  void set_password(std::string password) { this->password_ = password; }
-  void set_pin_code(std::string pin_code) { this->pin_code_ = pin_code; }
-  void set_apn(std::string apn) { this->apn_ = apn; }
+  void set_username(std::string username) { this->username_ = std::move(username); }
+  void set_password(std::string password) { this->password_ = std::move(password); }
+  void set_pin_code(std::string pin_code) { this->pin_code_ = std::move(pin_code); }
+  void set_apn(std::string apn) { this->apn_ = std::move(apn); }
   void set_status_pin(gpio_num_t status_pin) { this->status_pin_ = status_pin; }
   void set_dtr_pin(gpio_num_t dtr_pin) { this->dtr_pin_ = dtr_pin; }
-  void set_model(std::string model) {
+  void set_model(const std::string &model) {
     this->model_ = this->gsm_model_map_.count(model) ? gsm_model_map_[model] : GSMModel::UNKNOWN;
   }
   bool get_status() { return gpio_get_level(this->status_pin_); }
@@ -76,10 +77,10 @@ class GSMComponent : public Component {
                                                               {"SIM7070", GSMModel::SIM7070},
                                                               {"SIM7070_GNSS", GSMModel::SIM7070_GNSS},
                                                               {"SIM7600", GSMModel::SIM7600}};
-  std::shared_ptr<esp_modem::DTE> dte;
-  std::unique_ptr<esp_modem::DCE> dce;  // public ?
-  esp_modem::esp_netif_t *ppp_netif{nullptr};
-  esp_modem_dte_config_t dte_config;
+  std::shared_ptr<esp_modem::DTE> dte_;
+  std::unique_ptr<esp_modem::DCE> dce_;  // public ?
+  esp_modem::esp_netif_t *ppp_netif_{nullptr};
+  esp_modem_dte_config_t dte_config_;
   GSMComponentState state_{GSMComponentState::STOPPED};
   void start_connect_();
   bool started_{false};

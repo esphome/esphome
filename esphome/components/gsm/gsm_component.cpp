@@ -48,7 +48,7 @@ network::IPAddresses GSMComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
   ESP_LOGV(TAG, "get_ip_addresses");
-  esp_err_t err = esp_netif_get_ip_info(this->ppp_netif, &ip);
+  esp_err_t err = esp_netif_get_ip_info(this->ppp_netif_, &ip);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
     // TODO: do something smarter
@@ -81,24 +81,24 @@ void GSMComponent::setup() {
   // this->powerdown();
 
   ESP_LOGV(TAG, "DTE setup");
-  esp_modem_dte_config_t dte_config_ = ESP_MODEM_DTE_DEFAULT_CONFIG();
-  this->dte_config = dte_config_;
+  esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
+  this->dte_config_ = dte_config;
 
-  // this->dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
-  this->dte_config.uart_config.tx_io_num = this->tx_pin_;
-  this->dte_config.uart_config.rx_io_num = this->rx_pin_;
-  // this->dte_config.uart_config.rts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_RTS_PIN);
-  // this->dte_config.uart_config.cts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_CTS_PIN);
-  this->dte_config.uart_config.rx_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE;
-  this->dte_config.uart_config.tx_buffer_size = CONFIG_MODEM_UART_TX_BUFFER_SIZE;
-  this->dte_config.uart_config.event_queue_size = CONFIG_MODEM_UART_EVENT_QUEUE_SIZE;
-  this->dte_config.task_stack_size = CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE * 2;
-  this->dte_config.task_priority = CONFIG_MODEM_UART_EVENT_TASK_PRIORITY;
-  this->dte_config.dte_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE / 2;
+  // this->dte_config_ = ESP_MODEM_DTE_DEFAULT_CONFIG();
+  this->dte_config_.uart_config.tx_io_num = this->tx_pin_;
+  this->dte_config_.uart_config.rx_io_num = this->rx_pin_;
+  // this->dte_config_.uart_config.rts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_RTS_PIN);
+  // this->dte_config_.uart_config.cts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_CTS_PIN);
+  this->dte_config_.uart_config.rx_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE;
+  this->dte_config_.uart_config.tx_buffer_size = CONFIG_MODEM_UART_TX_BUFFER_SIZE;
+  this->dte_config_.uart_config.event_queue_size = CONFIG_MODEM_UART_EVENT_QUEUE_SIZE;
+  this->dte_config_.task_stack_size = CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE * 2;
+  this->dte_config_.task_priority = CONFIG_MODEM_UART_EVENT_TASK_PRIORITY;
+  this->dte_config_.dte_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE / 2;
 
-  this->dte = esp_modem::create_uart_dte(&this->dte_config);
+  this->dte_ = esp_modem::create_uart_dte(&this->dte_config_);
 
-  assert(this->dte);
+  assert(this->dte_);
 
   ESP_LOGV(TAG, "Set APN: %s", this->apn_.c_str());
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
@@ -111,11 +111,11 @@ void GSMComponent::setup() {
   ESPHL_ERROR_CHECK(err, "PPP event loop init error");
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
 
-  this->ppp_netif = esp_netif_new(&netif_ppp_config);
-  assert(this->ppp_netif);
+  this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
+  assert(this->ppp_netif_);
   if (!this->username_.empty()) {
     ESP_LOGV(TAG, "Set auth: username: %s password: %s", this->username_.c_str(), this->password_.c_str());
-    ESPHL_ERROR_CHECK(esp_netif_ppp_set_auth(this->ppp_netif, NETIF_PPP_AUTHTYPE_PAP, this->username_.c_str(),
+    ESPHL_ERROR_CHECK(esp_netif_ppp_set_auth(this->ppp_netif_, NETIF_PPP_AUTHTYPE_PAP, this->username_.c_str(),
                                              this->password_.c_str()),
                       "ppp set auth");
   }
@@ -123,7 +123,7 @@ void GSMComponent::setup() {
   // esp_netif_dns_info_t dns_main = {};
   // dns_main.ip.u_addr.ip4.addr = esp_ip4addr_aton("8.8.8.8");
   // dns_main.ip.type = ESP_IPADDR_TYPE_V4;
-  // ESPHL_ERROR_CHECK(esp_netif_set_dns_info(this->ppp_netif, ESP_NETIF_DNS_MAIN, &dns_main), "dns_main");
+  // ESPHL_ERROR_CHECK(esp_netif_set_dns_info(this->ppp_netif_, ESP_NETIF_DNS_MAIN, &dns_main), "dns_main");
 
   // Register user defined event handers
   err = esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_GOT_IP, &GSMComponent::got_ip_event_handler, nullptr);
@@ -133,16 +133,16 @@ void GSMComponent::setup() {
 
   switch (this->model_) {
     case GSMModel::BG96:
-      this->dce = create_BG96_dce(&dce_config, dte, this->ppp_netif);
+      this->dce_ = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     case GSMModel::SIM800:
-      this->dce = create_SIM800_dce(&dce_config, dte, this->ppp_netif);
+      this->dce_ = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     case GSMModel::SIM7000:
-      this->dce = create_SIM7000_dce(&dce_config, dte, this->ppp_netif);
+      this->dce_ = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     case GSMModel::SIM7600:
-      this->dce = create_SIM7600_dce(&dce_config, dte, this->ppp_netif);
+      this->dce_ = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     default:
       ESP_LOGE(TAG, "Unknown model");
@@ -150,7 +150,7 @@ void GSMComponent::setup() {
       break;
   }
 
-  assert(this->dce);
+  assert(this->dce_);
 
   this->started_ = true;
   ESP_LOGV(TAG, "Setup finished");
@@ -167,25 +167,25 @@ void GSMComponent::start_connect_() {
   ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
 
   // esp_err_t err;
-  // err = esp_netif_set_hostname(this->ppp_netif, App.get_name().c_str());
+  // err = esp_netif_set_hostname(this->ppp_netif_, App.get_name().c_str());
   // if (err != ERR_OK) {
   //   ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   // }
 
   global_gsm_component->got_ipv4_address_ = false;  // why not this ?
 
-  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
+  this->dce_->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
   vTaskDelay(pdMS_TO_TICKS(2000));
 
   command_result res = command_result::TIMEOUT;
 
   int retry = 0;
   while (res != command_result::OK) {
-    res = this->dce->sync();
+    res = this->dce_->sync();
     if (res != command_result::OK) {
       ESP_LOGW(TAG, "modem not responding");
       ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
-      this->dce->set_command_mode();
+      this->dce_->set_command_mode();
       App.feed_wdt();
       vTaskDelay(pdMS_TO_TICKS(7000));
     }
@@ -200,8 +200,8 @@ void GSMComponent::start_connect_() {
     return;
   }
 
-  if (this->dte_config.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
-    if (command_result::OK != dce->set_flow_control(2, 2)) {
+  if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
+    if (command_result::OK != this->dce_->set_flow_control(2, 2)) {
       ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
       return;
     }
@@ -214,8 +214,8 @@ void GSMComponent::start_connect_() {
   if (!this->pin_code_.empty()) {
     bool pin_ok = true;
     ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
-    if (dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
-      ESP_MODEM_THROW_IF_FALSE(dce->set_pin(this->pin_code_) == command_result::OK, "Cannot set PIN!");
+    if (this->dce_->read_pin(pin_ok) == command_result::OK && !pin_ok) {
+      ESP_MODEM_THROW_IF_FALSE(this->dce_->set_pin(this->pin_code_) == command_result::OK, "Cannot set PIN!");
       vTaskDelay(pdMS_TO_TICKS(2000));  // Need to wait for some time after unlocking the SIM
     }
   }
@@ -224,7 +224,7 @@ void GSMComponent::start_connect_() {
 
   vTaskDelay(pdMS_TO_TICKS(2000));
 
-  if (this->dce->set_mode(esp_modem::modem_mode::CMUX_MODE)) {
+  if (this->dce_->set_mode(esp_modem::modem_mode::CMUX_MODE)) {
     ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
   } else {
     ESP_LOGE(TAG, "Failed to configure multiplexed command mode... exiting");
@@ -284,7 +284,7 @@ void GSMComponent::loop() {
 
 void GSMComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
-  esp_netif_get_ip_info(this->ppp_netif, &ip);
+  esp_netif_get_ip_info(this->ppp_netif_, &ip);
   ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
   ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(&ip.netmask).str().c_str());
@@ -329,7 +329,7 @@ void GSMComponent::config_gpio_() {
   gpio_config(&io_conf);
 }
 
-void GSMComponent::poweron(void) {
+void GSMComponent::poweron() {
   /* Power on the modem */
 
   ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
@@ -357,7 +357,7 @@ void GSMComponent::poweron(void) {
   App.feed_wdt();
 }
 
-void GSMComponent::powerdown(void) {
+void GSMComponent::powerdown() {
   ESP_LOGI(TAG, "Power down modem");
   ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 1));
 }
