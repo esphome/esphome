@@ -1,3 +1,1 @@
-psram:
-  mode: octal
-  speed: 80MHz
+<<: !include common.yaml
