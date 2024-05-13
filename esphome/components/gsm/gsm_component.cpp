@@ -74,16 +74,15 @@ void GSMComponent::setup() {
 
   this->config_gpio_();
 
-  ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
-
-  // to be sure the modem is not allready connected
-  this->powerdown();
+  if (this->get_status()) {
+    // at setup, the modem must be down
+    this->powerdown();
+  }
 
   ESP_LOGV(TAG, "DTE setup");
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
   this->dte_config_ = dte_config;
 
-  // this->dte_config_ = ESP_MODEM_DTE_DEFAULT_CONFIG();
   this->dte_config_.uart_config.tx_io_num = this->tx_pin_;
   this->dte_config_.uart_config.rx_io_num = this->rx_pin_;
   // this->dte_config_.uart_config.rts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_RTS_PIN);
@@ -158,13 +157,11 @@ void GSMComponent::setup() {
 
 void GSMComponent::start_connect_() {
   this->connect_begin_ = millis();
-  this->status_set_warning();
+  this->status_set_warning("Starting connection");
 
-  ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
-
-  this->poweron();
-
-  ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
+  if (!this->get_status()) {
+    this->poweron();
+  }
 
   // esp_err_t err;
   // err = esp_netif_set_hostname(this->ppp_netif_, App.get_name().c_str());
@@ -179,20 +176,22 @@ void GSMComponent::start_connect_() {
 
   command_result res = command_result::TIMEOUT;
 
-  int retry = 0;
-  while (res != command_result::OK) {
-    res = this->dce_->sync();
-    if (res != command_result::OK) {
-      ESP_LOGW(TAG, "modem not responding");
-      ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
-      this->dce_->set_command_mode();
-      App.feed_wdt();
-      vTaskDelay(pdMS_TO_TICKS(7000));
-    }
-    retry++;
-    if (retry > 10)
-      break;
-  }
+  // int retry = 0;
+  // while (res != command_result::OK) {
+  //   res = this->dce_->sync();
+  //   if (res != command_result::OK) {
+  //     ESP_LOGW(TAG, "modem not responding");
+  //     ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
+  //     this->dce_->set_command_mode();
+  //     App.feed_wdt();
+  //     vTaskDelay(pdMS_TO_TICKS(7000));
+  //   }
+  //   retry++;
+  //   if (retry > 10)
+  //     break;
+  // }
+
+  res = this->dce_->sync();
 
   if (res != command_result::OK) {
     ESP_LOGW(TAG, "Unable to sync modem. Will retry later");

@@ -47,10 +47,10 @@ class GSMComponent : public Component {
   void set_tx_pin(gpio_num_t tx_pin) { this->tx_pin_ = tx_pin; }
   void set_power_pin(gpio_num_t power_pin) { this->power_pin_ = power_pin; }
   void set_flight_pin(gpio_num_t flight_pin) { this->flight_pin_ = flight_pin; }
-  void set_username(std::string username) { this->username_ = std::move(username); }
-  void set_password(std::string password) { this->password_ = std::move(password); }
-  void set_pin_code(std::string pin_code) { this->pin_code_ = std::move(pin_code); }
-  void set_apn(std::string apn) { this->apn_ = std::move(apn); }
+  void set_username(const std::string username) { this->username_ = std::move(username); }
+  void set_password(const std::string password) { this->password_ = std::move(password); }
+  void set_pin_code(const std::string pin_code) { this->pin_code_ = std::move(pin_code); }
+  void set_apn(const std::string apn) { this->apn_ = std::move(apn); }
   void set_status_pin(gpio_num_t status_pin) { this->status_pin_ = status_pin; }
   void set_dtr_pin(gpio_num_t dtr_pin) { this->dtr_pin_ = dtr_pin; }
   void set_model(const std::string &model) {
