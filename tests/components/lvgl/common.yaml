@@ -158,6 +158,11 @@ lvgl:
             pad_all: 0
             widgets:
               - btn:
+                  layout: grid
+                  grid_rows: 2
+                  grid_columns: 2
+                  grid_cell_row_span: 2
+                  grid_cell_column_span: 2
                   checkable: true
                   widgets:
                     - label:
@@ -396,6 +401,9 @@ lvgl:
                     format: "Spinbox value is %f"
                     args: [x]
         - btn:
+            layout: grid
+            grid_rows: 2
+            grid_columns: 2
             id: spin_down
             on_click:
               - lvgl.spinbox.decrement: spinbox_id

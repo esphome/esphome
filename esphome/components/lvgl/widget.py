@@ -57,7 +57,7 @@ class Widget:
     def clear_flag(self, flag):
         return [f"lv_obj_clear_flag({self.obj}, {flag})"]
 
-    def set_property(self, prop, value, animated: bool = None):
+    def set_property(self, prop, value, animated: bool = None, ltype=None):
         if animated is None or self.type.animated is not True:
             animated = ""
         else:
@@ -68,7 +68,7 @@ class Widget:
             return []
         if isinstance(value, TimePeriod):
             value = value.total_milliseconds
-        ltype = self.__type_base()
+        ltype = ltype or self.__type_base()
         return [f"lv_{ltype}_set_{prop}({self.obj}, {value} {animated})"]
 
     def get_property(self, prop, ltype=None):

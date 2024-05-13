@@ -313,17 +313,12 @@ def validate_max_min(config):
     return config
 
 
-def validate_grid(config):
+def validate_layout(config):
     if config.get(df.CONF_LAYOUT) == "LV_LAYOUT_GRID":
         if df.CONF_GRID_ROWS not in config or df.CONF_GRID_COLUMNS not in config:
             raise cv.Invalid("grid layout requires grid_rows and grid_columns")
     elif any((key in config) for key in list(GRID_CONTAINER_SCHEMA.keys())):
         raise cv.Invalid("grid items apply to grid layout only")
-    if df.CONF_GRID_CELL_COLUMN_POS in config or df.CONF_GRID_CELL_ROW_POS in config:
-        if df.CONF_GRID_CELL_ROW_SPAN not in config:
-            config[df.CONF_GRID_CELL_ROW_SPAN] = 1
-        if df.CONF_GRID_CELL_COLUMN_SPAN not in config:
-            config[df.CONF_GRID_CELL_COLUMN_SPAN] = 1
     return config
 
 
@@ -836,7 +831,7 @@ GRID_CONTAINER_SCHEMA = {
 
 
 def obj_schema(wtype: str):
-    return (
+    return cv.Schema(
         part_schema(wtype)
         .extend(FLAG_SCHEMA)
         .extend(GRID_CONTAINER_SCHEMA)
@@ -851,7 +846,7 @@ def obj_schema(wtype: str):
                 }
             )
         )
-    )
+    ).add_extra(validate_max_min)
 
 
 def container_schema(widget_type, extras=None):
@@ -860,7 +855,7 @@ def container_schema(widget_type, extras=None):
     if globs := globals().get(f"{widget_type.upper()}_SCHEMA"):
         schema = schema.extend(globs)
     if extras:
-        schema = schema.extend(extras).add_extra(validate_max_min)
+        schema = schema.extend(extras)
 
     # Delayed evaluation for recursion
     def validator(value):
@@ -878,7 +873,7 @@ def container_schema(widget_type, extras=None):
 
 
 def widget_schema(name, extras=None):
-    validator = cv.All(container_schema(name, extras=extras), validate_grid)
+    validator = cv.All(container_schema(name, extras=extras), validate_layout)
     if required := lv.REQUIRED_COMPONENTS.get(name):
         validator = cv.All(validator, lv.requires_component(required))
     return cv.Exclusive(name, df.CONF_WIDGETS), validator
@@ -1058,6 +1053,25 @@ def collect_parts(config):
 async def set_obj_properties(widget: Widget, config):
     """Return a list of C++ statements to apply properties to an ty.lv_obj_t"""
     init = []
+    if config.get(df.CONF_LAYOUT) == "LV_LAYOUT_GRID":
+        lv.lv_uses.add("GRID")
+        wid = config[CONF_ID]
+        if df.CONF_GRID_CELL_ROW_SPAN not in config:
+            config[df.CONF_GRID_CELL_ROW_SPAN] = 1
+        if df.CONF_GRID_CELL_COLUMN_SPAN not in config:
+            config[df.CONF_GRID_CELL_COLUMN_SPAN] = 1
+        for key in (df.CONF_GRID_COLUMN_ALIGN, df.CONF_GRID_COLUMN_ALIGN):
+            init.extend(widget.set_property(key, config))
+        rows = "{" + ",".join(config[df.CONF_GRID_ROWS]) + ", LV_GRID_TEMPLATE_LAST}"
+        row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=ty.lv_coord_t)
+        row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
+        init.extend(widget.set_style("grid_row_dsc_array", row_array, 0))
+        columns = (
+            "{" + ",".join(config[df.CONF_GRID_COLUMNS]) + ", LV_GRID_TEMPLATE_LAST}"
+        )
+        column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=ty.lv_coord_t)
+        column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
+        init.extend(widget.set_style("grid_column_dsc_array", column_array, 0))
     parts = collect_parts(config)
     for part, states in parts.items():
         for state, props in states.items():
@@ -1092,12 +1106,10 @@ async def set_obj_properties(widget: Widget, config):
 
     if layout := config.get(df.CONF_LAYOUT):
         layout = layout.upper()
-        init.extend(widget.set_property("layout", layout, "obj"))
+        init.extend(widget.set_property("layout", layout, ltype="obj"))
         if layout == "LV_LAYOUT_FLEX":
             lv.lv_uses.add("FLEX")
-            init.extend(widget.set_property("flex_flow", config, "obj"))
-        if layout == "LV_LAYOUT_GRID":
-            lv.lv_uses.add("GRID")
+            init.extend(widget.set_property("flex_flow", config, ltype="obj"))
     if states := config.get(CONF_STATE):
         adds = set()
         clears = set()
@@ -1127,20 +1139,6 @@ async def set_obj_properties(widget: Widget, config):
             )
     if scrollbar_mode := config.get(df.CONF_SCROLLBAR_MODE):
         init.append(f"lv_obj_set_scrollbar_mode({widget.obj}, {scrollbar_mode})")
-    if config.get(df.CONF_LAYOUT) == "LV_LAYOUT_GRID":
-        wid = config[CONF_ID]
-        for key in (df.CONF_GRID_COLUMN_ALIGN, df.CONF_GRID_COLUMN_ALIGN):
-            init.extend(widget.set_property(key, config))
-        rows = "{" + ",".join(config[df.CONF_GRID_ROWS]) + ", ty.LV_GRID_TEMPLATE_LAST}"
-        row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=ty.lv_coord_t)
-        row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
-        init.extend(widget.set_style("grid_row_dsc_array", row_array, 0))
-        columns = (
-            "{" + ",".join(config[df.CONF_GRID_COLUMNS]) + ", ty.LV_GRID_TEMPLATE_LAST}"
-        )
-        column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=ty.lv_coord_t)
-        column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
-        init.extend(widget.set_style("grid_column_dsc_array", column_array, 0))
     return init
 
 
@@ -2073,7 +2071,7 @@ async def action_to_code(action, action_id, widg: Widget, template_arg, args):
     if nc := widg.check_null():
         action.insert(0, nc)
     lamb = await cg.process_lambda(Lambda(";\n".join([*action, ""])), args)
-    var = cg.new_Pvariable(action_id, template_arg, lamb)
+    var = cg.new_Pvariable(action_id, template_arg, lamb[0])
     return var
 
 
@@ -2186,11 +2184,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(DISP_BG_SCHEMA)
-).add_extra(
-    cv.All(
-        cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS),
-    )
-)
+).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))
 
 
 def spinner_obj_creator(parent: Widget, config: dict):
