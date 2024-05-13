@@ -60,6 +60,8 @@ from esphome.const import (
     CONF_ON_IDLE,
     CONF_MAX_LENGTH,
     CONF_TYPE,
+    CONF_NAME,
+    CONF_POSITION,
 )
 from esphome.cpp_generator import LambdaExpression
 
@@ -126,6 +128,7 @@ WIDGET_TYPES = {
         df.CONF_TEXTAREA_PLACEHOLDER,
     ),
     df.CONF_TABLE: (df.CONF_MAIN, df.CONF_ITEMS),
+    df.CONF_TABVIEW: (df.CONF_MAIN,),
     df.CONF_TEXTAREA: (
         df.CONF_MAIN,
         df.CONF_SCROLLBAR,
@@ -237,11 +240,9 @@ STYLE_PROPS = {
     "border_color": lv_color,
     "border_opa": lv.opacity,
     "border_post": cv.boolean,
-    "border_side": lv.several_of(
-        df.LvConstant(
-            "LV_BORDER_SIDE_", "NONE", "TOP", "BOTTOM", "LEFT", "RIGHT", "INTERNAL"
-        )
-    ),
+    "border_side": df.LvConstant(
+        "LV_BORDER_SIDE_", "NONE", "TOP", "BOTTOM", "LEFT", "RIGHT", "INTERNAL"
+    ).several_of,
     "border_width": cv.positive_int,
     "clip_corner": lv_bool,
     "height": lv.size,
@@ -275,9 +276,9 @@ STYLE_PROPS = {
         "LV_TEXT_ALIGN_", "LEFT", "CENTER", "RIGHT", "AUTO"
     ).one_of,
     "text_color": lv_color,
-    "text_decor": lv.several_of(
-        df.LvConstant("LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH")
-    ),
+    "text_decor": df.LvConstant(
+        "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
+    ).several_of,
     "text_font": lv.font,
     "text_letter_space": cv.positive_int,
     "text_line_space": cv.positive_int,
@@ -771,7 +772,6 @@ LVGL_SCHEMA = cv.Schema(
     }
 )
 
-
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
@@ -816,7 +816,6 @@ LAYOUT_SCHEMA = {
         }
     )
 }
-
 
 GRID_CELL_SCHEMA = {
     cv.Optional(df.CONF_GRID_CELL_X_ALIGN, default="start"): cell_alignments,
@@ -893,12 +892,30 @@ TILE_SCHEMA = any_widget_schema(
         cv.Required(CONF_ROW): lv_int,
         cv.Required(df.CONF_COLUMN): lv_int,
         cv.GenerateID(df.CONF_TILE_ID): cv.declare_id(ty.lv_tile_t),
-        cv.Optional(df.CONF_DIR, default="ALL"): lv.several_of(df.TILE_DIRECTIONS),
+        cv.Optional(df.CONF_DIR, default="ALL"): df.TILE_DIRECTIONS.several_of,
     }
 )
 
 TILEVIEW_SCHEMA = {
     cv.Required(df.CONF_TILES): cv.ensure_list(TILE_SCHEMA),
+    cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+        {
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                automation.Trigger.template(ty.lv_obj_t_ptr)
+            )
+        }
+    ),
+}
+
+TAB_SCHEMA = any_widget_schema(
+    {
+        cv.Required(CONF_NAME): cv.string,
+        cv.GenerateID(df.CONF_TILE_ID): cv.declare_id(ty.lv_tab_t),
+        cv.Optional(CONF_POSITION, default="ALL"): df.DIRECTIONS.one_of,
+    }
+)
+TABVIEW_SCHEMA = {
+    cv.Required(df.CONF_TABS): cv.ensure_list(TAB_SCHEMA),
     cv.Optional(CONF_ON_VALUE): automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -987,38 +1004,38 @@ widget_map: dict[Any, Widget] = {}
 widgets_completed = False  # will be set true when all widgets are available
 
 
-def get_widget_generator(id):
+def get_widget_generator(wid):
     while True:
-        if obj := widget_map.get(id):
+        if obj := widget_map.get(wid):
             return obj
         if widgets_completed:
             raise cv.Invalid(
-                f"Widget {id} not found, yet all widgets should be defined by now"
+                f"Widget {wid} not found, yet all widgets should be defined by now"
             )
         yield
 
 
-async def get_widget(id: ID) -> Widget:
-    if obj := widget_map.get(id):
+async def get_widget(wid: ID) -> Widget:
+    if obj := widget_map.get(wid):
         return obj
-    return await FakeAwaitable(get_widget_generator(id))
+    return await FakeAwaitable(get_widget_generator(wid))
 
 
 async def theme_to_code(theme):
-    for widget, style in theme.items():
+    for widg, style in theme.items():
         if not isinstance(style, dict):
             continue
 
         init = []
-        ow = Widget("obj", ty.get_widget_type(widget))
+        ow = Widget("obj", ty.get_widget_type(widg))
         init.extend(await set_obj_properties(ow, style))
         lamb = await cg.process_lambda(
             Lambda(";\n".join([*init, ""])),
             [(ty.lv_obj_t_ptr, "obj")],
             capture="",
         )
-        apply = f"lv_theme_apply_{widget}"
-        theme_widget_map[widget] = apply
+        apply = f"lv_theme_apply_{widg}"
+        theme_widget_map[widg] = apply
         lamb_id = ID(apply, type=ty.lv_lambda_t, is_declaration=True)
         cg.variable(lamb_id, lamb)
 
@@ -1069,14 +1086,14 @@ def collect_parts(config):
     return parts
 
 
-async def set_obj_properties(widget: Widget, config):
+async def set_obj_properties(widg: Widget, config):
     """Return a list of C++ statements to apply properties to an ty.lv_obj_t"""
     init = []
     if layout := config.get(df.CONF_LAYOUT):
         layout_type: str = layout[CONF_TYPE].upper()
         lv.lv_uses.add(layout_type)
         init.extend(
-            widget.set_property(df.CONF_LAYOUT, f"LV_LAYOUT_{layout_type}", ltype="obj")
+            widg.set_property(df.CONF_LAYOUT, f"LV_LAYOUT_{layout_type}", ltype="obj")
         )
         if layout_type.lower() == df.TYPE_GRID:
             wid = config[CONF_ID]
@@ -1085,7 +1102,7 @@ async def set_obj_properties(widget: Widget, config):
             )
             row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=ty.lv_coord_t)
             row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
-            init.extend(widget.set_style("grid_row_dsc_array", row_array, 0))
+            init.extend(widg.set_style("grid_row_dsc_array", row_array, 0))
             columns = (
                 "{"
                 + ",".join(layout[df.CONF_GRID_COLUMNS])
@@ -1093,33 +1110,29 @@ async def set_obj_properties(widget: Widget, config):
             )
             column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=ty.lv_coord_t)
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
-            init.extend(widget.set_style("grid_column_dsc_array", column_array, 0))
+            init.extend(widg.set_style("grid_column_dsc_array", column_array, 0))
         if layout_type.lower() == df.TYPE_FLEX:
             lv.lv_uses.add(df.TYPE_FLEX)
-            init.extend(widget.set_property(df.CONF_FLEX_FLOW, layout, ltype="obj"))
+            init.extend(widg.set_property(df.CONF_FLEX_FLOW, layout, ltype="obj"))
             main = layout[df.CONF_FLEX_ALIGN_MAIN]
             cross = layout[df.CONF_FLEX_ALIGN_CROSS]
             track = layout[df.CONF_FLEX_ALIGN_TRACK]
-            init.append(
-                f"lv_obj_set_flex_align({widget.obj}, {main}, {cross}, {track})"
-            )
+            init.append(f"lv_obj_set_flex_align({widg.obj}, {main}, {cross}, {track})")
     parts = collect_parts(config)
     for part, states in parts.items():
         for state, props in states.items():
             lv_state = f"(int)LV_STATE_{state.upper()}|(int)LV_PART_{part.upper()}"
             if styles := props.get(df.CONF_STYLES):
                 for style_id in styles:
-                    init.append(
-                        f"lv_obj_add_style({widget.obj}, {style_id}, {lv_state})"
-                    )
+                    init.append(f"lv_obj_add_style({widg.obj}, {style_id}, {lv_state})")
             for prop, value in {
                 k: v for k, v in props.items() if k in ALL_STYLES
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                init.extend(widget.set_style(prop, value, lv_state))
+                init.extend(widg.set_style(prop, value, lv_state))
     if group := add_group(config.get(CONF_GROUP)):
-        init.append(f"lv_group_add_obj({group}, {widget.obj})")
+        init.append(f"lv_group_add_obj({group}, {widg.obj})")
     flag_clr = set()
     flag_set = set()
     props = parts[df.CONF_MAIN][df.CONF_DEFAULT]
@@ -1130,10 +1143,10 @@ async def set_obj_properties(widget: Widget, config):
             flag_clr.add(prop)
     if flag_set:
         adds = lv.join_enums(flag_set, "LV_OBJ_FLAG_")
-        init.extend(widget.add_flag(adds))
+        init.extend(widg.add_flag(adds))
     if flag_clr:
         clrs = lv.join_enums(flag_clr, "LV_OBJ_FLAG_")
-        init.extend(widget.clear_flag(clrs))
+        init.extend(widg.clear_flag(clrs))
 
     if states := config.get(CONF_STATE):
         adds = set()
@@ -1148,22 +1161,22 @@ async def set_obj_properties(widget: Widget, config):
                 clears.add(key)
         if adds:
             adds = lv.join_enums(adds, "LV_STATE_")
-            init.extend(widget.add_state(adds))
+            init.extend(widg.add_state(adds))
         if clears:
             clears = lv.join_enums(clears, "LV_STATE_")
-            init.extend(widget.clear_state(clears))
+            init.extend(widg.clear_state(clears))
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
             init.append(
                 f"""
                 if({lamb}())
-                    lv_obj_add_state({widget.obj}, LV_STATE_{key.upper()});
+                    lv_obj_add_state({widg.obj}, LV_STATE_{key.upper()});
                 else
-                    lv_obj_clear_state({widget.obj}, LV_STATE_{key.upper()});
+                    lv_obj_clear_state({widg.obj}, LV_STATE_{key.upper()});
                 """
             )
     if scrollbar_mode := config.get(df.CONF_SCROLLBAR_MODE):
-        init.append(f"lv_obj_set_scrollbar_mode({widget.obj}, {scrollbar_mode})")
+        init.append(f"lv_obj_set_scrollbar_mode({widg.obj}, {scrollbar_mode})")
     return init
 
 
@@ -1217,7 +1230,7 @@ async def keyboard_to_code(var: Widget, kb_conf: dict):
     return init
 
 
-async def obj_to_code(var, obj):
+async def obj_to_code(_, __):
     return []
 
 

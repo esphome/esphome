@@ -27,6 +27,10 @@ class LvConstant:
 
         return validator
 
+    @property
+    def several_of(self):
+        return cv.ensure_list(self.one_of)
+
 
 # Widgets
 CONF_ANIMIMG = "animimg"
@@ -52,6 +56,7 @@ CONF_SPINBOX = "spinbox"
 CONF_SPINNER = "spinner"
 CONF_SWITCH = "switch"
 CONF_TABLE = "table"
+CONF_TABVIEW = "tabview"
 CONF_TEXTAREA = "textarea"
 CONF_TILEVIEW = "tileview"
 
@@ -402,6 +407,7 @@ CONF_STYLE_DEFINITIONS = "style_definitions"
 CONF_STYLE_ID = "style_id"
 CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
+CONF_TABS = "tabs"
 CONF_TEXT = "text"
 CONF_TILE = "tile"
 CONF_TILE_ID = "tile_id"

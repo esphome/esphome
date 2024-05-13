@@ -104,10 +104,6 @@ def key_code(value):
     return value
 
 
-def several_of(consts: LvConstant):
-    return cv.ensure_list(consts.one_of)
-
-
 def join_enums(enums, prefix=""):
     return "|".join(map(lambda e: f"(int){prefix}{e.upper()}", enums))
 
