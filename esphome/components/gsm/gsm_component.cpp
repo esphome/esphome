@@ -1,4 +1,4 @@
-#if defined(USE_ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP_IDF
 #include "gsm_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -6,7 +6,6 @@
 #include "esphome/components/network/util.h"
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
-#include <esp_log.h>
 #include <esp_event.h>
 #include <cxx_include/esp_modem_dte.hpp>
 #include <esp_modem_config.h>

@@ -2,11 +2,13 @@
 
 #include <memory>
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 
-#if defined(USE_ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP_IDF
 
-#include <esp_log.h>
+using esphome::esp_log_printf_;  // esp_modem will use esphome logger (needed if other components include
+                                 // esphome/core/log.h)
 #include <cxx_include/esp_modem_api.hpp>
 #include <esp_modem_config.h>
 #include <driver/gpio.h>
