@@ -14,7 +14,6 @@
 #include <lwip/dns.h>
 #include <cstring>
 #include <iostream>
-#include "sdkconfig.h"
 
 static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 1024;
 static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 512;
@@ -78,7 +77,7 @@ void GSMComponent::setup() {
   ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
 
   // to be sure the modem is not allready connected
-  // this->powerdown();
+  this->powerdown();
 
   ESP_LOGV(TAG, "DTE setup");
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -153,6 +152,7 @@ void GSMComponent::setup() {
   assert(this->dce_);
 
   this->started_ = true;
+  this->poweron();
   ESP_LOGV(TAG, "Setup finished");
 }
 
@@ -330,22 +330,33 @@ void GSMComponent::config_gpio_() {
 }
 
 void GSMComponent::poweron() {
-  /* Power on the modem */
-
-  ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
-
   ESP_LOGI(TAG, "Power on  modem");
-  // https://github.com/Xinyuan-LilyGO/LilyGO-T-SIM7000G/issues/251
-  if (this->power_pin_ != gpio_num_t::GPIO_NUM_NC) {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));  // low = on, high = off
-    vTaskDelay(pdMS_TO_TICKS(10));
-    ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 1));
-    vTaskDelay(pdMS_TO_TICKS(1010));
-    ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));
-    vTaskDelay(pdMS_TO_TICKS(4050));  // Ton uart 4.5sec but seems to need ~7sec after hard (button) reset
+
+  if (this->get_status()) {
+    ESP_LOGW(TAG, "modem is already on");
   } else {
-    ESP_LOGW(TAG, "No power pin defined. Trying to continue");
+    // https://github.com/Xinyuan-LilyGO/LilyGO-T-SIM7000G/issues/251
+    if (this->power_pin_ != gpio_num_t::GPIO_NUM_NC) {
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));  // low = on, high = off
+      vTaskDelay(pdMS_TO_TICKS(10));
+      ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 1));
+      vTaskDelay(pdMS_TO_TICKS(1010));
+      ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));
+      vTaskDelay(pdMS_TO_TICKS(4050));  // Ton uart 4.5sec but seems to need ~7sec after hard (button) reset
+      int retry = 0;
+      while (!this->get_status()) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        retry++;
+        if (retry > 10) {
+          ESP_LOGW(TAG, "Unable to power on modem");
+          break;
+        }
+      }
+
+    } else {
+      ESP_LOGW(TAG, "No power pin defined. Trying to continue");
+    }
   }
 
   if (this->flight_pin_ != gpio_num_t::GPIO_NUM_NC) {
@@ -353,13 +364,34 @@ void GSMComponent::poweron() {
   } else {
     ESP_LOGW(TAG, "No flight pin defined. Trying to continue");
   }
+  if (this->dtr_pin_ != gpio_num_t::GPIO_NUM_NC) {
+    ESP_ERROR_CHECK(gpio_set_level(this->dtr_pin_, 1));
+  } else {
+    ESP_LOGW(TAG, "No dtr pin defined. Trying to continue");
+  }
   vTaskDelay(pdMS_TO_TICKS(15000));
   App.feed_wdt();
 }
 
 void GSMComponent::powerdown() {
   ESP_LOGI(TAG, "Power down modem");
-  ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 1));
+  if (this->get_status()) {
+    // https://github.com/Xinyuan-LilyGO/T-SIM7600X/blob/master/examples/PowefOffModem/PowefOffModem.ino#L69-L71
+    ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 1));
+    vTaskDelay(pdMS_TO_TICKS(2600));
+    ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));
+    int retry = 0;
+    while (this->get_status()) {
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      retry++;
+      if (retry > 20) {
+        ESP_LOGW(TAG, "Unable to power down modem");
+        break;
+      }
+    }
+  } else {
+    ESP_LOGW(TAG, "modem is already down");
+  }
 }
 
 }  // namespace gsm
