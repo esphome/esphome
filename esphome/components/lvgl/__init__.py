@@ -59,6 +59,7 @@ from esphome.const import (
     CONF_DISPLAY_ID,
     CONF_ON_IDLE,
     CONF_MAX_LENGTH,
+    CONF_TYPE,
 )
 from esphome.cpp_generator import LambdaExpression
 
@@ -212,11 +213,12 @@ lv_brightness = LValidator(
     cv.percentage, cg.float_, Sensor, "get_state()", retmapper=lambda x: int(x * 255)
 )
 
-cell_alignments = lv.one_of(df.LV_CELL_ALIGNMENTS)
-grid_alignments = lv.one_of(df.LV_GRID_ALIGNMENTS)
+cell_alignments = df.LV_CELL_ALIGNMENTS.one_of
+grid_alignments = df.LV_GRID_ALIGNMENTS.one_of
+flex_alignments = df.LV_FLEX_ALIGNMENTS.one_of
 
 STYLE_PROPS = {
-    "align": lv.one_of(df.CHILD_ALIGNMENTS),
+    "align": df.CHILD_ALIGNMENTS.one_of,
     "arc_opa": lv.opacity,
     "arc_color": lv_color,
     "arc_rounded": lv_bool,
@@ -224,10 +226,8 @@ STYLE_PROPS = {
     "anim_time": lv_milliseconds,
     "bg_color": lv_color,
     "bg_grad_color": lv_color,
-    "bg_dither_mode": lv.one_of(
-        df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
-    ),
-    "bg_grad_dir": lv.one_of(df.LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")),
+    "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
+    "bg_grad_dir": df.LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER").one_of,
     "bg_grad_stop": lv.stop_value,
     "bg_img_opa": lv.opacity,
     "bg_img_recolor": lv_color,
@@ -244,12 +244,6 @@ STYLE_PROPS = {
     ),
     "border_width": cv.positive_int,
     "clip_corner": lv_bool,
-    "grid_cell_x_align": cell_alignments,
-    "grid_cell_y_align": cell_alignments,
-    "grid_cell_row_pos": cv.positive_int,
-    "grid_cell_column_pos": cv.positive_int,
-    "grid_cell_row_span": cv.positive_int,
-    "grid_cell_column_span": cv.positive_int,
     "height": lv.size,
     "img_recolor": lv_color,
     "img_recolor_opa": lv.opacity,
@@ -277,9 +271,9 @@ STYLE_PROPS = {
     "shadow_opa": lv.opacity,
     "shadow_spread": cv.int_,
     "shadow_width": cv.positive_int,
-    "text_align": lv.one_of(
-        df.LvConstant("LV_TEXT_ALIGN_", "LEFT", "CENTER", "RIGHT", "AUTO")
-    ),
+    "text_align": df.LvConstant(
+        "LV_TEXT_ALIGN_", "LEFT", "CENTER", "RIGHT", "AUTO"
+    ).one_of,
     "text_color": lv_color,
     "text_decor": lv.several_of(
         df.LvConstant("LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH")
@@ -299,7 +293,7 @@ STYLE_PROPS = {
     "max_width": lv.pixels_or_percent,
     "min_height": lv.pixels_or_percent,
     "min_width": lv.pixels_or_percent,
-    "radius": cv.Any(lv.size, lv.one_of(df.LvConstant("LV_RADIUS_", "CIRCLE"))),
+    "radius": cv.Any(lv.size, df.LvConstant("LV_RADIUS_", "CIRCLE").one_of),
     "width": lv.size,
     "x": lv.pixels_or_percent,
     "y": lv.pixels_or_percent,
@@ -310,15 +304,6 @@ def validate_max_min(config):
     if CONF_MAX_VALUE in config and CONF_MIN_VALUE in config:
         if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
             raise cv.Invalid("max_value must be greater than min_value")
-    return config
-
-
-def validate_layout(config):
-    if config.get(df.CONF_LAYOUT) == "LV_LAYOUT_GRID":
-        if df.CONF_GRID_ROWS not in config or df.CONF_GRID_COLUMNS not in config:
-            raise cv.Invalid("grid layout requires grid_rows and grid_columns")
-    elif any((key in config) for key in list(GRID_CONTAINER_SCHEMA.keys())):
-        raise cv.Invalid("grid items apply to grid layout only")
     return config
 
 
@@ -436,9 +421,9 @@ TEXT_SCHEMA = cv.Schema(
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
         cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(ty.lv_style_t)),
-        cv.Optional(df.CONF_SCROLLBAR_MODE): lv.one_of(
-            df.LvConstant("LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO")
-        ),
+        cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
+            "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
+        ).one_of,
     }
 )
 STATE_SCHEMA = cv.Schema(
@@ -446,14 +431,14 @@ STATE_SCHEMA = cv.Schema(
 ).extend(STYLE_SCHEMA)
 SET_STATE_SCHEMA = cv.Schema({cv.Optional(state): lv_bool for state in df.STATES})
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): cv.boolean for flag in df.OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(lv.one_of(df.LvConstant("LV_OBJ_FLAG_", df.OBJ_FLAGS)))
+FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", df.OBJ_FLAGS).one_of)
 
 BAR_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
         cv.Optional(CONF_MAX_VALUE, default=100): cv.int_,
-        cv.Optional(CONF_MODE, default="NORMAL"): lv.one_of(df.BAR_MODES),
+        cv.Optional(CONF_MODE, default="NORMAL"): df.BAR_MODES.one_of,
         cv.Optional(df.CONF_ANIMATED, default=True): lv.animated,
     }
 )
@@ -518,9 +503,9 @@ IMG_SCHEMA = {
     cv.Optional(df.CONF_OFFSET_X): lv.size,
     cv.Optional(df.CONF_OFFSET_Y): lv.size,
     cv.Optional(df.CONF_ANTIALIAS): lv_bool,
-    cv.Optional(CONF_MODE): lv.one_of(
-        df.LvConstant("LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL")
-    ),
+    cv.Optional(CONF_MODE): df.LvConstant(
+        "LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL"
+    ).one_of,
 }
 
 # Schema for a single button in a btnmatrix
@@ -560,7 +545,7 @@ ARC_SCHEMA = cv.Schema(
         cv.Optional(df.CONF_END_ANGLE, default=45): lv.angle,
         cv.Optional(CONF_ROTATION, default=0.0): lv.angle,
         cv.Optional(df.CONF_ADJUSTABLE, default=False): bool,
-        cv.Optional(CONF_MODE, default="NORMAL"): lv.one_of(df.ARC_MODES),
+        cv.Optional(CONF_MODE, default="NORMAL"): df.ARC_MODES.one_of,
         cv.Optional(df.CONF_CHANGE_RATE, default=720): cv.uint16_t,
     }
 )
@@ -692,7 +677,7 @@ PAGE_SCHEMA = {
 LABEL_SCHEMA = TEXT_SCHEMA.extend(
     {
         cv.Optional(df.CONF_RECOLOR): lv_bool,
-        cv.Optional(df.CONF_LONG_MODE): lv.one_of(df.LV_LONG_MODES),
+        cv.Optional(df.CONF_LONG_MODE): df.LV_LONG_MODES.one_of,
     }
 )
 
@@ -712,7 +697,7 @@ DROPDOWN_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(df.CONF_SYMBOL): lv_text,
         cv.Optional(df.CONF_SELECTED_INDEX): cv.templatable(cv.int_),
-        cv.Optional(df.CONF_DIR, default="BOTTOM"): lv.one_of(df.DIRECTIONS),
+        cv.Optional(df.CONF_DIR, default="BOTTOM"): df.DIRECTIONS.one_of,
         cv.Optional(df.CONF_DROPDOWN_LIST): part_schema(df.CONF_DROPDOWN_LIST),
     }
 )
@@ -729,7 +714,7 @@ ROLLER_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(df.CONF_SELECTED_INDEX): cv.templatable(cv.int_),
         cv.Optional(df.CONF_VISIBLE_ROW_COUNT): lv_int,
-        cv.Optional(CONF_MODE, default="NORMAL"): lv.one_of(df.ROLLER_MODES),
+        cv.Optional(CONF_MODE, default="NORMAL"): df.ROLLER_MODES.one_of,
     }
 )
 
@@ -775,7 +760,7 @@ SPINBOX_MODIFY_SCHEMA = {
 }
 
 KEYBOARD_SCHEMA = {
-    cv.Optional(CONF_MODE, default="TEXT_UPPER"): lv.one_of(df.KEYBOARD_MODES),
+    cv.Optional(CONF_MODE, default="TEXT_UPPER"): df.KEYBOARD_MODES.one_of,
     cv.Optional(df.CONF_TEXTAREA): cv.use_id(ty.lv_textarea_t),
 }
 
@@ -787,22 +772,11 @@ LVGL_SCHEMA = cv.Schema(
 )
 
 
-def get_layout(layout=cv.UNDEFINED, flow="ROW_WRAP"):
-    return cv.Schema(
-        {
-            cv.Optional(df.CONF_FLEX_FLOW, default=flow): lv.one_of(df.FLEX_FLOWS),
-            cv.Optional(df.CONF_LAYOUT, default=layout): lv.one_of(
-                df.LvConstant("LV_LAYOUT_", "FLEX", "GRID")
-            ),
-        }
-    )
-
-
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(ty.lv_obj_t),
-            cv.Required(df.CONF_ALIGN): lv.one_of(df.ALIGN_ALIGNMENTS),
+            cv.Required(df.CONF_ALIGN): df.ALIGN_ALIGNMENTS.one_of,
             cv.Optional(df.CONF_X, default=0): lv.pixels_or_percent,
             cv.Optional(df.CONF_Y, default=0): lv.pixels_or_percent,
         }
@@ -819,25 +793,50 @@ def grid_free_space(value):
 
 
 grid_spec = cv.Any(
-    lv.size, lv.one_of(df.LvConstant("LV_GRID_", "CONTENT")), grid_free_space
+    lv.size, df.LvConstant("LV_GRID_", "CONTENT").one_of, grid_free_space
 )
 
-GRID_CONTAINER_SCHEMA = {
-    cv.Optional(df.CONF_GRID_ROWS): grid_spec,
-    cv.Optional(df.CONF_GRID_COLUMNS): grid_spec,
-    cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
-    cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
+LAYOUT_SCHEMA = {
+    cv.Optional(df.CONF_LAYOUT): cv.typed_schema(
+        {
+            df.TYPE_GRID: {
+                cv.Required(df.CONF_GRID_ROWS): grid_spec,
+                cv.Required(df.CONF_GRID_COLUMNS): grid_spec,
+                cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
+                cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
+            },
+            df.TYPE_FLEX: {
+                cv.Optional(df.CONF_FLEX_FLOW): df.FLEX_FLOWS.one_of,
+                cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
+                cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
+                cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
+            },
+        }
+    )
+}
+
+
+GRID_CELL_SCHEMA = {
+    cv.Optional(df.CONF_GRID_CELL_X_ALIGN, default="start"): cell_alignments,
+    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN, default="start"): cell_alignments,
+    cv.Optional(df.CONF_GRID_CELL_ROW_POS, default=1): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_COLUMN_POS, default=1): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
+}
+
+FLEX_OBJ_SCHEMA = {
+    cv.Optional(df.CONF_FLEX_GROW, default=1): cv.int_,
 }
 
 
 def obj_schema(wtype: str):
-    return cv.Schema(
+    return (
         part_schema(wtype)
         .extend(FLAG_SCHEMA)
-        .extend(GRID_CONTAINER_SCHEMA)
+        .extend(LAYOUT_SCHEMA)
         .extend(automation_schema(ty.get_widget_type(wtype)))
         .extend(ALIGN_TO_SCHEMA)
-        .extend(get_layout())
         .extend(
             cv.Schema(
                 {
@@ -846,7 +845,10 @@ def obj_schema(wtype: str):
                 }
             )
         )
-    ).add_extra(validate_max_min)
+    )
+
+
+WIDGET_SCHEMAS = {}
 
 
 def container_schema(widget_type, extras=None):
@@ -859,12 +861,13 @@ def container_schema(widget_type, extras=None):
 
     # Delayed evaluation for recursion
     def validator(value):
-        widgets = cv.Schema(
-            {
-                cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
-            }
-        )
-        result = schema.extend(widgets)
+        result = schema
+        ltype = df.TYPE_NONE
+        if layout := value.get(df.CONF_LAYOUT):
+            if not isinstance(layout, dict):
+                raise cv.Invalid("Layout value must be a dict")
+            ltype = layout.get(CONF_TYPE)
+        result = result.extend(WIDGET_SCHEMAS[ltype])
         if value == SCHEMA_EXTRACT:
             return result
         return result(value)
@@ -873,7 +876,7 @@ def container_schema(widget_type, extras=None):
 
 
 def widget_schema(name, extras=None):
-    validator = cv.All(container_schema(name, extras=extras), validate_layout)
+    validator = container_schema(name, extras=extras)
     if required := lv.REQUIRED_COMPONENTS.get(name):
         validator = cv.All(validator, lv.requires_component(required))
     return cv.Exclusive(name, df.CONF_WIDGETS), validator
@@ -915,6 +918,20 @@ MSGBOX_SCHEMA = STYLE_SCHEMA.extend(
         cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
     }
 )
+
+# All widget schemas must be defined before this.
+
+WIDGET_SCHEMAS[df.TYPE_GRID] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(GRID_CELL_SCHEMA))
+}
+WIDGET_SCHEMAS[df.TYPE_FLEX] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(FLEX_OBJ_SCHEMA))
+}
+WIDGET_SCHEMAS[df.TYPE_NONE] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())
+}
+
+ALL_STYLES = {**STYLE_PROPS, **GRID_CELL_SCHEMA, **FLEX_OBJ_SCHEMA}
 
 
 async def get_color_value(value):
@@ -1028,7 +1045,7 @@ def add_define(macro, value="1"):
 
 def collect_props(config):
     props = {}
-    for prop in [*STYLE_PROPS, *df.OBJ_FLAGS, df.CONF_STYLES, CONF_GROUP]:
+    for prop in [*ALL_STYLES, *df.OBJ_FLAGS, df.CONF_STYLES, CONF_GROUP]:
         if prop in config:
             props[prop] = config[prop]
     return props
@@ -1053,25 +1070,37 @@ def collect_parts(config):
 async def set_obj_properties(widget: Widget, config):
     """Return a list of C++ statements to apply properties to an ty.lv_obj_t"""
     init = []
-    if config.get(df.CONF_LAYOUT) == "LV_LAYOUT_GRID":
-        lv.lv_uses.add("GRID")
-        wid = config[CONF_ID]
-        if df.CONF_GRID_CELL_ROW_SPAN not in config:
-            config[df.CONF_GRID_CELL_ROW_SPAN] = 1
-        if df.CONF_GRID_CELL_COLUMN_SPAN not in config:
-            config[df.CONF_GRID_CELL_COLUMN_SPAN] = 1
-        for key in (df.CONF_GRID_COLUMN_ALIGN, df.CONF_GRID_COLUMN_ALIGN):
-            init.extend(widget.set_property(key, config))
-        rows = "{" + ",".join(config[df.CONF_GRID_ROWS]) + ", LV_GRID_TEMPLATE_LAST}"
-        row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=ty.lv_coord_t)
-        row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
-        init.extend(widget.set_style("grid_row_dsc_array", row_array, 0))
-        columns = (
-            "{" + ",".join(config[df.CONF_GRID_COLUMNS]) + ", LV_GRID_TEMPLATE_LAST}"
+    if layout := config.get(df.CONF_LAYOUT):
+        layout_type: str = layout[CONF_TYPE].upper()
+        lv.lv_uses.add(layout_type)
+        init.extend(
+            widget.set_property(df.CONF_LAYOUT, f"LV_LAYOUT_{layout_type}", ltype="obj")
         )
-        column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=ty.lv_coord_t)
-        column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
-        init.extend(widget.set_style("grid_column_dsc_array", column_array, 0))
+        if layout_type.lower() == df.TYPE_GRID:
+            wid = config[CONF_ID]
+            rows = (
+                "{" + ",".join(layout[df.CONF_GRID_ROWS]) + ", LV_GRID_TEMPLATE_LAST}"
+            )
+            row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=ty.lv_coord_t)
+            row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
+            init.extend(widget.set_style("grid_row_dsc_array", row_array, 0))
+            columns = (
+                "{"
+                + ",".join(layout[df.CONF_GRID_COLUMNS])
+                + ", LV_GRID_TEMPLATE_LAST}"
+            )
+            column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=ty.lv_coord_t)
+            column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
+            init.extend(widget.set_style("grid_column_dsc_array", column_array, 0))
+        if layout_type.lower() == df.TYPE_FLEX:
+            lv.lv_uses.add(df.TYPE_FLEX)
+            init.extend(widget.set_property(df.CONF_FLEX_FLOW, layout, ltype="obj"))
+            main = layout[df.CONF_FLEX_ALIGN_MAIN]
+            cross = layout[df.CONF_FLEX_ALIGN_CROSS]
+            track = layout[df.CONF_FLEX_ALIGN_TRACK]
+            init.append(
+                f"lv_obj_set_flex_align({widget.obj}, {main}, {cross}, {track})"
+            )
     parts = collect_parts(config)
     for part, states in parts.items():
         for state, props in states.items():
@@ -1082,10 +1111,10 @@ async def set_obj_properties(widget: Widget, config):
                         f"lv_obj_add_style({widget.obj}, {style_id}, {lv_state})"
                     )
             for prop, value in {
-                k: v for k, v in props.items() if k in STYLE_PROPS
+                k: v for k, v in props.items() if k in ALL_STYLES
             }.items():
-                if isinstance(STYLE_PROPS[prop], LValidator):
-                    value = await STYLE_PROPS[prop].process(value)
+                if isinstance(ALL_STYLES[prop], LValidator):
+                    value = await ALL_STYLES[prop].process(value)
                 init.extend(widget.set_style(prop, value, lv_state))
     if group := add_group(config.get(CONF_GROUP)):
         init.append(f"lv_group_add_obj({group}, {widget.obj})")
@@ -1104,12 +1133,6 @@ async def set_obj_properties(widget: Widget, config):
         clrs = lv.join_enums(flag_clr, "LV_OBJ_FLAG_")
         init.extend(widget.clear_flag(clrs))
 
-    if layout := config.get(df.CONF_LAYOUT):
-        layout = layout.upper()
-        init.extend(widget.set_property("layout", layout, ltype="obj"))
-        if layout == "LV_LAYOUT_FLEX":
-            lv.lv_uses.add("FLEX")
-            init.extend(widget.set_property("flex_flow", config, ltype="obj"))
     if states := config.get(CONF_STATE):
         adds = set()
         clears = set()
@@ -1259,7 +1282,7 @@ async def led_to_code(var: Widget, config):
 
 SHOW_SCHEMA = LVGL_SCHEMA.extend(
     {
-        cv.Optional(df.CONF_ANIMATION, default="NONE"): lv.one_of(df.LV_ANIM),
+        cv.Optional(df.CONF_ANIMATION, default="NONE"): df.LV_ANIM.one_of,
         cv.Optional(CONF_TIME, default="50ms"): lv_milliseconds,
     }
 )
@@ -2071,7 +2094,7 @@ async def action_to_code(action, action_id, widg: Widget, template_arg, args):
     if nc := widg.check_null():
         action.insert(0, nc)
     lamb = await cg.process_lambda(Lambda(";\n".join([*action, ""])), args)
-    var = cg.new_Pvariable(action_id, template_arg, lamb[0])
+    var = cg.new_Pvariable(action_id, template_arg, lamb)
     return var
 
 

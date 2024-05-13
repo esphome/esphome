@@ -94,7 +94,7 @@ def bool_(value):
 def animated(value):
     if isinstance(value, bool):
         value = "ON" if value else "OFF"
-    return one_of(LvConstant("LV_ANIM_", "OFF", "ON"))(value)
+    return LvConstant("LV_ANIM_", "OFF", "ON").one_of(value)
 
 
 def key_code(value):
@@ -104,25 +104,8 @@ def key_code(value):
     return value
 
 
-def one_of(consts: LvConstant):
-    """Allow one of a list of choices, mapped to upper case, and prepend the choice with the prefix.
-    It's also permitted to include the prefix in the value"""
-
-    @schema_extractor("one_of")
-    def validator(value):
-        if value == SCHEMA_EXTRACT:
-            return consts.choices
-        if isinstance(value, str) and value.startswith(consts.prefix):
-            return cv.one_of(
-                *list(map(lambda v: consts.prefix + v, consts.choices)), upper=True
-            )(value)
-        return consts.prefix + cv.one_of(*consts.choices, upper=True)(value)
-
-    return validator
-
-
 def several_of(consts: LvConstant):
-    return cv.ensure_list(one_of(consts))
+    return cv.ensure_list(consts.one_of)
 
 
 def join_enums(enums, prefix=""):
@@ -185,14 +168,13 @@ def size(value):
 
 @schema_extractor("one_of")
 def opacity(value):
+    consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
     if value == SCHEMA_EXTRACT:
-        return ["TRANSP", "COVER", "..%"]
-    value = cv.Any(cv.percentage, one_of(LvConstant("LV_OPA_", "TRANSP", "COVER")))(
-        value
-    )
-    if isinstance(value, str):
-        return value
-    return int(value * 255)
+        return consts.choices
+    value = cv.Any(cv.percentage, consts.one_of)(value)
+    if isinstance(value, float):
+        return int(value * 255)
+    return value
 
 
 def stop_value(value):

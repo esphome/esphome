@@ -1,3 +1,7 @@
+from esphome.schema_extractors import schema_extractor, SCHEMA_EXTRACT
+import esphome.config_validation as cv
+
+
 class LvConstant:
     def __init__(self, prefix: str, *choices):
         self.prefix = prefix
@@ -5,6 +9,23 @@ class LvConstant:
 
     def extend(self, *choices):
         return LvConstant(self.prefix, *(self.choices + choices))
+
+    @property
+    def one_of(self):
+        """Allow one of a list of choices, mapped to upper case, and prepend the choice with the prefix.
+        It's also permitted to include the prefix in the value"""
+
+        @schema_extractor("one_of")
+        def validator(value):
+            if value == SCHEMA_EXTRACT:
+                return self.choices
+            if isinstance(value, str) and value.startswith(self.prefix):
+                return cv.one_of(
+                    *list(map(lambda v: self.prefix + v, self.choices)), upper=True
+                )(value)
+            return self.prefix + cv.one_of(*self.choices, upper=True)(value)
+
+        return validator
 
 
 # Widgets
@@ -49,6 +70,12 @@ CONF_TICKS = "ticks"
 CONF_TICK_STYLE = "tick_style"
 CONF_CURSOR = "cursor"
 CONF_TEXTAREA_PLACEHOLDER = "textarea_placeholder"
+
+# Layout types
+
+TYPE_FLEX = "flex"
+TYPE_GRID = "grid"
+TYPE_NONE = "none"
 
 LV_FONTS = list(map(lambda size: f"montserrat_{size}", range(8, 50, 2))) + [
     "dejavu_16_persian_hebrew",
@@ -240,14 +267,25 @@ BTNMATRIX_CTRLS = (
     "CUSTOM_2",
 )
 
-LV_CELL_ALIGNMENTS = LvConstant(
-    "LV_GRID_ALIGNMENT_",
+LV_BASE_ALIGNMENTS = (
     "START",
     "CENTER",
     "END",
 )
+LV_CELL_ALIGNMENTS = LvConstant(
+    "LV_GRID_ALIGN_",
+    *LV_BASE_ALIGNMENTS,
+)
 LV_GRID_ALIGNMENTS = LV_CELL_ALIGNMENTS.extend(
     "STRETCH",
+    "SPACE_EVENLY",
+    "SPACE_AROUND",
+    "SPACE_BETWEEN",
+)
+
+LV_FLEX_ALIGNMENTS = LvConstant(
+    "LV_FLEX_ALIGN_",
+    *LV_BASE_ALIGNMENTS,
     "SPACE_EVENLY",
     "SPACE_AROUND",
     "SPACE_BETWEEN",
@@ -299,11 +337,17 @@ CONF_END_ANGLE = "end_angle"
 CONF_END_VALUE = "end_value"
 CONF_FLAGS = "flags"
 CONF_FLEX_FLOW = "flex_flow"
+CONF_FLEX_ALIGN_MAIN = "flex_align_main"
+CONF_FLEX_ALIGN_CROSS = "flex_align_cross"
+CONF_FLEX_ALIGN_TRACK = "flex_align_track"
+CONF_FLEX_GROW = "flex_grow"
 CONF_FULL_REFRESH = "full_refresh"
 CONF_GRID_CELL_ROW_POS = "grid_cell_row_pos"
 CONF_GRID_CELL_COLUMN_POS = "grid_cell_column_pos"
 CONF_GRID_CELL_ROW_SPAN = "grid_cell_row_span"
 CONF_GRID_CELL_COLUMN_SPAN = "grid_cell_column_span"
+CONF_GRID_CELL_X_ALIGN = "grid_cell_x_align"
+CONF_GRID_CELL_Y_ALIGN = "grid_cell_y_align"
 CONF_GRID_COLUMN_ALIGN = "grid_column_align"
 CONF_GRID_COLUMNS = "grid_columns"
 CONF_GRID_ROW_ALIGN = "grid_row_align"

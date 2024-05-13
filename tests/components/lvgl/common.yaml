@@ -158,14 +158,15 @@ lvgl:
             pad_all: 0
             widgets:
               - btn:
-                  layout: grid
-                  grid_rows: 2
-                  grid_columns: 2
-                  grid_cell_row_span: 2
-                  grid_cell_column_span: 2
+                  layout:
+                    type: grid
+                    grid_rows: 2
+                    grid_columns: 2
                   checkable: true
                   widgets:
                     - label:
+                        grid_cell_row_span: 2
+                        grid_cell_column_span: 2
                         align: center
                         id: my_label_id
                         text: "Test Toggle Button"
@@ -401,9 +402,10 @@ lvgl:
                     format: "Spinbox value is %f"
                     args: [x]
         - btn:
-            layout: grid
-            grid_rows: 2
-            grid_columns: 2
+            layout:
+              type: grid
+              grid_rows: 2
+              grid_columns: 2
             id: spin_down
             on_click:
               - lvgl.spinbox.decrement: spinbox_id
@@ -411,6 +413,9 @@ lvgl:
                   id: spinbox_id
                   value: 100
         - img:
+            layout:
+              type: flex
+              flex_flow: column_wrap
             align: CENTER
             src: cat_image
             id: img_id
