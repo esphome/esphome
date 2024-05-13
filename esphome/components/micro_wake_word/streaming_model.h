@@ -34,7 +34,7 @@ class StreamingModel {
   /// @brief Allocates tensor and variable arenas and sets up the model interpreter
   /// @param op_resolver MicroMutableOpResolver object that must exist until the model is unloaded
   /// @return True if successful, false otherwise
-  bool load_model(tflite::MicroMutableOpResolver<17> &op_resolver);
+  bool load_model(tflite::MicroMutableOpResolver<20> &op_resolver);
 
   /// @brief Destroys the TFLite interpreter and frees the tensor and variable arenas' memory
   void unload_model();

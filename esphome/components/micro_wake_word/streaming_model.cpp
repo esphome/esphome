@@ -32,7 +32,7 @@ void VADModel::log_model_config() {
   ESP_LOGCONFIG(TAG, "    Sliding window size: %d", this->sliding_window_size_);
 }
 
-bool StreamingModel::load_model(tflite::MicroMutableOpResolver<17> &op_resolver) {
+bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver) {
   ExternalRAMAllocator<uint8_t> arena_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
 
   if (this->tensor_arena_ == nullptr) {

@@ -461,7 +461,7 @@ bool MicroWakeWord::detect_wake_word_() {
     return true;
   }
 
-  bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<17> & op_resolver) {
+  bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<20> & op_resolver) {
     if (op_resolver.AddCallOnce() != kTfLiteOk)
       return false;
     if (op_resolver.AddVarHandle() != kTfLiteOk)
@@ -495,6 +495,12 @@ bool MicroWakeWord::detect_wake_word_() {
     if (op_resolver.AddAveragePool2D() != kTfLiteOk)
       return false;
     if (op_resolver.AddMaxPool2D() != kTfLiteOk)
+      return false;
+    if (op_resolver.AddPad() != kTfLiteOk)
+      return false;
+    if (op_resolver.AddPack() != kTfLiteOk)
+      return false;
+    if (op_resolver.AddSplitV() != kTfLiteOk)
       return false;
 
     return true;

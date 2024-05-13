@@ -76,7 +76,7 @@ class MicroWakeWord : public Component {
   VADModel *vad_model_;
 #endif
 
-  tflite::MicroMutableOpResolver<17> streaming_op_resolver_;
+  tflite::MicroMutableOpResolver<20> streaming_op_resolver_;
   tflite::MicroMutableOpResolver<18> preprocessor_op_resolver_;
 
   tflite::MicroInterpreter *preprocessor_interpreter_{nullptr};
@@ -161,7 +161,7 @@ class MicroWakeWord : public Component {
   bool register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> &op_resolver);
 
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
-  bool register_streaming_ops_(tflite::MicroMutableOpResolver<17> &op_resolver);
+  bool register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver);
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<MicroWakeWord> {
