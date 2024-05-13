@@ -1,12 +1,1 @@
-esp32_ble_tracker:
-
-sensor:
-  - platform: xiaomi_lywsd03mmc
-    mac_address: A4:C1:38:4E:16:78
-    bindkey: e9efaa6873f9f9c87a5e75a5f814801c
-    temperature:
-      name: Xiaomi LYWSD03MMC Temperature
-    humidity:
-      name: Xiaomi LYWSD03MMC Humidity
-    battery_level:
-      name: Xiaomi LYWSD03MMC Battery Level
+<<: !include common.yaml
