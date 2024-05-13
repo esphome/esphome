@@ -1,8 +1,1 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-sensor:
-  - platform: wifi_signal
-    name: WiFi Signal Sensor
-    update_interval: 15s
+<<: !include common.yaml
