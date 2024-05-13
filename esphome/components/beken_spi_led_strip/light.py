@@ -84,7 +84,8 @@ def _validate_num_leds(value):
         max_num_leds = 123  # 127
     if value[CONF_NUM_LEDS] > max_num_leds:
         raise cv.Invalid(
-            f"The maximum number of LEDs for this configuration is {max_num_leds}."
+            f"The maximum number of LEDs for this configuration is {max_num_leds}.",
+            path=CONF_NUM_LEDS,
         )
     return value
 
