@@ -94,10 +94,10 @@ class VoiceAssistant : public Component {
   uint32_t get_feature_flags() const {
     uint32_t flags = 0;
     flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
+    flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
-      flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
     }
 #endif
     return flags;
