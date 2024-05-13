@@ -23,7 +23,10 @@ void I2SAudioSpeaker::setup() {
 }
 
 void I2SAudioSpeaker::start() {
-  this->task_created_ = false;
+  if (this->task_created_) {
+    ESP_LOGD(TAG, "Called start while task has been already created.");
+    return;
+  }
   this->state_ = speaker::STATE_STARTING;
 }
 void I2SAudioSpeaker::start_() {
