@@ -34,6 +34,16 @@ runs:
           echo $l >> $GITHUB_OUTPUT
         done
 
+    # set cache-to only if dev branch
+    - id: cache-to
+      shell: bash
+      run: |-
+        if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+          echo "value=type=gha,mode=max" >> $GITHUB_OUTPUT
+        else
+          echo "value=" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build and push to ghcr by digest
       id: build-ghcr
       uses: docker/build-push-action@v5.3.0
@@ -43,7 +53,7 @@ runs:
         platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
         cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
           BASEIMGTYPE=${{ inputs.baseimg }}
           BUILD_VERSION=${{ inputs.version }}
@@ -66,7 +76,7 @@ runs:
         platforms: ${{ inputs.platform }}
         target: ${{ inputs.target }}
         cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
           BASEIMGTYPE=${{ inputs.baseimg }}
           BUILD_VERSION=${{ inputs.version }}
