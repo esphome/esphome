@@ -1,10 +1,1 @@
-esp32_ble_tracker:
-
-binary_sensor:
-  - platform: xiaomi_wx08zm
-    name: WX08ZM Activation State
-    mac_address: 74:a3:4a:b5:07:34
-    tablet:
-      name: WX08ZM Tablet Resource
-    battery_level:
-      name: WX08ZM Battery Level
+<<: !include common.yaml
