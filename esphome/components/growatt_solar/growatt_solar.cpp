@@ -28,6 +28,10 @@ void GrowattSolar::update() {
     this->waiting_to_update_ = true;
     return;
   }
+  
+  // Ignore when device uptime is too low, preventing invalid readouts during inverter boot cycle
+  if (millis() < 30000)
+    return;
 
   this->waiting_to_update_ = false;
   this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT[this->protocol_version_]);
@@ -43,10 +47,6 @@ void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
 
   // Also ignore the data if the message is too short. Otherwise we will publish invalid values.
   if (data.size() < MODBUS_REGISTER_COUNT[this->protocol_version_] * 2)
-    return;
-
-  // Ignore when device uptime is too low, preventing invalid readouts during inverter boot cycle
-  if (millis() < 30000)
     return;
 
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, size_t i, float unit) -> void {
