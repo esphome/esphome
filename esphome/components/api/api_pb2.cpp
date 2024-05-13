@@ -363,8 +363,6 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::Medi
       return "MEDIA_PLAYER_STATE_PLAYING";
     case enums::MEDIA_PLAYER_STATE_PAUSED:
       return "MEDIA_PLAYER_STATE_PAUSED";
-    case enums::MEDIA_PLAYER_STATE_ANNOUNCING:
-      return "MEDIA_PLAYER_STATE_ANNOUNCING";
     default:
       return "UNKNOWN";
   }

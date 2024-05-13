@@ -1002,15 +1002,11 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
 
   MediaPlayerStateResponse resp{};
   resp.key = media_player->get_object_id_hash();
-  if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 11) {
-    media_player::MediaPlayerState report_state = media_player->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING
-                                                      ? media_player::MEDIA_PLAYER_STATE_PLAYING
-                                                      : media_player->state;
-    resp.state = static_cast<enums::MediaPlayerState>(report_state);
-  } else {
-    resp.state = static_cast<enums::MediaPlayerState>(media_player->state);
-  }
 
+  media_player::MediaPlayerState report_state = media_player->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+                                                    ? media_player::MEDIA_PLAYER_STATE_PLAYING
+                                                    : media_player->state;
+  resp.state = static_cast<enums::MediaPlayerState>(report_state);
   resp.volume = media_player->volume;
   resp.muted = media_player->is_muted();
   return this->send_media_player_state_response(resp);
