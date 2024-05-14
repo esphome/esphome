@@ -6,6 +6,13 @@ namespace apds9306 {
 
 static const char *const TAG = "apds9306";
 
+#define APDS9306_REG_MAIN_CTRL 0x00      // ALS operation mode control, SW reset
+#define APDS9306_REG_ALS_MEAS_RATE 0x04  // ALS measurement rate and resolution in Active mode
+#define APDS9306_REG_ALS_GAIN 0x05       // ALS analog gain range
+#define APDS9306_REG_Part_ID 0x06        // Part number ID and revision ID
+#define APDS9306_REG_MAIN_STATUS 0x07    // Power-on status, interrupt status, data status
+#define APDS9306_REG_ALS_DATA_0 0x0D     // ALS ADC measurement data - LSB
+
 #define APDS9306_ERROR_CHECK(func) \
   if (!(func)) { \
     this->mark_failed(); \
@@ -24,7 +31,7 @@ static const char *const TAG = "apds9306";
 void APDS9306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
   uint8_t id;
-  if (!this->read_byte(0x06, &id)) {  // Part ID register
+  if (!this->read_byte(APDS9306_REG_Part_ID, &id)) {  // Part ID register
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
@@ -36,33 +43,29 @@ void APDS9306::setup() {
     return;
   }
 
-  // MAIN_CTRL (0x00)
   // Trigger software reset
-  APDS9306_WRITE_BYTE(0x00, 0x10);
+  APDS9306_WRITE_BYTE(APDS9306_REG_MAIN_CTRL, 0x10);
   // Put in standby mode
-  APDS9306_WRITE_BYTE(0x00, 0x00);
+  APDS9306_WRITE_BYTE(APDS9306_REG_MAIN_CTRL, 0x00);
 
-  // ALS_MEAS_RATE (0x04)
   uint8_t als_meas_rate = 0;
-  APDS9306_ERROR_CHECK(this->read_byte(0x04, &als_meas_rate));
+  APDS9306_ERROR_CHECK(this->read_byte(APDS9306_REG_ALS_MEAS_RATE, &als_meas_rate));
   als_meas_rate &= 0x77;
   // ALS resolution, see datasheet or init.py for options
   als_meas_rate |= (this->bit_width_ & 0b111) << 4;
   // ALS measurement rate, see datasheet or init.py for options
   als_meas_rate |= (this->measurement_rate_ & 0b111);
 
-  APDS9306_WRITE_BYTE(0x04, als_meas_rate);
+  APDS9306_WRITE_BYTE(APDS9306_REG_ALS_MEAS_RATE, als_meas_rate);
 
-  // ALS_GAIN (0x05)
   uint8_t als_gain = 0;
-  APDS9306_ERROR_CHECK(this->read_byte(0x05, &als_gain));
+  APDS9306_ERROR_CHECK(this->read_byte(APDS9306_REG_ALS_GAIN, &als_gain));
   als_gain &= 0x07;
   // ALS gain, see datasheet or init.py for options
   als_gain |= (this->gain_ & 0b111);
 
-  APDS9306_WRITE_BYTE(0x05, als_gain);
+  APDS9306_WRITE_BYTE(APDS9306_REG_ALS_GAIN, als_gain);
 
-  // MAIN_CTRL (0x00)
   // Set to active mode
   APDS9306_WRITE_BYTE(0x00, 0x02);
 }
@@ -94,7 +97,7 @@ void APDS9306::dump_config() {
 
 void APDS9306::update() {
   uint8_t status;
-  APDS9306_WARNING_CHECK(this->read_byte(0x07, &status), "Reading status bit failed.");
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_REG_MAIN_STATUS, &status), "Reading status bit failed.");
 
   this->status_clear_warning();
 
@@ -163,7 +166,7 @@ void APDS9306::update() {
   }
 
   uint8_t als_data[3];
-  APDS9306_WARNING_CHECK(this->read_byte(0x0D, als_data, 3), "Reading ALS data has failed.");
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_REG_ALS_DATA_0, als_data, 3), "Reading ALS data has failed.");
 
   uint32_t light_level = 0x0000 | ((als_data[0]) + (als_data[1] << 8) + (als_data[2] << 16));
 
