@@ -24,6 +24,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.enum(INA_MODELS, upper=True),
         }
     ).extend(i2c.i2c_device_schema(0x40)),
+    ina2xx_base.validate_model_config,
 )
 
 

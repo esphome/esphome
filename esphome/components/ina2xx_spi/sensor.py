@@ -23,6 +23,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.enum(INA_MODELS, upper=True),
         }
     ).extend(spi.spi_device_schema(cs_pin_required=True)),
+    ina2xx_base.validate_model_config,
 )
 
 

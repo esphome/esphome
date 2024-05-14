@@ -66,6 +66,32 @@ ADC_SAMPLES = {
     1024: AdcAvgSamples.ADC_AVG_SAMPLES_1024,
 }
 
+SENSOR_MODEL_OPTIONS = {
+    CONF_ENERGY: ["INA228", "INA229"],
+    CONF_ENERGY_JOULES: ["INA228", "INA229"],
+    CONF_CHARGE: ["INA228", "INA229"],
+    CONF_CHARGE_COULOMBS: ["INA228", "INA229"],
+}
+
+
+def validate_model_config(config):
+    model = config[CONF_MODEL]
+
+    for key in config:
+        if key in SENSOR_MODEL_OPTIONS:
+            if model not in SENSOR_MODEL_OPTIONS[key]:
+                raise cv.Invalid(
+                    f"Device model '{model}' does not support '{key}' sensor"
+                )
+
+    tempco = config[CONF_TEMPERATURE_COEFFICIENT]
+    if tempco > 0 and model not in ["INA228", "INA229"]:
+        raise cv.Invalid(
+            f"Device model '{model}' does not support temperature coefficient"
+        )
+
+    return config
+
 
 def validate_adc_time(value):
     value = cv.positive_time_period_microseconds(value).total_microseconds
