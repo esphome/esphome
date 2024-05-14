@@ -160,13 +160,15 @@ lvgl:
               - btn:
                   layout:
                     type: grid
-                    grid_rows: 2
-                    grid_columns: 2
+                    grid_rows: [fr(1), content]
+                    grid_columns: [100, fr(2)]
                     grid_column_align: space_evenly
                     grid_row_align: center
                   checkable: true
                   widgets:
                     - label:
+                        grid_cell_x_align: stretch
+                        grid_cell_y_align: stretch
                         grid_cell_row_span: 2
                         grid_cell_column_span: 2
                         grid_cell_row_pos: 0
@@ -408,8 +410,8 @@ lvgl:
         - btn:
             layout:
               type: grid
-              grid_rows: 2
-              grid_columns: 2
+              grid_rows: [content, content]
+              grid_columns: [100, fr(2)]
             id: spin_down
             on_click:
               - lvgl.spinbox.decrement: spinbox_id
@@ -540,6 +542,8 @@ lvgl:
             tabs:
               - name: Tab1
                 id: tabview_tab_1
+                layout:
+                  type: flex
                 widgets:
                   - img:
                       src: dog_img

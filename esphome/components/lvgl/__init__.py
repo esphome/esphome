@@ -802,8 +802,8 @@ LAYOUT_SCHEMA = {
     cv.Optional(df.CONF_LAYOUT): cv.typed_schema(
         {
             df.TYPE_GRID: {
-                cv.Required(df.CONF_GRID_ROWS): grid_spec,
-                cv.Required(df.CONF_GRID_COLUMNS): grid_spec,
+                cv.Required(df.CONF_GRID_ROWS): [grid_spec],
+                cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
                 cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
                 cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
             },
@@ -825,8 +825,8 @@ GRID_CELL_SCHEMA = {
     cv.Required(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_X_ALIGN, default="start"): cell_alignments,
-    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN, default="start"): cell_alignments,
+    cv.Optional(df.CONF_GRID_CELL_X_ALIGN, default="start"): grid_alignments,
+    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN, default="start"): grid_alignments,
 }
 
 FLEX_OBJ_SCHEMA = {
@@ -855,6 +855,22 @@ def obj_schema(wtype: str):
 WIDGET_SCHEMAS = {}
 
 
+def container_validator(schema):
+    def validator(value):
+        ltype = df.TYPE_NONE
+        if value and (layout := value.get(df.CONF_LAYOUT)):
+            if not isinstance(layout, dict):
+                raise cv.Invalid("Layout value must be a dict")
+            ltype = layout.get(CONF_TYPE)
+            lv.lv_uses.add(ltype.upper())
+        result = schema.extend(WIDGET_SCHEMAS[ltype.lower()])
+        if value == SCHEMA_EXTRACT:
+            return result
+        return result(value)
+
+    return validator
+
+
 def container_schema(widget_type, extras=None):
     lv_type = ty.get_widget_type(widget_type)
     schema = obj_schema(widget_type).extend({cv.GenerateID(): cv.declare_id(lv_type)})
@@ -862,21 +878,8 @@ def container_schema(widget_type, extras=None):
         schema = schema.extend(globs)
     if extras:
         schema = schema.extend(extras)
-
     # Delayed evaluation for recursion
-    def validator(value):
-        result = schema
-        ltype = df.TYPE_NONE
-        if value and (layout := value.get(df.CONF_LAYOUT)):
-            if not isinstance(layout, dict):
-                raise cv.Invalid("Layout value must be a dict")
-            ltype = layout.get(CONF_TYPE)
-        result = result.extend(WIDGET_SCHEMAS[ltype.lower()])
-        if value == SCHEMA_EXTRACT:
-            return result
-        return result(value)
-
-    return validator
+    return container_validator(schema)
 
 
 def widget_schema(name, extras=None):
@@ -892,13 +895,15 @@ def any_widget_schema(extras=None):
 
 WIDGET_SCHEMA = any_widget_schema()
 
-TILE_SCHEMA = {
-    cv.Required(CONF_ROW): lv_int,
-    cv.Required(df.CONF_COLUMN): lv_int,
-    cv.GenerateID(): cv.declare_id(ty.lv_tile_t),
-    cv.Optional(df.CONF_DIR, default="ALL"): df.TILE_DIRECTIONS.several_of,
-    cv.Required(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
-}
+TILE_SCHEMA = container_schema(
+    df.CONF_OBJ,
+    {
+        cv.Required(CONF_ROW): lv_int,
+        cv.Required(df.CONF_COLUMN): lv_int,
+        cv.GenerateID(): cv.declare_id(ty.lv_tile_t),
+        cv.Optional(df.CONF_DIR, default="ALL"): df.TILE_DIRECTIONS.several_of,
+    },
+)
 
 TILEVIEW_SCHEMA = {
     cv.Required(df.CONF_TILES): cv.ensure_list(TILE_SCHEMA),
@@ -911,11 +916,13 @@ TILEVIEW_SCHEMA = {
     ),
 }
 
-TAB_SCHEMA = {
-    cv.Required(CONF_NAME): cv.string,
-    cv.GenerateID(): cv.declare_id(ty.lv_tab_t),
-    cv.Required(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
-}
+TAB_SCHEMA = container_schema(
+    df.CONF_OBJ,
+    {
+        cv.Required(CONF_NAME): cv.string,
+        cv.GenerateID(): cv.declare_id(ty.lv_tab_t),
+    },
+)
 
 TABVIEW_SCHEMA = {
     cv.Required(df.CONF_TABS): cv.ensure_list(TAB_SCHEMA),
@@ -929,7 +936,6 @@ TABVIEW_SCHEMA = {
         }
     ),
 }
-
 
 MSGBOX_SCHEMA = STYLE_SCHEMA.extend(
     {
@@ -1105,7 +1111,6 @@ async def set_obj_properties(widg: Widget, config):
     init = []
     if layout := config.get(df.CONF_LAYOUT):
         layout_type: str = layout[CONF_TYPE]
-        lv.lv_uses.add(layout_type.upper())
         init.extend(
             widg.set_property(
                 df.CONF_LAYOUT, f"LV_LAYOUT_{layout_type.upper()}", ltype="obj"
@@ -1128,7 +1133,6 @@ async def set_obj_properties(widg: Widget, config):
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
             init.extend(widg.set_style("grid_column_dsc_array", column_array, 0))
         if layout_type == df.TYPE_FLEX:
-            lv.lv_uses.add(df.TYPE_FLEX)
             init.extend(widg.set_property(df.CONF_FLEX_FLOW, layout, ltype="obj"))
             main = layout[df.CONF_FLEX_ALIGN_MAIN]
             cross = layout[df.CONF_FLEX_ALIGN_CROSS]
@@ -1257,31 +1261,36 @@ def tabview_obj_creator(parent: Widget, config: dict):
 
 
 async def tabview_to_code(tv: Widget, config: dict):
+    lv.lv_uses.add("btnmatrix")
     init = []
-    for widg in config[df.CONF_TABS]:
-        w_id = widg[CONF_ID]
+    for tab_conf in config[df.CONF_TABS]:
+        w_id = tab_conf[CONF_ID]
         tab_obj = cg.Pvariable(w_id, cg.nullptr, type_=ty.lv_tab_t)
-        tab = Widget(tab_obj, ty.lv_tab_t)
-        widget_map[w_id] = tab
-        init.append(f'{tab_obj} = lv_tabview_add_tab({tv.obj}, "{widg[CONF_NAME]}")')
-        init.extend(await add_widgets(tab, widg))
+        tab_widget = Widget(tab_obj, ty.lv_tab_t)
+        widget_map[w_id] = tab_widget
+        init.append(
+            f'{tab_obj} = lv_tabview_add_tab({tv.obj}, "{tab_conf[CONF_NAME]}")'
+        )
+        init.extend(await set_obj_properties(tab_widget, tab_conf))
+        init.extend(await add_widgets(tab_widget, tab_conf))
     return init
 
 
 async def tileview_to_code(var: Widget, config: dict):
     init = []
-    for widg in config[df.CONF_TILES]:
-        w_id = widg[CONF_ID]
+    for tile_conf in config[df.CONF_TILES]:
+        w_id = tile_conf[CONF_ID]
         tile_obj = cg.Pvariable(w_id, cg.nullptr, type_=ty.lv_obj_t)
         tile = Widget(tile_obj, ty.lv_tile_t)
         widget_map[w_id] = tile
-        dirs = widg[df.CONF_DIR]
+        dirs = tile_conf[df.CONF_DIR]
         if isinstance(dirs, list):
             dirs = "|".join(dirs)
         init.append(
-            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {widg[df.CONF_COLUMN]}, {widg[CONF_ROW]}, {dirs})"
+            f"{tile.obj} = lv_tileview_add_tile({var.obj}, {tile_conf[df.CONF_COLUMN]}, {tile_conf[CONF_ROW]}, {dirs})"
         )
-        init.extend(await add_widgets(tile, widg))
+        init.extend(await set_obj_properties(tile, tile_conf))
+        init.extend(await add_widgets(tile, tile_conf))
     return init
 
 
