@@ -24,6 +24,8 @@ static const uint8_t CONFIG_MODEM_UART_EVENT_TASK_PRIORITY = 5;
 namespace esphome {
 namespace modem {
 
+using namespace esp_modem;
+
 ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #define ESPHL_ERROR_CHECK(err, message) \
@@ -94,7 +96,7 @@ void ModemComponent::setup() {
   this->dte_config_.task_priority = CONFIG_MODEM_UART_EVENT_TASK_PRIORITY;
   this->dte_config_.dte_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE / 2;
 
-  this->dte_ = esp_modem::create_uart_dte(&this->dte_config_);
+  this->dte_ = create_uart_dte(&this->dte_config_);
 
   assert(this->dte_);
 
@@ -131,16 +133,16 @@ void ModemComponent::setup() {
 
   switch (this->model_) {
     case ModemModel::BG96:
-      this->dce_ = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     case ModemModel::SIM800:
-      this->dce_ = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     case ModemModel::SIM7000:
-      this->dce_ = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     case ModemModel::SIM7600:
-      this->dce_ = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
       break;
     default:
       ESP_LOGE(TAG, "Unknown model");
@@ -148,7 +150,7 @@ void ModemComponent::setup() {
       break;
   }
 
-  assert(this->dce_);
+  assert(this->dce);
 
   this->started_ = true;
   this->poweron();
@@ -171,18 +173,18 @@ void ModemComponent::start_connect_() {
 
   global_modem_component->got_ipv4_address_ = false;  // why not this ?
 
-  this->dce_->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
+  this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND);
   vTaskDelay(pdMS_TO_TICKS(2000));
 
   command_result res = command_result::TIMEOUT;
 
   // int retry = 0;
   // while (res != command_result::OK) {
-  //   res = this->dce_->sync();
+  //   res = this->dce->sync();
   //   if (res != command_result::OK) {
   //     ESP_LOGW(TAG, "modem not responding");
   //     ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
-  //     this->dce_->set_command_mode();
+  //     this->dce->set_command_mode();
   //     App.feed_wdt();
   //     vTaskDelay(pdMS_TO_TICKS(7000));
   //   }
@@ -191,7 +193,7 @@ void ModemComponent::start_connect_() {
   //     break;
   // }
 
-  res = this->dce_->sync();
+  res = this->dce->sync();
 
   if (res != command_result::OK) {
     ESP_LOGW(TAG, "Unable to sync modem. Will retry later");
@@ -200,7 +202,7 @@ void ModemComponent::start_connect_() {
   }
 
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
-    if (command_result::OK != this->dce_->set_flow_control(2, 2)) {
+    if (command_result::OK != this->dce->set_flow_control(2, 2)) {
       ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
       return;
     }
@@ -213,8 +215,8 @@ void ModemComponent::start_connect_() {
   if (!this->pin_code_.empty()) {
     bool pin_ok = true;
     ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
-    if (this->dce_->read_pin(pin_ok) == command_result::OK && !pin_ok) {
-      ESP_MODEM_THROW_IF_FALSE(this->dce_->set_pin(this->pin_code_) == command_result::OK, "Cannot set PIN!");
+    if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
+      ESP_MODEM_THROW_IF_FALSE(this->dce->set_pin(this->pin_code_) == command_result::OK, "Cannot set PIN!");
       vTaskDelay(pdMS_TO_TICKS(2000));  // Need to wait for some time after unlocking the SIM
     }
   }
@@ -223,7 +225,7 @@ void ModemComponent::start_connect_() {
 
   vTaskDelay(pdMS_TO_TICKS(2000));
 
-  if (this->dce_->set_mode(esp_modem::modem_mode::CMUX_MODE)) {
+  if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
   } else {
     ESP_LOGE(TAG, "Failed to configure multiplexed command mode... exiting");

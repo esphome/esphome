@@ -18,6 +18,8 @@ using esphome::esp_log_printf_;  // esp_modem will use esphome logger (needed if
 namespace esphome {
 namespace modem {
 
+using namespace esp_modem;
+
 static const char *const TAG = "modem";
 
 enum class ModemComponentState {
@@ -57,6 +59,7 @@ class ModemComponent : public Component {
     this->model_ = this->modem_model_map_.count(model) ? modem_model_map_[model] : ModemModel::UNKNOWN;
   }
   bool get_status() { return gpio_get_level(this->status_pin_); }
+  std::unique_ptr<DCE> dce;
 
  protected:
   gpio_num_t rx_pin_ = gpio_num_t::GPIO_NUM_NC;
@@ -77,9 +80,8 @@ class ModemComponent : public Component {
                                                                   {"SIM7070", ModemModel::SIM7070},
                                                                   {"SIM7070_GNSS", ModemModel::SIM7070_GNSS},
                                                                   {"SIM7600", ModemModel::SIM7600}};
-  std::shared_ptr<esp_modem::DTE> dte_;
-  std::unique_ptr<esp_modem::DCE> dce_;  // public ?
-  esp_modem::esp_netif_t *ppp_netif_{nullptr};
+  std::shared_ptr<DTE> dte_;
+  esp_netif_t *ppp_netif_{nullptr};
   esp_modem_dte_config_t dte_config_;
   ModemComponentState state_{ModemComponentState::STOPPED};
   void start_connect_();
