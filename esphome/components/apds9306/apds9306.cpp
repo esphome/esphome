@@ -123,7 +123,7 @@ void APDS9306::update() {
       break;
   }
 
-  switch (measurement_rate_) {
+  switch (this->measurement_rate_) {
     case 0:
       rate_val_ = 25;
       break;
