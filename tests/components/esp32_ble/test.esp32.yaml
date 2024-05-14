@@ -1,2 +1,1 @@
-esp32_ble:
-  io_capability: keyboard_only
+<<: !include common.yaml
