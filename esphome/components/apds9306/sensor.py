@@ -34,11 +34,11 @@ MEASUREMENT_RATES = {
 }
 
 AMBIENT_LIGHT_GAINS = {
-    "1": 0,
-    "3": 1,
-    "6": 2,
-    "9": 3,
-    "18": 4,
+    1: 0,
+    3: 1,
+    6: 2,
+    9: 3,
+    18: 4,
 }
 
 apds9306_nds = cg.esphome_ns.namespace("apds9306")
