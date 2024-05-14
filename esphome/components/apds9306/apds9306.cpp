@@ -168,7 +168,7 @@ void APDS9306::update() {
   uint8_t als_data[3];
   APDS9306_WARNING_CHECK(this->read_byte(APDS9306_REG_ALS_DATA_0, als_data, 3), "Reading ALS data has failed.");
 
-  uint32_t light_level = 0x0000 | ((als_data[0]) + (als_data[1] << 8) + (als_data[2] << 16));
+  uint32_t light_level = encode_uint24(als_data[2], als_data[1], als_data[0]);
 
   float lux = ((float) light_level / gain_val_) * (100.0f / rate_val_);
 
