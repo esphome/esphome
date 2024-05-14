@@ -2,18 +2,18 @@
 
 #ifdef USE_ESP_IDF
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <freertos/event_groups.h>
+#include <esp_event.h>
+#include <esp_netif.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
 #include <esp_wifi_types.h>
-#include <esp_event.h>
-#include <esp_netif.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/event_groups.h>
+#include <freertos/task.h>
 
+#include <algorithm>
 #include <cinttypes>
 #include <utility>
-#include <algorithm>
 #ifdef USE_WIFI_WPA2_EAP
 #include <esp_wpa2.h>
 #endif
@@ -26,10 +26,10 @@
 #include "lwip/dns.h"
 #include "lwip/err.h"
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/application.h"
 #include "esphome/core/util.h"
 
 namespace esphome {
@@ -197,8 +197,8 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   bool current_sta = current_mode == WIFI_MODE_STA || current_mode == WIFI_MODE_APSTA;
   bool current_ap = current_mode == WIFI_MODE_AP || current_mode == WIFI_MODE_APSTA;
 
-  bool set_sta = sta.has_value() ? *sta : current_sta;
-  bool set_ap = ap.has_value() ? *ap : current_ap;
+  bool set_sta = sta.value_or(current_sta);
+  bool set_ap = ap.value_or(current_ap);
 
   wifi_mode_t set_mode;
   if (set_sta && set_ap) {
@@ -795,7 +795,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
     return false;
   }
 
-  scan_done_ = false;
+  this->scan_done_ = false;
   return true;
 }
 
@@ -818,13 +818,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.netmask = network::IPAddress(255, 255, 255, 0);
   }
 
-  err = esp_netif_dhcpc_stop(s_sta_netif);
+  err = esp_netif_dhcpc_stop(s_ap_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESP_LOGV(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
     return false;
   }
 
-  err = esp_netif_set_ip_info(s_sta_netif, &info);
+  err = esp_netif_set_ip_info(s_ap_netif, &info);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_set_ip_info failed! %d", err);
     return false;
@@ -839,14 +839,14 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   start_address += 100;
   lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
-  err = esp_netif_dhcps_option(s_sta_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
+  err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_dhcps_option failed! %d", err);
     return false;
   }
 
-  err = esp_netif_dhcps_start(s_sta_netif);
+  err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_dhcps_start failed! %d", err);
@@ -896,7 +896,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   esp_netif_ip_info_t ip;
-  esp_netif_get_ip_info(s_sta_netif, &ip);
+  esp_netif_get_ip_info(s_ap_netif, &ip);
   return network::IPAddress(&ip.ip);
 }
 #endif  // USE_WIFI_AP
@@ -904,15 +904,15 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
 bssid_t WiFiComponent::wifi_bssid() {
+  bssid_t bssid{};
   wifi_ap_record_t info;
   esp_err_t err = esp_wifi_sta_get_ap_info(&info);
-  bssid_t res{};
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
-    return res;
+    return bssid;
   }
-  std::copy(info.bssid, info.bssid + 6, res.begin());
-  return res;
+  std::copy(info.bssid, info.bssid + 6, bssid.begin());
+  return bssid;
 }
 std::string WiFiComponent::wifi_ssid() {
   wifi_ap_record_t info{};
@@ -970,4 +970,4 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 }  // namespace wifi
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP_IDF

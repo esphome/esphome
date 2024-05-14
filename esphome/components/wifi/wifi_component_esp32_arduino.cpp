@@ -2,8 +2,8 @@
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#include <esp_wifi.h>
 #include <esp_netif.h>
+#include <esp_wifi.h>
 
 #include <algorithm>
 #include <utility>
@@ -32,52 +32,66 @@ static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non
 
 static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+void WiFiComponent::wifi_pre_setup_() {
+  auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
+  WiFi.onEvent(f);
+  WiFi.persistent(false);
+  // Make sure WiFi is in clean state before anything starts
+  this->wifi_mode_(false, false);
+}
+
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
-  uint8_t current_mode = WiFiClass::getMode();
-  bool current_sta = current_mode & 0b01;
-  bool current_ap = current_mode & 0b10;
-  bool enable_sta = sta.value_or(current_sta);
-  bool enable_ap = ap.value_or(current_ap);
-  if (current_sta == enable_sta && current_ap == enable_ap)
+  wifi_mode_t current_mode = WiFiClass::getMode();
+  bool current_sta = current_mode == WIFI_MODE_STA || current_mode == WIFI_MODE_APSTA;
+  bool current_ap = current_mode == WIFI_MODE_AP || current_mode == WIFI_MODE_APSTA;
+
+  bool set_sta = sta.value_or(current_sta);
+  bool set_ap = ap.value_or(current_ap);
+
+  wifi_mode_t set_mode;
+  if (set_sta && set_ap) {
+    set_mode = WIFI_MODE_APSTA;
+  } else if (set_sta && !set_ap) {
+    set_mode = WIFI_MODE_STA;
+  } else if (!set_sta && set_ap) {
+    set_mode = WIFI_MODE_AP;
+  } else {
+    set_mode = WIFI_MODE_NULL;
+  }
+
+  if (current_mode == set_mode)
     return true;
 
-  if (enable_sta && !current_sta) {
+  if (set_sta && !current_sta) {
     ESP_LOGV(TAG, "Enabling STA.");
-  } else if (!enable_sta && current_sta) {
+  } else if (!set_sta && current_sta) {
     ESP_LOGV(TAG, "Disabling STA.");
   }
-  if (enable_ap && !current_ap) {
+  if (set_ap && !current_ap) {
     ESP_LOGV(TAG, "Enabling AP.");
-  } else if (!enable_ap && current_ap) {
+  } else if (!set_ap && current_ap) {
     ESP_LOGV(TAG, "Disabling AP.");
   }
 
-  uint8_t mode = 0;
-  if (enable_sta)
-    mode |= 0b01;
-  if (enable_ap)
-    mode |= 0b10;
-  bool ret = WiFiClass::mode(static_cast<wifi_mode_t>(mode));
+  bool ret = WiFiClass::mode(set_mode);
 
   if (!ret) {
     ESP_LOGW(TAG, "Setting WiFi mode failed!");
+    return false;
   }
 
   // WiFiClass::mode above calls esp_netif_create_default_wifi_sta() and
   // esp_netif_create_default_wifi_ap(), which creates the interfaces.
-  if (enable_sta)
+  if (set_sta)
     s_sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
 #ifdef USE_WIFI_AP
-  if (enable_ap)
+  if (set_ap)
     s_ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
 #endif
 
   return ret;
 }
-bool WiFiComponent::wifi_apply_output_power_(float output_power) {
-  int8_t val = static_cast<int8_t>(output_power * 4);
-  return esp_wifi_set_max_tx_power(val) == ESP_OK;
-}
+
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -86,6 +100,12 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
   delay(10);
   return true;
 }
+
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  int8_t val = static_cast<int8_t>(output_power * 4);
+  return esp_wifi_set_max_tx_power(val) == ESP_OK;
+}
+
 bool WiFiComponent::wifi_apply_power_save_() {
   wifi_ps_type_t power_save;
   switch (this->power_save_) {
@@ -101,6 +121,142 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   return esp_wifi_set_ps(power_save) == ESP_OK;
+}
+
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
+  // enable STA
+  if (!this->wifi_mode_(true, {}))
+    return false;
+
+  // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
+  wifi_config_t conf;
+  memset(&conf, 0, sizeof(conf));
+  strncpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), sizeof(conf.sta.ssid));
+  strncpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), sizeof(conf.sta.password));
+
+  // The weakest authmode to accept in the fast scan mode
+  if (ap.get_password().empty()) {
+    conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
+  } else {
+    conf.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+  }
+
+#ifdef USE_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    conf.sta.threshold.authmode = WIFI_AUTH_WPA2_ENTERPRISE;
+  }
+#endif
+
+  if (ap.get_bssid().has_value()) {
+    conf.sta.bssid_set = true;
+    memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
+  } else {
+    conf.sta.bssid_set = false;
+  }
+  if (ap.get_channel().has_value()) {
+    conf.sta.channel = *ap.get_channel();
+    conf.sta.scan_method = WIFI_FAST_SCAN;
+  } else {
+    conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+  }
+  // Listen interval for ESP32 station to receive beacon when WIFI_PS_MAX_MODEM is set.
+  // Units: AP beacon intervals. Defaults to 3 if set to 0.
+  conf.sta.listen_interval = 0;
+
+  // Protected Management Frame
+  // Device will prefer to connect in PMF mode if other device also advertises PMF capability.
+  conf.sta.pmf_cfg.capable = true;
+  conf.sta.pmf_cfg.required = false;
+
+  // note, we do our own filtering
+  // The minimum rssi to accept in the fast scan mode
+  conf.sta.threshold.rssi = -127;
+
+  conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
+
+  wifi_config_t current_conf;
+  esp_err_t err;
+  err = esp_wifi_get_config(WIFI_IF_STA, &current_conf);
+  if (err != ERR_OK) {
+    ESP_LOGW(TAG, "esp_wifi_get_config failed: %s", esp_err_to_name(err));
+    // can continue
+  }
+
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
+    err = esp_wifi_disconnect();
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
+      return false;
+    }
+  }
+
+  err = esp_wifi_set_config(WIFI_IF_STA, &conf);
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "esp_wifi_set_config failed: %s", esp_err_to_name(err));
+    return false;
+  }
+
+  if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
+    return false;
+  }
+
+  // setup enterprise authentication if required
+#ifdef USE_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
+    EAPAuth eap = ap.get_eap().value();
+    err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", err);
+    }
+    int ca_cert_len = strlen(eap.ca_cert);
+    int client_cert_len = strlen(eap.client_cert);
+    int client_key_len = strlen(eap.client_key);
+    if (ca_cert_len) {
+      err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
+      }
+    }
+    // workout what type of EAP this is
+    // validation is not required as the config tool has already validated it
+    if (client_cert_len && client_key_len) {
+      // if we have certs, this must be EAP-TLS
+      err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                               (uint8_t *) eap.client_key, client_key_len + 1,
+                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
+      }
+    } else {
+      // in the absence of certs, assume this is username/password based
+      err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", err);
+      }
+      err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
+      }
+    }
+    err = esp_wifi_sta_wpa2_ent_enable();
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
+    }
+  }
+#endif  // USE_WIFI_WPA2_EAP
+
+  this->wifi_apply_hostname_();
+
+  s_sta_connecting = true;
+
+  err = esp_wifi_connect();
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+    return false;
+  }
+
+  return true;
 }
 
 bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
@@ -188,136 +344,6 @@ bool WiFiComponent::wifi_apply_hostname_() {
   // setting is done in SYSTEM_EVENT_STA_START callback
   return true;
 }
-bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
-  // enable STA
-  if (!this->wifi_mode_(true, {}))
-    return false;
-
-  // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
-  wifi_config_t conf;
-  memset(&conf, 0, sizeof(conf));
-  strncpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), sizeof(conf.sta.ssid));
-  strncpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), sizeof(conf.sta.password));
-
-  // The weakest authmode to accept in the fast scan mode
-  if (ap.get_password().empty()) {
-    conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
-  } else {
-    conf.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
-  }
-
-#ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
-    conf.sta.threshold.authmode = WIFI_AUTH_WPA2_ENTERPRISE;
-  }
-#endif
-
-  if (ap.get_bssid().has_value()) {
-    conf.sta.bssid_set = true;
-    memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
-  } else {
-    conf.sta.bssid_set = false;
-  }
-  if (ap.get_channel().has_value()) {
-    conf.sta.channel = *ap.get_channel();
-    conf.sta.scan_method = WIFI_FAST_SCAN;
-  } else {
-    conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
-  }
-  // Listen interval for ESP32 station to receive beacon when WIFI_PS_MAX_MODEM is set.
-  // Units: AP beacon intervals. Defaults to 3 if set to 0.
-  conf.sta.listen_interval = 0;
-
-  // Protected Management Frame
-  // Device will prefer to connect in PMF mode if other device also advertises PMF capability.
-  conf.sta.pmf_cfg.capable = true;
-  conf.sta.pmf_cfg.required = false;
-
-  // note, we do our own filtering
-  // The minimum rssi to accept in the fast scan mode
-  conf.sta.threshold.rssi = -127;
-
-  conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
-
-  wifi_config_t current_conf;
-  esp_err_t err;
-  esp_wifi_get_config(WIFI_IF_STA, &current_conf);
-
-  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
-    err = esp_wifi_disconnect();
-    if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
-      return false;
-    }
-  }
-
-  err = esp_wifi_set_config(WIFI_IF_STA, &conf);
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_wifi_set_config failed! %d", err);
-  }
-
-  if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
-    return false;
-  }
-
-  // setup enterprise authentication if required
-#ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
-    // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = ap.get_eap().value();
-    err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
-    if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", err);
-    }
-    int ca_cert_len = strlen(eap.ca_cert);
-    int client_cert_len = strlen(eap.client_cert);
-    int client_key_len = strlen(eap.client_key);
-    if (ca_cert_len) {
-      err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
-      if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
-      }
-    }
-    // workout what type of EAP this is
-    // validation is not required as the config tool has already validated it
-    if (client_cert_len && client_key_len) {
-      // if we have certs, this must be EAP-TLS
-      err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
-                                               (uint8_t *) eap.client_key, client_key_len + 1,
-                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
-      if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
-      }
-    } else {
-      // in the absence of certs, assume this is username/password based
-      err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
-      if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", err);
-      }
-      err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
-      if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
-      }
-    }
-    err = esp_wifi_sta_wpa2_ent_enable();
-    if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
-    }
-  }
-#endif  // USE_WIFI_WPA2_EAP
-
-  this->wifi_apply_hostname_();
-
-  s_sta_connecting = true;
-
-  err = esp_wifi_connect();
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_wifi_connect failed! %d", err);
-    return false;
-  }
-
-  return true;
-}
 const char *get_auth_mode_str(uint8_t mode) {
   switch (mode) {
     case WIFI_AUTH_OPEN:
@@ -332,6 +358,12 @@ const char *get_auth_mode_str(uint8_t mode) {
       return "WPA/WPA2 PSK";
     case WIFI_AUTH_WPA2_ENTERPRISE:
       return "WPA2 Enterprise";
+    case WIFI_AUTH_WPA3_PSK:
+      return "WPA3 PSK";
+    case WIFI_AUTH_WPA2_WPA3_PSK:
+      return "WPA2/WPA3 PSK";
+    case WIFI_AUTH_WAPI_PSK:
+      return "WAPI PSK";
     default:
       return "UNKNOWN";
   }
@@ -417,11 +449,15 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Handshake Failed";
     case WIFI_REASON_CONNECTION_FAIL:
       return "Connection Failed";
+    case WIFI_REASON_ROAMING:
+      return "Station Roaming";
     case WIFI_REASON_UNSPECIFIED:
     default:
       return "Unspecified";
   }
 }
+
+void WiFiComponent::wifi_loop_() {}
 
 #define ESPHOME_EVENT_ID_WIFI_READY ARDUINO_EVENT_WIFI_READY
 #define ESPHOME_EVENT_ID_WIFI_SCAN_DONE ARDUINO_EVENT_WIFI_SCAN_DONE
@@ -585,22 +621,19 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
   }
 }
-void WiFiComponent::wifi_pre_setup_() {
-  auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
-  WiFi.onEvent(f);
-  WiFi.persistent(false);
-  // Make sure WiFi is in clean state before anything starts
-  this->wifi_mode_(false, false);
-}
+
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   auto status = WiFiClass::status();
   if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
-  } else if (status == WL_NO_SSID_AVAIL) {
+  }
+  if (status == WL_NO_SSID_AVAIL) {
     return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
-  } else if (s_sta_connecting) {
+  }
+  if (s_sta_connecting) {
     return WiFiSTAConnectStatus::CONNECTING;
-  } else if (status == WL_CONNECTED) {
+  }
+  if (status == WL_CONNECTED) {
     return WiFiSTAConnectStatus::CONNECTED;
   }
   return WiFiSTAConnectStatus::IDLE;
@@ -763,7 +796,6 @@ int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return network::IPAddress(WiFi.subnetMask()); }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return network::IPAddress(WiFi.gatewayIP()); }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(WiFi.dnsIP(num)); }
-void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi
 }  // namespace esphome
