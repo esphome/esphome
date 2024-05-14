@@ -222,7 +222,6 @@ void ILI9XXXDisplay::update() {
 }
 
 void ILI9XXXDisplay::display_() {
-  uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
     return;
@@ -250,6 +249,7 @@ void ILI9XXXDisplay::display_() {
     this->write_array(this->buffer_ + this->y_low_ * this->width_ * 2, h * this->width_ * 2);
   } else {
     ESP_LOGV(TAG, "Doing multiple write");
+    uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
     size_t rem = h * w;  // remaining number of pixels to write
     set_addr_window_(this->x_low_, this->y_low_, this->x_high_, this->y_high_);
     size_t idx = 0;    // index into transfer_buffer
@@ -278,7 +278,7 @@ void ILI9XXXDisplay::display_() {
         put16_be(transfer_buffer + idx, color_val);
         idx += 2;
       }
-      if (idx == ILI9XXX_TRANSFER_BUFFER_SIZE) {
+      if (idx == sizeof(transfer_buffer)) {
         this->write_array(transfer_buffer, idx);
         idx = 0;
         App.feed_wdt();
@@ -330,20 +330,19 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
     }
   } else {
     // 18 bit mode
-    uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
+    uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE * 4];
     ESP_LOGV(TAG, "Doing multiple write");
     size_t rem = h * w;  // remaining number of pixels to write
     size_t idx = 0;      // index into transfer_buffer
     size_t pixel = 0;    // pixel number offset
-    size_t pos = y_offset * stride + x_offset;
+    ptr += (y_offset * stride + x_offset) * 2;
     while (rem-- != 0) {
-      uint16_t color_val;
-      color_val = (ptr[pos * 2] << 8) + ptr[pos * 2 + 1];
-      pos++;
-      transfer_buffer[idx++] = (uint8_t) ((color_val & 0xF800) >> 8);  // Blue
-      transfer_buffer[idx++] = (uint8_t) ((color_val & 0x7E0) >> 3);   // Green
-      transfer_buffer[idx++] = (uint8_t) (color_val << 3);             // Red
-      if (idx == ILI9XXX_TRANSFER_BUFFER_SIZE) {
+      uint8_t hi_byte = *ptr++;
+      uint8_t lo_byte = *ptr++;
+      transfer_buffer[idx++] = hi_byte & 0xF8;                     // Blue
+      transfer_buffer[idx++] = ((hi_byte << 5) | (lo_byte) >> 5);  // Green
+      transfer_buffer[idx++] = lo_byte << 3;                       // Red
+      if (idx == sizeof(transfer_buffer)) {
         this->write_array(transfer_buffer, idx);
         idx = 0;
         App.feed_wdt();
@@ -351,7 +350,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
       // end of line? Skip to the next.
       if (++pixel == w) {
         pixel = 0;
-        pos += x_pad + x_offset;
+        ptr += (x_pad + x_offset) * 2;
       }
     }
     // flush any balance.
