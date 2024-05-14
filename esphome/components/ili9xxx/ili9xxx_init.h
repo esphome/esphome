@@ -157,7 +157,7 @@ static const uint8_t INITCMD_ILI9488[] = {
   0xE9, 1, 0x00,   // Set Image Functio. Disable 24 bit data
 
   ILI9XXX_ADJCTL3, 4, 0xA9, 0x51, 0x2C, 0x82,  // Adjust Control 3
-  ILI9XXX_PIXFMT, 1, 0x55,   //ILI9488 only supports 18-bit pixel format in 4/3 wire SPI mode
+  ILI9XXX_PIXFMT, 1, 0x66,   //ILI9488 only supports 18-bit pixel format in 4/3 wire SPI mode
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
@@ -194,8 +194,8 @@ static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
   ILI9XXX_ADJCTL3, 4, 0xA9, 0x51, 0x2C, 0x82,  // Adjust Control 3
 
   ILI9XXX_MADCTL,  1, 0x28,
-  ILI9XXX_PIXFMT,  1, 0x55,  // Interface Pixel Format = 16bit
-  //ILI9XXX_PIXFMT, 1, 0x66,   //ILI9488 only supports 18-bit pixel format in 4/3 wire SPI mode
+  //ILI9XXX_PIXFMT,  1, 0x55,  // Interface Pixel Format = 16bit
+  ILI9XXX_PIXFMT, 1, 0x66,   //ILI9488 only supports 18-bit pixel format in 4/3 wire SPI mode
 
 
 

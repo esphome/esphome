@@ -34,7 +34,26 @@ void ILI9XXXDisplay::setup() {
   ESP_LOGD(TAG, "Setting up ILI9xxx");
 
   this->setup_pins_();
-  this->init_lcd_();
+  this->init_lcd_(this->init_sequence_);
+  this->init_lcd_(this->extra_init_sequence_.data());
+  switch (this->pixel_mode_) {
+    case PIXEL_MODE_16:
+      if (this->is_18bitdisplay_) {
+        this->command(ILI9XXX_PIXFMT);
+        this->data(0x55);
+        this->is_18bitdisplay_ = false;
+      }
+      break;
+    case PIXEL_MODE_18:
+      if (!this->is_18bitdisplay_) {
+        this->command(ILI9XXX_PIXFMT);
+        this->data(0x66);
+        this->is_18bitdisplay_ = true;
+      }
+      break;
+    default:
+      break;
+  }
 
   this->set_madctl();
   this->command(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
@@ -356,10 +375,11 @@ void ILI9XXXDisplay::reset_() {
   }
 }
 
-void ILI9XXXDisplay::init_lcd_() {
+void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
+  if (addr == nullptr)
+    return;
   uint8_t cmd, x, num_args;
-  const uint8_t *addr = this->init_sequence_;
-  while ((cmd = *addr++) > 0) {
+  while ((cmd = *addr++) != 0) {
     x = *addr++;
     num_args = x & 0x7F;
     this->send_command(cmd, addr, num_args);
