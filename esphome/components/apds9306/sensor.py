@@ -61,7 +61,7 @@ CONFIG_SCHEMA = (
                 AMBIENT_LIGHT_GAINS, int=True
             ),
             cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
-                MEASUREMENT_BIT_WIDTHS, lower=True
+                MEASUREMENT_BIT_WIDTHS, int=True
             ),
             cv.Optional(CONF_MEASUREMENT_RATE, default="100ms"): cv.All(
                 cv.positive_time_period_milliseconds, 
