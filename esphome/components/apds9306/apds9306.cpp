@@ -7,12 +7,12 @@ namespace apds9306 {
 
 static const char *const TAG = "apds9306";
 
-#define APDS9306_REG_MAIN_CTRL 0x00      // ALS operation mode control, SW reset
-#define APDS9306_REG_ALS_MEAS_RATE 0x04  // ALS measurement rate and resolution in Active mode
-#define APDS9306_REG_ALS_GAIN 0x05       // ALS analog gain range
-#define APDS9306_REG_Part_ID 0x06        // Part number ID and revision ID
-#define APDS9306_REG_MAIN_STATUS 0x07    // Power-on status, interrupt status, data status
-#define APDS9306_REG_ALS_DATA_0 0x0D     // ALS ADC measurement data - LSB
+static const uint8_t APDS9306_REG_MAIN_CTRL = 0x00;      // ALS operation mode control, SW reset
+static const uint8_t APDS9306_REG_ALS_MEAS_RATE = 0x04;  // ALS measurement rate and resolution in Active mode
+static const uint8_t APDS9306_REG_ALS_GAIN = 0x05;       // ALS analog gain range
+static const uint8_t APDS9306_REG_Part_ID = 0x06;        // Part number ID and revision ID
+static const uint8_t APDS9306_REG_MAIN_STATUS = 0x07;    // Power-on status, interrupt status, data status
+static const uint8_t APDS9306_REG_ALS_DATA_0 = 0x0D;     // ALS ADC measurement data - LSB
 
 #define APDS9306_ERROR_CHECK(func) \
   if (!(func)) { \
