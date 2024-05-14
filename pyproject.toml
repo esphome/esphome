@@ -1,3 +1,12 @@
 [tool.black]
 target-version = ["py39", "py310"]
 exclude = 'generated'
+
+[tool.pytest.ini_options]
+testpaths = [
+  "tests",
+]
+addopts = [
+  "--cov=esphome",
+  "--cov-branch",
+]
