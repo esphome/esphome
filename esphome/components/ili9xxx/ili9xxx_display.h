@@ -107,7 +107,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   virtual void set_madctl();
   void display_();
-  void init_lcd_(const uint8_t *);
+  void init_lcd_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
   void reset_();
 
