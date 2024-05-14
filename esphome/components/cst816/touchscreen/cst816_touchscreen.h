@@ -24,6 +24,7 @@ static const uint8_t REG_SLEEP = 0xE5;
 static const uint8_t REG_IRQ_CTL = 0xFA;
 static const uint8_t IRQ_EN_MOTION = 0x70;
 
+static const uint8_t CST826_CHIP_ID = 0x11;
 static const uint8_t CST820_CHIP_ID = 0xB7;
 static const uint8_t CST816S_CHIP_ID = 0xB4;
 static const uint8_t CST816D_CHIP_ID = 0xB6;

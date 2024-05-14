@@ -40,3 +40,10 @@ repos:
     hooks:
       - id: clang-format
         types_or: [c, c++]
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]

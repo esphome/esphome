@@ -78,6 +78,7 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
   HighFrequencyLoopRequester high_freq_;
 
   optional<std::string> current_url_{};
+  optional<bool> is_announcement_{};
 };
 
 }  // namespace i2s_audio
