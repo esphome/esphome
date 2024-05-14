@@ -152,7 +152,7 @@ void VoiceAssistant::loop() {
         } else
 #endif
         {
-          this->set_state_(State::START_PIPELINE, State::START_MICROPHONE);
+          this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
         }
       } else {
         this->high_freq_.stop();
@@ -514,7 +514,7 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
     } else
 #endif
     {
-      this->set_state_(State::START_PIPELINE, State::START_MICROPHONE);
+      this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
     }
   }
 }

@@ -267,6 +267,10 @@ class Required(vol.Required):
         super().__init__(key, msg=msg)
 
 
+class FinalExternalInvalid(Invalid):
+    """Represents an invalid value in the final validation phase where the path should not be prepended."""
+
+
 def check_not_templatable(value):
     if isinstance(value, Lambda):
         raise Invalid("This option is not templatable!")
