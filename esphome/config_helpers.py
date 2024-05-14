@@ -8,6 +8,9 @@ class Extend:
     def __str__(self):
         return f"!extend {self.value}"
 
+    def __repr__(self):
+        return f"Extend({self.value})"
+
     def __eq__(self, b):
         """
         Check if two Extend objects contain the same ID.
@@ -23,6 +26,9 @@ class Remove:
 
     def __str__(self):
         return f"!remove {self.value}"
+
+    def __repr__(self):
+        return f"Remove({self.value})"
 
     def __eq__(self, b):
         """
