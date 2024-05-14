@@ -25,12 +25,12 @@ MEASUREMENT_BIT_WIDTHS = {
 }
 
 MEASUREMENT_RATES = {
-    "25ms": 0,
-    "50ms": 1,
-    "100ms": 2,
-    "200ms": 3,
-    "500ms": 4,
-    "1000ms": 5,
+    25: 0,
+    50: 1,
+    100: 2,
+    200: 3,
+    500: 4,
+    1000: 5,
 }
 
 AMBIENT_LIGHT_GAINS = {
