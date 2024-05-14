@@ -266,7 +266,7 @@ void ILI9XXXDisplay::display_() {
               display::ColorUtil::index8_to_color_palette888(this->buffer_[pos++], this->palette_));
           break;
         default:  // case BITS_16:
-          color_val = (buffer_[pos * 2] << 8) + buffer_[pos * 2 + 1];
+          color_val = (this->buffer_[pos * 2] << 8) + this->buffer_[pos * 2 + 1];
           pos++;
           break;
       }
@@ -312,20 +312,51 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
   // if color mapping or software rotation is required, hand this off to the parent implementation. This will
   // do color conversion pixel-by-pixel into the buffer and draw it later. If this is happening the user has not
   // configured the renderer well.
-  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian ||
-      this->is_18bitdisplay_) {
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian) {
     return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                             x_pad);
   }
   this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
-  if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
-    // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
-    this->write_array(ptr, w * h * 2);
+  auto stride = x_offset + w + x_pad;
+  if (!this->is_18bitdisplay_) {
+    if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
+      // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
+      this->write_array(ptr, w * h * 2);
+    } else {
+      for (size_t y = 0; y != h; y++) {
+        this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
+      }
+    }
   } else {
-    auto stride = x_offset + w + x_pad;
-    for (size_t y = 0; y != h; y++) {
-      this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
+    // 18 bit mode
+    uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
+    ESP_LOGV(TAG, "Doing multiple write");
+    size_t rem = h * w;  // remaining number of pixels to write
+    size_t idx = 0;      // index into transfer_buffer
+    size_t pixel = 0;    // pixel number offset
+    size_t pos = y_offset * stride + x_offset;
+    while (rem-- != 0) {
+      uint16_t color_val;
+      color_val = (ptr[pos * 2] << 8) + ptr[pos * 2 + 1];
+      pos++;
+      transfer_buffer[idx++] = (uint8_t) ((color_val & 0xF800) >> 8);  // Blue
+      transfer_buffer[idx++] = (uint8_t) ((color_val & 0x7E0) >> 3);   // Green
+      transfer_buffer[idx++] = (uint8_t) (color_val << 3);             // Red
+      if (idx == ILI9XXX_TRANSFER_BUFFER_SIZE) {
+        this->write_array(transfer_buffer, idx);
+        idx = 0;
+        App.feed_wdt();
+      }
+      // end of line? Skip to the next.
+      if (++pixel == w) {
+        pixel = 0;
+        pos += x_pad + x_offset;
+      }
+    }
+    // flush any balance.
+    if (idx != 0) {
+      this->write_array(transfer_buffer, idx);
     }
   }
   this->end_data_();
