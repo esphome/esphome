@@ -99,6 +99,8 @@ class LvSelect(LvType):
 lv_obj_t = LvType("lv_obj_t")
 LvBtnmBtn = LvBoolean(str(cg.uint16), parents=(lv_pseudo_button_t,))
 lv_dropdown_list_t = LvType("lv_dropdown_list_t")
+lv_menu_t = LvType("lv_menu_t")
+lv_menu_entry_t = LvType("lv_obj_t")
 lv_meter_t = LvType("lv_meter_t")
 lv_btn_t = LvBoolean("lv_btn_t")
 lv_checkbox_t = LvBoolean("lv_checkbox_t")

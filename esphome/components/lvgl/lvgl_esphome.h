@@ -21,7 +21,7 @@
 #include <vector>
 #include <map>
 
-#if LV_USE_IMG
+#if LVGL_USES_IMAGE
 #include "esphome/components/image/image.h"
 #endif
 #ifdef USE_FONT
@@ -235,7 +235,7 @@ class FontEngine {
 };
 #endif  // USE_FONT
 
-#if LV_USE_IMG
+#if LVGL_USES_IMAGE
 static lv_img_dsc_t *lv_img_from(image::Image *src) {
   auto img = new lv_img_dsc_t();  // NOLINT
   img->header.always_zero = 0;

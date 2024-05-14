@@ -47,6 +47,7 @@ CONF_KEYBOARD = "keyboard"
 CONF_LABEL = "label"
 CONF_LINE = "line"
 CONF_DROPDOWN_LIST = "dropdown_list"
+CONF_MENU = "menu"
 CONF_METER = "meter"
 CONF_ROLLER = "roller"
 CONF_SCREEN = "screen"
@@ -296,6 +297,13 @@ LV_FLEX_ALIGNMENTS = LvConstant(
     "SPACE_BETWEEN",
 )
 
+LV_MENU_MODES = LvConstant(
+    "LV_MENU_HEADER_",
+    "TOP_FIXED",
+    "TOP_UNFIXED",
+    "BOTTOM_FIXED",
+)
+
 LV_CHART_TYPES = (
     "NONE",
     "LINE",
@@ -340,6 +348,7 @@ CONF_DIR = "dir"
 CONF_DISPLAYS = "displays"
 CONF_END_ANGLE = "end_angle"
 CONF_END_VALUE = "end_value"
+CONF_ENTRIES = "entries"
 CONF_FLAGS = "flags"
 CONF_FLEX_FLOW = "flex_flow"
 CONF_FLEX_ALIGN_MAIN = "flex_align_main"
@@ -357,6 +366,7 @@ CONF_GRID_COLUMN_ALIGN = "grid_column_align"
 CONF_GRID_COLUMNS = "grid_columns"
 CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
+CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
 CONF_INDICATORS = "indicators"
 CONF_KEY_CODE = "key_code"
@@ -389,6 +399,7 @@ CONF_REPEAT_COUNT = "repeat_count"
 CONF_R_MOD = "r_mod"
 CONF_RECOLOR = "recolor"
 CONF_ROLLOVER = "rollover"
+CONF_ROOT_BACK_BTN = "root_back_btn"
 CONF_ROWS = "rows"
 CONF_SCALES = "scales"
 CONF_SCALE_LINES = "scale_lines"

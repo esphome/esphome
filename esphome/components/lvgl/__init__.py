@@ -115,6 +115,7 @@ WIDGET_TYPES = {
     CONF_LED: (df.CONF_MAIN,),
     df.CONF_LINE: (df.CONF_MAIN,),
     df.CONF_DROPDOWN_LIST: (df.CONF_MAIN, df.CONF_SCROLLBAR, df.CONF_SELECTED),
+    df.CONF_MENU: (df.CONF_MAIN,),
     df.CONF_METER: (df.CONF_MAIN,),
     df.CONF_OBJ: (df.CONF_MAIN,),
     # df.CONF_PAGE: (df.CONF_MAIN,),
@@ -767,6 +768,7 @@ KEYBOARD_SCHEMA = {
     cv.Optional(df.CONF_TEXTAREA): cv.use_id(ty.lv_textarea_t),
 }
 
+
 # For use by platform components
 LVGL_SCHEMA = cv.Schema(
     {
@@ -935,6 +937,14 @@ TABVIEW_SCHEMA = {
             )
         }
     ),
+}
+
+MENU_SCHEMA = {
+    cv.Optional(df.CONF_HEADER_MODE, default="top_fixed"): df.LV_MENU_MODES.one_of,
+    cv.Optional(df.CONF_ROOT_BACK_BTN, default="disabled"): df.LvConstant(
+        "LV_MENU_ROOT_BACK_BTN_", "DISABLED", "ENABLED"
+    ).one_of,
+    cv.Required(df.CONF_ENTRIES): cv.ensure_list(container_schema(df.CONF_MENU)),
 }
 
 MSGBOX_SCHEMA = STYLE_SCHEMA.extend(
@@ -1205,6 +1215,31 @@ async def checkbox_to_code(var: Widget, checkbox_conf):
     if value := checkbox_conf.get(df.CONF_TEXT):
         return await lv_text.set_text(var, value)
     return []
+
+
+def menu_entry_obj_creator(parent: Widget, config: dict):
+    return f"lv_menu_cont_create({parent.obj})"
+
+
+async def menu_entry_to_code(menu: Widget, menu_conf: dict):
+    return []
+
+
+async def menu_to_code(menu: Widget, menu_conf: dict):
+    lv.lv_uses.add("btnmatrix")
+    lv.lv_uses.add("btn")
+    lv.lv_uses.add("img")
+    lv.lv_uses.add("label")
+    init = []
+    init.extend(menu.set_property("mode_header", menu_conf[df.CONF_HEADER_MODE]))
+    init.extend(
+        menu.set_property("mode_root_back_btn", menu_conf[df.CONF_ROOT_BACK_BTN])
+    )
+    if entries := menu_conf.get(df.CONF_ENTRIES):
+        for econf in entries:
+            id = econf[CONF_ID]
+            init.extend(await widget_to_code(econf, "menu_entry", menu))
+    return init
 
 
 async def label_to_code(var: Widget, label_conf):

@@ -11,6 +11,7 @@ from .defines import (
     CONF_ROTARY_ENCODERS,
     CONF_TOUCHSCREENS,
     LvConstant,
+    CONF_MENU,
 )
 from ...core import HexInt
 
