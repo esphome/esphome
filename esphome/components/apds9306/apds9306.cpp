@@ -105,7 +105,7 @@ void APDS9306::update() {
     return;
 
   // Conversions
-  switch (gain_) {
+  switch (this->gain_) {
     case 0:
       gain_val_ = 1;
       break;
