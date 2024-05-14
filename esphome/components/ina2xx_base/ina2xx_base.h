@@ -218,7 +218,7 @@ class INA2XX : public PollingComponent {
   //
   INAModel ina_model_{INAModel::INA_UNKNOWN};
   uint16_t dev_id_{0};
-  bool device_mismatch_{true};
+  bool device_mismatch_{false};
 
   //
   // Device specific parameters
