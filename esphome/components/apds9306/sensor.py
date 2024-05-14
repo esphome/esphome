@@ -58,7 +58,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Optional(CONF_GAIN, default="1"): cv.enum(
-                AMBIENT_LIGHT_GAINS, lower=True
+                AMBIENT_LIGHT_GAINS, int=True
             ),
             cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
                 MEASUREMENT_BIT_WIDTHS, lower=True
