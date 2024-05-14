@@ -144,7 +144,7 @@ void APDS9306::update() {
       break;
   }
 
-  switch (bit_width_) {
+  switch (this->bit_width_) {
     case 0:
       bit_width_val_ = 20;
       break;
