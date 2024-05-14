@@ -1,5 +1,6 @@
 #include "apds9306.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace apds9306 {

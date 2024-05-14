@@ -16,12 +16,12 @@ CONF_BIT_WIDTH = "bit_width"
 CONF_MEASUREMENT_RATE = "measurement_rate"
 
 MEASUREMENT_BIT_WIDTHS = {
-    "20": 0,
-    "19": 1,
-    "18": 2,
-    "17": 3,
-    "16": 4,
-    "13": 5,
+    20: 0,
+    19: 1,
+    18: 2,
+    17: 3,
+    16: 4,
+    13: 5,
 }
 
 MEASUREMENT_RATES = {
@@ -57,14 +57,12 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(CONF_GAIN, default="1"): cv.enum(
-                AMBIENT_LIGHT_GAINS, int=True
-            ),
-            cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
+            cv.Optional(CONF_GAIN, default=1): cv.enum(AMBIENT_LIGHT_GAINS, int=True),
+            cv.Optional(CONF_BIT_WIDTH, default=18): cv.enum(
                 MEASUREMENT_BIT_WIDTHS, int=True
             ),
-            cv.Optional(CONF_MEASUREMENT_RATE, default="100ms"): cv.All(
-                cv.positive_time_period_milliseconds, 
+            cv.Optional(CONF_MEASUREMENT_RATE, default=100): cv.All(
+                cv.positive_time_period_milliseconds,
                 cv.enum(MEASUREMENT_RATES, int=True),
             ),
         }
