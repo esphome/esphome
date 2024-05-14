@@ -165,8 +165,7 @@ async def to_code(config):
 
     cg.add(var.set_protocol_version(config[CONF_PROTOCOL_VERSION]))
 
-    if CONF_WARM_UP_TIME in config:
-        cg.add(var.set_warm_up_time(int(config[CONF_WARM_UP_TIME])))
+    cg.add(var.set_warm_up_time(int(config[CONF_WARM_UP_TIME])))
 
     if CONF_INVERTER_STATUS in config:
         sens = await sensor.new_sensor(config[CONF_INVERTER_STATUS])
