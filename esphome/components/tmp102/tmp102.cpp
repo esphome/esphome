@@ -28,23 +28,24 @@ void TMP102Component::dump_config() {
 }
 
 void TMP102Component::update() {
-  int16_t raw_temperature;
   if (this->write(&TMP102_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  delay(50);  // NOLINT
-  if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  raw_temperature = i2c::i2ctohs(raw_temperature);
-  raw_temperature = raw_temperature >> 4;
-  float temperature = raw_temperature * TMP102_CONVERSION_FACTOR;
-  ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);
+  this->set_timeout("read_temp", 50, [this]() {
+    int16_t raw_temperature;
+    if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
+      this->status_set_warning();
+      return;
+    }
+    raw_temperature = i2c::i2ctohs(raw_temperature);
+    raw_temperature = raw_temperature >> 4;
+    float temperature = raw_temperature * TMP102_CONVERSION_FACTOR;
+    ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);
 
-  this->publish_state(temperature);
-  this->status_clear_warning();
+    this->publish_state(temperature);
+    this->status_clear_warning();
+  });
 }
 
 float TMP102Component::get_setup_priority() const { return setup_priority::DATA; }

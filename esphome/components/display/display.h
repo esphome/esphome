@@ -678,6 +678,9 @@ class Display : public PollingComponent {
    */
   void clear_local_coordinates() { this->local_coordinate_.clear(); };
 
+  void test_card();
+  void show_test_card() { this->show_test_card_ = true; }
+
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
@@ -707,6 +710,7 @@ class Display : public PollingComponent {
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
   std::vector<Point> local_coordinate_;
+  bool show_test_card_{false};
 };
 
 class DisplayPage {
