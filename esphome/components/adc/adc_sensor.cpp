@@ -62,7 +62,7 @@ extern "C"
   }
 
   // load characteristics for each attenuation
-  for (int32_t i = 0; i <= ADC_ATTEN_DB_11; i++) {
+  for (int32_t i = 0; i <= ADC_ATTEN_DB_12_COMPAT; i++) {
     auto adc_unit = channel1_ != ADC1_CHANNEL_MAX ? ADC_UNIT_1 : ADC_UNIT_2;
     auto cal_value = esp_adc_cal_characterize(adc_unit, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
                                               1100,  // default vref
@@ -118,8 +118,8 @@ void ADCSensor::dump_config() {
       case ADC_ATTEN_DB_6:
         ESP_LOGCONFIG(TAG, " Attenuation: 6db");
         break;
-      case ADC_ATTEN_DB_11:
-        ESP_LOGCONFIG(TAG, " Attenuation: 11db");
+      case ADC_ATTEN_DB_12_COMPAT:
+        ESP_LOGCONFIG(TAG, " Attenuation: 12db");
         break;
       default:  // This is to satisfy the unused ADC_ATTEN_MAX
         break;
@@ -183,12 +183,12 @@ float ADCSensor::sample() {
     return mv / 1000.0f;
   }
 
-  int raw11 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
+  int raw12 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
 
   if (channel1_ != ADC1_CHANNEL_MAX) {
-    adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_11);
-    raw11 = adc1_get_raw(channel1_);
-    if (raw11 < ADC_MAX) {
+    adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_12_COMPAT);
+    raw12 = adc1_get_raw(channel1_);
+    if (raw12 < ADC_MAX) {
       adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_6);
       raw6 = adc1_get_raw(channel1_);
       if (raw6 < ADC_MAX) {
@@ -201,9 +201,9 @@ float ADCSensor::sample() {
       }
     }
   } else if (channel2_ != ADC2_CHANNEL_MAX) {
-    adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_11);
-    adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw11);
-    if (raw11 < ADC_MAX) {
+    adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_12_COMPAT);
+    adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw12);
+    if (raw12 < ADC_MAX) {
       adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_6);
       adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw6);
       if (raw6 < ADC_MAX) {
@@ -217,25 +217,25 @@ float ADCSensor::sample() {
     }
   }
 
-  if (raw0 == -1 || raw2 == -1 || raw6 == -1 || raw11 == -1) {
+  if (raw0 == -1 || raw2 == -1 || raw6 == -1 || raw12 == -1) {
     return NAN;
   }
 
-  uint32_t mv11 = esp_adc_cal_raw_to_voltage(raw11, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_11]);
+  uint32_t mv12 = esp_adc_cal_raw_to_voltage(raw12, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_12_COMPAT]);
   uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_6]);
   uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_2_5]);
   uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_0]);
 
   // Contribution of each value, in range 0-2048 (12 bit ADC) or 0-4096 (13 bit ADC)
-  uint32_t c11 = std::min(raw11, ADC_HALF);
+  uint32_t c12 = std::min(raw12, ADC_HALF);
   uint32_t c6 = ADC_HALF - std::abs(raw6 - ADC_HALF);
   uint32_t c2 = ADC_HALF - std::abs(raw2 - ADC_HALF);
   uint32_t c0 = std::min(ADC_MAX - raw0, ADC_HALF);
   // max theoretical csum value is 4096*4 = 16384
-  uint32_t csum = c11 + c6 + c2 + c0;
+  uint32_t csum = c12 + c6 + c2 + c0;
 
   // each mv is max 3900; so max value is 3900*4096*4, fits in unsigned32
-  uint32_t mv_scaled = (mv11 * c11) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
+  uint32_t mv_scaled = (mv12 * c12) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
   return mv_scaled / (float) (csum * 1000U);
 }
 #endif  // USE_ESP32
