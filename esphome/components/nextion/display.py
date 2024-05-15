@@ -25,7 +25,7 @@ from .base_component import (
     CONF_EXIT_REPARSE_ON_START,
 )
 
-CODEOWNERS = ["@senexcrenshaw"]
+CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
@@ -68,8 +68,8 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.int_range(min=3, max=65535),
-            cv.Optional(CONF_WAKE_UP_PAGE): cv.positive_int,
-            cv.Optional(CONF_START_UP_PAGE): cv.positive_int,
+            cv.Optional(CONF_WAKE_UP_PAGE): cv.uint8_t,
+            cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
             cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
         }

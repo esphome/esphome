@@ -138,8 +138,8 @@ SWITCH_SCHEMA = switch_schema()  # for compatibility
 async def setup_switch_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_INVERTED in config:
-        cg.add(var.set_inverted(config[CONF_INVERTED]))
+    if (inverted := config.get(CONF_INVERTED)) is not None:
+        cg.add(var.set_inverted(inverted))
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -147,12 +147,12 @@ async def setup_switch_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
