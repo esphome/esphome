@@ -5253,6 +5253,14 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->has_media_url = value.as_bool();
       return true;
     }
+    case 8: {
+      this->has_announcement = value.as_bool();
+      return true;
+    }
+    case 9: {
+      this->announcement = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5289,6 +5297,8 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(5, this->volume);
   buffer.encode_bool(6, this->has_media_url);
   buffer.encode_string(7, this->media_url);
+  buffer.encode_bool(8, this->has_announcement);
+  buffer.encode_bool(9, this->announcement);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerCommandRequest::dump_to(std::string &out) const {
@@ -5322,6 +5332,14 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
 
   out.append("  media_url: ");
   out.append("'").append(this->media_url).append("'");
+  out.append("\n");
+
+  out.append("  has_announcement: ");
+  out.append(YESNO(this->has_announcement));
+  out.append("\n");
+
+  out.append("  announcement: ");
+  out.append(YESNO(this->announcement));
   out.append("\n");
   out.append("}");
 }

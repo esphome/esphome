@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_CUSTOM_PRESETS,
     CONF_ID,
     CONF_NUM_ATTEMPTS,
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_PERIOD,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
@@ -37,7 +38,6 @@ from esphome.components.climate import (
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
 AUTO_LOAD = ["sensor"]
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")

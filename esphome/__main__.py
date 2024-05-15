@@ -65,7 +65,7 @@ def choose_prompt(options, purpose: str = None):
         f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
     )
     for i, (desc, _) in enumerate(options):
-        safe_print(f"  [{i+1}] {desc}")
+        safe_print(f"  [{i + 1}] {desc}")
 
     while True:
         opt = input("(number): ")
