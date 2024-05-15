@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
@@ -19,12 +21,18 @@ from . import (
     ATTENUATION_MODES,
     ESP32_VARIANT_ADC1_PIN_TO_CHANNEL,
     ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
+    adc_ns,
     validate_adc_pin,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["voltage_sampler"]
 
 CONF_SAMPLES = "samples"
+
+
+_attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 
 
 def validate_config(config):
@@ -35,6 +43,12 @@ def validate_config(config):
         raise cv.Invalid(
             "Automatic attenuation cannot be used when multisampling is set"
         )
+    if config.get(CONF_ATTENUATION) == "11db":
+        _LOGGER.warning(
+            "`attenuation: 11db` is deprecated, use `attenuation: 12db` instead"
+        )
+        # Alter value here so `config` command prints the recommended change
+        config[CONF_ATTENUATION] = _attenuation("12db")
 
     return config
 
@@ -54,7 +68,6 @@ def final_validate_config(config):
     return config
 
 
-adc_ns = cg.esphome_ns.namespace("adc")
 ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
@@ -72,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): validate_adc_pin,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
-                cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
+                cv.only_on_esp32, _attenuation
             ),
             cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
         }

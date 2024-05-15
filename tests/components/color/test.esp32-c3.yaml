@@ -1,11 +1,1 @@
-color:
-  - id: kbx_red
-    red: 100%
-    green_int: 123
-    blue: 2%
-  - id: kbx_blue
-    red: 0%
-    green: 1%
-    blue: 100%
-  - id: kbx_green
-    hex: "3DEC55"
+<<: !include common.yaml
