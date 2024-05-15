@@ -15,8 +15,8 @@
 #include <cstring>
 #include <iostream>
 
-static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 1024;
-static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 512;
+static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 2048;
+static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 1024;
 static const uint8_t CONFIG_MODEM_UART_EVENT_QUEUE_SIZE = 30;
 static const size_t CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE = 2048;
 static const uint8_t CONFIG_MODEM_UART_EVENT_TASK_PRIORITY = 5;
@@ -152,8 +152,31 @@ void ModemComponent::setup() {
 
   assert(this->dce);
 
-  this->started_ = true;
   this->poweron();
+
+  esp_modem::command_result res;
+  res = this->dce->sync();
+  int retry = 0;
+  while (res != command_result::OK) {
+    res = this->dce->sync();
+    if (res != command_result::OK) {
+      App.feed_wdt();
+      vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    retry++;
+    if (retry > 20)
+      break;
+  }
+
+  // send initial AT commands from yaml
+  for (const auto &cmd : this->init_at_commands_) {
+    std::string result;
+    command_result err = this->dce->at(cmd.c_str(), result, 1000);
+    delay(100);
+    ESP_LOGI(TAG, "Init AT command: %s (status %d) -> %s", cmd.c_str(), (int) err, result.c_str());
+  }
+
+  this->started_ = true;
   ESP_LOGV(TAG, "Setup finished");
 }
 
@@ -177,21 +200,6 @@ void ModemComponent::start_connect_() {
   vTaskDelay(pdMS_TO_TICKS(2000));
 
   command_result res = command_result::TIMEOUT;
-
-  // int retry = 0;
-  // while (res != command_result::OK) {
-  //   res = this->dce->sync();
-  //   if (res != command_result::OK) {
-  //     ESP_LOGW(TAG, "modem not responding");
-  //     ESP_LOGI(TAG, "Status: %d", (int) this->get_status());
-  //     this->dce->set_command_mode();
-  //     App.feed_wdt();
-  //     vTaskDelay(pdMS_TO_TICKS(7000));
-  //   }
-  //   retry++;
-  //   if (retry > 10)
-  //     break;
-  // }
 
   res = this->dce->sync();
 

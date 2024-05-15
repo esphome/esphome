@@ -22,6 +22,7 @@ CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
 CONF_STATUS_PIN = "status_pin"
 CONF_DTR_PIN = "dtr_pin"
+CONF_INIT_AT = "init_at"
 
 
 modem_ns = cg.esphome_ns.namespace("modem")
@@ -44,6 +45,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string,
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Optional(CONF_USE_ADDRESS): cv.string,
+            cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -89,6 +91,10 @@ async def to_code(config):
 
     if pin_code := config.get(CONF_PIN_CODE, None):
         cg.add(var.set_pin_code(pin_code))
+
+    if init_at := config.get(CONF_INIT_AT, None):
+        for cmd in init_at:
+            cg.add(var.add_init_at_command(cmd))
 
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_apn(config[CONF_APN]))

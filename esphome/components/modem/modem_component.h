@@ -58,6 +58,7 @@ class ModemComponent : public Component {
   void set_model(const std::string &model) {
     this->model_ = this->modem_model_map_.count(model) ? modem_model_map_[model] : ModemModel::UNKNOWN;
   }
+  void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   bool get_status() { return gpio_get_level(this->status_pin_); }
   std::unique_ptr<DCE> dce;
 
@@ -73,6 +74,7 @@ class ModemComponent : public Component {
   std::string username_;
   std::string password_;
   std::string apn_;
+  std::vector<std::string> init_at_commands_;
   ModemModel model_;
   std::unordered_map<std::string, ModemModel> modem_model_map_ = {{"BG96", ModemModel::BG96},
                                                                   {"SIM800", ModemModel::SIM800},
