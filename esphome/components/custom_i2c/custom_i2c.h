@@ -91,15 +91,18 @@ class CustomI2CDevice : public Component {
   void set_read_delay(int32_t read_delay) { this->read_delay_ = read_delay; }
 
   bool read_bytes(RegisterAddress register_address, uint8_t *data, size_t count, int32_t read_delay = -1) {
-    auto result = this->i2c_device.write(register_address.data(), register_address.size());
-    if (result != i2c::ERROR_OK) {
-      // ESPHome's i2c component will have already logged this at very verbose level; since the assumption is that most
-      // consumers of the custom_i2c component won't do anything to handle errors like this, re-log it at debug level so
-      // that users will see it with the default log settings. (We log it with a separate tag so that users can disable
-      // failure messages if they're expected - e.g. on a bus where devices are hot-swapped - and too verbose.)
-      ESP_LOGD(TRANSACTION_FAILURE_TAG, "read from device 0x%02x failed with error %d", this->device_address_,
-               result);  // NOLINT
-      return false;
+    if (register_address.size() > 0) {
+      auto result = this->i2c_device.write(register_address.data(), register_address.size());
+      if (result != i2c::ERROR_OK) {
+        // ESPHome's i2c component will have already logged this at very verbose level; since the assumption is that
+        // most consumers of the custom_i2c component won't do anything to handle errors like this, re-log it at debug
+        // level so that users will see it with the default log settings. (We log it with a separate tag so that users
+        // can disable failure messages if they're expected - e.g. on a bus where devices are hot-swapped - and too
+        // verbose.)
+        ESP_LOGD(TRANSACTION_FAILURE_TAG, "read from device 0x%02x failed with error %d", this->device_address_,
+                 result);  // NOLINT
+        return false;
+      }
     }
 
     if (read_delay == -1) {
