@@ -12,6 +12,8 @@ from esphome.const import (
     UNIT_DECIBEL_MILLIWATT,
 )
 
+CONF_IRK = "irk"
+
 DEPENDENCIES = ["esp32_ble_tracker"]
 
 ble_rssi_ns = cg.esphome_ns.namespace("ble_rssi")
@@ -39,6 +41,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+            cv.Optional(CONF_IRK): cv.uuid,
             cv.Optional(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
@@ -47,7 +50,9 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_exactly_one_key(CONF_MAC_ADDRESS, CONF_SERVICE_UUID, CONF_IBEACON_UUID),
+    cv.has_exactly_one_key(
+        CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID
+    ),
     _validate,
 )
 
@@ -59,6 +64,10 @@ async def to_code(config):
 
     if mac_address := config.get(CONF_MAC_ADDRESS):
         cg.add(var.set_address(mac_address.as_hex))
+
+    if irk := config.get(CONF_IRK):
+        irk = esp32_ble_tracker.as_hex_array(str(irk))
+        cg.add(var.set_irk(irk))
 
     if service_uuid := config.get(CONF_SERVICE_UUID):
         if len(service_uuid) == len(esp32_ble_tracker.bt_uuid16_format):
