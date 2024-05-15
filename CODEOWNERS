@@ -135,6 +135,7 @@ esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
+esphome/components/gdk101/* @Szewcson
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
