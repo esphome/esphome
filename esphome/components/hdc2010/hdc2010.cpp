@@ -9,7 +9,8 @@ namespace hdc2010 {
 static const char *const TAG = "hdc2010";
 
 static const uint8_t HDC2010_ADDRESS = 0x40;  // 0b1000000 or 0b1000001 from datasheet
-static const uint8_t HDC2010_CMD_CONFIGURATION_MEASUREMENT = 0x0F;
+static const uint8_t HDC2010_CMD_CONFIGURATION_MEASUREMENT = 0x8F;
+static const uint8_t HDC2010_CMD_START_MEASUREMENT = 0xF9;  // new start measurement command
 static const uint8_t HDC2010_CMD_TEMPERATURE_LOW = 0x00;
 static const uint8_t HDC2010_CMD_TEMPERATURE_HIGH = 0x01;
 static const uint8_t HDC2010_CMD_HUMIDITY_LOW = 0x02;
@@ -44,42 +45,24 @@ void HDC2010Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 void HDC2010Component::update() {
-  uint8_t raw_temp;
-  uint8_t temp_bytes[2];
-  uint8_t raw_humidity;
-  uint8_t humid_bytes[2];
+  uint8_t raw_data[4];
 
-  if (this->write(&HDC2010_CMD_TEMPERATURE_LOW, 1) != i2c::ERROR_OK) {
+  if (this->write(&HDC2010_CMD_START_MEASUREMENT, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  if (this->write(&HDC2010_CMD_TEMPERATURE_HIGH, 1) != i2c::ERROR_OK) {
+  delayMicroseconds(1000);  // 1ms delay after triggering the sample
+
+  if (this->read(raw_data, 4) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  delay(20);
-  if (this->read(temp_bytes, 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  raw_temp = (temp_bytes[1] << 8) | temp_bytes[0];
+
+  uint16_t raw_temp = (raw_data[1] << 8) | raw_data[0];
   float temp = raw_temp * 0.0025177f - 40.0f;  // raw * 2^-16 * 165 - 40
   this->temperature_->publish_state(temp);
 
-  if (this->write(&HDC2010_CMD_HUMIDITY_LOW, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  if (this->write(&HDC2010_CMD_HUMIDITY_HIGH, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  delay(20);
-  if (this->read(humid_bytes, 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  raw_humidity = (humid_bytes[1] << 8) | humid_bytes[0];
+  uint16_t raw_humidity = (raw_data[3] << 8) | raw_data[2];
   float humidity = raw_humidity * 0.0015258f;  // raw * 2^-16 * 100
   this->humidity_->publish_state(humidity);
 
