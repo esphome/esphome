@@ -1,6 +1,11 @@
 #ifdef USE_ESP32
 
 #include "ble.h"
+
+#ifdef USE_ESP32_VARIANT_ESP32C6
+#include "const_esp32c6.h"
+#endif  // USE_ESP32_VARIANT_ESP32C6
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
@@ -114,7 +119,11 @@ bool ESP32BLE::ble_setup_() {
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
+#ifdef USE_ESP32_VARIANT_ESP32C6
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_CONFIG;
+#else
       esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+#endif
       err = esp_bt_controller_init(&cfg);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
