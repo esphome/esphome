@@ -1,7 +1,6 @@
 ---
 name: Lock
 
-# yamllint disable-line rule:truthy
 on:
   schedule:
     - cron: "30 0 * * *"

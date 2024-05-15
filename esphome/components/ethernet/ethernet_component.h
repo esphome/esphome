@@ -70,6 +70,7 @@ class EthernetComponent : public Component {
   void set_manual_ip(const ManualIP &manual_ip);
 
   network::IPAddresses get_ip_addresses();
+  network::IPAddress get_dns_address(uint8_t num);
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
   bool powerdown();
@@ -85,6 +86,8 @@ class EthernetComponent : public Component {
   void dump_connect_params_();
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+  /// @brief Set `RMII Mode Setting Register` for RTL8201.
+  void rtl8201_set_rmii_mode_(esp_eth_mac_t *mac);
 
   std::string use_address_;
 #ifdef USE_ETHERNET_SPI

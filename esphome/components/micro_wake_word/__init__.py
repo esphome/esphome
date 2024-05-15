@@ -287,7 +287,7 @@ def _load_model_data(manifest_path: Path):
     except cv.Invalid as e:
         raise EsphomeError(f"Invalid manifest file: {e}") from e
 
-    model_path = urljoin(str(manifest_path), manifest[CONF_MODEL])
+    model_path = manifest_path.parent / manifest[CONF_MODEL]
 
     with open(model_path, "rb") as f:
         model = f.read()

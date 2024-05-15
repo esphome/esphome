@@ -8,14 +8,13 @@ from esphome.const import (
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_MOTION,
     CONF_ID,
+    CONF_BUTTON,
 )
 from esphome.core import TimePeriod
 
 from . import XiaomiRTCGQ02LM
 
 DEPENDENCIES = ["xiaomi_rtcgq02lm"]
-
-CONF_BUTTON = "button"
 
 
 CONFIG_SCHEMA = cv.Schema(
