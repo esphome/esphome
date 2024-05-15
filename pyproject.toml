@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name        = "esphome"
-version     = "2024.6.0-dev"
 license     = {text = "MIT"}
 description = "Make creating custom firmwares for ESP32/ESP8266 super easy."
 readme      = "README.md"
@@ -22,38 +21,8 @@ classifiers = [
     "Topic :: Home Automation",
 ]
 requires-python = ">=3.9.0"
-dependencies    = [
-  "async_timeout==4.0.3;python_version<='3.10'",
-  "cryptography==42.0.2",
-  "voluptuous==0.14.2",
-  "PyYAML==6.0.1",
-  "paho-mqtt==1.6.1",
-  "colorama==0.4.6",
-  "icmplib==3.0.4",
-  "tornado==6.4",
-  "tzlocal==5.2",    # from time
-  "tzdata>=2021.1",  # from time
-  "pyserial==3.5",
-  "platformio==6.1.15",  # When updating platformio, also update Dockerfile
-  "esptool==4.7.0",
-  "click==8.1.7",
-  "esphome-dashboard==20240412.0",
-  "aioesphomeapi==24.3.0",
-  "zeroconf==0.132.2",
-  "python-magic==0.4.27",
-  "ruamel.yaml==0.18.6", # dashboard_import
-  "pip>=21.3.1",
 
-  # esp-idf requires this, but doesn't bundle it by default
-  # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24
-  "kconfiglib==13.7.1",
-
-  # esp-idf >= 5.0 requires this
-  "pyparsing >= 3.0",
-
-  # For autocompletion
-  "argcomplete>=2.0.0",
-]
+dynamic = ["dependencies", "optional-dependencies", "version"]
 
 [project.urls]
 "Documentation"           = "https://esphome.io"
@@ -71,6 +40,13 @@ esphome = "esphome.__main__:main"
 platforms            = ["any"]
 zip-safe             = false
 include-package-data = true
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies.dev = { file = ["requirements_dev.txt"] }
+optional-dependencies.test = { file = ["requirements_test.txt"] }
+optional-dependencies.displays = { file = ["requirements_optional.txt"] }
+version = {attr = "esphome.const.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["esphome*"]
