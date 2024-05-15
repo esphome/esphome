@@ -1,18 +1,33 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/defines.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 
 #ifdef USE_ESP32
-#include "driver/adc.h"
 #include <esp_adc_cal.h>
+#include "driver/adc.h"
 #endif
 
 namespace esphome {
 namespace adc {
+
+#ifdef USE_ESP32
+// clang-format off
+#if (ESP_IDF_VERSION_MAJOR == 4 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 7)) || \
+    (ESP_IDF_VERSION_MAJOR == 5 && \
+     ((ESP_IDF_VERSION_MINOR == 0 && ESP_IDF_VERSION_PATCH >= 5) || \
+      (ESP_IDF_VERSION_MINOR == 1 && ESP_IDF_VERSION_PATCH >= 3) || \
+      (ESP_IDF_VERSION_MINOR >= 2)) \
+    )
+// clang-format on
+static const adc_atten_t ADC_ATTEN_DB_12_COMPAT = ADC_ATTEN_DB_12;
+#else
+static const adc_atten_t ADC_ATTEN_DB_12_COMPAT = ADC_ATTEN_DB_11;
+#endif
+#endif  // USE_ESP32
 
 class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
