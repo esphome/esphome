@@ -46,27 +46,27 @@ extern "C"
     ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
 #if !defined(USE_ADC_SENSOR_VCC) && !defined(USE_RP2040)
-  pin_->setup();
+  this->pin_->setup();
 #endif
 
 #ifdef USE_ESP32
-  if (channel1_ != ADC1_CHANNEL_MAX) {
+  if (this->channel1_ != ADC1_CHANNEL_MAX) {
     adc1_config_width(ADC_WIDTH_MAX_SOC_BITS);
-    if (!autorange_) {
-      adc1_config_channel_atten(channel1_, attenuation_);
+    if (!this->autorange_) {
+      adc1_config_channel_atten(this->channel1_, this->attenuation_);
     }
-  } else if (channel2_ != ADC2_CHANNEL_MAX) {
-    if (!autorange_) {
-      adc2_config_channel_atten(channel2_, attenuation_);
+  } else if (this->channel2_ != ADC2_CHANNEL_MAX) {
+    if (!this->autorange_) {
+      adc2_config_channel_atten(this->channel2_, this->attenuation_);
     }
   }
 
   // load characteristics for each attenuation
   for (int32_t i = 0; i <= ADC_ATTEN_DB_12_COMPAT; i++) {
-    auto adc_unit = channel1_ != ADC1_CHANNEL_MAX ? ADC_UNIT_1 : ADC_UNIT_2;
+    auto adc_unit = this->channel1_ != ADC1_CHANNEL_MAX ? ADC_UNIT_1 : ADC_UNIT_2;
     auto cal_value = esp_adc_cal_characterize(adc_unit, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
                                               1100,  // default vref
-                                              &cal_characteristics_[i]);
+                                              &this->cal_characteristics_[i]);
     switch (cal_value) {
       case ESP_ADC_CAL_VAL_EFUSE_VREF:
         ESP_LOGV(TAG, "Using eFuse Vref for calibration");
@@ -99,27 +99,27 @@ void ADCSensor::dump_config() {
 #ifdef USE_ADC_SENSOR_VCC
   ESP_LOGCONFIG(TAG, "  Pin: VCC");
 #else
-  LOG_PIN("  Pin: ", pin_);
+  LOG_PIN("  Pin: ", this->pin_);
 #endif
 #endif  // USE_ESP8266 || USE_LIBRETINY
 
 #ifdef USE_ESP32
-  LOG_PIN("  Pin: ", pin_);
-  if (autorange_) {
-    ESP_LOGCONFIG(TAG, " Attenuation: auto");
+  LOG_PIN("  Pin: ", this->pin_);
+  if (this->autorange_) {
+    ESP_LOGCONFIG(TAG, "  Attenuation: auto");
   } else {
     switch (this->attenuation_) {
       case ADC_ATTEN_DB_0:
-        ESP_LOGCONFIG(TAG, " Attenuation: 0db");
+        ESP_LOGCONFIG(TAG, "  Attenuation: 0db");
         break;
       case ADC_ATTEN_DB_2_5:
-        ESP_LOGCONFIG(TAG, " Attenuation: 2.5db");
+        ESP_LOGCONFIG(TAG, "  Attenuation: 2.5db");
         break;
       case ADC_ATTEN_DB_6:
-        ESP_LOGCONFIG(TAG, " Attenuation: 6db");
+        ESP_LOGCONFIG(TAG, "  Attenuation: 6db");
         break;
       case ADC_ATTEN_DB_12_COMPAT:
-        ESP_LOGCONFIG(TAG, " Attenuation: 12db");
+        ESP_LOGCONFIG(TAG, "  Attenuation: 12db");
         break;
       default:  // This is to satisfy the unused ADC_ATTEN_MAX
         break;
@@ -134,11 +134,11 @@ void ADCSensor::dump_config() {
 #ifdef USE_ADC_SENSOR_VCC
     ESP_LOGCONFIG(TAG, "  Pin: VCC");
 #else
-    LOG_PIN("  Pin: ", pin_);
+    LOG_PIN("  Pin: ", this->pin_);
 #endif  // USE_ADC_SENSOR_VCC
   }
 #endif  // USE_RP2040
-
+  ESP_LOGCONFIG(TAG, "  Samples: %i", this->sample_count_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -149,14 +149,24 @@ void ADCSensor::update() {
   this->publish_state(value_v);
 }
 
+void ADCSensor::set_sample_count(uint8_t sample_count) {
+  if (sample_count != 0) {
+    this->sample_count_ = sample_count;
+  }
+}
+
 #ifdef USE_ESP8266
 float ADCSensor::sample() {
+  uint32_t raw = 0;
+  for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
 #ifdef USE_ADC_SENSOR_VCC
-  int32_t raw = ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
+    raw += ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
 #else
-  int32_t raw = analogRead(this->pin_->get_pin());  // NOLINT
+    raw += analogRead(this->pin_->get_pin());  // NOLINT
 #endif
-  if (output_raw_) {
+  }
+  raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+  if (this->output_raw_) {
     return raw;
   }
   return raw / 1024.0f;
@@ -165,53 +175,57 @@ float ADCSensor::sample() {
 
 #ifdef USE_ESP32
 float ADCSensor::sample() {
-  if (!autorange_) {
-    int raw = -1;
-    if (channel1_ != ADC1_CHANNEL_MAX) {
-      raw = adc1_get_raw(channel1_);
-    } else if (channel2_ != ADC2_CHANNEL_MAX) {
-      adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw);
+  if (!this->autorange_) {
+    uint32_t sum = 0;
+    for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
+      int raw = -1;
+      if (this->channel1_ != ADC1_CHANNEL_MAX) {
+        raw = adc1_get_raw(this->channel1_);
+      } else if (this->channel2_ != ADC2_CHANNEL_MAX) {
+        adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw);
+      }
+      if (raw == -1) {
+        return NAN;
+      }
+      sum += raw;
     }
-
-    if (raw == -1) {
-      return NAN;
+    sum = (sum + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+    if (this->output_raw_) {
+      return sum;
     }
-    if (output_raw_) {
-      return raw;
-    }
-    uint32_t mv = esp_adc_cal_raw_to_voltage(raw, &cal_characteristics_[(int32_t) attenuation_]);
+    uint32_t mv = esp_adc_cal_raw_to_voltage(sum, &this->cal_characteristics_[(int32_t) this->attenuation_]);
     return mv / 1000.0f;
   }
 
   int raw12 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
 
-  if (channel1_ != ADC1_CHANNEL_MAX) {
-    adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_12_COMPAT);
-    raw12 = adc1_get_raw(channel1_);
+  if (this->channel1_ != ADC1_CHANNEL_MAX) {
+    adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_12_COMPAT);
+    raw12 = adc1_get_raw(this->channel1_);
     if (raw12 < ADC_MAX) {
-      adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_6);
-      raw6 = adc1_get_raw(channel1_);
+      adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_6);
+      raw6 = adc1_get_raw(this->channel1_);
       if (raw6 < ADC_MAX) {
-        adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_2_5);
-        raw2 = adc1_get_raw(channel1_);
+        adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_2_5);
+        raw2 = adc1_get_raw(this->channel1_);
         if (raw2 < ADC_MAX) {
-          adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_0);
-          raw0 = adc1_get_raw(channel1_);
+          adc1_config_channel_atten(this->channel1_, ADC_ATTEN_DB_0);
+          raw0 = adc1_get_raw(this->channel1_);
         }
       }
     }
-  } else if (channel2_ != ADC2_CHANNEL_MAX) {
-    adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_12_COMPAT);
-    adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw12);
+  } else if (this->channel2_ != ADC2_CHANNEL_MAX) {
+    adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_12_COMPAT);
+    adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw12);
     if (raw12 < ADC_MAX) {
-      adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_6);
-      adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw6);
+      adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_6);
+      adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw6);
       if (raw6 < ADC_MAX) {
-        adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_2_5);
-        adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw2);
+        adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_2_5);
+        adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw2);
         if (raw2 < ADC_MAX) {
-          adc2_config_channel_atten(channel2_, ADC_ATTEN_DB_0);
-          adc2_get_raw(channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw0);
+          adc2_config_channel_atten(this->channel2_, ADC_ATTEN_DB_0);
+          adc2_get_raw(this->channel2_, ADC_WIDTH_MAX_SOC_BITS, &raw0);
         }
       }
     }
@@ -221,10 +235,10 @@ float ADCSensor::sample() {
     return NAN;
   }
 
-  uint32_t mv12 = esp_adc_cal_raw_to_voltage(raw12, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_12_COMPAT]);
-  uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_6]);
-  uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_2_5]);
-  uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int32_t) ADC_ATTEN_DB_0]);
+  uint32_t mv12 = esp_adc_cal_raw_to_voltage(raw12, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_12_COMPAT]);
+  uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_6]);
+  uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_2_5]);
+  uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &this->cal_characteristics_[(int32_t) ADC_ATTEN_DB_0]);
 
   // Contribution of each value, in range 0-2048 (12 bit ADC) or 0-4096 (13 bit ADC)
   uint32_t c12 = std::min(raw12, ADC_HALF);
@@ -246,8 +260,11 @@ float ADCSensor::sample() {
     adc_set_temp_sensor_enabled(true);
     delay(1);
     adc_select_input(4);
-
-    int32_t raw = adc_read();
+    uint32_t raw = 0;
+    for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
+      raw += adc_read();
+    }
+    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
     adc_set_temp_sensor_enabled(false);
     if (this->output_raw_) {
       return raw;
@@ -268,7 +285,11 @@ float ADCSensor::sample() {
     adc_gpio_init(pin);
     adc_select_input(pin - 26);
 
-    int32_t raw = adc_read();
+    uint32_t raw = 0;
+    for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
+      raw += adc_read();
+    }
+    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
 
 #ifdef CYW43_USES_VSYS_PIN
     if (pin == PICO_VSYS_PIN) {
@@ -276,7 +297,7 @@ float ADCSensor::sample() {
     }
 #endif  // CYW43_USES_VSYS_PIN
 
-    if (output_raw_) {
+    if (this->output_raw_) {
       return raw;
     }
     float coeff = pin == PICO_VSYS_PIN ? 3.0 : 1.0;
@@ -287,10 +308,19 @@ float ADCSensor::sample() {
 
 #ifdef USE_LIBRETINY
 float ADCSensor::sample() {
-  if (output_raw_) {
-    return analogRead(this->pin_->get_pin());  // NOLINT
+  uint32_t raw = 0;
+  if (this->output_raw_) {
+    for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
+      raw += analogRead(this->pin_->get_pin());  // NOLINT
+    }
+    raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+    return raw;
   }
-  return analogReadVoltage(this->pin_->get_pin()) / 1000.0f;  // NOLINT
+  for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
+    raw += analogReadVoltage(this->pin_->get_pin());  // NOLINT
+  }
+  raw = (raw + (this->sample_count_ >> 1)) / this->sample_count_;  // NOLINT(clang-analyzer-core.DivideZero)
+  return raw / 1000.0f;
 }
 #endif  // USE_LIBRETINY
 

@@ -103,8 +103,9 @@ uart:
     parity: EVEN
 
 ota:
-  safe_mode: true
-  port: 3286
+  - platform: esphome
+    safe_mode: true
+    port: 3286
 
 logger:
   level: DEBUG
