@@ -9,7 +9,7 @@ from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
 from esphome.espota2 import ProgressBar
 
 try:
-    from smpclient.transport.ble import SMPBLETransport
+    from smpclient.transport.ble import SMPBLETransport, SMPBLETransportDeviceNotFound
     from smpclient.transport.serial import SMPSerialTransport
     from smpclient import SMPClient
     from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound, MCUBootImageError
@@ -90,6 +90,15 @@ def get_image_tlv_sha256(file):
 
 
 async def smpmgr_upload(config, host, firmware):
+    for attempt in range(3):
+        try:
+            return await smpmgr_upload_(config, host, firmware)
+        except SMPBLETransportDeviceNotFound:
+            if attempt == 2:
+                raise
+
+
+async def smpmgr_upload_(config, host, firmware):
     if sys.version_info < (3, 10):
         _LOGGER.error("BLE OTA requires at least python 3.10")
         return 1
