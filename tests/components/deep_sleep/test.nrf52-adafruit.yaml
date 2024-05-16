@@ -6,6 +6,5 @@ esphome:
       - deep_sleep.allow
 
 deep_sleep:
-  run_duration:
-    default: 10s
+  run_duration: 10s
   sleep_duration: 50s
