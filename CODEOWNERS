@@ -180,6 +180,9 @@ esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
 esphome/components/ina226/* @Sergio303 @latonita
 esphome/components/ina260/* @mreditor97
+esphome/components/ina2xx_base/* @latonita
+esphome/components/ina2xx_i2c/* @latonita
+esphome/components/ina2xx_spi/* @latonita
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
