@@ -153,10 +153,11 @@ def wizard_file(**kwargs):
 
     # Configure OTA
     config += "\nota:\n"
+    config += "  - platform: esphome\n"
     if "ota_password" in kwargs:
-        config += f"  password: \"{kwargs['ota_password']}\""
+        config += f"    password: \"{kwargs['ota_password']}\""
     elif "password" in kwargs:
-        config += f"  password: \"{kwargs['password']}\""
+        config += f"    password: \"{kwargs['password']}\""
 
     # Configuring wifi
     config += "\n\nwifi:\n"
