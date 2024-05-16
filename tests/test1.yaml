@@ -272,7 +272,6 @@ ota:
   - platform: esphome
     password: "superlongpasswordthatnoonewillknow"
     port: 3286
-    reboot_timeout: 2min
     on_state_change:
       then:
         lambda: >-
