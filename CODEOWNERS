@@ -111,7 +111,10 @@ esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/touchscreen/* @jesserockz
 esphome/components/emc2101/* @ellull
 esphome/components/emmeti/* @E440QF
-esphome/components/ens160/* @vincentscode
+esphome/components/ens160/* @latonita
+esphome/components/ens160_base/* @latonita @vincentscode
+esphome/components/ens160_i2c/* @latonita
+esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @Rapsssito @jesserockz
