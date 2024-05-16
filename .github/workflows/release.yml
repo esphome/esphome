@@ -61,7 +61,9 @@ jobs:
           ESPHOME_NO_VENV: 1
         run: script/setup
       - name: Build
-        run: python setup.py sdist bdist_wheel
+        run: |-
+          pip3 install build
+          python3 -m build
       - name: Publish
         uses: pypa/gh-action-pypi-publish@v1.8.14
 
