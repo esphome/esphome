@@ -11,6 +11,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import coroutine_with_priority
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.binary_sensor import BinarySensor
 
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
@@ -23,6 +24,7 @@ CONF_APN = "apn"
 CONF_STATUS_PIN = "status_pin"
 CONF_DTR_PIN = "dtr_pin"
 CONF_INIT_AT = "init_at"
+CONF_READY = "ready"
 
 
 modem_ns = cg.esphome_ns.namespace("modem")
@@ -37,6 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_RX_PIN): cv.positive_int,
             cv.Required(CONF_MODEL): cv.string,
             cv.Required(CONF_APN): cv.string,
+            cv.Optional(CONF_READY): cv.use_id(BinarySensor),
             cv.Optional(CONF_FLIGHT_PIN): cv.positive_int,
             cv.Optional(CONF_POWER_PIN): cv.positive_int,
             cv.Optional(CONF_STATUS_PIN): cv.positive_int,
@@ -95,6 +98,10 @@ async def to_code(config):
     if init_at := config.get(CONF_INIT_AT, None):
         for cmd in init_at:
             cg.add(var.add_init_at_command(cmd))
+
+    if modem_ready := config.get(CONF_READY, None):
+        modem_ready_sensor = await cg.get_variable(modem_ready)
+        cg.add(var.set_ready_bsensor(modem_ready_sensor))
 
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_apn(config[CONF_APN]))

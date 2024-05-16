@@ -74,13 +74,6 @@ bool ModemComponent::is_connected() { return this->state_ == ModemComponentState
 void ModemComponent::setup() {
   ESP_LOGI(TAG, "Setting up Modem...");
 
-  this->config_gpio_();
-
-  if (this->get_status()) {
-    // at setup, the modem must be down
-    this->powerdown();
-  }
-
   ESP_LOGV(TAG, "DTE setup");
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
   this->dte_config_ = dte_config;
@@ -152,30 +145,6 @@ void ModemComponent::setup() {
 
   assert(this->dce);
 
-  this->poweron();
-
-  esp_modem::command_result res;
-  res = this->dce->sync();
-  int retry = 0;
-  while (res != command_result::OK) {
-    res = this->dce->sync();
-    if (res != command_result::OK) {
-      App.feed_wdt();
-      vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-    retry++;
-    if (retry > 20)
-      break;
-  }
-
-  // send initial AT commands from yaml
-  for (const auto &cmd : this->init_at_commands_) {
-    std::string result;
-    command_result err = this->dce->at(cmd.c_str(), result, 1000);
-    delay(100);
-    ESP_LOGI(TAG, "Init AT command: %s (status %d) -> %s", cmd.c_str(), (int) err, result.c_str());
-  }
-
   this->started_ = true;
   ESP_LOGV(TAG, "Setup finished");
 }
@@ -184,19 +153,9 @@ void ModemComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning("Starting connection");
 
-  if (!this->get_status()) {
-    this->poweron();
-  }
-
-  // esp_err_t err;
-  // err = esp_netif_set_hostname(this->ppp_netif_, App.get_name().c_str());
-  // if (err != ERR_OK) {
-  //   ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
-  // }
-
   global_modem_component->got_ipv4_address_ = false;  // why not this ?
 
-  this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND);
+  this->dce->set_mode(modem_mode::COMMAND_MODE);
   vTaskDelay(pdMS_TO_TICKS(2000));
 
   command_result res = command_result::TIMEOUT;
@@ -205,7 +164,6 @@ void ModemComponent::start_connect_() {
 
   if (res != command_result::OK) {
     ESP_LOGW(TAG, "Unable to sync modem. Will retry later");
-    this->powerdown();
     return;
   }
 
@@ -240,13 +198,20 @@ void ModemComponent::start_connect_() {
     return;
   }
   vTaskDelay(pdMS_TO_TICKS(2000));
+
+  // send initial AT commands from yaml
+  for (const auto &cmd : this->init_at_commands_) {
+    std::string result;
+    command_result err = this->dce->at(cmd.c_str(), result, 1000);
+    delay(100);
+    ESP_LOGI(TAG, "Init AT command: %s (status %d) -> %s", cmd.c_str(), (int) err, result.c_str());
+  }
 }
 
 void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGW(TAG, "[IP event] Got IP " IPSTR, IP2STR(&ip_info->ip));
-  vTaskDelay(pdMS_TO_TICKS(1000));  // FIXME tmp
   global_modem_component->got_ipv4_address_ = true;
   global_modem_component->connected_ = true;
 }
@@ -257,14 +222,18 @@ void ModemComponent::loop() {
   switch (this->state_) {
     case ModemComponentState::STOPPED:
       if (this->started_) {
-        ESP_LOGI(TAG, "Starting modem connection");
-        this->state_ = ModemComponentState::CONNECTING;
-        this->start_connect_();
+        if (!this->modem_ready()) {
+          break;
+        } else {
+          ESP_LOGI(TAG, "Starting modem connection");
+          this->state_ = ModemComponentState::CONNECTING;
+          this->start_connect_();
+        }
       }
       break;
     case ModemComponentState::CONNECTING:
       if (!this->started_) {
-        ESP_LOGI(TAG, "Stopped ethernet connection");
+        ESP_LOGI(TAG, "Stopped modem connection");
         this->state_ = ModemComponentState::STOPPED;
       } else if (this->connected_) {
         // connection established
@@ -306,101 +275,6 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS main: %s", network::IPAddress(dns_main_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS backup: %s", network::IPAddress(dns_backup_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
-}
-
-void ModemComponent::config_gpio_() {
-  ESP_LOGV(TAG, "Configuring GPIOs...");
-  gpio_config_t io_conf = {};
-  io_conf.intr_type = GPIO_INTR_DISABLE;
-  io_conf.mode = GPIO_MODE_OUTPUT;
-  io_conf.pin_bit_mask = 0ULL;
-  if (this->power_pin_ != gpio_num_t::GPIO_NUM_NC) {
-    io_conf.pin_bit_mask = io_conf.pin_bit_mask | (1ULL << this->power_pin_);
-  }
-  if (this->flight_pin_ != gpio_num_t::GPIO_NUM_NC) {
-    io_conf.pin_bit_mask = io_conf.pin_bit_mask | (1ULL << this->flight_pin_);
-  }
-  if (this->dtr_pin_ != gpio_num_t::GPIO_NUM_NC) {
-    io_conf.pin_bit_mask = io_conf.pin_bit_mask | (1ULL << this->dtr_pin_);
-  }
-  // io_conf.pin_bit_mask = ((1ULL << this->power_pin_) | (1ULL << this->flight_pin_));
-
-  io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-
-  gpio_config(&io_conf);
-
-  io_conf.pin_bit_mask = 0ULL;
-  if (this->status_pin_ != gpio_num_t::GPIO_NUM_NC) {
-    io_conf.pin_bit_mask = io_conf.pin_bit_mask | (1ULL << this->status_pin_);
-  }
-  io_conf.mode = GPIO_MODE_INPUT;
-  gpio_config(&io_conf);
-}
-
-void ModemComponent::poweron() {
-  ESP_LOGI(TAG, "Power on  modem");
-
-  if (this->get_status()) {
-    ESP_LOGW(TAG, "modem is already on");
-  } else {
-    // https://github.com/Xinyuan-LilyGO/LilyGO-T-SIM7000G/issues/251
-    if (this->power_pin_ != gpio_num_t::GPIO_NUM_NC) {
-      vTaskDelay(pdMS_TO_TICKS(1000));
-      ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));  // low = on, high = off
-      vTaskDelay(pdMS_TO_TICKS(10));
-      ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 1));
-      vTaskDelay(pdMS_TO_TICKS(1010));
-      ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));
-      vTaskDelay(pdMS_TO_TICKS(4050));  // Ton uart 4.5sec but seems to need ~7sec after hard (button) reset
-      int retry = 0;
-      while (!this->get_status()) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        retry++;
-        if (retry > 10) {
-          ESP_LOGW(TAG, "Unable to power on modem");
-          break;
-        }
-      }
-
-    } else {
-      ESP_LOGW(TAG, "No power pin defined. Trying to continue");
-    }
-  }
-
-  if (this->flight_pin_ != gpio_num_t::GPIO_NUM_NC) {
-    ESP_ERROR_CHECK(gpio_set_level(this->flight_pin_, 1));  // need to be high
-  } else {
-    ESP_LOGW(TAG, "No flight pin defined. Trying to continue");
-  }
-  if (this->dtr_pin_ != gpio_num_t::GPIO_NUM_NC) {
-    ESP_ERROR_CHECK(gpio_set_level(this->dtr_pin_, 1));
-  } else {
-    ESP_LOGW(TAG, "No dtr pin defined. Trying to continue");
-  }
-  vTaskDelay(pdMS_TO_TICKS(15000));
-  App.feed_wdt();
-}
-
-void ModemComponent::powerdown() {
-  ESP_LOGI(TAG, "Power down modem");
-  if (this->get_status()) {
-    // https://github.com/Xinyuan-LilyGO/T-SIM7600X/blob/master/examples/PowefOffModem/PowefOffModem.ino#L69-L71
-    ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 1));
-    vTaskDelay(pdMS_TO_TICKS(2600));
-    ESP_ERROR_CHECK(gpio_set_level(this->power_pin_, 0));
-    int retry = 0;
-    while (this->get_status()) {
-      vTaskDelay(pdMS_TO_TICKS(1000));
-      retry++;
-      if (retry > 20) {
-        ESP_LOGW(TAG, "Unable to power down modem");
-        break;
-      }
-    }
-  } else {
-    ESP_LOGW(TAG, "modem is already down");
-  }
 }
 
 }  // namespace modem
