@@ -119,28 +119,25 @@ def choose_upload_log_host(
             raise EsphomeError("PYOCD for adafruit is not implemented")
         options = [("pyocd", "PYOCD")]
         return choose_prompt(options, purpose=purpose)
-    if mcuboot:
-        if show_ota and ota:
-            if default:
-                options.append(
-                    (f"OTA over Bluetooth LE ({default})", f"mcumgr {default}")
-                )
-                return choose_prompt(options, purpose=purpose)
-            ble_devices = asyncio.run(smpmgr_scan(CORE.config["esphome"]["name"]))
-            if len(ble_devices) == 0:
-                _LOGGER.warning("No OTA over Bluetooth LE service found!")
-            for device in ble_devices:
-                options.append(
-                    (
-                        f"OTA over Bluetooth LE({device.address}) {device.name}",
-                        f"mcumgr {device.address}",
-                    )
-                )
-    else:
+    if not mcuboot:
         if (show_ota and ota) or (show_api and "api" in CORE.config):
             options.append((f"Over The Air ({CORE.address})", CORE.address))
             if default == "OTA":
                 return CORE.address
+    elif show_ota and ota:
+        if default:
+            options.append((f"OTA over Bluetooth LE ({default})", f"mcumgr {default}"))
+            return choose_prompt(options, purpose=purpose)
+        ble_devices = asyncio.run(smpmgr_scan(CORE.config["esphome"]["name"]))
+        if len(ble_devices) == 0:
+            _LOGGER.warning("No OTA over Bluetooth LE service found!")
+        for device in ble_devices:
+            options.append(
+                (
+                    f"OTA over Bluetooth LE({device.address}) {device.name}",
+                    f"mcumgr {device.address}",
+                )
+            )
     if show_mqtt and CONF_MQTT in CORE.config:
         options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
