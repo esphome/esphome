@@ -1,9 +1,11 @@
 ---
 esphome:
   name: $devicename
-  platform: ESP32
-  board: nodemcu-32s
   build_path: build/test2
+
+esp32:
+  board: esp32dev
+  flash_size: 8MB
 
 globals:
   - id: my_global_string

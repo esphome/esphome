@@ -72,7 +72,7 @@ void ESPHomeOTAComponent::setup() {
 void ESPHomeOTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air updates:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
-  ESP_LOGCONFIG(TAG, "  OTA version: %d", USE_OTA_VERSION);
+  ESP_LOGCONFIG(TAG, "  Version: %d", USE_OTA_VERSION);
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");
@@ -128,7 +128,7 @@ void ESPHomeOTAComponent::handle_() {
     return;
   }
 
-  ESP_LOGD(TAG, "Starting OTA update from %s...", this->client_->getpeername().c_str());
+  ESP_LOGD(TAG, "Starting update from %s...", this->client_->getpeername().c_str());
   this->status_set_warning();
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
@@ -159,7 +159,7 @@ void ESPHomeOTAComponent::handle_() {
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   ota_features = buf[0];  // NOLINT
-  ESP_LOGV(TAG, "OTA features is 0x%02X", ota_features);
+  ESP_LOGV(TAG, "Features: 0x%02X", ota_features);
 
   // Acknowledge header - 1 byte
   buf[0] = ota::OTA_RESPONSE_HEADER_OK;
@@ -242,7 +242,7 @@ void ESPHomeOTAComponent::handle_() {
     ota_size <<= 8;
     ota_size |= buf[i];
   }
-  ESP_LOGV(TAG, "OTA size is %u bytes", ota_size);
+  ESP_LOGV(TAG, "Size is %u bytes", ota_size);
 
   error_code = backend->begin(ota_size);
   if (error_code != ota::OTA_RESPONSE_OK)
@@ -304,7 +304,7 @@ void ESPHomeOTAComponent::handle_() {
     if (now - last_progress > 1000) {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
-      ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
+      ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
 #ifdef USE_OTA_STATE_CALLBACK
       this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage, 0);
 #endif
@@ -320,7 +320,7 @@ void ESPHomeOTAComponent::handle_() {
 
   error_code = backend->end();
   if (error_code != ota::OTA_RESPONSE_OK) {
-    ESP_LOGW(TAG, "Error ending OTA!, error_code: %d", error_code);
+    ESP_LOGW(TAG, "Error ending update! error_code: %d", error_code);
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
 
@@ -337,7 +337,7 @@ void ESPHomeOTAComponent::handle_() {
   this->client_->close();
   this->client_ = nullptr;
   delay(10);
-  ESP_LOGI(TAG, "OTA update finished");
+  ESP_LOGI(TAG, "Update complete");
   this->status_clear_warning();
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);

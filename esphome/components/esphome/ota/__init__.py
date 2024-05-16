@@ -57,7 +57,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
     cg.add(var.set_port(config[CONF_PORT]))
-    cg.add_define("USE_OTA")
     if CONF_PASSWORD in config:
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")

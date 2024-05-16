@@ -229,7 +229,6 @@ def lint_ext_check(fname):
         "docker/ha-addon-rootfs/**",
         "docker/*.py",
         "script/*",
-        "setup.py",
     ]
 )
 def lint_executable_bit(fname):
