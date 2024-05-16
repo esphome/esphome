@@ -182,8 +182,6 @@ def run_miniterm(config, port):
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
-    # prevent usb port from sleep
-    ser.timeout = 1
 
     # We can't set to False by default since it leads to toggling and hence
     # ESP32 resets on some platforms.
@@ -198,8 +196,6 @@ def run_miniterm(config, port):
                 while True:
                     try:
                         raw = ser.readline()
-                        if len(raw) == 0:
-                            continue
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
