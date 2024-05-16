@@ -40,7 +40,7 @@ output:
         output: true
     id: rest_gpio
 
-dfu:
+dfu_mode:
   reset_output: rest_gpio
 
 ota:

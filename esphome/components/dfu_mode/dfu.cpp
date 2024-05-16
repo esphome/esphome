@@ -5,7 +5,7 @@
 #include <zephyr/drivers/uart/cdc_acm.h>
 
 namespace esphome {
-namespace dfu {
+namespace dfu_mode {
 
 volatile bool goto_dfu = false;
 
@@ -37,6 +37,6 @@ void DeviceFirmwareUpdate::loop() {
   }
 }
 
-}  // namespace dfu
+}  // namespace dfu_mode
 }  // namespace esphome
 #endif

@@ -7,7 +7,7 @@
 #endif
 
 namespace esphome {
-namespace dfu {
+namespace dfu_mode {
 class DeviceFirmwareUpdate : public Component {
  public:
   void setup() override;
@@ -20,6 +20,6 @@ class DeviceFirmwareUpdate : public Component {
   output::BinaryOutput *reset_output_;
 #endif
 };
-}  // namespace dfu
+}  // namespace dfu_mode
 }  // namespace esphome
 #endif

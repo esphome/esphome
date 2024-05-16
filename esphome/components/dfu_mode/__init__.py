@@ -7,8 +7,8 @@ from esphome.const import (
 
 from esphome.components.zephyr import zephyr_add_prj_conf
 
-dfu_ns = cg.esphome_ns.namespace("dfu")
-DeviceFirmwareUpdate = dfu_ns.class_("DeviceFirmwareUpdate", cg.Component)
+dfu_mode_ns = cg.esphome_ns.namespace("dfu_mode")
+DeviceFirmwareUpdate = dfu_mode_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_RESET_OUTPUT = "reset_output"
 
