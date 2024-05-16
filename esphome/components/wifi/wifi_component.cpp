@@ -1,5 +1,10 @@
 #include "wifi_component.h"
 #include <cinttypes>
+#include <map>
+
+#ifdef USE_ESP_IDF
+#include <esp_wpa2.h>
+#endif
 
 #if defined(USE_ESP32) || defined(USE_ESP_IDF)
 #include <esp_wifi.h>
@@ -318,6 +323,16 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
     ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
     ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
     ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+#ifdef USE_ESP_IDF
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    std::map<esp_eap_ttls_phase2_types, std::string> phase2types = {{ESP_EAP_TTLS_PHASE2_PAP, "pap"},
+                                                                    {ESP_EAP_TTLS_PHASE2_CHAP, "chap"},
+                                                                    {ESP_EAP_TTLS_PHASE2_MSCHAP, "mschap"},
+                                                                    {ESP_EAP_TTLS_PHASE2_MSCHAPV2, "mschapv2"},
+                                                                    {ESP_EAP_TTLS_PHASE2_EAP, "eap"}};
+    ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), phase2types[eap_config.ttls_phase_2].c_str());
+#endif
+#endif
     bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
     bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
     bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);

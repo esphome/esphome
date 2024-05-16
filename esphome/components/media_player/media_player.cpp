@@ -15,6 +15,8 @@ const char *media_player_state_to_string(MediaPlayerState state) {
       return "PLAYING";
     case MEDIA_PLAYER_STATE_PAUSED:
       return "PAUSED";
+    case MEDIA_PLAYER_STATE_ANNOUNCING:
+      return "ANNOUNCING";
     case MEDIA_PLAYER_STATE_NONE:
     default:
       return "UNKNOWN";
@@ -68,6 +70,9 @@ void MediaPlayerCall::perform() {
   if (this->volume_.has_value()) {
     ESP_LOGD(TAG, "  Volume: %.2f", this->volume_.value());
   }
+  if (this->announcement_.has_value()) {
+    ESP_LOGD(TAG, " Announcement: %s", this->announcement_.value() ? "yes" : "no");
+  }
   this->parent_->control(*this);
 }
 
@@ -105,6 +110,11 @@ MediaPlayerCall &MediaPlayerCall::set_media_url(const std::string &media_url) {
 
 MediaPlayerCall &MediaPlayerCall::set_volume(float volume) {
   this->volume_ = volume;
+  return *this;
+}
+
+MediaPlayerCall &MediaPlayerCall::set_announcement(bool announce) {
+  this->announcement_ = announce;
   return *this;
 }
 
