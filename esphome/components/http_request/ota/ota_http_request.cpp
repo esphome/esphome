@@ -170,8 +170,8 @@ void OtaHttpRequestComponent::flash() {
     error_code = backend->write(buf, bufsize);
     if (error_code != 0) {
       // error code explaination available at
-      // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_component.h
-      ESP_LOGE(TAG, "Error code (%d) writing binary data to flash at offset %d and size %d", error_code,
+      // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
+      ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
                this->bytes_read_ - bufsize, this->body_length_);
       this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
       return;
