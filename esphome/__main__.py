@@ -105,14 +105,13 @@ def choose_upload_log_host(
         ble_logger = False
     ota = "ota" in CORE.config
     options = []
+    prefix = ""
     if mcuboot and show_ota and ota:
-        for port in get_serial_ports():
-            options.append(
-                (f"mcumgr {port.path} ({port.description})", f"mcumgr {port.path}")
-            )
-    else:
-        for port in get_serial_ports():
-            options.append((f"{port.path} ({port.description})", port.path))
+        prefix = "mcumgr "
+    for port in get_serial_ports():
+        options.append(
+            (f"{prefix}{port.path} ({port.description})", f"{prefix}{port.path}")
+        )
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
     if default == "PYOCD":
