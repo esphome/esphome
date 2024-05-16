@@ -40,3 +40,10 @@ repos:
     hooks:
       - id: clang-format
         types_or: [c, c++]
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: script/run-in-env.sh pylint
+        language: script
+        types: [python]

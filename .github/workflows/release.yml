@@ -61,7 +61,9 @@ jobs:
           ESPHOME_NO_VENV: 1
         run: script/setup
       - name: Build
-        run: python setup.py sdist bdist_wheel
+        run: |-
+          pip3 install build
+          python3 -m build
       - name: Publish
         uses: pypa/gh-action-pypi-publish@v1.8.14
 
@@ -132,10 +134,16 @@ jobs:
           suffix: lint
           version: ${{ needs.init.outputs.tag }}
 
+      - name: Sanitize platform name
+        id: sanitize
+        run: |
+          echo "${{ matrix.platform }}" | sed 's|/|-|g' > /tmp/platform
+          echo name=$(cat /tmp/platform) >> $GITHUB_OUTPUT
+
       - name: Upload digests
         uses: actions/upload-artifact@v4.3.3
         with:
-          name: digests-${{ matrix.platform }}
+          name: digests-${{ steps.sanitize.outputs.name }}
           path: /tmp/digests
           retention-days: 1
 
