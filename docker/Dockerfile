@@ -110,7 +110,7 @@ RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
   fi; \
   pip3 install \
-  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+  --break-system-packages --no-cache-dir -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -160,7 +160,7 @@ RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
   fi; \
   pip3 install \
-  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+  --break-system-packages --no-cache-dir -e /esphome
 
 # Labels
 LABEL \
