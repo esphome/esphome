@@ -8,12 +8,6 @@ namespace bedjet {
 
 using namespace esphome::climate;
 
-/// Converts a BedJet temp step into degrees Celsius.
-float bedjet_temp_to_c(const uint8_t temp) {
-  // BedJet temp is "C*2"; to get C, divide by 2.
-  return temp / 2.0f;
-}
-
 static const std::string *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
   if (fan_step < BEDJET_FAN_SPEED_COUNT)
     return &BEDJET_FAN_STEP_NAME_STRINGS[fan_step];
@@ -236,9 +230,14 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
   if (converted_temp > 0)
     this->target_temperature = converted_temp;
 
-  converted_temp = bedjet_temp_to_c(data->ambient_temp_step);
-  if (converted_temp > 0)
+  if (this->temperature_source_ == TEMPERATURE_SOURCE_OUTLET) {
+    converted_temp = bedjet_temp_to_c(data->actual_temp_step);
+  } else {
+    converted_temp = bedjet_temp_to_c(data->ambient_temp_step);
+  }
+  if (converted_temp > 0) {
     this->current_temperature = converted_temp;
+  }
 
   const auto *fan_mode_name = bedjet_fan_step_to_fan_mode(data->fan_step);
   if (fan_mode_name != nullptr) {
