@@ -37,6 +37,7 @@ void OtaHttpRequestComponentArduino::http_init() {
   this->status_ = this->client_.begin(this->url_);
 #endif
 #ifdef USE_ESP8266
+  this->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   this->status_ = this->client_.begin(*this->stream_ptr_, String(this->url_));
 #endif
 
