@@ -62,12 +62,6 @@ async def to_code(config):
         cg.add_define("USE_OTA_PASSWORD")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
-    if CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Update", None)
-
-    if CORE.is_rp2040 and CORE.using_arduino:
-        cg.add_library("Updater", None)
-
     await cg.register_component(var, config)
 
     if config[CONF_SAFE_MODE]:

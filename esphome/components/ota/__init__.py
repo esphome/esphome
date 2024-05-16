@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.core import CORE
 
 from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM, CONF_TRIGGER_ID
 
@@ -105,3 +106,9 @@ async def ota_to_code(var, config):
         cg.add_define("USE_OTA_STATE_CALLBACK")
 
     cg.add_define("USE_OTA")
+
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("Update", None)
+
+    if CORE.is_rp2040 and CORE.using_arduino:
+        cg.add_library("Updater", None)
