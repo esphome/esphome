@@ -76,7 +76,7 @@ BASE_OTA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(50.0)
+@coroutine_with_priority(51.0)
 async def to_code(config):
     cg.add_define("USE_OTA")
 
