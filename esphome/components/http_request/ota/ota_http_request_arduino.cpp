@@ -67,8 +67,8 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
 #ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
   if (!this->secure_()) {
-    ESP_LOGW(TAG,
-             "Using arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 in your yaml");
+    ESP_LOGW(TAG, "Using http on arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 "
+                  "in your yaml, or use https.");
   }
 #endif  // USE_ARDUINO_VERSION_CODE
 #endif  // USE_ESP8266
