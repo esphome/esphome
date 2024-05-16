@@ -29,6 +29,7 @@ class SafeModeComponent : public Component {
   void write_rtc_(uint32_t val);
   uint32_t read_rtc_();
 
+  bool boot_successful_{false};            ///< set to true after boot is considered successful
   uint32_t safe_mode_start_time_;          ///< stores when safe mode was enabled
   uint32_t safe_mode_enable_time_{60000};  ///< The time safe mode should remain active for
   uint32_t safe_mode_rtc_value_;
