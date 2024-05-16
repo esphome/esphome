@@ -334,7 +334,6 @@ safe_mode:
 ota:
   - platform: esphome
     port: 3286
-    reboot_timeout: 15min
 
 logger:
   hardware_uart: UART1

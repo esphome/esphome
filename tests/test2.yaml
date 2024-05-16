@@ -84,7 +84,6 @@ safe_mode:
 ota:
   - platform: esphome
     port: 3286
-    num_attempts: 15
 
 logger:
   level: DEBUG

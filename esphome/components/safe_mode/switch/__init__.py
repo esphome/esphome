@@ -1,13 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.components.safe_mode import SafeModeComponent
 from esphome.const import (
     CONF_SAFE_MODE,
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
-from .. import safe_mode_ns
+from .. import safe_mode_ns, SafeModeComponent
 
 DEPENDENCIES = ["safe_mode"]
 

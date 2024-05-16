@@ -6,6 +6,7 @@
 #include "esphome/core/util.h"
 
 #include <cerrno>
+#include <cinttypes>
 #include <cstdio>
 
 namespace esphome {

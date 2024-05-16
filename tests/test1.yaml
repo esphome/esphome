@@ -273,7 +273,6 @@ ota:
     password: "superlongpasswordthatnoonewillknow"
     port: 3286
     reboot_timeout: 2min
-    num_attempts: 5
     on_state_change:
       then:
         lambda: >-
