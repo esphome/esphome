@@ -3,7 +3,11 @@
 #include <map>
 
 #ifdef USE_ESP_IDF
+#if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
+#include <esp_eap_client.h>
+#else
 #include <esp_wpa2.h>
+#endif
 #endif
 
 #if defined(USE_ESP32) || defined(USE_ESP_IDF)
