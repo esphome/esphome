@@ -161,13 +161,10 @@ async def to_code(config):
         else:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
-    if CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Update", None)
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
     if CORE.is_rp2040 and CORE.using_arduino:
         cg.add_library("HTTPClient", None)
-        cg.add_library("Updater", None)
 
     await cg.register_component(var, config)
 
