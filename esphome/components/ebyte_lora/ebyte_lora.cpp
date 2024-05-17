@@ -228,10 +228,12 @@ void EbyteLoraComponent::update() {
   this->send_switch_info_();
 }
 void EbyteLoraComponent::set_config_() {
-  uint8_t data[9];
+  uint8_t data[11];
   // set register
   data[0] = 0xC0;
+  // where to start, 0 always
   data[1] = 0;
+  // length, 8 bytes (3 start bytes don't count)
   data[2] = 8;
   // 3 is addh
   data[3] = this->expected_config_.addh;
@@ -248,12 +250,12 @@ void EbyteLoraComponent::set_config_() {
   // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
   data[8] = (this->expected_config_.enable_rssi << 7) | (this->expected_config_.transmission_mode << 6) |
             (this->expected_config_.enable_lbt << 4) | (this->expected_config_.wor_period << 0);
-  // this-> set_mode_(CONFIGURATION)
-  // this->write_array(data, sizeof(data));
-  // this->setup_wait_response_(5000);
-  for (int i = 0; i < sizeof(data); i++) {
-    ESP_LOGD(TAG, "values: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
-  }
+  // crypt stuff make 0 for now
+  data[9] = 0;
+  data[10] = 0;
+  this->set_mode_(CONFIGURATION);
+  this->write_array(data, sizeof(data));
+  this->setup_wait_response_(5000);
 }
 void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
