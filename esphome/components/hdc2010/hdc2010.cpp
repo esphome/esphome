@@ -68,7 +68,7 @@ void HDC2010Component::dump_config() {
 }
 
 void HDC2010Component::update() {
-  uint8_t raw_data[4];
+  uint8_t tempLow, tempHigh, humidLow, humidHigh;
 
   // Trigger measurement
   uint8_t configContents;
@@ -78,13 +78,16 @@ void HDC2010Component::update() {
 
   delayMicroseconds(1000);  // 1ms delay after triggering the sample
 
-  if (this->read(raw_data, 4) != i2c::ERROR_OK) {
+  if (!read_register(HDC2010_CMD_TEMPERATURE_LOW, &tempLow, 1) ||
+      !read_register(HDC2010_CMD_TEMPERATURE_HIGH, &tempHigh, 1) ||
+      !read_register(HDC2010_CMD_HUMIDITY_LOW, &humidLow, 1) ||
+      !read_register(HDC2010_CMD_HUMIDITY_HIGH, &humidHigh, 1)) {
     this->status_set_warning();
     return;
   }
 
-  float temp = readTemp();
-  float humidity = readHumidity();
+  float temp = (float) ((tempHigh << 8) | tempLow) * 0.0025177f - 40.0f;
+  float humidity = (float) ((humidHigh << 8) | humidLow) * 0.001525879f;
 
   this->temperature_->publish_state(temp);
   this->humidity_->publish_state(humidity);
@@ -124,7 +127,7 @@ float HDC2010Component::readTemp() {
   read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
 
   temp = (unsigned int) byte[1] << 8 | byte[0];
-  return (float) temp * 165 / 65536 - 40;
+  return (float) temp;
 }
 
 float HDC2010Component::readHumidity() {
@@ -135,7 +138,7 @@ float HDC2010Component::readHumidity() {
   read_register(HDC2010_CMD_HUMIDITY_HIGH, &byte[1], 1);
 
   humidity = (unsigned int) byte[1] << 8 | byte[0];
-  return (float) humidity / 65536 * 100;
+  return (float) humidity;
 }
 
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
