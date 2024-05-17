@@ -10,14 +10,13 @@ static const char *const TAG = "hdc2010";
 
 static const uint8_t HDC2010_ADDRESS = 0x40;  // 0b1000000 or 0b1000001 from datasheet
 static const uint8_t HDC2010_CMD_CONFIGURATION_MEASUREMENT = 0x8F;
-static const uint8_t HDC2010_CMD_START_MEASUREMENT = 0xF9;  // new start measurement command
+static const uint8_t HDC2010_CMD_START_MEASUREMENT = 0xF9;
 static const uint8_t HDC2010_CMD_TEMPERATURE_LOW = 0x00;
 static const uint8_t HDC2010_CMD_TEMPERATURE_HIGH = 0x01;
 static const uint8_t HDC2010_CMD_HUMIDITY_LOW = 0x02;
 static const uint8_t HDC2010_CMD_HUMIDITY_HIGH = 0x03;
-static const uint8_t HDC2010_CMD_HEATER_HEAT0 = 0x5A;
-// static const uint8_t HDC2010_TEMP_OFFSET_ADJUST = 0x08;
-// static const uint8_t HDC2010_HUM_OFFSET_ADJUST = 0x09;
+static const uint8_t CONFIG = 0x0E;
+static const uint8_t MEASUREMENT_CONFIG = 0x0F;
 
 void HDC2010Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HDC2010...");
@@ -28,12 +27,32 @@ void HDC2010Component::setup() {
   };
 
   if (!this->write_bytes(HDC2010_CMD_CONFIGURATION_MEASUREMENT, data, 2)) {
-    // as instruction is same as powerup defaults (for now), interpret as warning if this fails
     ESP_LOGW(TAG, "HDC2010 initial config instruction error");
     this->status_set_warning();
     return;
   }
+
+  // Set measurement mode to temperature and humidity
+  setMeasurementMode(TEMP_AND_HUMID);
+
+  // Set rate to manual
+  uint8_t configContents = readReg(CONFIG);
+  configContents &= 0x8F;
+  writeReg(CONFIG, configContents);
+
+  // Set temperature resolution to 14bit
+  configContents = readReg(CONFIG);
+  configContents &= 0x3F;
+  writeReg(CONFIG, configContents);
+
+  // Set humidity resolution to 14bit
+  configContents = readReg(CONFIG);
+  configContents &= 0xCF;
+  writeReg(CONFIG, configContents);
+
+  delay(1000);  // wait for 1 second
 }
+
 void HDC2010Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HDC2010:");
   LOG_I2C_DEVICE(this);
@@ -44,13 +63,15 @@ void HDC2010Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
+
 void HDC2010Component::update() {
   uint8_t raw_data[4];
 
-  if (this->write(&HDC2010_CMD_START_MEASUREMENT, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
+  // Trigger measurement
+  uint8_t configContents = readReg(CONFIG);
+  configContents |= 0x01;
+  writeReg(CONFIG, configContents);
+
   delayMicroseconds(1000);  // 1ms delay after triggering the sample
 
   if (this->read(raw_data, 4) != i2c::ERROR_OK) {
@@ -95,6 +116,32 @@ void HDC2010Component::update() {
 // }
 
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
+
+void HDC2010Component::setMeasurementMode(int mode) {
+  uint8_t configContents;
+  configContents = readReg(MEASUREMENT_CONFIG);
+
+  switch (mode) {
+    case TEMP_AND_HUMID:
+      configContents = (configContents & 0xF9);
+      break;
+
+    case TEMP_ONLY:
+      configContents = (configContents & 0xFC);
+      configContents = (configContents | 0x02);
+      break;
+
+    case HUMID_ONLY:
+      configContents = (configContents & 0xFD);
+      configContents = (configContents | 0x04);
+      break;
+
+    default:
+      configContents = (configContents & 0xF9);
+  }
+
+  writeReg(MEASUREMENT_CONFIG, configContents);
+}
 
 }  // namespace hdc2010
 }  // namespace esphome
