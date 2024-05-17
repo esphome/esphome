@@ -86,8 +86,8 @@ void HDC2010Component::update() {
     return;
   }
 
-  float temp = (float) ((tempHigh << 8) | tempLow) * 0.0025177f - 40.0f;
-  float humidity = (float) ((humidHigh << 8) | humidLow) * 0.001525879f;
+  float temp = readTemp();
+  float humidity = readHumidity();
 
   this->temperature_->publish_state(temp);
   this->humidity_->publish_state(humidity);
@@ -127,7 +127,7 @@ float HDC2010Component::readTemp() {
   read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
 
   temp = (unsigned int) byte[1] << 8 | byte[0];
-  return (float) temp;
+  return (float) temp * 0.0025177f - 40.0f;
 }
 
 float HDC2010Component::readHumidity() {
@@ -138,7 +138,7 @@ float HDC2010Component::readHumidity() {
   read_register(HDC2010_CMD_HUMIDITY_HIGH, &byte[1], 1);
 
   humidity = (unsigned int) byte[1] << 8 | byte[0];
-  return (float) humidity;
+  return (float) humidity * 0.001525879f;
 }
 
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
