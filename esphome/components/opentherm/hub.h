@@ -1,28 +1,29 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
 #include "opentherm.h"
 
-#ifdef OPENTHERM_SENSOR_LIST
+#ifdef OPENTHERM_USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-#ifdef OPENTHERM_BINARY_SENSOR_LIST
+#ifdef OPENTHERM_USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-#ifdef OPENTHERM_SWITCH_LIST
+#ifdef OPENTHERM_USE_SWITCH
 #include "esphome/components/opentherm/switch/switch.h"
 #endif
 
-#ifdef OPENTHERM_OUTPUT_LIST
+#ifdef OPENTHERM_USE_OUTPUT
 #include "esphome/components/opentherm/output/output.h"
 #endif
 
-#ifdef OPENTHERM_NUMBER_LIST
+#ifdef OPENTHERM_USE_NUMBER
 #include "esphome/components/opentherm/number/number.h"
 #endif
 
