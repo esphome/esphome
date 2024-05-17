@@ -34,24 +34,24 @@ void HDC2010Component::setup() {
 
   // Set measurement mode to temperature and humidity
   uint8_t configContents;
-  configContents = readReg(MEASUREMENT_CONFIG);
+  configContents = read_register(MEASUREMENT_CONFIG);
   configContents = (configContents & 0xF9);  // Always set to TEMP_AND_HUMID mode
-  writeReg(MEASUREMENT_CONFIG, configContents);
+  this->write_bytes(MEASUREMENT_CONFIG, &configContents, 1);
 
   // Set rate to manual
-  uint8_t configContents = readReg(CONFIG);
+  configContents = read_register(CONFIG);
   configContents &= 0x8F;
-  writeReg(CONFIG, configContents);
+  this->write_bytes(CONFIG, &configContents, 1);
 
   // Set temperature resolution to 14bit
-  configContents = readReg(CONFIG);
+  configContents = read_register(CONFIG);
   configContents &= 0x3F;
-  writeReg(CONFIG, configContents);
+  this->write_bytes(CONFIG, &configContents, 1);
 
   // Set humidity resolution to 14bit
-  configContents = readReg(CONFIG);
+  configContents = read_register(CONFIG);
   configContents &= 0xCF;
-  writeReg(CONFIG, configContents);
+  this->write_bytes(CONFIG, &configContents, 1);
 
   delayMicroseconds(5000);  // wait for 5ms
 }
@@ -109,7 +109,7 @@ float HDC2010Component::readTemp() {
   byte[1] = read_register(HDC2010_CMD_TEMPERATURE_HIGH);
 
   temp = (unsigned int) byte[1] << 8 | byte[0];
-  return (float) temp * 165 / 65536 - 40;
+  return (float) temp * 0.0025177f - 40.0f;
 }
 
 float HDC2010Component::readHumidity() {
@@ -120,7 +120,7 @@ float HDC2010Component::readHumidity() {
   byte[1] = read_register(HDC2010_CMD_HUMIDITY_HIGH);
 
   humidity = (unsigned int) byte[1] << 8 | byte[0];
-  return (float) humidity / 65536 * 100;
+  return (float) humidity * 0.001525879f;
 }
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
 }  // namespace hdc2010
