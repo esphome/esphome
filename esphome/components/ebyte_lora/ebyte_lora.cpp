@@ -228,7 +228,7 @@ void EbyteLoraComponent::update() {
   this->send_switch_info_();
 }
 void EbyteLoraComponent::set_config_() {
-  uint8_t data[8];
+  uint8_t data[9];
   // set register
   data[0] = 0xC0;
   data[1] = 0;
@@ -251,7 +251,7 @@ void EbyteLoraComponent::set_config_() {
   // this-> set_mode_(CONFIGURATION)
   // this->write_array(data, sizeof(data));
   // this->setup_wait_response_(5000);
-  for (int i = 0; i <= sizeof(data); i++) {
+  for (int i = 0; i < sizeof(data); i++) {
     ESP_LOGD(TAG, "values: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
   }
 }
