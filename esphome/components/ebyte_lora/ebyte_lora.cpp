@@ -224,8 +224,8 @@ void EbyteLoraComponent::update() {
     ESP_LOGD(TAG, "Mode is not set right");
     this->set_mode_(NORMAL);
   }
-
-  this->send_switch_info_();
+  if (!this->switch_info_receiver_)
+    this->send_switch_info_();
 }
 void EbyteLoraComponent::set_config_() {
   uint8_t data[11];
@@ -423,7 +423,6 @@ void EbyteLoraComponent::loop() {
         sensor->publish_state(data[2]);
       }
     }
-    send_switch_info_();
   }
   // starting info loop
   if (data[0] == SWITCH_INFO) {

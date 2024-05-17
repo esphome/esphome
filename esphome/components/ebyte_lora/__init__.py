@@ -101,7 +101,7 @@ CONF_ENABLE_LBT = "enable_lbt"
 CONF_RSSI_NOISE = "rssi_noise"
 CONF_UART_PARITY = "uart_parity"
 CONF_SUB_PACKET = "sub_packet"
-
+CONF_SWITCH_INFO_RECEIVER = "switch_info_receiver"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -112,6 +112,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_PIN_M0): pins.internal_gpio_output_pin_schema,
             # for communication set the mode
             cv.Required(CONF_PIN_M1): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_SWITCH_INFO_RECEIVER, default=False): cv.boolean,
             # if you want to see the rssi
             cv.Optional(CONF_LORA_RSSI): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -174,6 +175,7 @@ async def to_code(config):
     cg.add(var.set_pin_m0(pin_m0))
     pin_m1 = await cg.gpio_pin_expression(config[CONF_PIN_M1])
     cg.add(var.set_pin_m1(pin_m1))
+    cg.add(var.set_switch_info_receiver(config[CONF_SWITCH_INFO_RECEIVER]))
     cg.add(var.set_addh(config[CONF_ADDH]))
     cg.add(var.set_addl(config[CONF_ADDL]))
     cg.add(var.set_air_data_rate(config[CONF_AIR_DATA_RATE]))
