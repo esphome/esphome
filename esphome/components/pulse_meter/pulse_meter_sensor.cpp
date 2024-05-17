@@ -59,8 +59,6 @@ void PulseMeterSensor::loop() {
     std::swap(this->set_, this->get_);
   }
 
-  const uint32_t now = micros();
-
   // If an edge was peeked, repay the debt
   if (this->peeked_edge_ && this->get_->count_ > 0) {
     this->peeked_edge_ = false;
