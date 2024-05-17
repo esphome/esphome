@@ -1002,7 +1002,11 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
 
   MediaPlayerStateResponse resp{};
   resp.key = media_player->get_object_id_hash();
-  resp.state = static_cast<enums::MediaPlayerState>(media_player->state);
+
+  media_player::MediaPlayerState report_state = media_player->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+                                                    ? media_player::MEDIA_PLAYER_STATE_PLAYING
+                                                    : media_player->state;
+  resp.state = static_cast<enums::MediaPlayerState>(report_state);
   resp.volume = media_player->volume;
   resp.muted = media_player->is_muted();
   return this->send_media_player_state_response(resp);
@@ -1037,6 +1041,9 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   }
   if (msg.has_media_url) {
     call.set_media_url(msg.media_url);
+  }
+  if (msg.has_announcement) {
+    call.set_announcement(msg.announcement);
   }
   call.perform();
 }
