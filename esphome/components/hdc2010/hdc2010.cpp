@@ -123,8 +123,8 @@ float HDC2010Component::readTemp() {
   read_register(HDC2010_CMD_TEMPERATURE_LOW, &byte[0], 1);
   read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
 
-  temp = (unsigned int)byte[1] << 8 | byte[0];
-  return (float)temp * 165 / 65536 - 40;
+  temp = (unsigned int) byte[1] << 8 | byte[0];
+  return (float) temp * 165 / 65536 - 40;
 }
 
 float HDC2010Component::readHumidity() {
@@ -134,8 +134,8 @@ float HDC2010Component::readHumidity() {
   read_register(HDC2010_CMD_HUMIDITY_LOW, &byte[0], 1);
   read_register(HDC2010_CMD_HUMIDITY_HIGH, &byte[1], 1);
 
-  humidity = (unsigned int)byte[1] << 8 | byte[0];
-  return (float)humidity / 65536 * 100;
+  humidity = (unsigned int) byte[1] << 8 | byte[0];
+  return (float) humidity / 65536 * 100;
 }
 
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
