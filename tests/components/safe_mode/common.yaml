@@ -3,6 +3,8 @@ wifi:
   password: password1
 
 ota:
+  - platform: esphome
+    safe_mode: true
 
 button:
   - platform: safe_mode
