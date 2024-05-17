@@ -992,10 +992,11 @@ async def get_start_value(config):
 
 
 async def add_init_lambda(lv_component, init):
-    lamb = await cg.process_lambda(
-        Lambda(";\n".join([*init, ""])), [(ty.lv_disp_t_ptr, "lv_disp")]
-    )
-    cg.add(lv_component.add_init_lambda(lamb))
+    if init:
+        lamb = await cg.process_lambda(
+            Lambda(";\n".join([*init, ""])), [(ty.lv_disp_t_ptr, "lv_disp")]
+        )
+        cg.add(lv_component.add_init_lambda(lamb))
     lv_temp_vars.clear()
 
 
@@ -1297,6 +1298,7 @@ def tabview_obj_creator(parent: Widget, config: dict):
 
 async def tabview_to_code(tv: Widget, config: dict):
     lv.lv_uses.add("btnmatrix")
+    lv.lv_uses.add("flex")
     init = []
     for tab_conf in config[df.CONF_TABS]:
         w_id = tab_conf[CONF_ID]
@@ -2019,9 +2021,9 @@ async def touchscreens_to_code(var, config):
 
 
 async def generate_triggers(lv_component):
-    init = []
     for widget in widget_map.values():
         if widget.config:
+            init = []
             obj = widget.obj
             for event, conf in {
                 event: conf
@@ -2059,8 +2061,7 @@ async def generate_triggers(lv_component):
                 x = align_to[df.CONF_X]
                 y = align_to[df.CONF_Y]
                 init.append(f"lv_obj_align_to({obj}, {target}, {align}, {x}, {y})")
-
-    return init
+            await add_init_lambda(lv_component, init)
 
 
 async def disp_update(disp, config: dict):
@@ -2180,7 +2181,6 @@ async def to_code(config):
     global widgets_completed
     widgets_completed = True
     init.append(f"{lv_component}->set_page_wrap({config[df.CONF_PAGE_WRAP]})")
-    init.extend(await generate_triggers(lv_component))
     init.extend(await touchscreens_to_code(lv_component, config))
     init.extend(await rotary_encoders_to_code(lv_component, config))
     if on_idle := config.get(CONF_ON_IDLE):
@@ -2191,6 +2191,7 @@ async def to_code(config):
 
     init.extend(await disp_update("lv_disp", config))
     await add_init_lambda(lv_component, init)
+    await generate_triggers(lv_component)
     for use in lv.lv_uses:
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
     for comp in lv.lvgl_components_required:
