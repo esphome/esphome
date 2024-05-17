@@ -68,26 +68,10 @@ void HDC2010Component::dump_config() {
 }
 
 void HDC2010Component::update() {
-  uint8_t raw_data[4];
+  float temp = readTemp();
+  float humidity = readHumidity();
 
-  // Trigger measurement
-  uint8_t configContents = readReg(CONFIG);
-  configContents |= 0x01;
-  writeReg(CONFIG, configContents);
-
-  delayMicroseconds(1000);  // 1ms delay after triggering the sample
-
-  if (this->read(raw_data, 4) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-
-  uint16_t raw_temp = (raw_data[1] << 8) | raw_data[0];
-  float temp = raw_temp * 0.0025177f - 40.0f;  // raw * 2^-16 * 165 - 40
   this->temperature_->publish_state(temp);
-
-  uint16_t raw_humidity = (raw_data[3] << 8) | raw_data[2];
-  float humidity = raw_humidity * 0.0015258f;  // raw * 2^-16 * 100
   this->humidity_->publish_state(humidity);
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temp, humidity);
@@ -117,27 +101,27 @@ void HDC2010Component::update() {
 // configContents = (configContents & 0xF7);
 // writeReg(CONFIG, configContents);
 // }
+float HDC2010Component::readTemp() {
+  uint8_t byte[2];
+  uint16_t temp;
 
+  byte[0] = read_register(HDC2010_CMD_TEMPERATURE_LOW);
+  byte[1] = read_register(HDC2010_CMD_TEMPERATURE_HIGH);
+
+  temp = (unsigned int) byte[1] << 8 | byte[0];
+  return (float) temp * 165 / 65536 - 40;
+}
+
+float HDC2010Component::readHumidity() {
+  uint8_t byte[2];
+  uint16_t humidity;
+
+  byte[0] = read_register(HDC2010_CMD_HUMIDITY_LOW);
+  byte[1] = read_register(HDC2010_CMD_HUMIDITY_HIGH);
+
+  humidity = (unsigned int) byte[1] << 8 | byte[0];
+  return (float) humidity / 65536 * 100;
+}
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
-
-uint8_t HDC2010Component::readReg(uint8_t reg) {
-  uint8_t data;
-  if (!this->write_bytes(HDC2010_ADDRESS, &reg, 1)) {
-    ESP_LOGW(TAG, "Failed to write register address");
-    return 0;
-  }
-  if (!this->read_bytes(HDC2010_ADDRESS, &data, 1)) {
-    ESP_LOGW(TAG, "Failed to read register value");
-    return 0;
-  }
-  return data;
-}
-
-void HDC2010Component::writeReg(uint8_t reg, uint8_t value) {
-  uint8_t data[2] = {reg, value};
-  if (!this->write_bytes(HDC2010_ADDRESS, data, 2)) {
-    ESP_LOGW(TAG, "Failed to write register value");
-  }
-}
 }  // namespace hdc2010
 }  // namespace esphome
