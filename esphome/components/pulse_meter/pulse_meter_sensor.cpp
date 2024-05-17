@@ -34,8 +34,6 @@ void PulseMeterSensor::setup() {
 }
 
 void PulseMeterSensor::loop() {
-  const uint32_t now = micros();
-
   // Reset the count in get before we pass it back to the ISR as set
   this->get_->count_ = 0;
 
@@ -59,19 +57,7 @@ void PulseMeterSensor::loop() {
     std::swap(this->set_, this->get_);
   }
 
-  // If an edge was peeked, repay the debt
-  if (this->peeked_edge_ && this->get_->count_ > 0) {
-    this->peeked_edge_ = false;
-    this->get_->count_--;
-  }
-
-  // If there is an unprocessed edge, and filter_us_ has passed since, count this edge early
-  if (this->get_->last_rising_edge_us_ != this->get_->last_detected_edge_us_ &&
-      now - this->get_->last_rising_edge_us_ >= this->filter_us_) {
-    this->peeked_edge_ = true;
-    this->get_->last_detected_edge_us_ = this->get_->last_rising_edge_us_;
-    this->get_->count_++;
-  }
+  const uint32_t now = micros();
 
   // If an edge was peeked, repay the debt
   if (this->peeked_edge_ && this->get_->count_ > 0) {
