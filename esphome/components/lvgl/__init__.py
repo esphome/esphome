@@ -857,10 +857,22 @@ def obj_schema(wtype: str):
 WIDGET_SCHEMAS = {}
 
 
+def grid_validate(value):
+    return value
+
+
+LAYOUT_VALIDATORS = {
+    df.TYPE_NONE: lambda x: x,
+    df.TYPE_FLEX: lambda x: x,
+    df.TYPE_GRID: grid_validate,
+}
+
+
 def container_validator(schema):
     def validator(value):
         ltype = df.TYPE_NONE
         if value and (layout := value.get(df.CONF_LAYOUT)):
+            print(value)
             if not isinstance(layout, dict):
                 raise cv.Invalid("Layout value must be a dict")
             ltype = layout.get(CONF_TYPE)
@@ -868,7 +880,7 @@ def container_validator(schema):
         result = schema.extend(WIDGET_SCHEMAS[ltype.lower()])
         if value == SCHEMA_EXTRACT:
             return result
-        return result(value)
+        return LAYOUT_VALIDATORS[ltype](result(value))
 
     return validator
 
@@ -1237,7 +1249,7 @@ async def menu_to_code(menu: Widget, menu_conf: dict):
     )
     if entries := menu_conf.get(df.CONF_ENTRIES):
         for econf in entries:
-            id = econf[CONF_ID]
+            # id = econf[CONF_ID]
             init.extend(await widget_to_code(econf, "menu_entry", menu))
     return init
 
