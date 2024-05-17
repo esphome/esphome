@@ -857,30 +857,18 @@ def obj_schema(wtype: str):
 WIDGET_SCHEMAS = {}
 
 
-def grid_validate(value):
-    return value
-
-
-LAYOUT_VALIDATORS = {
-    df.TYPE_NONE: lambda x: x,
-    df.TYPE_FLEX: lambda x: x,
-    df.TYPE_GRID: grid_validate,
-}
-
-
 def container_validator(schema):
     def validator(value):
         ltype = df.TYPE_NONE
         if value and (layout := value.get(df.CONF_LAYOUT)):
-            print(value)
             if not isinstance(layout, dict):
                 raise cv.Invalid("Layout value must be a dict")
-            ltype = layout.get(CONF_TYPE)
+            ltype = layout[CONF_TYPE].lower()
             lv.lv_uses.add(ltype.upper())
         result = schema.extend(WIDGET_SCHEMAS[ltype.lower()])
         if value == SCHEMA_EXTRACT:
             return result
-        return LAYOUT_VALIDATORS[ltype](result(value))
+        return result(value)
 
     return validator
 
