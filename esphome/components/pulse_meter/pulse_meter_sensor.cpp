@@ -52,6 +52,7 @@ void PulseMeterSensor::loop() {
     } else if (this->filter_mode_ == FILTER_PULSE && current != this->last_pin_val_) {
       PulseMeterSensor::pulse_intr(this);
     }
+    this->last_pin_val_ = current;
 
     // Swap out set and get to get the latest state from the ISR
     std::swap(this->set_, this->get_);
