@@ -59,6 +59,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void setup_wait_response_(uint32_t timeout = 1000);
   bool can_send_message_();
   bool check_config_();
+  void set_config_();
   void get_current_config_();
   void send_switch_push_(uint8_t pin, bool value);
   void send_switch_info_();

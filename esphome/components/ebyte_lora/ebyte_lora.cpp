@@ -216,6 +216,7 @@ void EbyteLoraComponent::update() {
     if (this->check_config_()) {
       ESP_LOGD(TAG, "Config is good to go!");
     } else {
+      this->set_config_();
       ESP_LOGD(TAG, "Config is not right, have to do something about that!");
     }
   }
@@ -225,6 +226,34 @@ void EbyteLoraComponent::update() {
   }
 
   this->send_switch_info_();
+}
+void EbyteLoraComponent::set_config_() {
+  uint8_t data[8];
+  // set register
+  data[0] = 0xC0;
+  data[1] = 0;
+  data[2] = 8;
+  // 3 is addh
+  data[3] = this->expected_config_.addh;
+  // 4 is addl
+  data[4] = this->expected_config_.addl;
+  // 5 is reg0, which is air_data for first 3 bits, then parity for 2, uart_baud for 3
+  data[5] = (this->expected_config_.uart_baud << 5) | (this->expected_config_.parity << 3) |
+            (this->expected_config_.air_data_rate << 0);
+  // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
+  data[6] = (this->expected_config_.sub_packet << 6) | (this->expected_config_.rssi_noise << 5) |
+            (this->expected_config_.transmission_power << 0);
+  // 7 is reg2; channel
+  data[7] = this->expected_config_.channel;
+  // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
+  data[8] = (this->expected_config_.enable_rssi << 7) | (this->expected_config_.transmission_mode << 6) |
+            (this->expected_config_.enable_lbt << 4) | (this->expected_config_.wor_period << 0);
+  // this-> set_mode_(CONFIGURATION)
+  // this->write_array(data, sizeof(data));
+  // this->setup_wait_response_(5000);
+  for (int i = 0; i < sizeof(data); i++) {
+    ESP_LOGD(TAG, "values: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
+  }
 }
 void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
