@@ -89,59 +89,6 @@ AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
 
-# list of widgets and the parts allowed
-WIDGET_TYPES = {
-    df.CONF_ANIMIMG: (df.CONF_MAIN,),
-    df.CONF_ARC: (df.CONF_MAIN, df.CONF_INDICATOR, df.CONF_KNOB),
-    df.CONF_BTN: (df.CONF_MAIN,),
-    df.CONF_BAR: (df.CONF_MAIN, df.CONF_INDICATOR),
-    df.CONF_BTNMATRIX: (df.CONF_MAIN, df.CONF_ITEMS),
-    df.CONF_CANVAS: (df.CONF_MAIN,),
-    df.CONF_CHART: (
-        df.CONF_MAIN,
-        df.CONF_SCROLLBAR,
-        df.CONF_SELECTED,
-        df.CONF_ITEMS,
-        df.CONF_INDICATOR,
-        df.CONF_CURSOR,
-        df.CONF_TICKS,
-    ),
-    df.CONF_CHECKBOX: (df.CONF_MAIN, df.CONF_INDICATOR),
-    df.CONF_DROPDOWN: (df.CONF_MAIN, df.CONF_INDICATOR),
-    df.CONF_IMG: (df.CONF_MAIN,),
-    df.CONF_INDICATOR: (),
-    df.CONF_KEYBOARD: (df.CONF_MAIN, df.CONF_ITEMS),
-    df.CONF_LABEL: (df.CONF_MAIN, df.CONF_SCROLLBAR, df.CONF_SELECTED),
-    CONF_LED: (df.CONF_MAIN,),
-    df.CONF_LINE: (df.CONF_MAIN,),
-    df.CONF_DROPDOWN_LIST: (df.CONF_MAIN, df.CONF_SCROLLBAR, df.CONF_SELECTED),
-    df.CONF_MENU: (df.CONF_MAIN,),
-    df.CONF_METER: (df.CONF_MAIN,),
-    df.CONF_OBJ: (df.CONF_MAIN,),
-    # df.CONF_PAGE: (df.CONF_MAIN,),
-    df.CONF_ROLLER: (df.CONF_MAIN, df.CONF_SELECTED),
-    df.CONF_SLIDER: (df.CONF_MAIN, df.CONF_INDICATOR, df.CONF_KNOB),
-    df.CONF_SPINNER: (df.CONF_MAIN, df.CONF_INDICATOR),
-    df.CONF_SWITCH: (df.CONF_MAIN, df.CONF_INDICATOR, df.CONF_KNOB),
-    df.CONF_SPINBOX: (
-        df.CONF_MAIN,
-        df.CONF_SCROLLBAR,
-        df.CONF_SELECTED,
-        df.CONF_CURSOR,
-        df.CONF_TEXTAREA_PLACEHOLDER,
-    ),
-    df.CONF_TABLE: (df.CONF_MAIN, df.CONF_ITEMS),
-    df.CONF_TABVIEW: (df.CONF_MAIN,),
-    df.CONF_TEXTAREA: (
-        df.CONF_MAIN,
-        df.CONF_SCROLLBAR,
-        df.CONF_SELECTED,
-        df.CONF_CURSOR,
-        df.CONF_TEXTAREA_PLACEHOLDER,
-    ),
-    df.CONF_TILEVIEW: (df.CONF_MAIN),
-}
-
 
 class LValidator:
     def __init__(self, validator, rtype, idtype=None, idexpr=None, retmapper=None):
@@ -352,8 +299,8 @@ def cv_point_list(value):
 
 
 def part_schema(parts):
-    if isinstance(parts, str) and parts in WIDGET_TYPES:
-        parts = WIDGET_TYPES[parts]
+    if isinstance(parts, str) and parts in df.WIDGET_TYPES:
+        parts = df.WIDGET_TYPES[parts]
     else:
         parts = (df.CONF_MAIN,)
     return cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts}).extend(
@@ -892,7 +839,7 @@ def widget_schema(name, extras=None):
 
 
 def any_widget_schema(extras=None):
-    return cv.Any(dict(map(lambda wt: widget_schema(wt, extras), WIDGET_TYPES)))
+    return cv.Any(dict(map(lambda wt: widget_schema(wt, extras), df.WIDGET_TYPES)))
 
 
 WIDGET_SCHEMA = any_widget_schema()
@@ -2180,6 +2127,7 @@ async def to_code(config):
 
     global widgets_completed
     widgets_completed = True
+    init = []
     init.append(f"{lv_component}->set_page_wrap({config[df.CONF_PAGE_WRAP]})")
     init.extend(await touchscreens_to_code(lv_component, config))
     init.extend(await rotary_encoders_to_code(lv_component, config))
@@ -2315,7 +2263,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_TOP_LAYER): container_schema(df.CONF_OBJ),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lv_color,
             cv.Optional(df.CONF_THEME): cv.Schema(
-                {cv.Optional(w): obj_schema(w) for w in WIDGET_TYPES}
+                {cv.Optional(w): obj_schema(w) for w in df.WIDGET_TYPES}
             ),
         }
     )
