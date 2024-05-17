@@ -33,7 +33,10 @@ void HDC2010Component::setup() {
   }
 
   // Set measurement mode to temperature and humidity
-  setMeasurementMode(TEMP_AND_HUMID);
+  uint8_t configContents;
+  configContents = readReg(MEASUREMENT_CONFIG);
+  configContents = (configContents & 0xF9);  // Always set to TEMP_AND_HUMID mode
+  writeReg(MEASUREMENT_CONFIG, configContents);
 
   // Set rate to manual
   uint8_t configContents = readReg(CONFIG);
@@ -50,7 +53,7 @@ void HDC2010Component::setup() {
   configContents &= 0xCF;
   writeReg(CONFIG, configContents);
 
-  delay(1000);  // wait for 1 second
+  delayMicroseconds(5000);  // wait for 5ms
 }
 
 void HDC2010Component::dump_config() {
@@ -117,31 +120,24 @@ void HDC2010Component::update() {
 
 float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
 
-void HDC2010Component::setMeasurementMode(int mode) {
-  uint8_t configContents;
-  configContents = readReg(MEASUREMENT_CONFIG);
-
-  switch (mode) {
-    case TEMP_AND_HUMID:
-      configContents = (configContents & 0xF9);
-      break;
-
-    case TEMP_ONLY:
-      configContents = (configContents & 0xFC);
-      configContents = (configContents | 0x02);
-      break;
-
-    case HUMID_ONLY:
-      configContents = (configContents & 0xFD);
-      configContents = (configContents | 0x04);
-      break;
-
-    default:
-      configContents = (configContents & 0xF9);
+uint8_t HDC2010Component::readReg(uint8_t reg) {
+  uint8_t data;
+  if (!this->write_bytes(HDC2010_ADDRESS, &reg, 1)) {
+    ESP_LOGW(TAG, "Failed to write register address");
+    return 0;
   }
-
-  writeReg(MEASUREMENT_CONFIG, configContents);
+  if (!this->read_bytes(HDC2010_ADDRESS, &data, 1)) {
+    ESP_LOGW(TAG, "Failed to read register value");
+    return 0;
+  }
+  return data;
 }
 
+void HDC2010Component::writeReg(uint8_t reg, uint8_t value) {
+  uint8_t data[2] = {reg, value};
+  if (!this->write_bytes(HDC2010_ADDRESS, data, 2)) {
+    ESP_LOGW(TAG, "Failed to write register value");
+  }
+}
 }  // namespace hdc2010
 }  // namespace esphome
