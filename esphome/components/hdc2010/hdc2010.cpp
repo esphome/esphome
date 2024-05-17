@@ -1,6 +1,6 @@
-#include "hdc2010.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "hdc2010.h"
 // https://github.com/vigsterkr/homebridge-hdc2010/blob/main/src/hdc2010.js
 // https://github.com/lime-labs/HDC2080-Arduino/blob/master/src/HDC2080.cpp
 namespace esphome {
@@ -68,23 +68,23 @@ void HDC2010Component::dump_config() {
 }
 
 void HDC2010Component::update() {
-  uint8_t tempLow, tempHigh, humidLow, humidHigh;
+  // uint8_t tempLow, tempHigh, humidLow, humidHigh;
 
   // Trigger measurement
-  uint8_t configContents;
-  read_register(CONFIG, &configContents, 1);
-  configContents |= 0x01;
-  this->write_bytes(CONFIG, &configContents, 1);
+  // uint8_t configContents;
+  // read_register(CONFIG, &configContents, 1);
+  // configContents |= 0x01;
+  // this->write_bytes(CONFIG, &configContents, 1);
 
-  delayMicroseconds(1000);  // 1ms delay after triggering the sample
+  // delayMicroseconds(1000);  // 1ms delay after triggering the sample
 
-  if (!read_register(HDC2010_CMD_TEMPERATURE_LOW, &tempLow, 1) ||
-      !read_register(HDC2010_CMD_TEMPERATURE_HIGH, &tempHigh, 1) ||
-      !read_register(HDC2010_CMD_HUMIDITY_LOW, &humidLow, 1) ||
-      !read_register(HDC2010_CMD_HUMIDITY_HIGH, &humidHigh, 1)) {
-    this->status_set_warning();
-    return;
-  }
+  // if (!read_register(HDC2010_CMD_TEMPERATURE_LOW, &tempLow, 1) ||
+  //     !read_register(HDC2010_CMD_TEMPERATURE_HIGH, &tempHigh, 1) ||
+  //     !read_register(HDC2010_CMD_HUMIDITY_LOW, &humidLow, 1) ||
+  //     !read_register(HDC2010_CMD_HUMIDITY_HIGH, &humidHigh, 1)) {
+  //   this->status_set_warning();
+  //   return;
+  // }
 
   float temp = readTemp();
   float humidity = readHumidity();
