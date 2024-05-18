@@ -218,11 +218,16 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
 
 void ModemComponent::loop() {
   const uint32_t now = millis();
+  static uint32_t last_log_time = now;
 
   switch (this->state_) {
     case ModemComponentState::STOPPED:
       if (this->started_) {
         if (!this->modem_ready()) {
+          if (now - last_log_time > 20000) {
+            ESP_LOGD(TAG, "Waiting for the modem to be ready...");
+            last_log_time = now;
+          }
           break;
         } else {
           ESP_LOGI(TAG, "Starting modem connection");
