@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_BTM,
+    CONF_ENABLE_ON_BOOT,
     CONF_ENABLE_RRM,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
@@ -32,6 +33,7 @@ from esphome.const import (
     CONF_KEY,
     CONF_USERNAME,
     CONF_EAP,
+    CONF_TTLS_PHASE_2,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
 )
@@ -97,6 +99,14 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
     }
 )
 
+TTLS_PHASE_2 = {
+    "pap": cg.global_ns.ESP_EAP_TTLS_PHASE2_PAP,
+    "chap": cg.global_ns.ESP_EAP_TTLS_PHASE2_CHAP,
+    "mschap": cg.global_ns.ESP_EAP_TTLS_PHASE2_MSCHAP,
+    "mschapv2": cg.global_ns.ESP_EAP_TTLS_PHASE2_MSCHAPV2,
+    "eap": cg.global_ns.ESP_EAP_TTLS_PHASE2_EAP,
+}
+
 EAP_AUTH_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -104,6 +114,9 @@ EAP_AUTH_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string_strict,
             cv.Optional(CONF_PASSWORD): cv.string_strict,
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
+            cv.Optional(CONF_TTLS_PHASE_2): cv.All(
+                cv.enum(TTLS_PHASE_2), cv.only_with_esp_idf
+            ),
             cv.Inclusive(
                 CONF_CERTIFICATE, "certificate_and_key"
             ): wpa2_eap.validate_certificate,
@@ -268,7 +281,6 @@ def _validate(config):
 
 CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
-CONF_ENABLE_ON_BOOT = "enable_on_boot"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -338,6 +350,7 @@ def eap_auth(config):
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
+        ("ttls_phase_2", config.get(CONF_TTLS_PHASE_2, TTLS_PHASE_2["mschapv2"])),
     )
 
 

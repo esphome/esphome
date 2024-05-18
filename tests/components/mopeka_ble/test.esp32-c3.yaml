@@ -1,3 +1,1 @@
-esp32_ble_tracker:
-
-mopeka_ble:
+<<: !include common.yaml
