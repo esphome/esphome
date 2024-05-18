@@ -96,7 +96,6 @@ class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraCompone
 
  protected:
   void write_state(bool state) override { this->parent_->digital_write(this->pin_, state); }
-  EbyteLoraComponent *parent_;
   uint8_t pin_;
 };
 #endif
