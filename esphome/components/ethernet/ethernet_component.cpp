@@ -103,7 +103,11 @@ void EthernetComponent::setup() {
   err = spi_bus_add_device(host, &devcfg, &spi_handle);
   ESPHL_ERROR_CHECK(err, "SPI bus add device error");
 
+#if ESP_IDF_VERSION_MAJOR >= 5
+  eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
+#else
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
+#endif
   w5500_config.int_gpio_num = this->interrupt_pin_;
   phy_config.phy_addr = this->phy_addr_spi_;
   phy_config.reset_gpio_num = this->reset_pin_;
