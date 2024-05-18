@@ -52,7 +52,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
         size_t available;
         uart_get_buffered_data_len(this->uart_num_, &available);
         if (available) {
-          uart_read_bytes(this->uart_num_, &data, 1, 20 / portTICK_PERIOD_MS);
+          uart_read_bytes(this->uart_num_, &data, 1, 0);
           byte = data;
         }
       }
@@ -71,7 +71,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3)
     case logger::UART_SELECTION_USB_SERIAL_JTAG: {
-      if (usb_serial_jtag_read_bytes((char *) &data, 1, 20 / portTICK_PERIOD_MS)) {
+      if (usb_serial_jtag_read_bytes((char *) &data, 1, 0)) {
         byte = data;
       }
       break;
@@ -155,9 +155,13 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
     urls.push_back(this->get_formatted_next_url_());
   }
 #ifdef USE_WEBSERVER
-  auto ip = wifi::global_wifi_component->wifi_sta_ip();
-  std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-  urls.push_back(webserver_url);
+  for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
+    if (ip.is_ip4()) {
+      std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
+      urls.push_back(webserver_url);
+      break;
+    }
+  }
 #endif
   std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
   return data;
@@ -192,7 +196,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);
-      wifi::global_wifi_component->start_scanning();
+      wifi::global_wifi_component->start_connecting(sta, false);
       this->set_state_(improv::STATE_PROVISIONING);
       ESP_LOGD(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());

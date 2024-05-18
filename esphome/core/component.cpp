@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
+#include <cinttypes>
 
 namespace esphome {
 
@@ -75,7 +76,12 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 
 void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
-void Component::call_dump_config() { this->dump_config(); }
+void Component::call_dump_config() {
+  this->dump_config();
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "  Component %s is marked FAILED", this->get_component_source());
+  }
+}
 
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
@@ -140,18 +146,35 @@ bool Component::is_ready() {
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
 bool Component::can_proceed() { return true; }
-bool Component::status_has_warning() { return this->component_state_ & STATUS_LED_WARNING; }
-bool Component::status_has_error() { return this->component_state_ & STATUS_LED_ERROR; }
-void Component::status_set_warning() {
+bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
+bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+void Component::status_set_warning(const char *message) {
+  // Don't spam the log. This risks missing different warning messages though.
+  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+    return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
+  ESP_LOGW(TAG, "Component %s set Warning flag: %s", this->get_component_source(), message);
 }
-void Component::status_set_error() {
+void Component::status_set_error(const char *message) {
+  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+    return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
+  ESP_LOGE(TAG, "Component %s set Error flag: %s", this->get_component_source(), message);
 }
-void Component::status_clear_warning() { this->component_state_ &= ~STATUS_LED_WARNING; }
-void Component::status_clear_error() { this->component_state_ &= ~STATUS_LED_ERROR; }
+void Component::status_clear_warning() {
+  if ((this->component_state_ & STATUS_LED_WARNING) == 0)
+    return;
+  this->component_state_ &= ~STATUS_LED_WARNING;
+  ESP_LOGW(TAG, "Component %s cleared Warning flag", this->get_component_source());
+}
+void Component::status_clear_error() {
+  if ((this->component_state_ & STATUS_LED_ERROR) == 0)
+    return;
+  this->component_state_ &= ~STATUS_LED_ERROR;
+  ESP_LOGE(TAG, "Component %s cleared Error flag", this->get_component_source());
+}
 void Component::status_momentary_warning(const std::string &name, uint32_t length) {
   this->status_set_warning();
   this->set_timeout(name, length, [this]() { this->status_clear_warning(); });
@@ -169,7 +192,7 @@ float Component::get_actual_setup_priority() const {
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
 
 bool Component::has_overridden_loop() const {
-#ifdef CLANG_TIDY
+#if defined(USE_HOST) || defined(CLANG_TIDY)
   bool loop_overridden = true;
   bool call_loop_overridden = true;
 #else
@@ -211,8 +234,8 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
   uint32_t now = millis();
   if (now - started_ > 50) {
     const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
-    ESP_LOGW(TAG, "Component %s took a long time for an operation (%.2f s).", src, (now - started_) / 1e3f);
-    ESP_LOGW(TAG, "Components should block for at most 20-30ms.");
+    ESP_LOGW(TAG, "Component %s took a long time for an operation (%" PRIu32 " ms).", src, (now - started_));
+    ESP_LOGW(TAG, "Components should block for at most 30 ms.");
     ;
   }
 }

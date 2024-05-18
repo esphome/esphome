@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
     CONF_TRIGGER_ID,
+    CONF_VSYNC_PIN,
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -25,6 +26,11 @@ AUTO_LOAD = ["psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
+ESP32CameraImageData = esp32_camera_ns.struct("CameraImageData")
+# Triggers
+ESP32CameraImageTrigger = esp32_camera_ns.class_(
+    "ESP32CameraImageTrigger", automation.Trigger.template()
+)
 ESP32CameraStreamStartTrigger = esp32_camera_ns.class_(
     "ESP32CameraStreamStartTrigger",
     automation.Trigger.template(),
@@ -107,7 +113,6 @@ ENUM_SPECIAL_EFFECT = {
 }
 
 # pin assignment
-CONF_VSYNC_PIN = "vsync_pin"
 CONF_HREF_PIN = "href_pin"
 CONF_PIXEL_CLOCK_PIN = "pixel_clock_pin"
 CONF_EXTERNAL_CLOCK = "external_clock"
@@ -139,6 +144,7 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
 CONF_ON_STREAM_STOP = "on_stream_stop"
+CONF_ON_IMAGE = "on_image"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
@@ -221,6 +227,11 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
                 ),
             }
         ),
+        cv.Optional(CONF_ON_IMAGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESP32CameraImageTrigger),
+            }
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -289,3 +300,9 @@ async def to_code(config):
     for conf in config.get(CONF_ON_STREAM_STOP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_IMAGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(ESP32CameraImageData, "image")], conf
+        )

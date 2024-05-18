@@ -1,14 +1,15 @@
-#include "esphome/core/defines.h"
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#include "esphome/core/defines.h"
 
 #include "ota_backend_arduino_esp32.h"
-#include "ota_component.h"
 #include "ota_backend.h"
 
 #include <Update.h>
 
 namespace esphome {
 namespace ota {
+
+std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoESP32OTABackend>(); }
 
 OTAResponseTypes ArduinoESP32OTABackend::begin(size_t image_size) {
   bool ret = Update.begin(image_size, U_FLASH);

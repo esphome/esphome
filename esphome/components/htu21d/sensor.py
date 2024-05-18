@@ -5,6 +5,7 @@ from esphome import automation
 from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
+    CONF_MODEL,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
@@ -23,10 +24,15 @@ htu21d_ns = cg.esphome_ns.namespace("htu21d")
 HTU21DComponent = htu21d_ns.class_(
     "HTU21DComponent", cg.PollingComponent, i2c.I2CDevice
 )
-
 SetHeaterLevelAction = htu21d_ns.class_("SetHeaterLevelAction", automation.Action)
 SetHeaterAction = htu21d_ns.class_("SetHeaterAction", automation.Action)
+HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
 
+MODELS = {
+    "HTU21D": HTU21DSensorModels.HTU21D_SENSOR_MODEL_HTU21D,
+    "SI7021": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SI7021,
+    "SHT21": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SHT21,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -49,6 +55,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_MODEL, default="HTU21D"): cv.enum(MODELS, upper=True),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -72,6 +79,8 @@ async def to_code(config):
     if CONF_HEATER in config:
         sens = await sensor.new_sensor(config[CONF_HEATER])
         cg.add(var.set_heater(sens))
+
+    cg.add(var.set_sensor_model(config[CONF_MODEL]))
 
 
 @automation.register_action(

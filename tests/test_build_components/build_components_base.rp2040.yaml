@@ -1,0 +1,18 @@
+esphome:
+  name: componenttestrp2040
+  friendly_name: $component_name
+
+rp2040:
+  board: rpipicow
+  framework:
+    # Waiting for https://github.com/platformio/platform-raspberrypi/pull/36
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

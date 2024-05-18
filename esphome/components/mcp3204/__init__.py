@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import spi
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_REFERENCE_VOLTAGE
 
 DEPENDENCIES = ["spi"]
 MULTI_CONF = True
@@ -10,7 +10,6 @@ CODEOWNERS = ["@rsumner"]
 mcp3204_ns = cg.esphome_ns.namespace("mcp3204")
 MCP3204 = mcp3204_ns.class_("MCP3204", cg.Component, spi.SPIDevice)
 
-CONF_REFERENCE_VOLTAGE = "reference_voltage"
 
 CONFIG_SCHEMA = cv.Schema(
     {

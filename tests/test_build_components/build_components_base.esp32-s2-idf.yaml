@@ -1,0 +1,18 @@
+esphome:
+  name: componenttestesp32s2ard
+  friendly_name: $component_name
+
+esp32:
+  board: esp32-s2-saola-1
+  variant: ESP32S2
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file
