@@ -2,11 +2,73 @@
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
 #include <zephyr/sys/poweroff.h>
+#if 0
+#include <zephyr/device.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
+TYPE_SECTION_START_EXTERN(const struct device *, pm_device_slots);
+#endif
 namespace esphome {
 namespace deep_sleep {
 
 static const char *const TAG = "deep_sleep";
+#if 0
+static size_t num_susp;
+
+static int pm_suspend_devices(void)
+{
+	const struct device *devs;
+	size_t devc;
+
+	devc = z_device_get_all_static(&devs);
+
+	num_susp = 0;
+
+	for (const struct device *dev = devs + devc - 1; dev >= devs; dev--) {
+		int ret;
+
+		/*
+		 * Ignore uninitialized devices, busy devices, wake up sources, and
+		 * devices with runtime PM enabled.
+		 */
+		if (!device_is_ready(dev) || pm_device_is_busy(dev) ||
+		    pm_device_state_is_locked(dev) ||
+		    pm_device_wakeup_is_enabled(dev) ||
+		    pm_device_runtime_is_enabled(dev)) {
+			continue;
+		}
+
+		ret = pm_device_action_run(dev, PM_DEVICE_ACTION_SUSPEND);
+		/* ignore devices not supporting or already at the given state */
+		if ((ret == -ENOSYS) || (ret == -ENOTSUP) || (ret == -EALREADY)) {
+			continue;
+		} else if (ret < 0) {
+			ESP_LOGE(TAG, "Device %s did not enter %s state (%d)",
+				dev->name,
+				pm_device_state_str(PM_DEVICE_STATE_SUSPENDED),
+				ret);
+			return ret;
+		}
+
+		TYPE_SECTION_START(pm_device_slots)[num_susp] = dev;
+		num_susp++;
+	}
+
+	return 0;
+}
+
+static void pm_resume_devices(void)
+{
+	for (int i = (num_susp - 1); i >= 0; i--) {
+		pm_device_action_run(TYPE_SECTION_START(pm_device_slots)[i],
+				    PM_DEVICE_ACTION_RESUME);
+	}
+
+	num_susp = 0;
+}
+
+#endif
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
@@ -60,7 +122,19 @@ void DeepSleepComponent::dump_config_platform_() {
 
 bool DeepSleepComponent::prepare_to_sleep_() { return true; }
 
-void DeepSleepComponent::deep_sleep_() { sys_poweroff(); }
+void DeepSleepComponent::deep_sleep_() {
+  if (this->sleep_duration_.has_value()) {
+#if 0
+    pm_suspend_devices();
+#endif
+    k_sleep(K_USEC(*this->sleep_duration_));
+#if 0
+    pm_resume_devices();
+#endif
+  } else {
+    sys_poweroff();
+  }
+}
 
 }  // namespace deep_sleep
 }  // namespace esphome
