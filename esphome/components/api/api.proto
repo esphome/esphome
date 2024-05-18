@@ -1120,6 +1120,8 @@ message ListEntitiesMediaPlayerResponse {
   EntityCategory entity_category = 7;
 
   bool supports_pause = 8;
+  bool supports_next_previous_track = 9;
+  bool supports_turn_off_on = 10;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;

@@ -1024,6 +1024,8 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
 
   auto traits = media_player->get_traits();
   msg.supports_pause = traits.get_supports_pause();
+  msg.supports_next_previous_track = traits.get_supports_next_previous_track();
+  msg.supports_turn_off_on = traits.get_supports_turn_off_on();
 
   return this->send_list_entities_media_player_response(msg);
 }

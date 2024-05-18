@@ -9,6 +9,10 @@ static const char *const TAG = "media_player";
 
 const char *media_player_state_to_string(MediaPlayerState state) {
   switch (state) {
+    case MEDIA_PLAYER_STATE_ON:
+      return "ON";
+    case MEDIA_PLAYER_STATE_OFF:
+      return "OFF";
     case MEDIA_PLAYER_STATE_IDLE:
       return "IDLE";
     case MEDIA_PLAYER_STATE_PLAYING:
@@ -18,6 +22,7 @@ const char *media_player_state_to_string(MediaPlayerState state) {
     case MEDIA_PLAYER_STATE_ANNOUNCING:
       return "ANNOUNCING";
     case MEDIA_PLAYER_STATE_NONE:
+      return "NONE";
     default:
       return "UNKNOWN";
   }
@@ -37,6 +42,18 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "UNMUTE";
     case MEDIA_PLAYER_COMMAND_TOGGLE:
       return "TOGGLE";
+    case MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      return "VOLUME_UP";
+    case MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      return "VOLUME_DOWN";
+    case MEDIA_PLAYER_COMMAND_NEXT_TRACK:
+      return "NEXT_TRACK";
+    case MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK:
+      return "PREVIOUS_TRACK";
+    case MEDIA_PLAYER_COMMAND_TURN_ON:
+      return "TURN_ON";
+    case MEDIA_PLAYER_COMMAND_TURN_OFF:
+      return "TURN_OFF";
     default:
       return "UNKNOWN";
   }
@@ -97,6 +114,14 @@ MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
     this->set_command(MEDIA_PLAYER_COMMAND_UNMUTE);
   } else if (str_equals_case_insensitive(command, "TOGGLE")) {
     this->set_command(MEDIA_PLAYER_COMMAND_TOGGLE);
+  } else if (str_equals_case_insensitive(command, "NEXT_TRACK")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_NEXT_TRACK);
+  } else if (str_equals_case_insensitive(command, "PREVIOUS_TRACK")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK);
+  } else if (str_equals_case_insensitive(command, "TURN_ON")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_TURN_ON);
+  } else if (str_equals_case_insensitive(command, "TURN_OFF")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_TURN_OFF);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command.c_str());
   }

@@ -31,6 +31,10 @@ MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(StopAction, STOP)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(ToggleAction, TOGGLE)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(VolumeUpAction, VOLUME_UP)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(VolumeDownAction, VOLUME_DOWN)
+MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(NextTrackAction, NEXT_TRACK)
+MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PreviousTrackAction, PREVIOUS_TRACK)
+MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(TurnOnAction, TURN_ON)
+MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(TurnOffAction, TURN_OFF)
 
 template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
@@ -53,6 +57,8 @@ MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(IdleTrigger, IDLE)
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PlayTrigger, PLAYING)
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PauseTrigger, PAUSED)
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(AnnouncementTrigger, ANNOUNCING)
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(OnTrigger, ON)
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(OffTrigger, OFF)
 
 template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
@@ -62,6 +68,16 @@ template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING; }
+};
+
+template<typename... Ts> class isOnCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ON; }
+};
+
+template<typename... Ts> class isOffCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
 };
 
 }  // namespace media_player
