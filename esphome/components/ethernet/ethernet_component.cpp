@@ -77,8 +77,9 @@ void EthernetComponent::setup() {
   this->eth_netif_ = esp_netif_new(&cfg);
 
   // Init MAC and PHY configs to default
-  eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
   eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+  eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+
 
 #ifdef USE_ETHERNET_SPI  // Configure SPI interface and Ethernet driver for specific SPI module
   spi_device_interface_config_t devcfg = {
