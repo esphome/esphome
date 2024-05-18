@@ -245,13 +245,6 @@ sensor:
       name: "ADE7953 Reactive Power B"
     update_interval: 1s
 
-  - platform: ens160
-    eco2:
-      name: "ENS160 eCO2"
-    tvoc:
-      name: "ENS160 Total Volatile Organic Compounds"
-    aqi:
-      name: "ENS160 Air Quality Index"
   - platform: tmp102
     name: TMP102 Temperature
   - platform: hm3301
