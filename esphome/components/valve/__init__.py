@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_STOP,
     CONF_TRIGGER_ID,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
 )
@@ -25,6 +26,7 @@ IS_PLATFORM_COMPONENT = True
 CODEOWNERS = ["@esphome/core"]
 
 DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
 ]
