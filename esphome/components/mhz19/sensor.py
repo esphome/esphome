@@ -19,6 +19,7 @@ DEPENDENCIES = ["uart"]
 
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
 CONF_WARMUP_TIME = "warmup_time"
+CONF_DETECTION_RANGE = "detection_range"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")
 MHZ19Component = mhz19_ns.class_("MHZ19Component", cg.PollingComponent, uart.UARTDevice)
@@ -49,6 +50,10 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_WARMUP_TIME, default="75s"
             ): cv.positive_time_period_seconds,
+            cv.Optional(CONF_DETECTION_RANGE): cv.All(
+                cv.float_with_unit("parts per million", "(ppm)"),
+                cv.one_of(2000, 5000, 10000, int=True),
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -73,6 +78,9 @@ async def to_code(config):
         cg.add(var.set_abc_enabled(config[CONF_AUTOMATIC_BASELINE_CALIBRATION]))
 
     cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
+
+    if CONF_DETECTION_RANGE in config:
+        cg.add(var.set_detection_range(config[CONF_DETECTION_RANGE]))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
