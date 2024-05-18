@@ -39,6 +39,12 @@ output:
       mode:
         output: true
     id: rest_gpio
+  - platform: gpio
+    pin:
+      number: 13
+      mode:
+        output: true
+    id: ldo
 
 dfu_mode:
   reset_output: rest_gpio
@@ -97,3 +103,12 @@ sensor:
     pin: AIN0
     name: "AIN0 Voltage"
     update_interval: 5sec
+
+deep_sleep:
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
+
+zephyr_shell:

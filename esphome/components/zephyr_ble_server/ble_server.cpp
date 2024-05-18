@@ -68,12 +68,27 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 
 void BLEServer::setup() {
   k_work_init(&advertise_work, advertise);
+  resume_();
+}
 
+void BLEServer::loop() {
+  if (suspended_) {
+    resume_();
+    suspended_ = false;
+  }
+}
+
+void BLEServer::resume_() {
   int rc = bt_enable(bt_ready);
   if (rc != 0) {
     ESP_LOGE(TAG, "Bluetooth enable failed: %d", rc);
     return;
   }
+}
+
+void BLEServer::on_shutdown() {
+  bt_disable();
+  suspended_ = true;
 }
 
 }  // namespace zephyr_ble_server

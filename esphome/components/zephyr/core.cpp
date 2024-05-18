@@ -23,7 +23,7 @@ void arch_init() {
     wdt_config.window.max = 2000;
     wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
     if (wdt_channel_id >= 0) {
-      wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+      wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG | WDT_OPT_PAUSE_IN_SLEEP);
     }
   }
 }
