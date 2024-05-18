@@ -89,7 +89,6 @@ class MediaPlayerCall {
 class MediaPlayer : public EntityBase {
  public:
   MediaPlayerState state{MEDIA_PLAYER_STATE_OFF};
-  MediaPlayerState prior_state{MEDIA_PLAYER_STATE_OFF};
 
   float volume{1.0f};
 
