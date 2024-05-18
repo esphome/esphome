@@ -24,3 +24,18 @@ binary_sensor:
     id: bin3
     name: touchkey3
     channel: 3
+
+output:
+  - platform: gpio
+    id: gpio1
+    pin:
+      mpr121_id: mpr121_first
+      number: 4
+      mode: OUTPUT
+  - platform: gpio
+    id: gpio2
+    pin:
+      mpr121_id: mpr121_first
+      number: 11
+      mode: OUTPUT
+      inverted: true

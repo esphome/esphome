@@ -1,7 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import pins
 from esphome.components import i2c
-from esphome.const import CONF_ID
+from esphome.const import (
+    CONF_ID,
+    CONF_INPUT,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    CONF_OUTPUT,
+)
 
 CONF_TOUCH_THRESHOLD = "touch_threshold"
 CONF_RELEASE_THRESHOLD = "release_threshold"
@@ -14,6 +22,7 @@ AUTO_LOAD = ["binary_sensor"]
 mpr121_ns = cg.esphome_ns.namespace("mpr121")
 CONF_MPR121_ID = "mpr121_id"
 MPR121Component = mpr121_ns.class_("MPR121Component", cg.Component, i2c.I2CDevice)
+MPR121GPIOPin = mpr121_ns.class_("MPR121GPIOPin", cg.GPIOPin)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = (
@@ -43,3 +52,45 @@ async def to_code(config):
     cg.add(var.set_release_threshold(config[CONF_RELEASE_THRESHOLD]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+
+def validate_mode(value):
+    if bool(value[CONF_INPUT]) == bool(value[CONF_OUTPUT]):
+        raise cv.Invalid("Mode must be either input or output")
+    return value
+
+
+# https://www.nxp.com/docs/en/data-sheet/MPR121.pdf, page 4
+#
+# Among the 12 electrode inputs, 8 inputs are designed as multifunctional pins. When these pins are
+# not configured as electrodes, they may be used to drive LEDs or used for general purpose input or
+# output.
+MPR121_GPIO_PIN_SCHEMA = cv.All(
+    {
+        cv.GenerateID(): cv.declare_id(MPR121GPIOPin),
+        cv.Required(CONF_MPR121_ID): cv.use_id(MPR121Component),
+        cv.Required(CONF_NUMBER): cv.int_range(min=4, max=11),
+        cv.Optional(CONF_MODE, default={}): cv.All(
+            {
+                cv.Optional(CONF_INPUT, default=False): cv.boolean,
+                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
+            },
+            validate_mode,
+        ),
+        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+    }
+)
+
+
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_MPR121_ID, MPR121_GPIO_PIN_SCHEMA)
+async def mpr121_gpio_pin_to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    parent = await cg.get_variable(config[CONF_MPR121_ID])
+
+    cg.add(var.set_parent(parent))
+
+    num = config[CONF_NUMBER]
+    cg.add(var.set_pin(num))
+    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    return var
