@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_RX_PIN): cv.positive_int,
             cv.Required(CONF_MODEL): cv.string,
             cv.Required(CONF_APN): cv.string,
-            cv.Optional(CONF_READY): cv.use_id(BinarySensor),
+            cv.Required(CONF_READY): cv.use_id(BinarySensor),
             cv.Optional(CONF_FLIGHT_PIN): cv.positive_int,
             cv.Optional(CONF_POWER_PIN): cv.positive_int,
             cv.Optional(CONF_STATUS_PIN): cv.positive_int,
