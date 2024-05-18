@@ -24,6 +24,5 @@ async def to_code(config):
     ebyte_lora_component = await cg.get_variable(config[CONF_EBYTE_LORA_COMPONENT_ID])
     var = await switch.new_switch(config)
     await cg.register_parented(var, config[CONF_EBYTE_LORA_COMPONENT_ID])
-    await cg.register_component(var, config)
     cg.add(var.set_pin(config[PIN_TO_SEND]))
     cg.add(ebyte_lora_component.set_switch(var))
