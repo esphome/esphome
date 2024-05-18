@@ -84,7 +84,7 @@ ENABLE_OPTIONS = {
 }
 
 
-CONF_EBYTE_LORA = "ebyte_lora"
+CONF_EBYTE_LORA_COMPONENT_ID = "ebyte_lora_component_id"
 CONF_PIN_AUX = "pin_aux"
 CONF_PIN_M0 = "pin_m0"
 CONF_PIN_M1 = "pin_m1"

@@ -3,11 +3,13 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/switch/switch.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
 #include "config.h"
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome {
 namespace ebyte_lora {
@@ -32,7 +34,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void digital_write(uint8_t pin, bool value);
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
   void set_pin_aux(InternalGPIOPin *pin_aux) { pin_aux_ = pin_aux; }
-  void register_sensor(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
+#ifdef USE_SWITCH
+  void set_switch(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
+#endif
   void set_pin_m0(InternalGPIOPin *pin_m0) { pin_m0_ = pin_m0; }
   void set_pin_m1(InternalGPIOPin *pin_m1) { pin_m1_ = pin_m1; }
   void set_addh(uint8_t addh) { expected_config_.addh = addh; }
@@ -51,7 +55,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_switch_info_receiver(bool enable) { switch_info_receiver_ = enable; }
 
  private:
+#ifdef USE_SWITCH
   std::vector<EbyteLoraSwitch *> sensors_;
+#endif
   ModeType mode_ = MODE_INIT;
   // set WOR mode
   void set_mode_(ModeType mode);
@@ -62,8 +68,10 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   bool check_config_();
   void set_config_();
   void get_current_config_();
+#ifdef USE_SWITCH
   void send_switch_push_(uint8_t pin, bool value);
   void send_switch_info_();
+#endif
   void setup_conf_(std::vector<uint8_t> data);
 
  protected:
@@ -80,10 +88,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   InternalGPIOPin *pin_m0_{nullptr};
   InternalGPIOPin *pin_m1_{nullptr};
 };
-class EbyteLoraSwitch : public switch_::Switch, public Component {
+#ifdef USE_SWITCH
+class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraComponent> {
  public:
-  void dump_config() override { LOG_SWITCH("ebyte_lora_switch", "Ebyte Lora Switch", this); }
-  void set_parent(EbyteLoraComponent *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   uint8_t get_pin() { return pin_; }
 
@@ -92,6 +99,6 @@ class EbyteLoraSwitch : public switch_::Switch, public Component {
   EbyteLoraComponent *parent_;
   uint8_t pin_;
 };
-
+#endif
 }  // namespace ebyte_lora
 }  // namespace esphome

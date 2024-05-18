@@ -1,4 +1,4 @@
-#include "ebyte_lora.h"
+#include "ebyte_lora_component.h"
 namespace esphome {
 namespace ebyte_lora {
 static const uint8_t SWITCH_PUSH = 0x55;
@@ -222,8 +222,10 @@ void EbyteLoraComponent::update() {
     ESP_LOGD(TAG, "Mode is not set right");
     this->set_mode_(NORMAL);
   }
+#ifdef USE_SWITCH
   if (!this->switch_info_receiver_)
     this->send_switch_info_();
+#endif
 }
 void EbyteLoraComponent::set_config_() {
   uint8_t data[11];
@@ -404,6 +406,7 @@ void EbyteLoraComponent::loop() {
     this->read_byte(&c);
     data.push_back(c);
   }
+#ifdef USE_SWITCH
   // if it is only push info
   if (data[0] == SWITCH_PUSH) {
     ESP_LOGD(TAG, "GOT SWITCH PUSH");
@@ -439,6 +442,7 @@ void EbyteLoraComponent::loop() {
     this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
     ESP_LOGD(TAG, "RSSI: %f", (data[data.size() - 1] / 255.0) * 100);
   }
+#endif
   if (data[0] == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
     this->setup_conf_(data);
@@ -485,6 +489,7 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
     }
   }
 }
+#ifdef USE_SWITCH
 void EbyteLoraComponent::send_switch_info_() {
   if (!this->can_send_message_()) {
     return;
@@ -502,5 +507,6 @@ void EbyteLoraComponent::send_switch_info_() {
   this->write_array(data);
   this->setup_wait_response_(5000);
 }
+#endif
 }  // namespace ebyte_lora
 }  // namespace esphome
