@@ -156,7 +156,7 @@ async def new_datetime(config, *args):
     return var
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_DATETIME")
     cg.add_global(datetime_ns.using)
