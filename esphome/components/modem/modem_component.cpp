@@ -177,20 +177,28 @@ void ModemComponent::start_connect_() {
     ESP_LOGI(TAG, "not set_flow_control, because 2-wire mode active.");
   }
 
-  /* Setup basic operation mode for the DCE (pin if used, CMUX mode) */
-  if (!this->pin_code_.empty()) {
-    bool pin_ok = true;
-    ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
-    if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
-      ESP_MODEM_THROW_IF_FALSE(this->dce->set_pin(this->pin_code_) == command_result::OK, "Cannot set PIN!");
+  bool pin_ok = true;
+  if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
+    if (!this->pin_code_.empty()) {
+      ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
+      this->dce->set_pin(this->pin_code_);
       vTaskDelay(pdMS_TO_TICKS(2000));  // Need to wait for some time after unlocking the SIM
+    }
+    if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
+      ESP_LOGE(TAG, "Invalid PIN");
+      return;
+    }
+  }
+  if (pin_ok) {
+    if (this->pin_code_.empty()) {
+      ESP_LOGD(TAG, "PIN not needed");
+    } else {
+      ESP_LOGD(TAG, "PIN unlocked");
     }
   }
 
   ESP_LOGD(TAG, "Entering CMUX mode");
-
   vTaskDelay(pdMS_TO_TICKS(2000));
-
   if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
   } else {
