@@ -422,8 +422,12 @@ dfrobot_sen0395:
     uart_id: dfrobot_mmwave_uart
 
 opentherm:
-  read_pin: 21
-  write_pin: 22
+  read_pin:
+    allow_other_uses: true
+    number: 21
+  write_pin:
+    allow_other_uses: true
+    number: 22
 
 sensor:
   - platform: xgzp68xx
