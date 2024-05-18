@@ -1,17 +1,1 @@
-esp32_ble_tracker:
-
-ble_client:
-  - mac_address: 01:02:03:04:05:06
-    id: alpha3_blec
-
-sensor:
-  - platform: alpha3
-    ble_client_id: alpha3_blec
-    flow:
-      name: "Radiator Pump Flow"
-    head:
-      name: "Radiator Pump Head"
-    power:
-      name: "Radiator Pump Power"
-    speed:
-      name: "Radiator Pump Speed"
+<<: !include common.yaml

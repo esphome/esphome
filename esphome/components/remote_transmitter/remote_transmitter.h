@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/component.h"
 
 #include <vector>
 
@@ -16,8 +16,15 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 #endif
 {
  public:
-  explicit RemoteTransmitterComponent(InternalGPIOPin *pin) : remote_base::RemoteTransmitterBase(pin) {}
+#ifdef USE_ESP32
+  RemoteTransmitterComponent(InternalGPIOPin *pin, uint8_t mem_block_num = 1)
+      : remote_base::RemoteTransmitterBase(pin), remote_base::RemoteRMTChannel(mem_block_num) {}
 
+  RemoteTransmitterComponent(InternalGPIOPin *pin, rmt_channel_t channel, uint8_t mem_block_num = 1)
+      : remote_base::RemoteTransmitterBase(pin), remote_base::RemoteRMTChannel(channel, mem_block_num) {}
+#else
+  explicit RemoteTransmitterComponent(InternalGPIOPin *pin) : remote_base::RemoteTransmitterBase(pin) {}
+#endif
   void setup() override;
 
   void dump_config() override;
@@ -46,6 +53,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   bool initialized_{false};
   std::vector<rmt_item32_t> rmt_temp_;
   esp_err_t error_code_{ESP_OK};
+  std::string error_string_{""};
   bool inverted_{false};
 #endif
   uint8_t carrier_duty_percent_;

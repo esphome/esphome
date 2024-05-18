@@ -10,17 +10,17 @@ if [ ! -n "$DEVCONTAINER" ] && [ ! -n "$VIRTUAL_ENV" ] && [ ! "$ESPHOME_NO_VENV"
   if [ -f venv/Scripts/activate ]; then
     location="venv/Scripts/activate"
   fi
-  source $location;
+  source $location
 fi
 
 # Avoid unsafe git error when running inside devcontainer
-if [ -n "$DEVCONTAINER" ];then
+if [ -n "$DEVCONTAINER" ]; then
   git config --global --add safe.directory "$PWD"
 fi
 
 pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt -r requirements_dev.txt
 pip3 install setuptools wheel
-pip3 install --no-use-pep517 -e .
+pip3 install -e --config-settings editable_mode=compat ".[dev,test,displays]"
 
 pre-commit install
 
