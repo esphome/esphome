@@ -18,7 +18,7 @@ class MqttStatusThread(threading.Thread):
         """Run the status thread."""
         dashboard = DASHBOARD
         entries = dashboard.entries
-        current_entries = entries.all()
+        current_entries = entries.async_all()
 
         config = mqtt.config_from_env()
         topic = "esphome/discover/#"
@@ -33,7 +33,7 @@ class MqttStatusThread(threading.Thread):
                     return
                 for entry in current_entries:
                     if entry.name == data["name"]:
-                        entries.set_state(entry, EntryState.ONLINE)
+                        entries.async_set_state(entry, EntryState.ONLINE)
                         return
 
         def on_connect(client, userdata, flags, return_code):
@@ -53,11 +53,11 @@ class MqttStatusThread(threading.Thread):
         client.loop_start()
 
         while not dashboard.stop_event.wait(2):
-            current_entries = entries.all()
+            current_entries = entries.async_all()
             # will be set to true on on_message
             for entry in current_entries:
                 if entry.no_mdns:
-                    entries.set_state(entry, EntryState.OFFLINE)
+                    entries.async_set_state(entry, EntryState.OFFLINE)
 
             client.publish("esphome/discover", None, retain=False)
             dashboard.mqtt_ping_request.wait()
