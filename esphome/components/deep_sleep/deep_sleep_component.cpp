@@ -31,7 +31,7 @@ void DeepSleepComponent::dump_config() {
   if (this->run_duration_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Run Duration: %" PRIu32 " ms", *this->run_duration_);
   }
-  dump_config_platform_();
+  this->dump_config_platform_();
 }
 
 void DeepSleepComponent::loop() {
