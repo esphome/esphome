@@ -53,7 +53,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     return;
   }
 
-  if (!prepare_to_sleep_()) {
+  if (!this->prepare_to_sleep_()) {
     return;
   }
 
