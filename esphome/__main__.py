@@ -351,7 +351,7 @@ def upload_program(config, args, host):
         not is_ip_address(CORE.address)  # pylint: disable=too-many-boolean-expressions
         and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
         and CONF_MQTT in config
-        and (not args.device or args.device == "MQTT")
+        and (not args.device or args.device in ("MQTT", "OTA"))
     ):
         from esphome import mqtt
 
