@@ -102,6 +102,7 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
       temp_word |= (1 << pin);
       this->write_byte_16(REG_OPEN_DRAIN_B, temp_word);
     }
+    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   } else {
     this->ddr_mask_ |= (1 << pin);
 
