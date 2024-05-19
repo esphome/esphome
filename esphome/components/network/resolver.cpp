@@ -1,6 +1,8 @@
 #include <vector>
 #include "resolver.h"
+#if !defined(USE_HOST)
 #include "lwip/dns.h"
+#endif
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
@@ -44,6 +46,7 @@ std::vector<network::IPAddress> Resolver::resolve(const std::string &hostname) {
 #endif
   ip_addr_t addr;
   ESP_LOGVV(TAG, "Resolving %s", hostname.c_str());
+#if !defined(USE_HOST)
   err_t err =
       dns_gethostbyname_addrtype(hostname.c_str(), &addr, Resolver::dns_found_callback, this, ESPHOME_DNS_ADDRTYPE);
   if (err == ERR_OK) {
@@ -79,6 +82,7 @@ std::vector<network::IPAddress> Resolver::resolve(const std::string &hostname) {
   if (!this->dns_resolved_) {
     ESP_LOGVV(TAG, "Not resolved");
   }
+#endif
   return {this->ip_};
 }
 
