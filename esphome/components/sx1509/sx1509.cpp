@@ -90,16 +90,18 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_OUTPUT) {
     this->ddr_mask_ &= ~(1 << pin);
 
-    uint16_t temp_open_drain;
-    this->read_byte_16(REG_OPEN_DRAIN_B, &temp_open_drain);
-
     if (flags & gpio::FLAG_OPEN_DRAIN) {
-      temp_open_drain |= (1 << pin);
-    } else {
-      temp_open_drain &= ~(1 << pin);
+      uint16_t temp_word = 0;
+      this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
+      temp_word |= (1 << pin);
+      this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
+      this->read_byte_16(REG_PULL_UP_B, &temp_word);
+      temp_word &= ~(1 << pin);
+      this->write_byte_16(REG_PULL_UP_B, temp_word);
+      this->read_byte_16(REG_OPEN_DRAIN_B, &temp_word);
+      temp_word |= (1 << pin);
+      this->write_byte_16(REG_OPEN_DRAIN_B, temp_word);
     }
-
-    this->write_byte_16(REG_OPEN_DRAIN_B, temp_open_drain);
   } else {
     this->ddr_mask_ |= (1 << pin);
 
@@ -122,8 +124,8 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 
     this->write_byte_16(REG_PULL_UP_B, temp_pullup);
     this->write_byte_16(REG_PULL_DOWN_B, temp_pulldown);
+    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   }
-  this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 }
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
