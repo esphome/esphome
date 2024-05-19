@@ -63,7 +63,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   }
   App.run_safe_shutdown_hooks();
 
-  deep_sleep_();
+  this->deep_sleep_();
 }
 
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
