@@ -23,7 +23,7 @@ class DataTrigger : public Trigger<const std::vector<int16_t> &> {
   }
 };
 
-template<typename... Ts> class IsCapturingActon : public Condition<Ts...>, public Parented<Microphone> {
+template<typename... Ts> class IsCapturingCondition : public Condition<Ts...>, public Parented<Microphone> {
  public:
   bool check(Ts... x) override { return this->parent_->is_running(); }
 };

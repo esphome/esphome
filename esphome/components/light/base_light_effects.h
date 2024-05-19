@@ -150,6 +150,7 @@ class AutomationLightEffect : public LightEffect {
 struct StrobeLightEffectColor {
   LightColorValues color;
   uint32_t duration;
+  uint32_t transition_length;
 };
 
 class StrobeLightEffect : public LightEffect {
@@ -174,7 +175,7 @@ class StrobeLightEffect : public LightEffect {
     }
     call.set_publish(false);
     call.set_save(false);
-    call.set_transition_length_if_supported(0);
+    call.set_transition_length_if_supported(this->colors_[this->at_color_].transition_length);
     call.perform();
     this->last_switch_ = now;
   }

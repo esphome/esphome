@@ -8,12 +8,12 @@
 
 #include <vector>
 #ifdef USE_ESP32
-#include <deque>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <deque>
 #endif
 
-#if USE_WEBSERVER_VERSION == 2
+#if USE_WEBSERVER_VERSION >= 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE;
 #endif
@@ -221,6 +221,33 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string number_json(number::Number *obj, float value, JsonDetail start_config);
 #endif
 
+#ifdef USE_DATETIME_DATE
+  void on_date_update(datetime::DateEntity *obj) override;
+  /// Handle a date request under '/date/<id>'.
+  void handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the date state with its value as a JSON string.
+  std::string date_json(datetime::DateEntity *obj, JsonDetail start_config);
+#endif
+
+#ifdef USE_DATETIME_TIME
+  void on_time_update(datetime::TimeEntity *obj) override;
+  /// Handle a time request under '/time/<id>'.
+  void handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the time state with its value as a JSON string.
+  std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  /// Handle a datetime request under '/datetime/<id>'.
+  void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the datetime state with its value as a JSON string.
+  std::string datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
   /// Handle a text input request under '/text/<id>'.
@@ -258,6 +285,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_VALVE
+  void on_valve_update(valve::Valve *obj) override;
+
+  /// Handle a valve request under '/valve/<id>/<open/close/stop/set>'.
+  void handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the valve state as a JSON string.
+  std::string valve_json(valve::Valve *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 
@@ -267,6 +304,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Dump the alarm_control_panel state with its value as a JSON string.
   std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
                                        alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
+#endif
+
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
+
+  /// Dump the event details with its value as a JSON string.
+  std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
 
   /// Override the web handler's canHandle method.

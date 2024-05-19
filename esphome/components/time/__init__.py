@@ -37,7 +37,6 @@ time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
 SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
-ESPTime = time_ns.struct("ESPTime")
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 
@@ -50,7 +49,7 @@ def _load_tzdata(iana_key: str) -> Optional[bytes]:
     package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
-        return resources.read_binary(package, resource)
+        return (resources.files(package) / resource).read_bytes()
     except (FileNotFoundError, ModuleNotFoundError):
         return None
 

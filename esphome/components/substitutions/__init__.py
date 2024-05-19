@@ -116,7 +116,7 @@ def do_substitution_pass(config, command_line_substitutions, ignore_missing=Fals
     if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
         return
 
-    substitutions = config[CONF_SUBSTITUTIONS]
+    substitutions = config.get(CONF_SUBSTITUTIONS)
     if substitutions is None:
         substitutions = command_line_substitutions
     elif command_line_substitutions:
