@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/ota/ota_component.h"
 #include "esphome/components/button/button.h"
+#include "esphome/components/esphome/ota/ota_esphome.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace safe_mode {
@@ -10,10 +10,10 @@ namespace safe_mode {
 class SafeModeButton : public button::Button, public Component {
  public:
   void dump_config() override;
-  void set_ota(ota::OTAComponent *ota);
+  void set_ota(esphome::ESPHomeOTAComponent *ota);
 
  protected:
-  ota::OTAComponent *ota_;
+  esphome::ESPHomeOTAComponent *ota_;
   void press_action() override;
 };
 
