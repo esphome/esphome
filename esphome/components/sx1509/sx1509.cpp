@@ -89,6 +89,17 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   if (flags == gpio::FLAG_OUTPUT) {
     this->ddr_mask_ &= ~(1 << pin);
+
+    uint16_t temp_open_drain;
+    this->read_byte_16(REG_OPEN_DRAIN_B, &temp_open_drain);
+
+    if (flags & gpio::FLAG_OPEN_DRAIN) {
+      temp_open_drain |= (1 << pin);
+    } else {
+      temp_open_drain &= ~(1 << pin);
+    }
+
+    this->write_byte_16(REG_OPEN_DRAIN_B, temp_open_drain);
   } else {
     this->ddr_mask_ |= (1 << pin);
 
