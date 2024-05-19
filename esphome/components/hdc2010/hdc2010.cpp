@@ -72,9 +72,9 @@ void HDC2010Component::update() {
 
   // Trigger measurement
   uint8_t configContents;
-  configContents = readReg(MEASUREMENT_CONFIG);
-  configContents = (configContents | 0x01);
-  writeReg(MEASUREMENT_CONFIG, configContents);
+  read_register(CONFIG, &configContents, 1);
+  configContents |= 0x01;
+  this->write_bytes(CONFIG, &configContents, 1);
 
   // delayMicroseconds(1000);  // 1ms delay after triggering the sample
 
