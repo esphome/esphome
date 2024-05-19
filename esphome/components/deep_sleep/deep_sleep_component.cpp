@@ -24,7 +24,7 @@ void DeepSleepComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
   global_has_deep_sleep = true;
 
-  setup_deep_sleep_();
+  this->setup_deep_sleep_();
 }
 
 void DeepSleepComponent::dump_config() {
@@ -36,7 +36,7 @@ void DeepSleepComponent::dump_config() {
   if (this->run_duration_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Run Duration: %" PRIu32 " ms", *this->run_duration_);
   }
-  dump_config_platform_();
+  this->dump_config_platform_();
 }
 
 void DeepSleepComponent::loop() {
@@ -58,7 +58,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     return;
   }
 
-  if (!prepare_to_sleep_()) {
+  if (!this->prepare_to_sleep_()) {
     return;
   }
 
@@ -68,8 +68,8 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   }
   App.run_safe_shutdown_hooks();
 
-  deep_sleep_();
-  setup_deep_sleep_();
+  this->deep_sleep_();
+  this->setup_deep_sleep_();
 }
 
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
