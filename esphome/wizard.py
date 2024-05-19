@@ -424,60 +424,64 @@ def wizard(path):
     safe_print()
     sleep(1)
 
-    safe_print_step(3, WIFI_BIG)
-    safe_print("In this step, I'm going to create the configuration for WiFi.")
-    safe_print()
-    sleep(1)
-    safe_print(
-        f"First, what's the {color(Fore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
-    )
-    sleep(1.5)
-    safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
-    while True:
-        ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
-        try:
-            ssid = cv.ssid(ssid)
-            break
-        except vol.Invalid:
-            safe_print(
-                color(
-                    Fore.RED,
-                    f'Unfortunately, "{ssid}" doesn\'t seem to be a valid SSID. Please try again.',
+    # Do not create wifi if the board does not support it
+    if board not in ["rpipico"]:
+        safe_print_step(3, WIFI_BIG)
+        safe_print("In this step, I'm going to create the configuration for WiFi.")
+        safe_print()
+        sleep(1)
+        safe_print(
+            f"First, what's the {color(Fore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
+        )
+        sleep(1.5)
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
+        while True:
+            ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
+            try:
+                ssid = cv.ssid(ssid)
+                break
+            except vol.Invalid:
+                safe_print(
+                    color(
+                        Fore.RED,
+                        f'Unfortunately, "{ssid}" doesn\'t seem to be a valid SSID. Please try again.',
+                    )
                 )
-            )
-            safe_print()
-            sleep(1)
+                safe_print()
+                sleep(1)
 
-    safe_print(
-        f'Thank you very much! You\'ve just chosen "{color(Fore.CYAN, ssid)}" as your SSID.'
-    )
-    safe_print()
-    sleep(0.75)
+        safe_print(
+            f'Thank you very much! You\'ve just chosen "{color(Fore.CYAN, ssid)}" as your SSID.'
+        )
+        safe_print()
+        sleep(0.75)
 
-    safe_print(
-        f"Now please state the {color(Fore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
-    )
-    safe_print()
-    safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
-    sleep(0.5)
-    psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
-    safe_print(
-        "Perfect! WiFi is now set up (you can create static IPs and so on later)."
-    )
-    sleep(1.5)
+        safe_print(
+            f"Now please state the {color(Fore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
+        )
+        safe_print()
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
+        sleep(0.5)
+        psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
+        safe_print(
+            "Perfect! WiFi is now set up (you can create static IPs and so on later)."
+        )
+        sleep(1.5)
 
-    safe_print_step(4, OTA_BIG)
-    safe_print(
-        "Almost there! ESPHome can automatically upload custom firmwares over WiFi "
-        "(over the air) and integrates into Home Assistant with a native API."
-    )
-    safe_print(
-        f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(Fore.GREEN, 'password')} for connecting to this ESP?"
-    )
-    safe_print()
-    sleep(0.25)
-    safe_print("Press ENTER for no password")
-    password = safe_input(color(Fore.BOLD_WHITE, "(password): "))
+        safe_print_step(4, OTA_BIG)
+        safe_print(
+            "Almost there! ESPHome can automatically upload custom firmwares over WiFi "
+            "(over the air) and integrates into Home Assistant with a native API."
+        )
+        safe_print(
+            f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(Fore.GREEN, 'password')} for connecting to this ESP?"
+        )
+        safe_print()
+        sleep(0.25)
+        safe_print("Press ENTER for no password")
+        password = safe_input(color(Fore.BOLD_WHITE, "(password): "))
+    else:
+        ssid, password, psk = "", "", ""
 
     if not wizard_write(
         path=path,
