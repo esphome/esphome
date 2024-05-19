@@ -96,12 +96,28 @@ void HDC2010Component::update() {
   this->status_clear_warning();
 }
 
-// void HDC2010::enableHeater()
-// {
-//   uint16_t configContents; //Stores current#include "esphome/core/hal.h"
-#include "esphome/core/log.h"
-#include "hdc2010.h"
-// https://github.com/vigsterkr/homebridge-hdc2010/blob/main/src/hdc2010.js
-// https://github.com/lime-labs/HDC2080-Arduino/blob/master/src/HDC2080.cpp
-namespace esphome {
-namespace hdc2010 {
+float HDC2010Component::readTemp() {
+  uint8_t byte[2];
+  uint16_t temp;
+
+  read_register(HDC2010_CMD_TEMPERATURE_LOW, &byte[0], 1);
+  read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
+
+  temp = (unsigned int) byte[1] << 8 | byte[0];
+  return (float) temp * 0.0025177f - 40.0f;
+}
+
+float HDC2010Component::readHumidity() {
+  uint8_t byte[2];
+  uint16_t humidity;
+
+  read_register(HDC2010_CMD_HUMIDITY_LOW, &byte[0], 1);
+  read_register(HDC2010_CMD_HUMIDITY_HIGH, &byte[1], 1);
+
+  humidity = (unsigned int) byte[1] << 8 | byte[0];
+  return (float) humidity * 0.001525879f;
+}
+
+float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
+}  // namespace hdc2010
+}  // namespace esphome
