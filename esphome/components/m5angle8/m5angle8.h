@@ -27,8 +27,10 @@ class M5Angle8Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
   float get_setup_priority() const override;
+  float read_knob_pos(uint8_t channel);
+  int read_switch(void);
 
-  void set_sens_knob_position(int channel, sensor::Sensor *obj) { this->knob_pos_sensor_[channel] = obj; }
+  void set_sens_knob_position(uint8_t channel, sensor::Sensor *obj) { this->knob_pos_sensor_[channel] = obj; }
 
  protected:
   sensor::Sensor *knob_pos_sensor_[M5ANGLE8_NUM_KNOBS];
@@ -46,11 +48,13 @@ class M5Angle8LightOutput : public light::AddressableLight {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
-  }
+  };
 
-  void set_parent(M5Angle8Component *parent) { this->parent_ = parent; }
+  void set_parent(M5Angle8Component *parent) { this->parent_ = parent; };
 
-  void clear_effect_data() override { memset(this->effect_data_, 0x00, M5ANGLE8_NUM_LEDS); }
+  M5Angle8Component* get_parent(void) { return this->parent_; };
+
+  void clear_effect_data() override { memset(this->effect_data_, 0x00, M5ANGLE8_NUM_LEDS); };
 
  protected:
   light::ESPColorView get_view_internal(int32_t index) const override {

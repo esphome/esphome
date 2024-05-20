@@ -59,15 +59,37 @@ void M5Angle8Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+float M5Angle8Component::read_knob_pos(uint8_t channel) {
+  uint8_t knob_pos;
+  i2c::ErrorCode err =
+      this->read_register(M5ANGLE8_REGISTER_ANALOG_INPUT_8B + channel, (uint8_t *) &knob_pos, 1);
+  if (err == i2c::NO_ERROR)
+    return 1.0f - (knob_pos / 255.0f);
+  else {
+     return -1.0f;
+  }
+}
+
+int M5Angle8Component::read_switch(void) {
+  uint8_t out;
+  i2c::ErrorCode err =
+      this->read_register(M5ANGLE8_REGISTER_DIGITAL_INPUT, (uint8_t *) &out, 1);
+  if (err == i2c::NO_ERROR)
+    return out ? 1 : 0;
+  else {
+     return -1;
+  }
+}
+
+
+
+
 void M5Angle8Component::update() {
-  uint8_t knob_pos[M5ANGLE8_NUM_KNOBS];
   for (int i = 0; i < M5ANGLE8_NUM_KNOBS; i++) {
     if (this->knob_pos_sensor_[i] != nullptr) {
-      i2c::ErrorCode err = this->read_register(M5ANGLE8_REGISTER_ANALOG_INPUT_8B + i, (uint8_t *) &knob_pos[i], 1);
-      if (err == i2c::NO_ERROR)
-        this->knob_pos_sensor_[i]->publish_state(knob_pos[i] / 255.0f);
-      else
-        ESP_LOGE(TAG, "I2C error reading knob%i: 0x%02X...", i, err);
+      float knob_pos = this->read_knob_pos(i);
+      if (knob_pos >= 0)
+        this->knob_pos_sensor_[i]->publish_state(knob_pos);
     };
     yield();
   };
