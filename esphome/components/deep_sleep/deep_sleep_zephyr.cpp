@@ -18,54 +18,54 @@ static size_t num_susp;
 
 static int pm_suspend_devices(void)
 {
-	const struct device *devs;
-	size_t devc;
+    const struct device *devs;
+    size_t devc;
 
-	devc = z_device_get_all_static(&devs);
+    devc = z_device_get_all_static(&devs);
 
-	num_susp = 0;
+    num_susp = 0;
 
-	for (const struct device *dev = devs + devc - 1; dev >= devs; dev--) {
-		int ret;
+    for (const struct device *dev = devs + devc - 1; dev >= devs; dev--) {
+        int ret;
 
-		/*
-		 * Ignore uninitialized devices, busy devices, wake up sources, and
-		 * devices with runtime PM enabled.
-		 */
-		if (!device_is_ready(dev) || pm_device_is_busy(dev) ||
-		    pm_device_state_is_locked(dev) ||
-		    pm_device_wakeup_is_enabled(dev) ||
-		    pm_device_runtime_is_enabled(dev)) {
-			continue;
-		}
+        /*
+         * Ignore uninitialized devices, busy devices, wake up sources, and
+         * devices with runtime PM enabled.
+         */
+        if (!device_is_ready(dev) || pm_device_is_busy(dev) ||
+            pm_device_state_is_locked(dev) ||
+            pm_device_wakeup_is_enabled(dev) ||
+            pm_device_runtime_is_enabled(dev)) {
+            continue;
+        }
 
-		ret = pm_device_action_run(dev, PM_DEVICE_ACTION_SUSPEND);
-		/* ignore devices not supporting or already at the given state */
-		if ((ret == -ENOSYS) || (ret == -ENOTSUP) || (ret == -EALREADY)) {
-			continue;
-		} else if (ret < 0) {
-			ESP_LOGE(TAG, "Device %s did not enter %s state (%d)",
-				dev->name,
-				pm_device_state_str(PM_DEVICE_STATE_SUSPENDED),
-				ret);
-			return ret;
-		}
+        ret = pm_device_action_run(dev, PM_DEVICE_ACTION_SUSPEND);
+        /* ignore devices not supporting or already at the given state */
+        if ((ret == -ENOSYS) || (ret == -ENOTSUP) || (ret == -EALREADY)) {
+            continue;
+        } else if (ret < 0) {
+            ESP_LOGE(TAG, "Device %s did not enter %s state (%d)",
+                dev->name,
+                pm_device_state_str(PM_DEVICE_STATE_SUSPENDED),
+                ret);
+            return ret;
+        }
 
-		TYPE_SECTION_START(pm_device_slots)[num_susp] = dev;
-		num_susp++;
-	}
+        TYPE_SECTION_START(pm_device_slots)[num_susp] = dev;
+        num_susp++;
+    }
 
-	return 0;
+    return 0;
 }
 
 static void pm_resume_devices(void)
 {
-	for (int i = (num_susp - 1); i >= 0; i--) {
-		pm_device_action_run(TYPE_SECTION_START(pm_device_slots)[i],
-				    PM_DEVICE_ACTION_RESUME);
-	}
+    for (int i = (num_susp - 1); i >= 0; i--) {
+        pm_device_action_run(TYPE_SECTION_START(pm_device_slots)[i],
+                    PM_DEVICE_ACTION_RESUME);
+    }
 
-	num_susp = 0;
+    num_susp = 0;
 }
 
 #endif
