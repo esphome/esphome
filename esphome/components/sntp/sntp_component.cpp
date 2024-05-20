@@ -29,6 +29,7 @@ void SNTPComponent::setup() {
   esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
 #else
   sntp_stop();
+  sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #endif
 
   sntp_setservername(0, strdup(this->server_1_.c_str()));
