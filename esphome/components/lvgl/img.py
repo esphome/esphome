@@ -40,26 +40,17 @@ class ImgType(WidgetType):
     async def to_code(self, w: Widget, config):
         init = []
         if src := config.get(CONF_SRC):
-            init.append(f"lv_img_set_src({w.obj}, lv_img_from({src}))")
+            init.extend(w.set_property(CONF_SRC, f"lv_img_from({src})"))
         if cf_angle := config.get(CONF_ANGLE):
             pivot_x = config[CONF_PIVOT_X]
             pivot_y = config[CONF_PIVOT_Y]
-            init.extend(
-                [
-                    f"lv_img_set_pivot({w.obj}, {pivot_x}, {pivot_y})",
-                    f"lv_img_set_angle({w.obj}, {cf_angle})",
-                ]
-            )
-        if cf_zoom := config.get(CONF_ZOOM):
-            init.append(f"lv_img_set_zoom({w.obj}, {cf_zoom})")
-        if offset_x := config.get(CONF_OFFSET_X):
-            init.append(f"lv_img_set_offset_x({w.obj}, {offset_x})")
-        if offset_y := config.get(CONF_OFFSET_Y):
-            init.append(f"lv_img_set_offset_y({w.obj}, {offset_y})")
-        if antialias := config.get(CONF_ANTIALIAS):
-            init.append(f"lv_img_set_antialias({w.obj}, {antialias})")
-        if mode := config.get(CONF_MODE):
-            init.append(f"lv_img_set_size_mode({w.obj}, {mode})")
+            init.append(f"lv_img_set_pivot({w.obj}, {pivot_x}, {pivot_y})")
+            init.extend(w.set_property(CONF_ANGLE, cf_angle))
+        init.extend(w.set_property(CONF_ZOOM, config))
+        init.extend(w.set_property(CONF_OFFSET_X, config))
+        init.extend(w.set_property(CONF_OFFSET_Y, config))
+        init.extend(w.set_property(CONF_ANTIALIAS, config))
+        init.extend(w.set_property(CONF_MODE, config))
         return init
 
 

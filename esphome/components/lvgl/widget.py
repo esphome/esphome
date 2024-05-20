@@ -138,14 +138,14 @@ class Widget:
         return [f"lv_obj_clear_flag({self.obj}, {flag})"]
 
     def set_property(self, prop, value, animated: bool = None, ltype=None):
-        if animated is None or self.type.animated is not True:
-            animated = ""
-        else:
-            animated = f""", {"LV_ANIM_ON" if animated else "LV_ANIM_OFF"}"""
         if isinstance(value, dict):
             value = value.get(prop)
         if value is None:
             return []
+        if animated is None or self.type.animated is not True:
+            animated = ""
+        else:
+            animated = f""", {"LV_ANIM_ON" if animated else "LV_ANIM_OFF"}"""
         if isinstance(value, TimePeriod):
             value = value.total_milliseconds
         ltype = ltype or self.__type_base()

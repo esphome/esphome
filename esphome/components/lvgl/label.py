@@ -26,7 +26,7 @@ class LabelType(WidgetType):
         """For a text object, create and set text"""
         init = []
         if value := config.get(CONF_TEXT):
-            init.extend(w.set_property("text", await lv_text.process(value)))
+            init.extend(w.set_property(CONF_TEXT, await lv_text.process(value)))
         init.extend(w.set_property(CONF_LONG_MODE, config))
         init.extend(w.set_property(CONF_RECOLOR, config))
         return init
