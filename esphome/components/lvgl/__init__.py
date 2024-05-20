@@ -2127,7 +2127,6 @@ async def to_code(config):
 
     global widgets_completed
     widgets_completed = True
-    init = []
     init.append(f"{lv_component}->set_page_wrap({config[df.CONF_PAGE_WRAP]})")
     init.extend(await touchscreens_to_code(lv_component, config))
     init.extend(await rotary_encoders_to_code(lv_component, config))
