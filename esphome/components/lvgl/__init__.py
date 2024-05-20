@@ -524,8 +524,6 @@ async def to_code(config):
     await add_init_lambda(lv_component, init)
     await generate_triggers(lv_component)
     for use in helpers.lv_uses:
-        if not isinstance(use, str):
-            print(use)
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
     for comp in helpers.lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")

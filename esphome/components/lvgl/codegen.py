@@ -189,7 +189,6 @@ async def widget_to_code(w_cnfig, w_type, parent):
     if not spec:
         raise cv.Invalid(f"No handler for widget {w_type}")
     creator = spec.obj_creator(parent, w_cnfig)
-    print(spec, creator)
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
     wid = w_cnfig[CONF_ID]
