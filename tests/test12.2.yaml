@@ -41,6 +41,7 @@ output:
     id: rest_gpio
   - platform: gpio
     pin:
+      inverted: true
       number: 13
       mode:
         output: true
@@ -88,21 +89,37 @@ debug:
 sensor:
   - platform: uptime
     name: Uptime Sensor
-    update_interval: 5sec
   - platform: adc
     pin: VDDHDIV5
     name: "VDDH Voltage"
-    update_interval: 5sec
     filters:
       - multiply: 5
   - platform: adc
     pin: VDD
     name: "VDD Voltage"
-    update_interval: 5sec
   - platform: adc
     pin: AIN0
     name: "AIN0 Voltage"
-    update_interval: 5sec
+  - platform: ads1115
+    multiplexer: 'A0_GND'
+    gain: 6.144
+    name: "ADS1115 Channel A0-GND"
+    update_interval: 1s
+  - platform: ads1115
+    multiplexer: 'A1_GND'
+    gain: 6.144
+    name: "ADS1115 Channel A1-GND"
+    update_interval: 1s
+  - platform: ads1115
+    multiplexer: 'A2_GND'
+    gain: 6.144
+    name: "ADS1115 Channel A2-GND"
+    update_interval: 1s
+  - platform: ads1115
+    multiplexer: 'A3_GND'
+    gain: 6.144
+    name: "ADS1115 Channel A3-GND"
+    update_interval: 1s
 
 deep_sleep:
 
@@ -111,4 +128,10 @@ text_sensor:
     reset_reason:
       name: "Reset Reason"
 
-zephyr_shell:
+i2c:
+  sda: P1.04
+  scl: P1.06
+  scan: false
+
+ads1115:
+  - address: 0x48

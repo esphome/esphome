@@ -6,7 +6,7 @@ esphome:
   name: nrf52-test-nrf-adafruit
 
 logger:
-  level: DEBUG
+  level: NONE
   logs:
     switch: NONE
 
@@ -78,4 +78,3 @@ text_sensor:
     reset_reason:
       name: "Reset Reason"
 
-zephyr_shell:

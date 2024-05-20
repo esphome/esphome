@@ -1,6 +1,9 @@
-#ifdef USE_ZEPHYR
+#ifdef USE_NRF52
 #include <zephyr/init.h>
 #include <hal/nrf_power.h>
+
+namespace esphome {
+namespace nrf52 {
 
 static int board_esphome_init(void) {
   /* if the board is powered from USB
@@ -28,6 +31,11 @@ static int board_esphome_init(void) {
 
   return 0;
 }
+}  // namespace nrf52
+}  // namespace esphome
+
+static int board_esphome_init(void) { return esphome::nrf52::board_esphome_init(); }
 
 SYS_INIT(board_esphome_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+
 #endif
