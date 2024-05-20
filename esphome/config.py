@@ -1123,4 +1123,4 @@ def read_config(command_line_substitutions):
             safe_print("")
 
         return None
-    return OrderedDict(res)
+    return res
