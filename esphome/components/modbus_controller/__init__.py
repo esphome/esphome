@@ -1,9 +1,11 @@
 import binascii
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.components import modbus
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET
 from esphome.cpp_helpers import logging
+from esphome.components.modbus import CONF_ROLE, CONF_MODBUS_ID
 from .const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
@@ -23,6 +25,8 @@ CODEOWNERS = ["@martgras"]
 
 AUTO_LOAD = ["modbus"]
 
+CONF_READ_LAMBDA = "read_lambda"
+CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
@@ -31,6 +35,7 @@ ModbusController = modbus_controller_ns.class_(
 )
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
+ServerRegister = modbus_controller_ns.struct("ServerRegister")
 
 ModbusFunctionCode_ns = modbus_controller_ns.namespace("ModbusFunctionCode")
 ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
@@ -94,9 +99,17 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
-MULTI_CONF = True
-
 _LOGGER = logging.getLogger(__name__)
+
+ModbusServerRegisterSchema = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ServerRegister),
+        cv.Required(CONF_ADDRESS): cv.positive_int,
+        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
+        cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
+    }
+)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -106,6 +119,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(
+                CONF_SERVER_REGISTERS,
+            ): cv.ensure_list(ModbusServerRegisterSchema),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -154,6 +170,22 @@ def validate_modbus_register(config):
     return config
 
 
+def _final_validate(config):
+    if CONF_SERVER_REGISTERS in config:
+        for modbus_config in fv.full_config.get()["modbus"]:
+            if (
+                modbus_config[CONF_ID] == config[CONF_MODBUS_ID]
+                and modbus_config[CONF_ROLE] == "client"
+            ):
+                raise cv.Invalid(
+                    f"{CONF_SERVER_REGISTERS} is not allowed when {CONF_ROLE} is client"
+                )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 def modbus_calc_properties(config):
     byte_offset = 0
     reg_count = 0
@@ -183,7 +215,7 @@ def modbus_calc_properties(config):
 
 
 async def add_modbus_base_properties(
-    var, config, sensor_type, lamdba_param_type=cg.float_, lamdba_return_type=float
+    var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
 ):
     if CONF_CUSTOM_COMMAND in config:
         cg.add(var.set_custom_data(config[CONF_CUSTOM_COMMAND]))
@@ -196,13 +228,13 @@ async def add_modbus_base_properties(
             config[CONF_LAMBDA],
             [
                 (sensor_type.operator("ptr"), "item"),
-                (lamdba_param_type, "x"),
+                (lambda_param_type, "x"),
                 (
                     cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
                     "data",
                 ),
             ],
-            return_type=cg.optional.template(lamdba_return_type),
+            return_type=cg.optional.template(lambda_return_type),
         )
         cg.add(var.set_template(template_))
 
@@ -211,6 +243,23 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
+    if CONF_SERVER_REGISTERS in config:
+        for server_register in config[CONF_SERVER_REGISTERS]:
+            cg.add(
+                var.add_server_register(
+                    cg.new_Pvariable(
+                        server_register[CONF_ID],
+                        server_register[CONF_ADDRESS],
+                        server_register[CONF_VALUE_TYPE],
+                        TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]],
+                        await cg.process_lambda(
+                            server_register[CONF_READ_LAMBDA],
+                            [],
+                            return_type=cg.float_,
+                        ),
+                    )
+                )
+            )
     await register_modbus_device(var, config)
 
 
