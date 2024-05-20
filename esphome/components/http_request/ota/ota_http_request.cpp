@@ -164,9 +164,10 @@ void OtaHttpRequestComponent::flash() {
   }
 
   this->bytes_read_ = 0;
-  while (this->bytes_read_ != this->body_length_) {
+  while (this->bytes_read_ < this->body_length_) {
     // read a maximum of chunk_size bytes into buf. (real read size returned)
     int bufsize = this->http_read(buf, this->http_recv_buffer_);
+    ESP_LOGVV(TAG, "bytes_read_ = %u, body_length_ = %u, bufsize = %i", this->bytes_read_, this->body_length_, bufsize);
 
     // feed watchdog and give other tasks a chance to run
     App.feed_wdt();
@@ -176,21 +177,21 @@ void OtaHttpRequestComponent::flash() {
       ESP_LOGE(TAG, "Stream closed");
       this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
       return;
-    }
+    } else if (bufsize > 0 && bufsize <= this->http_recv_buffer_) {
+      // add read bytes to MD5
+      md5_receive.add(buf, bufsize);
 
-    // add read bytes to MD5
-    md5_receive.add(buf, bufsize);
-
-    // write bytes to OTA backend
-    this->update_started_ = true;
-    error_code = backend->write(buf, bufsize);
-    if (error_code != 0) {
-      // error code explanation available at
-      // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
-      ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
-               this->bytes_read_ - bufsize, this->body_length_);
-      this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
-      return;
+      // write bytes to OTA backend
+      this->update_started_ = true;
+      error_code = backend->write(buf, bufsize);
+      if (error_code != 0) {
+        // error code explanation available at
+        // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
+        ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
+                 this->bytes_read_ - bufsize, this->body_length_);
+        this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
+        return;
+      }
     }
 
     uint32_t now = millis();

@@ -93,13 +93,6 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
   // Since arduino8266 >= 3.1 using this->stream_ptr_ is broken (https://github.com/esp8266/Arduino/issues/9035)
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
 
-  // wait for the stream to be populated
-  while (stream_ptr->available() == 0) {
-    // give other tasks a chance to run while waiting for some data:
-    App.feed_wdt();
-    yield();
-    delay(1);
-  }
   int available_data = stream_ptr->available();
   int bufsize = std::min((int) max_len, available_data);
   if (bufsize > 0) {

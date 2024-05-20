@@ -62,7 +62,7 @@ class OtaHttpRequestComponent : public ota::OTAComponent {
   size_t bytes_read_ = 0;
   int status_ = -1;
   uint64_t timeout_ = 0;
-  const uint16_t http_recv_buffer_ = 500;      // the firmware GET chunk size
+  const uint16_t http_recv_buffer_ = 256;      // the firmware GET chunk size
   const uint16_t max_http_recv_buffer_ = 512;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
                                                // overhead) and must be a power of two from 512 to 4096
   OtaHttpRequestGlobalPrefType pref_ = {""};
