@@ -1,7 +1,7 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_VALUE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_MODE
 from .defines import CONF_SLIDER, CONF_ANIMATED, BAR_MODES
-from .helpers import lv_uses
+from .helpers import add_lv_use
 from .lv_validation import lv_float, animated, get_start_value
 from .types import lv_slider_t
 from .widget import Widget, WidgetType
@@ -33,7 +33,7 @@ class SliderType(WidgetType):
         return lv_slider_t
 
     async def to_code(self, w: Widget, config):
-        lv_uses.add("bar")
+        add_lv_use("bar")
         var = w.obj
         init = []
         if CONF_MIN_VALUE in config:

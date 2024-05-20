@@ -14,10 +14,10 @@ from .defines import (
 )
 from . import types as ty, defines as df
 from .helpers import (
-    lv_uses,
     lv_fonts_used,
     esphome_fonts_used,
     lvgl_components_required,
+    add_lv_use,
 )
 from .types import LValidator
 from ..binary_sensor import BinarySensor
@@ -68,7 +68,7 @@ def font(value):
         return LV_FONTS
     if isinstance(value, str) and value.lower() in LV_FONTS:
         return lv_builtin_font(value)
-    lv_uses.add("FONT")
+    add_lv_use("FONT")
     fontval = cv.use_id(Font)(value)
     esphome_fonts_used.add(fontval)
     lvgl_components_required.add("font")

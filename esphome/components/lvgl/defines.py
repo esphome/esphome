@@ -1,3 +1,9 @@
+"""
+This is the base of the import tree for LVGL. It contains constant definitions used elsewhere.
+Constants already defined in esphome.const are not duplicated here and must be imported where used.
+
+"""
+
 from esphome.const import CONF_LED
 from esphome.schema_extractors import schema_extractor, SCHEMA_EXTRACT
 import esphome.config_validation as cv

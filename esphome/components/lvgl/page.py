@@ -1,19 +1,20 @@
-import esphome.config_validation as cv
 from esphome import automation
 from esphome import codegen as cg
-from esphome.components.lvgl.defines import (
+from esphome.const import CONF_ID, CONF_TIME
+import esphome.config_validation as cv
+
+from .defines import (
     CONF_PAGE,
     CONF_SKIP,
     CONF_LVGL_ID,
     CONF_ANIMATION,
     LV_ANIM,
 )
-from esphome.components.lvgl.lv_validation import lv_bool, lv_milliseconds
-from esphome.components.lvgl.types import (
+from .lv_validation import lv_bool, lv_milliseconds
+from .types import (
     ObjUpdateAction,
     lv_page_t,
 )
-from esphome.const import CONF_ID, CONF_TIME
 from .codegen import add_widgets, action_to_code, set_obj_properties
 from .schemas import LVGL_SCHEMA
 from .widget import Widget, get_widget, WidgetType

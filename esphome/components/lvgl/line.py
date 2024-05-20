@@ -1,9 +1,9 @@
 import functools
 import esphome.codegen as cg
-import esphome.components.lvgl.helpers
 
 import esphome.config_validation as cv
 from .defines import CONF_LINE
+from .helpers import add_lv_use
 from .types import lv_point_t, generate_id, lv_line_t
 from .widget import WidgetType, Widget
 from ...const import CONF_ID
@@ -18,7 +18,7 @@ def cv_point_list(value):
     values = list(map(lv.point_list, value))
     if not functools.reduce(lambda f, v: f and len(v) == 2, values, True):
         raise cv.Invalid("Points must be a list of x,y integer pairs")
-    esphome.components.lvgl.helpers.lv_uses.add("POINT")
+    add_lv_use("POINT")
     return {
         CONF_ID: cv.declare_id(lv_point_t)(generate_id(df.CONF_POINTS)),
         df.CONF_POINTS: values,

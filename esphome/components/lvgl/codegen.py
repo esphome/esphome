@@ -21,7 +21,7 @@ from .defines import (
     CONF_WIDGETS,
     join_enums,
 )
-from .helpers import lv_uses, mark_line, join_lines
+from .helpers import add_lv_use, mark_line, join_lines
 from .schemas import ALL_STYLES
 from .types import (
     lv_coord_t,
@@ -189,9 +189,8 @@ async def widget_to_code(w_cnfig, w_type, parent):
     if not spec:
         raise cv.Invalid(f"No handler for widget {w_type}")
     creator = spec.obj_creator(parent, w_cnfig)
-    lv_uses.add(spec.name)
-    for use in spec.get_uses():
-        lv_uses.add(use)
+    add_lv_use(spec.name)
+    add_lv_use(spec.get_uses)
     wid = w_cnfig[CONF_ID]
     init.append(mark_line(wid))
 

@@ -1,13 +1,14 @@
 import re
 
 from esphome import config_validation as cv
-from esphome.components.lvgl.defines import (
+from esphome.const import CONF_FORMAT, CONF_ARGS
+from esphome.core import ID, CORE
+
+from .defines import (
     CONF_IMG,
     CONF_ROTARY_ENCODERS,
     CONF_TOUCHSCREENS,
 )
-from esphome.const import CONF_FORMAT, CONF_ARGS
-from esphome.core import ID, CORE
 
 lv_uses = {
     "USER_DATA",
@@ -16,6 +17,13 @@ lv_uses = {
     "FONT_PLACEHOLDER",
     "THEME_DEFAULT",
 }
+
+
+def add_lv_use(*names):
+    for name in names:
+        lv_uses.add(name)
+
+
 lv_fonts_used = set()
 esphome_fonts_used = set()
 REQUIRED_COMPONENTS = {

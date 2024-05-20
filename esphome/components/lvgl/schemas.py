@@ -9,17 +9,14 @@ from esphome.const import (
     CONF_TYPE,
     CONF_GROUP,
 )
-
-from ... import config_validation as cv
-from ...schema_extractors import SCHEMA_EXTRACT
-
 from . import defines as df
 from . import lv_validation as lv
 from . import types as ty
 from .defines import WIDGET_PARTS
+from .helpers import validate_printf, REQUIRED_COMPONENTS, add_lv_use
 from .types import lv_obj_t, WIDGET_TYPES, get_widget_type
-from .helpers import validate_printf, lv_uses, REQUIRED_COMPONENTS
-
+from ... import config_validation as cv
+from ...schema_extractors import SCHEMA_EXTRACT
 
 TEXT_SCHEMA = cv.Schema(
     {
@@ -290,7 +287,7 @@ def container_validator(schema, widget_type):
             if not isinstance(layout, dict):
                 raise cv.Invalid("Layout value must be a dict")
             ltype = layout.get(CONF_TYPE)
-            lv_uses.add(ltype.upper())
+            add_lv_use(ltype)
         result = result.extend(LAYOUT_SCHEMAS[ltype.lower()])
         if value == SCHEMA_EXTRACT:
             return result

@@ -1,10 +1,16 @@
-import esphome.components.lvgl.helpers
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome import automation
+from . import defines as df
+from . import lv_validation as lv
+from . import types as ty
 from .codegen import update_to_code
+from .defines import CONF_METER
+from .helpers import add_lv_use
+from .lv_validation import get_end_value, get_start_value
 from .types import lv_meter_t, WIDGET_TYPES
 from .widget import get_widget, Widget, add_temp_var, WidgetType
+from ..image import Image_
 from ...const import (
     CONF_ROTATION,
     CONF_RANGE_TO,
@@ -17,12 +23,6 @@ from ...const import (
     CONF_LOCAL,
     CONF_ID,
 )
-from .defines import CONF_METER
-from . import defines as df
-from .lv_validation import get_end_value, get_start_value
-from . import lv_validation as lv
-from ..image import Image_
-from . import types as ty
 
 INDICATOR_LINE_SCHEMA = cv.Schema(
     {
@@ -186,7 +186,7 @@ class MeterType(WidgetType):
                         + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_WIDTH]})"
                     )
                 if t == df.CONF_IMG:
-                    esphome.components.lvgl.helpers.lv_uses.add("img")
+                    add_lv_use("img")
                     init.append(
                         f"{ivar} = lv_meter_add_needle_img({var}, {s}, lv_img_from({v[df.CONF_SRC]}),"
                         + f"{v[df.CONF_PIVOT_X]}, {v[df.CONF_PIVOT_Y]})"
