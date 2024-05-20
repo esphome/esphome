@@ -8,12 +8,11 @@ from esphome.components.sensor import (
 from .. import (
     add_init_lambda,
     LVGL_SCHEMA,
-    get_widget,
-    Widget,
 )
 from ..defines import CONF_WIDGET, CONF_LVGL_ID
 from ..lv_validation import requires_component
 from ..types import LvNumber
+from ..widget import get_widget, Widget
 
 BASE_SCHEMA = sensor_schema(Sensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(

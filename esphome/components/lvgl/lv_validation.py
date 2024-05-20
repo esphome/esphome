@@ -5,33 +5,28 @@ from esphome.schema_extractors import (
 )
 from esphome.components.font import Font
 from esphome.components.color import ColorStruct
+import esphome.codegen as cg
+from esphome.components.text_sensor import TextSensor
+from esphome.core import HexInt
 from .defines import (
     LV_FONTS,
-    CONF_IMG,
-    CONF_ROTARY_ENCODERS,
-    CONF_TOUCHSCREENS,
     LvConstant,
 )
-from ...core import HexInt
+from . import types as ty, defines as df
+from .helpers import (
+    lv_uses,
+    lv_fonts_used,
+    esphome_fonts_used,
+    lvgl_components_required,
+)
+from .types import LValidator
+from ..binary_sensor import BinarySensor
+from ..sensor import Sensor
+from ...const import CONF_ARGS, CONF_FORMAT, CONF_VALUE
+from ...helpers import cpp_string_escape
 
-lv_uses = {
-    "USER_DATA",
-    "LOG",
-    "STYLE",
-    "FONT_PLACEHOLDER",
-    "THEME_DEFAULT",
-}
 
-lv_fonts_used = set()
-esphome_fonts_used = set()
-
-REQUIRED_COMPONENTS = {
-    CONF_IMG: "image",
-    CONF_ROTARY_ENCODERS: "rotary_encoder",
-    CONF_TOUCHSCREENS: "touchscreen",
-}
 # List of other components used
-lvgl_components_required = set()
 
 
 def requires_component(comp):
@@ -102,10 +97,6 @@ def key_code(value):
     if isinstance(value, str):
         return ord(value[0])
     return value
-
-
-def join_enums(enums, prefix=""):
-    return "|".join(map(lambda e: f"(int){prefix}{e.upper()}", enums))
 
 
 def id_name(value):
@@ -194,3 +185,62 @@ def option_string(value):
     if value.find("\n") != -1:
         raise cv.Invalid("Options strings must not contain newlines")
     return value
+
+
+lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
+lv_bool = LValidator(bool_, cg.bool_, BinarySensor, "get_state()")
+lv_milliseconds = LValidator(
+    cv.positive_time_period_milliseconds,
+    cg.int32,
+    retmapper=lambda x: x.total_milliseconds,
+)
+
+
+class TextValidator(LValidator):
+    def __init__(self):
+        super().__init__(
+            cv.string,
+            cg.const_char_ptr,
+            TextSensor,
+            "get_state().c_str()",
+            lambda s: cg.safe_exp(f"{s}"),
+        )
+
+    def __call__(self, value):
+        if isinstance(value, dict):
+            return value
+        return super().__call__(value)
+
+    async def process(self, value, args=()):
+        if isinstance(value, dict):
+            args = [str(x) for x in value[CONF_ARGS]]
+            arg_expr = cg.RawExpression(",".join(args))
+            format = cpp_string_escape(value[CONF_FORMAT])
+            return f"str_sprintf({format}, {arg_expr}).c_str()"
+        return await super().process(value, args)
+
+
+lv_text = TextValidator()
+lv_float = LValidator(cv.float_, cg.float_, Sensor, "get_state()")
+lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
+lv_brightness = LValidator(
+    cv.percentage, cg.float_, Sensor, "get_state()", retmapper=lambda x: int(x * 255)
+)
+
+
+def lv_repeat_count(value):
+    if isinstance(value, str) and value.lower() in ("forever", "infinite"):
+        value = 0xFFFF
+    return cv.positive_int(value)
+
+
+async def get_end_value(config):
+    return await lv_int.process(config.get(df.CONF_END_VALUE))
+
+
+async def get_start_value(config):
+    if df.CONF_START_VALUE in config:
+        value = config[df.CONF_START_VALUE]
+    else:
+        value = config.get(CONF_VALUE)
+    return await lv_int.process(value)

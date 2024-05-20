@@ -8,11 +8,11 @@ from esphome.const import (
 from .. import (
     LVGL_SCHEMA,
     add_init_lambda,
-    get_widget,
 )
 from ..defines import CONF_WIDGET, CONF_LVGL_ID, CONF_ANIMATED
 from ..lv_validation import requires_component
 from ..types import lvgl_ns, LvSelect
+from ..widget import get_widget
 
 LVGLSelect = lvgl_ns.class_("LVGLSelect", select.Select)
 

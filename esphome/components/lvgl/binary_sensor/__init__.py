@@ -8,12 +8,11 @@ from esphome.components.binary_sensor import (
 from .. import (
     add_init_lambda,
     LVGL_SCHEMA,
-    get_widget,
-    Widget,
 )
 from ..defines import CONF_WIDGET, CONF_LVGL_ID
 from ..lv_validation import requires_component
 from ..types import lv_pseudo_button_t
+from ..widget import get_widget, Widget
 
 BASE_SCHEMA = binary_sensor_schema(BinarySensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(

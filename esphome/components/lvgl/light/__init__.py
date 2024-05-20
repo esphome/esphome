@@ -10,12 +10,12 @@ from esphome.const import (
 from .. import (
     add_init_lambda,
     LVGL_SCHEMA,
-    get_widget,
 )
 from ..defines import CONF_LVGL_ID
 
 from ..lv_validation import requires_component
 from ..types import lv_led_t, lvgl_ns
+from ..widget import get_widget
 
 LVLight = lvgl_ns.class_("LVLight", LightOutput)
 CONFIG_SCHEMA = cv.All(

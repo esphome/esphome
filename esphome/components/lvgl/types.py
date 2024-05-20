@@ -1,8 +1,33 @@
-import esphome.codegen as cg
-from esphome import automation
+from esphome import automation, config_validation as cv, codegen as cg
 from esphome.components.key_provider import KeyProvider
-from esphome.const import CONF_VALUE
-from .defines import CONF_TEXT
+from esphome.const import CONF_VALUE, CONF_LED
+from .defines import (
+    CONF_TEXT,
+    CONF_OBJ,
+    CONF_ANIMIMG,
+    CONF_ARC,
+    CONF_BTN,
+    CONF_BAR,
+    CONF_BTNMATRIX,
+    CONF_CHECKBOX,
+    CONF_DROPDOWN,
+    CONF_IMG,
+    CONF_KEYBOARD,
+    CONF_LABEL,
+    CONF_LINE,
+    CONF_MENU,
+    CONF_METER,
+    CONF_PAGE,
+    CONF_ROLLER,
+    CONF_SLIDER,
+    CONF_SPINNER,
+    CONF_SWITCH,
+    CONF_SPINBOX,
+    CONF_TABVIEW,
+    CONF_TEXTAREA,
+    CONF_TILEVIEW,
+)
+from ...core import ID, Lambda
 
 uint16_t_ptr = cg.uint16.operator("ptr")
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
@@ -36,6 +61,9 @@ lv_meter_indicator_t_ptr = lv_meter_indicator_t.operator("ptr")
 lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
 
+# this will be populated later, in __init__.py to avoid circular imports.
+WIDGET_TYPES: dict = {}
+
 
 class LvType(cg.MockObjClass):
 
@@ -45,7 +73,6 @@ class LvType(cg.MockObjClass):
         self.args = kwargs.pop("largs", [(lv_obj_t_ptr, "obj")])
         self.value = kwargs.pop("lvalue", lambda w: w.obj)
         self.has_on_value = kwargs.pop("has_on_value", False)
-        self.animated = kwargs.pop("animated", False)
         self.value_property = None
 
     def get_arg_type(self):
@@ -97,7 +124,6 @@ class LvSelect(LvType):
 
 
 lv_obj_t = LvType("lv_obj_t")
-LvBtnmBtn = LvBoolean(str(cg.uint16), parents=(lv_pseudo_button_t,))
 lv_dropdown_list_t = LvType("lv_dropdown_list_t")
 lv_menu_t = LvType("lv_menu_t")
 lv_menu_entry_t = LvType("lv_obj_t")
@@ -116,7 +142,7 @@ lv_slider_t = LvNumber("lv_slider_t")
 lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
 lv_canvas_t = LvType("lv_canvas_t")
 lv_dropdown_t = LvSelect("lv_dropdown_t")
-lv_roller_t = LvSelect("lv_roller_t", animated=True)
+lv_roller_t = LvSelect("lv_roller_t")
 lv_switch_t = LvBoolean("lv_switch_t")
 lv_table_t = LvType("lv_table_t")
 lv_chart_t = LvType("lv_chart_t")
@@ -125,6 +151,13 @@ lv_btnmatrix_t = LvType(
     parents=(KeyProvider, LvCompound),
     largs=[(uint16_t_ptr, "x")],
     lvalue=lambda w: f"{w.var}->get_selected( )",
+)
+LvBtnmBtn = LvType(
+    str(cg.uint16),
+    parents=(lv_pseudo_button_t,),
+    largs=[(bool, "x")],
+    lvalue=lambda w: f"{w.var}->get_selected( )",
+    has_on_value=True,
 )
 lv_keyboard_t = LvType(
     "LvKeyboardType",
@@ -156,6 +189,68 @@ lv_spinner_t = lv_obj_t
 lv_ticks_t = lv_obj_t
 lv_tick_style_t = lv_obj_t
 
+LV_TYPES = {
+    CONF_ANIMIMG: lv_animimg_t,
+    CONF_ARC: lv_arc_t,
+    CONF_BTN: lv_btn_t,
+    CONF_BAR: lv_bar_t,
+    CONF_BTNMATRIX: lv_btnmatrix_t,
+    CONF_CHECKBOX: lv_checkbox_t,
+    CONF_DROPDOWN: lv_dropdown_t,
+    CONF_IMG: lv_img_t,
+    CONF_KEYBOARD: lv_keyboard_t,
+    CONF_LABEL: lv_label_t,
+    CONF_LED: lv_led_t,
+    CONF_LINE: lv_line_t,
+    CONF_MENU: lv_menu_t,
+    CONF_METER: lv_meter_t,
+    CONF_OBJ: lv_obj_t,
+    CONF_PAGE: lv_page_t,
+    CONF_ROLLER: lv_roller_t,
+    CONF_SLIDER: lv_slider_t,
+    CONF_SPINNER: lv_spinner_t,
+    CONF_SWITCH: lv_switch_t,
+    CONF_SPINBOX: lv_spinbox_t,
+    CONF_TABVIEW: lv_tabview_t,
+    CONF_TEXTAREA: lv_textarea_t,
+    CONF_TILEVIEW: lv_tileview_t,
+}
+
 
 def get_widget_type(typestr: str) -> LvType:
-    return globals()[f"lv_{typestr}_t"]
+    return LV_TYPES[typestr]
+
+
+def generate_id(base):
+    generate_id.counter += 1
+    return f"lvgl_{base}_{generate_id.counter}"
+
+
+generate_id.counter = 0
+
+
+class LValidator:
+    def __init__(self, validator, rtype, idtype=None, idexpr=None, retmapper=None):
+        self.validator = validator
+        self.rtype = rtype
+        self.idtype = idtype
+        self.idexpr = idexpr
+        self.retmapper = retmapper
+
+    def __call__(self, value):
+        if isinstance(value, cv.Lambda):
+            return cv.returning_lambda(value)
+        if self.idtype is not None and isinstance(value, ID):
+            return cv.use_id(self.idtype)(value)
+        return self.validator(value)
+
+    async def process(self, value, args=()):
+        if value is None:
+            return None
+        if isinstance(value, Lambda):
+            return f"{await cg.process_lambda(value, args, return_type=self.rtype)}()"
+        if self.idtype is not None and isinstance(value, ID):
+            return f"{value}->{self.idexpr};"
+        if self.retmapper is not None:
+            return self.retmapper(value)
+        return value

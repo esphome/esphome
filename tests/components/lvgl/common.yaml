@@ -126,6 +126,9 @@ lvgl:
           text: "\uF00D"
           on_click:
             then:
+              - logger.log:
+                  format: "value %u"
+                  args: [x]
               - lvgl.textarea.update:
                   id: textarea_1
                   text: "Updated text"

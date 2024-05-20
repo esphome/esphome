@@ -7,12 +7,12 @@ from esphome.const import (
 from .. import (
     LVGL_SCHEMA,
     add_init_lambda,
-    get_widget,
 )
 from .. import lv_validation as lv
 from ..defines import CONF_WIDGET, CONF_ANIMATED, CONF_LVGL_ID
 from ..lv_validation import requires_component
 from ..types import lvgl_ns, LvNumber
+from ..widget import get_widget
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number)
 

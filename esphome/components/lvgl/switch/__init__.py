@@ -8,11 +8,11 @@ from esphome.components.switch import (
 from .. import (
     add_init_lambda,
     LVGL_SCHEMA,
-    get_widget,
 )
 from ..defines import CONF_WIDGET, CONF_LVGL_ID
 from ..lv_validation import requires_component
 from ..types import lvgl_ns, lv_pseudo_button_t
+from ..widget import get_widget
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch)
 BASE_SCHEMA = switch_schema(LVGLSwitch).extend(LVGL_SCHEMA)

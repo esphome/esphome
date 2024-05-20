@@ -1,16 +1,76 @@
 import sys
+from typing import Any
 
-import esphome.codegen as cg
-from esphome.core import TimePeriod
-from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
+from esphome.core import TimePeriod, ID
+from esphome.coroutine import FakeAwaitable
 from . import types as ty
+from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
+from .types import lv_obj_t
+from ...config_validation import Invalid
+from ...cpp_generator import MockObjClass
 
 EVENT_LAMB = "event_lamb__"
 
 
+class WidgetType:
+    """
+    Describes a type of Widget, e.g. "bar" or "line"
+    """
+
+    def __init__(self, name, schema=None, modify_schema=None):
+        """
+        :param name: The widget name, e.g. "bar"
+        :param schema: The config schema for defining a widget
+        :param modify_schema: A schema to update the widget
+        """
+        self.name = name
+        self.schema = schema or {}
+        if modify_schema is None:
+            self.modify_schema = schema
+        else:
+            self.modify_schema = modify_schema
+
+    @property
+    def animated(self):
+        return False
+
+    @property
+    def w_type(self):
+        """
+        Get the type associated with this widget
+        :return:
+        """
+        return lv_obj_t
+
+    async def to_code(self, w, config: dict):
+        """
+        Generate code for a given widget
+        :param w: The widget
+        :param config: Its configuration
+        :return: Generated code as a list of text lines
+        """
+        raise NotImplementedError(f"No to_code defined for {self.name}")
+
+    def obj_creator(self, parent: MockObjClass, config: dict):
+        """
+        Create an instance of the widget type
+        :param parent: The parent to which it should be attached
+        :param config:  Its configuration
+        :return: Generated code as a single text line
+        """
+        return f"lv_{self.name}_create({parent})"
+
+    def get_uses(self):
+        """
+        Get a list of other widgets used by this one
+        :return:
+        """
+        return ()
+
+
 class Widget:
     def __init__(
-        self, var, wtype: cg.MockObjClass, config: dict = None, obj=None, parent=None
+        self, var, wtype: WidgetType, config: dict = None, obj=None, parent=None
     ):
         self.var = var
         self.type = wtype
@@ -22,6 +82,15 @@ class Widget:
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
         self.parent = parent
+
+    @staticmethod
+    def create(
+        name, var, wtype: WidgetType, config: dict = None, obj=None, parent=None
+    ):
+        w = Widget(var, wtype, config, obj, parent)
+        if name is not None:
+            widget_map[name] = w
+        return w
 
     def check_null(self):
         return f"if ({self.obj} == nullptr) return"
@@ -97,13 +166,13 @@ class Widget:
         return f"lv_{self.__type_base()}_get_value({self.obj})/{self.scale:#f}f"
 
     def get_value(self):
-        if isinstance(self.type, ty.LvType):
-            return self.type.value(self)
+        if isinstance(self.type.w_type, ty.LvType):
+            return self.type.w_type.value(self)
         return self.obj
 
     def get_args(self):
-        if isinstance(self.type, ty.LvType):
-            return self.type.args
+        if isinstance(self.type.w_type, ty.LvType):
+            return self.type.w_type.args
         return [(ty.lv_obj_t_ptr, "obj")]
 
     def set_value(self, value, animated: bool = None):
@@ -127,10 +196,11 @@ class Widget:
         return f"({gval} {mult})"
 
     def __type_base(self):
-        base = str(self.type)
+        wtype = self.type.w_type
+        base = str(wtype)
         if base.startswith("Lv"):
-            return f"{self.type}".removeprefix("Lv").removesuffix("Type").lower()
-        return f"{self.type}".removeprefix("lv_").removesuffix("_t")
+            return f"{wtype}".removeprefix("Lv").removesuffix("Type").lower()
+        return f"{wtype}".removeprefix("lv_").removesuffix("_t")
 
     def __str__(self):
         return f"({self.var}, {self.type})"
@@ -141,8 +211,15 @@ class MatrixButton(Widget):
     Describes a button within a button matrix.
     """
 
+    @staticmethod
+    def create_button(name, var, wtype: WidgetType, config: dict, index):
+        w = MatrixButton(var, wtype, config, index)
+        if name is not None:
+            widget_map[name] = w
+        return w
+
     def __init__(self, btnm, btype, config, index):
-        super().__init__(btnm, btype, config)
+        super().__init__(btnm, btype, config, obj=btnm.obj)
         self.index = index
 
     def get_value(self):
@@ -238,3 +315,26 @@ def add_temp_var(var_type, var_name):
         return []
     lv_temp_vars.add(var_name)
     return [f"{var_type} * {var_name}"]
+
+
+theme_widget_map = {}
+# Map of widgets to their config, used for trigger generation
+widget_map: dict[Any, Widget] = {}
+widgets_completed = False  # will be set true when all widgets are available
+
+
+def get_widget_generator(wid):
+    while True:
+        if obj := widget_map.get(wid):
+            return obj
+        if widgets_completed:
+            raise Invalid(
+                f"Widget {wid} not found, yet all widgets should be defined by now"
+            )
+        yield
+
+
+async def get_widget(wid: ID) -> Widget:
+    if obj := widget_map.get(wid):
+        return obj
+    return await FakeAwaitable(get_widget_generator(wid))

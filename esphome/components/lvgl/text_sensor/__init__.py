@@ -8,12 +8,12 @@ from esphome.components.text_sensor import (
 from .. import (
     add_init_lambda,
     LVGL_SCHEMA,
-    get_widget,
     Widget,
 )
 from ..defines import CONF_WIDGET, CONF_LVGL_ID
 from ..lv_validation import requires_component
 from ..types import LvText
+from ..widget import get_widget
 
 BASE_SCHEMA = text_sensor_schema(TextSensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(
