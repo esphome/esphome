@@ -10,6 +10,7 @@ from ..climate import (
     HonClimate,
 )
 
+CODEOWNERS = ["@paveldn"]
 TextSensorTypeEnum = HonClimate.enum("SubTextSensorType", True)
 
 # Haier text sensors

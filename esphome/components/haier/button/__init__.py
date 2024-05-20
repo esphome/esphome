@@ -7,6 +7,7 @@ from ..climate import (
     haier_ns,
 )
 
+CODEOWNERS = ["@paveldn"]
 SelfCleaningButton = haier_ns.class_("SelfCleaningButton", button.Button)
 SteriCleaningButton = haier_ns.class_("SteriCleaningButton", button.Button)
 
