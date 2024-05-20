@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.const import CONF_RANGE_FROM, CONF_RANGE_TO, CONF_STEP, CONF_VALUE, CONF_ID
 from .codegen import action_to_code, update_to_code
 from .defines import (
     CONF_SPINBOX,
@@ -12,7 +13,6 @@ from .defines import (
 from .lv_validation import lv_float, lv_bool
 from .types import lv_spinbox_t, ObjUpdateAction
 from .widget import get_widget, Widget, WidgetType
-from ...const import CONF_RANGE_FROM, CONF_RANGE_TO, CONF_STEP, CONF_VALUE, CONF_ID
 
 SPIN_ACTIONS = (
     "INCREMENT",

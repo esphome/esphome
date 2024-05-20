@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.core import ID
 from esphome.const import CONF_DURATION, CONF_ID
 from .codegen import action_to_code
 from .defines import (
@@ -15,7 +16,6 @@ from .lv_validation import lv_repeat_count, lv_milliseconds
 from .types import ObjUpdateAction, lv_animimg_t, void_ptr
 from .widget import get_widget, Widget, WidgetType
 from ..image import Image_
-from ...core import ID
 
 ANIMIMG_BASE_SCHEMA = cv.Schema(
     {

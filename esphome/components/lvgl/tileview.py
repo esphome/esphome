@@ -1,8 +1,7 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from ... import automation
-from ...const import CONF_ROW, CONF_ON_VALUE, CONF_TRIGGER_ID, CONF_ID
-from .schemas import container_schema
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.const import CONF_ROW, CONF_ON_VALUE, CONF_TRIGGER_ID, CONF_ID
 from . import lv_validation as lv
 from .codegen import set_obj_properties, add_widgets, action_to_code
 from .defines import (
@@ -15,6 +14,7 @@ from .defines import (
     CONF_TILE_ID,
     CONF_ANIMATED,
 )
+from .schemas import container_schema
 from .types import (
     lv_tile_t,
     lv_obj_t_ptr,

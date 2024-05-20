@@ -1,10 +1,8 @@
+import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-import esphome.codegen as cg
-from .widget import Widget, get_widget, WidgetType
-from .codegen import set_obj_properties, add_widgets, action_to_code
-from .lv_validation import size, lv_int, animated
-from ...const import (
+from esphome.automation import validate_automation, Trigger
+from esphome.const import (
     CONF_NAME,
     CONF_POSITION,
     CONF_SIZE,
@@ -13,7 +11,7 @@ from ...const import (
     CONF_ID,
     CONF_INDEX,
 )
-
+from .codegen import set_obj_properties, add_widgets, action_to_code
 from .defines import (
     CONF_TABVIEW,
     CONF_TABS,
@@ -24,9 +22,10 @@ from .defines import (
     TYPE_FLEX,
     CONF_BTNMATRIX,
 )
+from .lv_validation import size, lv_int, animated
 from .schemas import container_schema
 from .types import lv_tab_t, lv_obj_t_ptr, ObjUpdateAction, lv_tabview_t, LvType
-from ...automation import validate_automation, Trigger
+from .widget import Widget, get_widget, WidgetType
 
 
 class TabviewType(WidgetType):

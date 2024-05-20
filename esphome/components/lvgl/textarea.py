@@ -1,4 +1,5 @@
 import esphome.config_validation as cv
+from esphome.const import CONF_MAX_LENGTH
 from .defines import (
     CONF_TEXTAREA,
     CONF_PASSWORD_MODE,
@@ -11,7 +12,6 @@ from .lv_validation import lv_bool, lv_text, lv_int
 from .schemas import TEXT_SCHEMA
 from .types import lv_textarea_t
 from .widget import WidgetType, Widget
-from ...const import CONF_MAX_LENGTH
 
 TEXTAREA_SCHEMA = TEXT_SCHEMA.extend(
     {

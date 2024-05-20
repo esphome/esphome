@@ -1,4 +1,6 @@
 import esphome.config_validation as cv
+from esphome.components.image import Image_
+from esphome.const import CONF_MODE, CONF_ANGLE
 from .defines import (
     CONF_IMG,
     CONF_SRC,
@@ -13,8 +15,6 @@ from .defines import (
 from .lv_validation import size, angle, zoom, lv_bool
 from .types import lv_img_t
 from .widget import Widget, WidgetType
-from ..image import Image_
-from ...const import CONF_MODE, CONF_ANGLE
 
 IMG_SCHEMA = {
     cv.Required(CONF_SRC): cv.use_id(Image_),

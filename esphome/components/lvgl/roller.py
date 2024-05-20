@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.const import CONF_OPTIONS, CONF_MODE
 from .defines import (
     CONF_ROLLER,
     CONF_VISIBLE_ROW_COUNT,
@@ -11,7 +12,6 @@ from .defines import (
 from .lv_validation import lv_int, option_string, animated
 from .types import lv_roller_t
 from .widget import WidgetType
-from ...const import CONF_OPTIONS, CONF_MODE
 
 ROLLER_BASE_SCHEMA = cv.Schema(
     {

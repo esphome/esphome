@@ -1,6 +1,7 @@
 from esphome import automation, config_validation as cv, codegen as cg
 from esphome.components.key_provider import KeyProvider
 from esphome.const import CONF_VALUE, CONF_LED
+from esphome.core import ID, Lambda
 from .defines import (
     CONF_TEXT,
     CONF_OBJ,
@@ -27,7 +28,6 @@ from .defines import (
     CONF_TEXTAREA,
     CONF_TILEVIEW,
 )
-from ...core import ID, Lambda
 
 uint16_t_ptr = cg.uint16.operator("ptr")
 lvgl_ns = cg.esphome_ns.namespace("lvgl")

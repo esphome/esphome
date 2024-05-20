@@ -1,8 +1,8 @@
 import esphome.config_validation as cv
+from esphome.const import CONF_MODE
 from .defines import CONF_KEYBOARD, KEYBOARD_MODES, CONF_TEXTAREA
 from .types import lv_textarea_t, lv_keyboard_t
 from .widget import get_widget, Widget, WidgetType
-from ...const import CONF_MODE
 
 KEYBOARD_SCHEMA = {
     cv.Optional(CONF_MODE, default="TEXT_UPPER"): KEYBOARD_MODES.one_of,

@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.const import CONF_WIDTH, CONF_ID
+from esphome.core import ID
 from .codegen import action_to_code
 from .defines import (
     CONF_BTNMATRIX,
@@ -17,8 +19,6 @@ from .lv_validation import lv_bool, key_code
 from .schemas import automation_schema
 from .types import LvBtnmBtn, lv_btn_t, char_ptr, ObjUpdateAction, lv_btnmatrix_t
 from .widget import get_widget, MatrixButton, Widget, WidgetType
-from ...const import CONF_WIDTH, CONF_ID
-from ...core import ID
 
 BTNM_BTN_SCHEMA = cv.Schema(
     {

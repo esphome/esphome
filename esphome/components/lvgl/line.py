@@ -1,15 +1,14 @@
 import functools
-import esphome.codegen as cg
 
+import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
+from . import defines as df
+from . import lv_validation as lv
 from .defines import CONF_LINE
 from .helpers import add_lv_use
 from .types import lv_point_t, generate_id, lv_line_t
 from .widget import WidgetType, Widget
-from ...const import CONF_ID
-
-from . import defines as df
-from . import lv_validation as lv
 
 
 def cv_point_list(value):

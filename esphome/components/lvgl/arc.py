@@ -1,4 +1,11 @@
 import esphome.config_validation as cv
+from esphome.const import (
+    CONF_VALUE,
+    CONF_MIN_VALUE,
+    CONF_MAX_VALUE,
+    CONF_ROTATION,
+    CONF_MODE,
+)
 from .defines import (
     CONF_ARC,
     CONF_START_ANGLE,
@@ -10,13 +17,6 @@ from .defines import (
 from .lv_validation import lv_float, angle, get_start_value
 from .types import lv_arc_t
 from .widget import Widget, WidgetType
-from ...const import (
-    CONF_VALUE,
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-    CONF_ROTATION,
-    CONF_MODE,
-)
 
 ARC_SCHEMA = cv.Schema(
     {

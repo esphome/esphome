@@ -1,3 +1,4 @@
+from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.const import (
     CONF_FORMAT,
@@ -9,14 +10,13 @@ from esphome.const import (
     CONF_TYPE,
     CONF_GROUP,
 )
+from esphome.schema_extractors import SCHEMA_EXTRACT
 from . import defines as df
 from . import lv_validation as lv
 from . import types as ty
 from .defines import WIDGET_PARTS
 from .helpers import validate_printf, REQUIRED_COMPONENTS, add_lv_use
 from .types import lv_obj_t, WIDGET_TYPES, get_widget_type
-from ... import config_validation as cv
-from ...schema_extractors import SCHEMA_EXTRACT
 
 TEXT_SCHEMA = cv.Schema(
     {
