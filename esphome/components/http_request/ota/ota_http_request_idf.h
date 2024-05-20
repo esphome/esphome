@@ -10,7 +10,7 @@ namespace http_request {
 
 class OtaHttpRequestComponentIDF : public OtaHttpRequestComponent {
  public:
-  void http_init() override;
+  void http_init(const std::string &url) override;
   int http_read(uint8_t *buf, size_t len) override;
   void http_end() override;
 

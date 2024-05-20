@@ -40,18 +40,12 @@ void OtaHttpRequestComponent::setup() {
 }
 
 void OtaHttpRequestComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Over-The-Air update via HTTP request:");
+  ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request:");
   pref_.last_md5[MD5_SIZE] = '\0';
-  ESP_LOGCONFIG(TAG, "  Last flashed md5: %s", pref_.last_md5);
-  ESP_LOGCONFIG(TAG, "  Max URL length: %d", CONFIG_MAX_URL_LENGTH);
+  ESP_LOGCONFIG(TAG, "  Last flashed MD5: %s", this->pref_.last_md5);
   ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
 #ifdef CONFIG_WATCHDOG_TIMEOUT
   ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", CONFIG_WATCHDOG_TIMEOUT / 1000);
-#endif
-#ifdef OTA_HTTP_ONLY_AT_BOOT
-  ESP_LOGCONFIG(TAG, "  Safe mode: Yes");
-#else
-  ESP_LOGCONFIG(TAG, "  Safe mode: %s", this->safe_mode_ ? "Fallback" : "No");
 #endif
 #ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
   ESP_LOGCONFIG(TAG, "  TLS server verification: Yes");
@@ -67,50 +61,69 @@ void OtaHttpRequestComponent::dump_config() {
 #endif
 };
 
+void OtaHttpRequestComponent::set_md5_url(const std::string &url) {
+  if (!this->validate_url_(url)) {
+    this->md5_url_.clear();  // URL was not valid; prevent flashing until it is
+    return;
+  }
+  this->md5_url_ = url;
+  this->md5_expected_.clear();  // to be retrieved later
+}
+
+void OtaHttpRequestComponent::set_url(const std::string &url) {
+  if (!this->validate_url_(url)) {
+    this->url_.clear();  // URL was not valid; prevent flashing until it is
+    return;
+  }
+  this->url_ = url;
+}
+
+bool OtaHttpRequestComponent::check_status() {
+  // status can be -1, or HTTP status code
+  if (this->status_ < 100) {
+    ESP_LOGE(TAG, "HTTP server did not respond (error %d)", this->status_);
+    return false;
+  }
+  if (this->status_ >= 310) {
+    ESP_LOGE(TAG, "HTTP error %d", this->status_);
+    return false;
+  }
+  ESP_LOGV(TAG, "HTTP status %d", this->status_);
+  return true;
+}
+
 void OtaHttpRequestComponent::flash() {
-  if (this->pref_.ota_http_request_state != OTA_HTTP_REQUEST_STATE_SAFE_MODE) {
-    ESP_LOGV(TAG, "Setting state to 'progress'");
-    this->pref_.ota_http_request_state = OTA_HTTP_REQUEST_STATE_PROGRESS;
-    this->pref_obj_.save(&this->pref_);
+  if (this->url_.empty()) {
+    ESP_LOGE(TAG, "URL not set");
+    return;
   }
 
-  global_preferences->sync();
-
-#ifdef OTA_HTTP_ONLY_AT_BOOT
-  if (this->pref_.ota_http_request_state != OTA_HTTP_REQUEST_STATE_SAFE_MODE) {
-    ESP_LOGI(TAG, "Rebooting before flashing new firmware");
-    App.safe_reboot();
-  }
-#endif
-#ifdef CONFIG_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::set_timeout(CONFIG_WATCHDOG_TIMEOUT);
-#endif
   ESP_LOGD(TAG, "Starting update...");
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
 #endif
+
   uint32_t update_start_time = millis();
   uint8_t buf[this->http_recv_buffer_ + 1];
   int error_code = 0;
   uint32_t last_progress = 0;
   md5::MD5Digest md5_receive;
   std::unique_ptr<char[]> md5_receive_str(new char[33]);
-  if (!this->http_get_md5()) {
+
+  if (this->md5_expected_.empty() && !this->http_get_md5_()) {
 #ifdef USE_OTA_STATE_CALLBACK
     this->state_callback_.call(ota::OTA_ERROR, 0.0f, 0);
 #endif
     return;
   }
 
-  ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_);
+  ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_.c_str());
 
-  if (strncmp(this->pref_.last_md5, this->md5_expected_, MD5_SIZE) == 0) {
+  if (strncmp(this->pref_.last_md5, this->md5_expected_.c_str(), MD5_SIZE) == 0) {
     std::string update_action = this->force_update_ ? "forced" : "skipped";
-    ESP_LOGW(TAG, "Retrieved MD5 matches the last installed firmware -- update %s!", update_action.c_str());
+    ESP_LOGW(TAG, "MD5 matches the last installed firmware -- update %s!", update_action.c_str());
     if (!this->force_update_) {
-#ifdef CONFIG_WATCHDOG_TIMEOUT
-      watchdog::Watchdog::reset();
-#endif
+      this->md5_expected_.clear();  // will be reset at next attempt
 #ifdef USE_OTA_STATE_CALLBACK
       this->state_callback_.call(ota::OTA_ABORT, 0.0f, 0);
 #endif
@@ -118,14 +131,17 @@ void OtaHttpRequestComponent::flash() {
     }
   }
 
-  if (!this->set_url(this->pref_.url)) {
+  auto url_with_auth = this->get_url_with_auth_(this->url_);
+  if (url_with_auth.empty()) {
+    this->md5_expected_.clear();  // will be reset at next attempt
 #ifdef USE_OTA_STATE_CALLBACK
     this->state_callback_.call(ota::OTA_ERROR, 0.0f, 0);
 #endif
     return;
   }
-  ESP_LOGI(TAG, "Trying to connect to URL: %s", this->safe_url_);
-  this->http_init();
+  ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
+  ESP_LOGI(TAG, "Connecting to: %s", this->url_.c_str());
+  this->http_init(url_with_auth);
   if (!this->check_status()) {
     this->http_end();
 #ifdef USE_OTA_STATE_CALLBACK
@@ -169,7 +185,7 @@ void OtaHttpRequestComponent::flash() {
     this->update_started_ = true;
     error_code = backend->write(buf, bufsize);
     if (error_code != 0) {
-      // error code explaination available at
+      // error code explanation available at
       // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
       ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
                this->bytes_read_ - bufsize, this->body_length_);
@@ -193,8 +209,9 @@ void OtaHttpRequestComponent::flash() {
   // verify MD5 is as expected and act accordingly
   md5_receive.calculate();
   md5_receive.get_hex(md5_receive_str.get());
-  if (strncmp(md5_receive_str.get(), this->md5_expected_, MD5_SIZE) != 0) {
+  if (strncmp(md5_receive_str.get(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", md5_receive_str.get());
+    this->md5_expected_.clear();  // will be reset at next attempt
     this->cleanup_(std::move(backend), 0);
     return;
   } else {
@@ -215,8 +232,7 @@ void OtaHttpRequestComponent::flash() {
     return;
   }
 
-  this->pref_.ota_http_request_state = OTA_HTTP_REQUEST_STATE_OK;
-  strncpy(this->pref_.last_md5, this->md5_expected_, MD5_SIZE);
+  strncpy(this->pref_.last_md5, this->md5_expected_.data(), MD5_SIZE);
   this->pref_obj_.save(&this->pref_);
   // on rp2040 and esp8266, reenable write to flash that was disabled by OTA
 #ifdef USE_ESP8266
@@ -232,7 +248,7 @@ void OtaHttpRequestComponent::flash() {
   this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
   delay(10);
-  esphome::App.safe_reboot();
+  App.safe_reboot();
 }
 
 void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend, uint8_t error_code) {
@@ -242,64 +258,43 @@ void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
   }
   ESP_LOGV(TAG, "Aborting HTTP connection");
   this->http_end();
-  if (this->pref_.ota_http_request_state == OTA_HTTP_REQUEST_STATE_SAFE_MODE) {
-    ESP_LOGE(TAG, "Previous safe mode unsuccessful; skipped ota_http_request");
-    this->pref_.ota_http_request_state = OTA_HTTP_REQUEST_STATE_ABORT;
-  }
-  this->pref_obj_.save(&this->pref_);
-#ifdef CONFIG_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::reset();
-#endif
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_ERROR, 0.0f, error_code);
 #endif
 };
 
-bool OtaHttpRequestComponent::check_status() {
-  // status can be -1, or http status code
-  if (this->status_ < 100) {
-    ESP_LOGE(TAG, "HTTP server did not respond (error %d)", this->status_);
-    return false;
+std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
+  if (this->username_.empty() || this->password_.empty()) {
+    return url;
   }
-  if (this->status_ >= 310) {
-    ESP_LOGE(TAG, "HTTP error %d", this->status_);
-    return false;
+
+  auto start_char = url.find("://");
+  if ((start_char == std::string::npos) || (start_char < 4)) {
+    ESP_LOGE(TAG, "Incorrect URL prefix");
+    return {};
   }
-  ESP_LOGV(TAG, "HTTP status %d", this->status_);
-  return true;
+
+  ESP_LOGD(TAG, "Using basic HTTP authentication");
+
+  start_char += 3;  // skip '://' characters
+  auto url_with_auth =
+      url.substr(0, start_char) + this->username_ + ":" + this->password_ + "@" + url.substr(start_char);
+  return url_with_auth;
 }
 
-void OtaHttpRequestComponent::check_upgrade() {
-  // function called at boot time if CONF_SAFE_MODE is True or "fallback"
-  this->safe_mode_ = true;
-  if (this->pref_obj_.load(&this->pref_)) {
-    if (this->pref_.ota_http_request_state == OTA_HTTP_REQUEST_STATE_PROGRESS) {
-      // progress at boot time means that there was a problem
-
-      // Delay here to allow power to stabilise before Wi-Fi/Ethernet is initialised.
-      delay(300);  // NOLINT
-      App.setup();
-
-      ESP_LOGW(TAG, "Previous ota_http_request unsuccessful. Retrying...");
-      this->pref_.ota_http_request_state = OTA_HTTP_REQUEST_STATE_SAFE_MODE;
-      this->pref_obj_.save(&this->pref_);
-      this->flash();
-      return;
-    }
-    if (this->pref_.ota_http_request_state == OTA_HTTP_REQUEST_STATE_SAFE_MODE) {
-      ESP_LOGE(TAG, "Previous safe mode unsuccessful; skipped ota_http_request");
-      this->pref_.ota_http_request_state = OTA_HTTP_REQUEST_STATE_ABORT;
-      this->pref_obj_.save(&this->pref_);
-      global_preferences->sync();
-    }
-  }
-}
-
-bool OtaHttpRequestComponent::http_get_md5() {
-  if (!this->set_url(this->pref_.md5_url))
+bool OtaHttpRequestComponent::http_get_md5_() {
+  if (this->md5_url_.empty()) {
     return false;
-  ESP_LOGI(TAG, "Trying to connect to URL: %s", this->safe_url_);
-  this->http_init();
+  }
+
+  auto url_with_auth = this->get_url_with_auth_(this->md5_url_);
+  if (url_with_auth.empty()) {
+    return false;
+  }
+
+  ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
+  ESP_LOGI(TAG, "Connecting to: %s", this->md5_url_.c_str());
+  this->http_init(url_with_auth);
   if (!this->check_status()) {
     this->http_end();
     return false;
@@ -316,59 +311,20 @@ bool OtaHttpRequestComponent::http_get_md5() {
     return false;
   }
 
-  auto read_len = this->http_read((uint8_t *) this->md5_expected_, MD5_SIZE);
+  this->bytes_read_ = 0;
+  this->md5_expected_.reserve(MD5_SIZE);
+  auto read_len = this->http_read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
   this->http_end();
 
   return read_len == MD5_SIZE;
 }
 
-bool OtaHttpRequestComponent::set_url(char *url) {
-  this->body_length_ = 0;
-  this->status_ = -1;
-  this->bytes_read_ = 0;
-  if (url == nullptr) {
-    ESP_LOGE(TAG, "Bad URL: (nullptr)");
+bool OtaHttpRequestComponent::validate_url_(const std::string &url) {
+  if ((url.length() < 8) || (url.find("http") != 0) || (url.find("://") == std::string::npos)) {
+    ESP_LOGE(TAG, "URL is invalid and/or must be prefixed with 'http://' or 'https://'");
     return false;
   }
-  if (strncmp(url, "http", 4) != 0) {
-    ESP_LOGE(TAG, "Bad URL: %s", url);
-    return false;
-  }
-  this->url_ = url;
-  this->set_safe_url_();
   return true;
-}
-
-bool OtaHttpRequestComponent::save_url_(const std::string &value, char *url) {
-  if (value.length() > CONFIG_MAX_URL_LENGTH - 1) {
-    ESP_LOGE(TAG, "URL length (%d) exceeds configured maximum (%d): %s", value.length(), CONFIG_MAX_URL_LENGTH,
-             value.c_str());
-    return false;
-  }
-  strncpy(url, value.c_str(), value.length());
-  url[value.length()] = '\0';  // null terminator
-  this->pref_obj_.save(&this->pref_);
-  return true;
-}
-
-void OtaHttpRequestComponent::set_safe_url_() {
-  // using regex makes 8266 unstable later
-  const char *prefix_end = strstr(this->url_, "://");
-  if (!prefix_end) {
-    strlcpy(this->safe_url_, this->url_, sizeof(this->safe_url_));
-    return;
-  }
-  const char *at = strchr(prefix_end, '@');
-  if (!at) {
-    strlcpy(this->safe_url_, this->url_, sizeof(this->safe_url_));
-    return;
-  }
-
-  size_t prefix_len = prefix_end - this->url_ + 3;
-  strlcpy(this->safe_url_, this->url_, prefix_len + 1);
-  strlcat(this->safe_url_, "****:****@", sizeof(this->safe_url_));
-
-  strlcat(this->safe_url_, at + 1, sizeof(this->safe_url_));
 }
 
 }  // namespace http_request

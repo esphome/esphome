@@ -16,13 +16,20 @@ struct Header {
   const char *value;
 };
 
-void OtaHttpRequestComponentArduino::http_init() {
+void OtaHttpRequestComponentArduino::http_init(const std::string &url) {
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
+
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+  watchdog::Watchdog::set_timeout(CONFIG_WATCHDOG_TIMEOUT);
+#endif
 
 #ifdef USE_ESP8266
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
     ESP_LOGE(TAG, "Unable to set client");
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+    watchdog::Watchdog::reset();
+#endif
     return;
   }
 #endif  // USE_ESP8266
@@ -34,15 +41,18 @@ void OtaHttpRequestComponentArduino::http_init() {
   App.feed_wdt();
 
 #if defined(USE_ESP32) || defined(USE_RP2040)
-  this->status_ = this->client_.begin(this->url_);
+  this->status_ = this->client_.begin(url.c_str());
 #endif
 #ifdef USE_ESP8266
   this->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  this->status_ = this->client_.begin(*this->stream_ptr_, String(this->url_));
+  this->status_ = this->client_.begin(*this->stream_ptr_, url.c_str());
 #endif
 
   if (!this->status_) {
     this->client_.end();
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+    watchdog::Watchdog::reset();
+#endif
     return;
   }
 
@@ -61,17 +71,24 @@ void OtaHttpRequestComponentArduino::http_init() {
     this->set_stream_ptr_();
   }
 #endif
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+  watchdog::Watchdog::reset();
+#endif
 }
 
 int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len) {
 #ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
   if (!this->secure_()) {
-    ESP_LOGW(TAG, "Using http on arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 "
-                  "in your yaml, or use https.");
+    ESP_LOGW(TAG, "Using HTTP on Arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 "
+                  "in your YAML, or use HTTPS");
   }
 #endif  // USE_ARDUINO_VERSION_CODE
 #endif  // USE_ESP8266
+
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+  watchdog::Watchdog::set_timeout(CONFIG_WATCHDOG_TIMEOUT);
+#endif
 
   // Since arduino8266 >= 3.1 using this->stream_ptr_ is broken (https://github.com/esp8266/Arduino/issues/9035)
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
@@ -91,6 +108,9 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
     buf[bufsize] = '\0';  // not fed to ota
   }
 
+#ifdef CONFIG_WATCHDOG_TIMEOUT
+  watchdog::Watchdog::reset();
+#endif
   return bufsize;
 }
 
