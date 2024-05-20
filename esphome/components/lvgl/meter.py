@@ -7,7 +7,7 @@ from . import types as ty
 from .codegen import update_to_code
 from .defines import CONF_METER
 from .helpers import add_lv_use
-from .lv_validation import get_end_value, get_start_value
+from .lv_validation import get_end_value, get_start_value, requires_component
 from .types import lv_meter_t, WIDGET_TYPES
 from .widget import get_widget, Widget, add_temp_var, WidgetType
 from ..image import Image_
@@ -68,10 +68,13 @@ INDICATOR_SCHEMA = cv.Schema(
                 cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
             }
         ),
-        cv.Exclusive(df.CONF_IMG, df.CONF_INDICATORS): INDICATOR_IMG_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
-            }
+        cv.Exclusive(df.CONF_IMG, df.CONF_INDICATORS): cv.All(
+            INDICATOR_IMG_SCHEMA.extend(
+                {
+                    cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
+                }
+            ),
+            requires_component("image"),
         ),
         cv.Exclusive(df.CONF_ARC, df.CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {

@@ -25,10 +25,6 @@ MENU_SCHEMA = {
 }
 
 
-def menu_entry_obj_creator(parent: Widget, config: dict):
-    return f"lv_menu_cont_create({parent.obj})"
-
-
 class MenuType(WidgetType):
     def __init__(self):
         super().__init__(CONF_MENU, MENU_SCHEMA)
@@ -54,5 +50,9 @@ class MenuType(WidgetType):
 menu_spec = MenuType()
 
 
-async def menu_entry_to_code(menu: Widget, menu_conf: dict):
-    return []
+class MenuEntryType(WidgetType):
+    def obj_creator(self, parent: Widget, config: dict):
+        return f"lv_menu_cont_create({parent.obj})"
+
+    async def to_code(self, w: Widget, config: dict):
+        return []

@@ -32,9 +32,9 @@ from esphome.core import (
 )
 from esphome.cpp_generator import LambdaExpression
 from . import defines as df
+from . import helpers
 from . import lv_validation as lv
 from . import types as ty
-from . import helpers
 from .animimg import animimg_spec
 from .arc import arc_spec
 from .btn import btn_spec
@@ -57,7 +57,8 @@ from .led import led_spec
 from .line import line_spec
 from .lv_bar import bar_spec
 from .lv_switch import switch_spec
-from .menu import menu_spec
+
+# from .menu import menu_spec
 from .meter import meter_spec
 from .obj import obj_spec
 from .page import page_spec
@@ -91,6 +92,7 @@ from .widget import (
     theme_widget_map,
     widget_map,
     get_widget,
+    LvScrActType,
 )
 
 DOMAIN = "lvgl"
@@ -113,7 +115,7 @@ for widg in (
     label_spec,
     led_spec,
     line_spec,
-    menu_spec,
+    # menu_spec,
     meter_spec,
     obj_spec,
     page_spec,
@@ -127,6 +129,8 @@ for widg in (
     tileview_spec,
 ):
     WIDGET_TYPES[widg.name] = widg
+
+lv_scr_act_spec = LvScrActType()
 
 WIDGET_SCHEMA = any_widget_schema()
 
@@ -440,7 +444,7 @@ async def to_code(config):
     cg.add_global(ty.lvgl_ns.using)
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
-    Widget.create(config[CONF_ID], lv_component, obj_spec, config)
+    Widget.create(config[CONF_ID], lv_component, WIDGET_TYPES[df.CONF_OBJ], config)
     displays = set()
     if display := config.get(CONF_DISPLAY_ID):
         displays.add(display)
@@ -479,7 +483,9 @@ async def to_code(config):
         helpers.lv_uses.add("MSGBOX")
         for msgbox in msgboxes:
             init.extend(await msgbox_to_code(msgbox))
-    lv_scr_act = Widget("lv_scr_act()", ty.lv_obj_t, config, "lv_scr_act()")
+    lv_scr_act = Widget.create(
+        None, "lv_scr_act()", lv_scr_act_spec, config, obj="lv_scr_act()", parent=None
+    )
     if top_conf := config.get(df.CONF_TOP_LAYER):
         top_layer = Widget(
             "lv_disp_get_layer_top(lv_disp)",
@@ -496,7 +502,7 @@ async def to_code(config):
         init.extend(await set_obj_properties(lv_scr_act, config))
         for w in widgets:
             lv_w_type, w_cnfig = next(iter(w.items()))
-            ext_init = await widget_to_code(w_cnfig, lv_w_type, lv_scr_act)
+            ext_init = await widget_to_code(w_cnfig, lv_w_type, lv_scr_act.obj)
             init.extend(ext_init)
     if pages := config.get(CONF_PAGES):
         for index, pconf in enumerate(pages):
@@ -518,6 +524,8 @@ async def to_code(config):
     await add_init_lambda(lv_component, init)
     await generate_triggers(lv_component)
     for use in helpers.lv_uses:
+        if not isinstance(use, str):
+            print(use)
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
     for comp in helpers.lvgl_components_required:
         add_define(f"LVGL_USES_{comp.upper()}")

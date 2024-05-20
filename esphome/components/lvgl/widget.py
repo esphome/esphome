@@ -68,6 +68,18 @@ class WidgetType:
         return ()
 
 
+class LvScrActType(WidgetType):
+    def __init__(self):
+        super().__init__("lv_scr_act()")
+
+    def obj_creator(self, parent: MockObjClass, config: dict):
+        print("Oobj creator called")
+        return []
+
+    async def to_code(self, w, config: dict):
+        return []
+
+
 class Widget:
     def __init__(
         self, var, wtype: WidgetType, config: dict = None, obj=None, parent=None

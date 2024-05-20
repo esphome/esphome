@@ -30,7 +30,7 @@ from .types import (
     LValidator,
     WIDGET_TYPES,
 )
-from .widget import Widget, theme_widget_map
+from .widget import Widget, theme_widget_map, WidgetType
 
 
 def cgen(*args):
@@ -185,23 +185,25 @@ async def update_to_code(config, action_id, widget: Widget, init, template_arg, 
 
 async def widget_to_code(w_cnfig, w_type, parent):
     init = []
-    spec = WIDGET_TYPES.get(w_type)
+    spec: WidgetType = WIDGET_TYPES.get(w_type)
     if not spec:
         raise cv.Invalid(f"No handler for widget {w_type}")
     creator = spec.obj_creator(parent, w_cnfig)
+    print(spec, creator)
     add_lv_use(spec.name)
-    add_lv_use(spec.get_uses)
+    add_lv_use(*spec.get_uses())
     wid = w_cnfig[CONF_ID]
     init.append(mark_line(wid))
 
-    if wid.type.inherits_from(LvCompound):
-        var = cg.new_Pvariable(wid)
-        init.append(f"{var}->set_obj({creator})")
-        obj = f"{var}->obj"
-    else:
-        var = cg.Pvariable(wid, cg.nullptr, type_=lv_obj_t)
-        init.append(f"{var} = {creator}")
-        obj = var
+    if creator:
+        if wid.type.inherits_from(LvCompound):
+            var = cg.new_Pvariable(wid)
+            init.append(f"{var}->set_obj({creator})")
+            obj = f"{var}->obj"
+        else:
+            var = cg.Pvariable(wid, cg.nullptr, type_=lv_obj_t)
+            init.append(f"{var} = {creator}")
+            obj = var
 
     widget = Widget.create(wid, var, spec, w_cnfig, obj, parent)
     if theme := theme_widget_map.get(w_type):
