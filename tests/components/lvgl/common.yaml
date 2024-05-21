@@ -67,9 +67,29 @@ color:
   - id: my_light_red
     hex: FF3340
 
+binary_sensor:
+  - platform: template
+    id: enter_button
+  - platform: template
+    id: right_button
+  - platform: template
+    id: left_button
+
 lvgl:
   touchscreens:
     - touchscreen_id: tft_touch
+  rotary_encoders:
+    - group: general
+      long_press_time: 300ms
+      long_press_repeat_time: 50ms
+      enter_button: enter_button
+      sensor:
+        left_button: left_button
+        right_button: right_button
+    - group: general
+      enter_button: enter_button
+      sensor: rotary_sensor
+
   displays:
     - display_id: tft_display
   on_idle:
@@ -626,6 +646,10 @@ sensor:
   - platform: lvgl
     name: "LVGL Arc Sensor"
     widget: arc_id
+  - platform: rotary_encoder
+    id: rotary_sensor
+    pin_a: 0
+    pin_b: 1
 
 text:
   - platform: lvgl
