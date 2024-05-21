@@ -194,15 +194,14 @@ async def widget_to_code(w_cnfig, w_type, parent):
     wid = w_cnfig[CONF_ID]
     init.append(mark_line(wid))
 
-    if creator:
-        if wid.type.inherits_from(LvCompound):
-            var = cg.new_Pvariable(wid)
-            init.append(f"{var}->set_obj({creator})")
-            obj = f"{var}->obj"
-        else:
-            var = cg.Pvariable(wid, cg.nullptr, type_=lv_obj_t)
-            init.append(f"{var} = {creator}")
-            obj = var
+    if wid.type.inherits_from(LvCompound):
+        var = cg.new_Pvariable(wid)
+        init.append(f"{var}->set_obj({creator})")
+        obj = f"{var}->obj"
+    else:
+        var = cg.Pvariable(wid, cg.nullptr, type_=lv_obj_t)
+        init.append(f"{var} = {creator}")
+        obj = var
 
     widget = Widget.create(wid, var, spec, w_cnfig, obj, parent)
     if theme := theme_widget_map.get(w_type):
