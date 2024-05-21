@@ -72,7 +72,27 @@ void ILI9XXXDisplay::setup() {
   delay(20);
   this->reset_pin_->digital_write(true);
   delay(20);
-  this->init_lcd_();
+  this->init_lcd_(this->init_sequence_);
+  this->init_lcd_(this->extra_init_sequence_.data());
+  switch (this->pixel_mode_) {
+    case PIXEL_MODE_16:
+      if (this->is_18bitdisplay_) {
+        this->command(ILI9XXX_PIXFMT);
+        this->data(0x55);
+        this->is_18bitdisplay_ = false;
+      }
+      break;
+    case PIXEL_MODE_18:
+      if (!this->is_18bitdisplay_) {
+        this->command(ILI9XXX_PIXFMT);
+        this->data(0x66);
+        this->is_18bitdisplay_ = true;
+      }
+      break;
+    default:
+      break;
+  }
+
   this->set_madctl();
   this->bus_->write_cmd(this->pre_invertcolors_ ? ILI9XXX_INVON : ILI9XXX_INVOFF);
   this->x_low_ = this->width_;
@@ -223,7 +243,6 @@ void ILI9XXXDisplay::update() {
 }
 
 void ILI9XXXDisplay::display_() {
-  uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
     return;
@@ -251,6 +270,7 @@ void ILI9XXXDisplay::display_() {
     this->bus_->write_array(this->buffer_ + this->y_low_ * this->width_ * 2, h * this->width_ * 2);
   } else {
     ESP_LOGV(TAG, "Doing multiple write");
+    uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE];
     size_t rem = h * w;  // remaining number of pixels to write
     set_addr_window_(this->x_low_, this->y_low_, this->x_high_, this->y_high_);
     size_t idx = 0;    // index into transfer_buffer
@@ -267,7 +287,7 @@ void ILI9XXXDisplay::display_() {
               display::ColorUtil::index8_to_color_palette888(this->buffer_[pos++], this->palette_));
           break;
         default:  // case BITS_16:
-          color_val = (buffer_[pos * 2] << 8) + buffer_[pos * 2 + 1];
+          color_val = (this->buffer_[pos * 2] << 8) + this->buffer_[pos * 2 + 1];
           pos++;
           break;
       }
@@ -279,7 +299,7 @@ void ILI9XXXDisplay::display_() {
         put16_be(transfer_buffer + idx, color_val);
         idx += 2;
       }
-      if (idx == ILI9XXX_TRANSFER_BUFFER_SIZE) {
+      if (idx == sizeof(transfer_buffer)) {
         this->bus_->write_array(transfer_buffer, idx);
         idx = 0;
         App.feed_wdt();
@@ -313,20 +333,50 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
   // if color mapping or software rotation is required, hand this off to the parent implementation. This will
   // do color conversion pixel-by-pixel into the buffer and draw it later. If this is happening the user has not
   // configured the renderer well.
-  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian ||
-      this->is_18bitdisplay_) {
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian) {
     return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                             x_pad);
   }
   this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
-  if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
-    // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
-    this->bus_->write_array(ptr, w * h * 2);
+  auto stride = x_offset + w + x_pad;
+  if (!this->is_18bitdisplay_) {
+    if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
+      // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
+      this->bus->write_array(ptr, w * h * 2);
+    } else {
+      for (size_t y = 0; y != h; y++) {
+        this->bus->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
+      }
+    }
   } else {
-    auto stride = x_offset + w + x_pad;
-    for (size_t y = 0; y != h; y++) {
-      this->bus_->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
+    // 18 bit mode
+    uint8_t transfer_buffer[ILI9XXX_TRANSFER_BUFFER_SIZE * 4];
+    ESP_LOGV(TAG, "Doing multiple write");
+    size_t rem = h * w;  // remaining number of pixels to write
+    size_t idx = 0;      // index into transfer_buffer
+    size_t pixel = 0;    // pixel number offset
+    ptr += (y_offset * stride + x_offset) * 2;
+    while (rem-- != 0) {
+      uint8_t hi_byte = *ptr++;
+      uint8_t lo_byte = *ptr++;
+      transfer_buffer[idx++] = hi_byte & 0xF8;                     // Blue
+      transfer_buffer[idx++] = ((hi_byte << 5) | (lo_byte) >> 5);  // Green
+      transfer_buffer[idx++] = lo_byte << 3;                       // Red
+      if (idx == sizeof(transfer_buffer)) {
+        this->bus->write_array(transfer_buffer, idx);
+        idx = 0;
+        App.feed_wdt();
+      }
+      // end of line? Skip to the next.
+      if (++pixel == w) {
+        pixel = 0;
+        ptr += (x_pad + x_offset) * 2;
+      }
+    }
+    // flush any balance.
+    if (idx != 0) {
+      this->bus->write_array(transfer_buffer, idx);
     }
   }
   this->bus_->end_transaction();
@@ -337,54 +387,56 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
 uint32_t ILI9XXXDisplay::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
 
 void ILI9XXXDisplay::init_lcd_() {
-  uint8_t cmd, x, num_args;
-  const uint8_t *addr = this->init_sequence_;
-  while ((cmd = *addr++) > 0) {
-    x = *addr++;
-    num_args = x & 0x7F;
-    this->bus_->write_cmd_data(cmd, addr, num_args);
-    addr += num_args;
-    if (x & 0x80)
-      delay(150);  // NOLINT
+  void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
+    if (addr == nullptr)
+      return;
+    uint8_t cmd, x, num_args;
+    while ((cmd = *addr++) != 0) {
+      x = *addr++;
+      num_args = x & 0x7F;
+      this->bus_->write_cmd_data(cmd, addr, num_args);
+      addr += num_args;
+      if (x & 0x80)
+        delay(150);  // NOLINT
+    }
   }
-}
 
-// Tell the display controller where we want to draw pixels.
-void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
-  x1 += this->offset_x_;
-  x2 += this->offset_x_;
-  y1 += this->offset_y_;
-  y2 += this->offset_y_;
-  uint8_t buf[4];
-  buf[0] = x1 >> 8;
-  buf[1] = x1;
-  buf[2] = x2 >> 8;
-  buf[3] = x2;
-  this->bus_->write_cmd_data(ILI9XXX_CASET, buf, sizeof buf);
-  buf[0] = y1 >> 8;
-  buf[1] = y1;
-  buf[2] = y2 >> 8;
-  buf[3] = y2;
-  this->bus_->write_cmd_data(ILI9XXX_PASET, buf, sizeof buf);
-  this->bus_->write_cmd(ILI9XXX_RAMWR);
-  this->bus_->begin_transaction();
-}
-
-void ILI9XXXDisplay::invert_colors(bool invert) {
-  this->pre_invertcolors_ = invert;
-  if (is_ready()) {
-    this->bus_->write_cmd(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+  // Tell the display controller where we want to draw pixels.
+  void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
+    x1 += this->offset_x_;
+    x2 += this->offset_x_;
+    y1 += this->offset_y_;
+    y2 += this->offset_y_;
+    uint8_t buf[4];
+    buf[0] = x1 >> 8;
+    buf[1] = x1;
+    buf[2] = x2 >> 8;
+    buf[3] = x2;
+    this->bus_->write_cmd_data(ILI9XXX_CASET, buf, sizeof buf);
+    buf[0] = y1 >> 8;
+    buf[1] = y1;
+    buf[2] = y2 >> 8;
+    buf[3] = y2;
+    this->bus_->write_cmd_data(ILI9XXX_PASET, buf, sizeof buf);
+    this->bus_->write_cmd(ILI9XXX_RAMWR);
+    this->bus_->begin_transaction();
   }
-}
 
-int ILI9XXXDisplay::get_width_internal() { return this->width_; }
-int ILI9XXXDisplay::get_height_internal() { return this->height_; }
+  void ILI9XXXDisplay::invert_colors(bool invert) {
+    this->pre_invertcolors_ = invert;
+    if (is_ready()) {
+      this->bus_->write_cmd(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF);
+    }
+  }
 
-void WAVESHARERES35::setup() {
-  // insert a shim between us and the real bus.
-  this->bus_ = new WaveshareIOBusShim(this->bus_);  // NOLINT
-  ILI9XXXDisplay::setup();
-}
+  int ILI9XXXDisplay::get_width_internal() { return this->width_; }
+  int ILI9XXXDisplay::get_height_internal() { return this->height_; }
+
+  void WAVESHARERES35::setup() {
+    // insert a shim between us and the real bus.
+    this->bus_ = new WaveshareIOBusShim(this->bus_);  // NOLINT
+    ILI9XXXDisplay::setup();
+  }
 
 }  // namespace ili9xxx
 }  // namespace esphome

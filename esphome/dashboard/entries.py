@@ -103,7 +103,7 @@ class DashboardEntries:
 
     def all(self) -> list[DashboardEntry]:
         """Return all entries."""
-        return asyncio.run_coroutine_threadsafe(self._async_all, self._loop).result()
+        return asyncio.run_coroutine_threadsafe(self._async_all(), self._loop).result()
 
     def async_all(self) -> list[DashboardEntry]:
         """Return all entries."""

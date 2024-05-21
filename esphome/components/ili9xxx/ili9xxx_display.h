@@ -18,6 +18,12 @@ enum ILI9XXXColorMode {
 };
 
 class ILI9XXXDisplay : public display::DisplayBuffer {
+  enum PixelMode {
+    PIXEL_MODE_UNSPECIFIED,
+    PIXEL_MODE_16,
+    PIXEL_MODE_18,
+  };
+
  public:
   ILI9XXXDisplay() = default;
   ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height, bool invert_colors)
@@ -50,6 +56,8 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
     }
   }
 
+  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->extra_init_sequence_ = sequence; }
+  void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
@@ -68,6 +76,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
   void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
   void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
   void set_bus(io_bus::IOBus *bus) { this->bus_ = bus; }
+  void set_pixel_mode(PixelMode mode) { this->pixel_mode_ = mode; }
 
   void update() override;
 
@@ -95,11 +104,12 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
 
   virtual void set_madctl();
   void display_();
-  void init_lcd_();
+  void init_lcd_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
 
   io_bus::IOBus *bus_{nullptr};
   uint8_t const *init_sequence_{};
+  std::vector<uint8_t> extra_init_sequence_;
   int16_t width_{0};   ///< Display width as modified by current rotation
   int16_t height_{0};  ///< Display height as modified by current rotation
   int16_t offset_x_{0};
@@ -124,6 +134,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
   bool prossing_update_ = false;
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
+  PixelMode pixel_mode_{};
   bool pre_invertcolors_ = false;
   display::ColorOrder color_order_{display::COLOR_ORDER_BGR};
   bool swap_xy_{};
