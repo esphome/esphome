@@ -52,7 +52,7 @@ dfu_mode:
 
 ota:
   - platform: zephyr_mcumgr
-    usb_cdc: True
+    hardware_uart: cdc1
     on_begin:
       then:
         - logger.log: "OTA start"

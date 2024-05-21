@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_NUM_ATTEMPTS,
     CONF_OTA,
     CONF_REBOOT_TIMEOUT,
+    CONF_HARDWARE_UART,
 )
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
@@ -24,16 +25,22 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
 )
 
 CONF_BLE = "ble"
-CONF_USB_CDC = "usb_cdc"
 
 
 def _validate_transport(conf):
-    if conf[CONF_BLE] or conf[CONF_USB_CDC]:
+    if conf[CONF_BLE] or conf[CONF_HARDWARE_UART]:
         return conf
     raise cv.Invalid(
-        f"At least one trasnport protocol has to be enabled. Set '{CONF_BLE}' or '{CONF_USB_CDC}'"
+        f"At least one trasnport protocol has to be enabled. Set '{CONF_BLE}' or '{CONF_HARDWARE_UART}'"
     )
 
+
+UARTS = {
+    "cdc": ("cdc_acm_uart0", 0),
+    "cdc1": ("cdc_acm_uart1", 1),
+    "uart0": ("uart0", -1),
+    "uart1": ("uart1", -1),
+}
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -44,7 +51,9 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
             cv.Optional(CONF_BLE, default=True): cv.boolean,
-            cv.Optional(CONF_USB_CDC, default=False): cv.boolean,
+            cv.Optional(
+                CONF_HARDWARE_UART,
+            ): cv.one_of(*UARTS, lower=True),
         }
     )
     .extend(BASE_OTA_SCHEMA)
@@ -117,17 +126,19 @@ async def to_code(config):
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
-    if config[CONF_USB_CDC]:
-        zephyr_add_cdc_acm(config)
+    if config[CONF_HARDWARE_UART]:
+        cdc_id = UARTS[config[CONF_HARDWARE_UART]][1]
+        if cdc_id >= 0:
+            zephyr_add_cdc_acm(config, cdc_id)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
         zephyr_add_overlay(
-            """
-/ {
-    chosen {
-        zephyr,uart-mcumgr = &cdc_acm_uart0;
-    };
-};
+            f"""
+/ {{
+    chosen {{
+        zephyr,uart-mcumgr = &{UARTS[config[CONF_HARDWARE_UART]][0]};
+    }};
+}};
 """
         )

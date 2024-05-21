@@ -311,7 +311,7 @@ async def to_code(config):
             zephyr_add_overlay("""&uart1 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == USB_CDC:
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
-            zephyr_add_cdc_acm(config)
+            zephyr_add_cdc_acm(config, 0)
 
     # Register at end for safe mode
     await cg.register_component(log, config)

@@ -135,7 +135,7 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_add_cdc_acm(config):
+def zephyr_add_cdc_acm(config, id):
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     # prevent device to go to susspend, without this communication stop working in python
@@ -144,12 +144,12 @@ def zephyr_add_cdc_acm(config):
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
     zephyr_add_overlay(
-        """
-&zephyr_udc0 {
-    cdc_acm_uart0: cdc_acm_uart0 {
+        f"""
+&zephyr_udc0 {{
+    cdc_acm_uart{id}: cdc_acm_uart{id} {{
         compatible = "zephyr,cdc-acm-uart";
-    };
-};
+    }};
+}};
 """
     )
 

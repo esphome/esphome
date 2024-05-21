@@ -2,6 +2,7 @@ zephyr_ble_server:
 
 ota:
   - platform: zephyr_mcumgr
+    hardware_uart: cdc
     on_begin:
       then:
         - logger.log: "OTA start"
