@@ -92,6 +92,10 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
 
   // Since arduino8266 >= 3.1 using this->stream_ptr_ is broken (https://github.com/esp8266/Arduino/issues/9035)
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
+  if (stream_ptr == nullptr) {
+    ESP_LOGE(TAG, "Stream pointer vanished!");
+    return -1;
+  }
 
   int available_data = stream_ptr->available();
   int bufsize = std::min((int) max_len, available_data);
