@@ -1,9 +1,10 @@
 import re
 
 from esphome import config_validation as cv
+from esphome.config import Config
 from esphome.const import CONF_FORMAT, CONF_ARGS
 from esphome.core import ID, CORE
-
+from esphome.yaml_util import ESPHomeDataBase
 from .defines import (
     CONF_IMG,
     CONF_ROTARY_ENCODERS,
@@ -54,10 +55,14 @@ def validate_printf(value):
 
 
 def mark_line(id: ID):
-    path = CORE.config.get_path_for_id(id)[:-1]
-    return CORE.config.get_deepest_document_range_for_path(
-        path
-    ).start_mark.as_line_directive
+    if isinstance(id, ESPHomeDataBase):
+        path = id.esp_range
+    elif isinstance(CORE.config, Config):
+        path = CORE.config.get_path_for_id(id)[:-1]
+    else:
+        return ""
+    path = CORE.config.get_deepest_document_range_for_path(path)
+    return path.start_mark.as_line_directive
 
 
 def add_semi(ln: str):
