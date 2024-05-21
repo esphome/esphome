@@ -232,6 +232,8 @@ async def to_code(config):
         spi_client = await spi.create_spi_client(config)
         bus_client = cg.new_Pvariable(config[CONF_IO_BUS_ID], spi_client)
     cg.add(var.set_bus(bus_client))
+    if dc := config.get(CONF_DC_PIN):
+        cg.add(bus_client.set_dc_pin(await cg.gpio_pin_expression(dc)))
     cg.add(var.set_data_rate(data_rate))
     if init_sequences := config.get(CONF_INIT_SEQUENCE):
         sequence = []
