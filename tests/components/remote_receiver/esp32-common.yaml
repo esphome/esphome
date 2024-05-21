@@ -3,6 +3,7 @@ remote_receiver:
   pin: ${pin}
   rmt_channel: ${rmt_channel}
   dump: all
+  tolerance: 25%
   on_abbwelcome:
     then:
       - logger.log:
@@ -143,6 +144,10 @@ remote_receiver:
       - logger.log:
           format: "on_toshiba_ac: %llu %llu"
           args: ["x.rc_code_1", "x.rc_code_2"]
+  on_mirage:
+    then:
+      - lambda: |-
+          ESP_LOGD("mirage", "Mirage data: %s", format_hex(x.data).c_str());
 
 binary_sensor:
   - platform: remote_receiver

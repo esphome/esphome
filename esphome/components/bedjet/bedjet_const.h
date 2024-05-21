@@ -40,6 +40,14 @@ enum BedjetHeatMode {
   HEAT_MODE_EXTENDED,
 };
 
+// Which temperature to use as the climate entity's current temperature reading
+enum BedjetTemperatureSource {
+  // Use the temperature of the air the BedJet is putting out
+  TEMPERATURE_SOURCE_OUTLET,
+  // Use the ambient temperature of the room the BedJet is in
+  TEMPERATURE_SOURCE_AMBIENT
+};
+
 enum BedjetButton : uint8_t {
   /// Turn BedJet off
   BTN_OFF = 0x1,

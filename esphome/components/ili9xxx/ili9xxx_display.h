@@ -17,6 +17,12 @@ enum ILI9XXXColorMode {
   BITS_16 = 0x10,
 };
 
+enum PixelMode {
+  PIXEL_MODE_UNSPECIFIED,
+  PIXEL_MODE_16,
+  PIXEL_MODE_18,
+};
+
 class ILI9XXXDisplay : public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
@@ -52,6 +58,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     }
   }
 
+  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->extra_init_sequence_ = sequence; }
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
@@ -73,6 +80,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void set_swap_xy(bool swap_xy) { this->swap_xy_ = swap_xy; }
   void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
   void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
+  void set_pixel_mode(PixelMode mode) { this->pixel_mode_ = mode; }
 
   void update() override;
 
@@ -99,11 +107,12 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   virtual void set_madctl();
   void display_();
-  void init_lcd_();
+  void init_lcd_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
   void reset_();
 
   uint8_t const *init_sequence_{};
+  std::vector<uint8_t> extra_init_sequence_;
   int16_t width_{0};   ///< Display width as modified by current rotation
   int16_t height_{0};  ///< Display height as modified by current rotation
   int16_t offset_x_{0};
@@ -112,7 +121,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   uint16_t y_low_{0};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
-  const uint8_t *palette_;
+  const uint8_t *palette_{};
 
   ILI9XXXColorMode buffer_color_mode_{BITS_16};
 
@@ -133,6 +142,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   bool prossing_update_ = false;
   bool need_update_ = false;
   bool is_18bitdisplay_ = false;
+  PixelMode pixel_mode_{};
   bool pre_invertcolors_ = false;
   display::ColorOrder color_order_{display::COLOR_ORDER_BGR};
   bool swap_xy_{};

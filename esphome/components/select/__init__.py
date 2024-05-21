@@ -113,7 +113,7 @@ async def new_select(config, *, options: list[str]):
     return var
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)
