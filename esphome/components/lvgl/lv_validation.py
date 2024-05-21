@@ -1,7 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
 from esphome.components.font import Font
+from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
 from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_VALUE
 from esphome.core import HexInt
@@ -22,8 +24,6 @@ from .helpers import (
     add_lv_use,
 )
 from .types import LValidator
-from ..binary_sensor import BinarySensor
-from ..sensor import Sensor
 
 
 # List of other components used
