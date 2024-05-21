@@ -7,5 +7,5 @@ spi:
 spi_device:
   id: spi_device_test
   data_rate: 2MHz
-  spi_mode: 3
+  mode: 3
   bit_order: lsb_first

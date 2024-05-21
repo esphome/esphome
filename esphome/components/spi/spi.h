@@ -4,7 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/components/io_bus/io_bus.h"
 #include <map>
 #include <utility>
 #include <vector>
@@ -100,6 +99,32 @@ enum SPIDataRate : uint32_t {
   DATA_RATE_80MHZ = 80000000,
 };
 
+/**
+ * A pin to replace those that don't exist.
+ */
+class NullPin : public GPIOPin {
+  friend class SPIComponent;
+
+  friend class SPIDelegate;
+
+  friend class Utility;
+
+ public:
+  void setup() override {}
+
+  void pin_mode(gpio::Flags flags) override {}
+
+  bool digital_read() override { return false; }
+
+  void digital_write(bool value) override {}
+
+  std::string dump_summary() const override { return std::string(); }
+
+ protected:
+  static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  // https://bugs.llvm.org/show_bug.cgi?id=48040
+};
+
 class Utility {
  public:
   static int get_pin_no(GPIOPin *pin) {
@@ -151,7 +176,7 @@ class SPIDelegate {
   SPIDelegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
       : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
     if (this->cs_pin_ == nullptr)
-      this->cs_pin_ = io_bus::NULL_PIN;
+      this->cs_pin_ = NullPin::NULL_PIN;
     this->cs_pin_->setup();
     this->cs_pin_->digital_write(true);
   }
@@ -224,7 +249,7 @@ class SPIDelegate {
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
-  GPIOPin *cs_pin_{io_bus::NULL_PIN};
+  GPIOPin *cs_pin_{NullPin::NULL_PIN};
   static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
@@ -342,33 +367,66 @@ class SPIComponent : public Component {
 };
 
 using QuadSPIComponent = SPIComponent;
-
 /**
  * Base class for SPIDevice, un-templated.
  */
 class SPIClient {
-  friend class SPIByteBus;
-
  public:
-  SPIClient() = default;
   SPIClient(SPIBitOrder bit_order, SPIMode mode, uint32_t data_rate)
       : bit_order_(bit_order), mode_(mode), data_rate_(data_rate) {}
 
-  void spi_setup() {
+  virtual void spi_setup() {
     esph_log_d("spi_device", "mode %u, data_rate %ukHz", (unsigned) this->mode_, (unsigned) (this->data_rate_ / 1000));
     this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
   }
 
-  // backwards compatibility
-
-  void spi_teardown() {
+  virtual void spi_teardown() {
     this->parent_->unregister_device(this);
     this->delegate_ = SPIDelegate::NULL_DELEGATE;
   }
 
-  void set_parent(SPIComponent *parent) { this->parent_ = parent; }
+  bool spi_is_ready() { return this->delegate_->is_ready(); }
 
-  void set_spi_parent(SPIComponent *parent) { this->set_parent(parent); }
+ protected:
+  SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
+  SPIMode mode_{MODE0};
+  uint32_t data_rate_{1000000};
+  SPIComponent *parent_{nullptr};
+  GPIOPin *cs_{nullptr};
+  SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
+};
+
+/**
+ * The SPIDevice is what components using the SPI will create.
+ *
+ * @tparam BIT_ORDER
+ * @tparam CLOCK_POLARITY
+ * @tparam CLOCK_PHASE
+ * @tparam DATA_RATE
+ */
+template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
+class SPIDevice : public SPIClient {
+ public:
+  SPIDevice() : SPIClient(BIT_ORDER, Utility::get_mode(CLOCK_POLARITY, CLOCK_PHASE), DATA_RATE) {}
+
+  SPIDevice(SPIComponent *parent, GPIOPin *cs_pin) {
+    this->set_spi_parent(parent);
+    this->set_cs_pin(cs_pin);
+  }
+
+  void spi_setup() override { SPIClient::spi_setup(); }
+
+  void spi_teardown() override { SPIClient::spi_teardown(); }
+
+  void set_spi_parent(SPIComponent *parent) { this->parent_ = parent; }
+
+  void set_cs_pin(GPIOPin *cs) { this->cs_ = cs; }
+
+  void set_data_rate(uint32_t data_rate) { this->data_rate_ = data_rate; }
+
+  void set_bit_order(SPIBitOrder order) { this->bit_order_ = order; }
+
+  void set_mode(SPIMode mode) { this->mode_ = mode; }
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
@@ -398,6 +456,15 @@ class SPIClient {
 
   void write_byte(uint8_t data) { this->delegate_->write_array(&data, 1); }
 
+  /**
+   * Write the array data, replace with received data.
+   * @param data
+   * @param length
+   */
+  void transfer_array(uint8_t *data, size_t length) { this->delegate_->transfer(data, length); }
+
+  uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
+
   /** Write 16 bit data. The driver will byte-swap if required.
    */
   void write_byte16(uint16_t data) { this->delegate_->write16(data); }
@@ -410,75 +477,18 @@ class SPIClient {
    */
   void write_array16(const uint16_t *data, size_t length) { this->delegate_->write_array16(data, length); }
 
-  /**
-   * Write the array data, replace with received data.
-   * @param data
-   * @param length
-   */
-  void transfer_array(uint8_t *data, size_t length) { this->delegate_->transfer(data, length); }
-
-  uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
-
   void enable() { this->delegate_->begin_transaction(); }
 
   void disable() { this->delegate_->end_transaction(); }
 
-  // legacy functions
-
   void write_array(const uint8_t *data, size_t length) { this->delegate_->write_array(data, length); }
+
+  template<size_t N> void write_array(const std::array<uint8_t, N> &data) { this->write_array(data.data(), N); }
 
   void write_array(const std::vector<uint8_t> &data) { this->write_array(data.data(), data.size()); }
 
-  void set_bit_order(SPIBitOrder order) { this->bit_order_ = order; }
-
-  void set_cs_pin(GPIOPin *cs) { this->cs_ = cs; }
-
-  void set_mode(SPIMode mode) { this->mode_ = mode; }
-  void set_data_rate(int data_rate) { this->data_rate_ = data_rate; }
-
- protected:
-  SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
-  SPIMode mode_{MODE0};
-  SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
-  SPIComponent *parent_{};
-  GPIOPin *cs_{io_bus::NULL_PIN};
-  uint32_t data_rate_{1000000};
+  template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 };
 
-/**
- * Templated version of SPIClient
- *
- * @tparam BIT_ORDER
- * @tparam CLOCK_POLARITY
- * @tparam CLOCK_PHASE
- * @tparam DATA_RATE
- */
-template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
-class SPIDevice : public SPIClient {
- public:
-  SPIDevice() : SPIClient(BIT_ORDER, Utility::get_mode(CLOCK_POLARITY, CLOCK_PHASE), DATA_RATE) {}
-};
-
-class SPIByteBus : public io_bus::IOBus {
- public:
-  SPIByteBus(SPIClient *client) : client_(client) {}
-  void bus_setup() override {
-    this->dc_pin_->setup();  // OUTPUT
-    this->dc_pin_->digital_write(false);
-    this->client_->spi_setup();
-  }
-
-  void begin_transaction() override { this->client_->enable(); }
-  void end_transaction() override { this->client_->disable(); }
-  void write_array(const uint8_t *data, size_t length) override { this->client_->write_array(data, length); }
-  void bus_teardown() override { this->client_->spi_teardown(); }
-
-  void write_cmd_data(int cmd, const uint8_t *data, size_t length) override;
-
-  void dump_config() override;
-
- protected:
-  SPIClient *client_;
-};
 }  // namespace spi
 }  // namespace esphome
