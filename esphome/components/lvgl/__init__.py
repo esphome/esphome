@@ -3,16 +3,15 @@ import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components.binary_sensor import BinarySensor
 from esphome.components.display import Display
 from esphome.components.image import Image_
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
+from esphome.components.binary_sensor import BinarySensor
 from esphome.components.touchscreen import (
     Touchscreen,
     CONF_TOUCHSCREEN_ID,
 )
 from esphome.const import (
-    CONF_BINARY_SENSOR,
     CONF_BUFFER_SIZE,
     CONF_GROUP,
     CONF_ID,
@@ -152,13 +151,11 @@ async def widget_update_to_code(config, action_id, template_arg, args):
 
 
 for w_name, w_type in WIDGET_TYPES.items():
-
     automation.register_action(
         f"lvgl.{w_name}.update",
         ObjUpdateAction,
         create_modify_schema(w_name, w_type.w_type, extras=w_type.modify_schema),
     )(widget_update_to_code)
-
 
 MSGBOX_SCHEMA = STYLE_SCHEMA.extend(
     {
@@ -239,9 +236,9 @@ async def msgbox_to_code(conf):
     :param conf: The config data
     :return: code to add to the init lambda
     """
-    helpers.lv_uses.add("FLEX")
-    helpers.lv_uses.add("btnmatrix")
-    helpers.lv_uses.add("label")
+    helpers.add_lv_use("FLEX")
+    helpers.add_lv_use("btnmatrix")
+    helpers.add_lv_use("label")
     init = []
     id = conf[CONF_ID]
     outer = cg.new_variable(
@@ -295,9 +292,8 @@ async def rotary_encoders_to_code(var, config):
     init = []
     if df.CONF_ROTARY_ENCODERS not in config:
         return init
-    helpers.lv_uses.add("ROTARY_ENCODER")
+    helpers.add_lv_use("ROTARY_ENCODER")
     for enc_conf in config[df.CONF_ROTARY_ENCODERS]:
-        sensor = await cg.get_variable(enc_conf[CONF_SENSOR])
         lpt = enc_conf[df.CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(enc_conf[CONF_ID], lpt, lprt)
@@ -308,14 +304,27 @@ async def rotary_encoders_to_code(var, config):
             )
         else:
             init.append(f"lv_indev_drv_register(&{listener}->drv)")
+        if sensor := enc_conf.get(CONF_SENSOR):
+            if isinstance(sensor, dict):
+                b_sensor = await cg.get_variable(sensor[df.CONF_LEFT_BUTTON])
+                init.append(
+                    f"{b_sensor}->add_on_state_callback([](bool state) {{ if(state) {listener}->decrement_count(); }})",
+                )
+                b_sensor = await cg.get_variable(sensor[df.CONF_RIGHT_BUTTON])
+                init.append(
+                    f"{b_sensor}->add_on_state_callback([](bool state) {{ if(state) {listener}->increment_count(); }})",
+                )
+            else:
+
+                sensor = await cg.get_variable(sensor)
+                init.append(
+                    f"{sensor}->register_listener([](uint32_t count) {{ {listener}->set_count(count); }})",
+                )
+        b_sensor = await cg.get_variable(enc_conf[df.CONF_ENTER_BUTTON])
         init.append(
-            f"{sensor}->register_listener([](uint32_t count) {{ {listener}->set_count(count); }})",
+            f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->set_pressed(state); }})"
         )
-        if b_sensor := enc_conf.get(CONF_BINARY_SENSOR):
-            b_sensor = await cg.get_variable(b_sensor)
-            init.append(
-                f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->set_pressed(state); }})"
-            )
+
         return init
 
 
@@ -323,7 +332,7 @@ async def touchscreens_to_code(var, config):
     init = []
     if df.CONF_TOUCHSCREENS not in config:
         return init
-    helpers.lv_uses.add("TOUCHSCREEN")
+    helpers.add_lv_use("TOUCHSCREEN")
     for touchconf in config[df.CONF_TOUCHSCREENS]:
         touchscreen = await cg.get_variable(touchconf[CONF_TOUCHSCREEN_ID])
         lpt = touchconf[df.CONF_LONG_PRESS_TIME].total_milliseconds
@@ -483,10 +492,10 @@ async def to_code(config):
     if style_defs := config.get(df.CONF_STYLE_DEFINITIONS, []):
         await styles_to_code(style_defs)
     if theme := config.get(df.CONF_THEME):
-        helpers.lv_uses.add("THEME")
+        helpers.add_lv_use("THEME")
         await theme_to_code(theme)
     if msgboxes := config.get(df.CONF_MSGBOXES):
-        helpers.lv_uses.add("MSGBOX")
+        helpers.add_lv_use("MSGBOX")
         for msgbox in msgboxes:
             init.extend(await msgbox_to_code(msgbox))
     lv_scr_act = Widget.create(
@@ -581,23 +590,33 @@ CONFIG_SCHEMA = (
                     key=CONF_TOUCHSCREEN_ID,
                 )
             ),
-            cv.Optional(df.CONF_ROTARY_ENCODERS): cv.All(
-                cv.ensure_list(
-                    cv.Schema(
-                        {
-                            cv.Required(CONF_SENSOR): cv.use_id(RotaryEncoderSensor),
-                            cv.Optional(
-                                df.CONF_LONG_PRESS_TIME, default="400ms"
-                            ): cv.positive_time_period_milliseconds,
-                            cv.Optional(
-                                df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
-                            ): cv.positive_time_period_milliseconds,
-                            cv.Optional(CONF_BINARY_SENSOR): cv.use_id(BinarySensor),
-                            cv.Optional(CONF_GROUP): lv.id_name,
-                            cv.GenerateID(): cv.declare_id(ty.LVRotaryEncoderListener),
-                        }
-                    )
-                ),
+            cv.Optional(df.CONF_ROTARY_ENCODERS): cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Optional(CONF_SENSOR): cv.Any(
+                            cv.use_id(RotaryEncoderSensor),
+                            cv.Schema(
+                                {
+                                    cv.Optional(df.CONF_LEFT_BUTTON): cv.use_id(
+                                        BinarySensor
+                                    ),
+                                    cv.Optional(df.CONF_RIGHT_BUTTON): cv.use_id(
+                                        BinarySensor
+                                    ),
+                                }
+                            ),
+                        ),
+                        cv.Required(df.CONF_ENTER_BUTTON): cv.use_id(BinarySensor),
+                        cv.Optional(
+                            df.CONF_LONG_PRESS_TIME, default="400ms"
+                        ): cv.positive_time_period_milliseconds,
+                        cv.Optional(
+                            df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
+                        ): cv.positive_time_period_milliseconds,
+                        cv.Optional(CONF_GROUP): lv.id_name,
+                        cv.GenerateID(): cv.declare_id(ty.LVRotaryEncoderListener),
+                    }
+                )
             ),
             cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(1, 8, 16, 32),
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lv.font,

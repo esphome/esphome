@@ -20,6 +20,8 @@ from .defines import (
     CONF_SCROLLBAR_MODE,
     CONF_WIDGETS,
     join_enums,
+    CONF_GRID_ROW_ALIGN,
+    CONF_GRID_COLUMN_ALIGN,
 )
 from .helpers import add_lv_use, get_line_marks, join_lines
 from .schemas import ALL_STYLES
@@ -94,6 +96,14 @@ async def set_obj_properties(w: Widget, config):
             column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=lv_coord_t)
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
             init.extend(w.set_style("grid_column_dsc_array", column_array, 0))
+            init.extend(
+                w.set_style(
+                    CONF_GRID_COLUMN_ALIGN, layout.get(CONF_GRID_COLUMN_ALIGN), 0
+                )
+            )
+            init.extend(
+                w.set_style(CONF_GRID_ROW_ALIGN, layout.get(CONF_GRID_ROW_ALIGN), 0)
+            )
         if layout_type == TYPE_FLEX:
             init.extend(w.set_property(CONF_FLEX_FLOW, layout, ltype="obj"))
             main = layout[CONF_FLEX_ALIGN_MAIN]

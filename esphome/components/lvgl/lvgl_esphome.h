@@ -30,9 +30,6 @@
 #if LV_USE_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
 #endif
-#if LV_USE_ROTARY_ENCODER
-#include "esphome/components/rotary_encoder/rotary_encoder.h"
-#endif
 namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
@@ -585,6 +582,8 @@ class LVRotaryEncoderListener : public Parented<LvglComponent> {
   }
 
   void set_count(int32_t count) { this->count_ = count; }
+  void increment_count() { this->count_++; }
+  void decrement_count() { this->count_--; }
   void set_pressed(bool pressed) { this->pressed_ = pressed && !this->parent_->is_paused(); }
   lv_indev_drv_t drv{};
 

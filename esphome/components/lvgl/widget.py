@@ -159,6 +159,8 @@ class Widget:
         return [f"lv_{ltype}_get_{prop}({self.obj})"]
 
     def set_style(self, prop, value, state):
+        if value is None:
+            return []
         if isinstance(value, list):
             value = "|".join(value)
         return [f"lv_obj_set_style_{prop}({self.obj}, {value}, {state})"]
