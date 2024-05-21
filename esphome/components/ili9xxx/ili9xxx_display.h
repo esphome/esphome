@@ -17,13 +17,13 @@ enum ILI9XXXColorMode {
   BITS_16 = 0x10,
 };
 
-class ILI9XXXDisplay : public display::DisplayBuffer {
-  enum PixelMode {
-    PIXEL_MODE_UNSPECIFIED,
-    PIXEL_MODE_16,
-    PIXEL_MODE_18,
-  };
+enum PixelMode {
+  PIXEL_MODE_UNSPECIFIED,
+  PIXEL_MODE_16,
+  PIXEL_MODE_18,
+};
 
+class ILI9XXXDisplay : public display::DisplayBuffer {
  public:
   ILI9XXXDisplay() = default;
   ILI9XXXDisplay(uint8_t const *init_sequence, int16_t width, int16_t height, bool invert_colors)
@@ -57,7 +57,6 @@ class ILI9XXXDisplay : public display::DisplayBuffer {
   }
 
   void add_init_sequence(const std::vector<uint8_t> &sequence) { this->extra_init_sequence_ = sequence; }
-  void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
