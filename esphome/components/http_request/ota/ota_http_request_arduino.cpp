@@ -100,7 +100,7 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
   int available_data = stream_ptr->available();
   int bufsize = std::min((int) max_len, available_data);
   if (bufsize > 0) {
-    this->stream_ptr_->readBytes(buf, bufsize);
+    stream_ptr->readBytes(buf, bufsize);
     this->bytes_read_ += bufsize;
     buf[bufsize] = '\0';  // not fed to ota
   }
