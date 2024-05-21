@@ -4,39 +4,42 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 """
 
+import esphome.config_validation as cv
 from esphome.const import CONF_LED
 from esphome.schema_extractors import schema_extractor, SCHEMA_EXTRACT
-import esphome.config_validation as cv
 
 
 class LvConstant:
+    """
+    Allow one of a list of choices, mapped to upper case, and prepend the choice with the prefix.
+    It's also permitted to include the prefix in the value
+    The property `one_of` has the single case validator, and `several_of` allows a list of constants.
+    """
+
     def __init__(self, prefix: str, *choices):
         self.prefix = prefix
         self.choices = choices
-
-    def extend(self, *choices):
-        return LvConstant(self.prefix, *(self.choices + choices))
-
-    @property
-    def one_of(self):
-        """Allow one of a list of choices, mapped to upper case, and prepend the choice with the prefix.
-        It's also permitted to include the prefix in the value"""
+        prefixed_choices = [prefix + v for v in choices]
+        prefixed_validator = cv.one_of(*prefixed_choices, upper=True)
 
         @schema_extractor("one_of")
         def validator(value):
             if value == SCHEMA_EXTRACT:
                 return self.choices
             if isinstance(value, str) and value.startswith(self.prefix):
-                return cv.one_of(
-                    *list(map(lambda v: self.prefix + v, self.choices)), upper=True
-                )(value)
-            return self.prefix + cv.one_of(*self.choices, upper=True)(value)
+                return prefixed_validator(value)
+            return self.prefix + cv.one_of(*choices, upper=True)(value)
 
-        return validator
+        self.one_of = validator
+        self.several_of = cv.ensure_list(self.one_of)
 
-    @property
-    def several_of(self):
-        return cv.ensure_list(self.one_of)
+    def extend(self, *choices):
+        """
+        Extend an LVCconstant with additional choices.
+        :param choices: The extra choices
+        :return: A new LVConstant instance
+        """
+        return LvConstant(self.prefix, *(self.choices + choices))
 
 
 # Widgets
@@ -90,7 +93,7 @@ TYPE_FLEX = "flex"
 TYPE_GRID = "grid"
 TYPE_NONE = "none"
 
-LV_FONTS = list(map(lambda size: f"montserrat_{size}", range(8, 50, 2))) + [
+LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "dejavu_16_persian_hebrew",
     "simsun_16_cjk",
     "unscii_8",
@@ -113,7 +116,8 @@ LV_EVENT = {
     "CANCEL": "CANCEL",
 }
 
-LV_EVENT_TRIGGERS = tuple(map(lambda x: "on_" + x.lower(), LV_EVENT))
+LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT)
+
 
 LV_ANIM = LvConstant(
     "LV_SCR_LOAD_ANIM_",
@@ -442,7 +446,6 @@ CONF_X = "x"
 CONF_Y = "y"
 CONF_ZOOM = "zoom"
 
-
 # list of widgets and the parts allowed
 WIDGET_PARTS = {
     CONF_ANIMIMG: (CONF_MAIN,),
@@ -497,4 +500,4 @@ WIDGET_PARTS = {
 
 
 def join_enums(enums, prefix=""):
-    return "|".join(map(lambda e: f"(int){prefix}{e.upper()}", enums))
+    return "|".join(f"(int){prefix}{e.upper()}" for e in enums)

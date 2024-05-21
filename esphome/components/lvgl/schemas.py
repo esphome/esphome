@@ -130,7 +130,7 @@ STATE_SCHEMA = cv.Schema(
 ).extend(STYLE_SCHEMA)
 SET_STATE_SCHEMA = cv.Schema({cv.Optional(state): lv.lv_bool for state in df.STATES})
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): cv.boolean for flag in df.OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", df.OBJ_FLAGS).one_of)
+FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
 
 
 def part_schema(parts):
@@ -330,7 +330,7 @@ def any_widget_schema(extras=None):
     :param extras: Additional schema to be applied to each generated one
     :return:
     """
-    return cv.Any(dict(map(lambda wt: widget_schema(wt, extras), WIDGET_PARTS)))
+    return cv.Any(dict(widget_schema(wt, extras) for wt in WIDGET_PARTS))
 
 
 ACTION_SCHEMA = cv.maybe_simple_value(

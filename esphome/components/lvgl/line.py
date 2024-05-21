@@ -40,9 +40,7 @@ class LineType(WidgetType):
         data = config[df.CONF_POINTS]
         point_list = data[df.CONF_POINTS]
         initialiser = cg.RawExpression(
-            "{"
-            + ",".join(map(lambda p: "{" + f"{p[0]}, {p[1]}" + "}", point_list))
-            + "}"
+            "{" + ",".join(f"{{{p[0]}, {p[1]}}}" for p in point_list) + "}"
         )
         points = cg.static_const_array(data[CONF_ID], initialiser)
         return [f"lv_line_set_points({w.obj}, {points}, {len(point_list)})"]
