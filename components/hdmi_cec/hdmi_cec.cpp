@@ -37,6 +37,7 @@ std::string bytes_to_string(std::vector<uint8_t> bytes) {
 }
 
 void HDMICEC::setup() {
+  this->pin_->setup();  
   isr_pin_ = pin_->to_isr();
   recv_frame_buffer_.reserve(16); // max 16 bytes per CEC frame
   pin_->attach_interrupt(HDMICEC::gpio_intr_, this, gpio::INTERRUPT_ANY_EDGE);
