@@ -23,7 +23,7 @@ from esphome.const import (
     CONF_EXTERNAL_COMPONENTS,
     TARGET_PLATFORMS,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, DocumentRange
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
@@ -184,7 +184,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
     def get_deepest_document_range_for_path(
         self, path: ConfigPath, get_key: bool = False
-    ) -> ESPHomeDataBase | None:
+    ) -> DocumentRange | None:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):
