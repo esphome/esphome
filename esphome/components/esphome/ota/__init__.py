@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_SAFE_MODE,
     CONF_VERSION,
 )
 from esphome.core import coroutine_with_priority
@@ -32,6 +33,9 @@ CONFIG_SCHEMA = (
                 rtl87xx=8892,
             ): cv.port,
             cv.Optional(CONF_PASSWORD): cv.string,
+            cv.Optional(CONF_SAFE_MODE): cv.invalid(
+                f"The '{CONF_SAFE_MODE}' option has been moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
+            ),
         }
     )
     .extend(BASE_OTA_SCHEMA)
