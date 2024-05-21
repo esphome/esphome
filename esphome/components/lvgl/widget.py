@@ -8,6 +8,7 @@ from esphome.cpp_generator import MockObjClass
 from . import types as ty
 from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
 from .types import lv_obj_t
+from .helpers import get_line_marks
 
 EVENT_LAMB = "event_lamb__"
 
@@ -142,6 +143,7 @@ class Widget:
             value = value.get(prop)
         if value is None:
             return []
+        init = get_line_marks(value)
         if animated is None or self.type.animated is not True:
             animated = ""
         else:
@@ -149,7 +151,8 @@ class Widget:
         if isinstance(value, TimePeriod):
             value = value.total_milliseconds
         ltype = ltype or self.__type_base()
-        return [f"lv_{ltype}_set_{prop}({self.obj}, {value} {animated})"]
+        init.append(f"lv_{ltype}_set_{prop}({self.obj}, {value} {animated})")
+        return init
 
     def get_property(self, prop, ltype=None):
         ltype = ltype or self.__type_base()

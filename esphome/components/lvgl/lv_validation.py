@@ -215,8 +215,8 @@ class TextValidator(LValidator):
         if isinstance(value, dict):
             args = [str(x) for x in value[CONF_ARGS]]
             arg_expr = cg.RawExpression(",".join(args))
-            format = cpp_string_escape(value[CONF_FORMAT])
-            return f"str_sprintf({format}, {arg_expr}).c_str()"
+            format_str = cpp_string_escape(value[CONF_FORMAT])
+            return f"str_sprintf({format_str}, {arg_expr}).c_str()"
         return await super().process(value, args)
 
 

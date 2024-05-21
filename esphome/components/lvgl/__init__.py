@@ -49,7 +49,7 @@ from .codegen import (
     update_to_code,
 )
 from .dropdown import dropdown_spec
-from .helpers import mark_line, join_lines
+from .helpers import get_line_marks, join_lines
 from .img import img_spec
 from .keyboard import keyboard_spec
 from .label import label_spec
@@ -339,6 +339,12 @@ async def touchscreens_to_code(var, config):
     return init
 
 
+def add_line_markers(value):
+    marks = get_line_marks(value)
+    for mark in marks:
+        cg.add(cg.RawStatement(mark))
+
+
 async def generate_triggers(lv_component):
     for widget in widget_map.values():
         if widget.config:
@@ -352,7 +358,7 @@ async def generate_triggers(lv_component):
                 event = df.LV_EVENT[event[3:].upper()]
                 conf = conf[0]
                 tid = conf[CONF_TRIGGER_ID]
-                cg.add(cg.RawStatement(mark_line(tid)))
+                add_line_markers(tid)
                 trigger = cg.new_Pvariable(tid)
                 args = widget.get_args()
                 value = widget.get_value()
@@ -366,7 +372,7 @@ async def generate_triggers(lv_component):
             if on_value := widget.config.get(CONF_ON_VALUE):
                 for conf in on_value:
                     tid = conf[CONF_TRIGGER_ID]
-                    cg.add(cg.RawStatement(mark_line(tid)))
+                    add_line_markers(tid)
                     trigger = cg.new_Pvariable(tid)
                     args = widget.get_args()
                     value = widget.get_value()

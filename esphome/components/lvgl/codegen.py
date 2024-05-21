@@ -21,7 +21,7 @@ from .defines import (
     CONF_WIDGETS,
     join_enums,
 )
-from .helpers import add_lv_use, mark_line, join_lines
+from .helpers import add_lv_use, get_line_marks, join_lines
 from .schemas import ALL_STYLES
 from .types import (
     lv_coord_t,
@@ -192,7 +192,7 @@ async def widget_to_code(w_cnfig, w_type, parent):
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
     wid = w_cnfig[CONF_ID]
-    init.append(mark_line(wid))
+    init.extend(get_line_marks(wid))
 
     if wid.type.inherits_from(LvCompound):
         var = cg.new_Pvariable(wid)

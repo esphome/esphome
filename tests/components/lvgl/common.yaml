@@ -299,6 +299,11 @@ lvgl:
                     selected_index: 5
             on_value:
               then:
+                - lvgl.label.update:
+                    id: label_id
+                    text:
+                      format: "Roller changed = %d"
+                      args: [x]
                 - logger.log:
                     format: "Roller changed = %d"
                     args: [x]

@@ -54,15 +54,21 @@ def validate_printf(value):
     return value
 
 
-def mark_line(id: ID):
-    if isinstance(id, ESPHomeDataBase):
-        path = id.esp_range
-    elif isinstance(CORE.config, Config):
-        path = CORE.config.get_path_for_id(id)[:-1]
-    else:
-        return ""
-    path = CORE.config.get_deepest_document_range_for_path(path)
-    return path.start_mark.as_line_directive
+def get_line_marks(value) -> list:
+    """
+    If possible, return a preprocessor directive to identify the line number where the given id was defined.
+    :param id: The id in question
+    :return: Either an empty string, or a #line directive
+    """
+    path = None
+    if isinstance(value, ESPHomeDataBase):
+        path = value.esp_range
+    elif isinstance(value, ID) and isinstance(CORE.config, Config):
+        path = CORE.config.get_path_for_id(value)[:-1]
+        path = CORE.config.get_deepest_document_range_for_path(path)
+    if path is None:
+        return []
+    return [path.start_mark.as_line_directive]
 
 
 def add_semi(ln: str):
@@ -73,6 +79,6 @@ def add_semi(ln: str):
 
 def join_lines(lines: list, id: ID = None):
     lines = list(map(add_semi, lines))
-    if id:
-        lines.insert(0, mark_line(id))
-    return "\n".join([*lines, ""])
+    marks = get_line_marks(id)
+    marks.extend(lines)
+    return "\n".join([*marks, ""])
