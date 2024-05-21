@@ -9,7 +9,7 @@ ws18x0_uart:
   on_tag:
     then:
       - logger.log:
-          format: "Scanned tag 0x%lX"
+          format: "Scanned tag 0x%X"
           args: ["x"]
       - logger.log:
           format: "Scanned raw 0x%llX"
