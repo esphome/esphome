@@ -1,9 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 
 #include <vector>
 
@@ -51,19 +52,10 @@ enum {
   MPR121_SOFTRESET = 0x80,
 };
 
-class MPR121Channel : public binary_sensor::BinarySensor {
-  friend class MPR121Component;
-
+class MPR121Channel {
  public:
-  void set_channel(uint8_t channel) { channel_ = channel; }
-  void process(uint16_t data) { this->publish_state(static_cast<bool>(data & (1 << this->channel_))); }
-  void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
-  void set_release_threshold(uint8_t release_threshold) { this->release_threshold_ = release_threshold; };
-
- protected:
-  uint8_t channel_{0};
-  optional<uint8_t> touch_threshold_{};
-  optional<uint8_t> release_threshold_{};
+  virtual void setup() = 0;
+  virtual void process(uint16_t data) = 0;
 };
 
 class MPR121Component : public Component, public i2c::I2CDevice {
@@ -73,12 +65,14 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   void set_release_debounce(uint8_t debounce);
   void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
   void set_release_threshold(uint8_t release_threshold) { this->release_threshold_ = release_threshold; };
-  uint8_t get_touch_threshold() { return this->touch_threshold_; };
-  uint8_t get_release_threshold() { return this->release_threshold_; };
+  uint8_t get_touch_threshold() const { return this->touch_threshold_; };
+  uint8_t get_release_threshold() const { return this->release_threshold_; };
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::IO; }
   void loop() override;
+
+  void set_max_touch_channel(uint8_t max_touch_channel) { this->max_touch_channel_ = max_touch_channel; }
 
   // GPIO helper functions.
   bool digital_read(uint8_t ionum);
@@ -90,6 +84,7 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   uint8_t debounce_{0};
   uint8_t touch_threshold_{};
   uint8_t release_threshold_{};
+  uint8_t max_touch_channel_{3};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
@@ -97,7 +92,6 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   } error_code_{NONE};
 
   bool flush_gpio_();
-  uint8_t max_touch_channel_();
 
   /// The enable mask - zero means high Z, 1 means GPIO usage
   uint8_t gpio_enable_{0x00};

@@ -1,7 +1,9 @@
 #include "mpr121.h"
+
 #include <cstdint>
-#include "esphome/core/log.h"
+
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace mpr121 {
@@ -21,10 +23,7 @@ void MPR121Component::setup() {
 
   // set touch sensitivity for all 12 channels
   for (auto *channel : this->channels_) {
-    this->write_byte(MPR121_TOUCHTH_0 + 2 * channel->channel_,
-                     channel->touch_threshold_.value_or(this->touch_threshold_));
-    this->write_byte(MPR121_RELEASETH_0 + 2 * channel->channel_,
-                     channel->release_threshold_.value_or(this->release_threshold_));
+    channel->setup();
   }
   this->write_byte(MPR121_MHDR, 0x01);
   this->write_byte(MPR121_NHDR, 0x01);
@@ -51,8 +50,7 @@ void MPR121Component::setup() {
   // * The 2 bits below is "Proximity Enable" and are left at 0.
   // * The 4 least significant bits control how many electrodes are enabled. Electrodes are enabled
   //   as a range, starting at 0 up to the highest channel index used.
-  uint8_t max_touch_channel = this->max_touch_channel_();
-  this->write_byte(MPR121_ECR, 0x80 | (max_touch_channel + 1));
+  this->write_byte(MPR121_ECR, 0x80 | (this->max_touch_channel_ + 1));
 
   this->flush_gpio_();
 }
@@ -111,16 +109,6 @@ void MPR121Component::digital_write(uint8_t ionum, bool value) {
 }
 
 void MPR121Component::pin_mode(uint8_t ionum, gpio::Flags flags) {
-  // GPIO functionality can not be configured simultaneously with the touch electrodes. Print a
-  // polite warning so this does not go unnoticed.
-  uint8_t max_touch_channel = this->max_touch_channel_();
-  uint8_t pin = ionum + 4;
-  if (pin <= max_touch_channel) {
-    ESP_LOGW("mpr121", "Touch channels ELE0 to ELE%u are configured, conflicting with the use of ELE%u as GPIO",
-             max_touch_channel, pin);
-    // Continuing is ok, the MPR121 has documented behaviour for this conflict condition.
-  }
-
   this->gpio_enable_ |= (1 << ionum);
   if (flags & gpio::FLAG_INPUT) {
     this->gpio_direction_ &= ~(1 << ionum);
@@ -148,16 +136,6 @@ bool MPR121Component::flush_gpio_() {
 
   this->status_clear_warning();
   return true;
-}
-
-uint8_t MPR121Component::max_touch_channel_() {
-  uint8_t max = 0;
-  for (auto *channel : this->channels_) {
-    if (max < channel->channel_) {
-      max = channel->channel_;
-    }
-  }
-  return max;
 }
 
 void MPR121GPIOPin::setup() { this->pin_mode(this->flags_); }
