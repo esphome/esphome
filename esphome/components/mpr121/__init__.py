@@ -54,7 +54,7 @@ def _final_validate(config):
     max_touch_channel = 3
     if CONF_BINARY_SENSOR in fconf:
         for binary_sensor in fconf[CONF_BINARY_SENSOR]:
-            if binary_sensor[CONF_MPR121_ID] == config[CONF_ID]:
+            if binary_sensor.get(CONF_MPR121_ID) == config[CONF_ID]:
                 max_touch_channel = max(max_touch_channel, binary_sensor[CONF_CHANNEL])
     if max_touch_channel_in_config := config.get(CONF_MAX_TOUCH_CHANNEL):
         if max_touch_channel != max_touch_channel_in_config:
