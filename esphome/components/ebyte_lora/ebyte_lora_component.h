@@ -30,12 +30,13 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
   void dump_config() override;
-  /// Helper function to write the value of a pin.
-  void digital_write(uint8_t pin, bool value);
+
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
   void set_pin_aux(InternalGPIOPin *pin_aux) { pin_aux_ = pin_aux; }
 #ifdef USE_SWITCH
   void set_switch(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
+  /// Helper function to write the value of a pin.
+  void digital_write(uint8_t pin, bool value);
 #endif
   void set_pin_m0(InternalGPIOPin *pin_m0) { pin_m0_ = pin_m0; }
   void set_pin_m1(InternalGPIOPin *pin_m1) { pin_m1_ = pin_m1; }

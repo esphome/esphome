@@ -379,6 +379,7 @@ void EbyteLoraComponent::dump_config() {
   LOG_PIN("M0 Pin:", this->pin_m0_);
   LOG_PIN("M1 Pin:", this->pin_m1_);
 };
+#ifdef USE_SWITCH
 void EbyteLoraComponent::digital_write(uint8_t pin, bool value) { this->send_switch_push_(pin, value); }
 void EbyteLoraComponent::send_switch_push_(uint8_t pin, bool value) {
   if (!this->can_send_message_()) {
@@ -395,6 +396,7 @@ void EbyteLoraComponent::send_switch_push_(uint8_t pin, bool value) {
   this->setup_wait_response_(5000);
   ESP_LOGD(TAG, "Successfully put in queue");
 }
+#endif
 void EbyteLoraComponent::loop() {
   std::string buffer;
   std::vector<uint8_t> data;
