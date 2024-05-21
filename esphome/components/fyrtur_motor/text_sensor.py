@@ -4,7 +4,7 @@ from esphome.components import text_sensor
 from esphome.const import CONF_STATUS
 from . import FyrturMotorComponent, CONF_FYRTUR_MOTOR_ID
 
-ICON_CAR_BATTERY = "mdi:car-battery"
+ICON_QUESTION_MARK = "mdi:question-mark"
 
 TYPES = [
     CONF_STATUS,
@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_FYRTUR_MOTOR_ID): cv.use_id(FyrturMotorComponent),
             cv.Optional(CONF_STATUS): text_sensor.text_sensor_schema(
-                icon=ICON_CAR_BATTERY
+                icon=ICON_QUESTION_MARK
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA)

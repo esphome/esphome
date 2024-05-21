@@ -48,7 +48,7 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
 
 #ifdef USE_SENSOR
   SUB_SENSOR(battery_level)
-  SUB_SENSOR(battery_voltage)
+  SUB_SENSOR(voltage)
   SUB_SENSOR(speed)
   SUB_SENSOR(position)
 #endif
@@ -67,7 +67,7 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  void loop() override;
+  // void loop() override;
   float get_setup_priority() const override;
 
   void set_position(uint8_t position);

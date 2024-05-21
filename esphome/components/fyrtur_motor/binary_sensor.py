@@ -3,24 +3,21 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from . import FyrturMotorComponent, CONF_FYRTUR_MOTOR_ID
 
-CONF_CHARGING_MOS_ENABLED = "charging_mos_enabled"
-CONF_DISCHARGING_MOS_ENABLED = "discharging_mos_enabled"
+CONF_MOVING = "moving"
+CONF_FULLY_OPEN = "fully_open"
+CONF_FULLY_CLOSED = "fully_closed"
+CONF_PARTIALY_OPEN = "fpartialy_open"
 
-TYPES = [
-    CONF_CHARGING_MOS_ENABLED,
-    CONF_DISCHARGING_MOS_ENABLED,
-]
+TYPES = [CONF_MOVING, CONF_FULLY_OPEN, CONF_FULLY_CLOSED, CONF_PARTIALY_OPEN]
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_FYRTUR_MOTOR_ID): cv.use_id(FyrturMotorComponent),
-            cv.Optional(
-                CONF_CHARGING_MOS_ENABLED
-            ): binary_sensor.binary_sensor_schema(),
-            cv.Optional(
-                CONF_DISCHARGING_MOS_ENABLED
-            ): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_MOVING): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_FULLY_OPEN): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_FULLY_CLOSED): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_PARTIALY_OPEN): binary_sensor.binary_sensor_schema(),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )

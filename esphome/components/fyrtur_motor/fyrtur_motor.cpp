@@ -26,13 +26,11 @@ void FyrturMotorComponent::dump_config(void) {
   this->check_uart_settings(2400);
 }
 
-void FyrturMotorComponent::update(void) {
-  // run status check commands
-}
+void FyrturMotorComponent::update(void) { get_status(); }
 
-void FyrturMotorComponent::loop(void) {
-  // probably not needed
-}
+// void FyrturMotorComponent::loop(void) {
+//   // probably not needed
+// }
 
 float FyrturMotorComponent::get_setup_priority(void) const { return setup_priority::DATA; }
 
@@ -137,17 +135,17 @@ void FyrturMotorComponent::get_status(void) {
   uint8_t position = response[3];
 
   ESP_LOGI(TAG, "Got status response:");
-  ESP_LOGI(TAG, "Battery level: %.0f /%", battery_level);
+  ESP_LOGI(TAG, "Battery level: %.0f %", battery_level);
   ESP_LOGI(TAG, "Battery voltage: %.1f V", battery_voltage);
-  ESP_LOGI(TAG, "Speed: %.0f RPM", speed);
-  ESP_LOGI(TAG, "Position: %.0f %", position);
+  ESP_LOGI(TAG, "Speed: %u RPM", speed);
+  ESP_LOGI(TAG, "Position: %u %", position);
 
 #ifdef USE_SENSOR
   if (this->battery_level_sensor_) {
     this->battery_level_sensor_->publish_state(battery_level);
   }
-  if (this->battery_voltage_sensor_) {
-    this->battery_voltage_sensor_->publish_state(battery_voltage);
+  if (this->voltage_sensor_) {
+    this->voltage_sensor_->publish_state(battery_voltage);
   }
   if (this->speed_sensor_) {
     this->speed_sensor_->publish_state(speed);
