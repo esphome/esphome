@@ -25,6 +25,10 @@ class SafeModeComponent : public Component {
 
   void on_safe_shutdown() override;
 
+  void add_on_safe_mode_callback(std::function<void()> &&callback) {
+    this->safe_mode_callback_.add(std::move(callback));
+  }
+
  protected:
   void write_rtc_(uint32_t val);
   uint32_t read_rtc_();
@@ -35,6 +39,7 @@ class SafeModeComponent : public Component {
   uint32_t safe_mode_rtc_value_;
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
+  CallbackManager<void()> safe_mode_callback_{};
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
