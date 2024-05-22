@@ -28,7 +28,7 @@ class MUARTBridge {
  protected:
   optional<RawPacket> receive_raw_packet_(SourceBridge source_bridge,
                                           ControllerAssociation controller_association) const;
-  void write_raw_packet_(const RawPacket &packetToSend) const;
+  void write_raw_packet_(const RawPacket &packet_to_send) const;
   template<class P> void process_raw_packet_(RawPacket &pkt, bool expect_response = true) const;
   void classify_and_process_raw_packet_(RawPacket &pkt) const;
 
