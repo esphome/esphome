@@ -203,6 +203,7 @@ void MitsubishiUART::do_publish_() {
   defrost_sensor_->publish_state(defrost_sensor_->state);
   hot_adjust_sensor_->publish_state(hot_adjust_sensor_->state);
   standby_sensor_->publish_state(standby_sensor_->state);
+  isee_status_sensor_->publish_state(isee_status_sensor_->state);
 }
 
 bool MitsubishiUART::select_temperature_source(const std::string &state) {

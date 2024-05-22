@@ -74,6 +74,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void set_defrost_sensor(binary_sensor::BinarySensor *sensor) { defrost_sensor_ = sensor; };
   void set_hot_adjust_sensor(binary_sensor::BinarySensor *sensor) { hot_adjust_sensor_ = sensor; };
   void set_standby_sensor(binary_sensor::BinarySensor *sensor) { standby_sensor_ = sensor; };
+  void set_isee_status_sensor(binary_sensor::BinarySensor *sensor) { isee_status_sensor_ = sensor; }
   void set_error_code_sensor(text_sensor::TextSensor *sensor) { error_code_sensor_ = sensor; };
 
   // Select setters
@@ -158,6 +159,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   binary_sensor::BinarySensor *defrost_sensor_ = nullptr;
   binary_sensor::BinarySensor *hot_adjust_sensor_ = nullptr;
   binary_sensor::BinarySensor *standby_sensor_ = nullptr;
+  binary_sensor::BinarySensor *isee_status_sensor_ = nullptr;
   text_sensor::TextSensor *error_code_sensor_ = nullptr;
 
   // Selects
