@@ -10,6 +10,11 @@ namespace i2s_audio {
 static const char *const TAG = "audio";
 
 void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
+  media_player::MediaPlayerState play_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+  if (call.get_announcement().has_value()) {
+    play_state = call.get_announcement().value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+                                                 : media_player::MEDIA_PLAYER_STATE_PLAYING;
+  }
   if (call.get_media_url().has_value()) {
     this->current_url_ = call.get_media_url();
     if (this->i2s_state_ != I2S_STATE_STOPPED && this->audio_ != nullptr) {
@@ -17,7 +22,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         this->audio_->stopSong();
       }
       this->audio_->connecttohost(this->current_url_.value().c_str());
-      this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+      this->state = play_state;
     } else {
       this->start();
     }
@@ -35,7 +40,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
         if (!this->audio_->isRunning())
           this->audio_->pauseResume();
-        this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+        this->state = play_state;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
         if (this->audio_->isRunning())
@@ -126,7 +131,9 @@ void I2SAudioMediaPlayer::loop() {
 
 void I2SAudioMediaPlayer::play_() {
   this->audio_->loop();
-  if (this->state == media_player::MEDIA_PLAYER_STATE_PLAYING && !this->audio_->isRunning()) {
+  if ((this->state == media_player::MEDIA_PLAYER_STATE_PLAYING ||
+       this->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) &&
+      !this->audio_->isRunning()) {
     this->stop();
   }
 }
@@ -164,6 +171,10 @@ void I2SAudioMediaPlayer::start_() {
   if (this->current_url_.has_value()) {
     this->audio_->connecttohost(this->current_url_.value().c_str());
     this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+    if (this->is_announcement_.has_value()) {
+      this->state = this->is_announcement_.value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+                                                   : media_player::MEDIA_PLAYER_STATE_PLAYING;
+    }
     this->publish_state();
   }
 }
