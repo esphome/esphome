@@ -20,23 +20,23 @@ class MUARTBridge {
   MUARTBridge(uart::UARTComponent *uart_component, PacketProcessor *packet_processor);
 
   // Enqueues a packet to be sent
-  void sendPacket(const Packet &packetToSend);
+  void send_packet(const Packet &packet_to_send);
 
   // Checks for incoming packets, processes them, sends queued packets
   virtual void loop() = 0;
 
  protected:
-  const optional<RawPacket> receiveRawPacket(const SourceBridge source_bridge,
-                                             const ControllerAssociation controller_association) const;
-  void writeRawPacket(const RawPacket &pkt) const;
-  template<class P> void processRawPacket(RawPacket &pkt, bool expectResponse = true) const;
-  void classifyAndProcessRawPacket(RawPacket &pkt) const;
+  optional<RawPacket> receive_raw_packet_(SourceBridge source_bridge,
+                                          ControllerAssociation controller_association) const;
+  void write_raw_packet_(const RawPacket &packetToSend) const;
+  template<class P> void process_raw_packet_(RawPacket &pkt, bool expect_response = true) const;
+  void classify_and_process_raw_packet_(RawPacket &pkt) const;
 
-  uart::UARTComponent &uart_comp;
-  PacketProcessor &pkt_processor;
-  std::queue<Packet> pkt_queue;
-  optional<Packet> packetAwaitingResponse = nullopt;
-  uint32_t packet_sent_millis;
+  uart::UARTComponent &uart_comp_;
+  PacketProcessor &pkt_processor_;
+  std::queue<Packet> pkt_queue_;
+  optional<Packet> packet_awaiting_response_ = nullopt;
+  uint32_t packet_sent_millis_;
 };
 
 class HeatpumpBridge : public MUARTBridge {

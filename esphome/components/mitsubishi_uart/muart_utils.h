@@ -7,12 +7,12 @@ class MUARTUtils {
  public:
   /// Read a string out of data, wordSize bits at a time.
   /// Used to decode serial numbers and other information from a thermostat.
-  static std::string DecodeNBitString(const uint8_t data[], size_t dataLength, size_t wordSize) {
-    auto resultLength = (dataLength / wordSize) + (dataLength % wordSize != 0);
+  static std::string decode_n_bit_string(const uint8_t data[], size_t data_length, size_t word_size) {
+    auto result_length = (data_length / word_size) + (data_length % word_size != 0);
     auto result = std::string();
 
-    for (int i = 0; i < resultLength; i++) {
-      auto bits = BitSlice(data, i * wordSize, ((i + 1) * wordSize) - 1);
+    for (int i = 0; i < result_length; i++) {
+      auto bits = bit_slice(data, i * word_size, ((i + 1) * word_size) - 1);
       if (bits <= 0x1F)
         bits += 0x40;
       result += (char) bits;
@@ -21,9 +21,9 @@ class MUARTUtils {
     return result;
   }
 
-  static float TempScaleAToDegC(const uint8_t value) { return (float) (value - 128) / 2.0f; }
+  static float temp_scale_a_to_deg_c(const uint8_t value) { return (float) (value - 128) / 2.0f; }
 
-  static uint8_t DegCToTempScaleA(const float value) {
+  static uint8_t deg_c_to_temp_scale_a(const float value) {
     // Special cases
     if (value < -64)
       return 0;
@@ -33,11 +33,11 @@ class MUARTUtils {
     return (uint8_t) round(value * 2) + 128;
   }
 
-  static float LegacyTargetTempToDegC(const uint8_t value) {
+  static float legacy_target_temp_to_deg_c(const uint8_t value) {
     return ((float) (31 - (value & 0x0F)) + (((value & 0xF0) > 0) ? 0.5f : 0));
   }
 
-  static uint8_t DegCToLegacyTargetTemp(const float value) {
+  static uint8_t deg_c_to_legacy_target_temp(const float value) {
     // Special cases per docs
     if (value < 16)
       return 0x0F;
@@ -47,9 +47,9 @@ class MUARTUtils {
     return ((31 - (uint8_t) value) & 0xF) + (((int) (value * 2) % 2) << 4);
   }
 
-  static float LegacyRoomTempToDegC(const uint8_t value) { return (float) value + 10; }
+  static float legacy_room_temp_to_deg_c(const uint8_t value) { return (float) value + 10; }
 
-  static uint8_t DegCToLegacyRoomTemp(const float value) {
+  static uint8_t deg_c_to_legacy_room_temp(const float value) {
     if (value < 10)
       return 0x00;
     if (value > 41)
@@ -60,7 +60,7 @@ class MUARTUtils {
 
  private:
   /// Extract the specified bits (inclusive) from an arbitrarily-sized byte array. Does not perform bounds checks.
-  static uint64_t BitSlice(const uint8_t ds[], size_t start, size_t end) {
+  static uint64_t bit_slice(const uint8_t ds[], size_t start, size_t end) {
     // Lazies! https://stackoverflow.com/a/25297870/1817097
     uint64_t s = 0;
     size_t i, n = (end - 1) / 8;

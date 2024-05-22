@@ -23,34 +23,33 @@ class PacketProcessor;
 // Generic Base Packet wrapper over RawPacket
 class Packet {
  public:
-  Packet(RawPacket &&pkt)
-      : pkt_(std::move(pkt)){};  // TODO: Confirm this needs std::move if call to constructor ALSO has move
-  Packet();                      // For optional<> construction
+  Packet(RawPacket &&pkt) : pkt_(pkt){};  // TODO: Confirm this needs std::move if call to constructor ALSO has move
+  Packet();                               // For optional<> construction
 
   // Returns a (more) human readable string of the packet
   virtual std::string to_string() const;
 
   // Is a response packet expected when this packet is sent.  Defaults to true since
   // most requests receive a response.
-  bool isResponseExpected() const { return responseExpected; };
-  void setResponseExpected(bool expectResponse) { responseExpected = expectResponse; };
+  bool is_response_expected() const { return response_expected_; };
+  void set_response_expected(bool expect_response) { response_expected_ = expect_response; };
 
   // Passthrough methods to RawPacket
-  RawPacket &rawPacket() { return pkt_; };
-  uint8_t getPacketType() const { return pkt_.getPacketType(); }
-  bool isChecksumValid() const { return pkt_.isChecksumValid(); };
+  RawPacket &raw_packet() { return pkt_; };
+  uint8_t get_packet_type() const { return pkt_.get_packet_type(); }
+  bool is_checksum_valid() const { return pkt_.is_checksum_valid(); };
 
   // Returns flags (ONLY APPLICABLE FOR SOME COMMANDS)
-  uint8_t getFlags() const { return pkt_.getPayloadByte(PLINDEX_FLAGS); }
+  uint8_t get_flags() const { return pkt_.get_payload_byte(PLINDEX_FLAGS); }
   // Sets flags (ONLY APPLICABLE FOR SOME COMMANDS)
-  void setFlags(const uint8_t flagValue);
+  void set_flags(uint8_t flag_value);
   // Adds a flag (ONLY APPLICABLE FOR SOME COMMANDS)
-  void addFlag(const uint8_t flagToAdd);
+  void add_flag(uint8_t flag_to_add);
   // Adds a flag2 (ONLY APPLICABLE FOR SOME COMMANDS)
-  void addFlag2(const uint8_t flag2ToAdd);
+  void add_flag2(uint8_t flag2_to_add);
 
-  SourceBridge getSourceBridge() const { return pkt_.getSourceBridge(); }
-  ControllerAssociation getControllerAssociation() const { return pkt_.getControllerAssociation(); }
+  SourceBridge get_source_bridge() const { return pkt_.get_source_bridge(); }
+  ControllerAssociation get_controller_association() const { return pkt_.get_controller_association(); }
 
  protected:
   static const int PLINDEX_FLAGS = 1;
@@ -59,7 +58,7 @@ class Packet {
   RawPacket pkt_;
 
  private:
-  bool responseExpected = true;
+  bool response_expected_ = true;
 };
 
 ////
@@ -69,16 +68,16 @@ class ConnectRequestPacket : public Packet {
  public:
   using Packet::Packet;
   static ConnectRequestPacket &instance() {
-    static ConnectRequestPacket INSTANCE;
-    return INSTANCE;
+    static ConnectRequestPacket instance;
+    return instance;
   }
 
   std::string to_string() const override;
 
  private:
-  ConnectRequestPacket() : Packet(RawPacket(PacketType::connect_request, 2)) {
-    pkt_.setPayloadByte(0, 0xca);
-    pkt_.setPayloadByte(1, 0x01);
+  ConnectRequestPacket() : Packet(RawPacket(PacketType::CONNECT_REQUEST, 2)) {
+    pkt_.set_payload_byte(0, 0xca);
+    pkt_.set_payload_byte(1, 0x01);
   }
 };
 
@@ -94,14 +93,14 @@ class ConnectResponsePacket : public Packet {
 class ExtendedConnectRequestPacket : public Packet {
  public:
   static ExtendedConnectRequestPacket &instance() {
-    static ExtendedConnectRequestPacket INSTANCE;
-    return INSTANCE;
+    static ExtendedConnectRequestPacket instance;
+    return instance;
   }
   using Packet::Packet;
 
  private:
-  ExtendedConnectRequestPacket() : Packet(RawPacket(PacketType::extended_connect_request, 1)) {
-    pkt_.setPayloadByte(0, 0xc9);
+  ExtendedConnectRequestPacket() : Packet(RawPacket(PacketType::EXTENDED_CONNECT_REQUEST, 1)) {
+    pkt_.set_payload_byte(0, 0xc9);
   }
 };
 
@@ -110,39 +109,39 @@ class ExtendedConnectResponsePacket : public Packet {
 
  public:
   // Byte 7
-  bool isHeatDisabled() const { return pkt_.getPayloadByte(7) & 0x02; }
-  bool supportsVane() const { return pkt_.getPayloadByte(7) & 0x20; }
-  bool supportsVaneSwing() const { return pkt_.getPayloadByte(7) & 0x40; }
+  bool is_heat_disabled() const { return pkt_.get_payload_byte(7) & 0x02; }
+  bool supports_vane() const { return pkt_.get_payload_byte(7) & 0x20; }
+  bool supports_vane_swing() const { return pkt_.get_payload_byte(7) & 0x40; }
 
   // Byte 8
-  bool isDryDisabled() const { return pkt_.getPayloadByte(8) & 0x01; }
-  bool isFanDisabled() const { return pkt_.getPayloadByte(8) & 0x02; }
-  bool hasExtendedTemperatureRange() const { return pkt_.getPayloadByte(8) & 0x04; }
-  bool autoFanSpeedDisabled() const { return pkt_.getPayloadByte(8) & 0x10; }
-  bool supportsInstallerSettings() const { return pkt_.getPayloadByte(8) & 0x20; }
-  bool supportsTestMode() const { return pkt_.getPayloadByte(8) & 0x40; }
-  bool supportsDryTemperature() const { return pkt_.getPayloadByte(8) & 0x80; }
+  bool is_dry_disabled() const { return pkt_.get_payload_byte(8) & 0x01; }
+  bool is_fan_disabled() const { return pkt_.get_payload_byte(8) & 0x02; }
+  bool has_extended_temperature_range() const { return pkt_.get_payload_byte(8) & 0x04; }
+  bool auto_fan_speed_disabled() const { return pkt_.get_payload_byte(8) & 0x10; }
+  bool supports_installer_settings() const { return pkt_.get_payload_byte(8) & 0x20; }
+  bool supports_test_mode() const { return pkt_.get_payload_byte(8) & 0x40; }
+  bool supports_dry_temperature() const { return pkt_.get_payload_byte(8) & 0x80; }
 
   // Byte 9
-  bool hasStatusDisplay() const { return pkt_.getPayloadByte(9) & 0x01; }
+  bool has_status_display() const { return pkt_.get_payload_byte(9) & 0x01; }
 
   // Bytes 10-15
-  float getMinCoolDrySetpoint() const { return MUARTUtils::TempScaleAToDegC(pkt_.getPayloadByte(10)); }
-  float getMaxCoolDrySetpoint() const { return MUARTUtils::TempScaleAToDegC(pkt_.getPayloadByte(11)); }
-  float getMinHeatingSetpoint() const { return MUARTUtils::TempScaleAToDegC(pkt_.getPayloadByte(12)); }
-  float getMaxHeatingSetpoint() const { return MUARTUtils::TempScaleAToDegC(pkt_.getPayloadByte(13)); }
-  float getMinAutoSetpoint() const { return MUARTUtils::TempScaleAToDegC(pkt_.getPayloadByte(14)); }
-  float getMaxAutoSetpoint() const { return MUARTUtils::TempScaleAToDegC(pkt_.getPayloadByte(15)); }
+  float get_min_cool_dry_setpoint() const { return MUARTUtils::temp_scale_a_to_deg_c(pkt_.get_payload_byte(10)); }
+  float get_max_cool_dry_setpoint() const { return MUARTUtils::temp_scale_a_to_deg_c(pkt_.get_payload_byte(11)); }
+  float get_min_heating_setpoint() const { return MUARTUtils::temp_scale_a_to_deg_c(pkt_.get_payload_byte(12)); }
+  float get_max_heating_setpoint() const { return MUARTUtils::temp_scale_a_to_deg_c(pkt_.get_payload_byte(13)); }
+  float get_min_auto_setpoint() const { return MUARTUtils::temp_scale_a_to_deg_c(pkt_.get_payload_byte(14)); }
+  float get_max_auto_setpoint() const { return MUARTUtils::temp_scale_a_to_deg_c(pkt_.get_payload_byte(15)); }
 
   // Things that have to exist, but we don't know where yet.
-  bool supportsHVane() const { return true; }
+  bool supports_h_vane() const { return true; }
 
   // Fan Speeds TODO: Probably move this to .cpp?
-  uint8_t getSupportedFanSpeeds() const;
+  uint8_t get_supported_fan_speeds() const;
 
   // Convert a temperature response into ClimateTraits. This will *not* include library-provided features.
   // This will also not handle things like MHK2 humidity detection.
-  climate::ClimateTraits asTraits() const;
+  climate::ClimateTraits as_traits() const;
 
   std::string to_string() const override;
 };
@@ -152,31 +151,31 @@ class ExtendedConnectResponsePacket : public Packet {
 ////
 class GetRequestPacket : public Packet {
  public:
-  static GetRequestPacket &getSettingsInstance() {
-    static GetRequestPacket INSTANCE = GetRequestPacket(GetCommand::settings);
-    return INSTANCE;
+  static GetRequestPacket &get_settings_instance() {
+    static GetRequestPacket instance = GetRequestPacket(GetCommand::SETTINGS);
+    return instance;
   }
-  static GetRequestPacket &getCurrentTempInstance() {
-    static GetRequestPacket INSTANCE = GetRequestPacket(GetCommand::current_temp);
-    return INSTANCE;
+  static GetRequestPacket &get_current_temp_instance() {
+    static GetRequestPacket instance = GetRequestPacket(GetCommand::CURRENT_TEMP);
+    return instance;
   }
-  static GetRequestPacket &getStatusInstance() {
-    static GetRequestPacket INSTANCE = GetRequestPacket(GetCommand::standby);
-    return INSTANCE;
+  static GetRequestPacket &get_status_instance() {
+    static GetRequestPacket instance = GetRequestPacket(GetCommand::STANDBY);
+    return instance;
   }
-  static GetRequestPacket &getStandbyInstance() {
-    static GetRequestPacket INSTANCE = GetRequestPacket(GetCommand::status);
-    return INSTANCE;
+  static GetRequestPacket &get_standby_instance() {
+    static GetRequestPacket instance = GetRequestPacket(GetCommand::STATUS);
+    return instance;
   }
-  static GetRequestPacket &getErrorInfoInstance() {
-    static GetRequestPacket INSTANCE = GetRequestPacket(GetCommand::error_info);
-    return INSTANCE;
+  static GetRequestPacket &get_error_info_instance() {
+    static GetRequestPacket instance = GetRequestPacket(GetCommand::ERROR_INFO);
+    return instance;
   }
   using Packet::Packet;
 
  private:
-  GetRequestPacket(GetCommand get_command) : Packet(RawPacket(PacketType::get_request, 1)) {
-    pkt_.setPayloadByte(0, static_cast<uint8_t>(get_command));
+  GetRequestPacket(GetCommand get_command) : Packet(RawPacket(PacketType::GET_REQUEST, 1)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(get_command));
   }
 };
 
@@ -192,17 +191,17 @@ class SettingsGetResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
-  uint8_t getPower() const { return pkt_.getPayloadByte(PLINDEX_POWER); }
-  uint8_t getMode() const { return pkt_.getPayloadByte(PLINDEX_MODE); }
-  uint8_t getFan() const { return pkt_.getPayloadByte(PLINDEX_FAN); }
-  uint8_t getVane() const { return pkt_.getPayloadByte(PLINDEX_VANE); }
-  bool lockedPower() const { return pkt_.getPayloadByte(PLINDEX_PROHIBITFLAGS) & 0x01; }
-  bool lockedMode() const { return pkt_.getPayloadByte(PLINDEX_PROHIBITFLAGS) & 0x02; }
-  bool lockedTemp() const { return pkt_.getPayloadByte(PLINDEX_PROHIBITFLAGS) & 0x04; }
-  uint8_t getHorizontalVane() const { return pkt_.getPayloadByte(PLINDEX_HVANE) & 0x7F; }
-  bool getHorizontalVaneMSB() const { return pkt_.getPayloadByte(PLINDEX_HVANE) & 0x80; }
+  uint8_t get_power() const { return pkt_.get_payload_byte(PLINDEX_POWER); }
+  uint8_t get_mode() const { return pkt_.get_payload_byte(PLINDEX_MODE); }
+  uint8_t get_fan() const { return pkt_.get_payload_byte(PLINDEX_FAN); }
+  uint8_t get_vane() const { return pkt_.get_payload_byte(PLINDEX_VANE); }
+  bool locked_power() const { return pkt_.get_payload_byte(PLINDEX_PROHIBITFLAGS) & 0x01; }
+  bool locked_mode() const { return pkt_.get_payload_byte(PLINDEX_PROHIBITFLAGS) & 0x02; }
+  bool locked_temp() const { return pkt_.get_payload_byte(PLINDEX_PROHIBITFLAGS) & 0x04; }
+  uint8_t get_horizontal_vane() const { return pkt_.get_payload_byte(PLINDEX_HVANE) & 0x7F; }
+  bool get_horizontal_vane_msb() const { return pkt_.get_payload_byte(PLINDEX_HVANE) & 0x80; }
 
-  float getTargetTemp() const;
+  float get_target_temp() const;
 
   std::string to_string() const override;
 };
@@ -213,7 +212,7 @@ class CurrentTempGetResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
-  float getCurrentTemp() const;
+  float get_current_temp() const;
   std::string to_string() const override;
 };
 
@@ -224,8 +223,8 @@ class StatusGetResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
-  uint8_t getCompressorFrequency() const { return pkt_.getPayloadByte(PLINDEX_COMPRESSOR_FREQUENCY); }
-  bool getOperating() const { return pkt_.getPayloadByte(PLINDEX_OPERATING); }
+  uint8_t get_compressor_frequency() const { return pkt_.get_payload_byte(PLINDEX_COMPRESSOR_FREQUENCY); }
+  bool get_operating() const { return pkt_.get_payload_byte(PLINDEX_OPERATING); }
   std::string to_string() const override;
 };
 
@@ -236,12 +235,12 @@ class StandbyGetResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
-  bool serviceFilter() const { return pkt_.getPayloadByte(PLINDEX_STATUSFLAGS) & 0x01; }
-  bool inDefrost() const { return pkt_.getPayloadByte(PLINDEX_STATUSFLAGS) & 0x02; }
-  bool inHotAdjust() const { return pkt_.getPayloadByte(PLINDEX_STATUSFLAGS) & 0x04; }
-  bool inStandby() const { return pkt_.getPayloadByte(PLINDEX_STATUSFLAGS) & 0x08; }
-  uint8_t getActualFanSpeed() const { return pkt_.getPayloadByte(PLINDEX_ACTUALFAN); }
-  uint8_t getAutoMode() const { return pkt_.getPayloadByte(PLINDEX_AUTOMODE); }
+  bool service_filter() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x01; }
+  bool in_defrost() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x02; }
+  bool in_hot_adjust() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x04; }
+  bool in_standby() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x08; }
+  uint8_t get_actual_fan_speed() const { return pkt_.get_payload_byte(PLINDEX_ACTUALFAN); }
+  uint8_t get_auto_mode() const { return pkt_.get_payload_byte(PLINDEX_AUTOMODE); }
   std::string to_string() const override;
 };
 
@@ -249,11 +248,11 @@ class ErrorStateGetResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
-  uint16_t getErrorCode() const { return pkt_.getPayloadByte(4) << 8 | pkt_.getPayloadByte(5); }
-  uint8_t getRawShortCode() const { return pkt_.getPayloadByte(6); }
-  std::string getShortCode() const;
+  uint16_t get_error_code() const { return pkt_.get_payload_byte(4) << 8 | pkt_.get_payload_byte(5); }
+  uint8_t get_raw_short_code() const { return pkt_.get_payload_byte(6); }
+  std::string get_short_code() const;
 
-  bool errorPresent() const { return getErrorCode() != 0x8000 || getRawShortCode() != 0x00; }
+  bool error_present() const { return get_error_code() != 0x8000 || get_raw_short_code() != 0x00; }
 
   std::string to_string() const override;
 };
@@ -271,7 +270,7 @@ class SettingsSetRequestPacket : public Packet {
   static const int PLINDEX_HORIZONTAL_VANE = 13;
   static const int PLINDEX_TARGET_TEMPERATURE = 14;
 
-  enum SETTING_FLAG : uint8_t {
+  enum SettingFlag : uint8_t {
     SF_POWER = 0x01,
     SF_MODE = 0x02,
     SF_TARGET_TEMPERATURE = 0x04,
@@ -279,12 +278,12 @@ class SettingsSetRequestPacket : public Packet {
     SF_VANE = 0x10
   };
 
-  enum SETTING_FLAG2 : uint8_t {
+  enum SettingFlaG2 : uint8_t {
     SF2_HORIZONTAL_VANE = 0x01,
   };
 
  public:
-  enum MODE_BYTE : uint8_t {
+  enum ModeByte : uint8_t {
     MODE_BYTE_HEAT = 0x01,
     MODE_BYTE_DRY = 0x02,
     MODE_BYTE_COOL = 0x03,
@@ -292,7 +291,7 @@ class SettingsSetRequestPacket : public Packet {
     MODE_BYTE_AUTO = 0x08,
   };
 
-  enum FAN_BYTE : uint8_t {
+  enum FanByte : uint8_t {
     FAN_AUTO = 0x00,
     FAN_QUIET = 0x01,
     FAN_1 = 0x02,
@@ -301,7 +300,7 @@ class SettingsSetRequestPacket : public Packet {
     FAN_4 = 0x06,
   };
 
-  enum VANE_BYTE : uint8_t {
+  enum VaneByte : uint8_t {
     VANE_AUTO = 0x00,
     VANE_1 = 0x01,
     VANE_2 = 0x02,
@@ -311,7 +310,7 @@ class SettingsSetRequestPacket : public Packet {
     VANE_SWING = 0x07,
   };
 
-  enum HORIZONTAL_VANE_BYTE : uint8_t {
+  enum HorizontalVaneByte : uint8_t {
     HV_AUTO = 0x00,
     HV_LEFT_FULL = 0x01,
     HV_LEFT = 0x02,
@@ -322,21 +321,21 @@ class SettingsSetRequestPacket : public Packet {
     HV_SWING = 0x0c,
   };
 
-  SettingsSetRequestPacket() : Packet(RawPacket(PacketType::set_request, 16)) {
-    pkt_.setPayloadByte(0, static_cast<uint8_t>(SetCommand::settings));
+  SettingsSetRequestPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 16)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::SETTINGS));
   }
   using Packet::Packet;
 
-  SettingsSetRequestPacket &setPower(bool isOn);
-  SettingsSetRequestPacket &setMode(MODE_BYTE mode);
-  SettingsSetRequestPacket &setTargetTemperature(float temperatureDegressC);
-  SettingsSetRequestPacket &setFan(FAN_BYTE fan);
-  SettingsSetRequestPacket &setVane(VANE_BYTE vane);
-  SettingsSetRequestPacket &setHorizontalVane(HORIZONTAL_VANE_BYTE horizontal_vane);
+  SettingsSetRequestPacket &set_power(bool is_on);
+  SettingsSetRequestPacket &set_mode(ModeByte mode);
+  SettingsSetRequestPacket &set_target_temperature(float temperature_degress_c);
+  SettingsSetRequestPacket &set_fan(FanByte fan);
+  SettingsSetRequestPacket &set_vane(VaneByte vane);
+  SettingsSetRequestPacket &set_horizontal_vane(HorizontalVaneByte horizontal_vane);
 
  private:
-  void addSettingsFlag(SETTING_FLAG flagToAdd);
-  void addSettingsFlag2(SETTING_FLAG2 flag2ToAdd);
+  void add_settings_flag_(SettingFlag flag_to_add);
+  void add_settings_flag2_(SettingFlaG2 flag2_to_add);
 };
 
 class RemoteTemperatureSetRequestPacket : public Packet {
@@ -344,15 +343,15 @@ class RemoteTemperatureSetRequestPacket : public Packet {
   static const uint8_t PLINDEX_REMOTE_TEMPERATURE = 3;
 
  public:
-  RemoteTemperatureSetRequestPacket() : Packet(RawPacket(PacketType::set_request, 4)) {
-    pkt_.setPayloadByte(0, static_cast<uint8_t>(SetCommand::remote_temperature));
+  RemoteTemperatureSetRequestPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 4)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::REMOTE_TEMPERATURE));
   }
   using Packet::Packet;
 
-  float getRemoteTemperature() const;
+  float get_remote_temperature() const;
 
-  RemoteTemperatureSetRequestPacket &setRemoteTemperature(float temperatureDegressC);
-  RemoteTemperatureSetRequestPacket &useInternalTemperature();
+  RemoteTemperatureSetRequestPacket &set_remote_temperature(float temperature_degress_c);
+  RemoteTemperatureSetRequestPacket &use_internal_temperature();
 
   std::string to_string() const override;
 };
@@ -361,10 +360,10 @@ class SetResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
-  SetResponsePacket() : Packet(RawPacket(PacketType::set_response, 16)) {}
+  SetResponsePacket() : Packet(RawPacket(PacketType::SET_RESPONSE, 16)) {}
 
-  uint8_t getResultCode() const { return pkt_.getPayloadByte(0); }
-  bool isSuccessful() const { return getResultCode() == 0; }
+  uint8_t get_result_code() const { return pkt_.get_payload_byte(0); }
+  bool is_successful() const { return get_result_code() == 0; }
 };
 
 // Sent by MHK2 but with no response; defined to allow setResponseExpected(false)
@@ -372,13 +371,13 @@ class ThermostatHelloRequestPacket : public Packet {
   using Packet::Packet;
 
  public:
-  ThermostatHelloRequestPacket() : Packet(RawPacket(PacketType::set_request, 4)) {
-    pkt_.setPayloadByte(0, static_cast<uint8_t>(SetCommand::thermostat_hello));
+  ThermostatHelloRequestPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 4)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::THERMOSTAT_HELLO));
   }
 
-  std::string getThermostatModel() const;
-  std::string getThermostatSerial() const;
-  std::string getThermostatVersionString() const;
+  std::string get_thermostat_model() const;
+  std::string get_thermostat_serial() const;
+  std::string get_thermostat_version_string() const;
 
   std::string to_string() const override;
 };
@@ -388,26 +387,26 @@ class A9GetRequestPacket : public Packet {
   using Packet::Packet;
 
  public:
-  A9GetRequestPacket() : Packet(RawPacket(PacketType::get_request, 10)) {
-    pkt_.setPayloadByte(0, static_cast<uint8_t>(GetCommand::a_9));
+  A9GetRequestPacket() : Packet(RawPacket(PacketType::GET_REQUEST, 10)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(GetCommand::A_9));
   }
 };
 
 class PacketProcessor {
  public:
-  virtual void processPacket(const Packet &packet){};
-  virtual void processPacket(const ConnectRequestPacket &packet){};
-  virtual void processPacket(const ConnectResponsePacket &packet){};
-  virtual void processPacket(const ExtendedConnectRequestPacket &packet){};
-  virtual void processPacket(const ExtendedConnectResponsePacket &packet){};
-  virtual void processPacket(const GetRequestPacket &packet){};
-  virtual void processPacket(const SettingsGetResponsePacket &packet){};
-  virtual void processPacket(const CurrentTempGetResponsePacket &packet){};
-  virtual void processPacket(const StatusGetResponsePacket &packet){};
-  virtual void processPacket(const StandbyGetResponsePacket &packet){};
-  virtual void processPacket(const ErrorStateGetResponsePacket &packet){};
-  virtual void processPacket(const RemoteTemperatureSetRequestPacket &packet){};
-  virtual void processPacket(const SetResponsePacket &packet){};
+  virtual void process_packet(const Packet &packet){};
+  virtual void process_packet(const ConnectRequestPacket &packet){};
+  virtual void process_packet(const ConnectResponsePacket &packet){};
+  virtual void process_packet(const ExtendedConnectRequestPacket &packet){};
+  virtual void process_packet(const ExtendedConnectResponsePacket &packet){};
+  virtual void process_packet(const GetRequestPacket &packet){};
+  virtual void process_packet(const SettingsGetResponsePacket &packet){};
+  virtual void process_packet(const CurrentTempGetResponsePacket &packet){};
+  virtual void process_packet(const StatusGetResponsePacket &packet){};
+  virtual void process_packet(const StandbyGetResponsePacket &packet){};
+  virtual void process_packet(const ErrorStateGetResponsePacket &packet){};
+  virtual void process_packet(const RemoteTemperatureSetRequestPacket &packet){};
+  virtual void process_packet(const SetResponsePacket &packet){};
 };
 
 }  // namespace mitsubishi_uart
