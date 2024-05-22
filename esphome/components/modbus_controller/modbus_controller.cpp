@@ -353,7 +353,7 @@ void ModbusController::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "server registers");
   for (auto &r : server_registers_) {
-    ESP_LOGCONFIG(TAG, "  Adress=0x%02X value_type=%zu register_count=%u", r->address,
+    ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%zu register_count=%u", r->address,
                   static_cast<uint8_t>(r->value_type), r->register_count);
   }
 #endif
