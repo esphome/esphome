@@ -6,10 +6,12 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["uart"]
 
 CODEOWNERS = ["@ItsRebaseTime"]
+MULTI_CONF = True
 
 CONF_FYRTUR_MOTOR_ID = "fyrtur_motor_id"
 
-fyrtur_motor_ns = cg.esphome_ns.namespace("fyrtur_motor_ns")
+fyrtur_motor_ns = cg.esphome_ns.namespace("fyrtur_motor")
+
 FyrturMotorComponent = fyrtur_motor_ns.class_(
     "FyrturMotorComponent", cg.PollingComponent, uart.UARTDevice
 )
