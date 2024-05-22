@@ -6,7 +6,7 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5"]
+AUTO_LOAD = ["md5", "safe_mode"]
 
 IS_PLATFORM_COMPONENT = True
 
@@ -76,7 +76,7 @@ BASE_OTA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(51.0)
+@coroutine_with_priority(54.0)
 async def to_code(config):
     cg.add_define("USE_OTA")
 

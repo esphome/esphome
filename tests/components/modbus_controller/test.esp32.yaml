@@ -1,14 +1,30 @@
 uart:
-  - id: uart_modbus
+  - id: uart_modbus_client
     tx_pin: 17
     rx_pin: 16
     baud_rate: 9600
+  - id: uart_modbus_server
+    tx_pin: 1
+    rx_pin: 3
+    baud_rate: 9600
 
 modbus:
-  id: mod_bus1
-  flow_control_pin: 15
+  - id: mod_bus1
+    uart_id: uart_modbus_client
+    flow_control_pin: 15
+  - id: mod_bus2
+    uart_id: uart_modbus_server
+    role: server
 
 modbus_controller:
   - id: modbus_controller1
     address: 0x2
     modbus_id: mod_bus1
+  - id: modbus_controller2
+    address: 0x2
+    modbus_id: mod_bus2
+    server_registers:
+      - address: 0x0000
+        value_type: S_DWORD_R
+        read_lambda: |-
+          return 42.3;
