@@ -563,6 +563,37 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 };
 #endif
 
+#if LV_USE_KEYPAD
+class LVKeyListener : public Parented<LvglComponent> {
+ public:
+  LVKeyListener() {
+    lv_indev_drv_init(&this->drv);
+    this->drv.type = LV_INDEV_TYPE_KEYPAD;
+    this->drv.user_data = this;
+    this->drv.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
+      auto *l = (LVKeyListener *) d->user_data;
+      data->state = l->pressed_ ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+      data->key = l->key_;
+      data->continue_reading = false;
+    };
+  }
+
+  void event(int key, bool pressed) {
+    if (!this->parent_->is_paused()) {
+      esph_log_d(TAG, "key %d state %u", key, pressed);
+      this->pressed_ = pressed;
+      this->key_ = key;
+    }
+  }
+
+  lv_indev_drv_t drv{};
+
+ protected:
+  bool pressed_{};
+  int key_{};
+};
+
+#endif
 #if LV_USE_ROTARY_ENCODER
 class LVRotaryEncoderListener : public Parented<LvglComponent> {
  public:

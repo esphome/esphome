@@ -290,6 +290,31 @@ async def msgbox_to_code(conf):
     return init
 
 
+async def keypads_to_code(var, config):
+    init = []
+    if df.CONF_KEYPADS not in config:
+        return init
+    helpers.add_lv_use("KEYPAD")
+    for enc_conf in config[df.CONF_KEYPADS]:
+        listener = cg.new_Pvariable(enc_conf[CONF_ID])
+        await cg.register_parented(listener, var)
+        if group := add_group(enc_conf.get(CONF_GROUP)):
+            init.append(
+                f"lv_indev_set_group(lv_indev_drv_register(&{listener}->drv), {group})"
+            )
+        else:
+            init.append(f"lv_indev_drv_register(&{listener}->drv)")
+        for key in df.LV_KEYS.choices:
+            if sensor := enc_conf.get(key.lower()):
+                b_sensor = await cg.get_variable(sensor)
+                kvent = df.LV_KEYS.one_of(key)
+                init.append(
+                    f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->event({kvent}, state); }})",
+                )
+
+        return init
+
+
 async def rotary_encoders_to_code(var, config):
     init = []
     if df.CONF_ROTARY_ENCODERS not in config:
@@ -531,6 +556,7 @@ async def to_code(config):
     init.append(f"{lv_component}->set_page_wrap({config[df.CONF_PAGE_WRAP]})")
     init.extend(await touchscreens_to_code(lv_component, config))
     init.extend(await rotary_encoders_to_code(lv_component, config))
+    init.extend(await keypads_to_code(lv_component, config))
     if on_idle := config.get(CONF_ON_IDLE):
         for conf in on_idle:
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
@@ -576,6 +602,19 @@ CONFIG_SCHEMA = (
                     },
                     key=CONF_DISPLAY_ID,
                 ),
+            ),
+            cv.Optional(df.CONF_KEYPADS): cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Optional(key.lower()): cv.use_id(BinarySensor)
+                        for key in df.LV_KEYS.choices
+                    }
+                ).extend(
+                    {
+                        cv.Optional(CONF_GROUP): lv.id_name,
+                        cv.GenerateID(): cv.declare_id(ty.LVKeyListener),
+                    }
+                )
             ),
             cv.Optional(df.CONF_TOUCHSCREENS): cv.ensure_list(
                 cv.maybe_simple_value(

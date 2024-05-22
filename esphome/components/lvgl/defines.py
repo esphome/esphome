@@ -74,6 +74,7 @@ CONF_TILEVIEW = "tileview"
 # Input devices
 CONF_ROTARY_ENCODERS = "rotary_encoders"
 CONF_TOUCHSCREENS = "touchscreens"
+CONF_KEYPADS = "keypads"
 
 # Parts
 CONF_MAIN = "main"
@@ -448,6 +449,25 @@ CONF_WIDGETS = "widgets"
 CONF_X = "x"
 CONF_Y = "y"
 CONF_ZOOM = "zoom"
+
+# Keypad keys
+
+LV_KEYS = LvConstant(
+    "LV_KEY_",
+    "UP",
+    "DOWN",
+    "RIGHT",
+    "LEFT",
+    "ESC",
+    "DEL",
+    "BACKSPACE",
+    "ENTER",
+    "NEXT",
+    "PREV",
+    "HOME",
+    "END",
+)
+
 
 # list of widgets and the parts allowed
 WIDGET_PARTS = {
