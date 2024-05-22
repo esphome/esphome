@@ -5,6 +5,8 @@ wifi:
 safe_mode:
   num_attempts: 3
   reboot_timeout: 2min
+  on_safe_mode:
+    - logger.log: Time for safe mode
 
 button:
   - platform: safe_mode
