@@ -16,14 +16,16 @@ FyrturMotorComponent = fyrtur_motor_ns.class_(
     "FyrturMotorComponent", cg.PollingComponent, uart.UARTDevice
 )
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(FyrturMotorComponent),
-        }
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(FyrturMotorComponent),
+    }
+)
+
+CONFIG_SCHEMA = cv.All(
+    CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(
+        cv.polling_component_schema("5s")
     )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("5s"))
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
