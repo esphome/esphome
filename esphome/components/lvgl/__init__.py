@@ -201,6 +201,7 @@ async def styles_to_code(styles):
 
 
 async def theme_to_code(theme):
+    helpers.add_lv_use(df.CONF_THEME)
     for w, style in theme.items():
         if not isinstance(style, dict):
             continue
@@ -237,9 +238,9 @@ async def msgbox_to_code(conf):
     :param conf: The config data
     :return: code to add to the init lambda
     """
-    helpers.add_lv_use("FLEX")
-    helpers.add_lv_use("btnmatrix")
-    helpers.add_lv_use("label")
+    helpers.add_lv_use(
+        df.TYPE_FLEX, df.CONF_BTNMATRIX, df.CONF_BTN, df.CONF_LABEL, "MSGBOX"
+    )
     init = []
     mbid = conf[CONF_ID]
     outer = cg.new_variable(
@@ -295,8 +296,7 @@ async def keypads_to_code(var, config):
     init = []
     if df.CONF_KEYPADS not in config:
         return init
-    helpers.add_lv_use("KEYPAD")
-    helpers.add_lv_use("KEY_LISTENER")
+    helpers.add_lv_use("KEYPAD", "KEY_LISTENER")
     for enc_conf in config[df.CONF_KEYPADS]:
         lpt = enc_conf[df.CONF_LONG_PRESS_TIME].total_milliseconds & 0xFFFF
         lprt = enc_conf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds & 0xFFFF
@@ -325,8 +325,7 @@ async def rotary_encoders_to_code(var, config):
     init = []
     if df.CONF_ROTARY_ENCODERS not in config:
         return init
-    helpers.add_lv_use("ROTARY_ENCODER")
-    helpers.add_lv_use("KEY_LISTENER")
+    helpers.add_lv_use("ROTARY_ENCODER", "KEY_LISTENER")
     for enc_conf in config[df.CONF_ROTARY_ENCODERS]:
         lpt = enc_conf[df.CONF_LONG_PRESS_TIME].total_milliseconds & 0xFFFF
         lprt = enc_conf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds & 0xFFFF
@@ -528,10 +527,8 @@ async def to_code(config):
     if style_defs := config.get(df.CONF_STYLE_DEFINITIONS, []):
         await styles_to_code(style_defs)
     if theme := config.get(df.CONF_THEME):
-        helpers.add_lv_use("THEME")
         await theme_to_code(theme)
     if msgboxes := config.get(df.CONF_MSGBOXES):
-        helpers.add_lv_use("MSGBOX")
         for msgbox in msgboxes:
             init.extend(await msgbox_to_code(msgbox))
     lv_scr_act = Widget.create(
