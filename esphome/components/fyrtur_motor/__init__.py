@@ -23,7 +23,15 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("30s"))
+    .extend(cv.polling_component_schema("5s"))
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "fyrtur_motor",
+    require_tx=True,
+    require_rx=True,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
