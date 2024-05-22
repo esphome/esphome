@@ -102,10 +102,10 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
   publish_on_update_ |= (old_mode != mode);
 
   // Mode (i-see)
-  if (isee_status_sensor) {
-    const bool old_isee_status = isee_status_sensor->state;
-    isee_status_sensor->state = packet.isISeeEnabled();
-    publishOnUpdate |= (old_isee_status != isee_status_sensor->state);
+  if (isee_status_sensor_) {
+    const bool old_isee_status = isee_status_sensor_->state;
+    isee_status_sensor_->state = packet.isISeeEnabled();
+    publish_on_update_ |= (old_isee_status != isee_status_sensor_->state);
   }
 
   // Temperature
