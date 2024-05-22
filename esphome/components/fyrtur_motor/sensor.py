@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_POSITION,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_CURTAIN,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_PERCENT,
@@ -45,14 +44,12 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
                 icon=ICON_ROTATE_RIGHT,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_CURTAIN,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POSITION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_ROLLER_SHADE,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_CURTAIN,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

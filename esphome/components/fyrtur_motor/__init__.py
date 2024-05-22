@@ -13,7 +13,7 @@ CONF_FYRTUR_MOTOR_ID = "fyrtur_motor_id"
 fyrtur_motor_ns = cg.esphome_ns.namespace("fyrtur_motor")
 
 FyrturMotorComponent = fyrtur_motor_ns.class_(
-    "FyrturMotorComponent", cg.Component, cg.PollingComponent, uart.UARTDevice
+    "FyrturMotorComponent", cg.PollingComponent, uart.UARTDevice
 )
 
 CONFIG_SCHEMA = cv.Schema(
@@ -23,9 +23,9 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(cv.polling_component_schema("5s"))
+    CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(
+        cv.polling_component_schema("5s")
+    )
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
