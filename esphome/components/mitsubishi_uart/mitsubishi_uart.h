@@ -58,33 +58,29 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   climate::ClimateTraits &config_traits() { return climate_traits_; }
 
   // Dumps some configuration data that we may have missed in the real-time logs
-  void dump_config();
+  void dump_config() override;
 
   // Called to instruct a change of the climate controls
   void control(const climate::ClimateCall &call) override;
 
   // Set thermostat UART component
-  void set_thermostat_uart(uart::UARTComponent *uart) {
-    ESP_LOGCONFIG(TAG, "Thermostat uart was set.");
-    ts_uart = uart;
-    ts_bridge = new ThermostatBridge(ts_uart, static_cast<PacketProcessor *>(this));
-  }
+  void set_thermostat_uart(uart::UARTComponent *uart);
 
   // Sensor setters
-  void set_thermostat_temperature_sensor(sensor::Sensor *sensor) { thermostat_temperature_sensor = sensor; };
-  void set_compressor_frequency_sensor(sensor::Sensor *sensor) { compressor_frequency_sensor = sensor; };
-  void set_actual_fan_sensor(text_sensor::TextSensor *sensor) { actual_fan_sensor = sensor; };
-  void set_service_filter_sensor(binary_sensor::BinarySensor *sensor) { service_filter_sensor = sensor; };
-  void set_defrost_sensor(binary_sensor::BinarySensor *sensor) { defrost_sensor = sensor; };
-  void set_hot_adjust_sensor(binary_sensor::BinarySensor *sensor) { hot_adjust_sensor = sensor; };
-  void set_standby_sensor(binary_sensor::BinarySensor *sensor) { standby_sensor = sensor; };
-  void set_isee_status_sensor(binary_sensor::BinarySensor *sensor) { isee_status_sensor = sensor; }
-  void set_error_code_sensor(text_sensor::TextSensor *sensor) { error_code_sensor = sensor; };
+  void set_thermostat_temperature_sensor(sensor::Sensor *sensor) { thermostat_temperature_sensor_ = sensor; };
+  void set_compressor_frequency_sensor(sensor::Sensor *sensor) { compressor_frequency_sensor_ = sensor; };
+  void set_actual_fan_sensor(text_sensor::TextSensor *sensor) { actual_fan_sensor_ = sensor; };
+  void set_service_filter_sensor(binary_sensor::BinarySensor *sensor) { service_filter_sensor_ = sensor; };
+  void set_defrost_sensor(binary_sensor::BinarySensor *sensor) { defrost_sensor_ = sensor; };
+  void set_hot_adjust_sensor(binary_sensor::BinarySensor *sensor) { hot_adjust_sensor_ = sensor; };
+  void set_standby_sensor(binary_sensor::BinarySensor *sensor) { standby_sensor_ = sensor; };
+  void set_isee_status_sensor(binary_sensor::BinarySensor *sensor) { isee_status_sensor_ = sensor; }
+  void set_error_code_sensor(text_sensor::TextSensor *sensor) { error_code_sensor_ = sensor; };
 
   // Select setters
-  void set_temperature_source_select(select::Select *select) { temperature_source_select = select; };
-  void set_vane_position_select(select::Select *select) { vane_position_select = select; };
-  void set_horizontal_vane_position_select(select::Select *select) { horizontal_vane_position_select = select; };
+  void set_temperature_source_select(select::Select *select) { temperature_source_select_ = select; };
+  void set_vane_position_select(select::Select *select) { vane_position_select_ = select; };
+  void set_horizontal_vane_position_select(select::Select *select) { horizontal_vane_position_select_ = select; };
 
   // Returns true if select was valid (even if not yet successful) to indicate select component
   // should optimistically publish
@@ -96,26 +92,26 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void temperature_source_report(const std::string &temperature_source, const float &v);
 
   // Turns on or off actively sending packets
-  void set_active_mode(const bool active) { active_mode = active; };
+  void set_active_mode(const bool active) { active_mode_ = active; };
 
  protected:
-  void routePacket(const Packet &packet);
+  void route_packet_(const Packet &packet);
 
-  void processPacket(const Packet &packet);
-  void processPacket(const ConnectRequestPacket &packet);
-  void processPacket(const ConnectResponsePacket &packet);
-  void processPacket(const ExtendedConnectRequestPacket &packet);
-  void processPacket(const ExtendedConnectResponsePacket &packet);
-  void processPacket(const GetRequestPacket &packet);
-  void processPacket(const SettingsGetResponsePacket &packet);
-  void processPacket(const CurrentTempGetResponsePacket &packet);
-  void processPacket(const StatusGetResponsePacket &packet);
-  void processPacket(const StandbyGetResponsePacket &packet);
-  void processPacket(const ErrorStateGetResponsePacket &packet);
-  void processPacket(const RemoteTemperatureSetRequestPacket &packet);
-  void processPacket(const SetResponsePacket &packet);
+  void process_packet(const Packet &packet) override;
+  void process_packet(const ConnectRequestPacket &packet) override;
+  void process_packet(const ConnectResponsePacket &packet) override;
+  void process_packet(const ExtendedConnectRequestPacket &packet) override;
+  void process_packet(const ExtendedConnectResponsePacket &packet) override;
+  void process_packet(const GetRequestPacket &packet) override;
+  void process_packet(const SettingsGetResponsePacket &packet) override;
+  void process_packet(const CurrentTempGetResponsePacket &packet) override;
+  void process_packet(const StatusGetResponsePacket &packet) override;
+  void process_packet(const StandbyGetResponsePacket &packet) override;
+  void process_packet(const ErrorStateGetResponsePacket &packet) override;
+  void process_packet(const RemoteTemperatureSetRequestPacket &packet) override;
+  void process_packet(const SetResponsePacket &packet) override;
 
-  void doPublish();
+  void do_publish_();
 
  private:
   // Default climate_traits for MUART
@@ -133,51 +129,51 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   }();
 
   // UARTComponent connected to heatpump
-  const uart::UARTComponent &hp_uart;
+  const uart::UARTComponent &hp_uart_;
   // UART packet wrapper for heatpump
-  HeatpumpBridge hp_bridge;
+  HeatpumpBridge hp_bridge_;
   // UARTComponent connected to thermostat
-  uart::UARTComponent *ts_uart = nullptr;
+  uart::UARTComponent *ts_uart_ = nullptr;
   // UART packet wrapper for heatpump
-  ThermostatBridge *ts_bridge = nullptr;
+  ThermostatBridge *ts_bridge_ = nullptr;
 
   // Are we connected to the heatpump?
-  bool hpConnected = false;
+  bool hp_connected_ = false;
   // Should we call publish on the next update?
-  bool publishOnUpdate = false;
+  bool publish_on_update_ = false;
 
-  optional<ExtendedConnectResponsePacket> _capabilitiesCache;
-  bool _capabilitiesRequested = false;
+  optional<ExtendedConnectResponsePacket> capabilities_cache_;
+  bool capabilities_requested_ = false;
 
   // Preferences
-  void save_preferences();
-  void restore_preferences();
+  void save_preferences_();
+  void restore_preferences_();
 
   ESPPreferenceObject preferences_;
 
   // Internal sensors
-  sensor::Sensor *thermostat_temperature_sensor = nullptr;
-  sensor::Sensor *compressor_frequency_sensor = nullptr;
-  text_sensor::TextSensor *actual_fan_sensor = nullptr;
-  binary_sensor::BinarySensor *service_filter_sensor = nullptr;
-  binary_sensor::BinarySensor *defrost_sensor = nullptr;
-  binary_sensor::BinarySensor *hot_adjust_sensor = nullptr;
-  binary_sensor::BinarySensor *standby_sensor = nullptr;
-  binary_sensor::BinarySensor *isee_status_sensor = nullptr;
-  text_sensor::TextSensor *error_code_sensor = nullptr;
+  sensor::Sensor *thermostat_temperature_sensor_ = nullptr;
+  sensor::Sensor *compressor_frequency_sensor_ = nullptr;
+  text_sensor::TextSensor *actual_fan_sensor_ = nullptr;
+  binary_sensor::BinarySensor *service_filter_sensor_ = nullptr;
+  binary_sensor::BinarySensor *defrost_sensor_ = nullptr;
+  binary_sensor::BinarySensor *hot_adjust_sensor_ = nullptr;
+  binary_sensor::BinarySensor *standby_sensor_ = nullptr;
+  binary_sensor::BinarySensor *isee_status_sensor_ = nullptr;
+  text_sensor::TextSensor *error_code_sensor_ = nullptr;
 
   // Selects
-  select::Select *temperature_source_select;
-  select::Select *vane_position_select;
-  select::Select *horizontal_vane_position_select;
+  select::Select *temperature_source_select_;
+  select::Select *vane_position_select_;
+  select::Select *horizontal_vane_position_select_;
 
   // Temperature select extras
-  std::map<std::string, size_t> temp_select_map;  // Used to map strings to indexes for preference storage
-  std::string currentTemperatureSource = TEMPERATURE_SOURCE_INTERNAL;
-  uint32_t lastReceivedTemperature = millis();
+  std::map<std::string, size_t> temp_select_map_;  // Used to map strings to indexes for preference storage
+  std::string current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
+  uint32_t last_received_temperature_ = millis();
 
-  void sendIfActive(const Packet &packet);
-  bool active_mode = true;
+  void send_if_active_(const Packet &packet);
+  bool active_mode_ = true;
 };
 
 struct MUARTPreferences {

@@ -8,7 +8,7 @@ namespace mitsubishi_uart {
 ////
 
 MitsubishiUART::MitsubishiUART(uart::UARTComponent *hp_uart_comp)
-    : hp_uart{*hp_uart_comp}, hp_bridge{HeatpumpBridge(hp_uart_comp, this)} {
+    : hp_uart_{*hp_uart_comp}, hp_bridge_{HeatpumpBridge(hp_uart_comp, this)} {
   /**
    * Climate pushes all its data to Home Assistant immediately when the API connects, this causes
    * the default 0 to be sent as temperatures, but since this is a valid value (0 deg C), it
@@ -23,24 +23,24 @@ MitsubishiUART::MitsubishiUART(uart::UARTComponent *hp_uart_comp)
 // Most other climate-state is preserved by the heatpump itself and will be retrieved after connection
 void MitsubishiUART::setup() {
   // Populate select map
-  for (size_t index = 0; index < temperature_source_select->traits.get_options().size(); index++) {
-    temp_select_map[temperature_source_select->traits.get_options()[index]] = index;
+  for (size_t index = 0; index < temperature_source_select_->traits.get_options().size(); index++) {
+    temp_select_map_[temperature_source_select_->traits.get_options()[index]] = index;
   }
 
   // Using App.get_compilation_time() means these will get reset each time the firmware is updated, but this
   // is an easy way to prevent wierd conflicts if e.g. select options change.
   preferences_ = global_preferences->make_preference<MUARTPreferences>(get_object_id_hash() ^
                                                                        fnv1_hash(App.get_compilation_time()));
-  restore_preferences();
+  restore_preferences_();
 }
 
-void MitsubishiUART::save_preferences() {
+void MitsubishiUART::save_preferences_() {
   MUARTPreferences prefs{};
 
   // currentTemperatureSource
   // Save the index of the value stored in currentTemperatureSource just in case we're temporarily using Internal
-  auto index = temp_select_map.find(currentTemperatureSource);
-  if (index != temp_select_map.end()) {
+  auto index = temp_select_map_.find(current_temperature_source_);
+  if (index != temp_select_map_.end()) {
     prefs.currentTemperatureSourceIndex = index->second;
   }
 
@@ -48,40 +48,40 @@ void MitsubishiUART::save_preferences() {
 }
 
 // Restores previously set values, or sets sane defaults
-void MitsubishiUART::restore_preferences() {
+void MitsubishiUART::restore_preferences_() {
   MUARTPreferences prefs;
   if (preferences_.load(&prefs)) {
     // currentTemperatureSource
     if (prefs.currentTemperatureSourceIndex.has_value() &&
-        temperature_source_select->has_index(prefs.currentTemperatureSourceIndex.value()) &&
-        temperature_source_select->at(prefs.currentTemperatureSourceIndex.value()).has_value()) {
-      currentTemperatureSource = temperature_source_select->at(prefs.currentTemperatureSourceIndex.value()).value();
-      temperature_source_select->publish_state(currentTemperatureSource);
+        temperature_source_select_->has_index(prefs.currentTemperatureSourceIndex.value()) &&
+        temperature_source_select_->at(prefs.currentTemperatureSourceIndex.value()).has_value()) {
+      current_temperature_source_ = temperature_source_select_->at(prefs.currentTemperatureSourceIndex.value()).value();
+      temperature_source_select_->publish_state(current_temperature_source_);
       ESP_LOGCONFIG(TAG, "Preferences loaded.");
     } else {
       ESP_LOGCONFIG(TAG, "Preferences loaded, but unsuitable values.");
-      currentTemperatureSource = TEMPERATURE_SOURCE_INTERNAL;
-      temperature_source_select->publish_state(TEMPERATURE_SOURCE_INTERNAL);
+      current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
+      temperature_source_select_->publish_state(TEMPERATURE_SOURCE_INTERNAL);
     }
   } else {
     // TODO: Shouldn't need to define setting all these defaults twice
     ESP_LOGCONFIG(TAG, "Preferences not loaded.");
-    currentTemperatureSource = TEMPERATURE_SOURCE_INTERNAL;
-    temperature_source_select->publish_state(TEMPERATURE_SOURCE_INTERNAL);
+    current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
+    temperature_source_select_->publish_state(TEMPERATURE_SOURCE_INTERNAL);
   }
 }
 
-void MitsubishiUART::sendIfActive(const Packet &packet) {
-  if (active_mode)
-    hp_bridge.sendPacket(packet);
+void MitsubishiUART::send_if_active_(const Packet &packet) {
+  if (active_mode_)
+    hp_bridge_.send_packet(packet);
 }
 
 #define IFACTIVE(dothis) \
-  if (active_mode) { \
+  if (active_mode_) { \
     dothis \
   }
 #define IFNOTACTIVE(dothis) \
-  if (!active_mode) { \
+  if (!active_mode_) { \
     dothis \
   }
 
@@ -91,28 +91,35 @@ void MitsubishiUART::sendIfActive(const Packet &packet) {
 */
 void MitsubishiUART::loop() {
   // Loop bridge to handle sending and receiving packets
-  hp_bridge.loop();
-  if (ts_bridge)
-    ts_bridge->loop();
+  hp_bridge_.loop();
+  if (ts_bridge_)
+    ts_bridge_->loop();
 
   // If it's been too long since we received a temperature update (and we're not set to Internal)
-  if (((millis() - lastReceivedTemperature) > TEMPERATURE_SOURCE_TIMEOUT_MS) &&
-      (temperature_source_select->state != TEMPERATURE_SOURCE_INTERNAL)) {
+  if (((millis() - last_received_temperature_) > TEMPERATURE_SOURCE_TIMEOUT_MS) &&
+      (temperature_source_select_->state != TEMPERATURE_SOURCE_INTERNAL)) {
     ESP_LOGW(TAG, "No temperature received from %s for %i milliseconds, reverting to Internal source",
-             currentTemperatureSource.c_str(), TEMPERATURE_SOURCE_TIMEOUT_MS);
+             current_temperature_source_.c_str(), TEMPERATURE_SOURCE_TIMEOUT_MS);
     // Set the select to show Internal (but do not change currentTemperatureSource)
-    temperature_source_select->publish_state(TEMPERATURE_SOURCE_INTERNAL);
+    temperature_source_select_->publish_state(TEMPERATURE_SOURCE_INTERNAL);
     // Send a packet to the heat pump to tell it to switch to internal temperature sensing
-    IFACTIVE(hp_bridge.sendPacket(RemoteTemperatureSetRequestPacket().useInternalTemperature());)
+    IFACTIVE(hp_bridge_.send_packet(RemoteTemperatureSetRequestPacket().use_internal_temperature());)
   }
   //
   // Send packet to HP to tell it to use internal temp sensor
 }
 
 void MitsubishiUART::dump_config() {
-  if (_capabilitiesCache.has_value()) {
-    ESP_LOGCONFIG(TAG, "Discovered Capabilities: %s", _capabilitiesCache.value().to_string().c_str());
+  if (capabilities_cache_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Discovered Capabilities: %s", capabilities_cache_.value().to_string().c_str());
   }
+}
+
+// Set thermostat UART component
+void MitsubishiUART::set_thermostat_uart(uart::UARTComponent *uart) {
+  ESP_LOGCONFIG(TAG, "Thermostat uart was set.");
+  ts_uart_ = uart;
+  ts_bridge_ = new ThermostatBridge(ts_uart_, static_cast<PacketProcessor *>(this));
 }
 
 /* Called periodically as PollingComponent; used to send packets to connect or request updates.
@@ -128,8 +135,8 @@ void MitsubishiUART::update() {
   }
 
   // If we're not yet connected, send off a connection request (we'll check again next update)
-  if (!hpConnected) {
-    IFACTIVE(hp_bridge.sendPacket(ConnectRequestPacket::instance());)
+  if (!hp_connected_) {
+    IFACTIVE(hp_bridge_.send_packet(ConnectRequestPacket::instance());)
     return;
   }
 
@@ -137,15 +144,15 @@ void MitsubishiUART::update() {
   // TODO: This should likely be done immediately after connect, and will likely need to block setup for proper
   // autoconf.
   //       For now, just requesting it as part of our "init loops" is a good first step.
-  if (!this->_capabilitiesRequested) {
-    IFACTIVE(hp_bridge.sendPacket(ExtendedConnectRequestPacket::instance()); this->_capabilitiesRequested = true;)
+  if (!this->capabilities_requested_) {
+    IFACTIVE(hp_bridge_.send_packet(ExtendedConnectRequestPacket::instance()); this->capabilities_requested_ = true;)
   }
 
   // Before requesting additional updates, publish any changes waiting from packets received
-  if (publishOnUpdate) {
-    doPublish();
+  if (publish_on_update_) {
+    do_publish_();
 
-    publishOnUpdate = false;
+    publish_on_update_ = false;
   }
 
   IFACTIVE(
@@ -153,61 +160,63 @@ void MitsubishiUART::update() {
       // TODO: This isn't a problem *yet*, but sending all these packets every loop might start to cause some issues in
       //       certain configurations or setups. We may want to consider only asking for certain packets on a rarer
       //       cadence, depending on their utility (e.g. we dont need to check for errors every loop).
-      hp_bridge.sendPacket(
-          GetRequestPacket::getSettingsInstance());  // Needs to be done before status packet for mode logic to work
-      hp_bridge.sendPacket(GetRequestPacket::getStandbyInstance());
-      hp_bridge.sendPacket(GetRequestPacket::getStatusInstance());
-      hp_bridge.sendPacket(GetRequestPacket::getCurrentTempInstance());
-      hp_bridge.sendPacket(GetRequestPacket::getErrorInfoInstance());)
+      hp_bridge_.send_packet(
+          GetRequestPacket::get_settings_instance());  // Needs to be done before status packet for mode logic to work
+      hp_bridge_.send_packet(GetRequestPacket::get_standby_instance());
+      hp_bridge_.send_packet(GetRequestPacket::get_status_instance());
+      hp_bridge_.send_packet(GetRequestPacket::get_current_temp_instance());
+      hp_bridge_.send_packet(GetRequestPacket::get_error_info_instance());)
 }
 
-void MitsubishiUART::doPublish() {
+void MitsubishiUART::do_publish_() {
   publish_state();
-  vane_position_select->publish_state(vane_position_select->state);
-  horizontal_vane_position_select->publish_state(horizontal_vane_position_select->state);
-  save_preferences();  // We can save this every time we publish as writes to flash are by default collected and delayed
+  vane_position_select_->publish_state(vane_position_select_->state);
+  horizontal_vane_position_select_->publish_state(horizontal_vane_position_select_->state);
+  save_preferences_();  // We can save this every time we publish as writes to flash are by default collected and
+                        // delayed
 
   // Check sensors and publish if needed.
   // This is a bit of a hack to avoid needing to publish sensor data immediately as packets arrive.
   // Instead, packet data is written directly to `raw_state` (which doesn't update `state`).  If they
   // differ, calling `publish_state` will update `state` so that it won't be published later
-  if (thermostat_temperature_sensor &&
-      (thermostat_temperature_sensor->raw_state != thermostat_temperature_sensor->state)) {
+  if (thermostat_temperature_sensor_ &&
+      (thermostat_temperature_sensor_->raw_state != thermostat_temperature_sensor_->state)) {
     ESP_LOGI(TAG, "Thermostat temp differs, do publish");
-    thermostat_temperature_sensor->publish_state(thermostat_temperature_sensor->raw_state);
+    thermostat_temperature_sensor_->publish_state(thermostat_temperature_sensor_->raw_state);
   }
-  if (compressor_frequency_sensor && (compressor_frequency_sensor->raw_state != compressor_frequency_sensor->state)) {
+  if (compressor_frequency_sensor_ &&
+      (compressor_frequency_sensor_->raw_state != compressor_frequency_sensor_->state)) {
     ESP_LOGI(TAG, "Compressor frequency differs, do publish");
-    compressor_frequency_sensor->publish_state(compressor_frequency_sensor->raw_state);
+    compressor_frequency_sensor_->publish_state(compressor_frequency_sensor_->raw_state);
   }
-  if (actual_fan_sensor && (actual_fan_sensor->raw_state != actual_fan_sensor->state)) {
+  if (actual_fan_sensor_ && (actual_fan_sensor_->raw_state != actual_fan_sensor_->state)) {
     ESP_LOGI(TAG, "Actual fan speed differs, do publish");
-    actual_fan_sensor->publish_state(actual_fan_sensor->raw_state);
+    actual_fan_sensor_->publish_state(actual_fan_sensor_->raw_state);
   }
-  if (error_code_sensor && (error_code_sensor->raw_state != error_code_sensor->state)) {
+  if (error_code_sensor_ && (error_code_sensor_->raw_state != error_code_sensor_->state)) {
     ESP_LOGI(TAG, "Error code state differs, do publish");
-    error_code_sensor->publish_state(error_code_sensor->raw_state);
+    error_code_sensor_->publish_state(error_code_sensor_->raw_state);
   }
 
   // Binary sensors automatically dedup publishes (I think) and so will only actually publish on change
-  service_filter_sensor->publish_state(service_filter_sensor->state);
-  defrost_sensor->publish_state(defrost_sensor->state);
-  hot_adjust_sensor->publish_state(hot_adjust_sensor->state);
-  standby_sensor->publish_state(standby_sensor->state);
-  isee_status_sensor->publish_state(isee_status_sensor->state);
+  service_filter_sensor_->publish_state(service_filter_sensor_->state);
+  defrost_sensor_->publish_state(defrost_sensor_->state);
+  hot_adjust_sensor_->publish_state(hot_adjust_sensor_->state);
+  standby_sensor_->publish_state(standby_sensor_->state);
+  isee_status_sensor_->publish_state(isee_status_sensor_->state);
 }
 
 bool MitsubishiUART::select_temperature_source(const std::string &state) {
   // TODO: Possibly check to see if state is available from the select options?  (Might be a bit redundant)
 
-  currentTemperatureSource = state;
+  current_temperature_source_ = state;
   // Reset the timeout for received temperature (without this, the menu dropdown will switch back to Internal
   // temporarily)
-  lastReceivedTemperature = millis();
+  last_received_temperature_ = millis();
 
   // If we've switched to internal, let the HP know right away
   if (TEMPERATURE_SOURCE_INTERNAL == state) {
-    IFACTIVE(hp_bridge.sendPacket(RemoteTemperatureSetRequestPacket().useInternalTemperature());)
+    IFACTIVE(hp_bridge_.send_packet(RemoteTemperatureSetRequestPacket().use_internal_temperature());)
   }
 
   return true;
@@ -215,63 +224,63 @@ bool MitsubishiUART::select_temperature_source(const std::string &state) {
 
 bool MitsubishiUART::select_vane_position(const std::string &state) {
   IFNOTACTIVE(return false;)  // Skip this if we're not in active mode
-  SettingsSetRequestPacket::VANE_BYTE positionByte = SettingsSetRequestPacket::VANE_AUTO;
+  SettingsSetRequestPacket::VaneByte position_byte = SettingsSetRequestPacket::VANE_AUTO;
 
   // NOTE: Annoyed that C++ doesn't have switches for strings, but since this is going to be called
   // infrequently, this is probably a better solution than over-optimizing via maps or something
 
   if (state == "Auto") {
-    positionByte = SettingsSetRequestPacket::VANE_AUTO;
+    position_byte = SettingsSetRequestPacket::VANE_AUTO;
   } else if (state == "1") {
-    positionByte = SettingsSetRequestPacket::VANE_1;
+    position_byte = SettingsSetRequestPacket::VANE_1;
   } else if (state == "2") {
-    positionByte = SettingsSetRequestPacket::VANE_2;
+    position_byte = SettingsSetRequestPacket::VANE_2;
   } else if (state == "3") {
-    positionByte = SettingsSetRequestPacket::VANE_3;
+    position_byte = SettingsSetRequestPacket::VANE_3;
   } else if (state == "4") {
-    positionByte = SettingsSetRequestPacket::VANE_4;
+    position_byte = SettingsSetRequestPacket::VANE_4;
   } else if (state == "5") {
-    positionByte = SettingsSetRequestPacket::VANE_5;
+    position_byte = SettingsSetRequestPacket::VANE_5;
   } else if (state == "Swing") {
-    positionByte = SettingsSetRequestPacket::VANE_SWING;
+    position_byte = SettingsSetRequestPacket::VANE_SWING;
   } else {
     ESP_LOGW(TAG, "Unknown vane position %s", state.c_str());
     return false;
   }
 
-  hp_bridge.sendPacket(SettingsSetRequestPacket().setVane(positionByte));
+  hp_bridge_.send_packet(SettingsSetRequestPacket().set_vane(position_byte));
   return true;
 }
 
 bool MitsubishiUART::select_horizontal_vane_position(const std::string &state) {
   IFNOTACTIVE(return false;)  // Skip this if we're not in active mode
-  SettingsSetRequestPacket::HORIZONTAL_VANE_BYTE positionByte = SettingsSetRequestPacket::HV_CENTER;
+  SettingsSetRequestPacket::HorizontalVaneByte position_byte = SettingsSetRequestPacket::HV_CENTER;
 
   // NOTE: Annoyed that C++ doesn't have switches for strings, but since this is going to be called
   // infrequently, this is probably a better solution than over-optimizing via maps or something
 
   if (state == "Auto") {
-    positionByte = SettingsSetRequestPacket::HV_AUTO;
+    position_byte = SettingsSetRequestPacket::HV_AUTO;
   } else if (state == "<<") {
-    positionByte = SettingsSetRequestPacket::HV_LEFT_FULL;
+    position_byte = SettingsSetRequestPacket::HV_LEFT_FULL;
   } else if (state == "<") {
-    positionByte = SettingsSetRequestPacket::HV_LEFT;
+    position_byte = SettingsSetRequestPacket::HV_LEFT;
   } else if (state == "|") {
-    positionByte = SettingsSetRequestPacket::HV_CENTER;
+    position_byte = SettingsSetRequestPacket::HV_CENTER;
   } else if (state == ">") {
-    positionByte = SettingsSetRequestPacket::HV_RIGHT;
+    position_byte = SettingsSetRequestPacket::HV_RIGHT;
   } else if (state == ">>") {
-    positionByte = SettingsSetRequestPacket::HV_RIGHT_FULL;
+    position_byte = SettingsSetRequestPacket::HV_RIGHT_FULL;
   } else if (state == "<>") {
-    positionByte = SettingsSetRequestPacket::HV_SPLIT;
+    position_byte = SettingsSetRequestPacket::HV_SPLIT;
   } else if (state == "Swing") {
-    positionByte = SettingsSetRequestPacket::HV_SWING;
+    position_byte = SettingsSetRequestPacket::HV_SWING;
   } else {
     ESP_LOGW(TAG, "Unknown horizontal vane position %s", state.c_str());
     return false;
   }
 
-  hp_bridge.sendPacket(SettingsSetRequestPacket().setHorizontalVane(positionByte));
+  hp_bridge_.send_packet(SettingsSetRequestPacket().set_horizontal_vane(position_byte));
   return true;
 }
 
@@ -283,22 +292,22 @@ bool MitsubishiUART::select_horizontal_vane_position(const std::string &state) {
 // source takes effect immediately?  Only really needed if source sensors are configured with very slow update times.
 void MitsubishiUART::temperature_source_report(const std::string &temperature_source, const float &v) {
   ESP_LOGI(TAG, "Received temperature from %s of %f. (Current source: %s)", temperature_source.c_str(), v,
-           currentTemperatureSource.c_str());
+           current_temperature_source_.c_str());
 
   // Only proceed if the incomming source matches our chosen source.
-  if (currentTemperatureSource == temperature_source) {
+  if (current_temperature_source_ == temperature_source) {
     // Reset the timeout for received temperature
-    lastReceivedTemperature = millis();
+    last_received_temperature_ = millis();
 
     // Tell the heat pump about the temperature asap, but don't worry about setting it locally, the next update() will
     // get it
-    IFACTIVE(RemoteTemperatureSetRequestPacket pkt = RemoteTemperatureSetRequestPacket(); pkt.setRemoteTemperature(v);
-             hp_bridge.sendPacket(pkt);)
+    IFACTIVE(RemoteTemperatureSetRequestPacket pkt = RemoteTemperatureSetRequestPacket(); pkt.set_remote_temperature(v);
+             hp_bridge_.send_packet(pkt);)
 
     // If we've changed the select to reflect a temporary reversion to a different source, change it back.
-    if (temperature_source_select->state != temperature_source) {
+    if (temperature_source_select_->state != temperature_source) {
       ESP_LOGI(TAG, "Temperature received, switching back to %s as source.", temperature_source.c_str());
-      temperature_source_select->publish_state(temperature_source);
+      temperature_source_select_->publish_state(temperature_source);
     }
   }
 }

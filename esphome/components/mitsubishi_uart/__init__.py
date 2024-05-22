@@ -10,11 +10,12 @@ from esphome.components import (
     switch,
 )
 from esphome.const import (
+    CONF_CUSTOM_FAN_MODES,
     CONF_ID,
     CONF_NAME,
-    CONF_SUPPORTED_MODES,
-    CONF_CUSTOM_FAN_MODES,
+    CONF_SENSORS,
     CONF_SUPPORTED_FAN_MODES,
+    CONF_SUPPORTED_MODES,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_FREQUENCY,
     ENTITY_CATEGORY_CONFIG,
@@ -23,6 +24,8 @@ from esphome.const import (
     UNIT_HERTZ,
 )
 from esphome.core import coroutine
+
+CODEOWNERS = ["@Sammy1Am"]
 
 AUTO_LOAD = ["climate", "select", "sensor", "binary_sensor", "text_sensor", "switch"]
 DEPENDENCIES = [
@@ -35,13 +38,12 @@ DEPENDENCIES = [
     "switch",
 ]
 
-CONF_HP_UART = "heatpump_uart"
-CONF_TS_UART = "thermostat_uart"
+CONF_HEATPUMP_UART = "heatpump_uart"
+CONF_THERMOSTAT_UART = "thermostat_uart"
 
-CONF_SENSORS = "sensors"
-CONF_SENSORS_THERMOSTAT_TEMP = "thermostat_temperature"
-CONF_SENSORS_ERROR_CODE = "error_code"
-CONF_SENSORS_ISEE_STATUS ="isee_status"
+CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
+CONF_ERROR_CODE = "error_code"
+CONF_ISEE_STATUS = "isee_status"
 
 CONF_SELECTS = "selects"
 CONF_TEMPERATURE_SOURCE_SELECT = "temperature_source_select"  # This is to create a Select object for selecting a source
@@ -91,8 +93,8 @@ BASE_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
-            cv.Required(CONF_HP_UART): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_TS_UART): cv.use_id(uart.UARTComponent),
+            cv.Required(CONF_HEATPUMP_UART): cv.use_id(uart.UARTComponent),
+            cv.Optional(CONF_THERMOSTAT_UART): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_NAME, default="Climate"): cv.string,
             cv.Optional(
                 CONF_SUPPORTED_MODES, default=DEFAULT_CLIMATE_MODES
@@ -119,66 +121,66 @@ BASE_SCHEMA = (
 )
 
 # TODO Storing the registration function here seems weird, but I can't figure out how to determine schema type later
-SENSORS = {
-    CONF_SENSORS_THERMOSTAT_TEMP: (
-        "Thermostat Temperature",
-        sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
+SENSORS = dict[str, tuple[str, cv.Schema, callable]](
+    {
+        CONF_THERMOSTAT_TEMPERATURE: (
+            "Thermostat Temperature",
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=1,
+            ),
+            sensor.register_sensor,
         ),
-        sensor.register_sensor,
-    ),
-    "compressor_frequency": (
-        "Compressor Frequency",
-        sensor.sensor_schema(
-            unit_of_measurement=UNIT_HERTZ,
-            device_class=DEVICE_CLASS_FREQUENCY,
-            state_class=STATE_CLASS_MEASUREMENT,
+        "compressor_frequency": (
+            "Compressor Frequency",
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_HERTZ,
+                device_class=DEVICE_CLASS_FREQUENCY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            sensor.register_sensor,
         ),
-        sensor.register_sensor,
-    ),
-    "actual_fan": (
-        "Actual Fan Speed",
-        text_sensor.text_sensor_schema(
-            icon="mdi:fan",
+        "actual_fan": (
+            "Actual Fan Speed",
+            text_sensor.text_sensor_schema(
+                icon="mdi:fan",
+            ),
+            text_sensor.register_text_sensor,
         ),
-        text_sensor.register_text_sensor,
-    ),
-    "service_filter": (
-        "Service Filter",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    "defrost": (
-        "Defrost",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    "hot_adjust": (
-        "Hot Adjust",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    "standby": (
-        "Standby",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    CONF_SENSORS_ISEE_STATUS: (
-        "i-see Status",
-        binary_sensor.binary_sensor_schema(
-            icon="mdi:eye"
+        "service_filter": (
+            "Service Filter",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
         ),
-        binary_sensor.register_binary_sensor
-    ),
-    CONF_SENSORS_ERROR_CODE: (
-        "Error Code",
-        text_sensor.text_sensor_schema(),
-        text_sensor.register_text_sensor,
-    ),
-}
+        "defrost": (
+            "Defrost",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
+        ),
+        "hot_adjust": (
+            "Hot Adjust",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
+        ),
+        "standby": (
+            "Standby",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
+        ),
+        CONF_ISEE_STATUS: (
+            "i-see Status",
+            binary_sensor.binary_sensor_schema(icon="mdi:eye"),
+            binary_sensor.register_binary_sensor,
+        ),
+        CONF_ERROR_CODE: (
+            "Error Code",
+            text_sensor.text_sensor_schema(),
+            text_sensor.register_text_sensor,
+        ),
+    }
+)
 
 SENSORS_SCHEMA = cv.All(
     {
@@ -248,16 +250,16 @@ CONFIG_SCHEMA = BASE_SCHEMA.extend(
 
 @coroutine
 async def to_code(config):
-    hp_uart_component = await cg.get_variable(config[CONF_HP_UART])
+    hp_uart_component = await cg.get_variable(config[CONF_HEATPUMP_UART])
     muart_component = cg.new_Pvariable(config[CONF_ID], hp_uart_component)
 
     await cg.register_component(muart_component, config)
     await climate.register_climate(muart_component, config)
 
     # If thermostat defined
-    if CONF_TS_UART in config:
+    if CONF_THERMOSTAT_UART in config:
         # Register thermostat with MUART
-        ts_uart_component = await cg.get_variable(config[CONF_TS_UART])
+        ts_uart_component = await cg.get_variable(config[CONF_THERMOSTAT_UART])
         cg.add(getattr(muart_component, "set_thermostat_uart")(ts_uart_component))
         # Add sensor as source
         SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2].append("Thermostat")
@@ -278,13 +280,13 @@ async def to_code(config):
     # Sensors
 
     for sensor_designator, (
-        sensor_name,
-        sensor_schema,
+        _,
+        _,
         registration_function,
     ) in SENSORS.items():
         # Only add the thermostat temp if we have a TS_UART
-        if (sensor_designator == CONF_SENSORS_THERMOSTAT_TEMP) and (
-            CONF_TS_UART not in config
+        if (sensor_designator == CONF_THERMOSTAT_TEMPERATURE) and (
+            CONF_THERMOSTAT_UART not in config
         ):
             continue
 
@@ -316,8 +318,8 @@ async def to_code(config):
 
     # Register selects
     for select_designator, (
-        select_name,
-        select_schema,
+        _,
+        _,
         select_options,
     ) in SELECTS.items():
         select_conf = config[CONF_SELECTS][select_designator]
