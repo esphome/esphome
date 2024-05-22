@@ -3,10 +3,10 @@ import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.components.binary_sensor import BinarySensor
 from esphome.components.display import Display
 from esphome.components.image import Image_
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
-from esphome.components.binary_sensor import BinarySensor
 from esphome.components.touchscreen import (
     Touchscreen,
     CONF_TOUCHSCREEN_ID,
@@ -65,7 +65,6 @@ from .roller import roller_spec
 from .schemas import (
     STYLE_SCHEMA,
     STYLED_TEXT_SCHEMA,
-    STYLE_PROPS,
     LVGL_SCHEMA,
     obj_schema,
     container_schema,
@@ -76,6 +75,8 @@ from .schemas import (
     WIDGET_TYPES,
     ACTION_SCHEMA,
     create_modify_schema,
+    grid_alignments,
+    ALL_STYLES,
 )
 from .slider import slider_spec
 from .spinbox import spinbox_spec
@@ -189,11 +190,10 @@ async def styles_to_code(styles):
     for style in styles:
         svar = cg.new_Pvariable(style[CONF_ID])
         cgen(f"lv_style_init({svar})")
-        for prop, validator in STYLE_PROPS.items():
+        for prop, validator in ALL_STYLES.items():
             if value := style.get(prop):
                 if isinstance(validator, ty.LValidator):
                     value = await validator.process(value)
-
                 if isinstance(value, list):
                     value = "|".join(value)
                 cgen(f"lv_style_set_{prop}({svar}, {value})")
@@ -240,18 +240,20 @@ async def msgbox_to_code(conf):
     helpers.add_lv_use("btnmatrix")
     helpers.add_lv_use("label")
     init = []
-    id = conf[CONF_ID]
+    mbid = conf[CONF_ID]
     outer = cg.new_variable(
-        ID(id.id, is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
+        ID(mbid.id, is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
     )
     btnm = cg.new_variable(
-        ID(f"{id.id}_btnm", is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
+        ID(f"{mbid.id}_btnm", is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
     )
     msgbox = cg.new_variable(
-        ID(f"{id.id}_msgbox", is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
+        ID(f"{mbid.id}_msgbox", is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
     )
-    btnm_widg = Widget.create(id, msgbox, btnmatrix_spec, conf)
-    text_id, ctrl_list, width_list, _, _ = await get_button_data((conf,), id, btnm_widg)
+    btnm_widg = Widget.create(mbid, msgbox, btnmatrix_spec, conf)
+    text_id, ctrl_list, width_list, _, _ = await get_button_data(
+        (conf,), mbid, btnm_widg
+    )
     if text := conf.get(df.CONF_BODY):
         text = await lv.lv_text.process(text.get(df.CONF_TEXT))
     if title := conf.get(df.CONF_TITLE):
@@ -629,8 +631,13 @@ CONFIG_SCHEMA = (
                 "big_endian", "little_endian"
             ),
             cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
-                cv.Schema({cv.Required(CONF_ID): cv.declare_id(ty.lv_style_t)}).extend(
-                    STYLE_SCHEMA
+                cv.Schema({cv.Required(CONF_ID): cv.declare_id(ty.lv_style_t)})
+                .extend(STYLE_SCHEMA)
+                .extend(
+                    {
+                        cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+                        cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                    }
                 )
             ),
             cv.Optional(CONF_ON_IDLE): automation.validate_automation(

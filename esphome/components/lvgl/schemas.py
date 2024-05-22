@@ -125,6 +125,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         ).one_of,
     }
 )
+
 STATE_SCHEMA = cv.Schema(
     {cv.Optional(state): STYLE_SCHEMA for state in df.STATES}
 ).extend(STYLE_SCHEMA)
