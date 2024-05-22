@@ -117,7 +117,6 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     ESP_LOGD(TAG, "Input Mode for %u", pin);
 
     // Always enable input buffer
-    uint16_t temp_word = 0;
     this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
     temp_word &= ~(1 << pin);
     this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
