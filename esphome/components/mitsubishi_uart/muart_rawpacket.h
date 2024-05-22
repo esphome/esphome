@@ -8,7 +8,7 @@
 namespace esphome {
 namespace mitsubishi_uart {
 
-static const char *PTAG = "mitsubishi_uart.packets";
+static constexpr char PTAG[] = "mitsubishi_uart.packets";
 
 const uint8_t BYTE_CONTROL = 0xfc;
 const uint8_t PACKET_MAX_SIZE = 22;  // Used to intialize empty packet

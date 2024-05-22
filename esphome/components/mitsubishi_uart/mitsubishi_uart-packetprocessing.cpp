@@ -85,11 +85,9 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
         mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case 0x08:
-        mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
+      // unsure when 0x21 or 0x23 would ever be sent, as they seem to be Kumo exclusive, but let's handle them anyways.
       case 0x21:
       case 0x23:
-        // unsure when these would ever be sent, as they seem to be Kumo exclusive, but let's handle them anyways.
         mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       default:

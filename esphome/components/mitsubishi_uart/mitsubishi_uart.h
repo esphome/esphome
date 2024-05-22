@@ -14,7 +14,7 @@
 namespace esphome {
 namespace mitsubishi_uart {
 
-static const char *TAG = "mitsubishi_uart";
+static constexpr char TAG[] = "mitsubishi_uart";
 
 const uint8_t MUART_MIN_TEMP = 16;  // Degrees C
 const uint8_t MUART_MAX_TEMP = 31;  // Degrees C
@@ -135,7 +135,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // UARTComponent connected to thermostat
   uart::UARTComponent *ts_uart_ = nullptr;
   // UART packet wrapper for heatpump
-  ThermostatBridge *ts_bridge_ = nullptr;
+  std::unique_ptr<ThermostatBridge> ts_bridge_ = nullptr;
 
   // Are we connected to the heatpump?
   bool hp_connected_ = false;

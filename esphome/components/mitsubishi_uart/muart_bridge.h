@@ -7,7 +7,7 @@
 namespace esphome {
 namespace mitsubishi_uart {
 
-static const char *BRIDGE_TAG = "muart_bridge";
+static constexpr char BRIDGE_TAG[] = "muart_bridge";
 static const uint32_t RESPONSE_TIMEOUT_MS = 3000;  // Maximum amount of time to wait for an expected response packet
 /* Maximum number of packets allowed to be queued for sending.  In some circumstances the equipment response
 time can be very slow and packets would queue up faster than they were being received.  TODO: Not sure what size this

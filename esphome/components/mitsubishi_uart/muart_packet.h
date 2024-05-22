@@ -9,7 +9,7 @@
 
 namespace esphome {
 namespace mitsubishi_uart {
-static const char *PACKETS_TAG = "mitsubishi_uart.packets";
+static constexpr char PACKETS_TAG[] = "mitsubishi_uart.packets";
 
 #define CONSOLE_COLOR_NONE "\033[0m"
 #define CONSOLE_COLOR_GREEN "\033[0;32m"
