@@ -253,8 +253,8 @@ GRID_CELL_SCHEMA = {
     cv.Required(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
-    cv.Optional(df.CONF_GRID_CELL_X_ALIGN, default="start"): grid_alignments,
-    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN, default="start"): grid_alignments,
+    cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
 }
 
 FLEX_OBJ_SCHEMA = {
