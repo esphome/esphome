@@ -189,8 +189,16 @@ def option_string(value):
 
 lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
 lv_bool = LValidator(bool_, cg.bool_, BinarySensor, "get_state()")
+
+
+def lvms_validator_(value):
+    if value == "never":
+        value = "2147483647ms"
+    return cv.positive_time_period_milliseconds(value)
+
+
 lv_milliseconds = LValidator(
-    cv.positive_time_period_milliseconds,
+    lvms_validator_,
     cg.int32,
     retmapper=lambda x: x.total_milliseconds,
 )

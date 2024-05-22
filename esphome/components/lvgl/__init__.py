@@ -77,6 +77,7 @@ from .schemas import (
     create_modify_schema,
     grid_alignments,
     ALL_STYLES,
+    ENCODER_SCHEMA,
 )
 from .slider import slider_spec
 from .spinbox import spinbox_spec
@@ -295,8 +296,13 @@ async def keypads_to_code(var, config):
     if df.CONF_KEYPADS not in config:
         return init
     helpers.add_lv_use("KEYPAD")
+    helpers.add_lv_use("KEY_LISTENER")
     for enc_conf in config[df.CONF_KEYPADS]:
-        listener = cg.new_Pvariable(enc_conf[CONF_ID])
+        lpt = enc_conf[df.CONF_LONG_PRESS_TIME].total_milliseconds & 0xFFFF
+        lprt = enc_conf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds & 0xFFFF
+        listener = cg.new_Pvariable(
+            enc_conf[CONF_ID], ty.lv_indev_type_t.LV_INDEV_TYPE_KEYPAD, lpt, lprt
+        )
         await cg.register_parented(listener, var)
         if group := add_group(enc_conf.get(CONF_GROUP)):
             init.append(
@@ -320,10 +326,13 @@ async def rotary_encoders_to_code(var, config):
     if df.CONF_ROTARY_ENCODERS not in config:
         return init
     helpers.add_lv_use("ROTARY_ENCODER")
+    helpers.add_lv_use("KEY_LISTENER")
     for enc_conf in config[df.CONF_ROTARY_ENCODERS]:
-        lpt = enc_conf[df.CONF_LONG_PRESS_TIME].total_milliseconds
-        lprt = enc_conf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
-        listener = cg.new_Pvariable(enc_conf[CONF_ID], lpt, lprt)
+        lpt = enc_conf[df.CONF_LONG_PRESS_TIME].total_milliseconds & 0xFFFF
+        lprt = enc_conf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds & 0xFFFF
+        listener = cg.new_Pvariable(
+            enc_conf[CONF_ID], ty.lv_indev_type_t.LV_INDEV_TYPE_ENCODER, lpt, lprt
+        )
         await cg.register_parented(listener, var)
         if group := add_group(enc_conf.get(CONF_GROUP)):
             init.append(
@@ -335,11 +344,11 @@ async def rotary_encoders_to_code(var, config):
             if isinstance(sensor, dict):
                 b_sensor = await cg.get_variable(sensor[df.CONF_LEFT_BUTTON])
                 init.append(
-                    f"{b_sensor}->add_on_state_callback([](bool state) {{ if(state) {listener}->decrement_count(); }})",
+                    f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->event(LV_KEY_LEFT, state); }})",
                 )
                 b_sensor = await cg.get_variable(sensor[df.CONF_RIGHT_BUTTON])
                 init.append(
-                    f"{b_sensor}->add_on_state_callback([](bool state) {{ if(state) {listener}->increment_count(); }})",
+                    f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->event(LV_KEY_RIGHT, state); }})",
                 )
             else:
 
@@ -349,7 +358,7 @@ async def rotary_encoders_to_code(var, config):
                 )
         b_sensor = await cg.get_variable(enc_conf[df.CONF_ENTER_BUTTON])
         init.append(
-            f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->set_pressed(state); }})"
+            f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->event(LV_KEY_ENTER, state); }})",
         )
 
         return init
@@ -362,8 +371,8 @@ async def touchscreens_to_code(var, config):
     helpers.add_lv_use("TOUCHSCREEN")
     for touchconf in config[df.CONF_TOUCHSCREENS]:
         touchscreen = await cg.get_variable(touchconf[CONF_TOUCHSCREEN_ID])
-        lpt = touchconf[df.CONF_LONG_PRESS_TIME].total_milliseconds
-        lprt = touchconf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
+        lpt = touchconf[df.CONF_LONG_PRESS_TIME].total_milliseconds & 0xFFFF
+        lprt = touchconf[df.CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds & 0xFFFF
         listener = cg.new_Pvariable(touchconf[CONF_ID], lpt, lprt)
         await cg.register_parented(listener, var)
         init.extend(
@@ -604,15 +613,10 @@ CONFIG_SCHEMA = (
                 ),
             ),
             cv.Optional(df.CONF_KEYPADS): cv.ensure_list(
-                cv.Schema(
+                ENCODER_SCHEMA.extend(
                     {
                         cv.Optional(key.lower()): cv.use_id(BinarySensor)
                         for key in df.LV_KEYS.choices
-                    }
-                ).extend(
-                    {
-                        cv.Optional(CONF_GROUP): lv.id_name,
-                        cv.GenerateID(): cv.declare_id(ty.LVKeyListener),
                     }
                 )
             ),
@@ -622,19 +626,20 @@ CONFIG_SCHEMA = (
                         cv.Required(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
                         cv.Optional(
                             df.CONF_LONG_PRESS_TIME, default="400ms"
-                        ): cv.positive_time_period_milliseconds,
+                        ): lv.lv_milliseconds,
                         cv.Optional(
                             df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
-                        ): cv.positive_time_period_milliseconds,
+                        ): lv.lv_milliseconds,
                         cv.GenerateID(): cv.declare_id(ty.LVTouchListener),
                     },
                     key=CONF_TOUCHSCREEN_ID,
                 )
             ),
             cv.Optional(df.CONF_ROTARY_ENCODERS): cv.ensure_list(
-                cv.Schema(
+                ENCODER_SCHEMA.extend(
                     {
-                        cv.Optional(CONF_SENSOR): cv.Any(
+                        cv.Required(df.CONF_ENTER_BUTTON): cv.use_id(BinarySensor),
+                        cv.Required(CONF_SENSOR): cv.Any(
                             cv.use_id(RotaryEncoderSensor),
                             cv.Schema(
                                 {
@@ -647,15 +652,6 @@ CONFIG_SCHEMA = (
                                 }
                             ),
                         ),
-                        cv.Required(df.CONF_ENTER_BUTTON): cv.use_id(BinarySensor),
-                        cv.Optional(
-                            df.CONF_LONG_PRESS_TIME, default="400ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(
-                            df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(CONF_GROUP): lv.id_name,
-                        cv.GenerateID(): cv.declare_id(ty.LVRotaryEncoderListener),
                     }
                 )
             ),

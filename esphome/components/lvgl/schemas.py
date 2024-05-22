@@ -340,3 +340,14 @@ ACTION_SCHEMA = cv.maybe_simple_value(
     },
     key=CONF_ID,
 )
+
+ENCODER_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ty.LVEncoderListener),
+        cv.Optional(CONF_GROUP): lv.id_name,
+        cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): lv.lv_milliseconds,
+        cv.Optional(
+            df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
+        ): lv.lv_milliseconds,
+    }
+)

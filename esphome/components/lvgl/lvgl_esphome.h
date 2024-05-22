@@ -563,67 +563,44 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 };
 #endif
 
-#if LV_USE_KEYPAD
-class LVKeyListener : public Parented<LvglComponent> {
+#if LV_USE_KEY_LISTENER
+class LVEncoderListener : public Parented<LvglComponent> {
  public:
-  LVKeyListener() {
+  LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt) {
     lv_indev_drv_init(&this->drv);
-    this->drv.type = LV_INDEV_TYPE_KEYPAD;
+    this->drv.type = type;
     this->drv.user_data = this;
+    this->drv.long_press_time = lpt;
+    this->drv.long_press_repeat_time = lprt;
     this->drv.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
-      auto *l = (LVKeyListener *) d->user_data;
+      auto *l = (LVEncoderListener *) d->user_data;
       data->state = l->pressed_ ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
       data->key = l->key_;
+      data->enc_diff = l->count_ - l->last_count_;
+      l->last_count_ = l->count_;
       data->continue_reading = false;
     };
   }
 
   void event(int key, bool pressed) {
     if (!this->parent_->is_paused()) {
-      esph_log_d(TAG, "key %d state %u", key, pressed);
       this->pressed_ = pressed;
       this->key_ = key;
     }
   }
 
-  lv_indev_drv_t drv{};
-
- protected:
-  bool pressed_{};
-  int key_{};
-};
-
-#endif
-#if LV_USE_ROTARY_ENCODER
-class LVRotaryEncoderListener : public Parented<LvglComponent> {
- public:
-  LVRotaryEncoderListener(uint16_t lpt, uint16_t lprt) {
-    lv_indev_drv_init(&this->drv);
-    this->drv.type = LV_INDEV_TYPE_ENCODER;
-    this->drv.user_data = this;
-    this->drv.long_press_time = lpt;
-    this->drv.long_press_repeat_time = lprt;
-    this->drv.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
-      LVRotaryEncoderListener *l = (LVRotaryEncoderListener *) d->user_data;
-      data->state = l->pressed_ ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-      data->continue_reading = false;
-      data->enc_diff = l->count_ - l->last_count_;
-      l->last_count_ = l->count_;
-    };
+  void set_count(int32_t count) {
+    if (!this->parent_->is_paused())
+      this->count_ = count;
   }
 
-  void set_count(int32_t count) { this->count_ = count; }
-  void increment_count() { this->count_++; }
-  void decrement_count() { this->count_--; }
-  void set_pressed(bool pressed) { this->pressed_ = pressed && !this->parent_->is_paused(); }
   lv_indev_drv_t drv{};
 
  protected:
   bool pressed_{};
   int32_t count_{};
   int32_t last_count_{};
-  binary_sensor::BinarySensor *binary_sensor_{};
-  sensor::Sensor *sensor_{};
+  int key_{};
 };
 #endif
 
