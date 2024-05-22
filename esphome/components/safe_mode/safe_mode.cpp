@@ -94,6 +94,8 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 
     ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
 
+    this->safe_mode_callback_.call();
+
     return true;
   } else {
     // increment counter
