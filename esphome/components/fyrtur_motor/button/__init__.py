@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG, DEVICE_CLASS_BUTTON
+from esphome.const import ENTITY_CATEGORY_CONFIG, DEVICE_CLASS_BUTTON, CONF_STOP
 from .. import CONF_FYRTUR_MOTOR_ID, FyrturMotorComponent, fyrtur_motor_ns
 
 MoveUpButton = fyrtur_motor_ns.class_("MoveUpButton", button.Button)
@@ -11,7 +11,6 @@ GetStatusButton = fyrtur_motor_ns.class_("GetStatusButton", button.Button)
 
 CONF_MOVE_UP = "move_up"
 CONF_MOVE_DOWN = "move_down"
-CONF_STOP = "stop"
 CONF_GET_STATUS = "get_status"
 
 ICON_UP = "mdi:arrow-up-bold"

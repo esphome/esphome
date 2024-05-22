@@ -6,7 +6,7 @@ from . import FyrturMotorComponent, CONF_FYRTUR_MOTOR_ID
 CONF_MOVING = "moving"
 CONF_FULLY_OPEN = "fully_open"
 CONF_FULLY_CLOSED = "fully_closed"
-CONF_PARTIALY_OPEN = "fpartialy_open"
+CONF_PARTIALY_OPEN = "partialy_open"
 
 TYPES = [CONF_MOVING, CONF_FULLY_OPEN, CONF_FULLY_CLOSED, CONF_PARTIALY_OPEN]
 
