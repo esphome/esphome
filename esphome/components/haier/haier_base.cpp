@@ -58,8 +58,7 @@ HaierClimateBase::HaierClimateBase()
       forced_request_status_(false),
       reset_protocol_request_(false),
       send_wifi_signal_(true),
-      use_crc_(false),
-      high_freq_on_(false) {
+      use_crc_(false) {
   this->traits_ = climate::ClimateTraits();
   this->traits_.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_MODE_HEAT,
                                      climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_MODE_DRY,
@@ -245,10 +244,6 @@ void HaierClimateBase::dump_config() {
 
 void HaierClimateBase::loop() {
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-  if (this->high_freq_on_ && !this->haier_protocol_.is_waiting_for_answer()) {
-    this->high_freq_.stop();
-    this->high_freq_on_ = false;
-  }
   if ((std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_valid_status_timestamp_).count() >
        COMMUNICATION_TIMEOUT_MS) ||
       (this->reset_protocol_request_ && (!this->haier_protocol_.is_waiting_for_answer()))) {
@@ -367,10 +362,6 @@ void HaierClimateBase::send_message_(const haier_protocol::HaierMessage &command
                                      std::chrono::milliseconds interval) {
   this->haier_protocol_.send_message(command, use_crc, num_repeats, interval);
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
-  if (!high_freq_on_) {
-    this->high_freq_on_ = true;
-    this->high_freq_.start();
-  }
 }
 
 }  // namespace haier
