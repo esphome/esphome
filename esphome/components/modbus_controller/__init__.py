@@ -1,11 +1,9 @@
 import binascii
 import esphome.codegen as cg
 import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.components import modbus
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET
 from esphome.cpp_helpers import logging
-from esphome.components.modbus import CONF_ROLE, CONF_MODBUS_ID
 from .const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
@@ -172,14 +170,9 @@ def validate_modbus_register(config):
 
 def _final_validate(config):
     if CONF_SERVER_REGISTERS in config:
-        for modbus_config in fv.full_config.get()["modbus"]:
-            if (
-                modbus_config[CONF_ID] == config[CONF_MODBUS_ID]
-                and modbus_config[CONF_ROLE] == "client"
-            ):
-                raise cv.Invalid(
-                    f"{CONF_SERVER_REGISTERS} is not allowed when {CONF_ROLE} is client"
-                )
+        return modbus.final_validate_modbus_device("modbus_controller", role="server")(
+            config
+        )
     return config
 
 
