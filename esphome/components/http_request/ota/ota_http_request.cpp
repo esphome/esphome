@@ -25,14 +25,6 @@
 namespace esphome {
 namespace http_request {
 
-OtaHttpRequestComponent::OtaHttpRequestComponent() {
-  this->pref_obj_.load(&this->pref_);
-  if (!this->pref_obj_.save(&this->pref_)) {
-    // error at 'load' might be caused by 1st usage, but error at 'save' is a real error.
-    ESP_LOGE(TAG, "Unable to use flash memory. Safe mode might be not available");
-  }
-}
-
 void OtaHttpRequestComponent::setup() {
 #ifdef USE_OTA_STATE_CALLBACK
   ota::register_ota_platform(this);
@@ -41,8 +33,6 @@ void OtaHttpRequestComponent::setup() {
 
 void OtaHttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request:");
-  pref_.last_md5[MD5_SIZE] = '\0';
-  ESP_LOGCONFIG(TAG, "  Last flashed MD5: %s", this->pref_.last_md5);
   ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
 #ifdef CONFIG_WATCHDOG_TIMEOUT
   ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", CONFIG_WATCHDOG_TIMEOUT / 1000);
@@ -118,18 +108,6 @@ void OtaHttpRequestComponent::flash() {
   }
 
   ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_.c_str());
-
-  if (strncmp(this->pref_.last_md5, this->md5_expected_.c_str(), MD5_SIZE) == 0) {
-    std::string update_action = this->force_update_ ? "forced" : "skipped";
-    ESP_LOGW(TAG, "MD5 matches the last installed firmware -- update %s!", update_action.c_str());
-    if (!this->force_update_) {
-      this->md5_expected_.clear();  // will be reset at next attempt
-#ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(ota::OTA_ABORT, 0.0f, 0);
-#endif
-      return;
-    }
-  }
 
   auto url_with_auth = this->get_url_with_auth_(this->url_);
   if (url_with_auth.empty()) {
@@ -233,17 +211,6 @@ void OtaHttpRequestComponent::flash() {
     return;
   }
 
-  strncpy(this->pref_.last_md5, this->md5_expected_.data(), MD5_SIZE);
-  this->pref_obj_.save(&this->pref_);
-  // on rp2040 and esp8266, reenable write to flash that was disabled by OTA
-#ifdef USE_ESP8266
-  esp8266::preferences_prevent_write(false);
-#endif
-#ifdef USE_RP2040
-  rp2040::preferences_prevent_write(false);
-#endif
-  global_preferences->sync();
-  delay(10);
   ESP_LOGI(TAG, "Update complete");
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);

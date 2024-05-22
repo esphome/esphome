@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
-    CONF_FORCE_UPDATE,
     CONF_ID,
     CONF_PASSWORD,
     CONF_TIMEOUT,
@@ -154,7 +153,6 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OtaHttpRequestComponent),
-            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.templatable(cv.boolean),
             cv.Optional(CONF_MD5_URL): cv.templatable(validate_url),
             cv.Optional(CONF_MD5): cv.templatable(cv.string),
             cv.Optional(CONF_PASSWORD): cv.templatable(cv.string),
@@ -174,9 +172,6 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
 async def ota_http_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
-    cg.add(var.set_force_update(template_))
 
     if CONF_MD5_URL in config:
         template_ = await cg.templatable(config[CONF_MD5_URL], args, cg.std_string)

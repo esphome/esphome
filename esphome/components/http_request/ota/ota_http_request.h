@@ -12,23 +12,15 @@
 namespace esphome {
 namespace http_request {
 
-#define OTA_HTTP_PREF_SAFE_MODE_HASH 99380598UL
-
 static const char *const TAG = "http_request.ota";
 static const uint8_t MD5_SIZE = 32;
 
-struct OtaHttpRequestGlobalPrefType {
-  char last_md5[MD5_SIZE + 1];
-} PACKED;
-
 class OtaHttpRequestComponent : public ota::OTAComponent {
  public:
-  OtaHttpRequestComponent();
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_force_update(bool force_update) { this->force_update_ = force_update; }
   void set_md5_url(const std::string &md5_url);
   void set_md5(const std::string &md5) { this->md5_expected_ = md5; }
   void set_password(const std::string &password) { this->password_ = password; }
@@ -56,18 +48,14 @@ class OtaHttpRequestComponent : public ota::OTAComponent {
   std::string password_{};
   std::string username_{};
   std::string url_{};
-  bool force_update_ = false;
-  bool update_started_ = false;
   size_t body_length_ = 0;
   size_t bytes_read_ = 0;
   int status_ = -1;
   uint64_t timeout_ = 0;
+  bool update_started_ = false;
   const uint16_t http_recv_buffer_ = 256;      // the firmware GET chunk size
   const uint16_t max_http_recv_buffer_ = 512;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
                                                // overhead) and must be a power of two from 512 to 4096
-  OtaHttpRequestGlobalPrefType pref_ = {""};
-  ESPPreferenceObject pref_obj_ =
-      global_preferences->make_preference<OtaHttpRequestGlobalPrefType>(OTA_HTTP_PREF_SAFE_MODE_HASH, true);
 };
 
 template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Action<Ts...> {
@@ -81,8 +69,6 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
   TEMPLATABLE_VALUE(std::string, username)
 
   void play(Ts... x) override {
-    this->parent_->set_force_update(this->force_update_.value(x...));
-
     if (this->md5_url_.has_value()) {
       this->parent_->set_md5_url(this->md5_url_.value(x...));
     }
