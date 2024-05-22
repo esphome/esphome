@@ -64,11 +64,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void control(const climate::ClimateCall &call) override;
 
   // Set thermostat UART component
-  void set_thermostat_uart(uart::UARTComponent *uart) {
-    ESP_LOGCONFIG(TAG, "Thermostat uart was set.");
-    ts_uart = uart;
-    ts_bridge = new ThermostatBridge(ts_uart, static_cast<PacketProcessor *>(this));
-  }
+  void set_thermostat_uart(uart::UARTComponent *uart);
 
   // Sensor setters
   void set_thermostat_temperature_sensor(sensor::Sensor *sensor) { thermostat_temperature_sensor = sensor; };

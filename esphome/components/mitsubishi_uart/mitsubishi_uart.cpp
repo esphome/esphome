@@ -115,6 +115,13 @@ void MitsubishiUART::dump_config() {
   }
 }
 
+// Set thermostat UART component
+void MitsubishiUART::set_thermostat_uart(uart::UARTComponent *uart) {
+  ESP_LOGCONFIG(TAG, "Thermostat uart was set.");
+  ts_uart = uart;
+  ts_bridge = new ThermostatBridge(ts_uart, static_cast<PacketProcessor *>(this));
+}
+
 /* Called periodically as PollingComponent; used to send packets to connect or request updates.
 
 Possible TODO: If we only publish during updates, since data is received during loop, updates will always
