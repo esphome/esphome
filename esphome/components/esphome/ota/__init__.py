@@ -3,8 +3,10 @@ import esphome.config_validation as cv
 from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
 from esphome.const import (
     CONF_ID,
+    CONF_NUM_ATTEMPTS,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
@@ -33,8 +35,14 @@ CONFIG_SCHEMA = (
                 rtl87xx=8892,
             ): cv.port,
             cv.Optional(CONF_PASSWORD): cv.string,
+            cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
+                f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
+            ),
+            cv.Optional(CONF_REBOOT_TIMEOUT): cv.invalid(
+                f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
+            ),
             cv.Optional(CONF_SAFE_MODE): cv.invalid(
-                f"The '{CONF_SAFE_MODE}' option has been moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
+                f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
             ),
         }
     )
