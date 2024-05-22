@@ -121,64 +121,66 @@ BASE_SCHEMA = (
 )
 
 # TODO Storing the registration function here seems weird, but I can't figure out how to determine schema type later
-SENSORS = {
-    CONF_THERMOSTAT_TEMPERATURE: (
-        "Thermostat Temperature",
-        sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
+SENSORS = dict[str, tuple[str, cv.Schema, callable]](
+    {
+        CONF_THERMOSTAT_TEMPERATURE: (
+            "Thermostat Temperature",
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=1,
+            ),
+            sensor.register_sensor,
         ),
-        sensor.register_sensor,
-    ),
-    "compressor_frequency": (
-        "Compressor Frequency",
-        sensor.sensor_schema(
-            unit_of_measurement=UNIT_HERTZ,
-            device_class=DEVICE_CLASS_FREQUENCY,
-            state_class=STATE_CLASS_MEASUREMENT,
+        "compressor_frequency": (
+            "Compressor Frequency",
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_HERTZ,
+                device_class=DEVICE_CLASS_FREQUENCY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            sensor.register_sensor,
         ),
-        sensor.register_sensor,
-    ),
-    "actual_fan": (
-        "Actual Fan Speed",
-        text_sensor.text_sensor_schema(
-            icon="mdi:fan",
+        "actual_fan": (
+            "Actual Fan Speed",
+            text_sensor.text_sensor_schema(
+                icon="mdi:fan",
+            ),
+            text_sensor.register_text_sensor,
         ),
-        text_sensor.register_text_sensor,
-    ),
-    "service_filter": (
-        "Service Filter",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    "defrost": (
-        "Defrost",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    "hot_adjust": (
-        "Hot Adjust",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    "standby": (
-        "Standby",
-        binary_sensor.binary_sensor_schema(),
-        binary_sensor.register_binary_sensor,
-    ),
-    CONF_ISEE_STATUS: (
-        "i-see Status",
-        binary_sensor.binary_sensor_schema(icon="mdi:eye"),
-        binary_sensor.register_binary_sensor,
-    ),
-    CONF_ERROR_CODE: (
-        "Error Code",
-        text_sensor.text_sensor_schema(),
-        text_sensor.register_text_sensor,
-    ),
-}
+        "service_filter": (
+            "Service Filter",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
+        ),
+        "defrost": (
+            "Defrost",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
+        ),
+        "hot_adjust": (
+            "Hot Adjust",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
+        ),
+        "standby": (
+            "Standby",
+            binary_sensor.binary_sensor_schema(),
+            binary_sensor.register_binary_sensor,
+        ),
+        CONF_ISEE_STATUS: (
+            "i-see Status",
+            binary_sensor.binary_sensor_schema(icon="mdi:eye"),
+            binary_sensor.register_binary_sensor,
+        ),
+        CONF_ERROR_CODE: (
+            "Error Code",
+            text_sensor.text_sensor_schema(),
+            text_sensor.register_text_sensor,
+        ),
+    }
+)
 
 SENSORS_SCHEMA = cv.All(
     {
@@ -278,8 +280,8 @@ async def to_code(config):
     # Sensors
 
     for sensor_designator, (
-        sensor_name,
-        sensor_schema,
+        _,
+        _,
         registration_function,
     ) in SENSORS.items():
         # Only add the thermostat temp if we have a TS_UART
@@ -316,8 +318,8 @@ async def to_code(config):
 
     # Register selects
     for select_designator, (
-        select_name,
-        select_schema,
+        _,
+        _,
         select_options,
     ) in SELECTS.items():
         select_conf = config[CONF_SELECTS][select_designator]
