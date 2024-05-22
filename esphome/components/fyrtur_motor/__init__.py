@@ -13,7 +13,7 @@ CONF_FYRTUR_MOTOR_ID = "fyrtur_motor_id"
 fyrtur_motor_ns = cg.esphome_ns.namespace("fyrtur_motor")
 
 FyrturMotorComponent = fyrtur_motor_ns.class_(
-    "FyrturMotorComponent", cg.PollingComponent, uart.UARTDevice
+    "FyrturMotorComponent", cg.Component, cg.PollingComponent, uart.UARTDevice
 )
 
 CONFIG_SCHEMA = cv.Schema(
