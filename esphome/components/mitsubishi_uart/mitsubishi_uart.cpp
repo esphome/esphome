@@ -72,16 +72,16 @@ void MitsubishiUART::restore_preferences_() {
 }
 
 void MitsubishiUART::send_if_active_(const Packet &packet) {
-  if (active_mode)
+  if (active_mode_)
     hp_bridge_.send_packet(packet);
 }
 
 #define IFACTIVE(dothis) \
-  if (active_mode) { \
+  if (active_mode_) { \
     dothis \
   }
 #define IFNOTACTIVE(dothis) \
-  if (!active_mode) { \
+  if (!active_mode_) { \
     dothis \
   }
 

@@ -133,7 +133,7 @@ optional<RawPacket> MUARTBridge::receive_raw_packet_(const SourceBridge source_b
 template<class P> void MUARTBridge::process_raw_packet_(RawPacket &pkt, bool expect_response) const {
   P packet = P(std::move(pkt));
   packet.set_response_expected(expect_response);
-  pkt_processor_.processPacket(packet);
+  pkt_processor_.process_packet(packet);
 }
 
 void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
