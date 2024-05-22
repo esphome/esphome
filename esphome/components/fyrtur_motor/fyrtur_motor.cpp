@@ -17,9 +17,7 @@ static const size_t HEADER_SIZE = 3;
 
 static const size_t STATUS_RESPONSE_SIZE = 4;
 
-void FyrturMotorComponent::setup(void) {
-  // fill with setup code
-}
+void FyrturMotorComponent::setup(void) { get_status(); }
 
 void FyrturMotorComponent::dump_config(void) {
   ESP_LOGCONFIG(TAG, "Fyrtur motor:");
@@ -135,10 +133,10 @@ void FyrturMotorComponent::get_status(void) {
   uint8_t position = response[3];
 
   ESP_LOGI(TAG, "Got status response:");
-  ESP_LOGI(TAG, "Battery level: %.0f %", battery_level);
+  ESP_LOGI(TAG, "Battery level: %.0f /%", battery_level);
   ESP_LOGI(TAG, "Battery voltage: %.1f V", battery_voltage);
   ESP_LOGI(TAG, "Speed: %u RPM", speed);
-  ESP_LOGI(TAG, "Position: %u %", position);
+  ESP_LOGI(TAG, "Position: %u /%", position);
 
 #ifdef USE_SENSOR
   if (this->battery_level_sensor_) {
