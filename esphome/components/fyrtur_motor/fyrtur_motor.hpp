@@ -1,17 +1,30 @@
 #pragma once
-
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
+#include "esphome/core/component.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+// #ifdef USE_NUMBER
+// #include "esphome/components/number/number.h"
+// #endif
+// #ifdef USE_SWITCH
+// #include "esphome/components/switch/switch.h"
+// #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+// #ifdef USE_SELECT
+// #include "esphome/components/select/select.h"
+// #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
+// #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 #include <vector>
 
@@ -62,6 +75,13 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
 
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(status)
+#endif
+
+#ifdef USE_BUTTON
+  SUB_BUTTON(stop)
+  SUB_BUTTON(move_up)
+  SUB_BUTTON(move_down)
+  SUB_BUTTON(get_status)
 #endif
 
   void setup() override;

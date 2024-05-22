@@ -21,7 +21,12 @@ void FyrturMotorComponent::setup(void) { get_status(); }
 
 void FyrturMotorComponent::dump_config(void) {
   ESP_LOGCONFIG(TAG, "Fyrtur motor:");
-  this->check_uart_settings(2400);
+#ifdef USE_BUTTON
+  LOG_BUTTON("  ", "MoveUpButton", this->move_up_button_);
+  LOG_BUTTON("  ", "StopButton", this->stop_button_);
+  LOG_BUTTON("  ", "MoveDownButton", this->move_down_button_);
+  LOG_BUTTON("  ", "GetStatusButton", this->get_status_button_);
+#endif
 }
 
 void FyrturMotorComponent::update(void) { get_status(); }
@@ -133,10 +138,10 @@ void FyrturMotorComponent::get_status(void) {
   uint8_t position = response[3];
 
   ESP_LOGI(TAG, "Got status response:");
-  ESP_LOGI(TAG, "Battery level: %.0f /%", battery_level);
-  ESP_LOGI(TAG, "Battery voltage: %.1f V", battery_voltage);
-  ESP_LOGI(TAG, "Speed: %u RPM", speed);
-  ESP_LOGI(TAG, "Position: %u /%", position);
+  ESP_LOGI("  ", "Battery level: %.0f /%", battery_level);
+  ESP_LOGI("  ", "Battery voltage: %.1f V", battery_voltage);
+  ESP_LOGI("  ", "Speed: %u RPM", speed);
+  ESP_LOGI("  ", "Position: %u /%", position);
 
 #ifdef USE_SENSOR
   if (this->battery_level_sensor_) {
