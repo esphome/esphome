@@ -14,6 +14,9 @@ from esphome.const import (
     CONF_STATE,
     CONF_STOP,
     CONF_TRIGGER_ID,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_WATER,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -21,6 +24,12 @@ from esphome.cpp_helpers import setup_entity
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+
+DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_WATER,
+]
 
 valve_ns = cg.esphome_ns.namespace("valve")
 
@@ -65,6 +74,7 @@ VALVE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ex
     {
         cv.GenerateID(): cv.declare_id(Valve),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
+        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
         cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),

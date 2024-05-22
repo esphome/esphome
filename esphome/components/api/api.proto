@@ -1147,6 +1147,9 @@ message MediaPlayerCommandRequest {
 
   bool has_media_url = 6;
   string media_url = 7;
+
+  bool has_announcement = 8;
+  bool announcement = 9;
 }
 
 // ==================== BLUETOOTH ====================

@@ -102,9 +102,11 @@ uart:
     baud_rate: 1200
     parity: EVEN
 
+safe_mode:
+
 ota:
-  safe_mode: true
-  port: 3286
+  - platform: esphome
+    port: 3286
 
 logger:
   level: DEBUG
