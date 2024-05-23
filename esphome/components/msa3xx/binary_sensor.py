@@ -2,6 +2,7 @@
 import esphome.config_validation as cv
 from . import MSA3xxComponent, CONF_MSA3XX_ID
 
+CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["msa3xx"]
 
 

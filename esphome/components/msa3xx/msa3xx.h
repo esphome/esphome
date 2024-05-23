@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 
@@ -226,6 +227,11 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(acceleration_z)
 #endif
 
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(orientation_xy)
+  SUB_TEXT_SENSOR(orientation_z)
+#endif
+
   Trigger<> *get_tap_trigger() { return &this->tap_trigger_; }
   Trigger<> *get_double_tap_trigger() { return &this->double_tap_trigger_; }
   Trigger<> *get_orientation_trigger() { return &this->orientation_trigger_; }
@@ -256,6 +262,7 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   struct {
     RegMotionInterrupt motion_int;
     RegOrientationStatus orientation;
+    RegOrientationStatus orientation_old;
   } status_{};
 
   void setup_odr_(DataRate rate);

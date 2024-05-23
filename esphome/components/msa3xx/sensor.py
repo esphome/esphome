@@ -12,6 +12,7 @@ from esphome.const import (
 )
 from . import MSA3xxComponent, CONF_MSA3XX_ID
 
+CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["msa3xx"]
 
 

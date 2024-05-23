@@ -15,8 +15,10 @@ from esphome.const import (
     CONF_TRANSFORM,
 )
 
+CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "binary_sensor", "text_sensor"]
+
 
 CONF_MSA3XX_ID = "msa3xx_id"
 

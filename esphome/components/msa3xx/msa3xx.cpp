@@ -171,6 +171,11 @@ void MSA3xxComponent::dump_config() {
   LOG_SENSOR("  ", "Acceleration Y", this->acceleration_y_sensor_);
   LOG_SENSOR("  ", "Acceleration Z", this->acceleration_z_sensor_);
 #endif
+
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Orientation XY", this->orientation_xy_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Orientation Z", this->orientation_z_text_sensor_);
+#endif
 }
 
 bool MSA3xxComponent::read_data_() {
@@ -256,6 +261,19 @@ void MSA3xxComponent::update() {
     this->acceleration_z_sensor_->publish_state(this->data_.z);
 #endif
 
+#ifdef USE_TEXT_SENSOR
+  if (this->orientation_xy_text_sensor_ != nullptr &&
+      this->status_.orientation.orient_xy != this->status_.orientation_old.orient_xy) {
+    this->orientation_xy_text_sensor_->publish_state(orientation_xy_to_string(this->status_.orientation.orient_xy));
+  }
+  if (this->orientation_z_text_sensor_ != nullptr &&
+      this->status_.orientation.orient_z != this->status_.orientation_old.orient_z) {
+    this->orientation_z_text_sensor_->publish_state(orientation_z_to_string(this->status_.orientation.orient_z));
+  }
+  this->status_.orientation_old = this->status_.orientation;
+
+#endif
+
   this->status_clear_warning();
 }
 float MSA3xxComponent::get_setup_priority() const { return setup_priority::DATA; }
@@ -320,8 +338,9 @@ void MSA3xxComponent::setup_offset_(float offset_x, float offset_y, float offset
 
   auto offset_g_to_lsb = [](float accel) -> int8_t {
     float acccel_clamped = clamp(accel, G_OFFSET_MIN, G_OFFSET_MAX);
-    return static_cast<int8_t>(accel * LSB_COEFF);
+    return static_cast<int8_t>(acccel_clamped * LSB_COEFF);
   };
+
   offset[0] = offset_g_to_lsb(offset_x);
   offset[1] = offset_g_to_lsb(offset_y);
   offset[2] = offset_g_to_lsb(offset_z);
