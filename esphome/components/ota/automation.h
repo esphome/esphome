@@ -1,11 +1,8 @@
 #pragma once
-
-#include "esphome/core/defines.h"
 #ifdef USE_OTA_STATE_CALLBACK
+#include "ota_backend.h"
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/components/ota/ota_component.h"
 
 namespace esphome {
 namespace ota {
@@ -54,6 +51,17 @@ class OTAEndTrigger : public Trigger<> {
   }
 };
 
+class OTAAbortTrigger : public Trigger<> {
+ public:
+  explicit OTAAbortTrigger(OTAComponent *parent) {
+    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
+      if (state == OTA_ABORT && !parent->is_failed()) {
+        trigger();
+      }
+    });
+  }
+};
+
 class OTAErrorTrigger : public Trigger<uint8_t> {
  public:
   explicit OTAErrorTrigger(OTAComponent *parent) {
@@ -67,5 +75,4 @@ class OTAErrorTrigger : public Trigger<uint8_t> {
 
 }  // namespace ota
 }  // namespace esphome
-
-#endif  // USE_OTA_STATE_CALLBACK
+#endif
