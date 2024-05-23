@@ -735,10 +735,45 @@ void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
     this->speaker_buffer_index_ += msg.data.length();
     this->speaker_buffer_size_ += msg.data.length();
     this->speaker_bytes_received_ += msg.data.length();
+    ESP_LOGD(TAG, "Received audio: %d bytes from API", msg.data.length());
   } else {
     ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
   }
 #endif
+}
+
+void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse &msg) {
+  Timer timer = {
+      .id = msg.timer_id,
+      .name = msg.name,
+      .total_seconds = msg.total_seconds,
+      .seconds_left = msg.seconds_left,
+      .is_active = msg.is_active,
+  };
+  this->timers_[timer.id] = timer;
+  ESP_LOGD(TAG, "Timer Event");
+  ESP_LOGD(TAG, "  Type: %d", msg.event_type);
+  ESP_LOGD(TAG, "  %s", timer.to_string().c_str());
+
+  switch (msg.event_type) {
+    case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
+      // Add timer to this->timers_ and trigger on_timer_started callback
+      this->timer_started_trigger_->trigger(timer);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_UPDATED:
+      // Update this->timers_ with latest data and trigger on_timer_started callback
+
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_CANCELLED:
+      // Trigger on_timer_cancelled callback, then remove from this->timers_
+      this->timer_cancelled_trigger_->trigger(timer);
+      this->timers_.erase(timer.id);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_FINISHED:
+      // Trigger on_timer_finished callback
+      break;
+  }
+  // If any timers are present, run 1 seconds interval callback
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

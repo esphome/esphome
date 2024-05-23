@@ -24,6 +24,8 @@
 #include <esp_vad.h>
 #endif
 
+#include <map>
+
 namespace esphome {
 namespace voice_assistant {
 
@@ -57,6 +59,19 @@ enum class State {
 enum AudioMode : uint8_t {
   AUDIO_MODE_UDP,
   AUDIO_MODE_API,
+};
+
+struct Timer {
+  std::string id;
+  std::string name;
+  uint32_t total_seconds;
+  uint32_t seconds_left;
+  bool is_active;
+
+  std::string to_string() const {
+    return str_sprintf("Timer(id=%s, name=%s, total_seconds=%u, seconds_left=%u, is_active=%s)", this->id.c_str(),
+                       this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
+  }
 };
 
 class VoiceAssistant : public Component {
@@ -108,6 +123,7 @@ class VoiceAssistant : public Component {
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
   void on_audio(const api::VoiceAssistantAudio &msg);
+  void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -181,6 +197,13 @@ class VoiceAssistant : public Component {
   Trigger<> *client_disconnected_trigger_ = new Trigger<>();
 
   api::APIConnection *api_client_{nullptr};
+
+  std::map<std::string, Timer> timers_;
+  Trigger<Timer> *timer_started_trigger_ = new Trigger<Timer>();
+  Trigger<Timer> *timer_finished_trigger_ = new Trigger<Timer>();
+  Trigger<Timer> *timer_updated_trigger_ = new Trigger<Timer>();
+  Trigger<Timer> *timer_cancelled_trigger_ = new Trigger<Timer>();
+  Trigger<Timer> *timer_tick_trigger_ = new Trigger<Timer>();
 
   microphone::Microphone *mic_{nullptr};
 #ifdef USE_SPEAKER
