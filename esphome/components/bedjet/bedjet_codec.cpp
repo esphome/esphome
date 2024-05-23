@@ -157,5 +157,11 @@ bool BedjetCodec::compare(const uint8_t *data, uint16_t length) {
   return explicit_fields_changed;
 }
 
+/// Converts a BedJet temp step into degrees Celsius.
+float bedjet_temp_to_c(uint8_t temp) {
+  // BedJet temp is "C*2"; to get C, divide by 2.
+  return temp / 2.0f;
+}
+
 }  // namespace bedjet
 }  // namespace esphome
