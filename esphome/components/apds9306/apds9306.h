@@ -10,6 +10,7 @@ namespace apds9306 {
 class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
+  float get_setup_priority() const override { return setup_priority::BUS; }
   void dump_config() override;
   void update() override;
   void set_bit_width(uint8_t bit_width) { this->bit_width_ = bit_width; }
