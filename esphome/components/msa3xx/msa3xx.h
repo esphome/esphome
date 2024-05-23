@@ -105,6 +105,22 @@ enum class DataRate : uint8_t {
   ODR_1000HZ = 0b1010,  // not available in low power mode
 };
 
+enum class OrientationXY : uint8_t {
+  PORTRAIT_UPRIGHT = 0b00,
+  PORTRAIT_UPSIDE_DOWN = 0b01,
+  LANDSCAPE_LEFT = 0b10,
+  LANDSCAPE_RIGHT = 0b11,
+};
+
+union Orientation {
+  struct {
+    OrientationXY xy : 2;
+    bool z : 1;
+    uint8_t reserved : 5;
+  };
+  uint8_t raw;
+};
+
 // 0x09
 union RegMotionInterrupt {
   struct {
@@ -124,7 +140,8 @@ union RegMotionInterrupt {
 union RegOrientationStatus {
   struct {
     uint8_t reserved_0_3 : 4;
-    uint8_t orient : 3;
+    OrientationXY orient_xy : 2;
+    bool orient_z : 1;
     uint8_t reserved_7 : 1;
   };
   uint8_t raw{0x00};
@@ -163,6 +180,18 @@ union RegPowerModeBandwidth {
   uint8_t raw{0xde};
 };
 
+// 0x12
+union RegSwapPolarity {
+  struct {
+    bool x_y_swap : 1;
+    bool z_polarity : 1;
+    bool y_polarity : 1;
+    bool x_polarity : 1;
+    uint8_t reserved : 4;
+  };
+  uint8_t raw{0};
+};
+
 // 0x2a
 union RegTapDuration {
   struct {
@@ -189,21 +218,19 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   void set_range(Range range) { this->range_ = range; }
   void set_bandwidth(Bandwidth bandwidth) { this->bandwidth_ = bandwidth; }
   void set_resolution(Resolution resolution) { this->resolution_ = resolution; }
-  void set_interrupts(uint8_t set0, uint8_t set1) {
-    this->int_set_0_ = set0;
-    this->int_set_1_ = set1;
-  };
+  void set_transform(bool mirror_x, bool mirror_y, bool mirror_z, bool swap_xy);
 
 #ifdef USE_SENSOR
-  SUB_SENSOR(accel_x)
-  SUB_SENSOR(accel_y)
-  SUB_SENSOR(accel_z)
+  SUB_SENSOR(acceleration_x)
+  SUB_SENSOR(acceleration_y)
+  SUB_SENSOR(acceleration_z)
 #endif
 
   Trigger<> *get_tap_trigger() { return &this->tap_trigger_; }
   Trigger<> *get_double_tap_trigger() { return &this->double_tap_trigger_; }
   Trigger<> *get_orientation_trigger() { return &this->orientation_trigger_; }
   Trigger<> *get_freefall_trigger() { return &this->freefall_trigger_; }
+  Trigger<> *get_active_trigger() { return &this->active_trigger_; }
 
  protected:
   Model model_{Model::MSA311};
@@ -213,11 +240,8 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   Bandwidth bandwidth_{Bandwidth::BW_250HZ};
   Range range_{Range::RANGE_2G};
   Resolution resolution_{Resolution::RES_14BIT};
-
   float offset_x_, offset_y_, offset_z_;  // in m/s²
-
-  uint8_t int_set_0_{0x00};
-  uint8_t int_set_1_{0x00};
+  RegSwapPolarity swap_;
 
   struct {
     int scale_factor_exp;
@@ -242,7 +266,7 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   bool read_data_();
   bool read_motion_status_();
 
-  int64_t two_complement_to_normal_(uint64_t value, uint8_t bits);
+  int64_t twos_complement_(uint64_t value, uint8_t bits);
 
   //
   // Actons / Triggers
@@ -251,10 +275,10 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   Trigger<> double_tap_trigger_;
   Trigger<> orientation_trigger_;
   Trigger<> freefall_trigger_;
+  Trigger<> active_trigger_;
 
   void process_interrupts_();
 };
-;
 
 }  // namespace msa3xx
 }  // namespace esphome

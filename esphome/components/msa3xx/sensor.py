@@ -45,4 +45,4 @@ async def to_code(config):
         accel_key = f"acceleration_{d}"
         if accel_key in config:
             sens = await sensor.new_sensor(config[accel_key])
-            cg.add(getattr(hub, f"set_accel_{d}_sensor")(sens))
+            cg.add(getattr(hub, f"set_acceleration_{d}_sensor")(sens))

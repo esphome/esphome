@@ -3,11 +3,16 @@ import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome import automation
 from esphome.const import (
-    CONF_ID,
     CONF_ADDRESS,
+    CONF_CALIBRATION,
+    CONF_ID,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RANGE,
     CONF_RESOLUTION,
+    CONF_SWAP_XY,
+    CONF_TRANSFORM,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -15,13 +20,15 @@ AUTO_LOAD = ["sensor", "binary_sensor", "text_sensor"]
 
 CONF_MSA3XX_ID = "msa3xx_id"
 
+CONF_MIRROR_Z = "mirror_z"
 CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
 CONF_OFFSET_Z = "offset_z"
-CONF_ON_TAP = "on_tap"
+CONF_ON_ACTIVE = "on_active"
 CONF_ON_DOUBLE_TAP = "on_double_tap"
 CONF_ON_FREEFALL = "on_freefall"
 CONF_ON_ORIENTATION = "on_orientation"
+CONF_ON_TAP = "on_tap"
 
 
 msa3xx_ns = cg.esphome_ns.namespace("msa3xx")
@@ -72,9 +79,28 @@ CONFIG_SCHEMA = cv.Schema(
             cv.Optional(CONF_RANGE, default="2G"): cv.enum(MSA_RANGES, upper=True),
             #            cv.Optional(CONF_BANDWIDTH, default="250HZ"): cv.enum(MSA_BANDWIDTHS, upper=True),
             cv.Optional(CONF_RESOLUTION): cv.enum(MSA_RESOLUTIONS),
-            cv.Optional(CONF_OFFSET_X, default=0): cv.float_range(min=-4.5, max=4.5),
-            cv.Optional(CONF_OFFSET_Y, default=0): cv.float_range(min=-4.5, max=4.5),
-            cv.Optional(CONF_OFFSET_Z, default=0): cv.float_range(min=-4.5, max=4.5),
+            cv.Optional(CONF_CALIBRATION): cv.Schema(
+                {
+                    cv.Optional(CONF_OFFSET_X, default=0): cv.float_range(
+                        min=-4.5, max=4.5
+                    ),
+                    cv.Optional(CONF_OFFSET_Y, default=0): cv.float_range(
+                        min=-4.5, max=4.5
+                    ),
+                    cv.Optional(CONF_OFFSET_Z, default=0): cv.float_range(
+                        min=-4.5, max=4.5
+                    ),
+                }
+            ),
+            cv.Optional(CONF_TRANSFORM): cv.Schema(
+                {
+                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Z, default=False): cv.boolean,
+                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
+                }
+            ),
+            cv.Optional(CONF_ON_ACTIVE): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_TAP): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DOUBLE_TAP): automation.validate_automation(
                 single=True
@@ -136,16 +162,31 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    cg.add(
-        var.set_offset(
-            config[CONF_OFFSET_X], config[CONF_OFFSET_Y], config[CONF_OFFSET_Z]
-        )
-    )
     cg.add(var.set_range(MSA_RANGES[config[CONF_RANGE]]))
     cg.add(var.set_resolution(MSA_RESOLUTIONS[config[CONF_RESOLUTION]]))
 
-    irq_set_0 = 0
-    irq_set_1 = 0
+    if CONF_TRANSFORM in config:
+        transform = config[CONF_TRANSFORM]
+        cg.add(
+            var.set_transform(
+                transform[CONF_MIRROR_X],
+                transform[CONF_MIRROR_Y],
+                transform[CONF_MIRROR_Z],
+                transform[CONF_SWAP_XY],
+            )
+        )
+
+    if CONF_CALIBRATION in config:
+        calibration_config = config[CONF_CALIBRATION]
+        cg.add(
+            var.set_offset(
+                calibration_config[CONF_OFFSET_X],
+                calibration_config[CONF_OFFSET_Y],
+                calibration_config[CONF_OFFSET_Z],
+            )
+        )
+
+    # Triggers secton
 
     if CONF_ON_ORIENTATION in config:
         await automation.build_automation(
@@ -153,7 +194,6 @@ async def to_code(config):
             [],
             config[CONF_ON_ORIENTATION],
         )
-        irq_set_0 |= 1 << 6
 
     if CONF_ON_TAP in config:
         await automation.build_automation(
@@ -161,7 +201,6 @@ async def to_code(config):
             [],
             config[CONF_ON_TAP],
         )
-        irq_set_0 |= 1 << 5
 
     if CONF_ON_DOUBLE_TAP in config:
         await automation.build_automation(
@@ -169,7 +208,13 @@ async def to_code(config):
             [],
             config[CONF_ON_DOUBLE_TAP],
         )
-        irq_set_0 |= 1 << 4
+
+    if CONF_ON_ACTIVE in config:
+        await automation.build_automation(
+            var.get_active_trigger(),
+            [],
+            config[CONF_ON_ACTIVE],
+        )
 
     if CONF_ON_FREEFALL in config:
         await automation.build_automation(
@@ -177,6 +222,3 @@ async def to_code(config):
             [],
             config[CONF_ON_FREEFALL],
         )
-        irq_set_1 |= 1 << 3
-
-    cg.add(var.set_interrupts(irq_set_0, irq_set_1))

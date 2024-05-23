@@ -7,8 +7,12 @@ namespace msa3xx {
 
 static const char *const TAG = "msa3xx";
 
-const uint8_t MSA3xx_PART_ID = 0x13;
+const uint8_t MSA_3XX_PART_ID = 0x13;
+
 const float GRAVITY_EARTH = 9.80665f;
+const float LSB_COEFF = 1000.0f / (GRAVITY_EARTH * 3.9);  // LSB to 1 LSB = 3.9mg = 0.0039g
+const float G_OFFSET_MIN = -4.5f;  // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
+const float G_OFFSET_MAX = 4.5f;   // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
 
 const uint8_t RESOLUTION[] = {14, 12, 10, 8};
 
@@ -36,8 +40,8 @@ const char *power_mode_to_string(PowerMode power_mode) {
   }
 }
 
-const char *res_to_string(Resolution Resolution) {
-  switch (Resolution) {
+const char *res_to_string(Resolution resolution) {
+  switch (resolution) {
     case Resolution::RES_14BIT:
       return "14-bit";
     case Resolution::RES_12BIT:
@@ -91,11 +95,28 @@ const char *bandwidth_to_string(Bandwidth bandwidth) {
   }
 }
 
+const char *orientation_xy_to_string(OrientationXY orientation) {
+  switch (orientation) {
+    case OrientationXY::PORTRAIT_UPRIGHT:
+      return "Portrait Upright";
+    case OrientationXY::PORTRAIT_UPSIDE_DOWN:
+      return "Portrait Upside Down";
+    case OrientationXY::LANDSCAPE_LEFT:
+      return "Landscape Left";
+    case OrientationXY::LANDSCAPE_RIGHT:
+      return "Landscape Right";
+    default:
+      return "Unknown";
+  }
+}
+
+const char *orientation_z_to_string(bool orientation) { return orientation ? "Downwards looking" : "Upwards looking"; }
+
 void MSA3xxComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MSA3xx...");
 
   uint8_t part_id{0xff};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA3xx_PART_ID)) {
+  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA_3XX_PART_ID)) {
     ESP_LOGE(TAG, "Part ID is wrong or missing. Got 0x%02X", part_id);
     this->mark_failed();
     return;
@@ -113,7 +134,6 @@ void MSA3xxComponent::setup() {
   } else if (this->model_ == Model::MSA311) {
     this->device_params_.accel_data_width = 12;
     this->device_params_.scale_factor_exp = static_cast<uint8_t>(this->range_) - 10;
-
   } else {
     ESP_LOGE(TAG, "Unknown model");
     this->mark_failed();
@@ -122,11 +142,12 @@ void MSA3xxComponent::setup() {
 
   this->setup_odr_(this->data_rate_);
   this->setup_power_mode_bandwidth_(this->power_mode_, this->bandwidth_);
-  this->setup_range_resolution_(this->range_, this->resolution_);
-  this->setup_offset_(this->offset_x_, this->offset_y_, this->offset_z_);
-
-  this->write_byte(static_cast<uint8_t>(RegisterMap::INT_SET_0), this->int_set_0_);
-  this->write_byte(static_cast<uint8_t>(RegisterMap::INT_SET_1), this->int_set_1_);
+  this->setup_range_resolution_(this->range_, this->resolution_);                       // 2g...16g, 14...8 bit
+  this->setup_offset_(this->offset_x_, this->offset_y_, this->offset_z_);               // calibration offsets
+  this->write_byte(static_cast<uint8_t>(RegisterMap::TAP_DURATION), 0b11000100);        // set tap duration 250ms
+  this->write_byte(static_cast<uint8_t>(RegisterMap::SWAP_POLARITY), this->swap_.raw);  // set axes polarity
+  this->write_byte(static_cast<uint8_t>(RegisterMap::INT_SET_0), 0b01110111);           // enable all interrupts
+  this->write_byte(static_cast<uint8_t>(RegisterMap::INT_SET_1), 0b00011000);           // including orientation
 }
 
 void MSA3xxComponent::dump_config() {
@@ -140,13 +161,15 @@ void MSA3xxComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Bandwidth: %s", bandwidth_to_string(this->bandwidth_));
   ESP_LOGCONFIG(TAG, "  Range: %s", range_to_string(this->range_));
   ESP_LOGCONFIG(TAG, "  Resolution: %s", res_to_string(this->resolution_));
-  ESP_LOGCONFIG(TAG, "  Offsets: (%.3f m/s², %.3f m/s², %.3f m/s²)", this->offset_x_, this->offset_y_, this->offset_z_);
+  ESP_LOGCONFIG(TAG, "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}", this->offset_x_, this->offset_y_, this->offset_z_);
+  ESP_LOGCONFIG(TAG, "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}", YESNO(this->swap_.x_polarity),
+                YESNO(this->swap_.y_polarity), YESNO(this->swap_.z_polarity), YESNO(this->swap_.x_y_swap));
   LOG_UPDATE_INTERVAL(this);
 
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Acceleration X", this->accel_x_sensor_);
-  LOG_SENSOR("  ", "Acceleration Y", this->accel_y_sensor_);
-  LOG_SENSOR("  ", "Acceleration Z", this->accel_z_sensor_);
+  LOG_SENSOR("  ", "Acceleration X", this->acceleration_x_sensor_);
+  LOG_SENSOR("  ", "Acceleration Y", this->acceleration_y_sensor_);
+  LOG_SENSOR("  ", "Acceleration Z", this->acceleration_z_sensor_);
 #endif
 }
 
@@ -165,21 +188,18 @@ bool MSA3xxComponent::read_data_() {
   };
 
   this->data_.lsb_x =
-      this->two_complement_to_normal_(raw_to_x_bit(accel_data[0], accel_data[1], this->device_params_.accel_data_width),
-                                      this->device_params_.accel_data_width);
+      this->twos_complement_(raw_to_x_bit(accel_data[0], accel_data[1], this->device_params_.accel_data_width),
+                             this->device_params_.accel_data_width);
   this->data_.lsb_y =
-      this->two_complement_to_normal_(raw_to_x_bit(accel_data[2], accel_data[3], this->device_params_.accel_data_width),
-                                      this->device_params_.accel_data_width);
+      this->twos_complement_(raw_to_x_bit(accel_data[2], accel_data[3], this->device_params_.accel_data_width),
+                             this->device_params_.accel_data_width);
   this->data_.lsb_z =
-      this->two_complement_to_normal_(raw_to_x_bit(accel_data[4], accel_data[5], this->device_params_.accel_data_width),
-                                      this->device_params_.accel_data_width);
+      this->twos_complement_(raw_to_x_bit(accel_data[4], accel_data[5], this->device_params_.accel_data_width),
+                             this->device_params_.accel_data_width);
 
   this->data_.x = lpf(ldexp(this->data_.lsb_x, this->device_params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.x);
   this->data_.y = lpf(ldexp(this->data_.lsb_y, this->device_params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.y);
   this->data_.z = lpf(ldexp(this->data_.lsb_z, this->device_params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.z);
-
-  // ESP_LOGVV(TAG, "Got raw data {x=%5d, y=%5d, z=%5d}, accel={x=%+1.3f m/s², y=%+1.3f m/s², z=%+1.3f m/s²}",
-  //          this->data_.lsb_x, this->data_.lsb_y, this->data_.lsb_z, this->data_.x, this->data_.y, this->data_.z);
 
   return true;
 }
@@ -206,6 +226,11 @@ void MSA3xxComponent::loop() {
     return;
   }
 
+  // ESP_LOGVV(TAG, "Got raw data {x=%5d, y=%5d, z=%5d}, accel={x=%+1.3f m/s², y=%+1.3f m/s², z=%+1.3f m/s²}",
+  //          this->data_.lsb_x, this->data_.lsb_y, this->data_.lsb_z, this->data_.x, this->data_.y, this->data_.z);
+  // ESP_LOGV(TAG, "Orientation XY(%s), Z(%s)", orientation_xy_to_string(this->status_.orientation.orient_xy),
+  //          orientation_z_to_string(this->status_.orientation.orient_z));
+
   this->process_interrupts_();
 }
 
@@ -216,16 +241,19 @@ void MSA3xxComponent::update() {
     ESP_LOGV(TAG, "Component MSA3xx not ready for update");
     return;
   }
-  ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}", this->data_.x, this->data_.y,
+  ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}; ", this->data_.x, this->data_.y,
            this->data_.z);
 
+  ESP_LOGV(TAG, "Orientation: {XY = %s, Z = %s}", orientation_xy_to_string(this->status_.orientation.orient_xy),
+           orientation_z_to_string(this->status_.orientation.orient_z));
+
 #ifdef USE_SENSOR
-  if (this->accel_x_sensor_ != nullptr)
-    this->accel_x_sensor_->publish_state(this->data_.x);
-  if (this->accel_y_sensor_ != nullptr)
-    this->accel_y_sensor_->publish_state(this->data_.y);
-  if (this->accel_z_sensor_ != nullptr)
-    this->accel_z_sensor_->publish_state(this->data_.z);
+  if (this->acceleration_x_sensor_ != nullptr)
+    this->acceleration_x_sensor_->publish_state(this->data_.x);
+  if (this->acceleration_y_sensor_ != nullptr)
+    this->acceleration_y_sensor_->publish_state(this->data_.y);
+  if (this->acceleration_z_sensor_ != nullptr)
+    this->acceleration_z_sensor_->publish_state(this->data_.z);
 #endif
 
   this->status_clear_warning();
@@ -238,6 +266,13 @@ void MSA3xxComponent::set_offset(float offset_x, float offset_y, float offset_z)
   this->offset_z_ = offset_z;
 }
 
+void MSA3xxComponent::set_transform(bool mirror_x, bool mirror_y, bool mirror_z, bool swap_xy) {
+  this->swap_.x_polarity = mirror_x;
+  this->swap_.y_polarity = mirror_y;
+  this->swap_.z_polarity = mirror_z;
+  this->swap_.x_y_swap = swap_xy;
+}
+
 void MSA3xxComponent::setup_odr_(DataRate rate) {
   RegOutputDataRate reg_odr;
   auto reg = this->read_byte(static_cast<uint8_t>(RegisterMap::ODR));
@@ -247,9 +282,9 @@ void MSA3xxComponent::setup_odr_(DataRate rate) {
     reg_odr.raw = 0x0F;  // defaut from datasheet
   }
 
-  reg_odr.x_axis_disable = 0;
-  reg_odr.y_axis_disable = 0;
-  reg_odr.z_axis_disable = 0;
+  reg_odr.x_axis_disable = false;
+  reg_odr.y_axis_disable = false;
+  reg_odr.z_axis_disable = false;
   reg_odr.odr = rate;
 
   this->write_byte(static_cast<uint8_t>(RegisterMap::ODR), reg_odr.raw);
@@ -284,10 +319,8 @@ void MSA3xxComponent::setup_offset_(float offset_x, float offset_y, float offset
   uint8_t offset[3];
 
   auto offset_g_to_lsb = [](float accel) -> int8_t {
-    // 1 LSB = 3.9mg = 0.0039g
-    // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
-    float acccel_clamped = clamp(accel, -4.5f, 4.5f);
-    return static_cast<int8_t>(accel * 1000 / (GRAVITY_EARTH * 3.9));
+    float acccel_clamped = clamp(accel, G_OFFSET_MIN, G_OFFSET_MAX);
+    return static_cast<int8_t>(accel * LSB_COEFF);
   };
   offset[0] = offset_g_to_lsb(offset_x);
   offset[1] = offset_g_to_lsb(offset_y);
@@ -299,7 +332,7 @@ void MSA3xxComponent::setup_offset_(float offset_x, float offset_y, float offset
   this->write_bytes(static_cast<uint8_t>(RegisterMap::OFFSET_COMP_X), (uint8_t *) &offset, 3);
 }
 
-int64_t MSA3xxComponent::two_complement_to_normal_(uint64_t value, uint8_t bits) {
+int64_t MSA3xxComponent::twos_complement_(uint64_t value, uint8_t bits) {
   if (value > (1ULL << (bits - 1))) {
     return (int64_t) (value - (1ULL << bits));
   } else {
@@ -325,6 +358,11 @@ void MSA3xxComponent::process_interrupts_() {
   if (this->status_.motion_int.orientation_interrupt) {
     ESP_LOGW(TAG, "Orientation changed");
     this->orientation_trigger_.trigger();
+  }
+
+  if (this->status_.motion_int.active_interrupt) {
+    ESP_LOGW(TAG, "Activity detected");
+    this->active_trigger_.trigger();
   }
 }
 
