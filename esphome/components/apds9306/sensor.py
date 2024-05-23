@@ -4,8 +4,8 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_GAIN,
     DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
     ICON_LIGHTBULB,
+    STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
 
