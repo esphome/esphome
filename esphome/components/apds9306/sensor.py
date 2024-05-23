@@ -25,12 +25,12 @@ MEASUREMENT_BIT_WIDTHS = {
 }
 
 MEASUREMENT_RATES = {
-    "25ms": 0,
-    "50ms": 1,
-    "100ms": 2,
-    "200ms": 3,
-    "500ms": 4,
-    "1000ms": 5,
+    25: 0,
+    50: 1,
+    100: 2,
+    200: 3,
+    500: 4,
+    1000: 5,
 }
 
 AMBIENT_LIGHT_GAINS = {
@@ -61,7 +61,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
                 MEASUREMENT_BIT_WIDTHS, int=True
             ),
-            cv.Optional(CONF_MEASUREMENT_RATE, default="100"): cv.All(
+            cv.Optional(CONF_MEASUREMENT_RATE, default="100ms"): cv.All(
+                cv.positive_time_period_milliseconds,
                 cv.enum(MEASUREMENT_RATES, int=True),
             ),
         }
