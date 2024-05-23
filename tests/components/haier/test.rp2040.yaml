@@ -93,3 +93,21 @@ binary_sensor:
       name: Haier Indoor Fan Status
     outdoor_fan_status:
       name: Haier Outdoor Fan Status
+
+button:
+  - platform: haier
+    haier_id: haier_ac
+    self_cleaning:
+      name: Haier start self cleaning
+    steri_cleaning:
+      name: Haier start 56°C steri-cleaning
+
+text_sensor:
+  - platform: haier
+    haier_id: haier_ac
+    appliance_name:
+      name: Haier appliance name
+    cleaning_status:
+      name: Haier cleaning status
+    protocol_version:
+      name: Haier protocol version
