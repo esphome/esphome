@@ -91,6 +91,20 @@ enum class Bandwidth : uint8_t {
   BW_500HZ = 0b1010,
 };
 
+enum class DataRate : uint8_t {
+  ODR_1HZ = 0b0000,     // not available in normal mode
+  ODR_1_95HZ = 0b0001,  // not available in normal mode
+  ODR_3_9HZ = 0b0010,
+  ODR_7_81HZ = 0b0011,
+  ODR_15_63HZ = 0b0100,
+  ODR_31_25HZ = 0b0101,
+  ODR_62_5HZ = 0b0110,
+  ODR_125HZ = 0b0111,
+  ODR_250HZ = 0b1000,
+  ODR_500HZ = 0b1001,   // not available in low power mode
+  ODR_1000HZ = 0b1010,  // not available in low power mode
+};
+
 // 0x09
 union RegMotionInterrupt {
   struct {
@@ -106,21 +120,31 @@ union RegMotionInterrupt {
   uint8_t raw;
 };
 
+// 0x0C
+union RegOrientationStatus {
+  struct {
+    uint8_t reserved_0_3 : 4;
+    uint8_t orient : 3;
+    uint8_t reserved_7 : 1;
+  };
+  uint8_t raw{0x00};
+};
+
 // 0x0f
 union RegRangeResolution {
   struct {
     Range range : 2;
     Resolution resolution : 2;
-    bool reserved_2 : 4;
+    uint8_t reserved_2 : 4;
   };
   uint8_t raw{0x00};
 };
 
 // 0x10
-union RegODR {
+union RegOutputDataRate {
   struct {
-    uint8_t odr : 4;
-    bool reserved_4 : 1;
+    DataRate odr : 4;
+    uint8_t reserved_4 : 1;
     bool z_axis_disable : 1;
     bool y_axis_disable : 1;
     bool x_axis_disable : 1;
@@ -131,9 +155,9 @@ union RegODR {
 // 0x11
 union RegPowerModeBandwidth {
   struct {
-    bool reserved_0 : 1;
-    Bandwidth low_power_bw : 4;
-    bool reserved_5 : 1;
+    uint8_t reserved_0 : 1;
+    Bandwidth low_power_bandwidth : 4;
+    uint8_t reserved_5 : 1;
     PowerMode power_mode : 2;
   };
   uint8_t raw{0xde};
@@ -143,7 +167,7 @@ union RegPowerModeBandwidth {
 union RegTapDuration {
   struct {
     uint8_t duration : 3;
-    bool reserved_3 : 3;
+    uint8_t reserved : 3;
     bool tap_shock : 1;
     bool tap_quiet : 1;
   };
@@ -163,6 +187,8 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   void set_model(Model model) { this->model_ = model; }
   void set_offset(float offset_x, float offset_y, float offset_z);
   void set_range(Range range) { this->range_ = range; }
+  void set_bandwidth(Bandwidth bandwidth) { this->bandwidth_ = bandwidth; }
+  void set_resolution(Resolution resolution) { this->resolution_ = resolution; }
   void set_interrupts(uint8_t set0, uint8_t set1) {
     this->int_set_0_ = set0;
     this->int_set_1_ = set1;
@@ -183,6 +209,7 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   Model model_{Model::MSA311};
 
   PowerMode power_mode_{PowerMode::NORMAL};
+  DataRate data_rate_{DataRate::ODR_250HZ};
   Bandwidth bandwidth_{Bandwidth::BW_250HZ};
   Range range_{Range::RANGE_2G};
   Resolution resolution_{Resolution::RES_14BIT};
@@ -195,7 +222,7 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   struct {
     int scale_factor_exp;
     uint8_t accel_data_width;
-  } params_{};
+  } device_params_{};
 
   struct {
     int16_t lsb_x, lsb_y, lsb_z;
@@ -203,10 +230,11 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   } data_{};
 
   struct {
-    RegMotionInterrupt mi;
+    RegMotionInterrupt motion_int;
+    RegOrientationStatus orientation;
   } status_{};
 
-  void setup_odr_();
+  void setup_odr_(DataRate rate);
   void setup_power_mode_bandwidth_(PowerMode power_mode, Bandwidth bandwidth);
   void setup_range_resolution_(Range range, Resolution resolution);
   void setup_offset_(float offset_x, float offset_y, float offset_z);

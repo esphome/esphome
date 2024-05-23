@@ -108,11 +108,11 @@ void MSA3xxComponent::setup() {
   // S8g   : 256  (2^8)  : 1024 (2^10)
   // S16g  : 128  (2^7)  : 512  (2^9)
   if (this->model_ == Model::MSA301) {
-    this->params_.accel_data_width = 14;
-    this->params_.scale_factor_exp = static_cast<uint8_t>(this->range_) - 12;
+    this->device_params_.accel_data_width = 14;
+    this->device_params_.scale_factor_exp = static_cast<uint8_t>(this->range_) - 12;
   } else if (this->model_ == Model::MSA311) {
-    this->params_.accel_data_width = 12;
-    this->params_.scale_factor_exp = static_cast<uint8_t>(this->range_) - 10;
+    this->device_params_.accel_data_width = 12;
+    this->device_params_.scale_factor_exp = static_cast<uint8_t>(this->range_) - 10;
 
   } else {
     ESP_LOGE(TAG, "Unknown model");
@@ -120,7 +120,7 @@ void MSA3xxComponent::setup() {
     return;
   }
 
-  this->setup_odr_();
+  this->setup_odr_(this->data_rate_);
   this->setup_power_mode_bandwidth_(this->power_mode_, this->bandwidth_);
   this->setup_range_resolution_(this->range_, this->resolution_);
   this->setup_offset_(this->offset_x_, this->offset_y_, this->offset_z_);
@@ -164,16 +164,19 @@ bool MSA3xxComponent::read_data_() {
     return alpha * new_value + (1.0f - alpha) * old_value;
   };
 
-  this->data_.lsb_x = this->two_complement_to_normal_(
-      raw_to_x_bit(accel_data[0], accel_data[1], this->params_.accel_data_width), this->params_.accel_data_width);
-  this->data_.lsb_y = this->two_complement_to_normal_(
-      raw_to_x_bit(accel_data[2], accel_data[3], this->params_.accel_data_width), this->params_.accel_data_width);
-  this->data_.lsb_z = this->two_complement_to_normal_(
-      raw_to_x_bit(accel_data[4], accel_data[5], this->params_.accel_data_width), this->params_.accel_data_width);
+  this->data_.lsb_x =
+      this->two_complement_to_normal_(raw_to_x_bit(accel_data[0], accel_data[1], this->device_params_.accel_data_width),
+                                      this->device_params_.accel_data_width);
+  this->data_.lsb_y =
+      this->two_complement_to_normal_(raw_to_x_bit(accel_data[2], accel_data[3], this->device_params_.accel_data_width),
+                                      this->device_params_.accel_data_width);
+  this->data_.lsb_z =
+      this->two_complement_to_normal_(raw_to_x_bit(accel_data[4], accel_data[5], this->device_params_.accel_data_width),
+                                      this->device_params_.accel_data_width);
 
-  this->data_.x = lpf(ldexp(this->data_.lsb_x, this->params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.x);
-  this->data_.y = lpf(ldexp(this->data_.lsb_y, this->params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.y);
-  this->data_.z = lpf(ldexp(this->data_.lsb_z, this->params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.z);
+  this->data_.x = lpf(ldexp(this->data_.lsb_x, this->device_params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.x);
+  this->data_.y = lpf(ldexp(this->data_.lsb_y, this->device_params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.y);
+  this->data_.z = lpf(ldexp(this->data_.lsb_z, this->device_params_.scale_factor_exp) * GRAVITY_EARTH, this->data_.z);
 
   // ESP_LOGVV(TAG, "Got raw data {x=%5d, y=%5d, z=%5d}, accel={x=%+1.3f m/s², y=%+1.3f m/s², z=%+1.3f m/s²}",
   //          this->data_.lsb_x, this->data_.lsb_y, this->data_.lsb_z, this->data_.x, this->data_.y, this->data_.z);
@@ -182,7 +185,11 @@ bool MSA3xxComponent::read_data_() {
 }
 
 bool MSA3xxComponent::read_motion_status_() {
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::MOTION_INTERRUPT), &this->status_.mi.raw)) {
+  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::MOTION_INTERRUPT), &this->status_.motion_int.raw)) {
+    return false;
+  }
+
+  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::ORIENTATION_STATUS), &this->status_.orientation.raw)) {
     return false;
   }
 
@@ -231,20 +238,21 @@ void MSA3xxComponent::set_offset(float offset_x, float offset_y, float offset_z)
   this->offset_z_ = offset_z;
 }
 
-void MSA3xxComponent::setup_odr_() {
-  RegODR odr;
+void MSA3xxComponent::setup_odr_(DataRate rate) {
+  RegOutputDataRate reg_odr;
   auto reg = this->read_byte(static_cast<uint8_t>(RegisterMap::ODR));
   if (reg.has_value()) {
-    odr.raw = reg.value();
+    reg_odr.raw = reg.value();
   } else {
-    odr.raw = 0x0F;  // defaut from datasheet
+    reg_odr.raw = 0x0F;  // defaut from datasheet
   }
 
-  odr.x_axis_disable = 0;
-  odr.y_axis_disable = 0;
-  odr.z_axis_disable = 0;
+  reg_odr.x_axis_disable = 0;
+  reg_odr.y_axis_disable = 0;
+  reg_odr.z_axis_disable = 0;
+  reg_odr.odr = rate;
 
-  this->write_byte(static_cast<uint8_t>(RegisterMap::ODR), odr.raw);
+  this->write_byte(static_cast<uint8_t>(RegisterMap::ODR), reg_odr.raw);
 }
 
 void MSA3xxComponent::setup_power_mode_bandwidth_(PowerMode power_mode, Bandwidth bandwidth) {
@@ -259,7 +267,7 @@ void MSA3xxComponent::setup_power_mode_bandwidth_(PowerMode power_mode, Bandwidt
   }
 
   power_mode_bandwidth.power_mode = power_mode;
-  power_mode_bandwidth.low_power_bw = bandwidth;
+  power_mode_bandwidth.low_power_bandwidth = bandwidth;
 
   this->write_byte(static_cast<uint8_t>(RegisterMap::POWER_MODE_BANDWIDTH), power_mode_bandwidth.raw);
 }
@@ -300,21 +308,21 @@ int64_t MSA3xxComponent::two_complement_to_normal_(uint64_t value, uint8_t bits)
 }
 
 void MSA3xxComponent::process_interrupts_() {
-  if (this->status_.mi.raw == 0) {
+  if (this->status_.motion_int.raw == 0) {
     return;
   }
 
-  if (this->status_.mi.single_tap_interrupt) {
+  if (this->status_.motion_int.single_tap_interrupt) {
     ESP_LOGW(TAG, "Single Tap detected");
     this->tap_trigger_.trigger();
   }
 
-  if (this->status_.mi.double_tap_interrupt) {
+  if (this->status_.motion_int.double_tap_interrupt) {
     ESP_LOGW(TAG, "Double Tap detected");
     this->double_tap_trigger_.trigger();
   }
 
-  if (this->status_.mi.orientation_interrupt) {
+  if (this->status_.motion_int.orientation_interrupt) {
     ESP_LOGW(TAG, "Orientation changed");
     this->orientation_trigger_.trigger();
   }

@@ -4,8 +4,10 @@ from esphome.components import i2c
 from esphome import automation
 from esphome.const import (
     CONF_ID,
+    CONF_ADDRESS,
     CONF_MODEL,
     CONF_RANGE,
+    CONF_RESOLUTION,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -34,20 +36,42 @@ MSA_MODELS = {
 }
 
 MSARange = msa3xx_ns.enum("Range", True)
-MSA_RANGE = {
+MSA_RANGES = {
     "2G": MSARange.RANGE_2G,
     "4G": MSARange.RANGE_4G,
     "8G": MSARange.RANGE_8G,
     "16G": MSARange.RANGE_16G,
 }
 
+# MSABandwidth = msa3xx_ns.enum("Bandwidth", True)
+# MSA_BANDWIDTHS = {
+#   "1.95HZ": MSABandwidth.BW_1_95HZ,
+#   "3.9HZ": MSABandwidth.BW_3_9HZ,
+#   "7.81HZ": MSABandwidth.BW_7_81HZ,
+#   "15.63HZ": MSABandwidth.BW_15_63HZ,
+#   "31.25HZ": MSABandwidth.BW_31_25HZ,
+#   "62.5HZ": MSABandwidth.BW_62_5HZ,
+#   "125HZ": MSABandwidth.BW_125HZ,
+#   "250HZ": MSABandwidth.BW_250HZ,
+#   "500HZ": MSABandwidth.BW_500HZ,
+# }
+
+MSAResolution = msa3xx_ns.enum("Resolution", True)
+MSA_RESOLUTIONS = {
+    14: MSAResolution.RES_14BIT,
+    12: MSAResolution.RES_12BIT,
+    10: MSAResolution.RES_10BIT,
+    8: MSAResolution.RES_8BIT,
+}
 
 CONFIG_SCHEMA = cv.Schema(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MSA3xxComponent),
             cv.Required(CONF_MODEL): cv.enum(MSA_MODELS, upper=True),
-            cv.Optional(CONF_RANGE, default="2G"): cv.enum(MSA_RANGE, upper=True),
+            cv.Optional(CONF_RANGE, default="2G"): cv.enum(MSA_RANGES, upper=True),
+            #            cv.Optional(CONF_BANDWIDTH, default="250HZ"): cv.enum(MSA_BANDWIDTHS, upper=True),
+            cv.Optional(CONF_RESOLUTION): cv.enum(MSA_RESOLUTIONS),
             cv.Optional(CONF_OFFSET_X, default=0): cv.float_range(min=-4.5, max=4.5),
             cv.Optional(CONF_OFFSET_Y, default=0): cv.float_range(min=-4.5, max=4.5),
             cv.Optional(CONF_OFFSET_Z, default=0): cv.float_range(min=-4.5, max=4.5),
@@ -62,15 +86,48 @@ CONFIG_SCHEMA = cv.Schema(
         }
     )
     .extend(cv.polling_component_schema("10s"))
-    .extend(i2c.i2c_device_schema(0x62))
+    .extend(i2c.i2c_device_schema(0x00))
 )
 
 
-# def validate_model(config):
-#     model = config[CONF_MODEL]
+def validate_i2c_address(config):
+    if config[CONF_ADDRESS] == 0x00:
+        if config[CONF_MODEL] == "MSA301":
+            config[CONF_ADDRESS] = 0x26
+        elif config[CONF_MODEL] == "MSA311":
+            config[CONF_ADDRESS] = 0x62
+        return config
+
+    if (config[CONF_MODEL] == "MSA301" and config[CONF_ADDRESS] == 0x26) or (
+        config[CONF_MODEL] == "MSA311" and config[CONF_ADDRESS] == 0x62
+    ):
+        return config
+
+    raise cv.Invalid(
+        "Wrong I2C Address ("
+        + hex(config[CONF_ADDRESS])
+        + "). MSA301 shall be 0x26, MSA311 shall be 0x62."
+    )
 
 
-# FINAL_VALIDATE_SCHEMA = validate_model
+def validate_resolution(config):
+    if CONF_RESOLUTION not in config:
+        if config[CONF_MODEL] == "MSA301":
+            config[CONF_RESOLUTION] = 14
+        elif config[CONF_MODEL] == "MSA311":
+            config[CONF_RESOLUTION] = 12
+        return config
+
+    if config[CONF_MODEL] == "MSA311" and config[CONF_RESOLUTION] != 12:
+        raise cv.Invalid("Check resolution. MSA311 only supports 12-bit")
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    validate_i2c_address,
+    validate_resolution,
+)
 
 
 async def to_code(config):
@@ -84,10 +141,19 @@ async def to_code(config):
             config[CONF_OFFSET_X], config[CONF_OFFSET_Y], config[CONF_OFFSET_Z]
         )
     )
-    cg.add(var.set_range(config[CONF_RANGE]))
+    cg.add(var.set_range(MSA_RANGES[config[CONF_RANGE]]))
+    cg.add(var.set_resolution(MSA_RESOLUTIONS[config[CONF_RESOLUTION]]))
 
     irq_set_0 = 0
     irq_set_1 = 0
+
+    if CONF_ON_ORIENTATION in config:
+        await automation.build_automation(
+            var.get_orientation_trigger(),
+            [],
+            config[CONF_ON_ORIENTATION],
+        )
+        irq_set_0 |= 1 << 6
 
     if CONF_ON_TAP in config:
         await automation.build_automation(
@@ -104,14 +170,6 @@ async def to_code(config):
             config[CONF_ON_DOUBLE_TAP],
         )
         irq_set_0 |= 1 << 4
-
-    if CONF_ON_ORIENTATION in config:
-        await automation.build_automation(
-            var.get_orientation_trigger(),
-            [],
-            config[CONF_ON_ORIENTATION],
-        )
-        irq_set_0 |= 1 << 6
 
     if CONF_ON_FREEFALL in config:
         await automation.build_automation(
