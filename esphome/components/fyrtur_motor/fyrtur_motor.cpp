@@ -130,6 +130,7 @@ void FyrturMotorComponent::get_status(void) {
 
   if (response.size() == 0) {
     ESP_LOGE(TAG, "Failed to get response");
+    return;
   }
 
   float battery_level = response[0];

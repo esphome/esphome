@@ -20,19 +20,19 @@ ICON_SYNC = "mdi:sync"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_FYRTUR_MOTOR_ID): cv.use_id(FyrturMotorComponent),
-    cv.Optional(CONF_MOVE_UP): button.button_schema(
+    cv.Required(CONF_MOVE_UP): button.button_schema(
         MoveUpButton,
         device_class=DEVICE_CLASS_BUTTON,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_UP,
     ),
-    cv.Optional(CONF_MOVE_DOWN): button.button_schema(
+    cv.Required(CONF_MOVE_DOWN): button.button_schema(
         MoveDownButton,
         device_class=DEVICE_CLASS_BUTTON,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_DOWN,
     ),
-    cv.Optional(CONF_STOP): button.button_schema(
+    cv.Required(CONF_STOP): button.button_schema(
         StopButton,
         device_class=DEVICE_CLASS_BUTTON,
         entity_category=ENTITY_CATEGORY_CONFIG,
