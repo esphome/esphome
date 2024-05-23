@@ -26,7 +26,7 @@ static const uint8_t APDS9306_REG_ALS_DATA_0 = 0x0D;     // ALS ADC measurement 
     return; \
   }
 #define APDS9306_WRITE_BYTE(reg, value) \
-  ESP_LOGVV(TAG, "WRITE_BYTE: %d, %d", reg, value); \
+  ESP_LOGV(TAG, "WRITE_BYTE: %d, %d", reg, value); \
   APDS9306_ERROR_CHECK(this->write_byte(reg, value));
 
 void APDS9306::setup() {
@@ -50,6 +50,7 @@ void APDS9306::setup() {
   APDS9306_WRITE_BYTE(APDS9306_REG_MAIN_CTRL, 0x00);
 
   uint8_t als_meas_rate = 0;
+  ESP_LOGV(TAG, "Reading ALS_MEAS_RATE");
   APDS9306_ERROR_CHECK(this->read_byte(APDS9306_REG_ALS_MEAS_RATE, &als_meas_rate));
   als_meas_rate &= 0x77;
   // ALS resolution, see datasheet or init.py for options
@@ -60,6 +61,7 @@ void APDS9306::setup() {
   APDS9306_WRITE_BYTE(APDS9306_REG_ALS_MEAS_RATE, als_meas_rate);
 
   uint8_t als_gain = 0;
+  ESP_LOGV(TAG, "Reading ALS_GAIN");
   APDS9306_ERROR_CHECK(this->read_byte(APDS9306_REG_ALS_GAIN, &als_gain));
   als_gain &= 0x07;
   // ALS gain, see datasheet or init.py for options
