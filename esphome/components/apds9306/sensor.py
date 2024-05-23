@@ -62,7 +62,7 @@ CONFIG_SCHEMA = (
                 MEASUREMENT_BIT_WIDTHS, int=True
             ),
             cv.Optional(CONF_MEASUREMENT_RATE, default="100"): cv.All(
-                cv.enum(MEASUREMENT_RATES, lower=True),
+                cv.enum(MEASUREMENT_RATES, int=True),
                 cv.positive_time_period_milliseconds,
             ),
         }
