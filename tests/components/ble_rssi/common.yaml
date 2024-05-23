@@ -16,3 +16,6 @@ sensor:
   - platform: ble_rssi
     service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
     name: BLE Test iBeacon UUID
+  - platform: ble_rssi
+    irk: 1234567890abcdef1234567890abcdef
+    name: "BLE Tracker with Identity Resolving Key"
