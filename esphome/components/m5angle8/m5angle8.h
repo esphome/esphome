@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/i2c/i2c.h"
@@ -21,19 +22,15 @@ static const uint8_t M5ANGLE8_NUM_LEDS = 9;
 
 static const uint8_t M5ANGLE8_BYTES_PER_LED = 4;
 
-class M5Angle8Component : public PollingComponent, public i2c::I2CDevice {
+class M5Angle8Component : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void update() override;
   float get_setup_priority() const override;
   float read_knob_pos(uint8_t channel);
-  int read_switch(void);
-
-  void set_sens_knob_position(uint8_t channel, sensor::Sensor *obj) { this->knob_pos_sensor_[channel] = obj; }
+  int read_switch();
 
  protected:
-  sensor::Sensor *knob_pos_sensor_[M5ANGLE8_NUM_KNOBS];
   uint8_t fw_version_;
 };
 
@@ -52,7 +49,7 @@ class M5Angle8LightOutput : public light::AddressableLight {
 
   void set_parent(M5Angle8Component *parent) { this->parent_ = parent; };
 
-  M5Angle8Component* get_parent(void) { return this->parent_; };
+  M5Angle8Component *get_parent(void) { return this->parent_; };
 
   void clear_effect_data() override { memset(this->effect_data_, 0x00, M5ANGLE8_NUM_LEDS); };
 
@@ -68,6 +65,30 @@ class M5Angle8LightOutput : public light::AddressableLight {
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
+};
+
+class M5Angle8SensorKnob : public sensor::Sensor, public PollingComponent {
+ public:
+  void update(void) override;
+  void set_parent(M5Angle8Component *parent, uint8_t index) {
+    this->parent_ = parent;
+    this->knob_index_ = index;
+  };
+  M5Angle8Component *get_parent(void) { return this->parent_; };
+
+ protected:
+  M5Angle8Component *parent_{nullptr};
+  uint8_t knob_index_ = 0;
+};
+
+class M5Angle8SensorSwitch : public binary_sensor::BinarySensor, public PollingComponent {
+ public:
+  void update(void) override;
+  void set_parent(M5Angle8Component *parent) { this->parent_ = parent; };
+  M5Angle8Component *get_parent(void) { return this->parent_; };
+
+ protected:
+  M5Angle8Component *parent_{nullptr};
 };
 
 }  // namespace m5angle8

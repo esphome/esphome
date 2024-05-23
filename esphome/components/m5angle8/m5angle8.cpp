@@ -56,46 +56,45 @@ void M5Angle8Component::dump_config() {
   ESP_LOGCONFIG(TAG, "M5ANGLE8:");
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Firmware version: %d ", this->fw_version_);
-  LOG_UPDATE_INTERVAL(this);
 }
 
 float M5Angle8Component::read_knob_pos(uint8_t channel) {
   uint8_t knob_pos;
-  i2c::ErrorCode err =
-      this->read_register(M5ANGLE8_REGISTER_ANALOG_INPUT_8B + channel, (uint8_t *) &knob_pos, 1);
+  i2c::ErrorCode err = this->read_register(M5ANGLE8_REGISTER_ANALOG_INPUT_8B + channel, (uint8_t *) &knob_pos, 1);
   if (err == i2c::NO_ERROR)
     return 1.0f - (knob_pos / 255.0f);
   else {
-     return -1.0f;
+    return -1.0f;
   }
 }
 
 int M5Angle8Component::read_switch(void) {
   uint8_t out;
-  i2c::ErrorCode err =
-      this->read_register(M5ANGLE8_REGISTER_DIGITAL_INPUT, (uint8_t *) &out, 1);
+  i2c::ErrorCode err = this->read_register(M5ANGLE8_REGISTER_DIGITAL_INPUT, (uint8_t *) &out, 1);
   if (err == i2c::NO_ERROR)
     return out ? 1 : 0;
   else {
-     return -1;
+    return -1;
   }
 }
 
+float M5Angle8Component::get_setup_priority() const { return setup_priority::DATA; }
 
-
-
-void M5Angle8Component::update() {
-  for (int i = 0; i < M5ANGLE8_NUM_KNOBS; i++) {
-    if (this->knob_pos_sensor_[i] != nullptr) {
-      float knob_pos = this->read_knob_pos(i);
-      if (knob_pos >= 0)
-        this->knob_pos_sensor_[i]->publish_state(knob_pos);
-    };
-    yield();
+void M5Angle8SensorKnob::update() {
+  if (this->parent_ != nullptr) {
+    float knob_pos = this->parent_->read_knob_pos(this->knob_index_);
+    if (knob_pos >= 0)
+      this->publish_state(knob_pos);
   };
 }
 
-float M5Angle8Component::get_setup_priority() const { return setup_priority::DATA; }
+void M5Angle8SensorSwitch::update() {
+  if (this->parent_ != nullptr) {
+    int sw_pos = this->parent_->read_switch();
+    if (sw_pos >= 0)
+      this->publish_state(sw_pos);
+  };
+}
 
 }  // namespace m5angle8
 }  // namespace esphome
