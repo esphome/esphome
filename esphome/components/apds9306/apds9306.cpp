@@ -108,61 +108,61 @@ void APDS9306::update() {
   // Conversions
   switch (this->gain_) {
     case 0:
-      gain_val_ = 1;
+      this->gain_val_ = 1;
       break;
     case 1:
-      gain_val_ = 3;
+      this->gain_val_ = 3;
       break;
     case 2:
-      gain_val_ = 6;
+      this->gain_val_ = 6;
       break;
     case 3:
-      gain_val_ = 9;
+      this->gain_val_ = 9;
       break;
     case 4:
-      gain_val_ = 18;
+      this->gain_val_ = 18;
       break;
   }
 
   switch (this->measurement_rate_) {
     case 0:
-      rate_val_ = 25;
+      this->rate_val_ = 25;
       break;
     case 1:
-      rate_val_ = 50;
+      this->rate_val_ = 50;
       break;
     case 2:
-      rate_val_ = 100;
+      this->rate_val_ = 100;
       break;
     case 3:
-      rate_val_ = 200;
+      this->rate_val_ = 200;
       break;
     case 4:
-      rate_val_ = 500;
+      this->rate_val_ = 500;
       break;
     case 5:
-      rate_val_ = 1000;
+      this->rate_val_ = 1000;
       break;
   }
 
   switch (this->bit_width_) {
     case 0:
-      bit_width_val_ = 20;
+      this->bit_width_val_ = 20;
       break;
     case 1:
-      bit_width_val_ = 19;
+      this->bit_width_val_ = 19;
       break;
     case 2:
-      bit_width_val_ = 18;
+      this->bit_width_val_ = 18;
       break;
     case 3:
-      bit_width_val_ = 17;
+      this->bit_width_val_ = 17;
       break;
     case 4:
-      bit_width_val_ = 16;
+      this->bit_width_val_ = 16;
       break;
     case 5:
-      bit_width_val_ = 13;
+      this->bit_width_val_ = 13;
       break;
   }
 
@@ -171,7 +171,7 @@ void APDS9306::update() {
 
   uint32_t light_level = encode_uint24(als_data[2], als_data[1], als_data[0]);
 
-  float lux = ((float) light_level / gain_val_) * (100.0f / rate_val_);
+  float lux = ((float) light_level / this->gain_val_) * (100.0f / this->rate_val_);
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx", lux);
   this->publish_state(lux);
