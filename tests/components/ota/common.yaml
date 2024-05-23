@@ -4,11 +4,8 @@ wifi:
 
 ota:
   - platform: esphome
-    safe_mode: true
     password: "superlongpasswordthatnoonewillknow"
     port: 3286
-    reboot_timeout: 2min
-    num_attempts: 5
     on_begin:
       then:
         - logger.log: "OTA start"
