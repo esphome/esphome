@@ -12,16 +12,18 @@ DEPENDENCIES = ["msa3xx"]
 CONF_ORIENTATION_XY = "orientation_xy"
 CONF_ORIENTATION_Z = "orientation_z"
 
+ICON_SCREEN_ROTATION = "mdi:screen-rotation"
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_MSA3XX_ID): cv.use_id(MSA3xxComponent),
             cv.Optional(CONF_ORIENTATION_XY): cv.maybe_simple_value(
-                text_sensor.text_sensor_schema(),
+                text_sensor.text_sensor_schema(icon=ICON_SCREEN_ROTATION),
                 key=CONF_NAME,
             ),
             cv.Optional(CONF_ORIENTATION_Z): cv.maybe_simple_value(
-                text_sensor.text_sensor_schema(),
+                text_sensor.text_sensor_schema(icon=ICON_SCREEN_ROTATION),
                 key=CONF_NAME,
             ),
         }

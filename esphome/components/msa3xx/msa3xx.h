@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
@@ -118,7 +119,7 @@ union Orientation {
     OrientationXY xy : 2;
     bool z : 1;
     uint8_t reserved : 5;
-  };
+  } __attribute__((packed));
   uint8_t raw;
 };
 
@@ -133,7 +134,7 @@ union RegMotionInterrupt {
     bool single_tap_interrupt : 1;
     bool orientation_interrupt : 1;
     bool reserved_7 : 1;
-  };
+  } __attribute__((packed));
   uint8_t raw;
 };
 
@@ -144,7 +145,7 @@ union RegOrientationStatus {
     OrientationXY orient_xy : 2;
     bool orient_z : 1;
     uint8_t reserved_7 : 1;
-  };
+  } __attribute__((packed));
   uint8_t raw{0x00};
 };
 
@@ -154,7 +155,7 @@ union RegRangeResolution {
     Range range : 2;
     Resolution resolution : 2;
     uint8_t reserved_2 : 4;
-  };
+  } __attribute__((packed));
   uint8_t raw{0x00};
 };
 
@@ -166,7 +167,7 @@ union RegOutputDataRate {
     bool z_axis_disable : 1;
     bool y_axis_disable : 1;
     bool x_axis_disable : 1;
-  };
+  } __attribute__((packed));
   uint8_t raw{0xde};
 };
 
@@ -177,7 +178,7 @@ union RegPowerModeBandwidth {
     Bandwidth low_power_bandwidth : 4;
     uint8_t reserved_5 : 1;
     PowerMode power_mode : 2;
-  };
+  } __attribute__((packed));
   uint8_t raw{0xde};
 };
 
@@ -189,7 +190,7 @@ union RegSwapPolarity {
     bool y_polarity : 1;
     bool x_polarity : 1;
     uint8_t reserved : 4;
-  };
+  } __attribute__((packed));
   uint8_t raw{0};
 };
 
@@ -200,7 +201,7 @@ union RegTapDuration {
     uint8_t reserved : 3;
     bool tap_shock : 1;
     bool tap_quiet : 1;
-  };
+  } __attribute__((packed));
   uint8_t raw{0x04};
 };
 
@@ -220,6 +221,12 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   void set_bandwidth(Bandwidth bandwidth) { this->bandwidth_ = bandwidth; }
   void set_resolution(Resolution resolution) { this->resolution_ = resolution; }
   void set_transform(bool mirror_x, bool mirror_y, bool mirror_z, bool swap_xy);
+
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(tap)
+  SUB_BINARY_SENSOR(double_tap)
+  SUB_BINARY_SENSOR(active)
+#endif
 
 #ifdef USE_SENSOR
   SUB_SENSOR(acceleration_x)
@@ -263,6 +270,12 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
     RegMotionInterrupt motion_int;
     RegOrientationStatus orientation;
     RegOrientationStatus orientation_old;
+
+    uint32_t last_tap_ms{0};
+    uint32_t last_double_tap_ms{0};
+    uint32_t last_action_ms{0};
+
+    bool never_published{true};
   } status_{};
 
   void setup_odr_(DataRate rate);
@@ -284,7 +297,7 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   Trigger<> freefall_trigger_;
   Trigger<> active_trigger_;
 
-  void process_interrupts_();
+  void process_motions_(RegMotionInterrupt old);
 };
 
 }  // namespace msa3xx

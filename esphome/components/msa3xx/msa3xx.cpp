@@ -1,5 +1,6 @@
 #include "msa3xx.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -15,6 +16,10 @@ const float G_OFFSET_MIN = -4.5f;  // -127...127 LSB = +- 0.4953g = +- 4.857 m/s
 const float G_OFFSET_MAX = 4.5f;   // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
 
 const uint8_t RESOLUTION[] = {14, 12, 10, 8};
+
+const uint32_t TAP_COOLDOWN_MS = 500;
+const uint32_t DOUBLE_TAP_COOLDOWN_MS = 500;
+const uint32_t ACTIVITY_COOLDOWN_MS = 500;
 
 const char *model_to_string(Model model) {
   switch (model) {
@@ -166,6 +171,12 @@ void MSA3xxComponent::dump_config() {
                 YESNO(this->swap_.y_polarity), YESNO(this->swap_.z_polarity), YESNO(this->swap_.x_y_swap));
   LOG_UPDATE_INTERVAL(this);
 
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Tap", this->tap_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Double Tap", this->double_tap_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Active", this->active_binary_sensor_);
+#endif
+
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Acceleration X", this->acceleration_x_sensor_);
   LOG_SENSOR("  ", "Acceleration Y", this->acceleration_y_sensor_);
@@ -226,17 +237,14 @@ void MSA3xxComponent::loop() {
     return;
   }
 
+  RegMotionInterrupt old_motion_int = this->status_.motion_int;
+
   if (!this->read_data_() || !this->read_motion_status_()) {
     this->status_set_warning();
     return;
   }
 
-  // ESP_LOGVV(TAG, "Got raw data {x=%5d, y=%5d, z=%5d}, accel={x=%+1.3f m/s², y=%+1.3f m/s², z=%+1.3f m/s²}",
-  //          this->data_.lsb_x, this->data_.lsb_y, this->data_.lsb_z, this->data_.x, this->data_.y, this->data_.z);
-  // ESP_LOGV(TAG, "Orientation XY(%s), Z(%s)", orientation_xy_to_string(this->status_.orientation.orient_xy),
-  //          orientation_z_to_string(this->status_.orientation.orient_z));
-
-  this->process_interrupts_();
+  this->process_motions_(old_motion_int);
 }
 
 void MSA3xxComponent::update() {
@@ -263,17 +271,18 @@ void MSA3xxComponent::update() {
 
 #ifdef USE_TEXT_SENSOR
   if (this->orientation_xy_text_sensor_ != nullptr &&
-      this->status_.orientation.orient_xy != this->status_.orientation_old.orient_xy) {
+      (this->status_.orientation.orient_xy != this->status_.orientation_old.orient_xy ||
+       this->status_.never_published)) {
     this->orientation_xy_text_sensor_->publish_state(orientation_xy_to_string(this->status_.orientation.orient_xy));
   }
   if (this->orientation_z_text_sensor_ != nullptr &&
-      this->status_.orientation.orient_z != this->status_.orientation_old.orient_z) {
+      (this->status_.orientation.orient_z != this->status_.orientation_old.orient_z || this->status_.never_published)) {
     this->orientation_z_text_sensor_->publish_state(orientation_z_to_string(this->status_.orientation.orient_z));
   }
   this->status_.orientation_old = this->status_.orientation;
-
 #endif
 
+  this->status_.never_published = false;
   this->status_clear_warning();
 }
 float MSA3xxComponent::get_setup_priority() const { return setup_priority::DATA; }
@@ -359,29 +368,36 @@ int64_t MSA3xxComponent::twos_complement_(uint64_t value, uint8_t bits) {
   }
 }
 
-void MSA3xxComponent::process_interrupts_() {
-  if (this->status_.motion_int.raw == 0) {
-    return;
+void binary_event_debounce(bool state, bool old_state, uint32_t now, uint32_t &last_ms, Trigger<> &trigger,
+                           uint32_t cooldown_ms, binary_sensor::BinarySensor *bs, const char *desc) {
+  if (state && now - last_ms > cooldown_ms) {
+    ESP_LOGV(TAG, "%s detected", desc);
+    trigger.trigger();
+    last_ms = now;
+    if (bs != nullptr) {
+      bs->publish_state(true);
+    }
+  } else if (!state && now - last_ms > cooldown_ms && bs != nullptr) {
+    bs->publish_state(false);
   }
+}
 
-  if (this->status_.motion_int.single_tap_interrupt) {
-    ESP_LOGW(TAG, "Single Tap detected");
-    this->tap_trigger_.trigger();
-  }
+void MSA3xxComponent::process_motions_(RegMotionInterrupt old) {
+  uint32_t now = millis();
 
-  if (this->status_.motion_int.double_tap_interrupt) {
-    ESP_LOGW(TAG, "Double Tap detected");
-    this->double_tap_trigger_.trigger();
-  }
+  binary_event_debounce(this->status_.motion_int.single_tap_interrupt, old.single_tap_interrupt, now,
+                        this->status_.last_tap_ms, this->tap_trigger_, TAP_COOLDOWN_MS, this->tap_binary_sensor_,
+                        "Tap");
+  binary_event_debounce(this->status_.motion_int.double_tap_interrupt, old.double_tap_interrupt, now,
+                        this->status_.last_double_tap_ms, this->double_tap_trigger_, DOUBLE_TAP_COOLDOWN_MS,
+                        this->double_tap_binary_sensor_, "Double Tap");
+  binary_event_debounce(this->status_.motion_int.active_interrupt, old.active_interrupt, now,
+                        this->status_.last_action_ms, this->active_trigger_, ACTIVITY_COOLDOWN_MS,
+                        this->active_binary_sensor_, "Activity");
 
   if (this->status_.motion_int.orientation_interrupt) {
-    ESP_LOGW(TAG, "Orientation changed");
+    ESP_LOGVV(TAG, "Orientation changed");
     this->orientation_trigger_.trigger();
-  }
-
-  if (this->status_.motion_int.active_interrupt) {
-    ESP_LOGW(TAG, "Activity detected");
-    this->active_trigger_.trigger();
   }
 }
 
