@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from . import Husb238Component, CONF_HUSB238_ID
 
+CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["husb238"]
 
 CONF_SELECTED_VOLTAGE = "selected_voltage"

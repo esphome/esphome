@@ -4,6 +4,9 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_NAME, ENTITY_CATEGORY_DIAGNOSTIC
 from . import Husb238Component, CONF_HUSB238_ID
 
+CODEOWNERS = ["@latonita"]
+DEPENDENCIES = ["husb238"]
+
 CONF_ATTACHED = "attached"
 CONF_CC_DIRECTION = "cc_direction"
 

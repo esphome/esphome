@@ -7,6 +7,11 @@ namespace husb238 {
 
 static const char *const TAG = "husb238";
 
+static const std::map<std::string, SrcVoltageSelection> SELECT_VOLTAGE{
+    {"5V", SrcVoltageSelection::SRC_PDO_5V},   {"9V", SrcVoltageSelection::SRC_PDO_9V},
+    {"12V", SrcVoltageSelection::SRC_PDO_12V}, {"15V", SrcVoltageSelection::SRC_PDO_15V},
+    {"18V", SrcVoltageSelection::SRC_PDO_18V}, {"20V", SrcVoltageSelection::SRC_PDO_20V}};
+
 static float current_to_float(SrcCurrent current) {
   switch (current) {
     case SrcCurrent::I_0_5_A:
@@ -45,23 +50,6 @@ static float current_to_float(SrcCurrent current) {
       return 0.0f;
   }
 }
-
-/*
-static float current5v_to_float(SrcCurrent5V current) {
-  switch (current) {
-    case SrcCurrent5V::I_0_5_A:
-      return 0.5f;
-    case SrcCurrent5V::I_1_5_A:
-      return 1.5f;
-    case SrcCurrent5V::I_2_4_A:
-      return 2.4f;
-    case SrcCurrent5V::I_3_0_A:
-      return 3.0f;
-    default:
-      return 0.0f;
-  }
-}
-*/
 
 static float voltage_to_float(SrcVoltage voltage) {
   switch (voltage) {
@@ -120,6 +108,13 @@ static const char *status_to_string(PdResponse status) {
 
 void Husb238Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HUSB238...");
+
+  if (!this->read_byte(static_cast<uint8_t>(CommandRegister::PD_STATUS0), &this->registers_.raw[0])) {
+    ESP_LOGE(TAG, "Failed to read HUSB238");
+    this->mark_failed();
+    return;
+  };
+
   this->command_get_src_cap();
   this->read_all_();
 }
@@ -157,11 +152,7 @@ void Husb238Component::update() {
   if (this->current_sensor_ != nullptr) {
     float current{0.0f};
     if (this->is_attached()) {
-      // if (this->registers_.pd_status1.voltage_5v) {
-      //   current = current5v_to_float(this->registers_.pd_status1.current_5v);
-      // } else {
       current = current_to_float(this->registers_.pd_status0.current);
-      //      }
     }
     this->current_sensor_->publish_state(current);
   }
@@ -199,6 +190,10 @@ void Husb238Component::dump_config() {
   LOG_TEXT_SENSOR("  ", "Last Request Status", this->status_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Capabilities", this->capabilities_text_sensor_);
 #endif
+
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "Voltage", this->voltage_select_);
+#endif
 }
 
 bool Husb238Component::command_request_voltage(int volt) {
@@ -227,6 +222,15 @@ bool Husb238Component::command_request_voltage(int volt) {
       return false;
   }
   return this->command_request_pdo(voltage);
+}
+
+bool Husb238Component::command_request_voltage(const std::string &select_state) {
+  auto volt = SELECT_VOLTAGE.find(select_state);
+  if (volt == SELECT_VOLTAGE.end()) {
+    ESP_LOGE(TAG, "Invalid voltage");
+    return false;
+  }
+  return this->command_request_pdo(volt->second);
 }
 
 bool Husb238Component::command_request_pdo(SrcVoltageSelection voltage) {
@@ -299,42 +303,6 @@ bool Husb238Component::send_command_(CommandFunction function) {
   }
   return ok;
 }
-
-/*
-RegSrcPdo Husb238Component::get_detected_current_() {
-  RegSrcPdo pdo_default_data;
-  pdo_default_data.current = SrcCurrent::I_0_5_A;
-  pdo_default_data.detected = false;
-  pdo_default_data.reserved = 0;
-
-  if (!this->is_ready() || this->registers_.src_pdo_sel.voltage == SrcVoltageSelection::NOT_SELECTED) {
-    ESP_LOGE(TAG, "No voltage selected or component not ready");
-    return pdo_default_data;
-  };
-
-  if (!this->read_all_()) {
-    return pdo_default_data;
-  };
-
-  switch (this->registers_.src_pdo_sel.voltage) {
-    case SrcVoltageSelection::SRC_PDO_5V:
-      return this->registers_.src_pdo_5v;
-    case SrcVoltageSelection::SRC_PDO_9V:
-      return this->registers_.src_pdo_9v;
-    case SrcVoltageSelection::SRC_PDO_12V:
-      return this->registers_.src_pdo_12v;
-    case SrcVoltageSelection::SRC_PDO_15V:
-      return this->registers_.src_pdo_15v;
-    case SrcVoltageSelection::SRC_PDO_18V:
-      return this->registers_.src_pdo_18v;
-    case SrcVoltageSelection::SRC_PDO_20V:
-      return this->registers_.src_pdo_20v;
-    default:
-      ESP_LOGW(TAG, "Invalid or no voltage selected");
-      return pdo_default_data;
-  }
-}
-*/
 
 bool Husb238Component::select_pdo_voltage_(SrcVoltageSelection voltage) {
   ESP_LOGV(TAG, "Setting PDO voltage selector to %.0f", selected_voltage_to_float(voltage));

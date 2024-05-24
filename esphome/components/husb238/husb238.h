@@ -12,6 +12,9 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome {
 namespace husb238 {
@@ -144,6 +147,7 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
 
   bool command_request_voltage(int volt);
+  bool command_request_voltage(const std::string &select_state);
   bool command_request_pdo(SrcVoltageSelection voltage);
   bool command_get_src_cap() { return this->send_command_(CommandFunction::GET_SRC_CAP); };
   bool command_reset() { return this->send_command_(CommandFunction::HARD_RESET); };
@@ -164,6 +168,10 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(attached)
   SUB_BINARY_SENSOR(cc_direction)
+#endif
+
+#ifdef USE_SELECT
+  SUB_SELECT(voltage)
 #endif
 
  private:
@@ -191,6 +199,17 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
 
   bool select_pdo_voltage_(SrcVoltageSelection voltage);
   std::string get_capabilities_();
+};
+
+class Husb238VoltageSelect : public select::Select, public Parented<Husb238Component> {
+ public:
+  Husb238VoltageSelect() = default;
+
+ protected:
+  void control(const std::string &value) override {
+    this->publish_state(value);
+    this->parent_->command_request_voltage(state);
+  };
 };
 
 }  // namespace husb238
