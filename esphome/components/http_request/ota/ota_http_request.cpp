@@ -111,10 +111,10 @@ void OtaHttpRequestComponent::flash() {
 
   auto url_with_auth = this->get_url_with_auth_(this->url_);
   if (url_with_auth.empty()) {
-    this->md5_expected_.clear();  // will be reset at next attempt
 #ifdef USE_OTA_STATE_CALLBACK
     this->state_callback_.call(ota::OTA_ERROR, 0.0f, 0);
 #endif
+    this->md5_expected_.clear();  // will be reset at next attempt
     return;
   }
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
@@ -188,9 +188,9 @@ void OtaHttpRequestComponent::flash() {
   // verify MD5 is as expected and act accordingly
   md5_receive.calculate();
   md5_receive.get_hex(md5_receive_str.get());
-  if (strncmp(md5_receive_str.get(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
-    ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", md5_receive_str.get());
-    this->md5_expected_.clear();  // will be reset at next attempt
+  this->md5_computed_ = md5_receive_str.get();
+  if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
+    ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
     this->cleanup_(std::move(backend), 0);
     return;
   } else {
@@ -229,6 +229,8 @@ void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_ERROR, 0.0f, error_code);
 #endif
+  this->md5_computed_.clear();  // will be reset at next attempt
+  this->md5_expected_.clear();  // will be reset at next attempt
 };
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/ota/ota_backend.h"
@@ -28,6 +27,9 @@ class OtaHttpRequestComponent : public ota::OTAComponent {
   void set_url(const std::string &url);
   void set_username(const std::string &username) { this->username_ = username; }
 
+  std::string md5_computed() { return this->md5_computed_; }
+  std::string md5_expected() { return this->md5_expected_; }
+
   bool check_status();
 
   void flash();
@@ -43,6 +45,7 @@ class OtaHttpRequestComponent : public ota::OTAComponent {
   bool secure_() { return this->url_.find("https:") != std::string::npos; };
   bool validate_url_(const std::string &url);
 
+  std::string md5_computed_{};
   std::string md5_expected_{};
   std::string md5_url_{};
   std::string password_{};
@@ -56,39 +59,6 @@ class OtaHttpRequestComponent : public ota::OTAComponent {
   const uint16_t http_recv_buffer_ = 256;      // the firmware GET chunk size
   const uint16_t max_http_recv_buffer_ = 512;  // internal max http buffer size must be > HTTP_RECV_BUFFER_ (TLS
                                                // overhead) and must be a power of two from 512 to 4096
-};
-
-template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Action<Ts...> {
- public:
-  OtaHttpRequestComponentFlashAction(OtaHttpRequestComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(bool, force_update)
-  TEMPLATABLE_VALUE(std::string, md5_url)
-  TEMPLATABLE_VALUE(std::string, md5)
-  TEMPLATABLE_VALUE(std::string, password)
-  TEMPLATABLE_VALUE(std::string, url)
-  TEMPLATABLE_VALUE(std::string, username)
-
-  void play(Ts... x) override {
-    if (this->md5_url_.has_value()) {
-      this->parent_->set_md5_url(this->md5_url_.value(x...));
-    }
-    if (this->md5_.has_value()) {
-      this->parent_->set_md5(this->md5_.value(x...));
-    }
-    if (this->password_.has_value()) {
-      this->parent_->set_password(this->password_.value(x...));
-    }
-    if (this->username_.has_value()) {
-      this->parent_->set_username(this->username_.value(x...));
-    }
-    this->parent_->set_url(this->url_.value(x...));
-
-    this->parent_->flash();
-    // Normally never reached due to reboot
-  }
-
- protected:
-  OtaHttpRequestComponent *parent_;
 };
 
 }  // namespace http_request
