@@ -347,6 +347,7 @@ class LvglComponent : public PollingComponent {
         this->disp_drv_.rotated = LV_DISP_ROT_270;
         break;
     }
+    display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
     esph_log_d(TAG, "sw_rotate = %d, rotated=%d", this->disp_drv_.sw_rotate, this->disp_drv_.rotated);
     this->disp_ = lv_disp_drv_register(&this->disp_drv_);
     this->custom_change_event_ = (lv_event_code_t) lv_event_register_id();
