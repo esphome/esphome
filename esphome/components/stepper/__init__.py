@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_POSITION,
     CONF_TARGET,
     CONF_SPEED,
+    CONF_ROTATION,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -22,6 +23,7 @@ ReportPositionAction = stepper_ns.class_("ReportPositionAction", automation.Acti
 SetSpeedAction = stepper_ns.class_("SetSpeedAction", automation.Action)
 SetAccelerationAction = stepper_ns.class_("SetAccelerationAction", automation.Action)
 SetDecelerationAction = stepper_ns.class_("SetDecelerationAction", automation.Action)
+SetRotationAction = stepper_ns.class_("SetRotationAction", automation.Action)
 
 
 def validate_acceleration(value):
@@ -66,11 +68,27 @@ def validate_speed(value):
     return value
 
 
+def validate_rotation(value):
+    value = cv.string(value)
+
+    if value == "both":
+        return 0
+
+    if value == "cw" or value == "clockwise":
+        return 1
+
+    if value == "ccw" or value == "counterclockwise" or value == "counter-clockwise":
+        return -1
+
+    raise cv.Invalid(f"Expected rotation as 'both', 'cw', 'ccw', 'clockwise', 'counterclockwise', 'counter-clockwise', got {value}")
+
+
 STEPPER_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_MAX_SPEED): validate_speed,
         cv.Optional(CONF_ACCELERATION, default="inf"): validate_acceleration,
         cv.Optional(CONF_DECELERATION, default="inf"): validate_acceleration,
+        cv.Optional(CONF_ROTATION, default="both"): validate_rotation,
     }
 )
 
@@ -82,6 +100,8 @@ async def setup_stepper_core_(stepper_var, config):
         cg.add(stepper_var.set_deceleration(config[CONF_DECELERATION]))
     if CONF_MAX_SPEED in config:
         cg.add(stepper_var.set_max_speed(config[CONF_MAX_SPEED]))
+    if CONF_ROTATION in config:
+        cg.add(stepper_var.set_rotation(config[CONF_ROTATION]))
 
 
 async def register_stepper(var, config):
@@ -177,6 +197,24 @@ async def stepper_set_deceleration_to_code(config, action_id, template_arg, args
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_DECELERATION], args, cg.float_)
     cg.add(var.set_deceleration(template_))
+    return var
+
+
+@automation.register_action(
+    "stepper.set_rotation",
+    SetRotationAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Stepper),
+            cv.Required(CONF_ROTATION): cv.templatable(validate_rotation),
+        }
+    ),
+)
+async def stepper_set_rotation_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_ROTATION], args, cg.string_)
+    cg.add(var.set_rotation(template_))
     return var
 
 

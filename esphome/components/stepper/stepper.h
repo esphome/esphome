@@ -10,7 +10,8 @@ namespace stepper {
 #define LOG_STEPPER(this) \
   ESP_LOGCONFIG(TAG, "  Acceleration: %.0f steps/s^2", this->acceleration_); \
   ESP_LOGCONFIG(TAG, "  Deceleration: %.0f steps/s^2", this->deceleration_); \
-  ESP_LOGCONFIG(TAG, "  Max Speed: %.0f steps/s", this->max_speed_);
+  ESP_LOGCONFIG(TAG, "  Max Speed: %.0f steps/s", this->max_speed_); \
+  ESP_LOGCONFIG(TAG, "  Rotation: %s", this->rotation_);
 
 class Stepper {
  public:
@@ -19,6 +20,7 @@ class Stepper {
   void set_acceleration(float acceleration) { this->acceleration_ = acceleration; }
   void set_deceleration(float deceleration) { this->deceleration_ = deceleration; }
   void set_max_speed(float max_speed) { this->max_speed_ = max_speed; }
+  void set_rotation(int rotation) { this->rotation_ = rotation; }
   virtual void on_update_speed() {}
   bool has_reached_target() { return this->current_position == this->target_position; }
 
@@ -33,6 +35,7 @@ class Stepper {
   float deceleration_{1e6f};
   float current_speed_{0.0f};
   float max_speed_{1e6f};
+  int rotation_{0};
   uint32_t last_calculation_{0};
   uint32_t last_step_{0};
 };
@@ -101,6 +104,21 @@ template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
   void play(Ts... x) override {
     float deceleration = this->deceleration_.value(x...);
     this->parent_->set_deceleration(deceleration);
+  }
+
+ protected:
+  Stepper *parent_;
+};
+
+template<typename... Ts> class SetRotationAction : public Action<Ts...> {
+ public:
+  explicit SetRotationAction(Stepper *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(int, rotation);
+
+  void play(Ts... x) override {
+    int rotation = this->rotation_.value(x...);
+    this->parent_->set_rotation(rotation);
   }
 
  protected:

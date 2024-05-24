@@ -38,7 +38,7 @@ int32_t Stepper::should_step_() {
   // assumes this method is called in a constant interval
   uint32_t dt = now - this->last_step_;
   if (dt >= (1 / this->current_speed_) * 1e6f) {
-    int32_t mag = this->target_position > this->current_position ? 1 : -1;
+    int32_t mag = (rotation_ == 0 ? (this->target_position > this->current_position ? 1 : -1) : rotation_);
     this->last_step_ = now;
     this->current_position += mag;
     return mag;
