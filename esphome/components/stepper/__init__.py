@@ -71,16 +71,18 @@ def validate_speed(value):
 def validate_rotation(value):
     value = cv.string(value)
 
-    if value == "both":
+    if value in ("both"):
         return 0
 
-    if value == "cw" or value == "clockwise":
+    if value in ("cw", "clockwise"):
         return 1
 
-    if value == "ccw" or value == "counterclockwise" or value == "counter-clockwise":
+    if value in ("ccw", "counterclockwise", "counter-clockwise"):
         return -1
 
-    raise cv.Invalid(f"Expected rotation as 'both', 'cw', 'ccw', 'clockwise', 'counterclockwise', 'counter-clockwise', got {value}")
+    raise cv.Invalid(
+        f"Expected rotation as 'both', 'cw', 'ccw', 'clockwise', 'counterclockwise', 'counter-clockwise', got {value}"
+    )
 
 
 STEPPER_SCHEMA = cv.Schema(
