@@ -1,4 +1,4 @@
-#include "move_down_button.hpp"
+#include "move_down_button.h"
 
 namespace esphome {
 namespace fyrtur_motor {

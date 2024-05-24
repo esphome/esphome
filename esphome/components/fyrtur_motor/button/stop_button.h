@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/components/button/button.h"
-#include "../fyrtur_motor.hpp"
+#include "../fyrtur_motor.h"
 
 namespace esphome {
 namespace fyrtur_motor {

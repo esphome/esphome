@@ -23,7 +23,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #include "esphome/components/uart/uart.h"
-// #include "esphome/core/automation.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
 #include <vector>
@@ -109,9 +109,9 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
  protected:
   void send_command(const std::vector<uint8_t> &data);
   uint8_t get_checksum(const std::vector<uint8_t> &data);
-  const std::vector<uint8_t> get_response(size_t amount_of_data_bytes_to_get);
-  const std::vector<uint8_t> send_command_and_get_response(const std::vector<uint8_t> &data,
-                                                           size_t amount_of_data_bytes_to_get, size_t attempts);
+  std::vector<uint8_t> get_response(size_t amount_of_data_bytes_to_get);
+  std::vector<uint8_t> send_command_and_get_response(const std::vector<uint8_t> &data,
+                                                     size_t amount_of_data_bytes_to_get, size_t attempts);
 };
 
 }  // namespace fyrtur_motor

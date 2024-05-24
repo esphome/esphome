@@ -1,4 +1,4 @@
-#include "fyrtur_motor.hpp"
+#include "fyrtur_motor.h"
 #include <vector>
 
 #include "esphome/core/component.h"
@@ -17,9 +17,9 @@ static const size_t HEADER_SIZE = 3;
 
 static const size_t STATUS_RESPONSE_SIZE = 4;
 
-void FyrturMotorComponent::setup(void) { get_status(); }
+void FyrturMotorComponent::setup() { get_status(); }
 
-void FyrturMotorComponent::dump_config(void) {
+void FyrturMotorComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Fyrtur motor:");
 #ifdef USE_BUTTON
   LOG_BUTTON("  ", "MoveUpButton", this->move_up_button_);
@@ -29,79 +29,79 @@ void FyrturMotorComponent::dump_config(void) {
 #endif
 }
 
-void FyrturMotorComponent::update(void) { get_status(); }
+void FyrturMotorComponent::update() { get_status(); }
 
 // void FyrturMotorComponent::loop(void) {
 //   // probably not needed
 // }
 
-float FyrturMotorComponent::get_setup_priority(void) const { return setup_priority::DATA; }
+float FyrturMotorComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 // Moves motor to position 0-100
 void FyrturMotorComponent::set_position(uint8_t position) {}
 
 // Moves the blinds up until stop command is received or until motor stalls
-void FyrturMotorComponent::move_up(void) {
+void FyrturMotorComponent::move_up() {
   const std::vector<uint8_t> data = {0x0a, 0xdd};
   send_command(data);
 }
 
 // Moves the blinds down until stop command is received or until max length is reached
-void FyrturMotorComponent::move_down(void) {
+void FyrturMotorComponent::move_down() {
   const std::vector<uint8_t> data = {0x0a, 0xee};
   send_command(data);
 }
 
 // Moves the blinds up 6mm
-void FyrturMotorComponent::move_up_6(void) {
+void FyrturMotorComponent::move_up_6() {
   const std::vector<uint8_t> data = {0x0a, 0x0d};
   send_command(data);
 }
 
 // Moves the blinds down 6mm
-void FyrturMotorComponent::move_down_6(void) {
+void FyrturMotorComponent::move_down_6() {
   const std::vector<uint8_t> data = {0x0a, 0x0e};
   send_command(data);
 }
 
 // Moves the blinds up 30mm
-void FyrturMotorComponent::move_up_30(void) {
+void FyrturMotorComponent::move_up_30() {
   const std::vector<uint8_t> data = {0xfa, 0xd1};
   send_command(data);
 }
 
 // Moves the blinds down 30mm
-void FyrturMotorComponent::move_down_30(void) {
+void FyrturMotorComponent::move_down_30() {
   const std::vector<uint8_t> data = {0xfa, 0xd2};
   send_command(data);
 }
 
 // Moves the blinds up 2mm
-void FyrturMotorComponent::move_up_2(void) {
+void FyrturMotorComponent::move_up_2() {
   const std::vector<uint8_t> data = {0xfa, 0xd3};
   send_command(data);
 }
 
 // Moves the blinds down 2mm
-void FyrturMotorComponent::move_down_2(void) {
+void FyrturMotorComponent::move_down_2() {
   const std::vector<uint8_t> data = {0xfa, 0xd4};
   send_command(data);
 }
 
 // Sets max length
-void FyrturMotorComponent::set_max_length(void) {
+void FyrturMotorComponent::set_max_length() {
   const std::vector<uint8_t> data = {0xfa, 0xee};
   send_command(data);
 }
 
 // Sets full length
-void FyrturMotorComponent::set_full_length(void) {
+void FyrturMotorComponent::set_full_length() {
   const std::vector<uint8_t> data = {0xfa, 0xcc};
   send_command(data);
 }
 
 // Resets max length
-void FyrturMotorComponent::reset_max_length(void) {
+void FyrturMotorComponent::reset_max_length() {
   const std::vector<uint8_t> data = {0xfa, 0x00};
   send_command(data);
 }
@@ -117,13 +117,13 @@ void FyrturMotorComponent::set_rolling_direction(RollingDirection_t direction) {
 }
 
 // Stops the movement
-void FyrturMotorComponent::stop(void) {
+void FyrturMotorComponent::stop() {
   const std::vector<uint8_t> data = {0x0a, 0xcc};
   send_command(data);
 }
 
 // Gets battery level, battery voltage, speed and position
-void FyrturMotorComponent::get_status(void) {
+void FyrturMotorComponent::get_status() {
   const std::vector<uint8_t> data = {0xcc, 0xcc};
   const std::vector<uint8_t> response =
       send_command_and_get_response(data, STATUS_RESPONSE_SIZE, DEFAULT_ATTEMPTS_COUNT);
@@ -211,7 +211,7 @@ void FyrturMotorComponent::send_command(const std::vector<uint8_t> &data) {
   this->flush();
 }
 
-const std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_data_bytes_to_get) {
+std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_data_bytes_to_get) {
   std::vector<uint8_t> response;
   size_t loop_timeout = millis() + DEFAULT_LOOP_TIMEOUT_MS;
   while ((loop_timeout <= millis()) &&
@@ -240,9 +240,9 @@ const std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_d
   return data;
 }
 
-const std::vector<uint8_t> FyrturMotorComponent::send_command_and_get_response(const std::vector<uint8_t> &data,
-                                                                               size_t amount_of_data_bytes_to_get,
-                                                                               size_t attempts) {
+std::vector<uint8_t> FyrturMotorComponent::send_command_and_get_response(const std::vector<uint8_t> &data,
+                                                                         size_t amount_of_data_bytes_to_get,
+                                                                         size_t attempts) {
   for (size_t attempt = attempts; attempt > 0; attempt--) {
     // Clear the RX buffer before sending anything
     while (this->available() > 0) {

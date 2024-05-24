@@ -1,14 +1,14 @@
 #pragma once
 
 #include "esphome/components/button/button.h"
-#include "../fyrtur_motor.hpp"
+#include "../fyrtur_motor.h"
 
 namespace esphome {
 namespace fyrtur_motor {
 
-class MoveDownButton : public button::Button, public Parented<FyrturMotorComponent> {
+class MoveUpButton : public button::Button, public Parented<FyrturMotorComponent> {
  public:
-  MoveDownButton() = default;
+  MoveUpButton() = default;
 
  protected:
   void press_action() override;

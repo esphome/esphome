@@ -1,4 +1,4 @@
-#include "get_status_button.hpp"
+#include "get_status_button.h"
 
 namespace esphome {
 namespace fyrtur_motor {

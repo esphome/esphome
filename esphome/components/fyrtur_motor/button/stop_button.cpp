@@ -1,4 +1,4 @@
-#include "stop_button.hpp"
+#include "stop_button.h"
 
 namespace esphome {
 namespace fyrtur_motor {
