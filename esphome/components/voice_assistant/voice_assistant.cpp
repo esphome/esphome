@@ -93,7 +93,7 @@ bool VoiceAssistant::allocate_buffers_() {
   this->input_buffer_ = allocator.allocate(INPUT_BUFFER_SIZE);
   if (this->input_buffer_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate input buffer");
-    return ESP_LWIP_FALLBACK_DNS_PREFER_IPV4;
+    return false;
   }
 
 #ifdef USE_ESP_ADF
