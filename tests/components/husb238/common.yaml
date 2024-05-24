@@ -20,3 +20,7 @@ text_sensor:
   - platform: husb238
     capabilities: "Capabilities"
     status: "Last request status"
+
+select:
+  - platform: husb238
+    voltage: "Voltage selector"
