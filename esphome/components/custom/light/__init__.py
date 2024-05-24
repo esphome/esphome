@@ -1,11 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light
-from esphome.const import CONF_ID, CONF_LAMBDA
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_LIGHTS
 from .. import custom_ns
 
 CustomLightOutputConstructor = custom_ns.class_("CustomLightOutputConstructor")
-CONF_LIGHTS = "lights"
 
 CONFIG_SCHEMA = cv.Schema(
     {

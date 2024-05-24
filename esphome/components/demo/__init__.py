@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INVERTED,
+    CONF_LIGHTS,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_NAME,
@@ -114,7 +115,6 @@ NUMBER_TYPES = {
 CONF_CLIMATES = "climates"
 CONF_COVERS = "covers"
 CONF_FANS = "fans"
-CONF_LIGHTS = "lights"
 CONF_NUMBERS = "numbers"
 
 CONFIG_SCHEMA = cv.Schema(

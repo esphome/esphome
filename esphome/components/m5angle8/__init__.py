@@ -4,9 +4,10 @@ from esphome.components import i2c, sensor, binary_sensor, light
 
 from esphome.const import (
     CONF_ID,
-    STATE_CLASS_MEASUREMENT,
-    ICON_ROTATE_RIGHT,
+    CONF_LIGHTS,
     CONF_OUTPUT_ID,
+    ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
 )
 
 
@@ -20,7 +21,6 @@ NUMBER_LEDS = 9
 
 KNOB_POSITION_PREFIX = "knob_position_"
 CONF_INPUT_SWITCH = "input_switch"
-CONF_LIGHTS = "lights"
 
 m5angle8_ns = cg.esphome_ns.namespace("m5angle8")
 M5Angle8Component = m5angle8_ns.class_(
