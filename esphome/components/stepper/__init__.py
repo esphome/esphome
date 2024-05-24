@@ -213,7 +213,7 @@ async def stepper_set_deceleration_to_code(config, action_id, template_arg, args
 async def stepper_set_rotation_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_ROTATION], args, cg.string_)
+    template_ = await cg.templatable(config[CONF_ROTATION], args, cg.int32)
     cg.add(var.set_rotation(template_))
     return var
 
