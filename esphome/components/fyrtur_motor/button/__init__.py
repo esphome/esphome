@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG, DEVICE_CLASS_BUTTON, CONF_STOP
+from esphome.const import ENTITY_CATEGORY_CONFIG, CONF_STOP
 from .. import CONF_FYRTUR_MOTOR_ID, FyrturMotorComponent, fyrtur_motor_ns
 
 MoveUpButton = fyrtur_motor_ns.class_("MoveUpButton", button.Button)
@@ -22,25 +22,21 @@ CONFIG_SCHEMA = {
     cv.GenerateID(CONF_FYRTUR_MOTOR_ID): cv.use_id(FyrturMotorComponent),
     cv.Required(CONF_MOVE_UP): button.button_schema(
         MoveUpButton,
-        device_class=DEVICE_CLASS_BUTTON,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_UP,
     ),
     cv.Required(CONF_MOVE_DOWN): button.button_schema(
         MoveDownButton,
-        device_class=DEVICE_CLASS_BUTTON,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_DOWN,
     ),
     cv.Required(CONF_STOP): button.button_schema(
         StopButton,
-        device_class=DEVICE_CLASS_BUTTON,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_STOP,
     ),
     cv.Optional(CONF_GET_STATUS): button.button_schema(
         GetStatusButton,
-        device_class=DEVICE_CLASS_BUTTON,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_SYNC,
     ),
