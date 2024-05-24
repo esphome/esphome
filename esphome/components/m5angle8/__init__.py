@@ -1,29 +1,24 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor, binary_sensor, light
-from esphome.automation import maybe_simple_id
-
-
-AUTO_LOAD = ["sensor", "light"]
-DEPENDENCIES = ["i2c"]
-CODEOWNERS = [
-    "@rnauber",
-]
-MULTI_CONF = True
-
-NUMBER_KNOBS = 8
-NUMBER_LEDS = 9
 
 from esphome.const import (
     CONF_ID,
     STATE_CLASS_MEASUREMENT,
     ICON_ROTATE_RIGHT,
-    CONF_CHANNEL,
     CONF_OUTPUT_ID,
 )
 
 
-CONF_KNOB_POSITION_PREFIX = "knob_position_"
+AUTO_LOAD = ["light", "sensor", "binary_sensor"]
+DEPENDENCIES = ["i2c"]
+CODEOWNERS = ["@rnauber"]
+MULTI_CONF = True
+
+NUMBER_KNOBS = 8
+NUMBER_LEDS = 9
+
+KNOB_POSITION_PREFIX = "knob_position_"
 CONF_INPUT_SWITCH = "input_switch"
 CONF_LIGHTS = "lights"
 
@@ -68,7 +63,7 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x43))
     .extend(
         {
-            cv.Optional(CONF_KNOB_POSITION_PREFIX + str(i + 1)): sensor.sensor_schema(
+            cv.Optional(KNOB_POSITION_PREFIX + str(i + 1)): sensor.sensor_schema(
                 M5Angle8SensorKnob,
                 accuracy_decimals=2,
                 icon=ICON_ROTATE_RIGHT,
@@ -102,7 +97,7 @@ async def to_code(config):
         cg.add(lights.set_parent(var))
 
     for i in range(NUMBER_KNOBS):
-        conf_key = CONF_KNOB_POSITION_PREFIX + str(i + 1)
+        conf_key = KNOB_POSITION_PREFIX + str(i + 1)
         if knob_config := config.get(conf_key):
             sens = await sensor.new_sensor(knob_config)
             cg.add(sens.set_parent(var, i))

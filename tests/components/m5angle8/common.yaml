@@ -1,6 +1,6 @@
 i2c:
-  sda: 26
-  scl: 32
+  sda: 0
+  scl: 1
   id: bus_external
 
 m5angle8:
