@@ -9,7 +9,7 @@ m5angle8:
   lights:
     id: m8_angle_leds
     effects:
-    - addressable_scan:
+      - addressable_scan:
   knob_position_1:
     name: m5angle8 Knob 1
   knob_position_2:
@@ -28,5 +28,3 @@ m5angle8:
     name: m5angle8 Knob 8
   input_switch:
     name: m5angle8 Switch
-
-
