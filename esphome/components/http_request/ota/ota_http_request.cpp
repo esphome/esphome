@@ -282,7 +282,7 @@ bool OtaHttpRequestComponent::http_get_md5_() {
   }
 
   this->bytes_read_ = 0;
-  this->md5_expected_.reserve(MD5_SIZE);
+  this->md5_expected_.resize(MD5_SIZE);
   auto read_len = this->http_read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
   this->http_end();
 
