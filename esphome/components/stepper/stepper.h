@@ -11,7 +11,7 @@ namespace stepper {
   ESP_LOGCONFIG(TAG, "  Acceleration: %.0f steps/s^2", this->acceleration_); \
   ESP_LOGCONFIG(TAG, "  Deceleration: %.0f steps/s^2", this->deceleration_); \
   ESP_LOGCONFIG(TAG, "  Max Speed: %.0f steps/s", this->max_speed_); \
-  ESP_LOGCONFIG(TAG, "  Rotation: %s", this->rotation_);
+  ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation_);
 
 class Stepper {
  public:
