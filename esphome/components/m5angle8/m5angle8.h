@@ -49,7 +49,7 @@ class M5Angle8LightOutput : public light::AddressableLight {
 
   void set_parent(M5Angle8Component *parent) { this->parent_ = parent; };
 
-  M5Angle8Component *get_parent(void) { return this->parent_; };
+  M5Angle8Component *get_parent() { return this->parent_; };
 
   void clear_effect_data() override { memset(this->effect_data_, 0x00, M5ANGLE8_NUM_LEDS); };
 
@@ -69,12 +69,12 @@ class M5Angle8LightOutput : public light::AddressableLight {
 
 class M5Angle8SensorKnob : public sensor::Sensor, public PollingComponent {
  public:
-  void update(void) override;
+  void update() override;
   void set_parent(M5Angle8Component *parent, uint8_t index) {
     this->parent_ = parent;
     this->knob_index_ = index;
   };
-  M5Angle8Component *get_parent(void) { return this->parent_; };
+  M5Angle8Component *get_parent() { return this->parent_; };
 
  protected:
   M5Angle8Component *parent_{nullptr};
@@ -83,9 +83,9 @@ class M5Angle8SensorKnob : public sensor::Sensor, public PollingComponent {
 
 class M5Angle8SensorSwitch : public binary_sensor::BinarySensor, public PollingComponent {
  public:
-  void update(void) override;
+  void update() override;
   void set_parent(M5Angle8Component *parent) { this->parent_ = parent; };
-  M5Angle8Component *get_parent(void) { return this->parent_; };
+  M5Angle8Component *get_parent() { return this->parent_; };
 
  protected:
   M5Angle8Component *parent_{nullptr};

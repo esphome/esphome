@@ -37,7 +37,7 @@ void M5Angle8Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up M5ANGLE8...");
   i2c::ErrorCode err;
 
-  err = this->read(0, 0);
+  err = this->read(nullptr, 0);
   if (err != i2c::NO_ERROR) {
     ESP_LOGE(TAG, "I2C error %02X...", err);
     this->mark_failed();
@@ -61,19 +61,19 @@ void M5Angle8Component::dump_config() {
 float M5Angle8Component::read_knob_pos(uint8_t channel) {
   uint8_t knob_pos;
   i2c::ErrorCode err = this->read_register(M5ANGLE8_REGISTER_ANALOG_INPUT_8B + channel, (uint8_t *) &knob_pos, 1);
-  if (err == i2c::NO_ERROR)
+  if (err == i2c::NO_ERROR) {
     return 1.0f - (knob_pos / 255.0f);
-  else {
+  } else {
     return -1.0f;
   }
 }
 
-int M5Angle8Component::read_switch(void) {
+int M5Angle8Component::read_switch() {
   uint8_t out;
   i2c::ErrorCode err = this->read_register(M5ANGLE8_REGISTER_DIGITAL_INPUT, (uint8_t *) &out, 1);
-  if (err == i2c::NO_ERROR)
+  if (err == i2c::NO_ERROR) {
     return out ? 1 : 0;
-  else {
+  } else {
     return -1;
   }
 }
