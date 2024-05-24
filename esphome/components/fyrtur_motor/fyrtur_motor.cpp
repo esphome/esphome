@@ -9,7 +9,7 @@ namespace fyrtur_motor {
 
 static const char *const TAG = "fyrtur_motor";
 
-static const size_t DEFAULT_ATTEMPTS_COUNT = 3;
+static const size_t DEFAULT_ATTEMPTS_COUNT = 1;
 static const size_t DEFAULT_LOOP_TIMEOUT_MS = 1000;
 
 static const size_t CHECKSUM_SIZE = 1;
@@ -207,6 +207,7 @@ void FyrturMotorComponent::send_command(const std::vector<uint8_t> &data) {
   const std::vector<uint8_t> command_header = {0x00, 0xff, 0x9a};
   this->write_array(command_header);
   this->write_array(data);
+  uint8_t checksum = get_checksum(data);
   this->write_byte(get_checksum(data));
   this->flush();
 }
@@ -246,6 +247,7 @@ std::vector<uint8_t> FyrturMotorComponent::send_command_and_get_response(const s
   for (size_t attempt = attempts; attempt > 0; attempt--) {
     // Clear the RX buffer before sending anything
     while (this->available() > 0) {
+      ESP_LOGE(TAG, "Cleared one byte");
       this->read();
     }
 
