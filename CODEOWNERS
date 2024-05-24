@@ -152,6 +152,10 @@ esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
+esphome/components/haier/binary_sensor/* @paveldn
+esphome/components/haier/button/* @paveldn
+esphome/components/haier/sensor/* @paveldn
+esphome/components/haier/text_sensor/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann

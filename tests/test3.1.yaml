@@ -344,10 +344,6 @@ apds9960:
   address: 0x20
   update_interval: 60s
 
-mpr121:
-  id: mpr121_first
-  address: 0x5A
-
 binary_sensor:
   - platform: apds9960
     direction: up
@@ -371,25 +367,6 @@ binary_sensor:
     direction: right
     name: APDS9960 Right
 
-  - platform: mpr121
-    id: touchkey0
-    channel: 0
-    name: touchkey0
-  - platform: mpr121
-    channel: 1
-    name: touchkey1
-    id: bin1
-  - platform: mpr121
-    channel: 2
-    name: touchkey2
-    id: bin2
-  - platform: mpr121
-    channel: 3
-    name: touchkey3
-    id: bin3
-    on_press:
-      then:
-        - switch.toggle: mpr121_toggle
   - platform: ttp229_lsf
     channel: 1
     name: TTP229 LSF Test
@@ -443,10 +420,6 @@ grove_tb6612fng:
   address: 0x14
 
 switch:
-  - platform: template
-    name: mpr121_toggle
-    id: mpr121_toggle
-    optimistic: true
   - platform: gpio
     id: gpio_switch1
     pin:
