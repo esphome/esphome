@@ -14,6 +14,7 @@ class Speaker {
  public:
   virtual size_t play(const uint8_t *data, size_t length) = 0;
   size_t play(const std::vector<uint8_t> &data) { return this->play(data.data(), data.size()); }
+  virtual void finish() {}
 
   virtual void start() = 0;
   virtual void stop() = 0;
@@ -21,6 +22,7 @@ class Speaker {
   virtual bool has_buffered_data() const = 0;
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
+  bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
  protected:
   State state_{STATE_STOPPED};

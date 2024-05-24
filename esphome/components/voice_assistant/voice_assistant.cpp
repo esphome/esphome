@@ -288,6 +288,9 @@ void VoiceAssistant::loop() {
 #ifdef USE_SPEAKER
       if (this->speaker_ != nullptr) {
         ssize_t received_len = 0;
+        if (!this->speaker_->is_running()) {
+          break;
+        }
         if (this->audio_mode_ == AUDIO_MODE_UDP) {
           if (this->speaker_buffer_index_ + RECEIVE_SIZE < SPEAKER_BUFFER_SIZE) {
             received_len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, RECEIVE_SIZE);
@@ -335,22 +338,23 @@ void VoiceAssistant::loop() {
         if (this->speaker_buffer_size_ > 0) {
           this->write_speaker_();
           break;
-        }
-        if (this->speaker_->has_buffered_data() || this->speaker_->is_running()) {
-          break;
-        }
-        ESP_LOGD(TAG, "Speaker has finished outputting all audio");
-        this->speaker_->stop();
-        this->cancel_timeout("speaker-timeout");
-        this->cancel_timeout("playing");
-        this->speaker_buffer_size_ = 0;
-        this->speaker_buffer_index_ = 0;
-        this->speaker_bytes_received_ = 0;
-        memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
-        this->wait_for_stream_end_ = false;
-        this->stream_ended_ = false;
+        } else if (this->speaker_->is_running()) {
+          this->speaker_->finish();
+        } else if (this->speaker_->is_stopped()) {
+          ESP_LOGD(TAG, "Speaker has finished outputting all audio");
+          this->cancel_timeout("speaker-timeout");
+          this->cancel_timeout("playing");
+          this->speaker_buffer_size_ = 0;
+          this->speaker_buffer_index_ = 0;
+          this->speaker_bytes_received_ = 0;
+          memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
+          this->wait_for_stream_end_ = false;
+          this->stream_ended_ = false;
 
-        this->tts_stream_end_trigger_->trigger();
+          this->tts_stream_end_trigger_->trigger();
+          this->set_state_(State::IDLE, State::IDLE);
+        }
+        break;
       }
 #endif
       this->set_state_(State::IDLE, State::IDLE);
@@ -363,8 +367,12 @@ void VoiceAssistant::loop() {
 
 #ifdef USE_SPEAKER
 void VoiceAssistant::write_speaker_() {
+  if (!this->speaker_->is_running()) {
+    return;
+  }
   if (this->speaker_buffer_size_ > 0) {
-    size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
+    size_t write_chunk = std::min<size_t>(this->speaker_buffer_size_, 4 * 1024);
+    size_t written = this->speaker_->play(this->speaker_buffer_, write_chunk);
     if (written > 0) {
       memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
       this->speaker_buffer_size_ -= written;

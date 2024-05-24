@@ -98,6 +98,7 @@ void Rtttl::play(std::string rtttl) {
   this->note_duration_ = 1;
 
 #ifdef USE_SPEAKER
+  this->speaker_->start();
   this->samples_sent_ = 0;
   this->samples_count_ = 0;
 #endif
@@ -125,6 +126,9 @@ void Rtttl::loop() {
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
+    if (!this->speaker_->is_running()) {
+      return;
+    }
     if (this->samples_sent_ != this->samples_count_) {
       SpeakerSample sample[SAMPLE_BUFFER_SIZE + 1];
       int x = 0;
@@ -174,6 +178,9 @@ void Rtttl::loop() {
     }
 #endif
     ESP_LOGD(TAG, "Playback finished");
+#ifdef USE_SPEAKER
+    this->speaker_->finish();
+#endif
     this->on_finished_playback_callback_.call();
     return;
   }
