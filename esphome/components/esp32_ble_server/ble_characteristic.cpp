@@ -1,4 +1,6 @@
 #include "ble_characteristic.h"
+#include "ble_2901.h"
+#include "ble_2902.h"
 #include "ble_server.h"
 #include "ble_service.h"
 
@@ -12,14 +14,17 @@ namespace esp32_ble_server {
 static const char *const TAG = "esp32_ble_server.characteristic";
 
 BLECharacteristic::~BLECharacteristic() {
-  for (auto *descriptor : this->descriptors_) {
-    delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
-  }
+  this->descriptors_.clear();
   vSemaphoreDelete(this->set_value_lock_);
 }
 
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
   this->set_value_lock_ = xSemaphoreCreateBinary();
+  if (this->set_value_lock_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create set_value_lock_ semaphore");
+    this->state_ = FAILED;
+    return;
+  }
   xSemaphoreGive(this->set_value_lock_);
 
   this->properties_ = (esp_gatt_char_prop_t) 0;
@@ -103,14 +108,36 @@ void BLECharacteristic::notify(bool notification) {
   }
 }
 
-void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) { this->descriptors_.push_back(descriptor); }
+void BLECharacteristic::add_descriptor(std::shared_ptr<BLEDescriptor> descriptor) {
+  this->descriptors_.push_back(descriptor);
+}
 
-void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
+void BLECharacteristic::remove_descriptor(std::shared_ptr<BLEDescriptor> descriptor) {
   this->descriptors_.erase(std::remove(this->descriptors_.begin(), this->descriptors_.end(), descriptor),
                            this->descriptors_.end());
 }
 
-void BLECharacteristic::do_create(BLEService *service) {
+std::shared_ptr<BLE2901> BLECharacteristic::make_2901_descriptor(const std::string &value) {
+  auto descriptor = std::make_shared<BLE2901>(value);
+  if (descriptor == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate BLE2901 descriptor");
+    return nullptr;
+  }
+  this->add_descriptor(descriptor);
+  return descriptor;
+}
+
+std::shared_ptr<BLE2902> BLECharacteristic::make_2902_descriptor() {
+  auto descriptor = std::make_shared<BLE2902>();
+  if (descriptor == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate BLE2902 descriptor");
+    return nullptr;
+  }
+  this->add_descriptor(descriptor);
+  return descriptor;
+}
+
+void BLECharacteristic::do_create(std::shared_ptr<BLEService> service) {
   this->service_ = service;
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
@@ -137,7 +164,7 @@ bool BLECharacteristic::is_created() {
     return false;
 
   bool created = true;
-  for (auto *descriptor : this->descriptors_) {
+  for (auto descriptor : this->descriptors_) {
     created &= descriptor->is_created();
   }
   if (created)
@@ -150,7 +177,7 @@ bool BLECharacteristic::is_failed() {
     return true;
 
   bool failed = false;
-  for (auto *descriptor : this->descriptors_) {
+  for (auto descriptor : this->descriptors_) {
     failed |= descriptor->is_failed();
   }
   if (failed)
@@ -208,8 +235,8 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
         this->handle_ = param->add_char.attr_handle;
 
-        for (auto *descriptor : this->descriptors_) {
-          descriptor->do_create(this);
+        for (auto descriptor : this->descriptors_) {
+          descriptor->do_create(shared_from_this());
         }
 
         this->state_ = CREATING_DEPENDENTS;
@@ -313,7 +340,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       break;
   }
 
-  for (auto *descriptor : this->descriptors_) {
+  for (auto descriptor : this->descriptors_) {
     descriptor->gatts_event_handler(event, gatts_if, param);
   }
 }

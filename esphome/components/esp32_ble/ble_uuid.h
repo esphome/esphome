@@ -1,12 +1,12 @@
 #pragma once
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
 
-#include <string>
 #include <esp_bt_defs.h>
+#include <string>
 
 namespace esphome {
 namespace esp32_ble {
@@ -23,6 +23,8 @@ class ESPBTUUID {
 
   static ESPBTUUID from_raw(const std::string &data);
 
+  static ESPBTUUID from_raw(const char *uuid, size_t len);
+
   static ESPBTUUID from_uuid(esp_bt_uuid_t uuid);
 
   ESPBTUUID as_128bit() const;
@@ -34,10 +36,11 @@ class ESPBTUUID {
 
   esp_bt_uuid_t get_uuid() const;
 
-  std::string to_string() const;
+  std::string to_string();
 
  protected:
   esp_bt_uuid_t uuid_;
+  std::string string_;
 };
 
 }  // namespace esp32_ble

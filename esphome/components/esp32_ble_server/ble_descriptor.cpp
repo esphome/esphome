@@ -1,7 +1,11 @@
 #include "ble_descriptor.h"
 #include "ble_characteristic.h"
 #include "ble_service.h"
+
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include "esphome/core/application.h"
 
 #include <cstring>
 
@@ -16,12 +20,23 @@ BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len) {
   this->uuid_ = uuid;
   this->value_.attr_len = 0;
   this->value_.attr_max_len = max_len;
-  this->value_.attr_value = (uint8_t *) malloc(max_len);  // NOLINT
+
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  this->value_.attr_value = allocator.allocate(max_len);
+  if (this->value_.attr_value == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate %d bytes for value", max_len);
+    this->state_ = FAILED;
+    return;
+  }
 }
 
-BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }  // NOLINT
+BLEDescriptor::~BLEDescriptor() {
+  ExternalRAMAllocator<uint8_t> deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  deallocator.deallocate(this->value_.attr_value, this->value_.attr_max_len);
+  this->value_.attr_value = nullptr;
+}
 
-void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
+void BLEDescriptor::do_create(std::shared_ptr<BLECharacteristic> characteristic) {
   this->characteristic_ = characteristic;
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_AUTO_RSP;

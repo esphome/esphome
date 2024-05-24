@@ -18,7 +18,7 @@ class BLEDescriptor {
  public:
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100);
   virtual ~BLEDescriptor();
-  void do_create(BLECharacteristic *characteristic);
+  void do_create(std::shared_ptr<BLECharacteristic> characteristic);
 
   void set_value(const std::string &value);
   void set_value(const uint8_t *data, size_t length);
@@ -29,7 +29,7 @@ class BLEDescriptor {
   bool is_failed() { return this->state_ == FAILED; }
 
  protected:
-  BLECharacteristic *characteristic_{nullptr};
+  std::shared_ptr<BLECharacteristic> characteristic_{nullptr};
   ESPBTUUID uuid_;
   uint16_t handle_{0xFFFF};
 

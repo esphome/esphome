@@ -1,18 +1,18 @@
 #include "ble_server.h"
 
 #include "esphome/components/esp32_ble/ble.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include "esphome/core/version.h"
 
 #ifdef USE_ESP32
 
-#include <nvs_flash.h>
-#include <freertos/FreeRTOSConfig.h>
-#include <esp_bt_main.h>
 #include <esp_bt.h>
-#include <freertos/task.h>
+#include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
+#include <freertos/FreeRTOSConfig.h>
+#include <freertos/task.h>
+#include <nvs_flash.h>
 
 namespace esphome {
 namespace esp32_ble_server {
@@ -58,9 +58,8 @@ void BLEServer::loop() {
           pair.second->do_create(this);
         }
         if (this->device_information_service_ == nullptr) {
-          this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
           this->device_information_service_ =
-              this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+              this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
           this->create_device_characteristics_();
         }
         this->state_ = STARTING_SERVICE;
@@ -94,56 +93,58 @@ void BLEServer::restart_advertising_() {
 }
 
 bool BLEServer::create_device_characteristics_() {
+  std::shared_ptr<BLECharacteristic> model =
+      this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
   if (this->model_.has_value()) {
-    BLECharacteristic *model =
-        this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
     model->set_value(this->model_.value());
   } else {
-    BLECharacteristic *model =
-        this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
     model->set_value(ESPHOME_BOARD);
   }
 
-  BLECharacteristic *version =
+  std::shared_ptr<BLECharacteristic> version =
       this->device_information_service_->create_characteristic(VERSION_UUID, BLECharacteristic::PROPERTY_READ);
   version->set_value("ESPHome " ESPHOME_VERSION);
 
-  BLECharacteristic *manufacturer =
+  std::shared_ptr<BLECharacteristic> manufacturer =
       this->device_information_service_->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
   manufacturer->set_value(this->manufacturer_);
 
   return true;
 }
 
-void BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
-  ESP_LOGV(TAG, "Creating BLE service - %s", uuid.to_string().c_str());
+std::shared_ptr<BLEService> BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
+                                                      uint8_t inst_id) {
+  std::string uuid_str = uuid.to_string();
   // If the service already exists, do nothing
-  BLEService *service = this->get_service(uuid);
+  std::shared_ptr<BLEService> service = this->get_service(uuid);
   if (service != nullptr) {
-    ESP_LOGW(TAG, "BLE service %s already exists", uuid.to_string().c_str());
-    return;
+    ESP_LOGW(TAG, "BLE service %s already exists", uuid_str.c_str());
+    return service;
   }
-  service = new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
-  this->services_.emplace(uuid.to_string(), service);
+  ESP_LOGV(TAG, "Creating BLE service - %s", uuid_str.c_str());
+  service = std::make_shared<BLEService>(uuid, num_handles, inst_id, advertise);
+  this->services_.emplace(uuid_str, service);
   service->do_create(this);
+  return service;
 }
 
 void BLEServer::remove_service(ESPBTUUID uuid) {
-  ESP_LOGV(TAG, "Removing BLE service - %s", uuid.to_string().c_str());
-  BLEService *service = this->get_service(uuid);
+  std::string uuid_str = uuid.to_string();
+  std::shared_ptr<BLEService> service = this->get_service(uuid);
   if (service == nullptr) {
-    ESP_LOGW(TAG, "BLE service %s not found", uuid.to_string().c_str());
+    ESP_LOGW(TAG, "BLE service %s not found", uuid_str.c_str());
     return;
   }
+  ESP_LOGV(TAG, "Removing BLE service - %s", uuid_str.c_str());
   service->do_delete();
-  delete service;  // NOLINT(cppcoreguidelines-owning-memory)
-  this->services_.erase(uuid.to_string());
+  this->services_.erase(uuid_str);
 }
 
-BLEService *BLEServer::get_service(ESPBTUUID uuid) {
-  BLEService *service = nullptr;
-  if (this->services_.count(uuid.to_string()) > 0) {
-    service = this->services_.at(uuid.to_string());
+std::shared_ptr<BLEService> BLEServer::get_service(ESPBTUUID uuid) {
+  std::string uuid_str = uuid.to_string();
+  std::shared_ptr<BLEService> service = nullptr;
+  if (this->services_.count(uuid_str) > 0) {
+    service = this->services_.at(uuid_str);
   }
   return service;
 }

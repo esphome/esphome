@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ble_service.h"
 #include "ble_characteristic.h"
+#include "ble_service.h"
 
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_advertising.h"
@@ -12,8 +12,8 @@
 #include "esphome/core/preferences.h"
 
 #include <memory>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #ifdef USE_ESP32
 
@@ -51,9 +51,10 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
     this->restart_advertising_();
   }
 
-  void create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15, uint8_t inst_id = 0);
+  std::shared_ptr<BLEService> create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15,
+                                             uint8_t inst_id = 0);
   void remove_service(ESPBTUUID uuid);
-  BLEService *get_service(ESPBTUUID uuid);
+  std::shared_ptr<BLEService> get_service(ESPBTUUID uuid);
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
   uint32_t get_connected_client_count() { return this->connected_clients_; }
@@ -81,8 +82,8 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   uint32_t connected_clients_{0};
   std::unordered_map<uint16_t, void *> clients_;
-  std::unordered_map<std::string, BLEService *> services_;
-  BLEService *device_information_service_;
+  std::unordered_map<std::string, std::shared_ptr<BLEService>> services_;
+  std::shared_ptr<BLEService> device_information_service_;
 
   std::vector<BLEServiceComponent *> service_components_;
 
