@@ -48,16 +48,16 @@ async def to_code(config):
     if move_up_config := config.get(CONF_MOVE_UP):
         b = await button.new_button(move_up_config)
         await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
-        cg.add(fyrtur_motor_component.move_up_button_(b))
+        cg.add(fyrtur_motor_component.move_up_button(b))
     if move_down_config := config.get(CONF_MOVE_DOWN):
         b = await button.new_button(move_down_config)
         await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
-        cg.add(fyrtur_motor_component.move_down_button_(b))
+        cg.add(fyrtur_motor_component.move_down_button(b))
     if stop_config := config.get(CONF_STOP):
         b = await button.new_button(stop_config)
         await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
-        cg.add(fyrtur_motor_component.stop_button_(b))
+        cg.add(fyrtur_motor_component.stop_button(b))
     if get_status_config := config.get(CONF_GET_STATUS):
         b = await button.new_button(get_status_config)
         await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
-        cg.add(fyrtur_motor_component.get_status_button_(b))
+        cg.add(fyrtur_motor_component.get_status_button(b))
