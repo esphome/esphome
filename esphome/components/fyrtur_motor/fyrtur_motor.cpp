@@ -130,7 +130,7 @@ void FyrturMotorComponent::get_status() {
   }
 
   float battery_level = response[0];
-  float battery_voltage = response[1] / 32.0;
+  float battery_voltage = response[1] / 31.0;
   uint8_t speed = response[2];
   uint8_t position = response[3];
 
@@ -213,9 +213,7 @@ std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_data_by
   uint32_t loop_timeout = millis() + DEFAULT_LOOP_TIMEOUT_MS;
   while ((loop_timeout > millis()) &&
          (response.size() != (amount_of_data_bytes_to_get + HEADER_SIZE + CHECKSUM_SIZE))) {
-    ESP_LOGI(TAG, "Waiting for response");
     if (this->available() > 0) {
-      ESP_LOGI(TAG, "Received byte");
       uint8_t byte;
       this->read_byte(&byte);
       response.push_back(byte);
