@@ -4,6 +4,14 @@
 
 #include "esphome/core/log.h"
 
+#if defined(USE_ESP_IDF) && (ESP_IDF_VERSION_MAJOR >= 5)
+#if SOC_I2S_NUM > 1
+#define I2S_NUM_MAX 2  // because IDF 5+ took this away :(
+#else
+#define I2S_NUM_MAX 1
+#endif
+#endif
+
 namespace esphome {
 namespace i2s_audio {
 
