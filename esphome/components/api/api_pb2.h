@@ -144,10 +144,13 @@ enum LockCommand : uint32_t {
   LOCK_OPEN = 2,
 };
 enum MediaPlayerState : uint32_t {
-  MEDIA_PLAYER_STATE_NONE = 0,
-  MEDIA_PLAYER_STATE_IDLE = 1,
-  MEDIA_PLAYER_STATE_PLAYING = 2,
-  MEDIA_PLAYER_STATE_PAUSED = 3,
+  MEDIA_PLAYER_STATE_OFF = 0,
+  MEDIA_PLAYER_STATE_ON = 1,
+  MEDIA_PLAYER_STATE_NONE = 2,
+  MEDIA_PLAYER_STATE_IDLE = 3,
+  MEDIA_PLAYER_STATE_PLAYING = 4,
+  MEDIA_PLAYER_STATE_PAUSED = 5,
+  MEDIA_PLAYER_STATE_ANNOUNCING = 6,
 };
 enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_PLAY = 0,
@@ -155,6 +158,19 @@ enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_STOP = 2,
   MEDIA_PLAYER_COMMAND_MUTE = 3,
   MEDIA_PLAYER_COMMAND_UNMUTE = 4,
+  MEDIA_PLAYER_COMMAND_TOGGLE = 5,
+  MEDIA_PLAYER_COMMAND_VOLUME_UP = 6,
+  MEDIA_PLAYER_COMMAND_VOLUME_DOWN = 7,
+  MEDIA_PLAYER_COMMAND_NEXT_TRACK = 8,
+  MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK = 9,
+  MEDIA_PLAYER_COMMAND_TURN_ON = 10,
+  MEDIA_PLAYER_COMMAND_TURN_OFF = 11,
+  MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 12,
+  MEDIA_PLAYER_COMMAND_SHUFFLE = 13,
+  MEDIA_PLAYER_COMMAND_UNSHUFFLE = 14,
+  MEDIA_PLAYER_COMMAND_REPEAT_OFF = 15,
+  MEDIA_PLAYER_COMMAND_REPEAT_ONE = 16,
+  MEDIA_PLAYER_COMMAND_REPEAT_ALL = 17,
 };
 enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0,
@@ -1282,6 +1298,8 @@ class MediaPlayerStateResponse : public ProtoMessage {
   enums::MediaPlayerState state{};
   float volume{0.0f};
   bool muted{false};
+  std::string repeat{};
+  bool shuffle{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1290,6 +1308,8 @@ class MediaPlayerStateResponse : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+
 };
 class MediaPlayerCommandRequest : public ProtoMessage {
  public:
@@ -1302,6 +1322,8 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   std::string media_url{};
   bool has_announcement{false};
   bool announcement{false};
+  bool has_media_enqueue_url{false};
+  std::string media_enqueue_url{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

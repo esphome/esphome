@@ -30,6 +30,12 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK = 9,
   MEDIA_PLAYER_COMMAND_TURN_ON = 10,
   MEDIA_PLAYER_COMMAND_TURN_OFF = 11,
+  MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 12,
+  MEDIA_PLAYER_COMMAND_SHUFFLE = 13,
+  MEDIA_PLAYER_COMMAND_UNSHUFFLE = 14,
+  MEDIA_PLAYER_COMMAND_REPEAT_OFF = 15,
+  MEDIA_PLAYER_COMMAND_REPEAT_ONE = 16,
+  MEDIA_PLAYER_COMMAND_REPEAT_ALL = 17,
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
@@ -66,6 +72,7 @@ class MediaPlayerCall {
   MediaPlayerCall &set_command(const std::string &command);
 
   MediaPlayerCall &set_media_url(const std::string &url);
+  MediaPlayerCall &set_media_enqueue_url(const std::string &url);
 
   MediaPlayerCall &set_volume(float volume);
   MediaPlayerCall &set_announcement(bool announce);
@@ -74,6 +81,7 @@ class MediaPlayerCall {
 
   const optional<MediaPlayerCommand> &get_command() const { return command_; }
   const optional<std::string> &get_media_url() const { return media_url_; }
+  const optional<std::string> &get_media_enqueue_url() const { return media_enqueue_url_; }
   const optional<float> &get_volume() const { return volume_; }
   const optional<bool> &get_announcement() const { return announcement_; }
 
@@ -82,6 +90,7 @@ class MediaPlayerCall {
   MediaPlayer *const parent_;
   optional<MediaPlayerCommand> command_;
   optional<std::string> media_url_;
+  optional<std::string> media_enqueue_url_;
   optional<float> volume_;
   optional<bool> announcement_;
 };
@@ -99,6 +108,10 @@ class MediaPlayer : public EntityBase {
   void add_on_state_callback(std::function<void()> &&callback);
 
   virtual bool is_muted() const { return false; }
+
+  virtual std::string repeat() const { return ""; }
+
+  virtual bool is_shuffle() const { return false; }
 
   virtual MediaPlayerTraits get_traits() = 0;
 

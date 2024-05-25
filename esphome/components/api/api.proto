@@ -1093,10 +1093,13 @@ message ButtonCommandRequest {
 
 // ==================== MEDIA PLAYER ====================
 enum MediaPlayerState {
-  MEDIA_PLAYER_STATE_NONE = 0;
-  MEDIA_PLAYER_STATE_IDLE = 1;
-  MEDIA_PLAYER_STATE_PLAYING = 2;
-  MEDIA_PLAYER_STATE_PAUSED = 3;
+  MEDIA_PLAYER_STATE_OFF = 0;
+  MEDIA_PLAYER_STATE_ON = 1;
+  MEDIA_PLAYER_STATE_NONE = 2;
+  MEDIA_PLAYER_STATE_IDLE = 3;
+  MEDIA_PLAYER_STATE_PLAYING = 4;
+  MEDIA_PLAYER_STATE_PAUSED = 5;
+  MEDIA_PLAYER_STATE_ANNOUNCING = 6;
 }
 enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_PLAY = 0;
@@ -1104,6 +1107,19 @@ enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_STOP = 2;
   MEDIA_PLAYER_COMMAND_MUTE = 3;
   MEDIA_PLAYER_COMMAND_UNMUTE = 4;
+  MEDIA_PLAYER_COMMAND_TOGGLE = 5;
+  MEDIA_PLAYER_COMMAND_VOLUME_UP = 6;
+  MEDIA_PLAYER_COMMAND_VOLUME_DOWN = 7;
+  MEDIA_PLAYER_COMMAND_NEXT_TRACK = 8;
+  MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK = 9;
+  MEDIA_PLAYER_COMMAND_TURN_ON = 10;
+  MEDIA_PLAYER_COMMAND_TURN_OFF = 11;
+  MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 12;
+  MEDIA_PLAYER_COMMAND_SHUFFLE = 13;
+  MEDIA_PLAYER_COMMAND_UNSHUFFLE = 14;
+  MEDIA_PLAYER_COMMAND_REPEAT_OFF = 15;
+  MEDIA_PLAYER_COMMAND_REPEAT_ONE = 16;
+  MEDIA_PLAYER_COMMAND_REPEAT_ALL = 17;
 }
 message ListEntitiesMediaPlayerResponse {
   option (id) = 63;
@@ -1132,6 +1148,8 @@ message MediaPlayerStateResponse {
   MediaPlayerState state = 2;
   float volume = 3;
   bool muted = 4;
+  string repeat = 5;
+  bool shuffle = 6;
 }
 message MediaPlayerCommandRequest {
   option (id) = 65;
@@ -1152,6 +1170,9 @@ message MediaPlayerCommandRequest {
 
   bool has_announcement = 8;
   bool announcement = 9;
+
+  bool has_media_enqueue_url = 10;
+  string media_enqueue_url = 11;
 }
 
 // ==================== BLUETOOTH ====================

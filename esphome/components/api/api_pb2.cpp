@@ -5207,6 +5207,10 @@ bool MediaPlayerStateResponse::decode_varint(uint32_t field_id, ProtoVarInt valu
       this->muted = value.as_bool();
       return true;
     }
+    case 6: {
+      this->shuffle = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5225,11 +5229,23 @@ bool MediaPlayerStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value)
       return false;
   }
 }
+bool MediaPlayerStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 5: {
+      this->repeat = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_enum<enums::MediaPlayerState>(2, this->state);
   buffer.encode_float(3, this->volume);
   buffer.encode_bool(4, this->muted);
+  buffer.encode_string(5, this->repeat);
+  buffer.encode_bool(6, this->shuffle);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
@@ -5251,6 +5267,14 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
 
   out.append("  muted: ");
   out.append(YESNO(this->muted));
+  out.append("\n");
+
+  out.append("  repeat: ");
+  out.append("'").append(this->this->repeat).append("'");
+  out.append("\n");
+
+  out.append("  shuffle: ");
+  out.append(YESNO(this->shuffle));
   out.append("\n");
   out.append("}");
 }
@@ -5281,6 +5305,10 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->announcement = value.as_bool();
       return true;
     }
+    case 10: {
+      this->has_media_enqueue_url = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5289,6 +5317,10 @@ bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDeli
   switch (field_id) {
     case 7: {
       this->media_url = value.as_string();
+      return true;
+    }
+    case 11: {
+      this->media_enqueue_url = value.as_string();
       return true;
     }
     default:
@@ -5319,6 +5351,8 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(7, this->media_url);
   buffer.encode_bool(8, this->has_announcement);
   buffer.encode_bool(9, this->announcement);
+  buffer.encode_bool(10, this->has_media_enqueue_url);
+  buffer.encode_string(11, this->media_enqueue_url);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerCommandRequest::dump_to(std::string &out) const {
@@ -5362,6 +5396,14 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   out.append(YESNO(this->announcement));
   out.append("\n");
   out.append("}");
+
+  out.append("  has_media_enqueue_url: ");
+  out.append(YESNO(this->has_media_enqueue_url));
+  out.append("\n");
+
+  out.append("  media_enqueue_url: ");
+  out.append("'").append(this->media_enqueue_url).append("'");
+  out.append("\n");
 }
 #endif
 bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {

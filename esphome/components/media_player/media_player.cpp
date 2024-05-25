@@ -54,15 +54,27 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "TURN_ON";
     case MEDIA_PLAYER_COMMAND_TURN_OFF:
       return "TURN_OFF";
+    case MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+      return "CLEAR_PLAYLIST";
+    case MEDIA_PLAYER_COMMAND_SHUFFLE:
+      return "SHUFFLE";
+    case MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+      return "UNSHUFFLE";
+    case MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      return "REPEAT_OFF";
+    case MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      return "REPEAT_ONE";
+    case MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+      return "REPEAT_ALL";
     default:
       return "UNKNOWN";
   }
 }
 
 void MediaPlayerCall::validate_() {
-  if (this->media_url_.has_value()) {
+  if (this->media_url_.has_value() || this->media_enqueue_url_.has_value()) {
     if (this->command_.has_value()) {
-      ESP_LOGW(TAG, "MediaPlayerCall: Setting both command and media_url is not needed.");
+      ESP_LOGW(TAG, "MediaPlayerCall: Setting both command and (media_url or media_enqueue_url) is not needed.");
       this->command_.reset();
     }
   }
@@ -83,6 +95,9 @@ void MediaPlayerCall::perform() {
   }
   if (this->media_url_.has_value()) {
     ESP_LOGD(TAG, "  Media URL: %s", this->media_url_.value().c_str());
+  }
+  if (this->media_enqueue_url_.has_value()) {
+    ESP_LOGD(TAG, "  Media Enqueue URL: %s", this->media_enqueue_url_.value().c_str());
   }
   if (this->volume_.has_value()) {
     ESP_LOGD(TAG, "  Volume: %.2f", this->volume_.value());
@@ -122,6 +137,18 @@ MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_ON);
   } else if (str_equals_case_insensitive(command, "TURN_OFF")) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_OFF);
+  } else if (str_equals_case_insensitive(command, "CLEAR_PLAYLIST")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST);
+  } else if (str_equals_case_insensitive(command, "SHUFFLE")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_SHUFFLE);
+  } else if (str_equals_case_insensitive(command, "UNSHUFFLE")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_UNSHUFFLE);
+  } else if (str_equals_case_insensitive(command, "REPEAT_OFF")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_OFF);
+  } else if (str_equals_case_insensitive(command, "REPEAT_ONE")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ONE);
+  } else if (str_equals_case_insensitive(command, "REPEAT_ALL")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ALL);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command.c_str());
   }
@@ -130,6 +157,11 @@ MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
 
 MediaPlayerCall &MediaPlayerCall::set_media_url(const std::string &media_url) {
   this->media_url_ = media_url;
+  return *this;
+}
+
+MediaPlayerCall &MediaPlayerCall::set_media_enqueue_url(const std::string &media_enqueue_url) {
+  this->media_enqueue_url_ = media_enqueue_url;
   return *this;
 }
 
