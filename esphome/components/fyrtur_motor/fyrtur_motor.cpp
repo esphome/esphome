@@ -214,8 +214,8 @@ void FyrturMotorComponent::send_command(const std::vector<uint8_t> &data) {
 
 std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_data_bytes_to_get) {
   std::vector<uint8_t> response;
-  size_t loop_timeout = millis() + DEFAULT_LOOP_TIMEOUT_MS;
-  while ((loop_timeout <= millis()) &&
+  uint32_t loop_timeout = millis() + DEFAULT_LOOP_TIMEOUT_MS;
+  while ((loop_timeout > millis()) &&
          (response.size() != (amount_of_data_bytes_to_get + HEADER_SIZE + CHECKSUM_SIZE))) {
     ESP_LOGI(TAG, "Waiting for response");
     if (this->available() > 0) {
