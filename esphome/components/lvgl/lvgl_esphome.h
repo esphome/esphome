@@ -394,7 +394,7 @@ class LvglComponent : public PollingComponent {
     this->paused_ = paused;
     this->show_snow_ = show_snow;
     this->snow_line_ = 0;
-    if (!paused && lv_scr_act() != nullptr) {
+    if (!paused) {
       lv_disp_trig_activity(this->disp_);  // resets the inactivity time
       lv_obj_invalidate(lv_scr_act());
     }

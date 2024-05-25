@@ -23,6 +23,9 @@ from esphome.const import (
     CONF_DISPLAY_ID,
     CONF_ON_IDLE,
     CONF_NAME,
+    CONF_DISPLAY,
+    CONF_LAMBDA,
+    CONF_AUTO_CLEAR_ENABLED,
 )
 from esphome.core import (
     CORE,
@@ -451,7 +454,24 @@ async def disp_update(disp, config: dict):
     return init
 
 
+def warning_checks(config):
+    global_config = CORE.config
+    display_id = config[CONF_DISPLAY_ID]
+    if display := global_config.get(CONF_DISPLAY):
+        display = list(filter(lambda c: c[CONF_ID] == display_id, display))[0]
+        if CONF_LAMBDA in display:
+            LOGGER.warning("Using lambda: in display config not recommended with LVGL")
+        if display[CONF_AUTO_CLEAR_ENABLED]:
+            LOGGER.warning(
+                "Using auto_clear_enabled: true in display config not recommended with LVGL"
+            )
+    buffer_frac = config[CONF_BUFFER_SIZE]
+    if not CORE.is_host and buffer_frac > 0.5 and "psram" not in global_config:
+        LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
+
+
 async def to_code(config):
+    warning_checks(config)
     cg.add_library("lvgl/lvgl", "8.4.0")
     add_define("USE_LVGL", "1")
     # suppress default enabling of extra widgets
