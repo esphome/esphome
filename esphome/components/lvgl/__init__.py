@@ -132,6 +132,9 @@ for widg in (
     WIDGET_TYPES[widg.name] = widg
 
 lv_scr_act_spec = LvScrActType()
+lv_scr_act = Widget.create(
+    None, "lv_scr_act()", lv_scr_act_spec, {}, obj="lv_scr_act()", parent=None
+)
 
 WIDGET_SCHEMA = any_widget_schema()
 
@@ -531,9 +534,6 @@ async def to_code(config):
     if msgboxes := config.get(df.CONF_MSGBOXES):
         for msgbox in msgboxes:
             init.extend(await msgbox_to_code(msgbox))
-    lv_scr_act = Widget.create(
-        None, "lv_scr_act()", lv_scr_act_spec, config, obj="lv_scr_act()", parent=None
-    )
     if top_conf := config.get(df.CONF_TOP_LAYER):
         top_layer = Widget(
             "lv_disp_get_layer_top(lv_disp)",
@@ -724,7 +724,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
 
 @automation.register_action(
     "lvgl.widget.redraw",
-    ty.LvglAction,
+    ty.ObjUpdateAction,
     cv.Schema(
         {
             cv.Optional(CONF_ID): cv.use_id(ty.lv_obj_t),
@@ -733,17 +733,12 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     ),
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[df.CONF_LVGL_ID])
     if obj_id := config.get(CONF_ID):
-        obj = cg.get_variable(obj_id)
+        widget = await get_widget(obj_id)
     else:
-        obj = "lv_scr_act()"
-    lamb = await cg.process_lambda(
-        Lambda(f"lv_obj_invalidate({obj});"), [(ty.LvglComponentPtr, "lvgl_comp")]
-    )
-    cg.add(var.set_action(lamb))
-    return var
+        widget = lv_scr_act
+    action = [f"lv_obj_invalidate({widget.obj});"]
+    return await action_to_code(action, action_id, widget, template_arg, args)
 
 
 @automation.register_action(
