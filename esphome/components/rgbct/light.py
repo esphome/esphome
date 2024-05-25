@@ -10,6 +10,9 @@ from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
+    CONF_OFF_COLOR_TEMPERATURE,
+    CONF_COLD_WHITE,
+    CONF_WARM_WHITE,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -30,6 +33,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_WHITE_BRIGHTNESS): cv.use_id(output.FloatOutput),
             cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
             cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+            cv.Optional(CONF_OFF_COLOR_TEMPERATURE): cv.enum(
+                {
+                    CONF_COLD_WHITE: None,
+                    CONF_WARM_WHITE: None,
+                }
+            ),
             cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
         }
     ),
@@ -55,5 +64,15 @@ async def to_code(config):
 
     cg.add(var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
     cg.add(var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
+
+    if CONF_OFF_COLOR_TEMPERATURE in config:
+        if config[CONF_OFF_COLOR_TEMPERATURE] == CONF_COLD_WHITE:
+            cg.add(
+                var.set_off_color_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE])
+            )
+        elif config[CONF_OFF_COLOR_TEMPERATURE] == CONF_WARM_WHITE:
+            cg.add(
+                var.set_off_color_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE])
+            )
 
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))

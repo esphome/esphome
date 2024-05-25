@@ -203,8 +203,8 @@ void LightState::current_values_as_rgbww(float *red, float *green, float *blue, 
 void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
                                          float *white_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_rgbct(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, color_temperature,
-                                white_brightness, this->gamma_correct_);
+  this->current_values.as_rgbct(traits.get_min_mireds(), traits.get_max_mireds(), traits.get_off_mireds(), red, green,
+                                blue, color_temperature, white_brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
@@ -212,8 +212,8 @@ void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bo
 }
 void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_ct(traits.get_min_mireds(), traits.get_max_mireds(), color_temperature, white_brightness,
-                             this->gamma_correct_);
+  this->current_values.as_ct(traits.get_min_mireds(), traits.get_max_mireds(), traits.get_off_mireds(),
+                             color_temperature, white_brightness, this->gamma_correct_);
 }
 
 bool LightState::is_transformer_active() { return this->is_transformer_active_; }
