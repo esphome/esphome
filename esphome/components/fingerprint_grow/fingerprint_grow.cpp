@@ -377,7 +377,7 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer)
   this->write((uint8_t) (wire_length >> 8));
   this->write((uint8_t) (wire_length & 0xFF));
 
-  uint16_t sum = ((wire_length) >> 8) + ((wire_length) &0xFF) + COMMAND;
+  uint16_t sum = (wire_length >> 8) + (wire_length & 0xFF) + COMMAND;
   for (auto data : *p_data_buffer) {
     this->write(data);
     sum += data;
@@ -541,7 +541,7 @@ void FingerprintGrowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Sensor Power Pin: %s",
                 this->has_power_pin_ ? this->sensor_power_pin_->dump_summary().c_str() : "None");
   if (this->idle_period_to_sleep_ms_ < UINT32_MAX) {
-    ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %u ms", this->idle_period_to_sleep_ms_);
+    ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %" PRIu32 " ms", this->idle_period_to_sleep_ms_);
   } else {
     ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: Never");
   }
@@ -564,11 +564,11 @@ void FingerprintGrowComponent::dump_config() {
   }
   if (this->last_finger_id_sensor_) {
     LOG_SENSOR("  ", "Last Finger ID", this->last_finger_id_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_finger_id_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %" PRIu32, (uint32_t) this->last_finger_id_sensor_->get_state());
   }
   if (this->last_confidence_sensor_) {
     LOG_SENSOR("  ", "Last Confidence", this->last_confidence_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_confidence_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %" PRIu32, (uint32_t) this->last_confidence_sensor_->get_state());
   }
 }
 

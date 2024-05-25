@@ -9,6 +9,7 @@
 
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
+#include "esp_mac.h"
 #include "esp_netif.h"
 
 namespace esphome {
