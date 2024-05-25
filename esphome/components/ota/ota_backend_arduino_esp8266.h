@@ -1,10 +1,9 @@
 #pragma once
-#include "esphome/core/defines.h"
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
-
-#include "ota_component.h"
 #include "ota_backend.h"
+
+#include "esphome/core/defines.h"
 #include "esphome/core/macros.h"
 
 namespace esphome {
