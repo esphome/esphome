@@ -91,20 +91,20 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
   float get_setup_priority() const override;
 
   void set_position(uint8_t position);
-  void move_up(void);
-  void move_down(void);
-  void move_up_6(void);
-  void move_down_6(void);
-  void move_up_30(void);
-  void move_down_30(void);
-  void move_up_2(void);
-  void move_down_2(void);
-  void set_max_length(void);
-  void set_full_length(void);
-  void reset_max_length(void);
+  void move_up();
+  void move_down();
+  void move_up_6();
+  void move_down_6();
+  void move_up_30();
+  void move_down_30();
+  void move_up_2();
+  void move_down_2();
+  void set_max_length();
+  void set_full_length();
+  void reset_max_length();
   void set_rolling_direction(RollingDirection_t direction);
-  void stop(void);
-  void get_status(void);
+  void stop();
+  void get_status();
 
  protected:
   void send_command(const std::vector<uint8_t> &data);

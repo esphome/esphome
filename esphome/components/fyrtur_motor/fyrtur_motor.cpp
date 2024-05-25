@@ -217,7 +217,9 @@ std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_data_by
   size_t loop_timeout = millis() + DEFAULT_LOOP_TIMEOUT_MS;
   while ((loop_timeout <= millis()) &&
          (response.size() != (amount_of_data_bytes_to_get + HEADER_SIZE + CHECKSUM_SIZE))) {
+    ESP_LOGI(TAG, "Waiting for response");
     if (this->available() > 0) {
+      ESP_LOGI(TAG, "Received byte");
       uint8_t byte;
       this->read_byte(&byte);
       response.push_back(byte);
