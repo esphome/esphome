@@ -82,6 +82,9 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
   SUB_BUTTON(move_up)
   SUB_BUTTON(move_down)
   SUB_BUTTON(get_status)
+  SUB_BUTTON(toggle_roll_direction)
+  SUB_BUTTON(set_max_length)
+  SUB_BUTTON(reset_max_length)
 #endif
 
   void setup() override;
