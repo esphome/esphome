@@ -672,7 +672,7 @@ CONFIG_SCHEMA = (
                     }
                 )
             ),
-            cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(1, 8, 16, 32),
+            cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lv.font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(CONF_BUFFER_SIZE, default="100%"): cv.percentage,
