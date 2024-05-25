@@ -8,15 +8,26 @@ MoveUpButton = fyrtur_motor_ns.class_("MoveUpButton", button.Button)
 MoveDownButton = fyrtur_motor_ns.class_("MoveDownButton", button.Button)
 StopButton = fyrtur_motor_ns.class_("StopButton", button.Button)
 GetStatusButton = fyrtur_motor_ns.class_("GetStatusButton", button.Button)
+ResetMaxLengthButton = fyrtur_motor_ns.class_("ResetMaxLengthButton", button.Button)
+SetMaxLengthButton = fyrtur_motor_ns.class_("SetMaxLengthButton", button.Button)
+ToggleRollDirectionButton = fyrtur_motor_ns.class_(
+    "ToggleRollDirectionButton", button.Button
+)
 
 CONF_MOVE_UP = "move_up"
 CONF_MOVE_DOWN = "move_down"
 CONF_GET_STATUS = "get_status"
+CONF_SET_MAX_LENGTH = "set_max_length"
+CONF_RESET_MAX_LENGTH = "reset_max_length"
+CONF_TOGGLE_ROLL_DIRECTION = "toggle_roll_direction"
 
 ICON_UP = "mdi:arrow-up-bold"
 ICON_DOWN = "mdi:arrow-down-bold"
 ICON_STOP = "mdi:stop"
 ICON_SYNC = "mdi:sync"
+ICON_RESET_MAX_LENGTH = "mdi:arrow-expand-vertical"
+ICON_SET_MAX_LENGTH = "mdi:arrow-collapse-down"
+ICON_REVERSE = "mdi:arrow-oscillating"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_FYRTUR_MOTOR_ID): cv.use_id(FyrturMotorComponent),
@@ -40,6 +51,21 @@ CONFIG_SCHEMA = {
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_SYNC,
     ),
+    cv.Required(CONF_SET_MAX_LENGTH): button.button_schema(
+        SetMaxLengthButton,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_SET_MAX_LENGTH,
+    ),
+    cv.Optional(CONF_RESET_MAX_LENGTH): button.button_schema(
+        ResetMaxLengthButton,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_RESET_MAX_LENGTH,
+    ),
+    cv.Optional(CONF_TOGGLE_ROLL_DIRECTION): button.button_schema(
+        ToggleRollDirectionButton,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_REVERSE,
+    ),
 }
 
 
@@ -61,3 +87,15 @@ async def to_code(config):
         b = await button.new_button(get_status_config)
         await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
         cg.add(fyrtur_motor_component.set_get_status_button(b))
+    if set_max_length_config := config.get(CONF_SET_MAX_LENGTH):
+        b = await button.new_button(set_max_length_config)
+        await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
+        cg.add(fyrtur_motor_component.set_set_max_length_button(b))
+    if reset_max_length_config := config.get(CONF_RESET_MAX_LENGTH):
+        b = await button.new_button(reset_max_length_config)
+        await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
+        cg.add(fyrtur_motor_component.set_reset_max_length_button(b))
+    if toggle_roll_direction_config := config.get(CONF_TOGGLE_ROLL_DIRECTION):
+        b = await button.new_button(toggle_roll_direction_config)
+        await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
+        cg.add(fyrtur_motor_component.set_toggle_roll_direction_button(b))

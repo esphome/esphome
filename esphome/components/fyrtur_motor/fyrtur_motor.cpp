@@ -107,13 +107,9 @@ void FyrturMotorComponent::reset_max_length() {
 }
 
 // Sets rolling direction
-void FyrturMotorComponent::set_rolling_direction(RollingDirection_t direction) {
-  const std::vector<uint8_t> data = {0xd5, 0x00};
+void FyrturMotorComponent::toggle_roll_direction() {
+  const std::vector<uint8_t> data = {0xd6, 0x00};
   send_command(data);
-  if (direction == REVERSE) {
-    const std::vector<uint8_t> data = {0xd6, 0x00};
-    send_command(data);
-  }
 }
 
 // Stops the movement
@@ -134,7 +130,7 @@ void FyrturMotorComponent::get_status() {
   }
 
   float battery_level = response[0];
-  float battery_voltage = response[1] / 30.0;
+  float battery_voltage = response[1] / 32.0;
   uint8_t speed = response[2];
   uint8_t position = response[3];
 

@@ -102,7 +102,7 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
   void set_max_length();
   void set_full_length();
   void reset_max_length();
-  void set_rolling_direction(RollingDirection_t direction);
+  void toggle_roll_direction();
   void stop();
   void get_status();
 
