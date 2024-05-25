@@ -24,7 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.All(
     CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(
-        cv.polling_component_schema("5s")
+        cv.polling_component_schema("1s")
     )
 )
 

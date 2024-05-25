@@ -134,12 +134,6 @@ void FyrturMotorComponent::get_status() {
   uint8_t speed = response[2];
   uint8_t position = response[3];
 
-  ESP_LOGI(TAG, "Got status response:");
-  ESP_LOGI("  ", "Battery level: %.0f /%", battery_level);
-  ESP_LOGI("  ", "Battery voltage: %.1f V", battery_voltage);
-  ESP_LOGI("  ", "Speed: %u RPM", speed);
-  ESP_LOGI("  ", "Position: %u /%", position);
-
 #ifdef USE_SENSOR
   if (this->battery_level_sensor_) {
     this->battery_level_sensor_->publish_state(battery_level);
@@ -243,7 +237,7 @@ std::vector<uint8_t> FyrturMotorComponent::send_command_and_get_response(const s
   for (size_t attempt = attempts; attempt > 0; attempt--) {
     // Clear the RX buffer before sending anything
     while (this->available() > 0) {
-      ESP_LOGE(TAG, "Cleared one byte");
+      ESP_LOGE(TAG, "Cleared byte");
       this->read();
     }
 
