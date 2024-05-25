@@ -152,6 +152,10 @@ esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
+esphome/components/haier/binary_sensor/* @paveldn
+esphome/components/haier/button/* @paveldn
+esphome/components/haier/sensor/* @paveldn
+esphome/components/haier/text_sensor/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
@@ -306,7 +310,7 @@ esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet
-esphome/components/safe_mode/* @jsuanet @paulmonigatti
+esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
