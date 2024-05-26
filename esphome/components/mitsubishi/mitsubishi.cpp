@@ -1,6 +1,8 @@
 #include "mitsubishi.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace mitsubishi {
 
@@ -197,7 +199,7 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "fan: %02x state: %02x", this->fan_mode.value(), remote_state[9]);
+  ESP_LOGD(TAG, "fan: %02x state: %02" PRIx32, this->fan_mode.value(), remote_state[9]);
 
   // Vertical Vane
   switch (this->swing_mode) {
@@ -239,7 +241,10 @@ void MitsubishiClimate::transmit_state() {
     remote_state[17] += remote_state[i];
   }
 
-  ESP_LOGD(TAG, "sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
+  ESP_LOGD(TAG,
+           "Sending: %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32
+           ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32
+           ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32 ", %02" PRIx32,
            remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
            remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
            remote_state[12], remote_state[13], remote_state[14], remote_state[15], remote_state[16], remote_state[17]);
