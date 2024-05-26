@@ -31,6 +31,10 @@ static const uint8_t APDS9306_REG_ALS_DATA_0 = 0x0D;     // ALS ADC measurement 
 
 void APDS9306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
+  ESP_LOGD(TAG, "TEST LOGD MESSAGE");
+  ESP_LOGV(TAG, "TEST LOGV MESSAGE");
+  ESP_LOGVV(TAG, "TEST LOGVV MESSAGE");
+
   uint8_t id;
   if (!this->read_byte(APDS9306_REG_PART_ID, &id)) {  // Part ID register
     this->error_code_ = COMMUNICATION_FAILED;
