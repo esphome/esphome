@@ -130,7 +130,7 @@ void FyrturMotorComponent::get_status() {
   }
 
   float battery_level = response[0];
-  float battery_voltage = response[1] / 29.8;
+  float battery_voltage = response[1] / 29.7;
   uint8_t speed = response[2];
   uint8_t position = response[3];
 
@@ -199,7 +199,6 @@ void FyrturMotorComponent::send_command(const std::vector<uint8_t> &data) {
   this->write_array(data);
   uint8_t checksum = get_checksum(data);
   this->write_byte(get_checksum(data));
-  this->flush();
 }
 
 std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_data_bytes_to_get) {
@@ -231,11 +230,6 @@ std::vector<uint8_t> FyrturMotorComponent::send_command_and_get_response(const s
                                                                          size_t amount_of_data_bytes_to_get,
                                                                          size_t attempts) {
   for (size_t attempt = attempts; attempt > 0; attempt--) {
-    // Clear the RX buffer before sending anything
-    // while (this->available() > 0) {
-    //   ESP_LOGE(TAG, "Cleared byte");
-    //   this->read();
-    // }
     const std::vector<uint8_t> response = get_response(amount_of_data_bytes_to_get);
     if (response.size() == amount_of_data_bytes_to_get) {
       return response;
