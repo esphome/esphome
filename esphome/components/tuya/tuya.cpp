@@ -289,7 +289,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           break;
         }
         default:
-          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", subcommand);
+          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", static_cast<uint8_t>(subcommand));
+          break;
       }
     }
     default:
