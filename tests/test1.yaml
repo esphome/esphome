@@ -264,30 +264,32 @@ uart:
     parity: EVEN
     baud_rate: 9600
 
-ota:
-  safe_mode: true
-  password: "superlongpasswordthatnoonewillknow"
-  port: 3286
+safe_mode:
+  num_attempts: 3
   reboot_timeout: 2min
-  num_attempts: 5
-  on_state_change:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "State %d", state);
-  on_begin:
-    then:
-      logger.log: OTA begin
-  on_progress:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "Got progress %f", x);
-  on_end:
-    then:
-      logger.log: OTA end
-  on_error:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "Got error code %d", x);
+
+ota:
+  - platform: esphome
+    password: "superlongpasswordthatnoonewillknow"
+    port: 3286
+    on_state_change:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "State %d", state);
+    on_begin:
+      then:
+        logger.log: OTA begin
+    on_progress:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "Got progress %f", x);
+    on_end:
+      then:
+        logger.log: OTA end
+    on_error:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "Got error code %d", x);
 
 logger:
   baud_rate: 0
@@ -705,35 +707,6 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280_i2c
-    temperature:
-      name: Outside Temperature
-      oversampling: 16x
-    pressure:
-      name: Outside Pressure
-      oversampling: none
-    humidity:
-      name: Outside Humidity
-      oversampling: 8x
-    address: 0x77
-    iir_filter: 16x
-    update_interval: 15s
-    i2c_id: i2c_bus
-  - platform: bme280_spi
-    temperature:
-      name: Outside Temperature
-      oversampling: 16x
-    pressure:
-      name: Outside Pressure
-      oversampling: none
-    humidity:
-      name: Outside Humidity
-      oversampling: 8x
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    iir_filter: 16x
-    update_interval: 15s
   - platform: bme680
     temperature:
       name: Outside Temperature

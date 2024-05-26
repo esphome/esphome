@@ -222,6 +222,8 @@ class Application {
    */
   void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
 
+  uint32_t get_loop_interval() const { return this->loop_interval_; }
+
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
   void feed_wdt();
