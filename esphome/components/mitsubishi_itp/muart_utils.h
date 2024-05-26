@@ -7,11 +7,10 @@ class MUARTUtils {
  public:
   /// Read a string out of data, wordSize bits at a time.
   /// Used to decode serial numbers and other information from a thermostat.
-  static std::string decode_n_bit_string(const uint8_t data[], size_t data_length, size_t word_size) {
-    auto result_length = (data_length / word_size) + (data_length % word_size != 0);
+  static std::string decode_n_bit_string(const uint8_t data[], size_t data_length, size_t word_size = 6) {
     auto result = std::string();
 
-    for (int i = 0; i < result_length; i++) {
+    for (int i = 0; i < data_length; i++) {
       auto bits = bit_slice(data, i * word_size, ((i + 1) * word_size) - 1);
       if (bits <= 0x1F)
         bits += 0x40;
@@ -60,16 +59,27 @@ class MUARTUtils {
 
  private:
   /// Extract the specified bits (inclusive) from an arbitrarily-sized byte array. Does not perform bounds checks.
+  /// Max extraction is 64 bits. Preserves endianness of incoming data stream.
   static uint64_t bit_slice(const uint8_t ds[], size_t start, size_t end) {
-    // Lazies! https://stackoverflow.com/a/25297870/1817097
-    uint64_t s = 0;
-    size_t i, n = (end - 1) / 8;
-    for (i = 0; i <= n; ++i)
-      s = (s << 8) + ds[i];
-    s >>= (n + 1) * 8 - end;
-    uint64_t mask = (((uint64_t) 1) << (end - start + 1)) - 1;  // len = end - start + 1
-    s &= mask;
-    return s;
+    if ((end - start) >= 64)
+      return 0;
+
+    uint64_t result = 0;
+
+    size_t start_byte = (start) / 8;
+    size_t end_byte = ((end) / 8) + 1;  // exclusive, used for length calc
+
+    // raw copy the relevant bytes into our int64, preserving endian-ness
+    std::memcpy(&result, &ds[start_byte], end_byte - start_byte);
+    result = byteswap(result);
+
+    // shift out the bits we don't want from the end (64 + credit any pre-sliced bits)
+    result >>= (sizeof(uint64_t) * 8) + (start_byte * 8) - end - 1;
+
+    // mask out the number of bits we want
+    result &= (1 << (end - start + 1)) - 1;
+
+    return result;
   }
 };
 

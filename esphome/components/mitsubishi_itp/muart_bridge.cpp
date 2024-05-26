@@ -173,8 +173,8 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case GetCommand::STATUS:
           process_raw_packet_<StatusGetResponsePacket>(pkt, false);
           break;
-        case GetCommand::A_9:
-          process_raw_packet_<A9GetRequestPacket>(pkt, false);
+        case GetCommand::KUMO_GET_ADAPTER_STATE:
+          process_raw_packet_<KumoCloudStateSyncPacket>(pkt, false);
           break;
         default:
           process_raw_packet_<Packet>(pkt, false);
@@ -188,8 +188,17 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case SetCommand::SETTINGS:
           process_raw_packet_<SettingsSetRequestPacket>(pkt, true);
           break;
-        case SetCommand::THERMOSTAT_HELLO:
-          process_raw_packet_<ThermostatHelloRequestPacket>(pkt, false);
+        case SetCommand::KUMO_THERMOSTAT_SENSOR_STATUS:
+          process_raw_packet_<KumoThermostatSensorStatusPacket>(pkt, true);
+          break;
+        case SetCommand::KUMO_THERMOSTAT_HELLO:
+          process_raw_packet_<KumoThermostatHelloPacket>(pkt, false);
+          break;
+        case SetCommand::KUMO_THERMOSTAT_STATE_SYNC:
+          process_raw_packet_<KumoThermostatStateSyncPacket>(pkt, true);
+          break;
+        case SetCommand::KUMO_AA:
+          process_raw_packet_<KumoAASetRequestPacket>(pkt, true);
           break;
         default:
           process_raw_packet_<Packet>(pkt, true);

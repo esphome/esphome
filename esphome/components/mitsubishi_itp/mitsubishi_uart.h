@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/time/real_time_clock.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
@@ -31,6 +32,8 @@ const std::string TEMPERATURE_SOURCE_THERMOSTAT = "Thermostat";
 // for e.g. preheating or thermal off
 const std::array<std::string, 7> ACTUAL_FAN_SPEED_NAMES = {"Off",  "Very Low",        "Low",  "Medium",
                                                            "High", FAN_MODE_VERYHIGH, "Quiet"};
+
+const std::array<std::string, 5> THERMOSTAT_BATTERY_STATE_NAMES = {"OK", "Low", "Critical", "Replace", "Unknown"};
 
 class MitsubishiUART : public PollingComponent, public climate::Climate, public PacketProcessor {
  public:
@@ -69,6 +72,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Sensor setters
   void set_thermostat_temperature_sensor(sensor::Sensor *sensor) { thermostat_temperature_sensor_ = sensor; };
   void set_outdoor_temperature_sensor(sensor::Sensor *sensor) { outdoor_temperature_sensor_ = sensor; };
+  void set_thermostat_humidity_sensor(sensor::Sensor *sensor) { thermostat_humidity_sensor_ = sensor; }
   void set_compressor_frequency_sensor(sensor::Sensor *sensor) { compressor_frequency_sensor_ = sensor; };
   void set_actual_fan_sensor(text_sensor::TextSensor *sensor) { actual_fan_sensor_ = sensor; };
   void set_filter_status_sensor(binary_sensor::BinarySensor *sensor) { filter_status_sensor_ = sensor; };
@@ -77,6 +81,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void set_standby_sensor(binary_sensor::BinarySensor *sensor) { standby_sensor_ = sensor; };
   void set_isee_status_sensor(binary_sensor::BinarySensor *sensor) { isee_status_sensor_ = sensor; }
   void set_error_code_sensor(text_sensor::TextSensor *sensor) { error_code_sensor_ = sensor; };
+  void set_thermostat_battery_sensor(text_sensor::TextSensor *sensor) { thermostat_battery_sensor_ = sensor; }
 
   // Select setters
   void set_temperature_source_select(select::Select *select) { temperature_source_select_ = select; };
@@ -98,6 +103,8 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Turns on or off actively sending packets
   void set_active_mode(const bool active) { active_mode_ = active; };
 
+  void set_time_source(time::RealTimeClock *rtc) { time_source = rtc; }
+
  protected:
   void route_packet_(const Packet &packet);
 
@@ -112,8 +119,16 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void process_packet(const StatusGetResponsePacket &packet) override;
   void process_packet(const RunStateGetResponsePacket &packet) override;
   void process_packet(const ErrorStateGetResponsePacket &packet) override;
+  void process_packet(const SettingsSetRequestPacket &packet) override;
   void process_packet(const RemoteTemperatureSetRequestPacket &packet) override;
+  void process_packet(const KumoThermostatSensorStatusPacket &packet) override;
+  void process_packet(const KumoThermostatHelloPacket &packet) override;
+  void process_packet(const KumoThermostatStateSyncPacket &packet) override;
+  void process_packet(const KumoAASetRequestPacket &packet) override;
   void process_packet(const SetResponsePacket &packet) override;
+
+  void handle_kumo_adapter_state_get_request(const GetRequestPacket &packet) override;
+  void handle_kumo_aa_get_request(const GetRequestPacket &packet) override;
 
   void do_publish_();
 
@@ -161,8 +176,12 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
 
   ESPPreferenceObject preferences_;
 
+  // Time Source
+  time::RealTimeClock *time_source = nullptr;
+
   // Internal sensors
   sensor::Sensor *thermostat_temperature_sensor_ = nullptr;
+  sensor::Sensor *thermostat_humidity_sensor_ = nullptr;
   sensor::Sensor *compressor_frequency_sensor_ = nullptr;
   sensor::Sensor *outdoor_temperature_sensor_ = nullptr;
   text_sensor::TextSensor *actual_fan_sensor_ = nullptr;
@@ -172,6 +191,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   binary_sensor::BinarySensor *standby_sensor_ = nullptr;
   binary_sensor::BinarySensor *isee_status_sensor_ = nullptr;
   text_sensor::TextSensor *error_code_sensor_ = nullptr;
+  text_sensor::TextSensor *thermostat_battery_sensor_ = nullptr;
 
   // Selects
   select::Select *temperature_source_select_;
@@ -185,6 +205,9 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
 
   void send_if_active_(const Packet &packet);
   bool active_mode_ = true;
+
+  float last_cool_setpoint_ = NAN;
+  float last_heat_setpoint_ = NAN;
 };
 
 struct MUARTPreferences {

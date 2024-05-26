@@ -78,6 +78,27 @@ void MitsubishiUART::control(const climate::ClimateCall &call) {
   if (call.get_target_temperature().has_value()) {
     target_temperature = call.get_target_temperature().value();
     set_request_packet.set_target_temperature(call.get_target_temperature().value());
+
+    // update our MHK tracking setpoints accordingly
+    switch (mode) {
+      case climate::CLIMATE_MODE_COOL:
+      case climate::CLIMATE_MODE_DRY:
+        this->last_cool_setpoint_ = target_temperature;
+        break;
+      case climate::CLIMATE_MODE_HEAT:
+        this->last_heat_setpoint_ = target_temperature;
+        break;
+      case climate::CLIMATE_MODE_HEAT_COOL:
+        if (this->get_traits().get_supports_two_point_target_temperature()) {
+          this->last_heat_setpoint_ = target_temperature_low;
+          this->last_cool_setpoint_ = target_temperature_high;
+        } else {
+          // this->last_heat_setpoint_ = target_temperature;
+          // this->last_cool_setpoint_ = target_temperature;
+        }
+      default:
+        break;
+    }
   }
 
   // TODO:

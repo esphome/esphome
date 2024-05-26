@@ -54,10 +54,17 @@ void MitsubishiUART::process_packet(const ExtendedConnectResponsePacket &packet)
 
 void MitsubishiUART::process_packet(const GetRequestPacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
-  route_packet_(packet);
-  // These are just requests for information from the thermostat.  For now, nothing to be done
-  // except route them.  In the future, we could use this to inject information for the thermostat
-  // or use a cached value.
+
+  switch (packet.get_requested_command()) {
+    case GetCommand::KUMO_GET_ADAPTER_STATE:
+      this->handle_kumo_adapter_state_get_request(packet);
+      break;
+    case GetCommand::KUMO_AB:
+      this->handle_kumo_aa_get_request(packet);
+      break;
+    default:
+      route_packet_(packet);
+  }
 }
 
 void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
@@ -110,6 +117,18 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
   const float old_target_temperature = target_temperature;
   target_temperature = packet.get_target_temp();
   publish_on_update_ |= (old_target_temperature != target_temperature);
+
+  switch (mode) {
+    case climate::CLIMATE_MODE_COOL:
+    case climate::CLIMATE_MODE_DRY:
+      this->last_cool_setpoint_ = target_temperature;
+      break;
+    case climate::CLIMATE_MODE_HEAT:
+      this->last_heat_setpoint_ = target_temperature;
+      break;
+    default:
+      break;
+  }
 
   // Fan
   static bool fan_changed = false;
@@ -333,6 +352,13 @@ void MitsubishiUART::process_packet(const ErrorStateGetResponsePacket &packet) {
   publish_on_update_ |= (old_error_code != error_code_sensor_->raw_state);
 }
 
+void MitsubishiUART::process_packet(const SettingsSetRequestPacket &packet) {
+  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+
+  // forward this packet as-is; we're just intercepting to log.
+  route_packet_(packet);
+}
+
 void MitsubishiUART::process_packet(const RemoteTemperatureSetRequestPacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
 
@@ -355,11 +381,74 @@ void MitsubishiUART::process_packet(const RemoteTemperatureSetRequestPacket &pac
 
     publish_on_update_ |= (old_thermostat_temp != thermostat_temperature_sensor_->raw_state);
   }
-};
+}
+
+void MitsubishiUART::process_packet(const KumoThermostatSensorStatusPacket &packet) {
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
+
+  if (thermostat_humidity_sensor_ && packet.get_flags() & 0x04) {
+    const float old_humidity = thermostat_humidity_sensor_->raw_state;
+    thermostat_humidity_sensor_->raw_state = packet.get_indoor_humidity_percent();
+    publish_on_update_ |= (old_humidity != thermostat_humidity_sensor_->raw_state);
+  }
+
+  if (thermostat_battery_sensor_ && packet.get_flags() & 0x08) {
+    const auto old_battery = thermostat_battery_sensor_->raw_state;
+    thermostat_battery_sensor_->raw_state = THERMOSTAT_BATTERY_STATE_NAMES[packet.get_thermostat_battery_state()];
+    publish_on_update_ |= (old_battery != thermostat_battery_sensor_->raw_state);
+  }
+
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
+void MitsubishiUART::process_packet(const KumoThermostatHelloPacket &packet) {
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
+
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
+void MitsubishiUART::process_packet(const KumoThermostatStateSyncPacket &packet) {
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
+
+  if (packet.get_flags() & 0x08) this->last_heat_setpoint_ = packet.get_heat_setpoint();
+  if (packet.get_flags() & 0x10) this->last_cool_setpoint_ = packet.get_cool_setpoint();
+
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
+void MitsubishiUART::process_packet(const KumoAASetRequestPacket &packet) {
+  ESP_LOGV(TAG, "Processing inbound KumoAASetRequestPacket: %s", packet.to_string().c_str());
+
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
 void MitsubishiUART::process_packet(const SetResponsePacket &packet) {
   ESP_LOGV(TAG, "Got Set Response packet, success = %s (code = %x)", packet.is_successful() ? "true" : "false",
            packet.get_result_code());
   route_packet_(packet);
+}
+
+// Process incoming data requests (Kumo)
+void MitsubishiUART::handle_kumo_adapter_state_get_request(const GetRequestPacket &packet) {
+  auto response = KumoCloudStateSyncPacket();
+
+  response.set_heat_setpoint(this->last_heat_setpoint_);
+  response.set_cool_setpoint(this->last_cool_setpoint_);
+
+  if (this->time_source != nullptr) {
+    response.set_timestamp(this->time_source->now());
+  } else {
+    ESP_LOGW(TAG, "No time source specified. Cannot provide accurate time!");
+    response.set_timestamp(ESPTime::from_epoch_utc(1704067200)); // 2024-01-01 00:00:00 Z
+  }
+
+  ts_bridge_->send_packet(response);
+}
+
+void MitsubishiUART::handle_kumo_aa_get_request(const GetRequestPacket &packet) {
+  auto response = KumoABGetRequestPacket();
+
+  ts_bridge_->send_packet(response);
 }
 
 }  // namespace mitsubishi_itp
