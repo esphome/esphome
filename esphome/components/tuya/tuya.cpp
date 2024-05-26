@@ -270,8 +270,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     }
     case TuyaCommandType::EXTENDED_SERVICES: {
-      TuyaExtendedServicesCommandType subcommand = (TuyaExtendedServicesCommandType) buffer[0];
-      switch (subcommand) {
+      uint8_t subcommand = buffer[0];
+      switch ((TuyaExtendedServicesCommandType) subcommand) {
         case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
           this->send_command_(
               TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
@@ -289,7 +289,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           break;
         }
         default:
-          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", static_cast<uint8_t>(subcommand));
+          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", subcommand);
           break;
       }
     }
