@@ -230,11 +230,12 @@ std::vector<uint8_t> FyrturMotorComponent::send_command_and_get_response(const s
                                                                          size_t amount_of_data_bytes_to_get,
                                                                          size_t attempts) {
   for (size_t attempt = attempts; attempt > 0; attempt--) {
+    send_command(data);
+
     const std::vector<uint8_t> response = get_response(amount_of_data_bytes_to_get);
     if (response.size() == amount_of_data_bytes_to_get) {
       return response;
     }
-    send_command(data);
   }
 
   const std::vector<uint8_t> empty_response;
