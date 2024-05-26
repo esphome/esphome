@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/light/light_output.h"
-#include <lvgl.h>
+#include "../lvgl_esphome.h"
 
 namespace esphome {
 namespace lvgl {
