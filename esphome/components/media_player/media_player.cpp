@@ -86,6 +86,19 @@ const char *media_player_enqueue_to_string(MediaPlayerEnqueue enqueue) {
   }
 }
 
+const char *media_player_repeat_mode_to_string(MediaPlayerRepeatMode repeat_mode) {
+  switch (repeat_mode) {
+    case MEDIA_PLAYER_REPEAT_ALL:
+      return "all";
+    case MEDIA_PLAYER_REPEAT_OFF:
+      return "off";
+    case MEDIA_PLAYER_REPEAT_ONE:
+      return "one";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void MediaPlayerCall::validate_() {
   if (this->media_url_.has_value()) {
     if (this->command_.has_value()) {

@@ -47,6 +47,13 @@ enum MediaPlayerEnqueue : uint8_t {
 };
 const char *media_player_enqueue_to_string(MediaPlayerEnqueue enqueue);
 
+enum MediaPlayerRepeatMode : uint8_t {
+  MEDIA_PLAYER_REPEAT_ALL = 0,
+  MEDIA_PLAYER_REPEAT_OFF = 1,
+  MEDIA_PLAYER_REPEAT_ONE = 2,
+};
+const char *media_player_repeat_mode_to_string(MediaPlayerRepeatMode repeat_mode);
+
 class MediaPlayer;
 
 class MediaPlayerTraits {
