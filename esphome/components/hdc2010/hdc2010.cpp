@@ -72,11 +72,11 @@ void HDC2010Component::update() {
 
   // Trigger measurement
   uint8_t configContents;
-  read_register(CONFIG, &configContents, 1);
-  configContents |= 0x01;
-  this->write_bytes(CONFIG, &configContents, 1);
 
-  // delayMicroseconds(1000);  // 1ms delay after triggering the sample
+  configContents |= 0x01;
+  this->write_bytes(MEASUREMENT_CONFIG, &configContents, 1);
+
+  delayMicroseconds(1000);  // 1ms delay after triggering the sample
 
   // if (!read_register(HDC2010_CMD_TEMPERATURE_LOW, &tempLow, 1) ||
   //     !read_register(HDC2010_CMD_TEMPERATURE_HIGH, &tempHigh, 1) ||
