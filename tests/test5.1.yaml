@@ -86,6 +86,9 @@ vbus:
   - uart_id: uart_2
 
 binary_sensor:
+  - platform: template
+    id: modem_ready
+
   - platform: gpio
     pin: GPIO0
     id: io0_button
