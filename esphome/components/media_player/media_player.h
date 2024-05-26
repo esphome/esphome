@@ -72,7 +72,7 @@ class MediaPlayerCall {
   MediaPlayerCall &set_command(const std::string &command);
 
   MediaPlayerCall &set_media_url(const std::string &url);
-  MediaPlayerCall &set_media_enqueue_url(const std::string &url);
+  MediaPlayerCall &set_enqueue(const std::string &url);
 
   MediaPlayerCall &set_volume(float volume);
   MediaPlayerCall &set_announcement(bool announce);
@@ -81,7 +81,7 @@ class MediaPlayerCall {
 
   const optional<MediaPlayerCommand> &get_command() const { return command_; }
   const optional<std::string> &get_media_url() const { return media_url_; }
-  const optional<std::string> &get_media_enqueue_url() const { return media_enqueue_url_; }
+  const optional<std::string> &get_enqueue() const { return enqueue_; }
   const optional<float> &get_volume() const { return volume_; }
   const optional<bool> &get_announcement() const { return announcement_; }
 
@@ -90,7 +90,7 @@ class MediaPlayerCall {
   MediaPlayer *const parent_;
   optional<MediaPlayerCommand> command_;
   optional<std::string> media_url_;
-  optional<std::string> media_enqueue_url_;
+  optional<std::string> enqueue_;
   optional<float> volume_;
   optional<bool> announcement_;
 };

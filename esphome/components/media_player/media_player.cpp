@@ -72,9 +72,9 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
 }
 
 void MediaPlayerCall::validate_() {
-  if (this->media_url_.has_value() || this->media_enqueue_url_.has_value()) {
+  if (this->media_url_.has_value()) {
     if (this->command_.has_value()) {
-      ESP_LOGW(TAG, "MediaPlayerCall: Setting both command and (media_url or media_enqueue_url) is not needed.");
+      ESP_LOGW(TAG, "MediaPlayerCall: Setting both command and media_url is not needed.");
       this->command_.reset();
     }
   }
@@ -96,14 +96,14 @@ void MediaPlayerCall::perform() {
   if (this->media_url_.has_value()) {
     ESP_LOGD(TAG, "  Media URL: %s", this->media_url_.value().c_str());
   }
-  if (this->media_enqueue_url_.has_value()) {
-    ESP_LOGD(TAG, "  Media Enqueue URL: %s", this->media_enqueue_url_.value().c_str());
-  }
-  if (this->volume_.has_value()) {
-    ESP_LOGD(TAG, "  Volume: %.2f", this->volume_.value());
+  if (this->enqueue_.has_value()) {
+    ESP_LOGD(TAG, "  Enqueue: %s", this->enqueue_.value().c_str());
   }
   if (this->announcement_.has_value()) {
     ESP_LOGD(TAG, " Announcement: %s", this->announcement_.value() ? "yes" : "no");
+  }
+  if (this->volume_.has_value()) {
+    ESP_LOGD(TAG, "  Volume: %.2f", this->volume_.value());
   }
   this->parent_->control(*this);
 }
@@ -160,8 +160,8 @@ MediaPlayerCall &MediaPlayerCall::set_media_url(const std::string &media_url) {
   return *this;
 }
 
-MediaPlayerCall &MediaPlayerCall::set_media_enqueue_url(const std::string &media_enqueue_url) {
-  this->media_enqueue_url_ = media_enqueue_url;
+MediaPlayerCall &MediaPlayerCall::set_enqueue(const std::string &enqueue) {
+  this->enqueue_ = enqueue;
   return *this;
 }
 
