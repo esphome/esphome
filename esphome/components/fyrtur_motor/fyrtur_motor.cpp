@@ -204,7 +204,6 @@ void FyrturMotorComponent::send_command(const std::vector<uint8_t> &data) {
 
 std::vector<uint8_t> FyrturMotorComponent::get_response(size_t amount_of_data_bytes_to_get) {
   std::vector<uint8_t> response;
-  uint32_t loop_timeout = millis() + DEFAULT_LOOP_TIMEOUT_MS;
   while ((this->available() > 0) && (response.size() != (amount_of_data_bytes_to_get + HEADER_SIZE + CHECKSUM_SIZE))) {
     uint8_t byte;
     this->read_byte(&byte);
