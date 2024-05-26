@@ -39,6 +39,14 @@ enum MediaPlayerCommand : uint8_t {
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
+enum MediaPlayerEnqueue : uint8_t {
+  MEDIA_PLAYER_ENQUEUE_ADD = 0,
+  MEDIA_PLAYER_ENQUEUE_NEXT = 1,
+  MEDIA_PLAYER_ENQUEUE_PLAY = 2,
+  MEDIA_PLAYER_ENQUEUE_REPLACE = 3,
+};
+const char *media_player_enqueue_to_string(MediaPlayerEnqueue enqueue);
+
 class MediaPlayer;
 
 class MediaPlayerTraits {
