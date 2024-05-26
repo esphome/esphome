@@ -11,7 +11,7 @@ CODEOWNERS = ["@esphome/core"]
 def AUTO_LOAD():
     if CORE.is_nrf52:
         return []
-    return ["md5"]
+    return ["md5", "safe_mode"]
 
 
 IS_PLATFORM_COMPONENT = True
@@ -82,7 +82,7 @@ BASE_OTA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(51.0)
+@coroutine_with_priority(54.0)
 async def to_code(config):
     cg.add_define("USE_OTA")
 

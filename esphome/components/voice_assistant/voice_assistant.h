@@ -151,6 +151,10 @@ class VoiceAssistant : public Component {
   void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
 
  protected:
+  bool allocate_buffers_();
+  void clear_buffers_();
+  void deallocate_buffers_();
+
   int read_microphone_();
   void set_state_(State state);
   void set_state_(State state, State desired_state);

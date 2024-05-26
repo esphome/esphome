@@ -1,15 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.components.esphome.ota import ESPHomeOTAComponent
 from esphome.const import (
-    CONF_ESPHOME,
+    CONF_SAFE_MODE,
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
-from .. import safe_mode_ns
+from .. import safe_mode_ns, SafeModeComponent
 
-DEPENDENCIES = ["ota.esphome"]
+DEPENDENCIES = ["safe_mode"]
 
 SafeModeSwitch = safe_mode_ns.class_("SafeModeSwitch", switch.Switch, cg.Component)
 
@@ -20,7 +19,7 @@ CONFIG_SCHEMA = (
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RESTART_ALERT,
     )
-    .extend({cv.GenerateID(CONF_ESPHOME): cv.use_id(ESPHomeOTAComponent)})
+    .extend({cv.GenerateID(CONF_SAFE_MODE): cv.use_id(SafeModeComponent)})
     .extend(cv.COMPONENT_SCHEMA)
 )
 
@@ -29,5 +28,5 @@ async def to_code(config):
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
 
-    ota = await cg.get_variable(config[CONF_ESPHOME])
-    cg.add(var.set_ota(ota))
+    safe_mode_component = await cg.get_variable(config[CONF_SAFE_MODE])
+    cg.add(var.set_safe_mode(safe_mode_component))
