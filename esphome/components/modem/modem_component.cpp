@@ -211,7 +211,7 @@ void ModemComponent::start_connect_() {
   for (const auto &cmd : this->init_at_commands_) {
     std::string result;
     command_result err = this->dce->at(cmd.c_str(), result, 1000);
-    delay(100);
+    delay(100);  // NOLINT
     ESP_LOGI(TAG, "Init AT command: %s (status %d) -> %s", cmd.c_str(), (int) err, result.c_str());
   }
 }
