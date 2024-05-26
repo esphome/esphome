@@ -1,6 +1,5 @@
 #pragma once
 
-#if LVGL_USES_LIGHT
 #include "esphome/core/component.h"
 #include "esphome/components/light/light_output.h"
 #include <lvgl.h>
@@ -41,5 +40,3 @@ class LVLight : public light::LightOutput {
 
 }  // namespace lvgl
 }  // namespace esphome
-
-#endif

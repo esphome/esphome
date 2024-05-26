@@ -51,7 +51,7 @@ from .codegen import (
     update_to_code,
 )
 from .dropdown import dropdown_spec
-from .helpers import get_line_marks, join_lines
+from .helpers import get_line_marks, join_lines, lvgl_components_required
 from .img import img_spec
 from .keyboard import keyboard_spec
 from .label import label_spec
@@ -473,7 +473,7 @@ def warning_checks(config):
 async def to_code(config):
     warning_checks(config)
     cg.add_library("lvgl/lvgl", "8.4.0")
-    add_define("USE_LVGL", "1")
+    CORE.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     add_define("LV_CONF_SKIP", "1")
     add_define("_LV_KCONFIG_PRESENT")
@@ -541,7 +541,7 @@ async def to_code(config):
         cgen("lv_group_set_default(lv_group_create())")
     init = []
     if helpers.esphome_fonts_used:
-        add_define("USE_FONT", "1")
+        lvgl_components_required.add("font")
         for font in helpers.esphome_fonts_used:
             getter = cg.RawExpression(f"(new lvgl::FontEngine({font}))->get_lv_font()")
             cg.Pvariable(
@@ -592,11 +592,11 @@ async def to_code(config):
     init.extend(await disp_update("lv_disp", config))
     await add_init_lambda(lv_component, init)
     await generate_triggers(lv_component)
+    for comp in helpers.lvgl_components_required:
+        CORE.add_define(f"LVGL_USES_{comp.upper()}")
+    # These must be build flags, since the lvgl code does not read our defines.h
     for use in helpers.lv_uses:
         CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
-    for comp in helpers.lvgl_components_required:
-        add_define(f"LVGL_USES_{comp.upper()}")
-    # These must be build flags, since the lvgl code does not read our defines.h
     for macro, value in lv_defines.items():
         cg.add_build_flag(f"-D\\'{macro}\\'=\\'{value}\\'")
 

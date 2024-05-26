@@ -5,7 +5,7 @@ from esphome.components.color import ColorStruct
 from esphome.components.font import Font
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
-from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_VALUE
+from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_VALUE, CONF_COLOR
 from esphome.core import HexInt
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import (
@@ -21,7 +21,6 @@ from .helpers import (
     lv_fonts_used,
     esphome_fonts_used,
     lvgl_components_required,
-    add_lv_use,
 )
 from .types import LValidator
 
@@ -31,7 +30,6 @@ from .types import LValidator
 
 def requires_component(comp):
     def validator(value):
-        lvgl_components_required.add(comp)
         return cv.requires_component(comp)(value)
 
     return validator
@@ -52,7 +50,7 @@ def color_retmapper(value):
     if isinstance(value, int):
         hexval = HexInt(value)
         return f"lv_color_hex({hexval})"
-    lvgl_components_required.add("color")
+    lvgl_components_required.add(CONF_COLOR)
     return f"lv_color_from({value})"
 
 
@@ -68,10 +66,8 @@ def font(value):
         return LV_FONTS
     if isinstance(value, str) and value.lower() in LV_FONTS:
         return lv_builtin_font(value)
-    add_lv_use("FONT")
     fontval = cv.use_id(Font)(value)
     esphome_fonts_used.add(fontval)
-    lvgl_components_required.add("font")
     return cv.requires_component("font")(f"{fontval}_as_lv_font_")
 
 

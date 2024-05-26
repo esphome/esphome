@@ -1,6 +1,5 @@
 #pragma once
 
-#if LVGL_USES_NUMBER
 #include "esphome/components/number/number.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -32,5 +31,3 @@ class LVGLNumber : public number::Number {
 
 }  // namespace lvgl
 }  // namespace esphome
-
-#endif

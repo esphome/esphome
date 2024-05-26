@@ -1,6 +1,5 @@
 #pragma once
 
-#if LVGL_USES_SELECT
 #include "esphome/components/select/select.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -61,4 +60,3 @@ class LVGLSelect : public select::Select {
 
 }  // namespace lvgl
 }  // namespace esphome
-#endif

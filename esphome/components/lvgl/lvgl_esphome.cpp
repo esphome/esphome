@@ -1,3 +1,4 @@
+#include "esphome/core/defines.h"
 #ifdef USE_LVGL
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"

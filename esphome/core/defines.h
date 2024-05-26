@@ -38,6 +38,9 @@
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LVGL
+#define LVGL_USES_COLOR
+#define LVGL_USES_FONT
+#define LVGL_USES_IMAGE
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT

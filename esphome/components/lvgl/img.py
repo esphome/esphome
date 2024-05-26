@@ -12,12 +12,13 @@ from .defines import (
     CONF_PIVOT_Y,
     CONF_ZOOM,
 )
-from .lv_validation import size, angle, zoom, lv_bool
+from .helpers import lvgl_components_required
+from .lv_validation import size, angle, zoom, lv_bool, requires_component
 from .types import lv_img_t
 from .widget import Widget, WidgetType
 
 IMG_SCHEMA = {
-    cv.Required(CONF_SRC): cv.use_id(Image_),
+    cv.Required(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
     cv.Optional(CONF_PIVOT_X, default="50%"): size,
     cv.Optional(CONF_PIVOT_Y, default="50%"): size,
     cv.Optional(CONF_ANGLE): angle,
@@ -38,6 +39,7 @@ class ImgType(WidgetType):
         return lv_img_t
 
     async def to_code(self, w: Widget, config):
+        lvgl_components_required.add("image")
         init = []
         if src := config.get(CONF_SRC):
             init.extend(w.set_property(CONF_SRC, f"lv_img_from({src})"))

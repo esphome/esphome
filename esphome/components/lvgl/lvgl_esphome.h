@@ -21,10 +21,10 @@
 #include <vector>
 #include <map>
 
-#if LVGL_USES_IMAGE
+#ifdef LVGL_USES_IMAGE
 #include "esphome/components/image/image.h"
 #endif
-#ifdef USE_FONT
+#ifdef LVGL_USES_FONT
 #include "esphome/components/font/font.h"
 #endif
 #if LV_USE_TOUCHSCREEN
@@ -149,7 +149,7 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
   std::function<void(Ts...)> lamb_;
 };
 
-#ifdef USE_FONT
+#ifdef LVGL_USES_FONT
 class FontEngine {
  public:
   FontEngine(font::Font *esp_font) : font_(esp_font) {
@@ -230,9 +230,9 @@ class FontEngine {
     return this->last_data_;
   }
 };
-#endif  // USE_FONT
+#endif  // LVGL_USES_FONT
 
-#if LVGL_USES_IMAGE
+#ifdef LVGL_USES_IMAGE
 static lv_img_dsc_t *lv_img_from(image::Image *src) {
   auto img = new lv_img_dsc_t();  // NOLINT
   img->header.always_zero = 0;

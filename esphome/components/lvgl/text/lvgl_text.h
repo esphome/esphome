@@ -1,6 +1,5 @@
 #pragma once
 
-#if LVGL_USES_TEXT
 #include "esphome/components/text/text.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -32,5 +31,3 @@ class LVGLText : public text::Text {
 
 }  // namespace lvgl
 }  // namespace esphome
-
-#endif
