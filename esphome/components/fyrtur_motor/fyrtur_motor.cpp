@@ -130,7 +130,7 @@ void FyrturMotorComponent::get_status() {
   }
 
   float battery_level = response[0];
-  float battery_voltage = response[1] / 29.7;
+  float battery_voltage = response[1] / 29.6;
   uint8_t speed = response[2];
   uint8_t position = response[3];
 
