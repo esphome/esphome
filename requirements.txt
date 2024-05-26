@@ -29,6 +29,5 @@ pyparsing >= 3.0
 argcomplete>=2.0.0
 
 # for mcumgr
-bleak==0.21.1
-cbor2==5.6.1
 rich==13.7.0
+smpclient==3.0.1

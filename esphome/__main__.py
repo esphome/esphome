@@ -50,11 +50,11 @@ from esphome.util import (
 )
 from esphome.log import color, setup_log, Fore
 from .zephyr_tools import (
+    logger_scan,
     logger_connect,
+    smpmgr_scan,
     smpmgr_upload,
     is_mac_address,
-    logger_scan,
-    smpmgr_scan,
 )
 
 _LOGGER = logging.getLogger(__name__)

@@ -118,11 +118,6 @@ def zephyr_to_code(conf):
         "pre_build.py",
         os.path.join(os.path.dirname(__file__), "pre_build.py.script"),
     )
-    add_extra_script(
-        "post",
-        "post_build.py",
-        os.path.join(os.path.dirname(__file__), "post_build.py.script"),
-    )
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
