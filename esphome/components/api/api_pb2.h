@@ -1322,8 +1322,8 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   std::string media_url{};
   bool has_announcement{false};
   bool announcement{false};
-  bool has_media_enqueue_url{false};
-  std::string media_enqueue_url{};
+  bool has_enqueue{false};
+  std::string enqueue{"play"};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

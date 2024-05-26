@@ -5306,7 +5306,7 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       return true;
     }
     case 10: {
-      this->has_media_enqueue_url = value.as_bool();
+      this->has_enqueue = value.as_bool();
       return true;
     }
     default:
@@ -5320,7 +5320,7 @@ bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDeli
       return true;
     }
     case 11: {
-      this->media_enqueue_url = value.as_string();
+      this->enqueue = value.as_string();
       return true;
     }
     default:
@@ -5351,8 +5351,8 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(7, this->media_url);
   buffer.encode_bool(8, this->has_announcement);
   buffer.encode_bool(9, this->announcement);
-  buffer.encode_bool(10, this->has_media_enqueue_url);
-  buffer.encode_string(11, this->media_enqueue_url);
+  buffer.encode_bool(10, this->has_enqueue);
+  buffer.encode_string(11, this->enqueue);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerCommandRequest::dump_to(std::string &out) const {
@@ -5397,12 +5397,12 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 
-  out.append("  has_media_enqueue_url: ");
-  out.append(YESNO(this->has_media_enqueue_url));
+  out.append("  has_enqueue: ");
+  out.append(YESNO(this->has_enqueue));
   out.append("\n");
 
-  out.append("  media_enqueue_url: ");
-  out.append("'").append(this->media_enqueue_url).append("'");
+  out.append("  enqueue: ");
+  out.append("'").append(this->enqueue).append("'");
   out.append("\n");
 }
 #endif

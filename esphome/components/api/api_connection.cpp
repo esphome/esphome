@@ -1049,8 +1049,8 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   if (msg.has_announcement) {
     call.set_announcement(msg.announcement);
   }
-  if (msg.has_media_enqueue_url) {
-    call.set_media_enqueue_url(msg.media_enqueue_url);
+  if (msg.has_enqueue) {
+    call.set_enqueue(msg.enqueue);
   }
   call.perform();
 }
