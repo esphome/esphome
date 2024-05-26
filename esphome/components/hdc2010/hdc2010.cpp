@@ -68,23 +68,13 @@ void HDC2010Component::dump_config() {
 }
 
 void HDC2010Component::update() {
-  // uint8_t tempLow, tempHigh, humidLow, humidHigh;
-
   // Trigger measurement
   uint8_t configContents;
-
+  read_register(CONFIG, &configContents, 1);
   configContents |= 0x01;
   this->write_bytes(MEASUREMENT_CONFIG, &configContents, 1);
 
   delayMicroseconds(1000);  // 1ms delay after triggering the sample
-
-  // if (!read_register(HDC2010_CMD_TEMPERATURE_LOW, &tempLow, 1) ||
-  //     !read_register(HDC2010_CMD_TEMPERATURE_HIGH, &tempHigh, 1) ||
-  //     !read_register(HDC2010_CMD_HUMIDITY_LOW, &humidLow, 1) ||
-  //     !read_register(HDC2010_CMD_HUMIDITY_HIGH, &humidHigh, 1)) {
-  //   this->status_set_warning();
-  //   return;
-  // }
 
   float temp = readTemp();
   float humidity = readHumidity();
