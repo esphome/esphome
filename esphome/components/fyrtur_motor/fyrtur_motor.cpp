@@ -10,7 +10,7 @@ namespace fyrtur_motor {
 static const char *const TAG = "fyrtur_motor";
 
 static const size_t DEFAULT_ATTEMPTS_COUNT = 1;
-static const size_t DEFAULT_LOOP_TIMEOUT_MS = 1000;
+static const size_t DEFAULT_LOOP_TIMEOUT_MS = 20;
 
 static const size_t CHECKSUM_SIZE = 1;
 static const size_t HEADER_SIZE = 3;
@@ -130,7 +130,7 @@ void FyrturMotorComponent::get_status() {
   }
 
   float battery_level = response[0];
-  float battery_voltage = response[1] / 31.0;
+  float battery_voltage = response[1] / 30.0;
   uint8_t speed = response[2];
   uint8_t position = response[3];
 
@@ -236,10 +236,10 @@ std::vector<uint8_t> FyrturMotorComponent::send_command_and_get_response(const s
                                                                          size_t attempts) {
   for (size_t attempt = attempts; attempt > 0; attempt--) {
     // Clear the RX buffer before sending anything
-    while (this->available() > 0) {
-      ESP_LOGE(TAG, "Cleared byte");
-      this->read();
-    }
+    // while (this->available() > 0) {
+    //   ESP_LOGE(TAG, "Cleared byte");
+    //   this->read();
+    // }
 
     send_command(data);
     const std::vector<uint8_t> response = get_response(amount_of_data_bytes_to_get);
