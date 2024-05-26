@@ -34,6 +34,7 @@ void APDS9306::setup() {
   ESP_LOGD(TAG, "TEST LOGD MESSAGE");
   ESP_LOGV(TAG, "TEST LOGV MESSAGE");
   ESP_LOGVV(TAG, "TEST LOGVV MESSAGE");
+  this->setup_was_run_ = 1;
 
   uint8_t id;
   if (!this->read_byte(APDS9306_REG_PART_ID, &id)) {  // Part ID register
@@ -94,6 +95,8 @@ void APDS9306::dump_config() {
         break;
     }
   }
+
+  this->setup_was_run_? ESP_LOGCONFIG(TAG, "SETUP RAN") : ESP_LOGCONFIG(TAG, "SETUP DID NOT RUN");
 
   ESP_LOGCONFIG(TAG, "  Gain: %d", gain_val_);
   ESP_LOGCONFIG(TAG, "  Measurement rate: %dms", rate_val_);
