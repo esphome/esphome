@@ -67,31 +67,25 @@ void APDS9306::setup() {
     return;
   }
 
-  ESP_LOGW(TAG, "SOFTWARE RESET");
-
   // Trigger software reset
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x10);
   // Put in standby mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
-
-  ESP_LOGW(TAG, "ALS MEAS RATE AND RES");
 
   // ALS resolution and measurement, see datasheet of init.py for options
   uint8_t als_meas_rate = ((this->bit_width_ & 0x07) << 4) | (this->measurement_rate_ & 0x07);
 
   APDS9306_WRITE_BYTE(APDS9306_ALS_MEAS_RATE, als_meas_rate);
 
-  ESP_LOGW(TAG, "ALS GAIN");
-
   // ALS gain, see datasheet or init.py for options
   uint8_t als_gain = (this->gain_ & 0x07);
 
   APDS9306_WRITE_BYTE(APDS9306_ALS_GAIN, als_gain);
 
-  ESP_LOGW(TAG, "ACTIVE MODE");
-
   // Set to Active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
+
+  ESP_LOGD(TAG, "Confirm setup has run");
 }
 
 void APDS9306::dump_config() {
