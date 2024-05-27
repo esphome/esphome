@@ -12,5 +12,5 @@ void LD2415HSensor::dump_config() {
   LOG_SENSOR("  ", "Speed", this->speed_sensor_);
 }
 
-}  // namespace ld2415H
+}  // namespace ld2415h
 }  // namespace esphome
