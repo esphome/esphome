@@ -98,6 +98,9 @@ void Rtttl::play(std::string rtttl) {
   this->note_duration_ = 1;
 
 #ifdef USE_SPEAKER
+  if (this->speaker_->is_stopped()) {
+    this->speaker_->start();
+  }
   this->samples_sent_ = 0;
   this->samples_count_ = 0;
 #endif
@@ -174,6 +177,9 @@ void Rtttl::loop() {
     }
 #endif
     ESP_LOGD(TAG, "Playback finished");
+#ifdef USE_SPEAKER
+    this->speaker_->finish();
+#endif
     this->on_finished_playback_callback_.call();
     return;
   }
@@ -213,6 +219,7 @@ void Rtttl::loop() {
     case 'a':
       note = 10;
       break;
+    case 'h':
     case 'b':
       note = 12;
       break;
@@ -244,7 +251,8 @@ void Rtttl::loop() {
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
-      ESP_LOGE(TAG, "Note out of valid range");
+      ESP_LOGE(TAG, "Note out of valid range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
+               (int) sizeof(NOTES));
       this->note_duration_ = 0;
       return;
     }
