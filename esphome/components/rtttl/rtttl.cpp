@@ -314,6 +314,13 @@ void Rtttl::finish_() {
 #endif
   ESP_LOGD(TAG, "Playback finished");
 #ifdef USE_SPEAKER
+  SpeakerSample sample[2];
+  sample[0].left = 0;
+  sample[0].right = 0;
+  sample[1].left = 0;
+  sample[1].right = 0;
+  this->speaker_->play((uint8_t *) (&sample), 4);
+
   this->speaker_->finish();
 #endif
   this->on_finished_playback_callback_.call();
