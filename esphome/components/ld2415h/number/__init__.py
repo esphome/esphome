@@ -3,6 +3,7 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
+    CONF_SENSITIVITY,
     UNIT_DEGREES,
     UNIT_EMPTY,
     UNIT_KILOMETER_PER_HOUR,
@@ -18,7 +19,6 @@ ICON_VIBRATE = "mdi:vibrate"
 
 CONF_MIN_SPEED_THRESHOLD = "min_speed_threshold"
 CONF_COMPENSATION_ANGLE = "compensation_angle"
-CONF_SENSITIVITY = "sensitivity"
 CONF_VIBRATION_CORRECTION = "vibration_correction"
 CONF_RELAY_TRIGGER_DURATION = "relay_trigger_duration"
 CONF_RELAY_TRIGGER_SPEED = "relay_trigger_speed"
