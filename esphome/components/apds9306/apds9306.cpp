@@ -5,7 +5,7 @@
 namespace esphome {
 namespace apds9306 {
 
-static const char* const TAG = "apds9306";
+static const char *const TAG = "apds9306";
 
 enum { // APDS9306 registers
   APDS9306_MAIN_CTRL = 0x00,
@@ -16,14 +16,14 @@ enum { // APDS9306 registers
   APDS9306_CLEAR_DATA_0 = 0x0A, // LSB
   APDS9306_CLEAR_DATA_1 = 0x0B,
   APDS9306_CLEAR_DATA_2 = 0x0C, // MSB
-  APDS9306_ALS_DATA_0 = 0x0D,   // LSB
+  APDS9306_ALS_DATA_0 = 0x0D, // LSB
   APDS9306_ALS_DATA_1 = 0x0E,
-  APDS9306_ALS_DATA_2 = 0x0F,   // MSB
+  APDS9306_ALS_DATA_2 = 0x0F, // MSB
   APDS9306_INT_CFG = 0x19,
   APDS9306_INT_PERSISTENCE = 0x1A,
-  APDS9306_ALS_THRES_UP_0 = 0x21,   // LSB
+  APDS9306_ALS_THRES_UP_0 = 0x21, // LSB
   APDS9306_ALS_THRES_UP_1 = 0x22,
-  APDS9306_ALS_THRES_UP_2 = 0x23,   // MSB
+  APDS9306_ALS_THRES_UP_2 = 0x23, // MSB
   APDS9306_ALS_THRES_LOW_0 = 0x24,  // LSB
   APDS9306_ALS_THRES_LOW_1 = 0x25,
   APDS9306_ALS_THRES_LOW_2 = 0x26,  // MSB
@@ -125,7 +125,7 @@ void APDS9306::update() {
 
   this->status_clear_warning();
 
-  if (!(status &= 0b00001000)) // No new data
+  if (!(status &= 0b00001000))  // No new data
     return;
 
   // Conversions
