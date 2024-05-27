@@ -52,6 +52,7 @@ enum { // APDS9306 registers
 
 void APDS9306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
+  ESP_LOGE(TAG, "SETUP RAN");
 
   uint8_t id;
   if (!this->read_byte(APDS9306_PART_ID, &id)) {  // Part ID register
