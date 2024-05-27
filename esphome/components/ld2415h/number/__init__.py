@@ -23,12 +23,12 @@ CONF_VIBRATION_CORRECTION = "vibration_correction"
 CONF_RELAY_TRIGGER_DURATION = "relay_trigger_duration"
 CONF_RELAY_TRIGGER_SPEED = "relay_trigger_speed"
 
-MinSpeedThresholdNumber    = ld2415h_ns.class_("MinSpeedThresholdNumber"   , number.Number)
-CompensationAngleNumber    = ld2415h_ns.class_("CompensationAngleNumber"   , number.Number)
-SensitivityNumber          = ld2415h_ns.class_("SensitivityNumber"         , number.Number)
-VibrationCorrectionNumber  = ld2415h_ns.class_("VibrationCorrectionNumber" , number.Number)
+MinSpeedThresholdNumber = ld2415h_ns.class_("MinSpeedThresholdNumber"   , number.Number)
+CompensationAngleNumber = ld2415h_ns.class_("CompensationAngleNumber"   , number.Number)
+SensitivityNumber = ld2415h_ns.class_("SensitivityNumber"         , number.Number)
+VibrationCorrectionNumber = ld2415h_ns.class_("VibrationCorrectionNumber" , number.Number)
 RelayTriggerDurationNumber = ld2415h_ns.class_("RelayTriggerDurationNumber", number.Number)
-RelayTriggerSpeedNumber    = ld2415h_ns.class_("RelayTriggerSpeedNumber"   , number.Number)
+RelayTriggerSpeedNumber = ld2415h_ns.class_("RelayTriggerSpeedNumber"   , number.Number)
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2415H_ID): cv.use_id(LD2415HComponent),

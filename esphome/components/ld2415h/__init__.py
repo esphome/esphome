@@ -18,7 +18,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LD2415HComponent),
-        }   
+        }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
@@ -31,6 +31,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     parity="NONE",
     stop_bits=1,
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
