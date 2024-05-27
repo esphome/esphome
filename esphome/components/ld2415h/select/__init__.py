@@ -1,10 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG
+from esphome.const import ENTITY_CATEGORY_CONFIG, CONF_SAMPLE_RATE
 from .. import CONF_LD2415H_ID, LD2415HComponent, ld2415h_ns
 
-CONF_SAMPLE_RATE = "sample_rate"
 CONF_SAMPLE_RATE_SELECTS = [
     "~22 fps",
     "~11 fps",
