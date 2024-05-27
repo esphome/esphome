@@ -66,28 +66,16 @@ void APDS9306::setup() {
     return;
   }
 
-  // Trigger software reset
+  // Trigger software reset and put in standby mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x10);
-  // Put in standby mode
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
 
-  uint8_t als_meas_rate = 0;
-  ESP_LOGV(TAG, "Reading ALS_MEAS_RATE");
-  APDS9306_ERROR_CHECK(this->read_byte(APDS9306_ALS_MEAS_RATE, &als_meas_rate), "Failed to obtain current measurement rate");
-  als_meas_rate &= 0x77;
-  // ALS resolution, see datasheet or init.py for options
-  als_meas_rate |= (this->bit_width_ & 0b111) << 4;
-  // ALS measurement rate, see datasheet or init.py for options
-  als_meas_rate |= (this->measurement_rate_ & 0b111);
+  // ALS resolution and measurement, see datasheet of init.py for options
+  uint8_t als_meas_rate = ((this->bit_width_ & 0x07) << 4) | (this->measurement_rate_ & 0x07);
 
   APDS9306_WRITE_BYTE(APDS9306_ALS_MEAS_RATE, als_meas_rate);
 
-  uint8_t als_gain = 0;
-  ESP_LOGV(TAG, "Reading ALS_GAIN");
-  APDS9306_ERROR_CHECK(this->read_byte(APDS9306_ALS_GAIN, &als_gain), "Failed to obtain current gain");
-  als_gain &= 0x07;
   // ALS gain, see datasheet or init.py for options
-  als_gain |= (this->gain_ & 0b111);
+  uint8_t als_gain = (this->gain_ & 0x07);
 
   APDS9306_WRITE_BYTE(APDS9306_ALS_GAIN, als_gain);
 
