@@ -7,7 +7,7 @@ namespace apds9306 {
 
 static const char *const TAG = "apds9306";
 
-enum { // APDS9306 registers
+enum {  // APDS9306 registers
   APDS9306_MAIN_CTRL = 0x00,
   APDS9306_ALS_MEAS_RATE = 0x04,
   APDS9306_ALS_GAIN = 0x05,
