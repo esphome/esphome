@@ -176,7 +176,7 @@ void CC1101::setup() {
 void CC1101::update() {
   if (this->rssi_sensor_ != nullptr) {
     int32_t rssi = this->get_rssi_();
-    ESP_LOGV(TAG, "rssi = %li", rssi);
+    ESP_LOGV(TAG, "rssi = %d", rssi);
     if (rssi != this->last_rssi_) {
       this->rssi_sensor_->publish_state(rssi);
       this->last_rssi_ = rssi;
@@ -185,7 +185,7 @@ void CC1101::update() {
 
   if (this->lqi_sensor_ != nullptr) {
     int32_t lqi = this->get_lqi_() & 0x7f;  // msb = CRC ok or not set
-    ESP_LOGV(TAG, "lqi = %li", lqi);
+    ESP_LOGV(TAG, "lqi = %d", lqi);
     if (lqi != this->last_lqi_) {
       this->lqi_sensor_->publish_state(lqi);
       this->last_lqi_ = lqi;
@@ -203,11 +203,11 @@ void CC1101::update() {
 }
 
 void CC1101::dump_config() {
-  ESP_LOGCONFIG(TAG, "CC1101 partnum %02X version %02X:", this->partnum_, this->version_);
+  ESP_LOGCONFIG(TAG, "CC1101 partnum %02x version %02x:", this->partnum_, this->version_);
   LOG_PIN("  CC1101 CS Pin: ", this->cs_);
   LOG_PIN("  CC1101 GDO0: ", this->gdo0_);
-  ESP_LOGCONFIG(TAG, "  CC1101 Bandwith: %lu KHz", this->bandwidth_);
-  ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %lu KHz", this->frequency_);
+  ESP_LOGCONFIG(TAG, "  CC1101 Bandwith: %d KHz", this->bandwidth_);
+  ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %d KHz", this->frequency_);
   LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
   LOG_SENSOR("  ", "LQI", this->lqi_sensor_);
   LOG_SENSOR("  ", "Temperature sensor", this->temperature_sensor_);
@@ -223,7 +223,7 @@ bool CC1101::reset_() {
   this->partnum_ = this->read_status_register_(CC1101_PARTNUM);
   this->version_ = this->read_status_register_(CC1101_VERSION);
 
-  ESP_LOGI(TAG, "CC1101 found with partnum: %02X and version: %02X", this->partnum_, this->version_);
+  ESP_LOGI(TAG, "CC1101 found with partnum: %02x and version: %02x", this->partnum_, this->version_);
 
   return this->version_ > 0;
 }
@@ -517,7 +517,7 @@ void CC1101::set_pa_(int8_t pa) {
     }
     this->last_pa_ = 4;
   } else {
-    ESP_LOGE(TAG, "CC1101 set_pa(%i) frequency out of range: %lu", pa, this->frequency_);
+    ESP_LOGE(TAG, "CC1101 set_pa(%d) frequency out of range: %d", pa, this->frequency_);
     return;
   }
 
@@ -675,7 +675,7 @@ void CC1101::set_state_(uint8_t state) {
     this->set_state_(CC1101_SIDLE);
   }
 
-  ESP_LOGV(TAG, "set_state_(0x%02X)", state);
+  ESP_LOGV(TAG, "set_state_(0x%02x)", state);
 
   this->trxstate_ = state;
 
@@ -721,7 +721,7 @@ bool CC1101::wait_state_(uint8_t state) {
   }
 
   if (timeout < TIMEOUT_LIMIT) {
-    ESP_LOGW(TAG, "wait_state_(0x%02X) timeout = %u/%u", state, timeout, TIMEOUT_LIMIT);
+    ESP_LOGW(TAG, "wait_state_(0x%02x) timeout = %d/%d", state, timeout, TIMEOUT_LIMIT);
     delayMicroseconds(100);
   }
 
