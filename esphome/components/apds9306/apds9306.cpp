@@ -66,8 +66,10 @@ void APDS9306::setup() {
     return;
   }
 
-  // Trigger software reset and put in standby mode
+  // Trigger software reset
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x10);
+  // Put in standby mode
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
 
   // ALS resolution and measurement, see datasheet of init.py for options
   uint8_t als_meas_rate = ((this->bit_width_ & 0x07) << 4) | (this->measurement_rate_ & 0x07);
@@ -78,9 +80,6 @@ void APDS9306::setup() {
   uint8_t als_gain = (this->gain_ & 0x07);
 
   APDS9306_WRITE_BYTE(APDS9306_ALS_GAIN, als_gain);
-
-  // Set to active mode
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 }
 
 void APDS9306::dump_config() {
@@ -109,30 +108,22 @@ void APDS9306::dump_config() {
 }
 
 void APDS9306::update() {
-  uint8_t status;
-  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
-
-  this->status_clear_warning();
-
-  if (!(status &= 0b00001000))  // No new data
-    return;
-
   // Conversions
   switch (this->gain_) {
     case 0:
-      this->gain_val_ = 1;
+      this->gain_val_ = 1.0f;
       break;
     case 1:
-      this->gain_val_ = 3;
+      this->gain_val_ = 3.0f;
       break;
     case 2:
-      this->gain_val_ = 6;
+      this->gain_val_ = 6.0f;
       break;
     case 3:
-      this->gain_val_ = 9;
+      this->gain_val_ = 9.0f;
       break;
     case 4:
-      this->gain_val_ = 18;
+      this->gain_val_ = 18.0f;
       break;
   }
 
@@ -178,12 +169,32 @@ void APDS9306::update() {
       break;
   }
 
+  // Put in Active mode and wait for new measurement
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
+  delay(this->rate_val_);
+
+  uint8_t status;
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
+
+  this->status_clear_warning();
+
+  int attempts = 0;
+  while (!(status &= 0b00001000) && attempts < 10) {  // No new data
+    delay(20);
+    attempts ++;
+  }
+
+  // Put in standby mode
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
+
+  if (attempts >= 10) ESP_LOGW(TAG, "Did not get new data after 10 attempts");
+
   uint8_t als_data[3];
-  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_CLEAR_DATA_0, als_data, 3), "Reading ALS data has failed.");
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_ALS_DATA_0, als_data, 3), "Reading ALS data has failed.");
 
   uint32_t light_level = encode_uint24(als_data[2], als_data[1], als_data[0]);
 
-  float lux = ((float) light_level / this->gain_val_) * (100.0f / this->rate_val_);
+  float lux = (light_level / this->gain_val_) * (100.0f / this->rate_val_);
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx from", lux);
   this->publish_state(lux);

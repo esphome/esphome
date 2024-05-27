@@ -25,12 +25,11 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   } error_code_{NONE};
 
   uint8_t bit_width_;
-  uint8_t bit_width_val_;
+  uint16_t bit_width_val_;
   uint8_t measurement_rate_;
   uint16_t rate_val_;
   uint8_t gain_;
-  uint8_t gain_val_;
-  uint8_t setup_was_run_ = 0;
+  float gain_val_;
 };
 
 }  // namespace apds9306
