@@ -230,6 +230,7 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
 }
 
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
+  ESP_LOGD(TAG, "Event received: %d", msg.request_type);
   switch (msg.request_type) {
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
