@@ -176,7 +176,7 @@ void CC1101::setup() {
 void CC1101::update() {
   if (this->rssi_sensor_ != nullptr) {
     int32_t rssi = this->get_rssi_();
-    ESP_LOGV(TAG, "rssi = %li", rssi);
+    ESP_LOGV(TAG, "rssi = %i", rssi);
     if (rssi != this->last_rssi_) {
       this->rssi_sensor_->publish_state(rssi);
       this->last_rssi_ = rssi;
@@ -185,7 +185,7 @@ void CC1101::update() {
 
   if (this->lqi_sensor_ != nullptr) {
     int32_t lqi = this->get_lqi_() & 0x7f;  // msb = CRC ok or not set
-    ESP_LOGV(TAG, "lqi = %li", lqi);
+    ESP_LOGV(TAG, "lqi = %i", lqi);
     if (lqi != this->last_lqi_) {
       this->lqi_sensor_->publish_state(lqi);
       this->last_lqi_ = lqi;
@@ -206,8 +206,8 @@ void CC1101::dump_config() {
   ESP_LOGCONFIG(TAG, "CC1101 partnum %02X version %02X:", this->partnum_, this->version_);
   LOG_PIN("  CC1101 CS Pin: ", this->cs_);
   LOG_PIN("  CC1101 GDO0: ", this->gdo0_);
-  ESP_LOGCONFIG(TAG, "  CC1101 Bandwith: %lu KHz", this->bandwidth_);
-  ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %lu KHz", this->frequency_);
+  ESP_LOGCONFIG(TAG, "  CC1101 Bandwith: %u KHz", this->bandwidth_);
+  ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %u KHz", this->frequency_);
   LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
   LOG_SENSOR("  ", "LQI", this->lqi_sensor_);
   LOG_SENSOR("  ", "Temperature sensor", this->temperature_sensor_);
@@ -517,7 +517,7 @@ void CC1101::set_pa_(int8_t pa) {
     }
     this->last_pa_ = 4;
   } else {
-    ESP_LOGE(TAG, "CC1101 set_pa(%i) frequency out of range: %lu", pa, this->frequency_);
+    ESP_LOGE(TAG, "CC1101 set_pa(%i) frequency out of range: %u", pa, this->frequency_);
     return;
   }
 
