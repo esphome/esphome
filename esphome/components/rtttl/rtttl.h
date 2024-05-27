@@ -57,6 +57,7 @@ class Rtttl : public Component {
     }
     return ret;
   }
+  void finish_();
 
   std::string rtttl_{""};
   size_t position_{0};

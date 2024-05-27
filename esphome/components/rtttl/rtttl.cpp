@@ -170,17 +170,7 @@ void Rtttl::loop() {
     return;
 #endif
   if (!this->rtttl_[position_]) {
-    this->note_duration_ = 0;
-#ifdef USE_OUTPUT
-    if (this->output_ != nullptr) {
-      this->output_->set_level(0.0);
-    }
-#endif
-    ESP_LOGD(TAG, "Playback finished");
-#ifdef USE_SPEAKER
-    this->speaker_->finish();
-#endif
-    this->on_finished_playback_callback_.call();
+    this->finish_();
     return;
   }
 
@@ -245,6 +235,12 @@ void Rtttl::loop() {
   uint8_t scale = get_integer_();
   if (scale == 0)
     scale = this->default_octave_;
+
+  if (scale < 4 || scale > 7) {
+    ESP_LOGE(TAG, "Octave out of valid range. Should be between 4 and 7. (Octave: %d)", scale);
+    this->finish_();
+    return;
+  }
   bool need_note_gap = false;
 
   // Now play the note
@@ -253,7 +249,7 @@ void Rtttl::loop() {
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
       ESP_LOGE(TAG, "Note out of valid range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
                (int) sizeof(NOTES));
-      this->note_duration_ = 0;
+      this->finish_();
       return;
     }
     auto freq = NOTES[note_index];
@@ -307,6 +303,20 @@ void Rtttl::loop() {
 #endif
 
   this->last_note_ = millis();
+}
+
+void Rtttl::finish_() {
+  this->note_duration_ = 0;
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->output_->set_level(0.0);
+  }
+#endif
+  ESP_LOGD(TAG, "Playback finished");
+#ifdef USE_SPEAKER
+  this->speaker_->finish();
+#endif
+  this->on_finished_playback_callback_.call();
 }
 
 }  // namespace rtttl
