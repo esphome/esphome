@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_URL,
     CONF_USERNAME,
+    PLATFORM_ESP32,
+    PLATFORM_RP2040,
 )
 from esphome.components import esp32
 from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
@@ -71,8 +73,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
-            cv.SplitDefault(CONF_EXCLUDE_CERTIFICATE_BUNDLE, esp32=False): cv.All(
-                cv.only_on_esp32, validate_certificate_bundle, cv.boolean
+            cv.SplitDefault(
+                CONF_EXCLUDE_CERTIFICATE_BUNDLE, esp32=False, rp2040=False
+            ): cv.All(
+                cv.boolean,
+                cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040]),
+                validate_certificate_bundle,
             ),
         }
     )
