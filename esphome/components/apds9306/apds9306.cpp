@@ -171,7 +171,7 @@ void APDS9306::update() {
 
   // Put in Active mode and wait for new measurement
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
-  delay(this->rate_val_);
+  esp_delay(this->rate_val_);
 
   uint8_t status;
   APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
@@ -180,7 +180,7 @@ void APDS9306::update() {
 
   int attempts = 0;
   while (!(status &= 0b00001000) && attempts < 10) {  // No new data
-    delay(20);
+    esp_delay(20);
     attempts ++;
   }
 
