@@ -144,7 +144,7 @@ class ABBWelcomeData {
   std::string to_string(uint8_t max_print_bytes = 255) const {
     std::string info;
     if (this->is_valid()) {
-      info = str_sprintf(this->get_three_byte_address() ? "[%06X %s %06X] Type: %02X" : "[%04X %s %04X] Type: %02X",
+      info = str_sprintf(this->get_three_byte_address() ? "[%06lX %s %06lX] Type: %02X" : "[%04lX %s %04lX] Type: %02X",
                          this->get_source_address(), this->get_retransmission() ? "»" : ">",
                          this->get_destination_address(), this->get_message_type());
       if (this->get_data_size())

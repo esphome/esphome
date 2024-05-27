@@ -57,7 +57,7 @@ void ByronSXProtocol::encode(RemoteTransmitData *dst, const ByronSXData &data) {
   out_data <<= NBITS_COMMAND;
   out_data |= data.command;
 
-  ESP_LOGV(TAG, "Send ByronSX: out_data %03x", out_data);
+  ESP_LOGV(TAG, "Send ByronSX: out_data %03lx", out_data);
 
   // Initial Mark start bit
   dst->mark(1 * BIT_TIME_US);
@@ -90,12 +90,12 @@ optional<ByronSXData> ByronSXProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
-  ESP_LOGVV(TAG, "%3d: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.size(), src.peek(0),
+  ESP_LOGVV(TAG, "%3ld: %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld", src.size(), src.peek(0),
             src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7), src.peek(8),
             src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14), src.peek(15),
             src.peek(16), src.peek(17), src.peek(18), src.peek(19));
 
-  ESP_LOGVV(TAG, "     %d %d %d %d %d %d", src.peek(20), src.peek(21), src.peek(22), src.peek(23), src.peek(24),
+  ESP_LOGVV(TAG, "     %ld %ld %ld %ld %ld %ld", src.peek(20), src.peek(21), src.peek(22), src.peek(23), src.peek(24),
             src.peek(25));
 
   // Read data bits
@@ -107,10 +107,10 @@ optional<ByronSXData> ByronSXProtocol::decode(RemoteReceiveData src) {
     } else if (src.expect_space(BIT_TIME_US) && src.expect_mark(2 * BIT_TIME_US)) {
       out_data |= 0 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode ByronSX: Fail 2, %2d %08x", bit, out_data);
+      ESP_LOGV(TAG, "Decode ByronSX: Fail 2, %2d %08lx", bit, out_data);
       return {};
     }
-    ESP_LOGVV(TAG, "Decode ByronSX: Data, %2d %08x", bit, out_data);
+    ESP_LOGVV(TAG, "Decode ByronSX: Data, %2d %08lx", bit, out_data);
   }
 
   // last bit followed by a long space
