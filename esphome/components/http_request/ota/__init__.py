@@ -173,8 +173,8 @@ async def ota_http_request_action_to_code(config, action_id, template_arg, args)
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    if CONF_MD5_URL in config:
-        template_ = await cg.templatable(config[CONF_MD5_URL], args, cg.std_string)
+    if md5_url := config.get(CONF_MD5_URL):
+        template_ = await cg.templatable(md5_url args, cg.std_string)
         cg.add(var.set_md5_url(template_))
 
     if CONF_MD5 in config:
