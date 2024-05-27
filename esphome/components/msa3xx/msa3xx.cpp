@@ -369,31 +369,41 @@ int64_t MSA3xxComponent::twos_complement_(uint64_t value, uint8_t bits) {
 }
 
 void binary_event_debounce(bool state, bool old_state, uint32_t now, uint32_t &last_ms, Trigger<> &trigger,
-                           uint32_t cooldown_ms, binary_sensor::BinarySensor *bs, const char *desc) {
+                           uint32_t cooldown_ms, void *bs, const char *desc) {
   if (state && now - last_ms > cooldown_ms) {
     ESP_LOGV(TAG, "%s detected", desc);
     trigger.trigger();
     last_ms = now;
+#ifdef USE_BINARY_SENSOR
     if (bs != nullptr) {
-      bs->publish_state(true);
+      static_cast<binary_sensor::BinarySensor *>(bs)->publish_state(true);
     }
+#endif
   } else if (!state && now - last_ms > cooldown_ms && bs != nullptr) {
-    bs->publish_state(false);
+#ifdef USE_BINARY_SENSOR
+    static_cast<binary_sensor::BinarySensor *>(bs)->publish_state(false);
+#endif
   }
 }
+
+#ifdef USE_BINARY_SENSOR
+#define BS_PTR(x) ((void *) x)
+#else
+#define BS_PTR(x) (nullptr)
+#endif
 
 void MSA3xxComponent::process_motions_(RegMotionInterrupt old) {
   uint32_t now = millis();
 
   binary_event_debounce(this->status_.motion_int.single_tap_interrupt, old.single_tap_interrupt, now,
-                        this->status_.last_tap_ms, this->tap_trigger_, TAP_COOLDOWN_MS, this->tap_binary_sensor_,
-                        "Tap");
+                        this->status_.last_tap_ms, this->tap_trigger_, TAP_COOLDOWN_MS,
+                        BS_PTR(this->tap_binary_sensor_), "Tap");
   binary_event_debounce(this->status_.motion_int.double_tap_interrupt, old.double_tap_interrupt, now,
                         this->status_.last_double_tap_ms, this->double_tap_trigger_, DOUBLE_TAP_COOLDOWN_MS,
-                        this->double_tap_binary_sensor_, "Double Tap");
+                        BS_PTR(this->double_tap_binary_sensor_), "Double Tap");
   binary_event_debounce(this->status_.motion_int.active_interrupt, old.active_interrupt, now,
                         this->status_.last_action_ms, this->active_trigger_, ACTIVITY_COOLDOWN_MS,
-                        this->active_binary_sensor_, "Activity");
+                        BS_PTR(this->active_binary_sensor_), "Activity");
 
   if (this->status_.motion_int.orientation_interrupt) {
     ESP_LOGVV(TAG, "Orientation changed");
