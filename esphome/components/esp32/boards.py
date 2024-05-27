@@ -1709,7 +1709,7 @@ BOARDS = {
         "variant": VARIANT_ESP32C3,
     },
     "seeed_xiao_esp32c6": {
-        "name": "Seeed Studio XIAO ESP32C3",
+        "name": "Seeed Studio XIAO ESP32C6",
         "variant": VARIANT_ESP32C6,
     },
     "sensesiot_weizen": {
