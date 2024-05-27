@@ -113,6 +113,8 @@ async def to_code(config):
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 
+    zephyr_add_prj_conf("IMG_ERASE_PROGRESSIVELY", True)
+
     zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
 
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)

@@ -1,3 +1,4 @@
+import time
 import asyncio
 import logging
 import re
@@ -149,8 +150,24 @@ async def smpmgr_upload_(config, host, firmware):
             upload_size = len(image)
             progress = ProgressBar()
             progress.update(0)
-            async for offset in smp_client.upload(image):
-                progress.update(offset / upload_size)
+
+            iter = smp_client.upload(image)
+            iter = type(iter).__aiter__(iter)
+            running = True
+            timeout = 40.0
+
+            while running:
+                try:
+                    offset = await asyncio.wait_for(type(iter).__anext__(iter), timeout)
+                    progress.update(offset / upload_size)
+                    timeout = 2.5
+                except StopAsyncIteration:
+                    running = False
+                except asyncio.exceptions.TimeoutError:
+                    progress.done()
+                    _LOGGER.warning("Upload timeout.")
+                    return 1
+
             progress.done()
 
     _LOGGER.info("Mark image for testing")
@@ -163,6 +180,8 @@ async def smpmgr_upload_(config, host, firmware):
         _LOGGER.error(r)
         return 1
 
+    # give a chance to execute completion callback
+    time.sleep(1)
     _LOGGER.info("Reset")
     r = await asyncio.wait_for(smp_client.request(ResetWrite()), timeout=1.0)
 
