@@ -67,7 +67,7 @@ class StorageJSON:
         # Web server port of the ESP, for example 80
         assert web_port is None or isinstance(web_port, int)
         self.web_port = web_port
-        # The type of hardware in use, like "ESP32", "ESP32C3", "ESP8266", etc.
+        # The type of hardware in use, like "ESP32", "ESP32C3", "ESP32C6","ESP8266", etc.
         self.target_platform = target_platform
         # The absolute path to the platformio project
         self.build_path = build_path

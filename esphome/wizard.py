@@ -87,6 +87,13 @@ esp32:
     type: esp-idf
 """
 
+ESP32C6_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: esp-idf
+"""
+
 RP2040_CONFIG = """
 rp2040:
   board: {board}
@@ -110,6 +117,7 @@ HARDWARE_BASE_CONFIGS = {
     "ESP32": ESP32_CONFIG,
     "ESP32S2": ESP32S2_CONFIG,
     "ESP32C3": ESP32C3_CONFIG,
+    "ESP32C6": ESP32C6_CONFIG,
     "RP2040": RP2040_CONFIG,
     "BK72XX": BK72XX_CONFIG,
     "RTL87XX": RTL87XX_CONFIG,

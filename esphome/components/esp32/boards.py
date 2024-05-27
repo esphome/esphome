@@ -1,4 +1,10 @@
-from .const import VARIANT_ESP32, VARIANT_ESP32S2, VARIANT_ESP32C3, VARIANT_ESP32S3
+from .const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32S3,
+)
 
 ESP32_BASE_PINS = {
     "TX": 1,
@@ -1701,6 +1707,10 @@ BOARDS = {
     "seeed_xiao_esp32c3": {
         "name": "Seeed Studio XIAO ESP32C3",
         "variant": VARIANT_ESP32C3,
+    },
+    "seeed_xiao_esp32c6": {
+        "name": "Seeed Studio XIAO ESP32C3",
+        "variant": VARIANT_ESP32C6,
     },
     "sensesiot_weizen": {
         "name": "LOGISENSES Senses Weizen",
