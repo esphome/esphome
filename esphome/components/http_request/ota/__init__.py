@@ -17,7 +17,7 @@ from .. import http_request_ns
 
 CODEOWNERS = ["@oarcher"]
 
-AUTO_LOAD = ["md5", "ota"]
+AUTO_LOAD = ["md5"]
 DEPENDENCIES = ["network"]
 
 CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
