@@ -264,13 +264,14 @@ uart:
     parity: EVEN
     baud_rate: 9600
 
+safe_mode:
+  num_attempts: 3
+  reboot_timeout: 2min
+
 ota:
   - platform: esphome
-    safe_mode: true
     password: "superlongpasswordthatnoonewillknow"
     port: 3286
-    reboot_timeout: 2min
-    num_attempts: 5
     on_state_change:
       then:
         lambda: >-

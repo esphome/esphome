@@ -327,11 +327,13 @@ modbus:
 vbus:
   uart_id: uart_4
 
+safe_mode:
+  num_attempts: 5
+  reboot_timeout: 10min
+
 ota:
   - platform: esphome
-    safe_mode: true
     port: 3286
-    reboot_timeout: 15min
 
 logger:
   hardware_uart: UART1
