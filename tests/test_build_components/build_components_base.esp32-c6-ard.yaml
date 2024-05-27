@@ -3,7 +3,7 @@ esphome:
   friendly_name: $component_name
 
 esp32:
-  board: seeed_xiao_esp32c6
+  board: esp32-c6-devkitm-1
   framework:
     type: arduino
 

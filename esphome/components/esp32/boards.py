@@ -1708,8 +1708,8 @@ BOARDS = {
         "name": "Seeed Studio XIAO ESP32C3",
         "variant": VARIANT_ESP32C3,
     },
-    "seeed_xiao_esp32c6": {
-        "name": "Seeed Studio XIAO ESP32C6",
+    "esp32-c6-devkitm-1": {
+        "name": "Espressif ESP32-C6-DevKitM-1",
         "variant": VARIANT_ESP32C6,
     },
     "sensesiot_weizen": {
