@@ -80,6 +80,9 @@ void APDS9306::setup() {
   uint8_t als_gain = (this->gain_ & 0x07);
 
   APDS9306_WRITE_BYTE(APDS9306_ALS_GAIN, als_gain);
+
+  // Set to Active mode
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 }
 
 void APDS9306::dump_config() {
@@ -108,6 +111,14 @@ void APDS9306::dump_config() {
 }
 
 void APDS9306::update() {
+  uint8_t status;
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
+
+  this->status_clear_warning();
+
+  if (!(status &= 0b00001000)) // No new data
+    return;
+
   // Conversions
   switch (this->gain_) {
     case 0:
@@ -168,26 +179,6 @@ void APDS9306::update() {
       this->bit_width_val_ = 13;
       break;
   }
-
-  // Put in Active mode and wait for new measurement
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
-  esp_delay(this->rate_val_);
-
-  uint8_t status;
-  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
-
-  this->status_clear_warning();
-
-  int attempts = 0;
-  while (!(status &= 0b00001000) && attempts < 10) {  // No new data
-    esp_delay(20);
-    attempts ++;
-  }
-
-  // Put in standby mode
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
-
-  if (attempts >= 10) ESP_LOGW(TAG, "Did not get new data after 10 attempts");
 
   uint8_t als_data[3];
   APDS9306_WARNING_CHECK(this->read_byte(APDS9306_ALS_DATA_0, als_data, 3), "Reading ALS data has failed.");
