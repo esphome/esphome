@@ -9,7 +9,6 @@ namespace http_request {
 template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Action<Ts...> {
  public:
   OtaHttpRequestComponentFlashAction(OtaHttpRequestComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(bool, force_update)
   TEMPLATABLE_VALUE(std::string, md5_url)
   TEMPLATABLE_VALUE(std::string, md5)
   TEMPLATABLE_VALUE(std::string, password)
