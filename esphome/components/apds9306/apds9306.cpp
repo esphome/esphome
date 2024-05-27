@@ -179,13 +179,13 @@ void APDS9306::update() {
   }
 
   uint8_t als_data[3];
-  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_ALS_DATA_0, als_data, 3), "Reading ALS data has failed.");
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_CLEAR_DATA_0, als_data, 3), "Reading ALS data has failed.");
 
   uint32_t light_level = encode_uint24(als_data[2], als_data[1], als_data[0]);
 
   float lux = ((float) light_level / this->gain_val_) * (100.0f / this->rate_val_);
 
-  ESP_LOGD(TAG, "Got illuminance=%.1flx", lux);
+  ESP_LOGD(TAG, "Got illuminance=%.1flx from", lux);
   this->publish_state(lux);
 }
 
