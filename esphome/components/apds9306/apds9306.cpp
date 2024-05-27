@@ -53,6 +53,7 @@ enum { // APDS9306 registers
 void APDS9306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
   ESP_LOGE(TAG, "SETUP RAN");
+  this->error_code_ = WRONG_ID;
   this->mark_failed();
   return;
 
