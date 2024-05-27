@@ -1,26 +1,5 @@
-i2c:
-  - id: i2c_mpr121
-    scl: 5
-    sda: 4
+substitutions:
+  i2c_scl: GPIO5
+  i2c_sda: GPIO4
 
-mpr121:
-  id: mpr121_first
-  address: 0x5A
-
-binary_sensor:
-  - platform: mpr121
-    id: touchkey0
-    name: touchkey0
-    channel: 0
-  - platform: mpr121
-    id: bin1
-    name: touchkey1
-    channel: 1
-  - platform: mpr121
-    id: bin2
-    name: touchkey2
-    channel: 2
-  - platform: mpr121
-    id: bin3
-    name: touchkey3
-    channel: 3
+<<: !include common.yaml

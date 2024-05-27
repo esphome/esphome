@@ -1514,7 +1514,7 @@ void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every)
 //  - https://github.com/adafruit/Adafruit_EPD/blob/master/src/panels/ThinkInk_290_Grayscale4_T5.h
 // ========================================================
 
-void GDEY029T94::initialize() {
+void GDEW029T5::initialize() {
   // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
   // EPD hardware init start
   this->reset_();
@@ -1560,7 +1560,7 @@ void GDEY029T94::initialize() {
 
   // EPD hardware init end
 }
-void HOT GDEY029T94::display() {
+void HOT GDEW029T5::display() {
   // COMMAND DATA START TRANSMISSION 2 (B/W only)
   this->command(0x13);
   delay(2);
@@ -1580,11 +1580,11 @@ void HOT GDEY029T94::display() {
   // NOTE: power off < deep sleep
   this->command(0x02);
 }
-int GDEY029T94::get_width_internal() { return 128; }
-int GDEY029T94::get_height_internal() { return 296; }
-void GDEY029T94::dump_config() {
+int GDEW029T5::get_width_internal() { return 128; }
+int GDEW029T5::get_height_internal() { return 296; }
+void GDEW029T5::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this);
-  ESP_LOGCONFIG(TAG, "  Model: 2.9in Greyscale GDEY029T94");
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in Greyscale GDEW029T5");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
