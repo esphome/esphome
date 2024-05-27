@@ -1150,8 +1150,7 @@ for x in platform-espressif32/boards/*.json; do
   echo "    \"$board\": {\"name\": \"$name\", \"variant\": VARIANT_${variant},},"
 done | sort
 
-
-On windows you can run this in git bash after installing jq: 
+On windows you can run this in git bash after installing jq:
 curl -L -o /usr/bin/jq.exe https://github.com/stedolan/jq/releases/latest/download/jq-win64.exe
 """
 
