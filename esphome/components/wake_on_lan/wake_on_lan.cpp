@@ -31,14 +31,15 @@ void WakeOnLanButton::press_action() {
   }
   ESP_LOGI(TAG, "Sending Wake-on-LAN Packet...");
   struct sockaddr_storage saddr {};
-  socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), "255.255.255.255", this->port_);
+  auto addr_len =
+      socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), "255.255.255.255", this->port_);
   uint8_t buffer[6 + sizeof this->macaddr_ * 16];
   memcpy(buffer, PREFIX, sizeof(PREFIX));
   for (size_t i = 0; i != 16; i++) {
     memcpy(buffer + i * sizeof(this->macaddr_) + sizeof(PREFIX), this->macaddr_, sizeof(this->macaddr_));
   }
-  auto result = this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
-                                                sizeof(saddr));
+  auto result =
+      this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr), addr_len);
   if (result < 0)
     ESP_LOGW(TAG, "sendto() error %d", errno);
 }
