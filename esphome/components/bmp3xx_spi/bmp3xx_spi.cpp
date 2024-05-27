@@ -42,7 +42,7 @@ bool BMP3XXSPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
 bool BMP3XXSPIComponent::write_byte(uint8_t a_register, uint8_t data) {
   this->enable();
   uint8_t rg = clear_bit(a_register, 7);
-  ESP_LOGVV(TAG, "Write register %02x (sent %02x), Byte received: %02x", a_register, rg, *data);
+  ESP_LOGVV(TAG, "Write register %02x (sent %02x), Byte received: %02x", a_register, rg, data);
   this->transfer_byte(rg);
   this->transfer_byte(data);
   this->disable();
@@ -55,7 +55,7 @@ bool BMP3XXSPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t le
   this->transfer_byte(rg);
   this->read_array(data, len);
   ESP_LOGVV(TAG, "Read bytes. register %02x (sent %02x), Bytes received: %s", a_register, rg,
-            format_hex_pretty(data, len));
+            format_hex_pretty(data, len).c_str());
 
   this->disable();
   return true;
