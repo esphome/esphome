@@ -7,7 +7,6 @@ from .. import CONF_FYRTUR_MOTOR_ID, FyrturMotorComponent, fyrtur_motor_ns
 MoveUpButton = fyrtur_motor_ns.class_("MoveUpButton", button.Button)
 MoveDownButton = fyrtur_motor_ns.class_("MoveDownButton", button.Button)
 StopButton = fyrtur_motor_ns.class_("StopButton", button.Button)
-GetStatusButton = fyrtur_motor_ns.class_("GetStatusButton", button.Button)
 ResetMaxLengthButton = fyrtur_motor_ns.class_("ResetMaxLengthButton", button.Button)
 SetMaxLengthButton = fyrtur_motor_ns.class_("SetMaxLengthButton", button.Button)
 ToggleRollDirectionButton = fyrtur_motor_ns.class_(
@@ -16,7 +15,6 @@ ToggleRollDirectionButton = fyrtur_motor_ns.class_(
 
 CONF_MOVE_UP = "move_up"
 CONF_MOVE_DOWN = "move_down"
-CONF_GET_STATUS = "get_status"
 CONF_SET_MAX_LENGTH = "set_max_length"
 CONF_RESET_MAX_LENGTH = "reset_max_length"
 CONF_TOGGLE_ROLL_DIRECTION = "toggle_roll_direction"
@@ -24,7 +22,6 @@ CONF_TOGGLE_ROLL_DIRECTION = "toggle_roll_direction"
 ICON_UP = "mdi:arrow-up-bold"
 ICON_DOWN = "mdi:arrow-down-bold"
 ICON_STOP = "mdi:stop"
-ICON_SYNC = "mdi:sync"
 ICON_RESET_MAX_LENGTH = "mdi:arrow-expand-vertical"
 ICON_SET_MAX_LENGTH = "mdi:arrow-collapse-down"
 ICON_REVERSE = "mdi:arrow-oscillating"
