@@ -19,15 +19,7 @@ static const size_t STATUS_RESPONSE_SIZE = 4;
 
 void FyrturMotorComponent::setup() { get_status(); }
 
-void FyrturMotorComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Fyrtur motor:");
-#ifdef USE_BUTTON
-  LOG_BUTTON("  ", "MoveUpButton", this->move_up_button_);
-  LOG_BUTTON("  ", "StopButton", this->stop_button_);
-  LOG_BUTTON("  ", "MoveDownButton", this->move_down_button_);
-  LOG_BUTTON("  ", "GetStatusButton", this->get_status_button_);
-#endif
-}
+// void FyrturMotorComponent::dump_config() {}
 
 void FyrturMotorComponent::update() { get_status(); }
 

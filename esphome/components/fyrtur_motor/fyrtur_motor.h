@@ -87,7 +87,7 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
 #endif
 
   void setup() override;
-  void dump_config() override;
+  // void dump_config() override;
   void update() override;
   // void loop() override;
   float get_setup_priority() const override;
