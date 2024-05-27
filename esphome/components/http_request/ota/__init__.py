@@ -1,4 +1,3 @@
-import urllib.parse as urlparse
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -40,34 +39,13 @@ OtaHttpRequestComponentFlashAction = http_request_ns.class_(
 
 
 def validate_certificate_bundle(config):
-    if not (CORE.is_esp8266 and config.get(CONF_ESP8266_DISABLE_SSL_SUPPORT)) and (
-        not config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE) and not CORE.using_esp_idf
-    ):
+    if not CORE.using_esp_idf and not config:
         raise cv.Invalid(
             "ESPHome supports certificate verification only via ESP-IDF. "
             f"Set '{CONF_EXCLUDE_CERTIFICATE_BUNDLE}: true' to skip certificate validation."
         )
 
     return config
-
-
-def validate_url(value):
-    value = cv.string(value)
-    try:
-        parsed = list(urlparse.urlparse(value))
-    except Exception as err:
-        raise cv.Invalid("Invalid URL") from err
-
-    if not parsed[0] or not parsed[1]:
-        raise cv.Invalid("URL must have a URL scheme and host")
-
-    if parsed[0] not in ["http", "https"]:
-        raise cv.Invalid("Scheme must be http or https")
-
-    if not parsed[2]:
-        parsed[2] = "/"
-
-    return urlparse.urlunparse(parsed)
 
 
 def _declare_request_class(value):
@@ -93,7 +71,9 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
-            cv.Optional(CONF_EXCLUDE_CERTIFICATE_BUNDLE, default=False): cv.boolean,
+            cv.SplitDefault(CONF_EXCLUDE_CERTIFICATE_BUNDLE, esp32=False): cv.All(
+                cv.only_on_esp32, validate_certificate_bundle, cv.boolean
+            ),
         }
     )
     .extend(BASE_OTA_SCHEMA)
@@ -104,7 +84,6 @@ CONFIG_SCHEMA = cv.All(
         esp_idf=cv.Version(0, 0, 0),
         rp2040_arduino=cv.Version(0, 0, 0),
     ),
-    validate_certificate_bundle,
 )
 
 
@@ -118,7 +97,8 @@ async def to_code(config):
         and config[CONF_WATCHDOG_TIMEOUT].total_milliseconds > 0
     ):
         cg.add_define(
-            "CONFIG_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT].total_milliseconds
+            "USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT",
+            config[CONF_WATCHDOG_TIMEOUT].total_milliseconds,
         )
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
@@ -153,7 +133,7 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OtaHttpRequestComponent),
-            cv.Optional(CONF_MD5_URL): cv.templatable(validate_url),
+            cv.Optional(CONF_MD5_URL): cv.templatable(cv.url),
             cv.Optional(CONF_MD5): cv.templatable(cv.string),
             cv.Optional(CONF_PASSWORD): cv.templatable(cv.string),
             cv.Optional(CONF_USERNAME): cv.templatable(cv.string),
@@ -174,19 +154,19 @@ async def ota_http_request_action_to_code(config, action_id, template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
     if md5_url := config.get(CONF_MD5_URL):
-        template_ = await cg.templatable(md5_url args, cg.std_string)
+        template_ = await cg.templatable(md5_url, args, cg.std_string)
         cg.add(var.set_md5_url(template_))
 
-    if CONF_MD5 in config:
-        template_ = await cg.templatable(config[CONF_MD5], args, cg.std_string)
+    if md5_str := config.get(CONF_MD5):
+        template_ = await cg.templatable(md5_str, args, cg.std_string)
         cg.add(var.set_md5(template_))
 
-    if CONF_PASSWORD in config:
-        template_ = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)
+    if password_str := config.get(CONF_PASSWORD):
+        template_ = await cg.templatable(password_str, args, cg.std_string)
         cg.add(var.set_password(template_))
 
-    if CONF_USERNAME in config:
-        template_ = await cg.templatable(config[CONF_USERNAME], args, cg.std_string)
+    if username_str := config.get(CONF_USERNAME):
+        template_ = await cg.templatable(username_str, args, cg.std_string)
         cg.add(var.set_username(template_))
 
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)

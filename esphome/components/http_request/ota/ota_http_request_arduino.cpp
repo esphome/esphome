@@ -20,14 +20,14 @@ void OtaHttpRequestComponentArduino::http_init(const std::string &url) {
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
-#ifdef CONFIG_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::set_timeout(CONFIG_WATCHDOG_TIMEOUT);
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
+  watchdog::Watchdog::set_timeout(USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT);
 #endif
 
 #ifdef USE_ESP8266
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
     ESP_LOGE(TAG, "Unable to set client");
-#ifdef CONFIG_WATCHDOG_TIMEOUT
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
     watchdog::Watchdog::reset();
 #endif
     return;
@@ -50,7 +50,7 @@ void OtaHttpRequestComponentArduino::http_init(const std::string &url) {
 
   if (!this->status_) {
     this->client_.end();
-#ifdef CONFIG_WATCHDOG_TIMEOUT
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
     watchdog::Watchdog::reset();
 #endif
     return;
@@ -71,7 +71,7 @@ void OtaHttpRequestComponentArduino::http_init(const std::string &url) {
     this->set_stream_ptr_();
   }
 #endif
-#ifdef CONFIG_WATCHDOG_TIMEOUT
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
   watchdog::Watchdog::reset();
 #endif
 }
@@ -86,8 +86,8 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
 #endif  // USE_ARDUINO_VERSION_CODE
 #endif  // USE_ESP8266
 
-#ifdef CONFIG_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::set_timeout(CONFIG_WATCHDOG_TIMEOUT);
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
+  watchdog::Watchdog::set_timeout(USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT);
 #endif
 
   // Since arduino8266 >= 3.1 using this->stream_ptr_ is broken (https://github.com/esp8266/Arduino/issues/9035)
@@ -105,7 +105,7 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
     buf[bufsize] = '\0';  // not fed to ota
   }
 
-#ifdef CONFIG_WATCHDOG_TIMEOUT
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
   watchdog::Watchdog::reset();
 #endif
   return bufsize;

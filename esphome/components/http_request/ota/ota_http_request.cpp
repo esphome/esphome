@@ -18,7 +18,7 @@
 #include "esphome/components/rp2040/preferences.h"
 #endif
 
-#ifdef CONFIG_WATCHDOG_TIMEOUT
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
 #include "watchdog.h"
 #endif
 
@@ -34,8 +34,8 @@ void OtaHttpRequestComponent::setup() {
 void OtaHttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request:");
   ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
-#ifdef CONFIG_WATCHDOG_TIMEOUT
-  ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", CONFIG_WATCHDOG_TIMEOUT / 1000);
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
+  ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT / 1000);
 #endif
 #ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
   ESP_LOGCONFIG(TAG, "  TLS server verification: Yes");
@@ -102,7 +102,7 @@ void OtaHttpRequestComponent::flash() {
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
 #ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_ERROR, 0.0f, 0);
+    this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(OTA_BAD_MD5_PROVIDED));
 #endif
     return;
   }
@@ -112,7 +112,7 @@ void OtaHttpRequestComponent::flash() {
   auto url_with_auth = this->get_url_with_auth_(this->url_);
   if (url_with_auth.empty()) {
 #ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_ERROR, 0.0f, 0);
+    this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(OTA_BAD_URL));
 #endif
     this->md5_expected_.clear();  // will be reset at next attempt
     return;
@@ -123,7 +123,7 @@ void OtaHttpRequestComponent::flash() {
   if (!this->check_status()) {
     this->http_end();
 #ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_ERROR, 0.0f, 0);
+    this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(OTA_CONNECTION_ERROR));
 #endif
     return;
   }

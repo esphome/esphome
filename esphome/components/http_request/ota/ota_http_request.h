@@ -14,6 +14,12 @@ namespace http_request {
 static const char *const TAG = "http_request.ota";
 static const uint8_t MD5_SIZE = 32;
 
+enum OtaHttpRequestError : uint8_t {
+  OTA_BAD_MD5_PROVIDED = 0x10,
+  OTA_BAD_URL = 0x11,
+  OTA_CONNECTION_ERROR = 0x12,
+};
+
 class OtaHttpRequestComponent : public ota::OTAComponent {
  public:
   void setup() override;
