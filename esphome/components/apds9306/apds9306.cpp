@@ -92,8 +92,6 @@ void APDS9306::setup() {
 
   // Set to Active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
-
-  this->setup_has_run_ = 1;
 }
 
 void APDS9306::dump_config() {
@@ -122,9 +120,6 @@ void APDS9306::dump_config() {
 }
 
 void APDS9306::update() {
-  if (!this->setup_has_run_)  // check if setup has run because it doesnt seem to
-    setup();
-
   uint8_t status;
   APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
 
