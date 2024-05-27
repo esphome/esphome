@@ -33,23 +33,18 @@ CONFIG_SCHEMA = {
     cv.GenerateID(CONF_FYRTUR_MOTOR_ID): cv.use_id(FyrturMotorComponent),
     cv.Required(CONF_MOVE_UP): button.button_schema(
         MoveUpButton,
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        # entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_UP,
     ),
     cv.Required(CONF_MOVE_DOWN): button.button_schema(
         MoveDownButton,
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        # entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_DOWN,
     ),
     cv.Required(CONF_STOP): button.button_schema(
         StopButton,
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        # entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_STOP,
-    ),
-    cv.Optional(CONF_GET_STATUS): button.button_schema(
-        GetStatusButton,
-        entity_category=ENTITY_CATEGORY_CONFIG,
-        icon=ICON_SYNC,
     ),
     cv.Required(CONF_SET_MAX_LENGTH): button.button_schema(
         SetMaxLengthButton,
@@ -83,10 +78,6 @@ async def to_code(config):
         b = await button.new_button(stop_config)
         await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
         cg.add(fyrtur_motor_component.set_stop_button(b))
-    if get_status_config := config.get(CONF_GET_STATUS):
-        b = await button.new_button(get_status_config)
-        await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
-        cg.add(fyrtur_motor_component.set_get_status_button(b))
     if set_max_length_config := config.get(CONF_SET_MAX_LENGTH):
         b = await button.new_button(set_max_length_config)
         await cg.register_parented(b, config[CONF_FYRTUR_MOTOR_ID])
