@@ -387,9 +387,9 @@ void binary_event_debounce(bool state, bool old_state, uint32_t now, uint32_t &l
 }
 
 #ifdef USE_BINARY_SENSOR
-#define BS_PTR(x) ((void *) x)
+#define BS_OPTIONAL_PTR(x) ((void *) (x))
 #else
-#define BS_PTR(x) (nullptr)
+#define BS_OPTIONAL_PTR(x) (nullptr)
 #endif
 
 void MSA3xxComponent::process_motions_(RegMotionInterrupt old) {
@@ -397,13 +397,13 @@ void MSA3xxComponent::process_motions_(RegMotionInterrupt old) {
 
   binary_event_debounce(this->status_.motion_int.single_tap_interrupt, old.single_tap_interrupt, now,
                         this->status_.last_tap_ms, this->tap_trigger_, TAP_COOLDOWN_MS,
-                        BS_PTR(this->tap_binary_sensor_), "Tap");
+                        BS_OPTIONAL_PTR(this->tap_binary_sensor_), "Tap");
   binary_event_debounce(this->status_.motion_int.double_tap_interrupt, old.double_tap_interrupt, now,
                         this->status_.last_double_tap_ms, this->double_tap_trigger_, DOUBLE_TAP_COOLDOWN_MS,
-                        BS_PTR(this->double_tap_binary_sensor_), "Double Tap");
+                        BS_OPTIONAL_PTR(this->double_tap_binary_sensor_), "Double Tap");
   binary_event_debounce(this->status_.motion_int.active_interrupt, old.active_interrupt, now,
                         this->status_.last_action_ms, this->active_trigger_, ACTIVITY_COOLDOWN_MS,
-                        BS_PTR(this->active_binary_sensor_), "Activity");
+                        BS_OPTIONAL_PTR(this->active_binary_sensor_), "Activity");
 
   if (this->status_.motion_int.orientation_interrupt) {
     ESP_LOGVV(TAG, "Orientation changed");
