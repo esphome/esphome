@@ -8,7 +8,7 @@ network:
 
 esp32:
   board: seeed_xiao_esp32c6
-  variant: ESP32C3
+  variant: ESP32C6
   framework:
     type: esp-idf
 
