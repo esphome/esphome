@@ -56,7 +56,7 @@ void IDFI2CBus::setup() {
       this->mark_failed();
       return;
     } else {
-      ESP_LOGV(TAG, "i2c_timeout set to %d ticks (%d us)", timeout_ * 80, timeout_);
+      ESP_LOGV(TAG, "i2c_timeout set to %" PRIu32 " ticks (%" PRIu32 " us)", timeout_ * 80, timeout_);
     }
   }
   err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
