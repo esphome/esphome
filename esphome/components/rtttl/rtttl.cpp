@@ -306,23 +306,25 @@ void Rtttl::loop() {
 }
 
 void Rtttl::finish_() {
-  this->note_duration_ = 0;
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
     this->output_->set_level(0.0);
   }
 #endif
-  ESP_LOGD(TAG, "Playback finished");
 #ifdef USE_SPEAKER
-  SpeakerSample sample[2];
-  sample[0].left = 0;
-  sample[0].right = 0;
-  sample[1].left = 0;
-  sample[1].right = 0;
-  this->speaker_->play((uint8_t *) (&sample), 4);
+  if (this->speaker_ != nullptr) {
+    SpeakerSample sample[2];
+    sample[0].left = 0;
+    sample[0].right = 0;
+    sample[1].left = 0;
+    sample[1].right = 0;
+    this->speaker_->play((uint8_t *) (&sample), 8);
 
-  this->speaker_->finish();
+    this->speaker_->finish();
+  }
 #endif
+  this->note_duration_ = 0;
+  ESP_LOGD(TAG, "Playback finished");
   this->on_finished_playback_callback_.call();
 }
 
