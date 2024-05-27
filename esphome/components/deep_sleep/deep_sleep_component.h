@@ -106,6 +106,10 @@ class DeepSleepComponent : public Component {
   // duration before entering deep sleep.
   optional<uint32_t> get_run_duration_() const;
 
+  void dump_config_platform_();
+  bool prepare_to_sleep_();
+  void deep_sleep_();
+
   optional<uint64_t> sleep_duration_;
 #ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_;

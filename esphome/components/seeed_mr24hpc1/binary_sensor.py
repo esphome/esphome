@@ -3,10 +3,10 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_OCCUPANCY,
+    CONF_HAS_TARGET,
 )
 from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
-CONF_HAS_TARGET = "has_target"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),

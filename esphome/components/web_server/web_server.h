@@ -239,6 +239,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  /// Handle a datetime request under '/datetime/<id>'.
+  void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the datetime state with its value as a JSON string.
+  std::string datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
   /// Handle a text input request under '/text/<id>'.
@@ -295,6 +304,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Dump the alarm_control_panel state with its value as a JSON string.
   std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
                                        alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
+#endif
+
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
+
+  /// Dump the event details with its value as a JSON string.
+  std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
 
   /// Override the web handler's canHandle method.

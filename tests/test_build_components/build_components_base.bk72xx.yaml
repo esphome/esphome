@@ -3,7 +3,7 @@ esphome:
   friendly_name: $component_name
 
 bk72xx:
-  board: cb3s
+  board: generic-bk7231n-qfn32-tuya
 
 logger:
   level: VERY_VERBOSE
@@ -12,8 +12,4 @@ packages:
   component_under_test: !include
     file: $component_test_file
     vars:
-      component_name: $component_name
-      test_name: $test_name
-      target_platform: $target_platform
       component_test_file: $component_test_file
-      component_dir: "../../components/$component_name"

@@ -273,6 +273,15 @@ void APIServer::on_time_update(datetime::TimeEntity *obj) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+void APIServer::on_datetime_update(datetime::DateTimeEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_datetime_state(obj);
+}
+#endif
+
 #ifdef USE_TEXT
 void APIServer::on_text_update(text::Text *obj, const std::string &state) {
   if (obj->is_internal())
@@ -315,6 +324,13 @@ void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
     return;
   for (auto &c : this->clients_)
     c->send_media_player_state(obj);
+}
+#endif
+
+#ifdef USE_EVENT
+void APIServer::on_event(event::Event *obj, const std::string &event_type) {
+  for (auto &c : this->clients_)
+    c->send_event(obj, event_type);
 }
 #endif
 
