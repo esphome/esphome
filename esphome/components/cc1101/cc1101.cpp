@@ -95,9 +95,9 @@ void CC1101::set_config_gdo0_pin(InternalGPIOPin *pin) { gdo0_ = pin; }
 
 void CC1101::set_config_gdo0_adc_pin(voltage_sampler::VoltageSampler *pin) { gdo0_adc_ = pin; }
 
-void CC1101::set_config_bandwidth(uint32_t bandwidth) { bandwidth_ = bandwidth; }
+void CC1101::set_config_bandwidth(int bandwidth) { bandwidth_ = bandwidth; }
 
-void CC1101::set_config_frequency(uint32_t frequency) { frequency_ = frequency; }
+void CC1101::set_config_frequency(int frequency) { frequency_ = frequency; }
 
 void CC1101::set_config_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
 
@@ -175,8 +175,8 @@ void CC1101::setup() {
 
 void CC1101::update() {
   if (this->rssi_sensor_ != nullptr) {
-    int32_t rssi = this->get_rssi_();
-    ESP_LOGV(TAG, "rssi = %i", rssi);
+    int rssi = this->get_rssi_();
+    ESP_LOGV(TAG, "rssi = %d", rssi);
     if (rssi != this->last_rssi_) {
       this->rssi_sensor_->publish_state(rssi);
       this->last_rssi_ = rssi;
@@ -184,8 +184,8 @@ void CC1101::update() {
   }
 
   if (this->lqi_sensor_ != nullptr) {
-    int32_t lqi = this->get_lqi_() & 0x7f;  // msb = CRC ok or not set
-    ESP_LOGV(TAG, "lqi = %i", lqi);
+    int lqi = this->get_lqi_() & 0x7f;  // msb = CRC ok or not set
+    ESP_LOGV(TAG, "lqi = %d", lqi);
     if (lqi != this->last_lqi_) {
       this->lqi_sensor_->publish_state(lqi);
       this->last_lqi_ = lqi;
@@ -206,8 +206,8 @@ void CC1101::dump_config() {
   ESP_LOGCONFIG(TAG, "CC1101 partnum %02X version %02X:", this->partnum_, this->version_);
   LOG_PIN("  CC1101 CS Pin: ", this->cs_);
   LOG_PIN("  CC1101 GDO0: ", this->gdo0_);
-  ESP_LOGCONFIG(TAG, "  CC1101 Bandwith: %u KHz", this->bandwidth_);
-  ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %u KHz", this->frequency_);
+  ESP_LOGCONFIG(TAG, "  CC1101 Bandwith: %d KHz", this->bandwidth_);
+  ESP_LOGCONFIG(TAG, "  CC1101 Frequency: %d KHz", this->frequency_);
   LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
   LOG_SENSOR("  ", "LQI", this->lqi_sensor_);
   LOG_SENSOR("  ", "Temperature sensor", this->temperature_sensor_);
@@ -288,15 +288,15 @@ bool CC1101::send_data_(const uint8_t* data, size_t length)
 
 // ELECHOUSE_CC1101 stuff
 
-int32_t CC1101::get_rssi_() {
-  int32_t rssi;
+int CC1101::get_rssi_() {
+  int rssi;
   rssi = this->read_status_register_(CC1101_RSSI);
   if (rssi >= 128)
     rssi -= 256;
   return (rssi / 2) - 74;
 }
 
-uint8_t CC1101::get_lqi_() { return this->read_status_register_(CC1101_LQI); }
+int CC1101::get_lqi_() { return this->read_status_register_(CC1101_LQI); }
 
 float CC1101::get_temperature_() {
   if (this->gdo0_ == nullptr || this->gdo0_adc_ == nullptr) {
@@ -517,7 +517,7 @@ void CC1101::set_pa_(int8_t pa) {
     }
     this->last_pa_ = 4;
   } else {
-    ESP_LOGE(TAG, "CC1101 set_pa(%i) frequency out of range: %u", pa, this->frequency_);
+    ESP_LOGE(TAG, "CC1101 set_pa(%d) frequency out of range: %d", pa, this->frequency_);
     return;
   }
 
@@ -532,7 +532,7 @@ void CC1101::set_pa_(int8_t pa) {
   this->write_register_burst_(CC1101_PATABLE, this->pa_table_, sizeof(this->pa_table_));
 }
 
-void CC1101::set_frequency_(uint32_t f) {
+void CC1101::set_frequency_(int f) {
   this->frequency_ = f;
 
   uint8_t freq2 = 0;
@@ -645,7 +645,7 @@ void CC1101::set_clb_(uint8_t b, uint8_t s, uint8_t e) {
   }
 }
 
-void CC1101::set_rxbw_(uint32_t bw) {
+void CC1101::set_rxbw_(int bw) {
   this->bandwidth_ = bw;
 
   float f = (float) this->bandwidth_;
@@ -697,8 +697,8 @@ void CC1101::set_state_(uint8_t state) {
 }
 
 bool CC1101::wait_state_(uint8_t state) {
-  static constexpr uint16_t TIMEOUT_LIMIT = 5000;
-  uint16_t timeout = TIMEOUT_LIMIT;
+  static constexpr int TIMEOUT_LIMIT = 5000;
+  int timeout = TIMEOUT_LIMIT;
 
   while (timeout > 0) {
     uint8_t s = this->read_status_register_(CC1101_MARCSTATE) & 0x1f;
@@ -721,7 +721,7 @@ bool CC1101::wait_state_(uint8_t state) {
   }
 
   if (timeout < TIMEOUT_LIMIT) {
-    ESP_LOGW(TAG, "wait_state_(0x%02X) timeout = %u/%u", state, timeout, TIMEOUT_LIMIT);
+    ESP_LOGW(TAG, "wait_state_(0x%02X) timeout = %d/%d", state, timeout, TIMEOUT_LIMIT);
     delayMicroseconds(100);
   }
 
