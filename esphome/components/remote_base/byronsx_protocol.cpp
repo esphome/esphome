@@ -1,6 +1,5 @@
 #include "byronsx_protocol.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
 
 #include <cinttypes>
 

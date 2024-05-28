@@ -10,7 +10,6 @@
 #include "ade7880.h"
 #include "ade7880_registers.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
 
 #include <cinttypes>
 
