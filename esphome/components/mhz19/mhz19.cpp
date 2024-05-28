@@ -1,5 +1,6 @@
 #include "mhz19.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 #include <cinttypes>
 
@@ -34,7 +35,7 @@ void MHZ19Component::update() {
   uint32_t now_ms = millis();
   uint32_t warmup_ms = this->warmup_seconds_ * 1000;
   if (now_ms < warmup_ms) {
-    ESP_LOGW(TAG, "MHZ19 warming up, %" PRIu32 "s left", (warmup_ms - now_ms) / 1000);
+    ESP_LOGW(TAG, "MHZ19 warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
     this->status_set_warning();
     return;
   }
@@ -112,7 +113,7 @@ void MHZ19Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration disabled on boot");
   }
 
-  ESP_LOGCONFIG(TAG, "  Warmup seconds: %" PRIu32 "s", this->warmup_seconds_);
+  ESP_LOGCONFIG(TAG, "  Warmup time: %" PRIu32 " s", this->warmup_seconds_);
 }
 
 }  // namespace mhz19

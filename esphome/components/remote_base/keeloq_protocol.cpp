@@ -140,7 +140,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode KeeLoq: Fail 2, %" PRId32 " %" PRId32, src.get_index(), src.peek());
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 2, %" PRIu32 " %" PRId32, src.get_index(), src.peek());
       return {};
     }
   }
@@ -155,7 +155,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode KeeLoq: Fail 3, %" PRId32 " %" PRId32, src.get_index(), src.peek());
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 3, %" PRIu32 " %" PRId32, src.get_index(), src.peek());
       return {};
     }
   }
@@ -169,7 +169,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
   } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
     out.vlow = true;
   } else {
-    ESP_LOGV(TAG, "Decode KeeLoq: Fail 4, %08" PRIx32, src.peek());
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 4, %" PRId32, src.peek());
     return {};
   }
 
@@ -179,7 +179,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
   } else if (src.expect_mark(BIT_TIME_US) && src.peek_space_at_least(2 * BIT_TIME_US)) {
     out.repeat = true;
   } else {
-    ESP_LOGV(TAG, "Decode KeeLoq: Fail 5, %08" PRIx32, src.peek());
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 5, %" PRId32, src.peek());
     return {};
   }
 

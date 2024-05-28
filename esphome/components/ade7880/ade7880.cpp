@@ -10,6 +10,7 @@
 #include "ade7880.h"
 #include "ade7880_registers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 #include <cinttypes>
 
@@ -158,7 +159,7 @@ void ADE7880::update() {
     });
   }
 
-  ESP_LOGD(TAG, "Update took %" PRIu32 " ms", millis() - start);
+  ESP_LOGD(TAG, "update took %" PRIu32 " ms", millis() - start);
 }
 
 void ADE7880::dump_config() {
