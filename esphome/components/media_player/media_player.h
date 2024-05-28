@@ -128,6 +128,12 @@ class MediaPlayer : public EntityBase {
 
   virtual bool is_shuffle() const { return false; }
 
+  virtual std::string artist() const { return ""; }
+
+  virtual std::string album() const { return ""; }
+
+  virtual std::string title() const { return ""; }
+
   virtual MediaPlayerTraits get_traits() = 0;
 
  protected:
