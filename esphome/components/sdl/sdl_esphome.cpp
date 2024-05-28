@@ -12,7 +12,7 @@ void Sdl::setup() {
       SDL_CreateWindow("ESPHome", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, this->width_, this->height_, 0);
   this->renderer_ = SDL_CreateRenderer(this->window_, -1, SDL_RENDERER_SOFTWARE);
   this->texture_ =
-      SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_BGR565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
+      SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
   SDL_SetTextureBlendMode(this->texture_, SDL_BLENDMODE_BLEND);
   ESP_LOGD(TAG, "Setup Complete");
 }
@@ -31,21 +31,22 @@ void Sdl::update() {
 
 void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                          display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
-  }
   SDL_Rect rect{x_start, y_start, w, h};
-  auto stride = x_offset + w + x_pad;
-  auto data = ptr + (stride * y_offset + x_offset) * 2;
-  SDL_UpdateTexture(this->texture_, &rect, data, stride * 2);
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || big_endian) {
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
+  } else {
+    auto stride = x_offset + w + x_pad;
+    auto data = ptr + (stride * y_offset + x_offset) * 2;
+    SDL_UpdateTexture(this->texture_, &rect, data, stride * 2);
+  }
   SDL_RenderCopy(this->renderer_, this->texture_, &rect, &rect);
   SDL_RenderPresent(this->renderer_);
 }
 
 void Sdl::draw_pixel_at(int x, int y, Color color) {
   SDL_Rect rect{x, y, 1, 1};
-  auto data = display::ColorUtil::color_to_565(color, display::COLOR_ORDER_BGR);
+  auto data = (display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB));
   SDL_UpdateTexture(this->texture_, &rect, &data, 2);
   if (x < this->x_low_)
     this->x_low_ = x;
@@ -63,10 +64,28 @@ void Sdl::loop() {
     switch (e.type) {
       case SDL_QUIT:
         exit(0);
+
+      case SDL_MOUSEBUTTONDOWN:
+      case SDL_MOUSEBUTTONUP:
+        if (e.button.button == 1) {
+          this->mouse_x = e.button.x;
+          this->mouse_y = e.button.y;
+          this->mouse_down = e.button.state != 0;
+        }
+        break;
+
+      case SDL_MOUSEMOTION:
+        if (e.motion.state & 1) {
+          this->mouse_x = e.button.x;
+          this->mouse_y = e.button.y;
+          this->mouse_down = true;
+        } else {
+          this->mouse_down = false;
+        }
         break;
 
       default:
-        ESP_LOGD(TAG, "Event %d", e.type);
+        ESP_LOGV(TAG, "Event %d", e.type);
         break;
     }
   }

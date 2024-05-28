@@ -1,3 +1,5 @@
+#pragma once
+
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -27,6 +29,10 @@ class Sdl : public display::Display {
   int get_height() override { return this->height_; }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
+
+  int mouse_x{};
+  int mouse_y{};
+  bool mouse_down{};
 
  protected:
   int get_width_internal() override { return this->width_; }

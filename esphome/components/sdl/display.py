@@ -17,6 +17,7 @@ Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component)
 
 
 CONF_SDL_OPTIONS = "sdl_options"
+CONF_SDL_ID = "sdl_id"
 
 
 def get_sdl_options(value):
@@ -53,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     for option in config[CONF_SDL_OPTIONS].split():
         cg.add_build_flag(option)
+    cg.add_build_flag("-DSDL_BYTEORDER=4321")
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 
