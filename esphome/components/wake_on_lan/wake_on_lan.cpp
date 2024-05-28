@@ -30,17 +30,15 @@ void WakeOnLanButton::press_action() {
     return;
   }
   ESP_LOGI(TAG, "Sending Wake-on-LAN Packet...");
-  bool success;
+  bool success = true;
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
-#ifdef USE_ESP8266
   for (auto ip : esphome::network::get_ip_addresses()) {
     if (ip.is_ip4()) {
       success = this->udp_client_.beginPacketMulticast(broadcast, 9, ip, 128) != 0;
       break;
     }
   }
-#endif
   if (success) {
     this->udp_client_.write(PREFIX, 6);
     for (size_t i = 0; i < 16; i++) {
