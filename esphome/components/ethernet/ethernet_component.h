@@ -10,10 +10,7 @@
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
 #include "esp_netif.h"
-#if ESP_IDF_VERSION_MAJOR >= 5
-  #include "esp_mac.h"
-#else
-#endif
+#include "esp_mac.h"
 
 namespace esphome {
 namespace ethernet {
