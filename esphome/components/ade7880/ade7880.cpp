@@ -10,6 +10,7 @@
 #include "ade7880.h"
 #include "ade7880_registers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace ade7880 {
@@ -156,7 +157,7 @@ void ADE7880::update() {
     });
   }
 
-  ESP_LOGD(TAG, "update took %u ms", millis() - start);
+  ESP_LOGD(TAG, "update took %" PRIu32 " ms", millis() - start);
 }
 
 void ADE7880::dump_config() {
@@ -176,9 +177,9 @@ void ADE7880::dump_config() {
     LOG_SENSOR("    ", "Forward Active Energy", this->channel_a_->forward_active_energy);
     LOG_SENSOR("    ", "Reverse Active Energy", this->channel_a_->reverse_active_energy);
     ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %u", this->channel_a_->current_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Voltage: %d", this->channel_a_->voltage_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Power: %d", this->channel_a_->power_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_a_->current_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Voltage: %" PRId32, this->channel_a_->voltage_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Power: %" PRId32, this->channel_a_->power_gain_calibration);
     ESP_LOGCONFIG(TAG, "     Phase Angle: %u", this->channel_a_->phase_angle_calibration);
   }
 
@@ -192,9 +193,9 @@ void ADE7880::dump_config() {
     LOG_SENSOR("    ", "Forward Active Energy", this->channel_b_->forward_active_energy);
     LOG_SENSOR("    ", "Reverse Active Energy", this->channel_b_->reverse_active_energy);
     ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %u", this->channel_b_->current_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Voltage: %d", this->channel_b_->voltage_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Power: %d", this->channel_b_->power_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_b_->current_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Voltage: %" PRId32, this->channel_b_->voltage_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Power: %" PRId32, this->channel_b_->power_gain_calibration);
     ESP_LOGCONFIG(TAG, "     Phase Angle: %u", this->channel_b_->phase_angle_calibration);
   }
 
@@ -208,9 +209,9 @@ void ADE7880::dump_config() {
     LOG_SENSOR("    ", "Forward Active Energy", this->channel_c_->forward_active_energy);
     LOG_SENSOR("    ", "Reverse Active Energy", this->channel_c_->reverse_active_energy);
     ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %u", this->channel_c_->current_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Voltage: %d", this->channel_c_->voltage_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Power: %d", this->channel_c_->power_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_c_->current_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Voltage: %" PRId32, this->channel_c_->voltage_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Power: %" PRId32, this->channel_c_->power_gain_calibration);
     ESP_LOGCONFIG(TAG, "     Phase Angle: %u", this->channel_c_->phase_angle_calibration);
   }
 
@@ -218,7 +219,7 @@ void ADE7880::dump_config() {
     ESP_LOGCONFIG(TAG, "  Neutral:");
     LOG_SENSOR("    ", "Current", this->channel_n_->current);
     ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %u", this->channel_n_->current_gain_calibration);
+    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_n_->current_gain_calibration);
   }
 
   LOG_I2C_DEVICE(this);

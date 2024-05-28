@@ -3,6 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace xgzp68xx {
@@ -37,8 +38,8 @@ void XGZP68XXComponent::update() {
     temperature_raw = encode_uint16(data[3], data[4]);
 
     // Convert the pressure data to hPa
-    ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
-    ESP_LOGV(TAG, "K value is %d ", this->k_value_);
+    ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u", pressure_raw, temperature_raw);
+    ESP_LOGV(TAG, "K value is %u", this->k_value_);
 
     // The most significant bit of both pressure and temperature will be 1 to indicate a negative value.
     // This is directly from the datasheet, and the calculations below will handle this.
