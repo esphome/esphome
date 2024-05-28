@@ -541,34 +541,34 @@ void FingerprintGrowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Sensor Power Pin: %s",
                 this->has_power_pin_ ? this->sensor_power_pin_->dump_summary().c_str() : "None");
   if (this->idle_period_to_sleep_ms_ < UINT32_MAX) {
-    ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %u ms", this->idle_period_to_sleep_ms_);
+    ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %" PRIu32 " ms", this->idle_period_to_sleep_ms_);
   } else {
     ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: Never");
   }
   LOG_UPDATE_INTERVAL(this);
   if (this->fingerprint_count_sensor_) {
     LOG_SENSOR("  ", "Fingerprint Count", this->fingerprint_count_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) this->fingerprint_count_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint16_t) this->fingerprint_count_sensor_->get_state());
   }
   if (this->status_sensor_) {
     LOG_SENSOR("  ", "Status", this->status_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) this->status_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint8_t) this->status_sensor_->get_state());
   }
   if (this->capacity_sensor_) {
     LOG_SENSOR("  ", "Capacity", this->capacity_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint16_t) this->capacity_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint16_t) this->capacity_sensor_->get_state());
   }
   if (this->security_level_sensor_) {
     LOG_SENSOR("  ", "Security Level", this->security_level_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint8_t) this->security_level_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint8_t) this->security_level_sensor_->get_state());
   }
   if (this->last_finger_id_sensor_) {
     LOG_SENSOR("  ", "Last Finger ID", this->last_finger_id_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_finger_id_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %" PRIu32, (uint32_t) this->last_finger_id_sensor_->get_state());
   }
   if (this->last_confidence_sensor_) {
     LOG_SENSOR("  ", "Last Confidence", this->last_confidence_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %d", (uint32_t) this->last_confidence_sensor_->get_state());
+    ESP_LOGCONFIG(TAG, "    Current Value: %" PRIu32, (uint32_t) this->last_confidence_sensor_->get_state());
   }
 }
 

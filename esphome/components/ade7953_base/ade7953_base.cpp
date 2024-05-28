@@ -1,5 +1,6 @@
 #include "ade7953_base.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace ade7953_base {
@@ -105,7 +106,7 @@ void ADE7953::update() {
     this->last_update_ = now;
     // prevent DIV/0
     pf = ADE_WATTSEC_POWER_FACTOR * (diff < 10 ? 10 : diff) / 1000;
-    ESP_LOGVV(TAG, "ADE7953::update() diff=%d pf=%f", diff, pf);
+    ESP_LOGVV(TAG, "ADE7953::update() diff=%" PRIu32 " pf=%f", diff, pf);
   }
 
   // Apparent power
