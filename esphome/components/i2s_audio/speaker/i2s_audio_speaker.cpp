@@ -51,7 +51,7 @@ void I2SAudioSpeaker::player_task(void *params) {
       .use_apll = false,
       .tx_desc_auto_clear = true,
       .fixed_mclk = I2S_PIN_NO_CHANGE,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
+      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
 #if SOC_I2S_SUPPORTS_DAC
