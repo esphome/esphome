@@ -30,22 +30,23 @@ void WakeOnLanButton::press_action() {
     return;
   }
   ESP_LOGI(TAG, "Sending Wake-on-LAN Packet...");
-  bool success = true;
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
   for (auto ip : esphome::network::get_ip_addresses()) {
     if (ip.is_ip4()) {
-      success = this->udp_client_.beginPacketMulticast(broadcast, 9, ip, 128) != 0;
-      break;
+      if (this->udp_client_.beginPacketMulticast(broadcast, 9, ip, 128) != 0) {
+        this->udp_client_.write(PREFIX, 6);
+        for (size_t i = 0; i < 16; i++) {
+          this->udp_client_.write(macaddr_, 6);
+        }
+        if (this->udp_client_.endPacket() != 0)
+          return;
+        ESP_LOGW(TAG, "WOL broadcast failed");
+        return;
+      }
     }
   }
-  if (success) {
-    this->udp_client_.write(PREFIX, 6);
-    for (size_t i = 0; i < 16; i++) {
-      this->udp_client_.write(macaddr_, 6);
-    }
-    success = this->udp_client_.endPacket() != 0;
-  }
+  ESP_LOGW(TAG, "No ip4 addresses to broadcast to");
 #else
   struct sockaddr_storage saddr {};
   auto addr_len =
@@ -55,11 +56,10 @@ void WakeOnLanButton::press_action() {
   for (size_t i = 0; i != 16; i++) {
     memcpy(buffer + i * sizeof(this->macaddr_) + sizeof(PREFIX), this->macaddr_, sizeof(this->macaddr_));
   }
-  success = (this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
-                                             addr_len) > 0);
-#endif
-  if (!success)
+  if (this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
+                                      addr_len) <= 0)
     ESP_LOGW(TAG, "sendto() error %d", errno);
+#endif
 }
 
 void WakeOnLanButton::setup() {
