@@ -757,23 +757,41 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
 
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
-      // Add timer to this->timers_ and trigger on_timer_started callback
       this->timer_started_trigger_->trigger(timer);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_UPDATED:
-      // Update this->timers_ with latest data and trigger on_timer_started callback
-
+      this->timer_updated_trigger_->trigger(timer);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_CANCELLED:
-      // Trigger on_timer_cancelled callback, then remove from this->timers_
       this->timer_cancelled_trigger_->trigger(timer);
       this->timers_.erase(timer.id);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_FINISHED:
-      // Trigger on_timer_finished callback
+      this->timer_finished_trigger_->trigger(timer);
+      this->timers_.erase(timer.id);
       break;
   }
-  // If any timers are present, run 1 seconds interval callback
+
+  if (this->timers_.empty()) {
+    this->cancel_interval("timer-event");
+    this->timer_tick_running_ = false;
+  } else if (!this->timer_tick_running_) {
+    this->set_interval("timer-event", 1000, [this]() { this->timer_tick_(); });
+    this->timer_tick_running_ = true;
+  }
+}
+
+void VoiceAssistant::timer_tick_() {
+  std::vector<Timer> res;
+  res.reserve(this->timers_.size());
+  for (auto &pair : this->timers_) {
+    auto &timer = pair.second;
+    if (timer.is_active && timer.seconds_left > 0) {
+      timer.seconds_left--;
+    }
+    res.push_back(timer);
+  }
+  this->timer_tick_trigger_->trigger(res);
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

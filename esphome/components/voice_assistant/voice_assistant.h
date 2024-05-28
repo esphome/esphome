@@ -24,7 +24,8 @@
 #include <esp_vad.h>
 #endif
 
-#include <map>
+#include <unordered_map>
+#include <vector>
 
 namespace esphome {
 namespace voice_assistant {
@@ -111,12 +112,16 @@ class VoiceAssistant : public Component {
     uint32_t flags = 0;
     flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
     flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
-    flags |= VoiceAssistantFeature::FEATURE_TIMERS;
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
     }
 #endif
+
+    if (this->has_timers_) {
+      flags |= VoiceAssistantFeature::FEATURE_TIMERS;
+    }
+
     return flags;
   }
 
@@ -168,6 +173,13 @@ class VoiceAssistant : public Component {
 
   void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
 
+  Trigger<Timer> *get_timer_started_trigger() const { return this->timer_started_trigger_; }
+  Trigger<Timer> *get_timer_updated_trigger() const { return this->timer_updated_trigger_; }
+  Trigger<Timer> *get_timer_cancelled_trigger() const { return this->timer_cancelled_trigger_; }
+  Trigger<Timer> *get_timer_finished_trigger() const { return this->timer_finished_trigger_; }
+  Trigger<std::vector<Timer>> *get_timer_tick_trigger() const { return this->timer_tick_trigger_; }
+  void set_has_timers(bool has_timers) { this->has_timers_ = has_timers; }
+
  protected:
   int read_microphone_();
   void set_state_(State state);
@@ -200,12 +212,15 @@ class VoiceAssistant : public Component {
 
   api::APIConnection *api_client_{nullptr};
 
-  std::map<std::string, Timer> timers_;
+  std::unordered_map<std::string, Timer> timers_;
+  void timer_tick_();
   Trigger<Timer> *timer_started_trigger_ = new Trigger<Timer>();
   Trigger<Timer> *timer_finished_trigger_ = new Trigger<Timer>();
   Trigger<Timer> *timer_updated_trigger_ = new Trigger<Timer>();
   Trigger<Timer> *timer_cancelled_trigger_ = new Trigger<Timer>();
-  Trigger<Timer> *timer_tick_trigger_ = new Trigger<Timer>();
+  Trigger<std::vector<Timer>> *timer_tick_trigger_ = new Trigger<std::vector<Timer>>();
+  bool has_timers_{false};
+  bool timer_tick_running_{false};
 
   microphone::Microphone *mic_{nullptr};
 #ifdef USE_SPEAKER
