@@ -151,12 +151,12 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
 
     // Look for sync pulse, after. If sucessful index points to space of sync symbol
     while (src.size() - src.get_index() >= MIN_RX_SRC) {
-      ESP_LOGVV(TAG, "Decode Drayton: sync search %d, %" PRId32 " %" PRId32, src.size() - src.get_index(), src.peek(),
-                src.peek(1));
+      ESP_LOGVV(TAG, "Decode Drayton: sync search %" PRIu32 ", %" PRId32 " %" PRId32, src.size() - src.get_index(),
+                src.peek(), src.peek(1));
       if (src.peek_mark(2 * BIT_TIME_US) &&
           (src.peek_space(2 * BIT_TIME_US, 1) || src.peek_space(3 * BIT_TIME_US, 1))) {
         src.advance(1);
-        ESP_LOGVV(TAG, "Decode Drayton: Found SYNC, - %d", src.get_index());
+        ESP_LOGVV(TAG, "Decode Drayton: Found SYNC, - %" PRIu32, src.get_index());
         break;
       } else {
         src.advance(2);
@@ -174,14 +174,16 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     // Checks next bit to leave index pointing correctly
     uint32_t out_data = 0;
     uint8_t bit = NDATABITS - 1;
-    ESP_LOGVV(TAG, "Decode Drayton: first bit %d  %" PRId32 ", %" PRId32, src.peek(0), src.peek(1), src.peek(2));
+    ESP_LOGVV(TAG, "Decode Drayton: first bit %" PRId32 "  %" PRId32 ", %" PRId32, src.peek(0), src.peek(1),
+              src.peek(2));
     if (src.expect_space(3 * BIT_TIME_US) && (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
       out_data |= 0 << bit;
     } else if (src.expect_space(2 * BIT_TIME_US) && src.expect_mark(BIT_TIME_US) &&
                (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode Drayton: Fail 2, - %d %d %d", src.peek(-1), src.peek(0), src.peek(1));
+      ESP_LOGV(TAG, "Decode Drayton: Fail 2, - %" PRId32 " %" PRId32 " %" PRId32, src.peek(-1), src.peek(0),
+               src.peek(1));
       continue;
     }
 
@@ -202,7 +204,8 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     }
 
     if (bit > 0) {
-      ESP_LOGVV(TAG, "Decode Drayton: Fail 3, %d %" PRId32 " %" PRId32, src.peek(-1), src.peek(0), src.peek(1));
+      ESP_LOGVV(TAG, "Decode Drayton: Fail 3, %" PRId32 " %" PRId32 " %" PRId32, src.peek(-1), src.peek(0),
+                src.peek(1));
       continue;
     }
 
@@ -214,7 +217,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
       continue;
     }
 
-    ESP_LOGV(TAG, "Decode Drayton: Data, %2d %08x", bit, out_data);
+    ESP_LOGV(TAG, "Decode Drayton: Data, %2d %08" PRIx32, bit, out_data);
 
     out.channel = (uint8_t) (out_data & 0x1F);
     out_data >>= NBITS_CHANNEL;
