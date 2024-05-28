@@ -6,7 +6,8 @@ from typing import Final
 from rich.pretty import pprint
 from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
-from smpclient.transport.ble import SMPBLETransport, SMPBLETransportDeviceNotFound
+from smpclient.transport.ble import SMPBLETransport
+from smpclient.transport import SMPTransportDisconnected
 from smpclient.transport.serial import SMPSerialTransport
 from smpclient import SMPClient
 from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound, MCUBootImageError
@@ -85,12 +86,11 @@ def get_image_tlv_sha256(file):
 
 
 async def smpmgr_upload(config, host, firmware):
-    for attempt in range(3):
-        try:
-            return await smpmgr_upload_(config, host, firmware)
-        except SMPBLETransportDeviceNotFound:
-            if attempt == 2:
-                raise
+    try:
+        return await smpmgr_upload_(config, host, firmware)
+    except SMPTransportDisconnected:
+        _LOGGER.error("%s was disconnected.", host)
+    return 1
 
 
 async def smpmgr_upload_(config, host, firmware):
@@ -101,7 +101,7 @@ async def smpmgr_upload_(config, host, firmware):
     if is_mac_address(host):
         smp_client = SMPClient(SMPBLETransport(), host)
     else:
-        smp_client = SMPClient(SMPSerialTransport(mtu=256), host)
+        smp_client = SMPClient(SMPSerialTransport(), host)
 
     _LOGGER.info("Connecting %s...", host)
     try:
@@ -113,9 +113,7 @@ async def smpmgr_upload_(config, host, firmware):
     _LOGGER.info("Connected %s...", host)
 
     try:
-        image_state = await asyncio.wait_for(
-            smp_client.request(ImageStatesRead()), timeout=2.5
-        )
+        image_state = await smp_client.request(ImageStatesRead(), 2.5)
     except SMPBadStartDelimiter as e:
         _LOGGER.error("mcumgr is not supported by device (%s)", e)
         return 1
@@ -150,31 +148,14 @@ async def smpmgr_upload_(config, host, firmware):
             upload_size = len(image)
             progress = ProgressBar()
             progress.update(0)
-
-            iter = smp_client.upload(image)
-            iter = type(iter).__aiter__(iter)
-            running = True
-            timeout = 40.0
-
-            while running:
-                try:
-                    offset = await asyncio.wait_for(type(iter).__anext__(iter), timeout)
+            try:
+                async for offset in smp_client.upload(image):
                     progress.update(offset / upload_size)
-                    timeout = 2.5
-                except StopAsyncIteration:
-                    running = False
-                except asyncio.exceptions.TimeoutError:
-                    progress.done()
-                    _LOGGER.warning("Upload timeout.")
-                    return 1
-
-            progress.done()
+            finally:
+                progress.done()
 
     _LOGGER.info("Mark image for testing")
-    r = await asyncio.wait_for(
-        smp_client.request(ImageStatesWrite(hash=image_tlv_sha256)),
-        timeout=1.0,
-    )
+    r = await smp_client.request(ImageStatesWrite(hash=image_tlv_sha256), 1.0)
 
     if error(r):
         _LOGGER.error(r)
@@ -183,7 +164,7 @@ async def smpmgr_upload_(config, host, firmware):
     # give a chance to execute completion callback
     time.sleep(1)
     _LOGGER.info("Reset")
-    r = await asyncio.wait_for(smp_client.request(ResetWrite()), timeout=1.0)
+    r = await smp_client.request(ResetWrite(), 1.0)
 
     if error(r):
         _LOGGER.error(r)
