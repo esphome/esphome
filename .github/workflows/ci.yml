@@ -34,7 +34,7 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
@@ -66,7 +66,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -87,7 +87,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -108,7 +108,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -129,7 +129,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -150,7 +150,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -199,7 +199,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -229,7 +229,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -254,7 +254,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Find all YAML test files
         id: set-matrix
         run: echo "matrix=$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
@@ -271,7 +271,7 @@ jobs:
         file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -303,7 +303,7 @@ jobs:
         file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -358,7 +358,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -410,7 +410,7 @@ jobs:
       count: ${{ steps.list-components.outputs.count }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
         with:
           # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
           fetch-depth: 500
@@ -458,7 +458,7 @@ jobs:
         run: sudo apt-get install libsodium-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -484,7 +484,7 @@ jobs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Split components into 20 groups
         id: split
         run: |
@@ -512,7 +512,7 @@ jobs:
         run: sudo apt-get install libsodium-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.5
+        uses: actions/checkout@v4.1.6
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
