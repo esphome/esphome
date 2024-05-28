@@ -18,6 +18,13 @@ const uint8_t MPU6050_RANGE_2G = 0b00;
 const float MPU6050_RANGE_PER_DIGIT_2G = 0.000061f;
 const uint8_t MPU6050_BIT_SLEEP_ENABLED = 6;
 const uint8_t MPU6050_BIT_TEMPERATURE_DISABLED = 3;
+const uint8_t MPU6050_REGISTER_INT_ENABLE = 0x38;
+const uint8_t MPU6050_REGISTER_MOTION_THRESHOLD = 0x1F;
+const uint8_t MPU6050_REGISTER_MOTION_DURATION = 0x20;
+const uint8_t MPU6050_BIT_MOTION_DET = 6;
+const uint8_t MPU6050_REGISTER_INT_PIN_CFG = 0x37;
+const uint8_t MPU6050_REGISTER_MOT_DETECT_CTRL = 0x69;
+const uint8_t MPU6050_BIT_MOT_EN = 6;
 const float GRAVITY_EARTH = 9.80665f;
 
 void MPU6050Component::setup() {
@@ -81,6 +88,39 @@ void MPU6050Component::setup() {
     this->mark_failed();
     return;
   }
+
+  // Configure motion detection threshold and duration
+  if (!this->write_byte(MPU6050_REGISTER_MOTION_THRESHOLD, 1)) {
+    this->mark_failed();
+    return;
+  }
+  if (!this->write_byte(MPU6050_REGISTER_MOTION_DURATION, 1)) {
+    this->mark_failed();
+    return;
+  }
+
+  // Configure motion detection control
+  uint8_t mot_detect_ctrl = (1 << MPU6050_BIT_MOT_EN);
+  if (!this->write_byte(MPU6050_REGISTER_MOT_DETECT_CTRL, mot_detect_ctrl)) {
+    this->mark_failed();
+    return;
+  }
+
+  // Enable interrupt latch and any read to clear
+  uint8_t int_pin_cfg = 0x30;  // Enable latching and any read to clear
+  if (!this->write_byte(MPU6050_REGISTER_INT_PIN_CFG, int_pin_cfg)) {
+    this->mark_failed();
+    return;
+  }
+
+  // Enable motion detection interrupt
+  uint8_t int_enable = (1 << MPU6050_BIT_MOTION_DET);
+  if (!this->write_byte(MPU6050_REGISTER_INT_ENABLE, int_enable)) {
+    this->mark_failed();
+    return;
+  }
+
+  ESP_LOGCONFIG(TAG, "MPU6050 setup complete.");
 }
 void MPU6050Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPU6050:");
