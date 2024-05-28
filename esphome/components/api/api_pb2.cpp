@@ -5235,6 +5235,18 @@ bool MediaPlayerStateResponse::decode_length(uint32_t field_id, ProtoLengthDelim
       this->repeat = value.as_string();
       return true;
     }
+    case 7: {
+      this->artist = value.as_string();
+      return true;
+    }
+    case 8: {
+      this->album = value.as_string();
+      return true;
+    }
+    case 9: {
+      this->title = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -5246,6 +5258,9 @@ void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(4, this->muted);
   buffer.encode_string(5, this->repeat);
   buffer.encode_bool(6, this->shuffle);
+  buffer.encode_string(7, this->artist);
+  buffer.encode_string(8, this->album);
+  buffer.encode_string(9, this->title);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
@@ -5275,6 +5290,18 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
 
   out.append("  shuffle: ");
   out.append(YESNO(this->shuffle));
+  out.append("\n");
+  
+  out.append("  artist: ");
+  out.append("'").append(this->this->artist).append("'");
+  out.append("\n");
+
+  out.append("  album: ");
+  out.append("'").append(this->this->album).append("'");
+  out.append("\n");
+
+  out.append("  title: ");
+  out.append("'").append(this->this->title).append("'");
   out.append("\n");
   out.append("}");
 }

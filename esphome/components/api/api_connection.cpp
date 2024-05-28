@@ -1011,6 +1011,9 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
   resp.muted = media_player->is_muted();
   resp.repeat = media_player->repeat();
   resp.shuffle = media_player->is_shuffle();
+  resp.artist = media_player->artist();
+  resp.album = media_player->album();
+  resp.title = media_player->title();
   return this->send_media_player_state_response(resp);
 }
 bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {

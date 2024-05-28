@@ -1150,6 +1150,9 @@ message MediaPlayerStateResponse {
   bool muted = 4;
   string repeat = 5;
   bool shuffle = 6;
+  string artist = 7;
+  string album = 8;
+  string title = 9;
 }
 message MediaPlayerCommandRequest {
   option (id) = 65;
