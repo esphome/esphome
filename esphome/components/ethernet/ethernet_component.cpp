@@ -77,9 +77,8 @@ void EthernetComponent::setup() {
   this->eth_netif_ = esp_netif_new(&cfg);
 
   // Init MAC and PHY configs to default
-  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-
+  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
 
 #ifdef USE_ETHERNET_SPI  // Configure SPI interface and Ethernet driver for specific SPI module
   spi_device_interface_config_t devcfg = {
@@ -99,13 +98,13 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
+#if USE_ESP_IDF && (ESP_IDF_VERSION_MAJOR >= 5)
+  eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
+#else
   spi_device_handle_t spi_handle = nullptr;
   err = spi_bus_add_device(host, &devcfg, &spi_handle);
   ESPHL_ERROR_CHECK(err, "SPI bus add device error");
 
-#if ESP_IDF_VERSION_MAJOR >= 5
-  eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
-#else
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
 #endif
   w5500_config.int_gpio_num = this->interrupt_pin_;
@@ -619,14 +618,14 @@ void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
 
   err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
   ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
-  ESP_LOGV(TAG, "Hardware default RTL8201 RMII Mode Register is: 0x%04X", phy_rmii_mode);
+  ESP_LOGV(TAG, "Hardware default RTL8201 RMII Mode Register is: 0x%04" PRIX32, phy_rmii_mode);
 
   err = mac->write_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, 0x1FFA);
   ESPHL_ERROR_CHECK(err, "Setting Register 16 RMII Mode Setting failed");
 
   err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
   ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
-  ESP_LOGV(TAG, "Setting RTL8201 RMII Mode Register to: 0x%04X", phy_rmii_mode);
+  ESP_LOGV(TAG, "Setting RTL8201 RMII Mode Register to: 0x%04" PRIX32, phy_rmii_mode);
 
   err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x0);
   ESPHL_ERROR_CHECK(err, "Setting Page 0 failed");
