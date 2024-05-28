@@ -2,7 +2,11 @@
 
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+#include "WiFiUdp.h"
+#else
 #include "esphome/components/socket/socket.h"
+#endif
 
 namespace esphome {
 namespace wake_on_lan {
@@ -16,8 +20,12 @@ class WakeOnLanButton : public button::Button, public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+  WiFiUDP udp_client_{};
+#else
+  std::unique_ptr<socket::Socket> broadcast_socket_{};
+#endif
   void press_action() override;
-  std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
   uint16_t port_{9};
   uint8_t macaddr_[6];
 };
