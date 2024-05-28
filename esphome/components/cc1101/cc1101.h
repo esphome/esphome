@@ -15,16 +15,16 @@ class CC1101 : public PollingComponent,
  protected:
   InternalGPIOPin *gdo0_;
   voltage_sampler::VoltageSampler *gdo0_adc_;
-  uint32_t bandwidth_;
-  uint32_t frequency_;
+  int bandwidth_;
+  int frequency_;
   sensor::Sensor *rssi_sensor_;
   sensor::Sensor *lqi_sensor_;
   sensor::Sensor *temperature_sensor_;
 
   uint8_t partnum_;
   uint8_t version_;
-  int32_t last_rssi_;
-  int32_t last_lqi_;
+  int last_rssi_;
+  int last_lqi_;
   float last_temperature_;
 
   bool reset_();
@@ -59,16 +59,16 @@ class CC1101 : public PollingComponent,
   uint8_t clb_[4][2];
   uint8_t pa_table_[8];
 
-  int32_t get_rssi_();
-  uint8_t get_lqi_();
+  int get_rssi_();
+  int get_lqi_();
   float get_temperature_();
 
   void set_mode_(bool s);
-  void set_frequency_(uint32_t f);
+  void set_frequency_(int f);
   void set_modulation_(uint8_t m);
   void set_pa_(int8_t pa);
   void set_clb_(uint8_t b, uint8_t s, uint8_t e);
-  void set_rxbw_(uint32_t bw);
+  void set_rxbw_(int bw);
   void set_state_(uint8_t state);
   bool wait_state_(uint8_t state);
 
@@ -80,8 +80,8 @@ class CC1101 : public PollingComponent,
 
   void set_config_gdo0_pin(InternalGPIOPin *pin);
   void set_config_gdo0_adc_pin(voltage_sampler::VoltageSampler *pin);
-  void set_config_bandwidth(uint32_t bandwidth);
-  void set_config_frequency(uint32_t frequency);
+  void set_config_bandwidth(int bandwidth);
+  void set_config_frequency(int frequency);
   void set_config_rssi_sensor(sensor::Sensor *rssi_sensor);
   void set_config_lqi_sensor(sensor::Sensor *lqi_sensor);
   void set_config_temperature_sensor(sensor::Sensor *temperature_sensor);
