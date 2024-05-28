@@ -30,7 +30,19 @@ void WakeOnLanButton::press_action() {
     return;
   }
   ESP_LOGI(TAG, "Sending Wake-on-LAN Packet...");
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+  struct sockaddr_storage saddr {};
+  auto addr_len =
+      socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), "255.255.255.255", this->port_);
+  uint8_t buffer[6 + sizeof this->macaddr_ * 16];
+  memcpy(buffer, PREFIX, sizeof(PREFIX));
+  for (size_t i = 0; i != 16; i++) {
+    memcpy(buffer + i * sizeof(this->macaddr_) + sizeof(PREFIX), this->macaddr_, sizeof(this->macaddr_));
+  }
+  if (this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
+                                      addr_len) <= 0)
+    ESP_LOGW(TAG, "sendto() error %d", errno);
+#else
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
   for (auto ip : esphome::network::get_ip_addresses()) {
     if (ip.is_ip4()) {
@@ -47,23 +59,11 @@ void WakeOnLanButton::press_action() {
     }
   }
   ESP_LOGW(TAG, "No ip4 addresses to broadcast to");
-#else
-  struct sockaddr_storage saddr {};
-  auto addr_len =
-      socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), "255.255.255.255", this->port_);
-  uint8_t buffer[6 + sizeof this->macaddr_ * 16];
-  memcpy(buffer, PREFIX, sizeof(PREFIX));
-  for (size_t i = 0; i != 16; i++) {
-    memcpy(buffer + i * sizeof(this->macaddr_) + sizeof(PREFIX), this->macaddr_, sizeof(this->macaddr_));
-  }
-  if (this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
-                                      addr_len) <= 0)
-    ESP_LOGW(TAG, "sendto() error %d", errno);
 #endif
 }
 
 void WakeOnLanButton::setup() {
-#ifndef USE_SOCKET_IMPL_LWIP_TCP
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
   if (this->broadcast_socket_ == nullptr) {
     this->mark_failed();
