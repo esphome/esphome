@@ -74,11 +74,6 @@ void APDS9306::setup() {
   }
 
   this->setup_has_run_++;
-
-  // Trigger software reset
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x10);
-
-  this->setup_has_run_++;
   // Put in standby mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
 
