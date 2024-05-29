@@ -85,6 +85,8 @@ void APDS9306::setup() {
   // Set to Active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 
+  this->setup_has_run_ = 1;
+
   ESP_LOGCONFIG(TAG, "setup complete");
 }
 
@@ -111,6 +113,8 @@ void APDS9306::dump_config() {
   ESP_LOGCONFIG(TAG, "  Gain: %f", gain_val_);
   ESP_LOGCONFIG(TAG, "  Measurement rate: %f", measurement_rate_val_);
   ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", bit_width_val_);
+  if (this->setup_has_run_) ESP_LOGCONFIG(TAG, "SETUP HAS RUN");
+  else ESP_LOGCONFIG(TAG, "SETUP HAS NOT RUN");
 
   LOG_UPDATE_INTERVAL(this);
 }
