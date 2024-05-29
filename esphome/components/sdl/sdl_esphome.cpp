@@ -93,5 +93,4 @@ void Sdl::loop() {
 
 }  // namespace sdl
 }  // namespace esphome
-
 #endif
