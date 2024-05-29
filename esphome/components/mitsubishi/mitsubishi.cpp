@@ -6,7 +6,7 @@ namespace mitsubishi {
 
 static const char *const TAG = "mitsubishi.climate";
 
-const uint32_t MITSUBISHI_OFF = 0x00;
+const uint8_t MITSUBISHI_OFF = 0x00;
 
 const uint8_t MITSUBISHI_MODE_AUTO = 0x20;
 const uint8_t MITSUBISHI_MODE_COOL = 0x18;
@@ -109,8 +109,8 @@ void MitsubishiClimate::transmit_state() {
   // Byte 15: HVAC specfic, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
   // Byte 16: Constant 0x00
   // Byte 17: Checksum: SUM[Byte0...Byte16]
-  uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x08, 0x00, 0x00,
-                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  uint8_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x08, 0x00, 0x00,
+                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT:
@@ -249,7 +249,7 @@ void MitsubishiClimate::transmit_state() {
 
   data->set_carrier_frequency(38000);
   // repeat twice
-  for (uint16_t r = 0; r < 2; r++) {
+  for (uint8_t r = 0; r < 2; r++) {
     // Header
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
