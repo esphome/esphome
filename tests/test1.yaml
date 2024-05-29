@@ -418,6 +418,13 @@ micronova:
     number: 4
   uart_id: uart_0
 
+mpu6050:
+  id: my_mpu6050
+  address: 0x68
+  interrupt:
+    threshold: 2
+    duration: 2ms
+
 dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
@@ -1067,7 +1074,7 @@ sensor:
     update_interval: 15s
     automatic_baseline_calibration: false
   - platform: mpu6050
-    address: 0x68
+    mpu6050_id: my_mpu6050
     accel_x:
       name: MPU6050 Accel X
     accel_y:
