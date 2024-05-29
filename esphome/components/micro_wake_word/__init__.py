@@ -334,7 +334,10 @@ async def to_code(config):
     elif model_config[CONF_TYPE] == TYPE_HTTP:
         file = _compute_local_file_path(model_config) / "manifest.json"
 
-    manifest, data = _load_model_data(file)
+    else:
+        raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
+
+    manifest, data = _load_model_data(Path(file))
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
