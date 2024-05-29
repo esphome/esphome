@@ -135,6 +135,10 @@ void APDS9306::update() {
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx from", lux);
   this->publish_state(lux);
+
+  // Restart
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 }
 
 void APDS9306::convert_config_variables_() {
@@ -206,6 +210,8 @@ void APDS9306::convert_config_variables_() {
       measurement_time_ = 3.125;
       break;
   }
+
+  return;
 }
 
 }  // namespace apds9306
