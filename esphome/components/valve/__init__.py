@@ -15,6 +15,9 @@ from esphome.const import (
     CONF_STOP,
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER_ID,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_WATER,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -22,6 +25,12 @@ from esphome.cpp_helpers import setup_entity
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+
+DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_WATER,
+]
 
 valve_ns = cg.esphome_ns.namespace("valve")
 
@@ -66,27 +75,27 @@ VALVE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
-        {
-            cv.GenerateID(): cv.declare_id(Valve),
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
-            cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
-                cv.requires_component("mqtt"), cv.subscribe_topic
-            ),
-            cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
-                cv.requires_component("mqtt"), cv.subscribe_topic
-            ),
-            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveOpenTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveClosedTrigger),
-                }
-            ),
-        }
-    )
+    {
+        cv.GenerateID(): cv.declare_id(Valve),
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
+        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+        cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.subscribe_topic
+        ),
+        cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.subscribe_topic
+        ),
+        cv.Optional(CONF_ON_OPEN): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveOpenTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveClosedTrigger),
+            }
+        ),
+    }
 )
 
 
