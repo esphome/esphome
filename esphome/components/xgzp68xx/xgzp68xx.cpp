@@ -3,6 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
+
 #include <cinttypes>
 
 namespace esphome {
