@@ -3,9 +3,17 @@ i2c:
     scl: 5
     sda: 4
 
+mpu6050:
+  id: mpu6050_1
+  address: 0x68
+  i2c_id: i2c_mpu6050
+  interrupt:
+    threshold: 2
+    duration: 2ms
+
 sensor:
   - platform: mpu6050
-    address: 0x68
+    mpu6050_id: mpu6050_1
     accel_x:
       name: MPU6050 Accel X
     accel_y:
