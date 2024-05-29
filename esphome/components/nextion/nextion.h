@@ -12,7 +12,7 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
 #ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif  // USE_ESP32
@@ -22,7 +22,7 @@
 #endif  // USE_ESP8266
 #elif defined(USE_ESP_IDF)
 #include <esp_http_client.h>
-#endif  // ARDUINO vs ESP-IDF
+#endif  // ARDUINO vs USE_ESP_IDF
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
@@ -952,6 +952,73 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool set_protocol_reparse_mode(bool active_mode);
 
+  // ======== Nextion Intelligent Series ========
+
+  /**
+   * Set the video id of a component.
+   * @param component The component name.
+   * @param vid_id The video ID.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_vid("textview", 1);
+   * ```
+   *
+   * This will change the video id of the component `textview`.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_vid(const char *component, uint8_t vid_id);
+
+  /**
+   * Set the drag availability of a component.
+   * @param component The component name.
+   * @param drag False: Drag not available, True: Drag available.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_drag("textview", true);
+   * ```
+   *
+   * This will enable drag to the component `textview`.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_drag(const char *component, bool drag);
+
+  /**
+   * Set the opaqueness (fading) of a component.
+   * @param component The component name.
+   * @param aph An integer between 0 and 127 related to the opaqueness/fading level.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_aph("textview", 64);
+   * ```
+   *
+   * This will set the opaqueness level of the component `textview` to 64.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_aph(const char *component, uint8_t aph);
+
+  /**
+   * Set the position of a component.
+   * @param component The component name.
+   * @param x The new X (horizontal) coordinate for the component.
+   * @param y The new Y (vertical) coordinate for the component.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_aph("textview", 64, 35);
+   * ```
+   *
+   * This will move the component `textview` to the column 64 of row 35 of the display.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_position(const char *component, uint32_t x, uint32_t y);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   void register_touch_component(NextionComponentBase *obj) { this->touch_.push_back(obj); }
@@ -976,6 +1043,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return Whether the send was successful.
    */
   bool send_command(const char *command);
+
   /**
    * Manually send a raw formatted command to the display.
    * @param format The printf-style command format, like "vis %s,0"
@@ -986,16 +1054,33 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problematic with arduino..
+   * Set the tft file URL. https seems problematic with Arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
-#endif
 
   /**
-   * Upload the tft file and soft reset Nextion
+   * @brief Uploads the TFT file to the Nextion display.
+   *
+   * This function initiates the upload of a TFT file to the Nextion display. Users can specify a target baud rate for
+   * the transfer. If the provided baud rate is not supported by Nextion, the function defaults to using the current
+   * baud rate set for the display. If no baud rate is specified (or if 0 is passed), the current baud rate is used.
+   *
+   * Supported baud rates are: 2400, 4800, 9600, 19200, 31250, 38400, 57600, 115200, 230400, 250000, 256000, 512000
+   * and 921600. Selecting a baud rate supported by both the Nextion display and the host hardware is essential for
+   * ensuring a successful upload process.
+   *
+   * @param baud_rate The desired baud rate for the TFT file transfer, specified as an unsigned 32-bit integer.
+   * If the specified baud rate is not supported, or if 0 is passed, the function will use the current baud rate.
+   * The default value is 0, which implies using the current baud rate.
+   * @param exit_reparse If true, the function exits reparse mode before uploading the TFT file. This parameter
+   * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
+   * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
+   * the display properly processes the uploaded file command.
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
-  bool upload_tft();
+  bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
+
+#endif  // USE_NEXTION_TFT_UPLOAD
 
   void dump_config() override;
 
@@ -1118,11 +1203,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void all_components_send_state_(bool force_update = false);
   uint64_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+
   /**
    * @brief
    * Sends commands ignoring of the Nextion has been setup.
    */
   bool ignore_is_setup_ = false;
+
   bool nextion_reports_is_setup_ = false;
   uint8_t nextion_event_;
 
@@ -1159,41 +1246,37 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void check_pending_waveform_();
 
 #ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef USE_ESP8266
+  WiFiClient *wifi_client_{nullptr};
+  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
+  WiFiClient *get_wifi_client_();
+#endif  // USE_ESP8266
+  std::string tft_url_;
   uint32_t content_length_ = 0;
   int tft_size_ = 0;
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
 
-  std::string tft_url_;
-  uint8_t *transfer_buffer_{nullptr};
-  size_t transfer_buffer_size_;
-
-#ifdef USE_ESP8266
-  WiFiClient *wifi_client_{nullptr};
-  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
-  WiFiClient *get_wifi_client_();
-#endif
-
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
-   * @param HTTPClient http HTTP client handler.
+   * @param HTTPClient http_client HTTP client handler.
    * @param int range_start Position of next byte to transfer.
    * @return position of last byte transferred, -1 for failure.
    */
-  int upload_by_chunks_(HTTPClient *http, int range_start);
-
-  bool upload_with_range_(uint32_t range_start, uint32_t range_end);
-
+  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
+#elif defined(USE_ESP_IDF)
   /**
-   * start update tft file to nextion.
-   *
-   * @param const uint8_t *file_buf
-   * @param size_t buf_size
-   * @return true if success, false for failure.
+   * will request 4096 bytes chunks from the web server
+   * and send each to Nextion
+   * @param esp_http_client_handle_t http_client HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
    */
-  bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
+  int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
+#endif  // USE_ARDUINO vs USE_ESP_IDF
+
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
@@ -1201,23 +1284,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
-#elif defined(USE_ESP_IDF)
+
   /**
-   * will request 4096 bytes chunks from the web server
-   * and send each to Nextion
-   * @param std::string url Full url for download.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
+   * Returns the ESP Free Heap memory. This is framework independent.
+   * @return Free Heap in bytes.
    */
-  int upload_range(const std::string &url, int range_start);
-  /**
-   * Ends the upload process, restart Nextion and, if successful,
-   * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
-   */
-  bool upload_end(bool successful);
-#endif  // ARDUINO vs ESP-IDF
+  uint32_t get_free_heap_();
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
@@ -1248,7 +1320,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef NEXTION_PROTOCOL_LOG
   void print_queue_members_();
-#endif
+#endif  // NEXTION_PROTOCOL_LOG
   void reset_(bool reset_nextion = true);
 
   std::string command_data_;

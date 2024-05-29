@@ -10,6 +10,7 @@
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
 #include "esp_netif.h"
+#include "esp_mac.h"
 
 namespace esphome {
 namespace ethernet {
@@ -86,6 +87,8 @@ class EthernetComponent : public Component {
   void dump_connect_params_();
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+  /// @brief Set `RMII Mode Setting Register` for RTL8201.
+  void rtl8201_set_rmii_mode_(esp_eth_mac_t *mac);
 
   std::string use_address_;
 #ifdef USE_ETHERNET_SPI
