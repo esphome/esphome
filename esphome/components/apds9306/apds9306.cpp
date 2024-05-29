@@ -121,9 +121,12 @@ void APDS9306::update() {
 
   this->status_clear_warning();
 
-  if (!(status &= 0b00001000))  // No new data
-    return;
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 
+  while (!(status &= 0b00001000)) {APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.")}  // No new data  
+  
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
+    
   this->convert_config_variables_();
 
   uint8_t als_data[3];
@@ -137,8 +140,8 @@ void APDS9306::update() {
   this->publish_state(lux);
 
   // Restart
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
+  
+  
 }
 
 void APDS9306::convert_config_variables_() {
