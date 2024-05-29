@@ -116,14 +116,13 @@ void APDS9306::dump_config() {
 }
 
 void APDS9306::update() {
-  APDS9306::setup();
-
   uint8_t status;
   APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
 
   this->status_clear_warning();
 
-  while (!(status &= 0b00001000)) {APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");}  // Wait for new data
+  if (!(status &= 0b00001000))  // No new data
+    return;
 
   this->convert_config_variables_();
 
