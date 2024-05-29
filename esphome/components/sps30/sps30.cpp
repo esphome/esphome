@@ -220,6 +220,20 @@ bool SPS30Component::start_continuous_measurement_() {
     ESP_LOGE(TAG, "Error initiating measurements");
     return false;
   }
+  ESP_LOGD(TAG, "Started measurements");
+  return true;
+}
+
+bool SPS30Component::start_measurement() {
+  return start_continuous_measurement_();
+}
+
+bool SPS30Component::stop_measurement() {
+  if (!write_command(SPS30_CMD_STOP_MEASUREMENTS)) {
+    ESP_LOGE(TAG, "Error stopping measurements");
+  } else {
+    ESP_LOGD(TAG, "Stopped measurements");
+  }
   return true;
 }
 

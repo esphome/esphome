@@ -38,6 +38,8 @@ SPS30Component = sps30_ns.class_(
 
 # Actions
 StartFanAction = sps30_ns.class_("StartFanAction", automation.Action)
+StartMeasurementAction = sps30_ns.class_("StartMeasurementAction", automation.Action)
+StopMeasurementAction = sps30_ns.class_("StopMeasurementAction", automation.Action)
 
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 
@@ -175,6 +177,13 @@ SPS30_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "sps30.start_fan_autoclean", StartFanAction, SPS30_ACTION_SCHEMA
 )
-async def sps30_fan_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+@automation.register_action(
+    "sps30.start_measurement", StartMeasurementAction, SPS30_ACTION_SCHEMA
+)
+@automation.register_action(
+    "sps30.stop_measurement", StopMeasurementAction, SPS30_ACTION_SCHEMA
+)
+async def sps30_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
