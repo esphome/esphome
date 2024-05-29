@@ -421,6 +421,7 @@ micronova:
 mpu6050:
   id: my_mpu6050
   address: 0x68
+  i2c_id: i2c_bus
   interrupt:
     threshold: 2
     duration: 2ms
@@ -1089,7 +1090,6 @@ sensor:
       name: MPU6050 Gyro z
     temperature:
       name: MPU6050 Temperature
-    i2c_id: i2c_bus
   - platform: mpu6886
     address: 0x68
     accel_x:
