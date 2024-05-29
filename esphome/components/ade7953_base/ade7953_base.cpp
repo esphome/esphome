@@ -1,5 +1,6 @@
 #include "ade7953_base.h"
 #include "esphome/core/log.h"
+
 #include <cinttypes>
 
 namespace esphome {

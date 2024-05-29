@@ -1,5 +1,6 @@
 #include "mhz19.h"
 #include "esphome/core/log.h"
+
 #include <cinttypes>
 
 namespace esphome {

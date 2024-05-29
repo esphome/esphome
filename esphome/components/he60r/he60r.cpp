@@ -1,6 +1,7 @@
 #include "he60r.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+
 #include <cinttypes>
 
 namespace esphome {
@@ -125,10 +126,10 @@ void HE60rCover::process_rx_(uint8_t data) {
 }
 
 void HE60rCover::update_() {
-  if (toggles_needed_ != 0) {
+  if (this->toggles_needed_ != 0) {
     if ((this->counter_++ & 0x3) == 0) {
-      toggles_needed_--;
-      ESP_LOGD(TAG, "Writing byte 0x30, still needed=%" PRIu32, toggles_needed_);
+      this->toggles_needed_--;
+      ESP_LOGD(TAG, "Writing byte 0x30, still needed=%" PRIu32, this->toggles_needed_);
       this->write_byte(TOGGLE_BYTE);
     } else {
       this->write_byte(QUERY_BYTE);
