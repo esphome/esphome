@@ -8,8 +8,8 @@ namespace sdl {
 void Sdl::setup() {
   ESP_LOGD(TAG, "Starting setup");
   SDL_Init(SDL_INIT_VIDEO);
-  this->window_ =
-      SDL_CreateWindow("ESPHome", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, this->width_, this->height_, 0);
+  this->window_ = SDL_CreateWindow(App.get_name().c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                                   this->width_, this->height_, 0);
   this->renderer_ = SDL_CreateRenderer(this->window_, -1, SDL_RENDERER_SOFTWARE);
   this->texture_ =
       SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
