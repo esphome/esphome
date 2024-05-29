@@ -32,8 +32,8 @@ remote_receiver:
   on_coolix:
     then:
       - logger.log:
-          format: "on_coolix: %u %u"
-          args: ["x.first", "x.second"]
+          format: "on_coolix: %lu %lu"
+          args: ["long(x.first)", "long(x.second)"]
   on_dish:
     then:
       - logger.log:
@@ -52,13 +52,13 @@ remote_receiver:
   on_jvc:
     then:
       - logger.log:
-          format: "on_jvc: %u"
-          args: ["x.data"]
+          format: "on_jvc: %lu"
+          args: ["long(x.data)"]
   on_keeloq:
     then:
       - logger.log:
-          format: "on_keeloq: %u %u %u"
-          args: ["x.encrypted", "x.address", "x.command"]
+          format: "on_keeloq: %lu %lu %u"
+          args: ["long(x.encrypted)", "long(x.address)", "x.command"]
   on_haier:
     then:
       - logger.log:
@@ -67,13 +67,13 @@ remote_receiver:
   on_lg:
     then:
       - logger.log:
-          format: "on_lg: %u %u"
-          args: ["x.data", "x.nbits"]
+          format: "on_lg: %lu %u"
+          args: ["long(x.data)", "x.nbits"]
   on_magiquest:
     then:
       - logger.log:
-          format: "on_magiquest: %u %u"
-          args: ["x.magnitude", "x.wand_id"]
+          format: "on_magiquest: %u %lu"
+          args: ["x.magnitude", "long(x.wand_id)"]
   on_midea:
     then:
       - logger.log:
@@ -87,13 +87,13 @@ remote_receiver:
   on_nexa:
     then:
       - logger.log:
-          format: "on_nexa: %u %u %u %u %u"
-          args: ["x.device", "x.group", "x.state", "x.channel", "x.level"]
+          format: "on_nexa: %lu %u %u %u %u"
+          args: ["long(x.device)", "x.group", "x.state", "x.channel", "x.level"]
   on_panasonic:
     then:
       - logger.log:
-          format: "on_panasonic: %u %u"
-          args: ["x.address", "x.command"]
+          format: "on_panasonic: %u %lu"
+          args: ["x.address", "long(x.command)"]
   on_pioneer:
     then:
       - logger.log:
@@ -107,8 +107,8 @@ remote_receiver:
   on_raw:
     then:
       - logger.log:
-          format: "on_raw: %u"
-          args: ["x.front()"]
+          format: "on_raw: %lu"
+          args: ["long(x.front())"]
   on_rc5:
     then:
       - logger.log:
@@ -132,13 +132,13 @@ remote_receiver:
   on_samsung36:
     then:
       - logger.log:
-          format: "on_samsung36: %u %u"
-          args: ["x.address", "x.command"]
+          format: "on_samsung36: %u %lu"
+          args: ["x.address", "long(x.command)"]
   on_sony:
     then:
       - logger.log:
-          format: "on_sony: %u %u"
-          args: ["x.data", "x.nbits"]
+          format: "on_sony: %lu %u"
+          args: ["long(x.data)", "x.nbits"]
   on_toshiba_ac:
     then:
       - logger.log:
