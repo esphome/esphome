@@ -71,11 +71,8 @@ def validate_speed(value):
 Rotation = stepper_ns.enum("Rotation")
 ROTATIONS = {
     "BOTH": Rotation.ROTATION_BOTH,
-    "CW": Rotation.ROTATION_CW,
     "CLOCKWISE": Rotation.ROTATION_CW,
-    "CCW": Rotation.ROTATION_CCW,
     "COUNTERCLOCKWISE": Rotation.ROTATION_CCW,
-    "COUNTER-CLOCKWISE": Rotation.ROTATION_CCW,
 }
 
 STEPPER_SCHEMA = cv.Schema(
