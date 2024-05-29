@@ -1,11 +1,5 @@
-i2c:
-  scl: 22
-  sda: 21
+substitutions:
+  scl_pin: GPIO22
+  sda_pin: GPIO21
 
-sensor:
-  - platform: apds9306
-    name: "APDS9306 Light Level"
-    gain: 1
-    bit_width: 18
-    measurement_rate: 100
-    update_interval: 60s
+<<: !include common.yaml

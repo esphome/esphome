@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_apds9306
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: apds9306
+    name: "APDS9306 Light Level"
+    gain: 1
+    bit_width: 18
+    measurement_rate: 100
+    update_interval: 60s
