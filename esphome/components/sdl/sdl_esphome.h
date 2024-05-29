@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_HOST
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -49,3 +50,5 @@ class Sdl : public display::Display {
 };
 }  // namespace sdl
 }  // namespace esphome
+
+#endif

@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_HOST
 #include "../sdl_esphome.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 
@@ -22,3 +23,4 @@ class SdlTouchscreen : public touchscreen::Touchscreen, public Parented<Sdl> {
 
 }  // namespace sdl
 }  // namespace esphome
+#endif

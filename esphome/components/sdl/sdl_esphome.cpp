@@ -1,5 +1,5 @@
+#ifdef USE_HOST
 #include "sdl_esphome.h"
-#include "esphome/components/logger/logger.h"
 #include "esphome/components/display/display_color_utils.h"
 
 namespace esphome {
@@ -93,3 +93,5 @@ void Sdl::loop() {
 
 }  // namespace sdl
 }  // namespace esphome
+
+#endif
