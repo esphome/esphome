@@ -35,20 +35,20 @@ void OtaHttpRequestComponent::setup() {
 void OtaHttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request:");
   ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-  ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT / 1000);
-#endif
-#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-  ESP_LOGCONFIG(TAG, "  TLS server verification: Yes");
-#else
-  ESP_LOGCONFIG(TAG, "  TLS server verification: No");
-#endif
 #ifdef USE_ESP8266
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   ESP_LOGCONFIG(TAG, "  ESP8266 SSL support: No");
 #else
   ESP_LOGCONFIG(TAG, "  ESP8266 SSL support: Yes");
 #endif
+#endif
+#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+  ESP_LOGCONFIG(TAG, "  TLS server verification: Yes");
+#else
+  ESP_LOGCONFIG(TAG, "  TLS server verification: No");
+#endif
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
+  ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT / 1000);
 #endif
 };
 
@@ -85,49 +85,69 @@ bool OtaHttpRequestComponent::check_status() {
 
 void OtaHttpRequestComponent::flash() {
   if (this->url_.empty()) {
-    ESP_LOGE(TAG, "URL not set");
+    ESP_LOGE(TAG, "URL not set; cannot start update");
     return;
   }
 
-  ESP_LOGD(TAG, "Starting update...");
+  ESP_LOGI(TAG, "Starting update...");
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-  uint32_t update_start_time = millis();
+  auto ota_status = this->do_ota_();
+
+  switch (ota_status) {
+    case ota::OTA_RESPONSE_OK:
+#ifdef USE_OTA_STATE_CALLBACK
+      this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, ota_status);
+#endif
+      delay(10);
+      App.safe_reboot();
+      break;
+
+    default:
+#ifdef USE_OTA_STATE_CALLBACK
+      this->state_callback_.call(ota::OTA_ERROR, 0.0f, ota_status);
+#endif
+      this->md5_computed_.clear();  // will be reset at next attempt
+      this->md5_expected_.clear();  // will be reset at next attempt
+      break;
+  }
+}
+
+void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend) {
+  if (this->update_started_) {
+    ESP_LOGV(TAG, "Aborting OTA backend");
+    backend->abort();
+  }
+  ESP_LOGV(TAG, "Aborting HTTP connection");
+  this->http_end();
+};
+
+uint8_t OtaHttpRequestComponent::do_ota_() {
   uint8_t buf[this->http_recv_buffer_ + 1];
-  int error_code = 0;
   uint32_t last_progress = 0;
+  uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
   std::unique_ptr<char[]> md5_receive_str(new char[33]);
   watchdog::WatchdogSupervisor wdts;
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
-#ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(OTA_BAD_MD5_PROVIDED));
-#endif
-    return;
+    return OTA_MD5_INVALID;
   }
 
   ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_.c_str());
 
   auto url_with_auth = this->get_url_with_auth_(this->url_);
   if (url_with_auth.empty()) {
-#ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(OTA_BAD_URL));
-#endif
-    this->md5_expected_.clear();  // will be reset at next attempt
-    return;
+    return OTA_BAD_URL;
   }
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
   ESP_LOGI(TAG, "Connecting to: %s", this->url_.c_str());
   this->http_init(url_with_auth);
   if (!this->check_status()) {
     this->http_end();
-#ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(OTA_CONNECTION_ERROR));
-#endif
-    return;
+    return OTA_CONNECTION_ERROR;
   }
 
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
@@ -136,11 +156,11 @@ void OtaHttpRequestComponent::flash() {
 
   ESP_LOGV(TAG, "OTA backend begin");
   auto backend = ota::make_ota_backend();
-  error_code = backend->begin(this->body_length_);
-  if (error_code != 0) {
+  auto error_code = backend->begin(this->body_length_);
+  if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "backend->begin error: %d", error_code);
-    this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
-    return;
+    this->cleanup_(std::move(backend));
+    return error_code;
   }
 
   this->bytes_read_ = 0;
@@ -155,8 +175,8 @@ void OtaHttpRequestComponent::flash() {
 
     if (bufsize < 0) {
       ESP_LOGE(TAG, "Stream closed");
-      this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
-      return;
+      this->cleanup_(std::move(backend));
+      return OTA_CONNECTION_ERROR;
     } else if (bufsize > 0 && bufsize <= this->http_recv_buffer_) {
       // add read bytes to MD5
       md5_receive.add(buf, bufsize);
@@ -164,13 +184,13 @@ void OtaHttpRequestComponent::flash() {
       // write bytes to OTA backend
       this->update_started_ = true;
       error_code = backend->write(buf, bufsize);
-      if (error_code != 0) {
+      if (error_code != ota::OTA_RESPONSE_OK) {
         // error code explanation available at
         // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
         ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
                  this->bytes_read_ - bufsize, this->body_length_);
-        this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
-        return;
+        this->cleanup_(std::move(backend));
+        return error_code;
       }
     }
 
@@ -193,8 +213,8 @@ void OtaHttpRequestComponent::flash() {
   this->md5_computed_ = md5_receive_str.get();
   if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
-    this->cleanup_(std::move(backend), 0);
-    return;
+    this->cleanup_(std::move(backend));
+    return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
     backend->set_update_md5(md5_receive_str.get());
   }
@@ -207,33 +227,15 @@ void OtaHttpRequestComponent::flash() {
   delay(100);  // NOLINT
 
   error_code = backend->end();
-  if (error_code != 0) {
+  if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "Error ending update! error_code: %d", error_code);
-    this->cleanup_(std::move(backend), static_cast<uint8_t>(error_code));
-    return;
+    this->cleanup_(std::move(backend));
+    return error_code;
   }
 
   ESP_LOGI(TAG, "Update complete");
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);
-#endif
-  delay(10);
-  App.safe_reboot();
+  return ota::OTA_RESPONSE_OK;
 }
-
-void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend, uint8_t error_code) {
-  if (this->update_started_) {
-    ESP_LOGV(TAG, "Aborting OTA backend");
-    backend->abort();
-  }
-  ESP_LOGV(TAG, "Aborting HTTP connection");
-  this->http_end();
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_ERROR, 0.0f, error_code);
-#endif
-  this->md5_computed_.clear();  // will be reset at next attempt
-  this->md5_expected_.clear();  // will be reset at next attempt
-};
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
   if (this->username_.empty() || this->password_.empty()) {

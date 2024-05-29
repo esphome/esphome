@@ -15,7 +15,7 @@ static const char *const TAG = "http_request.ota";
 static const uint8_t MD5_SIZE = 32;
 
 enum OtaHttpRequestError : uint8_t {
-  OTA_BAD_MD5_PROVIDED = 0x10,
+  OTA_MD5_INVALID = 0x10,
   OTA_BAD_URL = 0x11,
   OTA_CONNECTION_ERROR = 0x12,
 };
@@ -45,7 +45,8 @@ class OtaHttpRequestComponent : public ota::OTAComponent {
   virtual void http_end(){};
 
  protected:
-  void cleanup_(std::unique_ptr<ota::OTABackend> backend, uint8_t error_code);
+  void cleanup_(std::unique_ptr<ota::OTABackend> backend);
+  uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
   bool secure_() { return this->url_.find("https:") != std::string::npos; };
