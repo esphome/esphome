@@ -39,7 +39,7 @@ int32_t Stepper::should_step_() {
   uint32_t dt = now - this->last_step_;
   if (dt >= (1 / this->current_speed_) * 1e6f) {
     int32_t mag = 0;
-    switch(rotation_) {
+    switch (rotation_) {
       case ROTATION_CW:
         mag = 1;
         break;
