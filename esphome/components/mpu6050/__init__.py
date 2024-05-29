@@ -1,11 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_INTERRUPT, CONF_THRESHOLD, CONF_DURATION
 
-CONF_INTERRUPT = "interrupt"
-CONF_THRESHOLD = "threshold"
-CONF_DURATION = "duration"
 CONF_MPU6050_ID = "mpu6050_id"
 
 mpu6050_ns = cg.esphome_ns.namespace("mpu6050")
