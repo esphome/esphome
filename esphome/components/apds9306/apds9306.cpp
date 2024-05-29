@@ -210,8 +210,6 @@ void APDS9306::convert_config_variables_() {
       measurement_time_ = 3.125;
       break;
   }
-
-  return;
 }
 
 }  // namespace apds9306
