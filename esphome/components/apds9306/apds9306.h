@@ -1,3 +1,6 @@
+// Based on this datasheet:
+// https://www.mouser.ca/datasheet/2/678/AVGO_S_A0002854364_1-2574547.pdf
+
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
@@ -18,6 +21,8 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   void set_ambient_light_gain(uint8_t gain) { this->gain_ = gain; }
 
  protected:
+  void convert_config_variables_();
+
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
@@ -25,11 +30,12 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   } error_code_{NONE};
 
   uint8_t bit_width_;
-  uint16_t bit_width_val_;
+  uint8_t bit_width_val_;
   uint8_t measurement_rate_;
-  uint16_t rate_val_;
+  float measurement_rate_val_;
   uint8_t gain_;
   float gain_val_;
+  float measurement_time_;
 };
 
 }  // namespace apds9306

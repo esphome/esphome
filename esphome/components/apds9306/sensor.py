@@ -1,3 +1,6 @@
+# Based on this datasheet:
+# https://www.mouser.ca/datasheet/2/678/AVGO_S_A0002854364_1-2574547.pdf
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
@@ -31,6 +34,7 @@ MEASUREMENT_RATES = {
     200: 3,
     500: 4,
     1000: 5,
+    2000: 6,
 }
 
 AMBIENT_LIGHT_GAINS = {
@@ -61,8 +65,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
                 MEASUREMENT_BIT_WIDTHS, int=True
             ),
-            cv.Optional(CONF_MEASUREMENT_RATE, default="100"): cv.enum(
-                MEASUREMENT_RATES, int=True
+            cv.Optional(CONF_MEASUREMENT_RATE, default="100"): cv.time_period_in_milliseconds_(
+                    cv.enum(MEASUREMENT_RATES, int=True
+                ),
             ),
         }
     )
