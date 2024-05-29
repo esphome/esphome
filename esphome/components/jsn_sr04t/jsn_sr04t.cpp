@@ -2,8 +2,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cinttypes>
-
 // Very basic support for JSN_SR04T V3.0 distance sensor in mode 2
 
 namespace esphome {
@@ -38,7 +36,7 @@ void Jsnsr04tComponent::check_buffer_() {
     uint16_t distance = encode_uint16(this->buffer_[1], this->buffer_[2]);
     if (distance > 250) {
       float meters = distance / 1000.0f;
-      ESP_LOGV(TAG, "Distance from sensor: %" PRIu32 "mm, %.3fm", distance, meters);
+      ESP_LOGV(TAG, "Distance from sensor: %umm, %.3fm", distance, meters);
       this->publish_state(meters);
     } else {
       ESP_LOGW(TAG, "Invalid data read from sensor: %s", format_hex_pretty(this->buffer_).c_str());
