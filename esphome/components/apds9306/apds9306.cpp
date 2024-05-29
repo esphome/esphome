@@ -46,9 +46,9 @@ enum {  // APDS9306 registers
     return; \
   }
 #define APDS9306_WRITE_BYTE(reg, value) \
-  ESP_LOGD(TAG, "Writing %x to %x", value, reg); \
+  ESP_LOGV(TAG, "Writing 0x%02x to 0x%02x", value, reg); \
   if (!this->write_byte(reg, value)) { \
-    ESP_LOGE(TAG, "Failed writing 0x%x to 0x%x", value, reg); \
+    ESP_LOGE(TAG, "Failed writing 0x%02x to 0x%02x", value, reg); \
     this->mark_failed(); \
     return; \
   }
