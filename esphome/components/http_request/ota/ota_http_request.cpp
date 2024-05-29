@@ -1,4 +1,5 @@
 #include "ota_http_request.h"
+#include "watchdog.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -99,6 +100,7 @@ void OtaHttpRequestComponent::flash() {
   uint32_t last_progress = 0;
   md5::MD5Digest md5_receive;
   std::unique_ptr<char[]> md5_receive_str(new char[33]);
+  watchdog::WatchdogSupervisor wdts;
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
 #ifdef USE_OTA_STATE_CALLBACK

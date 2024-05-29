@@ -26,7 +26,7 @@ uint32_t Watchdog::timeout_ms = 0;                             // NOLINT
 uint32_t Watchdog::init_timeout_ms = Watchdog::get_timeout();  // NOLINT
 
 void Watchdog::set_timeout(uint32_t timeout_ms) {
-  ESP_LOGV(TAG, "set_timeout: %" PRId32 "ms", timeout_ms);
+  ESP_LOGV(TAG, "set_timeout: %" PRIu32 "ms", timeout_ms);
 #ifdef USE_ESP8266
   EspClass::wdtEnable(timeout_ms);
 #endif  // USE_ESP8266
@@ -65,12 +65,27 @@ uint32_t Watchdog::get_timeout() {
     // fallback to stored timeout
     timeout_ms = Watchdog::timeout_ms;
   }
-  ESP_LOGVV(TAG, "get_timeout: %" PRId32 "ms", timeout_ms);
+  ESP_LOGVV(TAG, "get_timeout: %" PRIu32 "ms", timeout_ms);
 
   return timeout_ms;
 }
 
-void Watchdog::reset() { Watchdog::set_timeout(Watchdog::init_timeout_ms); }
+void Watchdog::reset() {
+  ESP_LOGV(TAG, "reset");
+  Watchdog::set_timeout(Watchdog::init_timeout_ms);
+}
+
+WatchdogSupervisor::WatchdogSupervisor() {
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
+  Watchdog::set_timeout(USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT);
+#endif
+}
+
+WatchdogSupervisor::~WatchdogSupervisor() {
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
+  Watchdog::reset();
+#endif
+}
 
 }  // namespace watchdog
 }  // namespace http_request

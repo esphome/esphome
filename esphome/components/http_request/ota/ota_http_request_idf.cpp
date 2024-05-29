@@ -33,10 +33,6 @@ namespace esphome {
 namespace http_request {
 
 void OtaHttpRequestComponentIDF::http_init(const std::string &url) {
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::set_timeout(USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT);
-#endif
-
   App.feed_wdt();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -59,16 +55,9 @@ void OtaHttpRequestComponentIDF::http_init(const std::string &url) {
     this->body_length_ = esp_http_client_fetch_headers(this->client_);
     this->status_ = esp_http_client_get_status_code(this->client_);
   }
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::reset();
-#endif
 }
 
 int OtaHttpRequestComponentIDF::http_read(uint8_t *buf, const size_t max_len) {
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::set_timeout(USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT);
-#endif
-
   int bufsize = std::min(max_len, this->body_length_ - this->bytes_read_);
   App.feed_wdt();
   int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
@@ -77,9 +66,6 @@ int OtaHttpRequestComponentIDF::http_read(uint8_t *buf, const size_t max_len) {
     buf[bufsize] = '\0';  // not fed to ota
   }
 
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-  watchdog::Watchdog::reset();
-#endif
   return read_len;
 }
 

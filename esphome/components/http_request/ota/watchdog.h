@@ -6,7 +6,7 @@ namespace esphome {
 namespace http_request {
 namespace watchdog {
 
-static const char *const TAG = "ota_http_request.watchdog";
+static const char *const TAG = "watchdog.http_request.ota";
 
 class Watchdog {
  public:
@@ -18,6 +18,12 @@ class Watchdog {
   static uint32_t timeout_ms;       // NOLINT
   static uint32_t init_timeout_ms;  // NOLINT
   Watchdog() {}
+};
+
+class WatchdogSupervisor {
+ public:
+  WatchdogSupervisor();
+  ~WatchdogSupervisor();
 };
 
 }  // namespace watchdog
