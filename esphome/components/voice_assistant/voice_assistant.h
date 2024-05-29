@@ -71,7 +71,7 @@ struct Timer {
   bool is_active;
 
   std::string to_string() const {
-    return str_sprintf("Timer(id=%s, name=%s, total_seconds=%u, seconds_left=%u, is_active=%s)", this->id.c_str(),
+    return str_sprintf("Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)", this->id.c_str(),
                        this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
   }
 };
