@@ -1,4 +1,4 @@
-#include "mpu6050.h"
+#include "mpu6050_sensor.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -27,8 +27,8 @@ const uint8_t MPU6050_REGISTER_MOT_DETECT_CTRL = 0x69;
 const uint8_t MPU6050_BIT_MOT_EN = 6;
 const float GRAVITY_EARTH = 9.80665f;
 
-void MPU6050Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MPU6050...");
+void MPU6050Sensor::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up MPU6050Sensor...");
   uint8_t who_am_i;
   if (!this->read_byte(MPU6050_REGISTER_WHO_AM_I, &who_am_i) ||
       (who_am_i != 0x68 && who_am_i != 0x70 && who_am_i != 0x98)) {
@@ -119,10 +119,9 @@ void MPU6050Component::setup() {
     this->mark_failed();
     return;
   }
-
-  ESP_LOGCONFIG(TAG, "MPU6050 setup complete.");
 }
-void MPU6050Component::dump_config() {
+
+void MPU6050Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "MPU6050:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -138,7 +137,7 @@ void MPU6050Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-void MPU6050Component::update() {
+void MPU6050Sensor::update() {
   ESP_LOGV(TAG, "    Updating MPU6050...");
   uint16_t raw_data[7];
   if (!this->read_bytes_16(MPU6050_REGISTER_ACCEL_XOUT_H, raw_data, 7)) {
@@ -181,7 +180,7 @@ void MPU6050Component::update() {
 
   this->status_clear_warning();
 }
-float MPU6050Component::get_setup_priority() const { return setup_priority::DATA; }
+float MPU6050Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace mpu6050
 }  // namespace esphome

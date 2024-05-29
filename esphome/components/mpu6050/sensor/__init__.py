@@ -23,9 +23,7 @@ CONF_GYRO_Y = "gyro_y"
 CONF_GYRO_Z = "gyro_z"
 
 mpu6050_ns = cg.esphome_ns.namespace("mpu6050")
-MPU6050Component = mpu6050_ns.class_(
-    "MPU6050Component", cg.PollingComponent, i2c.I2CDevice
-)
+MPU6050Sensor = mpu6050_ns.class_("MPU6050Sensor", cg.PollingComponent, i2c.I2CDevice)
 
 accel_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_METER_PER_SECOND_SQUARED,
@@ -49,7 +47,7 @@ temperature_schema = sensor.sensor_schema(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(MPU6050Component),
+            cv.GenerateID(): cv.declare_id(MPU6050Sensor),
             cv.Optional(CONF_ACCEL_X): accel_schema,
             cv.Optional(CONF_ACCEL_Y): accel_schema,
             cv.Optional(CONF_ACCEL_Z): accel_schema,

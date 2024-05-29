@@ -7,7 +7,7 @@
 namespace esphome {
 namespace mpu6050 {
 
-class MPU6050Component : public PollingComponent, public i2c::I2CDevice {
+class MPU6050Sensor : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
