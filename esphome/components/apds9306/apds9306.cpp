@@ -56,6 +56,8 @@ enum {  // APDS9306 registers
 void APDS9306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up APDS9306...");
 
+  this->setup_has_run_++;
+
   uint8_t id;
   if (!this->read_byte(APDS9306_PART_ID, &id)) {  // Part ID register
     this->error_code_ = COMMUNICATION_FAILED;
@@ -63,29 +65,41 @@ void APDS9306::setup() {
     return;
   }
 
+  this->setup_has_run_++;
+
   if (id != 0xB1 && id != 0xB3) {  // 0xB1 for APDS9306 0xB3 for APDS9306-065
     this->error_code_ = WRONG_ID;
     this->mark_failed();
     return;
   }
 
+  this->setup_has_run_++;
+
   // Trigger software reset
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x10);
+
+  this->setup_has_run_++;
   // Put in standby mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
+
+  this->setup_has_run_++;
 
   // ALS resolution and measurement, see datasheet or init.py for options
   uint8_t als_meas_rate = ((this->bit_width_ & 0x07) << 4) | (this->measurement_rate_ & 0x07);
   APDS9306_WRITE_BYTE(APDS9306_ALS_MEAS_RATE, als_meas_rate);
+  
+  this->setup_has_run_++;
 
   // ALS gain, see datasheet or init.py for options
   uint8_t als_gain = (this->gain_ & 0x07);
   APDS9306_WRITE_BYTE(APDS9306_ALS_GAIN, als_gain);
 
+  this->setup_has_run_++;
+
   // Set to Active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 
-  this->setup_has_run_ = 1;
+  this->setup_has_run_++;
 
   ESP_LOGCONFIG(TAG, "setup complete");
 }
@@ -115,6 +129,7 @@ void APDS9306::dump_config() {
   ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", bit_width_val_);
   if (this->setup_has_run_) ESP_LOGCONFIG(TAG, "SETUP HAS RUN");
   else ESP_LOGCONFIG(TAG, "SETUP HAS NOT RUN");
+  ESP_LOGCONFIG(TAG, "Setup step reached: %d", setup_has_run_);
 
   LOG_UPDATE_INTERVAL(this);
 }
