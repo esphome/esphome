@@ -1,5 +1,6 @@
 #include "byronsx_protocol.h"
 #include "esphome/core/log.h"
+
 #include <cinttypes>
 
 namespace esphome {

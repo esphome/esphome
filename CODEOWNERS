@@ -414,7 +414,7 @@ esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz
-esphome/components/wake_on_lan/* @willwill2will54
+esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/web_server_idf/* @dentra
