@@ -329,7 +329,7 @@ async def to_code(config):
         file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
 
     elif model_config[CONF_TYPE] == TYPE_LOCAL:
-        file = model_config[CONF_PATH]
+        file = Path(model_config[CONF_PATH])
 
     elif model_config[CONF_TYPE] == TYPE_HTTP:
         file = _compute_local_file_path(model_config) / "manifest.json"
@@ -337,7 +337,7 @@ async def to_code(config):
     else:
         raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
 
-    manifest, data = _load_model_data(Path(file))
+    manifest, data = _load_model_data(file)
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
