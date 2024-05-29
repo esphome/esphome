@@ -26,7 +26,7 @@ def get_sdl_options(value):
     try:
         return subprocess.check_output(["sdl2-config", "--cflags", "--libs"]).decode()
     except Exception as e:
-        raise cv.Invalid("Unable to run sdld-config - have you installed sdl2?") from e
+        raise cv.Invalid("Unable to run sdl2-config - have you installed sdl2?") from e
 
 
 CONFIG_SCHEMA = cv.All(
