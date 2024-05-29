@@ -180,6 +180,7 @@ class VoiceAssistant : public Component {
   Trigger<Timer> *get_timer_finished_trigger() const { return this->timer_finished_trigger_; }
   Trigger<std::vector<Timer>> *get_timer_tick_trigger() const { return this->timer_tick_trigger_; }
   void set_has_timers(bool has_timers) { this->has_timers_ = has_timers; }
+  const std::unordered_map<std::string, Timer> &get_timers() const { return this->timers_; }
 
  protected:
   int read_microphone_();
