@@ -191,6 +191,12 @@ enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_TTS_STREAM_START = 98,
   VOICE_ASSISTANT_TTS_STREAM_END = 99,
 };
+enum VoiceAssistantTimerEvent : uint32_t {
+  VOICE_ASSISTANT_TIMER_STARTED = 0,
+  VOICE_ASSISTANT_TIMER_UPDATED = 1,
+  VOICE_ASSISTANT_TIMER_CANCELLED = 2,
+  VOICE_ASSISTANT_TIMER_FINISHED = 3,
+};
 enum AlarmControlPanelState : uint32_t {
   ALARM_STATE_DISARMED = 0,
   ALARM_STATE_ARMED_HOME = 1,
@@ -1766,6 +1772,23 @@ class VoiceAssistantAudio : public ProtoMessage {
  public:
   std::string data{};
   bool end{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantTimerEventResponse : public ProtoMessage {
+ public:
+  enums::VoiceAssistantTimerEvent event_type{};
+  std::string timer_id{};
+  std::string name{};
+  uint32_t total_seconds{0};
+  uint32_t seconds_left{0};
+  bool is_active{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
