@@ -1285,6 +1285,10 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       }
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+          root["sorting_group_weight"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].weight;
+        }
       }
     }
 
@@ -1373,6 +1377,10 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+          root["sorting_group_weight"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].weight;
+        }
       }
     }
   });
