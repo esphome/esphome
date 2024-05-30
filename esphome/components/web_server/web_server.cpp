@@ -1473,6 +1473,10 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+          root["sorting_group_weight"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].weight;
+        }
       }
     }
   });
@@ -1781,8 +1785,12 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
-void WebServer::add_entity_to_sorting_list(EntityBase *entity, float weight) {
-  this->sorting_entitys_[entity] = SortingComponents{weight};
+void WebServer::add_entity_to_sorting_list(EntityBase *entity, float weight, long long unsigned int group) {
+  this->sorting_entitys_[entity] = SortingComponents{weight, group};
+}
+
+void WebServer::add_sorting_group(long long unsigned int group_id, const std::string &group_name, float weight) {
+  this->sorting_groups_[group_id] = SortingGroup{group_name, weight};
 }
 
 void WebServer::schedule_(std::function<void()> &&f) {
