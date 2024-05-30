@@ -20,10 +20,12 @@ from esphome.const import (
     CONF_INCLUDE_INTERNAL,
     CONF_OTA,
     CONF_LOG,
+    CONF_NAME,
     CONF_VERSION,
     CONF_LOCAL,
     CONF_WEB_SERVER_ID,
     CONF_WEB_SERVER_SORTING_WEIGHT,
+    CONF_WEB_SERVER_SORTING_GROUP,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_BK72XX,
@@ -33,8 +35,13 @@ from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
 
+CONF_SORTING_GROUP = "sorting_group"
+CONF_SORTING_WEIGHT = "sorting_weight"
+
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
+
+sorting_groups = {}
 
 
 def default_url(config):
@@ -97,6 +104,11 @@ def _final_validate_sorting_weight(config):
 
 FINAL_VALIDATE_SCHEMA = _final_validate_sorting_weight
 
+sorting_group = {
+    cv.Required(CONF_ID): cv.declare_id(cg.int_),
+    cv.Required(CONF_NAME): cv.string,
+    cv.Optional(CONF_SORTING_WEIGHT): cv.float_,
+}
 
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
     {
@@ -104,6 +116,10 @@ WEBSERVER_SORTING_SCHEMA = cv.Schema(
         cv.Optional(CONF_WEB_SERVER_SORTING_WEIGHT): cv.All(
             cv.requires_component("web_server"),
             cv.float_,
+        ),
+        cv.Optional(CONF_WEB_SERVER_SORTING_GROUP): cv.All(
+            cv.requires_component("web_server"),
+            cv.use_id(cg.int_),
         ),
     }
 )
@@ -144,6 +160,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
+            cv.Optional(CONF_SORTING_GROUP): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
@@ -153,17 +170,38 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def add_entity_to_sorting_list(web_server, entity, config):
-    sorting_weight = 50
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
-        sorting_weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
-
-    cg.add(
-        web_server.add_entity_to_sorting_list(
-            entity,
-            sorting_weight,
+def add_sorting_groups(web_server_var, config):
+    for group in config:
+        sorting_groups[group[CONF_ID]] = group[CONF_NAME]
+        group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
+        cg.add(
+            web_server_var.add_sorting_group(
+                group[CONF_ID].__hash__(), group[CONF_NAME], group_sorting_weight
+            )
         )
-    )
+
+
+def add_entity_to_sorting_list(web_server, entity, config):
+    sorting_weight = config.get(CONF_WEB_SERVER_SORTING_WEIGHT, 50)
+
+    sorting_group_hash = None
+    if CONF_WEB_SERVER_SORTING_GROUP in config:
+        sorting_group_hash = config[CONF_WEB_SERVER_SORTING_GROUP].__hash__()
+    if sorting_group_hash is not None:
+        cg.add(
+            web_server.add_entity_to_sorting_list(
+                entity,
+                sorting_weight,
+                sorting_group_hash,
+            )
+        )
+    else:
+        cg.add(
+            web_server.add_entity_to_sorting_list(
+                entity,
+                sorting_weight,
+            )
+        )
 
 
 def build_index_html(config) -> str:
@@ -241,3 +279,6 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
+
+    if (sorting_group_config := config.get(CONF_SORTING_GROUP)) is not None:
+        add_sorting_groups(var, sorting_group_config)
