@@ -448,7 +448,7 @@ bool LTRAlsPsComponent::are_adjustments_required_(AlsReadings &data) {
       return true;
     }
   } else {
-    ESP_LOGD(TAG, "Illuminance is good enough.");
+    ESP_LOGD(TAG, "Illuminance is sufficient.");
     return false;
   }
   ESP_LOGD(TAG, "Can't adjust sensitivity anymore.");
