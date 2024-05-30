@@ -4,7 +4,7 @@ from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_DELAY,
     CONF_DEVICE_CLASS,
@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_TIMING,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
     DEVICE_CLASS_CARBON_MONOXIDE,
@@ -385,70 +386,76 @@ def validate_click_timing(value):
     return value
 
 
-BINARY_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(BinarySensor),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-            mqtt.MQTTBinarySensorComponent
-        ),
-        cv.Optional(CONF_PUBLISH_INITIAL_STATE): cv.boolean,
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-        cv.Optional(CONF_FILTERS): validate_filters,
-        cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PressTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_RELEASE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_CLICK): cv.All(
-            automation.validate_automation(
+BINARY_SENSOR_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(BinarySensor),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt.MQTTBinarySensorComponent
+            ),
+            cv.Optional(CONF_PUBLISH_INITIAL_STATE): cv.boolean,
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
-                    cv.Optional(
-                        CONF_MIN_LENGTH, default="50ms"
-                    ): cv.positive_time_period_milliseconds,
-                    cv.Optional(
-                        CONF_MAX_LENGTH, default="350ms"
-                    ): cv.positive_time_period_milliseconds,
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PressTrigger),
                 }
             ),
-            validate_click_timing,
-        ),
-        cv.Optional(CONF_ON_DOUBLE_CLICK): cv.All(
-            automation.validate_automation(
+            cv.Optional(CONF_ON_RELEASE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DoubleClickTrigger),
-                    cv.Optional(
-                        CONF_MIN_LENGTH, default="50ms"
-                    ): cv.positive_time_period_milliseconds,
-                    cv.Optional(
-                        CONF_MAX_LENGTH, default="350ms"
-                    ): cv.positive_time_period_milliseconds,
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
                 }
             ),
-            validate_click_timing,
-        ),
-        cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
-                cv.Required(CONF_TIMING): cv.All(
-                    [parse_multi_click_timing_str], validate_multi_click_timing
+            cv.Optional(CONF_ON_CLICK): cv.All(
+                automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
+                        cv.Optional(
+                            CONF_MIN_LENGTH, default="50ms"
+                        ): cv.positive_time_period_milliseconds,
+                        cv.Optional(
+                            CONF_MAX_LENGTH, default="350ms"
+                        ): cv.positive_time_period_milliseconds,
+                    }
                 ),
-                cv.Optional(
-                    CONF_INVALID_COOLDOWN, default="1s"
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
-        cv.Optional(CONF_ON_STATE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-            }
-        ),
-    }
+                validate_click_timing,
+            ),
+            cv.Optional(CONF_ON_DOUBLE_CLICK): cv.All(
+                automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            DoubleClickTrigger
+                        ),
+                        cv.Optional(
+                            CONF_MIN_LENGTH, default="50ms"
+                        ): cv.positive_time_period_milliseconds,
+                        cv.Optional(
+                            CONF_MAX_LENGTH, default="350ms"
+                        ): cv.positive_time_period_milliseconds,
+                    }
+                ),
+                validate_click_timing,
+            ),
+            cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
+                    cv.Required(CONF_TIMING): cv.All(
+                        [parse_multi_click_timing_str], validate_multi_click_timing
+                    ),
+                    cv.Optional(
+                        CONF_INVALID_COOLDOWN, default="1s"
+                    ): cv.positive_time_period_milliseconds,
+                }
+            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 _UNDEF = object()
@@ -535,6 +542,10 @@ async def setup_binary_sensor_core_(var, config):
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_binary_sensor(var, config):
