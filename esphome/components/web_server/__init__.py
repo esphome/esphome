@@ -172,17 +172,13 @@ CONFIG_SCHEMA = cv.All(
 
 def add_sorting_groups(web_server_var, config):
     for group in config:
-        print("id: ", group[CONF_ID])
-        print("name: ", group[CONF_NAME])
         sorting_groups[group[CONF_ID]] = group[CONF_NAME]
         group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
-        print(group[CONF_ID].__hash__())
         cg.add(
             web_server_var.add_sorting_group(
                 group[CONF_ID].__hash__(), group[CONF_NAME], group_sorting_weight
             )
         )
-    print(sorting_groups)
 
 
 def add_entity_to_sorting_list(web_server, entity, config):
@@ -191,7 +187,6 @@ def add_entity_to_sorting_list(web_server, entity, config):
     sorting_group_hash = None
     if CONF_WEB_SERVER_SORTING_GROUP in config:
         sorting_group_hash = config[CONF_WEB_SERVER_SORTING_GROUP].__hash__()
-    print(sorting_group_hash)
     if sorting_group_hash is not None:
         cg.add(
             web_server.add_entity_to_sorting_list(
