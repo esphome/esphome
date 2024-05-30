@@ -269,6 +269,30 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
       break;
     }
+    case TuyaCommandType::EXTENDED_SERVICES: {
+      uint8_t subcommand = buffer[0];
+      switch ((TuyaExtendedServicesCommandType) subcommand) {
+        case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
+          this->send_command_(
+              TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
+                          .payload = std::vector<uint8_t>{
+                              static_cast<uint8_t>(TuyaExtendedServicesCommandType::RESET_NOTIFICATION), 0x00}});
+          ESP_LOGV(TAG, "Reset status notification enabled");
+          break;
+        }
+        case TuyaExtendedServicesCommandType::MODULE_RESET: {
+          ESP_LOGE(TAG, "EXTENDED_SERVICES::MODULE_RESET is not handled");
+          break;
+        }
+        case TuyaExtendedServicesCommandType::UPDATE_IN_PROGRESS: {
+          ESP_LOGE(TAG, "EXTENDED_SERVICES::UPDATE_IN_PROGRESS is not handled");
+          break;
+        }
+        default:
+          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", subcommand);
+      }
+      break;
+    }
     default:
       ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
