@@ -1,4 +1,5 @@
 #include "ota_http_request.h"
+#include "watchdog.h"
 
 #ifdef USE_ARDUINO
 #include "ota_http_request_arduino.h"
@@ -19,6 +20,7 @@ struct Header {
 void OtaHttpRequestComponentArduino::http_init(const std::string &url) {
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
+  watchdog::WatchdogSupervisor wdts;
 
 #ifdef USE_ESP8266
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
@@ -73,6 +75,8 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
 #endif  // USE_ARDUINO_VERSION_CODE
 #endif  // USE_ESP8266
 
+  watchdog::WatchdogSupervisor wdts;
+
   // Since arduino8266 >= 3.1 using this->stream_ptr_ is broken (https://github.com/esp8266/Arduino/issues/9035)
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
@@ -91,7 +95,10 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
   return bufsize;
 }
 
-void OtaHttpRequestComponentArduino::http_end() { this->client_.end(); }
+void OtaHttpRequestComponentArduino::http_end() {
+  watchdog::WatchdogSupervisor wdts;
+  this->client_.end();
+}
 
 int OtaHttpRequestComponentArduino::set_stream_ptr_() {
 #ifdef USE_ESP8266

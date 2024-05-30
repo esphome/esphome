@@ -1,4 +1,5 @@
 #include "ota_http_request_idf.h"
+#include "watchdog.h"
 
 #ifdef USE_ESP_IDF
 #include "esphome/core/application.h"
@@ -50,6 +51,7 @@ void OtaHttpRequestComponentIDF::http_init(const std::string &url) {
 #endif
 #pragma GCC diagnostic pop
 
+  watchdog::WatchdogSupervisor wdts;
   this->client_ = esp_http_client_init(&config);
   if ((this->status_ = esp_http_client_open(this->client_, 0)) == ESP_OK) {
     this->body_length_ = esp_http_client_fetch_headers(this->client_);
@@ -58,7 +60,9 @@ void OtaHttpRequestComponentIDF::http_init(const std::string &url) {
 }
 
 int OtaHttpRequestComponentIDF::http_read(uint8_t *buf, const size_t max_len) {
+  watchdog::WatchdogSupervisor wdts;
   int bufsize = std::min(max_len, this->body_length_ - this->bytes_read_);
+
   App.feed_wdt();
   int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
   if (read_len > 0) {
@@ -70,6 +74,8 @@ int OtaHttpRequestComponentIDF::http_read(uint8_t *buf, const size_t max_len) {
 }
 
 void OtaHttpRequestComponentIDF::http_end() {
+  watchdog::WatchdogSupervisor wdts;
+
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
 }

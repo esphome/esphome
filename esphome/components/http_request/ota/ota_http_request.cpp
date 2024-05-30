@@ -1,5 +1,4 @@
 #include "ota_http_request.h"
-#include "watchdog.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -130,7 +129,6 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
   std::unique_ptr<char[]> md5_receive_str(new char[33]);
-  watchdog::WatchdogSupervisor wdts;
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
     return OTA_MD5_INVALID;
