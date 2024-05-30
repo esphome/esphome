@@ -505,9 +505,9 @@ void EthernetComponent::dump_connect_params_() {
   }
 #endif /* USE_NETWORK_IPV6 */
 
-  ESP_LOGCONFIG(TAG, "  MAC Address: %s", get_mac_address_pretty().c_str());
-  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(get_duplex_mode() == ETH_DUPLEX_FULL));
-  ESP_LOGCONFIG(TAG, "  Link Speed: %u", get_link_speed() == ETH_SPEED_100M ? 100 : 10);
+  ESP_LOGCONFIG(TAG, "  MAC Address: %s", this->get_eth_mac_address_pretty().c_str());
+  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL));
+  ESP_LOGCONFIG(TAG, "  Link Speed: %u", this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 }
 
 #ifdef USE_ETHERNET_SPI
