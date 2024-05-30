@@ -22,7 +22,7 @@ CONF_TOGGLE_ROLL_DIRECTION = "toggle_roll_direction"
 ICON_UP = "mdi:arrow-up-bold"
 ICON_DOWN = "mdi:arrow-down-bold"
 ICON_STOP = "mdi:stop"
-ICON_RESET_MAX_LENGTH = "mdi:arrow-rotate-left"
+ICON_RESET_MAX_LENGTH = "mdi:arrow-collapse-vertical"
 ICON_SET_MAX_LENGTH = "mdi:arrow-collapse-down"
 ICON_REVERSE = "mdi:arrow-oscillating"
 
