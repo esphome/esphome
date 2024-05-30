@@ -62,7 +62,7 @@ class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::Text
 class MACAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    auto mac_result = ethernet::global_eth_component->get_mac_address_pretty();
+    auto mac_result = ethernet::global_eth_component->get_eth_mac_address_pretty();
 
     if (mac_result != this->last_results_) {
       this->last_results_ = mac_result;

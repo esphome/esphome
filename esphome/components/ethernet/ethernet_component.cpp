@@ -533,13 +533,13 @@ std::string EthernetComponent::get_use_address() const {
 
 void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
 
-void EthernetComponent::get_mac_address_raw(uint8_t *mac) {
+void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   esp_err_t err;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_MAC_ADDR, mac);
   ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
 }
 
-std::string EthernetComponent::get_mac_address_pretty() {
+std::string EthernetComponent::get_eth_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
