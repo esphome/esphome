@@ -224,9 +224,7 @@ bool SPS30Component::start_continuous_measurement_() {
   return true;
 }
 
-bool SPS30Component::start_measurement() {
-  return start_continuous_measurement_();
-}
+bool SPS30Component::start_measurement() { return start_continuous_measurement_(); }
 
 bool SPS30Component::stop_measurement() {
   if (!write_command(SPS30_CMD_STOP_MEASUREMENTS)) {
