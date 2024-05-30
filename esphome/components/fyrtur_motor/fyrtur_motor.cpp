@@ -76,7 +76,7 @@ void FyrturMotorComponent::open_close(bool state) {
   if (state) {
     position = static_cast<uint8_t>(this->upper_setpoint_number_->state);
   } else {
-    position = static_cast<uint8_t>(this->upper_setpoint_number_->state);
+    position = static_cast<uint8_t>(this->lower_setpoint_number_->state);
   }
 
   set_position(position);

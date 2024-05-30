@@ -3,7 +3,6 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_SWITCH,
-    ENTITY_CATEGORY_CONFIG,
     ICON_ARROW_EXPAND_VERTICAL,
 )
 from .. import CONF_FYRTUR_MOTOR_ID, FyrturMotorComponent, fyrtur_motor_ns
@@ -17,7 +16,6 @@ CONFIG_SCHEMA = {
     cv.Required(CONF_OPEN_CLOSE): switch.switch_schema(
         OpenCloseSwitch,
         device_class=DEVICE_CLASS_SWITCH,
-        entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_ARROW_EXPAND_VERTICAL,
     ),
 }
