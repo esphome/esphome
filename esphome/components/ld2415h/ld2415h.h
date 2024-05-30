@@ -114,12 +114,12 @@ class LD2415HComponent : public Component, public uart::UARTDevice {
 
   char firmware_[20] = "";
   float speed_ = 0;
-  bool approaching_ = 1;
+  bool approaching_ = true;
   char response_buffer_[64];
   uint8_t response_buffer_index_ = 0;
 
   // Processing
-  void issue_command_(const uint8_t cmd[], const uint8_t size);
+  void issue_command_(const uint8_t cmd[], uint8_t size);
   bool fill_buffer_(char c);
   void clear_remaining_buffer_(uint8_t pos);
   void parse_buffer_();
@@ -129,13 +129,13 @@ class LD2415HComponent : public Component, public uart::UARTDevice {
   void parse_config_param_(char *key, char *value);
 
   // Helpers
-  TrackingMode i_to_TrackingMode_(uint8_t value);
-  UnitOfMeasure i_to_UnitOfMeasure_(uint8_t value);
-  NegotiationMode i_to_NegotiationMode_(uint8_t value);
-  const char *TrackingMode_to_s_(TrackingMode value);
-  const char *UnitOfMeasure_to_s_(UnitOfMeasure value);
-  const char *NegotiationMode_to_s_(NegotiationMode value);
-  const char *i_to_s_(std::map<std::string, uint8_t> map, uint8_t i);
+  TrackingMode i_to_tracking_mode_(uint8_t value);
+  UnitOfMeasure i_to_unit_of_measure_(uint8_t value);
+  NegotiationMode i_to_negotiation_mode_(uint8_t value);
+  const char *tracking_mode_to_s_(TrackingMode value);
+  const char *unit_of_measure_to_s_(UnitOfMeasure value);
+  const char *negotiation_mode_to_s_(NegotiationMode value);
+  const char *i_to_s(const std::map<std::string, uint8_t> &map, uint8_t i);
 
   std::vector<LD2415HListener *> listeners_{};
 };

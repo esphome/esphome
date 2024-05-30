@@ -44,13 +44,13 @@ void LD2415HComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Minimum Speed Threshold: %u KPH", this->min_speed_threshold_);
   ESP_LOGCONFIG(TAG, "  Compensation Angle: %u", this->compensation_angle_);
   ESP_LOGCONFIG(TAG, "  Sensitivity: %u", this->sensitivity_);
-  ESP_LOGCONFIG(TAG, "  Tracking Mode: %s", TrackingMode_to_s_(this->tracking_mode_));
+  ESP_LOGCONFIG(TAG, "  Tracking Mode: %s", tracking_mode_to_s_(this->tracking_mode_));
   ESP_LOGCONFIG(TAG, "  Sampling Rate: %u", this->sample_rate_);
-  ESP_LOGCONFIG(TAG, "  Unit of Measure: %s", UnitOfMeasure_to_s_(this->unit_of_measure_));
+  ESP_LOGCONFIG(TAG, "  Unit of Measure: %s", unit_of_measure_to_s_(this->unit_of_measure_));
   ESP_LOGCONFIG(TAG, "  Vibration Correction: %u", this->vibration_correction_);
   ESP_LOGCONFIG(TAG, "  Relay Trigger Duration: %u", this->relay_trigger_duration_);
   ESP_LOGCONFIG(TAG, "  Relay Trigger Speed: %u KPH", this->relay_trigger_speed_);
-  ESP_LOGCONFIG(TAG, "  Negotiation Mode: %s", NegotiationMode_to_s_(this->negotiation_mode_));
+  ESP_LOGCONFIG(TAG, "  Negotiation Mode: %s", negotiation_mode_to_s_(this->negotiation_mode_));
 }
 
 void LD2415HComponent::loop() {
@@ -165,7 +165,7 @@ void LD2415HComponent::set_relay_trigger_speed(uint8_t speed) {
   this->update_relay_duration_speed_ = true;
 }
 
-void LD2415HComponent::issue_command_(const uint8_t cmd[], const uint8_t size) {
+void LD2415HComponent::issue_command_(const uint8_t cmd[], uint8_t size) {
   for (uint8_t i = 0; i < size; i++)
     ESP_LOGD(TAG, "  0x%02x", cmd[i]);
 
@@ -243,14 +243,14 @@ void LD2415HComponent::parse_config_() {
 
   char *token = strtok(this->response_buffer_, delim);
 
-  while (token != NULL) {
+  while (token != nullptr) {
     if (std::strlen(token) != token_len) {
       ESP_LOGE(TAG, "Configuration key length invalid.");
       break;
     }
     key = token;
 
-    token = strtok(NULL, delim);
+    token = strtok(nullptr, delim);
     if (std::strlen(token) != token_len) {
       ESP_LOGE(TAG, "Configuration value length invalid.");
       break;
@@ -259,7 +259,7 @@ void LD2415HComponent::parse_config_() {
 
     this->parse_config_param_(key, val);
 
-    token = strtok(NULL, delim);
+    token = strtok(nullptr, delim);
   }
 
   ESP_LOGD(TAG, "Configuration received:");
@@ -268,13 +268,13 @@ void LD2415HComponent::parse_config_() {
   ESP_LOGCONFIG(TAG, "  Minimum Speed Threshold: %u KPH", this->min_speed_threshold_);
   ESP_LOGCONFIG(TAG, "  Compensation Angle: %u", this->compensation_angle_);
   ESP_LOGCONFIG(TAG, "  Sensitivity: %u", this->sensitivity_);
-  ESP_LOGCONFIG(TAG, "  Tracking Mode: %s", TrackingMode_to_s_(this->tracking_mode_));
+  ESP_LOGCONFIG(TAG, "  Tracking Mode: %s", tracking_mode_to_s_(this->tracking_mode_));
   ESP_LOGCONFIG(TAG, "  Sampling Rate: %u", this->sample_rate_);
-  ESP_LOGCONFIG(TAG, "  Unit of Measure: %s", UnitOfMeasure_to_s_(this->unit_of_measure_));
+  ESP_LOGCONFIG(TAG, "  Unit of Measure: %s", unit_of_measure_to_s_(this->unit_of_measure_));
   ESP_LOGCONFIG(TAG, "  Vibration Correction: %u", this->vibration_correction_);
   ESP_LOGCONFIG(TAG, "  Relay Trigger Duration: %u", this->relay_trigger_duration_);
   ESP_LOGCONFIG(TAG, "  Relay Trigger Speed: %u KPH", this->relay_trigger_speed_);
-  ESP_LOGCONFIG(TAG, "  Negotiation Mode: %s", NegotiationMode_to_s_(this->negotiation_mode_));
+  ESP_LOGCONFIG(TAG, "  Negotiation Mode: %s", negotiation_mode_to_s_(this->negotiation_mode_));
 }
 
 void LD2415HComponent::parse_firmware_() {
@@ -302,7 +302,7 @@ void LD2415HComponent::parse_speed_() {
     ++p;
     this->approaching_ = (*p == '+');
     ++p;
-    this->speed_ = atof(p);
+    this->speed_ = strtod(p, nullptr);
 
     ESP_LOGV(TAG, "Speed updated: %f KPH", this->speed_);
 
@@ -338,13 +338,13 @@ void LD2415HComponent::parse_config_param_(char *key, char *value) {
       this->sensitivity_ = std::stoi(value, nullptr, 16);
       break;
     case '4':
-      this->tracking_mode_ = this->i_to_TrackingMode_(v);
+      this->tracking_mode_ = this->i_to_tracking_mode_(v);
       break;
     case '5':
       this->sample_rate_ = v;
       break;
     case '6':
-      this->unit_of_measure_ = this->i_to_UnitOfMeasure_(v);
+      this->unit_of_measure_ = this->i_to_unit_of_measure_(v);
       break;
     case '7':
       this->vibration_correction_ = v;
@@ -356,7 +356,7 @@ void LD2415HComponent::parse_config_param_(char *key, char *value) {
       this->relay_trigger_speed_ = v;
       break;
     case '0':
-      this->negotiation_mode_ = this->i_to_NegotiationMode_(v);
+      this->negotiation_mode_ = this->i_to_negotiation_mode_(v);
       break;
     default:
       ESP_LOGD(TAG, "Unknown Parameter %s:%s", key, value);
@@ -364,7 +364,7 @@ void LD2415HComponent::parse_config_param_(char *key, char *value) {
   }
 }
 
-TrackingMode LD2415HComponent::i_to_TrackingMode_(uint8_t value) {
+TrackingMode LD2415HComponent::i_to_tracking_mode_(uint8_t value) {
   TrackingMode u = TrackingMode(value);
   switch (u) {
     case TrackingMode::APPROACHING_AND_RETREATING:
@@ -379,7 +379,7 @@ TrackingMode LD2415HComponent::i_to_TrackingMode_(uint8_t value) {
   }
 }
 
-UnitOfMeasure LD2415HComponent::i_to_UnitOfMeasure_(uint8_t value) {
+UnitOfMeasure LD2415HComponent::i_to_unit_of_measure_(uint8_t value) {
   UnitOfMeasure u = UnitOfMeasure(value);
   switch (u) {
     case UnitOfMeasure::MPS:
@@ -394,7 +394,7 @@ UnitOfMeasure LD2415HComponent::i_to_UnitOfMeasure_(uint8_t value) {
   }
 }
 
-NegotiationMode LD2415HComponent::i_to_NegotiationMode_(uint8_t value) {
+NegotiationMode LD2415HComponent::i_to_negotiation_mode_(uint8_t value) {
   NegotiationMode u = NegotiationMode(value);
 
   switch (u) {
@@ -408,7 +408,7 @@ NegotiationMode LD2415HComponent::i_to_NegotiationMode_(uint8_t value) {
   }
 }
 
-const char *LD2415HComponent::TrackingMode_to_s_(TrackingMode value) {
+const char *LD2415HComponent::tracking_mode_to_s_(TrackingMode value) {
   switch (value) {
     case TrackingMode::APPROACHING_AND_RETREATING:
       return "APPROACHING_AND_RETREATING";
@@ -420,7 +420,7 @@ const char *LD2415HComponent::TrackingMode_to_s_(TrackingMode value) {
   }
 }
 
-const char *LD2415HComponent::UnitOfMeasure_to_s_(UnitOfMeasure value) {
+const char *LD2415HComponent::unit_of_measure_to_s_(UnitOfMeasure value) {
   switch (value) {
     case UnitOfMeasure::MPS:
       return "MPS";
@@ -432,7 +432,7 @@ const char *LD2415HComponent::UnitOfMeasure_to_s_(UnitOfMeasure value) {
   }
 }
 
-const char *LD2415HComponent::NegotiationMode_to_s_(NegotiationMode value) {
+const char *LD2415HComponent::negotiation_mode_to_s_(NegotiationMode value) {
   switch (value) {
     case NegotiationMode::CUSTOM_AGREEMENT:
       return "CUSTOM_AGREEMENT";
@@ -442,7 +442,7 @@ const char *LD2415HComponent::NegotiationMode_to_s_(NegotiationMode value) {
   }
 }
 
-const char *i_to_s_(std::map<std::string, uint8_t> map, uint8_t i) {
+const char *i_to_s(const std::map<std::string, uint8_t> &map, uint8_t i) {
   for (const auto &pair : map) {
     if (pair.second == i) {
       return pair.first;
