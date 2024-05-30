@@ -42,6 +42,7 @@ StartMeasurementAction = sps30_ns.class_("StartMeasurementAction", automation.Ac
 StopMeasurementAction = sps30_ns.class_("StopMeasurementAction", automation.Action)
 
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
+CONF_SLEEP_INTERVAL = "sleep_interval"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -111,6 +112,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
+            cv.Optional(CONF_SLEEP_INTERVAL): cv.update_interval,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -165,6 +167,9 @@ async def to_code(config):
 
     if CONF_AUTO_CLEANING_INTERVAL in config:
         cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
+
+    if CONF_SLEEP_INTERVAL in config:
+        cg.add(var.set_sleep_interval(config[CONF_SLEEP_INTERVAL]))
 
 
 SPS30_ACTION_SCHEMA = maybe_simple_id(

@@ -23,6 +23,7 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
 
   void set_pm_size_sensor(sensor::Sensor *pm_size) { pm_size_sensor_ = pm_size; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { fan_interval_ = auto_cleaning_interval; }
+  void set_sleep_interval(uint32_t sleep_interval) { sleep_interval_ = sleep_interval; }
   void setup() override;
   void update() override;
   void dump_config() override;
@@ -38,6 +39,7 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   bool start_continuous_measurement_();
   uint8_t skipped_data_read_cycles_ = 0;
   uint32_t warm_up_ms_ = 0;
+  uint32_t wake_ms_ = 0;
 
   enum ErrorCode {
     COMMUNICATION_FAILED,
@@ -60,6 +62,7 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
   sensor::Sensor *pm_size_sensor_{nullptr};
   optional<uint32_t> fan_interval_;
+  optional<uint32_t> sleep_interval_;
 };
 
 }  // namespace sps30

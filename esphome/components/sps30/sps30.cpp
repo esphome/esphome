@@ -130,6 +130,13 @@ void SPS30Component::update() {
     return;
   }
 
+  if(millis() <= this->wake_ms_) {
+    ESP_LOGD(TAG, "Sensor is set to sleep.  Wake in %.0fms.", (this->wake_ms_-millis()));
+    return;
+  } else if(this->sleep_interval_.has_value()) {
+    this->start_measurement();
+  }
+
   if(millis() <= this->warm_up_ms_) {
     ESP_LOGD(TAG, "Sensor needs to warm up after turning on to provide accurate readings.  Ready in %.0fms.", (this->warm_up_ms_-millis()));
     return;
@@ -214,6 +221,11 @@ void SPS30Component::update() {
 
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
+
+    if(this->sleep_interval_.has_value()) {
+      this->stop_measurement();
+      this->wake_ms_ = millis() + this->sleep_interval_.value() * 1000;
+    }
   });
 }
 
