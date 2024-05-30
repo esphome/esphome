@@ -136,7 +136,7 @@ void LD2415HComponent::set_tracking_mode(TrackingMode mode) {
   this->update_mode_rate_uom_ = true;
 }
 
-void LD2415HComponent::set_tracking_mode(uint8_t mode) { this->set_tracking_mode(i_to_TrackingMode_(mode)); }
+void LD2415HComponent::set_tracking_mode(uint8_t mode) { this->set_tracking_mode(i_to_tracking_mode_(mode)); }
 
 void LD2415HComponent::set_sample_rate(const std::string &state) {
   uint8_t rate = SAMPLE_RATE_STR_TO_INT.at(state);
@@ -442,10 +442,10 @@ const char *LD2415HComponent::negotiation_mode_to_s_(NegotiationMode value) {
   }
 }
 
-const char *i_to_s(const std::map<std::string, uint8_t> &map, uint8_t i) {
+const char *i_to_s_(const std::map<std::string, uint8_t> &map, uint8_t i) {
   for (const auto &pair : map) {
     if (pair.second == i) {
-      return pair.first;
+      return pair.first.c_str();
     }
   }
   return "Unknown";
