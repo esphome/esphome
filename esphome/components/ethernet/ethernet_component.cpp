@@ -498,22 +498,9 @@ void EthernetComponent::dump_connect_params_() {
   }
 #endif /* USE_NETWORK_IPV6 */
 
-  esp_err_t err;
-
-  uint8_t mac[6];
-  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_MAC_ADDR, &mac);
-  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
-  ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  eth_duplex_t duplex_mode;
-  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_DUPLEX_MODE, &duplex_mode);
-  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_DUPLEX_MODE error");
-  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(duplex_mode == ETH_DUPLEX_FULL));
-
-  eth_speed_t speed;
-  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_SPEED, &speed);
-  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_SPEED error");
-  ESP_LOGCONFIG(TAG, "  Link Speed: %u", speed == ETH_SPEED_100M ? 100 : 10);
+  ESP_LOGCONFIG(TAG, "  MAC Address: %s", get_mac_address_pretty().c_str());
+  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(get_duplex_mode() == ETH_DUPLEX_FULL));
+  ESP_LOGCONFIG(TAG, "  Link Speed: %u", get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 }
 
 #ifdef USE_ETHERNET_SPI
@@ -545,6 +532,34 @@ std::string EthernetComponent::get_use_address() const {
 }
 
 void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+
+void EthernetComponent::get_mac_address_raw(uint8_t *mac) {
+  esp_err_t err;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_MAC_ADDR, mac);
+  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
+}
+
+std::string EthernetComponent::get_mac_address_pretty() {
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+void EthernetComponent::get_duplex_mode() {
+  esp_err_t err;
+  eth_duplex_t duplex_mode;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_DUPLEX_MODE, &duplex_mode);
+  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_DUPLEX_MODE error");
+  return duplex_mode;
+}
+
+eth_speed_t EthernetComponent::get_link_speed() {
+  esp_err_t err;
+  eth_speed_t speed;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_SPEED, &speed);
+  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_SPEED error");
+  return speed;
+}
 
 bool EthernetComponent::powerdown() {
   ESP_LOGI(TAG, "Powering down ethernet PHY");

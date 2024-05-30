@@ -59,6 +59,24 @@ class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::Text
   std::string last_results_;
 };
 
+class MACAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
+ public:
+  void update() override {
+    auto mac_result = ethernet::global_eth_component->get_mac_address_pretty();
+
+    if (mac_result != this->last_results_) {
+      this->last_results_ = mac_result;
+      this->publish_state(mac_result);
+    }
+  }
+  float get_setup_priority() const override { return setup_priority::ETHERNET; }
+  std::string unique_id() override { return get_mac_address() + "-ethernetinfo-mac"; }
+  void dump_config() override;
+
+ protected:
+  std::string last_result_;
+};
+
 }  // namespace ethernet_info
 }  // namespace esphome
 
