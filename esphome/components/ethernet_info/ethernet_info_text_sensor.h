@@ -62,11 +62,11 @@ class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::Text
 class MACAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    auto mac_result = ethernet::global_eth_component->get_eth_mac_address_pretty();
+    auto mac_results = ethernet::global_eth_component->get_eth_mac_address_pretty();
 
-    if (mac_result != this->last_results_) {
-      this->last_results_ = mac_result;
-      this->publish_state(mac_result);
+    if (mac_results != this->last_results_) {
+      this->last_results_ = mac_results;
+      this->publish_state(mac_results);
     }
   }
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
@@ -74,7 +74,7 @@ class MACAddressEthernetInfo : public PollingComponent, public text_sensor::Text
   void dump_config() override;
 
  protected:
-  std::string last_result_;
+  std::string last_results_;
 };
 
 }  // namespace ethernet_info

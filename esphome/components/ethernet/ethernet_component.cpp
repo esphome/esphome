@@ -28,6 +28,13 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
     return; \
   }
 
+#define ESPHL_ERROR_CHECK_RET(err, message, ret) \
+  if ((err) != ESP_OK) { \
+    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
+    this->mark_failed(); \
+    return ret; \
+  }
+
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
@@ -545,11 +552,11 @@ std::string EthernetComponent::get_eth_mac_address_pretty() {
   return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
-void EthernetComponent::get_duplex_mode() {
+eth_duplex_t EthernetComponent::get_duplex_mode() {
   esp_err_t err;
   eth_duplex_t duplex_mode;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_DUPLEX_MODE, &duplex_mode);
-  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_DUPLEX_MODE error");
+  ESPHL_ERROR_CHECK_RET(err, "ETH_CMD_G_DUPLEX_MODE error", ETH_DUPLEX_HALF);
   return duplex_mode;
 }
 
@@ -557,7 +564,7 @@ eth_speed_t EthernetComponent::get_link_speed() {
   esp_err_t err;
   eth_speed_t speed;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_SPEED, &speed);
-  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_SPEED error");
+  ESPHL_ERROR_CHECK_RET(err, "ETH_CMD_G_SPEED error", ETH_SPEED_10M);
   return speed;
 }
 
