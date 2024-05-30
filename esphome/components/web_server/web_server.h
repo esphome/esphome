@@ -342,7 +342,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
   std::map<EntityBase *, SortingComponents> sorting_entitys_;
-  std::map<int, SortingGroup> sorting_groups_;
+  std::map<long long unsigned int, SortingGroup> sorting_groups_;
 
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
