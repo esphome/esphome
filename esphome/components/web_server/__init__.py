@@ -176,7 +176,7 @@ def add_sorting_groups(web_server_var, config):
         group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
         cg.add(
             web_server_var.add_sorting_group(
-                group[CONF_ID].__hash__(), group[CONF_NAME], group_sorting_weight
+                hash(group[CONF_ID]), group[CONF_NAME], group_sorting_weight
             )
         )
 
@@ -186,7 +186,7 @@ def add_entity_to_sorting_list(web_server, entity, config):
 
     sorting_group_hash = None
     if CONF_WEB_SERVER_SORTING_GROUP in config:
-        sorting_group_hash = config[CONF_WEB_SERVER_SORTING_GROUP].__hash__()
+        sorting_group_hash = hash(config[CONF_WEB_SERVER_SORTING_GROUP])
     if sorting_group_hash is not None:
         cg.add(
             web_server.add_entity_to_sorting_list(
