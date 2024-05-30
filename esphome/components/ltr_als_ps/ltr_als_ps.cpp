@@ -63,7 +63,7 @@ static float get_ps_gain_coeff(PsGain gain) {
 }
 
 void LTRAlsPsComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LTR-303/329");
+  ESP_LOGCONFIG(TAG, "Setting up LTR-303/329/55x/659");
   // As per datasheet we need to wait at least 100ms after power on to get ALS chip responsive
   this->set_timeout(100, [this]() { this->state_ = State::DELAYED_SETUP; });
 }
@@ -76,7 +76,7 @@ void LTRAlsPsComponent::dump_config() {
       case LtrType::LTR_TYPE_PS_ONLY:
         return "PS only";
       case LtrType::LTR_TYPE_ALS_AND_PS:
-        return "Als + PS";
+        return "ALS + PS";
       default:
         return "Unknown";
     }
@@ -105,7 +105,7 @@ void LTRAlsPsComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with I2C LTR-303/329 failed!");
+    ESP_LOGE(TAG, "Communication with I2C LTR-303/329/55x/659 failed!");
   }
 }
 
@@ -275,13 +275,13 @@ void LTRAlsPsComponent::configure_reset_() {
 
   uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGV(TAG, "Waiting chip to reset");
+    ESP_LOGV(TAG, "Waiting for chip to reset");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (als_ctrl.sw_reset && tries--);  // while sw reset bit is on - keep waiting
 
   if (als_ctrl.sw_reset) {
-    ESP_LOGW(TAG, "Failed to finalize reset procedure");
+    ESP_LOGW(TAG, "Reset timed out");
   }
 }
 
