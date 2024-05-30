@@ -7,12 +7,12 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-// #ifdef USE_NUMBER
-// #include "esphome/components/number/number.h"
-// #endif
-// #ifdef USE_SWITCH
-// #include "esphome/components/switch/switch.h"
-// #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 #ifdef USE_BUTTON
 #include "esphome/components/button/button.h"
 #endif
@@ -86,11 +86,28 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
   SUB_BUTTON(reset_max_length)
 #endif
 
+#ifdef USE_NUMBER
+  SUB_NUMBER(upper_setpoint)
+  SUB_NUMBER(lower_setpoint)
+#endif
+
+#ifdef USE_SWITCH
+  SUB_SWITCH(open_close)
+#endif
+
   void setup() override;
   // void dump_config() override;
   void update() override;
   // void loop() override;
   float get_setup_priority() const override;
+
+#ifdef USE_SWITCH
+  void open_close(bool state);
+#endif
+
+#ifdef USE_NUMBER
+  void update_setpoints();
+#endif
 
   void set_position(uint8_t position);
   void move_up();

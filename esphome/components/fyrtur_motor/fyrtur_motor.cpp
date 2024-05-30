@@ -29,8 +29,64 @@ void FyrturMotorComponent::update() { get_status(); }
 
 float FyrturMotorComponent::get_setup_priority() const { return setup_priority::DATA; }
 
+static uint8_t last_upper_setpoint = 0;
+static uint8_t last_lower_setpoint = 0;
+
+void FyrturMotorComponent::update_setpoints() {
+  if (!this->upper_setpoint_number_->has_state() || !this->lower_setpoint_number_->has_state()) {
+    return;
+  }
+
+  uint8_t upper_setpoint = static_cast<uint8_t>(this->upper_setpoint_number_->state);
+  uint8_t lower_setpoint = static_cast<uint8_t>(this->lower_setpoint_number_->state);
+
+  if ((last_upper_setpoint != upper_setpoint) && (upper_setpoint >= lower_setpoint)) {
+    if (upper_setpoint == 100) {
+      upper_setpoint = 99;
+      lower_setpoint = 100;
+      this->upper_setpoint_number_->publish_state(upper_setpoint);
+      this->lower_setpoint_number_->publish_state(lower_setpoint);
+    } else {
+      lower_setpoint = upper_setpoint + 1;
+      this->lower_setpoint_number_->publish_state(lower_setpoint);
+    }
+  } else if ((last_lower_setpoint != lower_setpoint) && (lower_setpoint <= upper_setpoint)) {
+    if (lower_setpoint == 0) {
+      upper_setpoint = 0;
+      lower_setpoint = 1;
+      this->upper_setpoint_number_->publish_state(upper_setpoint);
+      this->lower_setpoint_number_->publish_state(lower_setpoint);
+    } else {
+      lower_setpoint = upper_setpoint - 1;
+      this->lower_setpoint_number_->publish_state(lower_setpoint);
+    }
+  }
+
+  last_upper_setpoint = upper_setpoint;
+  last_lower_setpoint = lower_setpoint;
+}
+
+void FyrturMotorComponent::open_close(bool state) {
+  if (!this->upper_setpoint_number_->has_state() || !this->lower_setpoint_number_->has_state()) {
+    return;
+  }
+
+  uint8_t position = 0;
+
+  if (state) {
+    position = static_cast<uint8_t>(this->upper_setpoint_number_->state);
+  } else {
+    position = static_cast<uint8_t>(this->upper_setpoint_number_->state);
+  }
+
+  set_position(position);
+}
+
 // Moves motor to position 0-100
-void FyrturMotorComponent::set_position(uint8_t position) {}
+void FyrturMotorComponent::set_position(uint8_t position) {
+  const std::vector<uint8_t> data = {0xdd, position};
+  send_command(data);
+}
 
 // Moves the blinds up until stop command is received or until motor stalls
 void FyrturMotorComponent::move_up() {
