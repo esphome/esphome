@@ -20,6 +20,7 @@
 #include <tensorflow/lite/micro/micro_interpreter.h>
 #include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
 
+#include <cinttypes>
 #include <cmath>
 
 namespace esphome {
@@ -316,7 +317,7 @@ float MicroWakeWord::perform_streaming_inference_() {
     return false;
   }
 
-  ESP_LOGV(TAG, "Streaming Inference Latency=%u ms", (millis() - prior_invoke));
+  ESP_LOGV(TAG, "Streaming Inference Latency=%" PRIu32 " ms", (millis() - prior_invoke));
 
   TfLiteTensor *output = this->streaming_interpreter_->output(0);
 

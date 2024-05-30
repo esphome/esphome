@@ -150,6 +150,7 @@ class APIConnection : public APIServerConnection {
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
   void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
+  void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) override;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
