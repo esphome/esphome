@@ -20,6 +20,7 @@ static const uint16_t SPS30_CMD_START_FAN_CLEANING = 0x5607;
 static const uint16_t SPS30_CMD_SOFT_RESET = 0xD304;
 static const size_t SERIAL_NUMBER_LENGTH = 8;
 static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
+static const uint32_t SPS30_WARM_UP_SEC = 30;
 
 void SPS30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sps30...");
@@ -128,6 +129,12 @@ void SPS30Component::update() {
     }
     return;
   }
+
+  if(millis() <= this->warm_up_ms_) {
+    ESP_LOGD(TAG, "Sensor needs to warm up after turning on to provide accurate readings.  Ready in %.0fms.", (this->warm_up_ms_-millis()));
+    return;
+  }
+
   /// Check if measurement is ready before reading the value
   if (!this->write_command(SPS30_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
@@ -221,6 +228,7 @@ bool SPS30Component::start_continuous_measurement_() {
     return false;
   }
   ESP_LOGD(TAG, "Started measurements");
+  this->warm_up_ms_ = millis() + SPS30_WARM_UP_SEC * 1000;
   return true;
 }
 
