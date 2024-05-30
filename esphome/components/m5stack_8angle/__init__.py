@@ -10,9 +10,9 @@ MULTI_CONF = True
 
 CONF_M5STACK_8ANGLE_ID = "m5stack_8angle_id"
 
-m5angle8_ns = cg.esphome_ns.namespace("m5angle8")
-M5Angle8Component = m5angle8_ns.class_(
-    "M5Angle8Component",
+m5stack_8angle_ns = cg.esphome_ns.namespace("m5stack_8angle")
+M5Stack_8AngleComponent = m5stack_8angle_ns.class_(
+    "M5Stack_8AngleComponent",
     i2c.I2CDevice,
     cg.Component,
 )
@@ -20,7 +20,7 @@ M5Angle8Component = m5angle8_ns.class_(
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(M5Angle8Component),
+        cv.GenerateID(): cv.declare_id(M5Stack_8AngleComponent),
     }
 ).extend(i2c.i2c_device_schema(0x43))
 

@@ -2,11 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 
-from . import M5Angle8Component, m5angle8_ns, CONF_M5STACK_8ANGLE_ID
+from . import M5Stack_8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
 
 
-M5Angle8SensorSwitch = m5angle8_ns.class_(
-    "M5Angle8SensorSwitch",
+M5Stack_8AngleSensorSwitch = m5stack_8angle_ns.class_(
+    "M5Stack_8AngleSensorSwitch",
     binary_sensor.BinarySensor,
     cg.PollingComponent,
 )
@@ -15,10 +15,10 @@ M5Angle8SensorSwitch = m5angle8_ns.class_(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Angle8Component),
+            cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack_8AngleComponent),
         }
     )
-    .extend(binary_sensor.binary_sensor_schema(M5Angle8SensorSwitch))
+    .extend(binary_sensor.binary_sensor_schema(M5Stack_8AngleSensorSwitch))
     .extend(cv.polling_component_schema("10s"))
 )
 

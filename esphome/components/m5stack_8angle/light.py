@@ -4,11 +4,11 @@ from esphome.components import light
 
 from esphome.const import CONF_OUTPUT_ID
 
-from . import M5Angle8Component, m5angle8_ns, CONF_M5STACK_8ANGLE_ID
+from . import M5Stack_8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
 
 
-M5Angle8LightsComponent = m5angle8_ns.class_(
-    "M5Angle8LightOutput",
+M5Stack_8AngleLightsComponent = m5stack_8angle_ns.class_(
+    "M5Stack_8AngleLightOutput",
     light.AddressableLight,
 )
 
@@ -16,8 +16,8 @@ M5Angle8LightsComponent = m5angle8_ns.class_(
 CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
-            cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Angle8Component),
-            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(M5Angle8LightsComponent),
+            cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack_8AngleComponent),
+            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(M5Stack_8AngleLightsComponent),
         }
     )
 )
