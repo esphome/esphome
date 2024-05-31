@@ -2974,7 +2974,7 @@ void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every)
 void WaveshareEPaper13P3InK::initialize() {
   this->wait_until_idle_();
   this->command(0x12);  // SWRESET
-  this->wait_until_idle_(); 
+  this->wait_until_idle_();
 
   this->command(0x0c);  // set soft start
   this->data(0xae);

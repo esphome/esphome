@@ -784,7 +784,7 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
     this->command(0x10);
     this->data(0x01);
   }
-  
+
  protected:
   int get_width_internal() override;
 
