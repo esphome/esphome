@@ -815,7 +815,7 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
   };
   this->timers_[timer.id] = timer;
   ESP_LOGD(TAG, "Timer Event");
-  ESP_LOGD(TAG, "  Type: %d", msg.event_type);
+  ESP_LOGD(TAG, "  Type: %" PRId32, msg.event_type);
   ESP_LOGD(TAG, "  %s", timer.to_string().c_str());
 
   switch (msg.event_type) {
