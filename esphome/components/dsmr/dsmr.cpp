@@ -17,6 +17,10 @@ void Dsmr::setup() {
   if (this->request_pin_ != nullptr) {
     this->request_pin_->setup();
   }
+  // Prevent telegram to be pubished elsewhere
+  if (this->s_telegram_ != nullptr) {
+    this->s_telegram_->set_internal(true);
+  }
 }
 
 void Dsmr::loop() {
@@ -256,6 +260,12 @@ bool Dsmr::parse_telegram() {
   MyData data;
   ESP_LOGV(TAG, "Trying to parse telegram");
   this->stop_requesting_data_();
+
+  // publish the telegram
+  if (this->s_telegram_ != nullptr) {
+    this->s_telegram_->publish_state(std::string(this->telegram_, this->bytes_read_));
+  }
+
   ::dsmr::ParseResult<void> res =
       ::dsmr::P1Parser::parse(&data, this->telegram_, this->bytes_read_, false,
                               this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
