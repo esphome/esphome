@@ -134,7 +134,7 @@ class LD2415HComponent : public Component, public uart::UARTDevice {
   const char *tracking_mode_to_s_(TrackingMode value);
   const char *unit_of_measure_to_s_(UnitOfMeasure value);
   const char *negotiation_mode_to_s_(NegotiationMode value);
-  const char *i_to_s(const std::map<std::string, uint8_t> &map, uint8_t i);
+  const char *i_to_s_(const std::map<std::string, uint8_t> &map, uint8_t i);
 
   std::vector<LD2415HListener *> listeners_{};
 };
