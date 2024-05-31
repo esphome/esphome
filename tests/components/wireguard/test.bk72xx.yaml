@@ -3,7 +3,7 @@ wifi:
   password: "password1"
 
 network:
-  enable_ipv6: true
+  enable_ipv6: false
 
 time:
   - platform: sntp
