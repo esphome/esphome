@@ -446,7 +446,7 @@ const char *LD2415HComponent::negotiation_mode_to_s_(NegotiationMode value) {
   }
 }
 
-const char *i_to_s_(const std::map<std::string, uint8_t> &map, uint8_t i) {
+const char *i_to_s(const std::map<std::string, uint8_t> &map, uint8_t i) {
   for (const auto &pair : map) {
     if (pair.second == i) {
       return pair.first.c_str();
