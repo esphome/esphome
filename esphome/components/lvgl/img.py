@@ -12,7 +12,6 @@ from .defines import (
     CONF_PIVOT_Y,
     CONF_ZOOM,
 )
-from .helpers import lvgl_components_required
 from .lv_validation import size, angle, zoom, lv_bool, requires_component
 from .types import lv_img_t
 from .widget import Widget, WidgetType
@@ -39,7 +38,6 @@ class ImgType(WidgetType):
         return lv_img_t
 
     async def to_code(self, w: Widget, config):
-        lvgl_components_required.add("image")
         init = []
         if src := config.get(CONF_SRC):
             init.extend(w.set_property(CONF_SRC, f"lv_img_from({src})"))

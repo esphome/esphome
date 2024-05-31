@@ -30,6 +30,7 @@ from .types import LValidator
 
 def requires_component(comp):
     def validator(value):
+        lvgl_components_required.add(comp)
         return cv.requires_component(comp)(value)
 
     return validator
@@ -68,7 +69,7 @@ def font(value):
         return lv_builtin_font(value)
     fontval = cv.use_id(Font)(value)
     esphome_fonts_used.add(fontval)
-    return cv.requires_component("font")(f"{fontval}_as_lv_font_")
+    return requires_component("font")(f"{fontval}_as_lv_font_")
 
 
 def is_esphome_font(fontval):

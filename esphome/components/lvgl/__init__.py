@@ -51,7 +51,7 @@ from .codegen import (
     update_to_code,
 )
 from .dropdown import dropdown_spec
-from .helpers import get_line_marks, join_lines, lvgl_components_required
+from .helpers import get_line_marks, join_lines
 from .img import img_spec
 from .keyboard import keyboard_spec
 from .label import label_spec
@@ -553,7 +553,6 @@ async def to_code(config):
         cgen("lv_group_set_default(lv_group_create())")
     init = []
     if helpers.esphome_fonts_used:
-        lvgl_components_required.add("font")
         for font in helpers.esphome_fonts_used:
             getter = cg.RawExpression(f"(new lvgl::FontEngine({font}))->get_lv_font()")
             cg.Pvariable(

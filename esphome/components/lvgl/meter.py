@@ -34,7 +34,9 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
 )
 INDICATOR_IMG_SCHEMA = cv.Schema(
     {
-        cv.Required(df.CONF_SRC): cv.use_id(Image_),
+        cv.Required(df.CONF_SRC): cv.All(
+            cv.use_id(Image_), requires_component("image")
+        ),
         cv.Required(df.CONF_PIVOT_X): lv.pixels,
         cv.Required(df.CONF_PIVOT_Y): lv.pixels,
         cv.Optional(CONF_VALUE): lv.lv_float,
