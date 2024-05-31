@@ -19,10 +19,27 @@ void I2SAudioSpeaker::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2S Audio Speaker...");
 
   this->buffer_queue_ = xQueueCreate(BUFFER_COUNT, sizeof(DataEvent));
+  if (this->buffer_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create buffer queue");
+    this->mark_failed();
+    return;
+  }
+
   this->event_queue_ = xQueueCreate(BUFFER_COUNT, sizeof(TaskEvent));
+  if (this->event_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create event queue");
+    this->mark_failed();
+    return;
+  }
 }
 
-void I2SAudioSpeaker::start() { this->state_ = speaker::STATE_STARTING; }
+void I2SAudioSpeaker::start() {
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Cannot start audio, speaker failed to setup");
+    return;
+  }
+  this->state_ = speaker::STATE_STARTING;
+}
 void I2SAudioSpeaker::start_() {
   if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s component to return lock
@@ -141,6 +158,8 @@ void I2SAudioSpeaker::player_task(void *params) {
 }
 
 void I2SAudioSpeaker::stop() {
+  if (this->is_failed())
+    return;
   if (this->state_ == speaker::STATE_STOPPED)
     return;
   if (this->state_ == speaker::STATE_STARTING) {
@@ -200,6 +219,10 @@ void I2SAudioSpeaker::loop() {
 }
 
 size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length) {
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Cannot play audio, speaker failed to setup");
+    return 0;
+  }
   if (this->state_ != speaker::STATE_RUNNING && this->state_ != speaker::STATE_STARTING) {
     this->start();
   }
