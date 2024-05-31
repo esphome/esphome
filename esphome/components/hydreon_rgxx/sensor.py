@@ -12,13 +12,13 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
+    UNIT_MILLIMETER,
     ICON_THERMOMETER,
 )
 
 from . import RGModel, RG15Resolution, HydreonRGxxComponent
 
 UNIT_INTENSITY = "intensity"
-UNIT_MILLIMETERS = "mm"
 UNIT_MILLIMETERS_PER_HOUR = "mm/h"
 
 CONF_ACC = "acc"
@@ -85,19 +85,19 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_RESOLUTION): cv.enum(RG15_RESOLUTION, upper=False),
             cv.Optional(CONF_ACC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIMETERS,
+                unit_of_measurement=UNIT_MILLIMETER,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_EVENT_ACC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIMETERS,
+                unit_of_measurement=UNIT_MILLIMETER,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TOTAL_ACC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIMETERS,
+                unit_of_measurement=UNIT_MILLIMETER,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
