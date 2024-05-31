@@ -139,7 +139,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         )
 
     def run_validation_steps(self):
-        while self._validation_tasks:
+        while self._validation_tasks and not self.errors:
             task = heapq.heappop(self._validation_tasks)
             task.step.run(self)
 
