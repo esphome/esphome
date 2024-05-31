@@ -2,9 +2,6 @@ wifi:
   ssid: "MySSID1"
   password: "password1"
 
-network:
-  enable_ipv6: false
-
 time:
   - platform: sntp
 
