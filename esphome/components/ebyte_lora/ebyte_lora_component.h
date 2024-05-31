@@ -31,13 +31,10 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
+  void send_switch_info_();
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
   void set_pin_aux(InternalGPIOPin *pin_aux) { pin_aux_ = pin_aux; }
-#ifdef USE_SWITCH
   void set_switch(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
-  /// Helper function to write the value of a pin.
-  void digital_write(uint8_t pin, bool value);
-#endif
   void set_pin_m0(InternalGPIOPin *pin_m0) { pin_m0_ = pin_m0; }
   void set_pin_m1(InternalGPIOPin *pin_m1) { pin_m1_ = pin_m1; }
   void set_addh(uint8_t addh) { expected_config_.addh = addh; }
@@ -53,12 +50,12 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_enable_lbt(EnableByte enable) { expected_config_.enable_lbt = enable; }
   void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_enable_rssi(EnableByte enable) { expected_config_.enable_rssi = enable; }
-  void set_switch_info_receiver(bool enable) { switch_info_receiver_ = enable; }
+  void set_sent_switch_state(bool enable) { sent_switch_state = enable; }
+  void set_repeater(bool enable) { repeater_ = enable; }
+  void set_network_id(int id) { network_id = id; }
 
  private:
-#ifdef USE_SWITCH
   std::vector<EbyteLoraSwitch *> sensors_;
-#endif
   ModeType mode_ = MODE_INIT;
   // set WOR mode
   void set_mode_(ModeType mode);
@@ -69,15 +66,19 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   bool check_config_();
   void set_config_();
   void get_current_config_();
-#ifdef USE_SWITCH
-  void send_switch_push_(uint8_t pin, bool value);
-  void send_switch_info_();
-#endif
   void setup_conf_(std::vector<uint8_t> data);
+  void request_repeater_info();
+  void send_repeater_info();
+  void repeat_message(std::vector<uint8_t> data);
 
  protected:
   bool update_needed_ = false;
-  bool switch_info_receiver_ = false;
+  // if enabled will sent information about itself
+  bool sent_switch_state = false;
+  // if set it will function as a repeater
+  bool repeater_ = false;
+  // used to tell one lora device apart from another
+  int network_id = 0;
   int rssi_ = 0;
   uint32_t starting_to_check_;
   uint32_t time_out_after_;
@@ -96,7 +97,7 @@ class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraCompone
   uint8_t get_pin() { return pin_; }
 
  protected:
-  void write_state(bool state) override { this->parent_->digital_write(this->pin_, state); }
+  void write_state(bool state) override { this->parent_->send_switch_info_(); }
   uint8_t pin_;
 };
 #endif

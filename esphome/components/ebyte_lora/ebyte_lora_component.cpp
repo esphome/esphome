@@ -1,8 +1,10 @@
 #include "ebyte_lora_component.h"
 namespace esphome {
 namespace ebyte_lora {
-static const uint8_t SWITCH_PUSH = 0x55;
 static const uint8_t SWITCH_INFO = 0x66;
+// when this is called it is asking peers to say something about repeater
+static const uint8_t REQUEST_REPEATER_INFO = 0x88;
+static const uint8_t REPEATER_INFO = 0x99;
 static const uint8_t PROGRAM_CONF = 0xC1;
 bool EbyteLoraComponent::check_config_() {
   bool success = true;
@@ -222,10 +224,12 @@ void EbyteLoraComponent::update() {
     ESP_LOGD(TAG, "Mode is not set right");
     this->set_mode_(NORMAL);
   }
-#ifdef USE_SWITCH
-  if (!this->switch_info_receiver_)
+
+  if (!this->sent_switch_state)
     this->send_switch_info_();
-#endif
+  // we always request repeater info, since nodes will response too that they are around
+  // you can see it more of a health info
+  this->request_repeater_info();
 }
 void EbyteLoraComponent::set_config_() {
   uint8_t data[11];
@@ -379,24 +383,7 @@ void EbyteLoraComponent::dump_config() {
   LOG_PIN("M0 Pin:", this->pin_m0_);
   LOG_PIN("M1 Pin:", this->pin_m1_);
 };
-#ifdef USE_SWITCH
-void EbyteLoraComponent::digital_write(uint8_t pin, bool value) { this->send_switch_push_(pin, value); }
-void EbyteLoraComponent::send_switch_push_(uint8_t pin, bool value) {
-  if (!this->can_send_message_()) {
-    return;
-  }
-  uint8_t data[3];
-  data[0] = SWITCH_PUSH;  // number one to indicate
-  data[1] = pin;          // Pin to send
-  data[2] = value;        // Inverted for the pcf8574
-  ESP_LOGD(TAG, "Sending message to remote lora");
-  ESP_LOGD(TAG, "PIN: %u ", data[1]);
-  ESP_LOGD(TAG, "VALUE: %u ", data[2]);
-  this->write_array(data, sizeof(data));
-  this->setup_wait_response_(5000);
-  ESP_LOGD(TAG, "Successfully put in queue");
-}
-#endif
+
 void EbyteLoraComponent::loop() {
   std::string buffer;
   std::vector<uint8_t> data;
@@ -408,32 +395,27 @@ void EbyteLoraComponent::loop() {
     this->read_byte(&c);
     data.push_back(c);
   }
-#ifdef USE_SWITCH
-  // if it is only push info
-  if (data[0] == SWITCH_PUSH) {
-    ESP_LOGD(TAG, "GOT SWITCH PUSH");
-    ESP_LOGD(TAG, "Total: %u", data.size());
-    ESP_LOGD(TAG, "Start bit: %u", data[0]);
-    ESP_LOGD(TAG, "PIN: %u", data[1]);
-    ESP_LOGD(TAG, "VALUE: %u", data[2]);
-    ESP_LOGD(TAG, "RSSI: %f", (data[3] / 255.0) * 100);
-    if (this->rssi_sensor_ != nullptr)
-      this->rssi_sensor_->publish_state((data[3] / 255.0) * 100);
 
-    for (auto *sensor : this->sensors_) {
-      if (sensor->get_pin() == data[1]) {
-        ESP_LOGD(TAG, "Updating switch");
-        sensor->publish_state(data[2]);
-      }
+  if (data[0] == REQUEST_REPEATER_INFO) {
+    this->send_repeater_info();
+  }
+  if (data[0] == REPEATER_INFO) {
+    ESP_LOGD(TAG, "Got repeater info ");
+    for (int i = 0; i < data.size(); i++) {
+      ESP_LOGD(TAG, "%u", data[i]);
     }
   }
   // starting info loop
   if (data[0] == SWITCH_INFO) {
-    for (int i = 0; i < data.size(); i++) {
-      if (data[i] == SWITCH_INFO) {
-        ESP_LOGD(TAG, "GOT INFO");
-        uint8_t pin = data[i + 1];
-        bool value = data[i + 2];
+    if (this->repeater_) {
+      this->repeat_message(data);
+    }
+    // it is it's own info
+    if (network_id != data[1]) {
+      ESP_LOGD(TAG, "Got switch info");
+      for (int i = 2; i < data.size(); i = i + 2) {
+        uint8_t pin = data[i];
+        bool value = data[i + 1];
         for (auto *sensor : this->sensors_) {
           if (pin == sensor->get_pin()) {
             sensor->publish_state(value);
@@ -444,7 +426,7 @@ void EbyteLoraComponent::loop() {
     this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
     ESP_LOGD(TAG, "RSSI: %f", (data[data.size() - 1] / 255.0) * 100);
   }
-#endif
+
   if (data[0] == PROGRAM_CONF) {
     ESP_LOGD(TAG, "GOT PROGRAM_CONF");
     this->setup_conf_(data);
@@ -491,24 +473,53 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
     }
   }
 }
-#ifdef USE_SWITCH
+
 void EbyteLoraComponent::send_switch_info_() {
   if (!this->can_send_message_()) {
     return;
   }
   std::vector<uint8_t> data;
-
+  data.push_back(SWITCH_INFO);
+  data.push_back(network_id);
   for (auto *sensor : this->sensors_) {
-    uint8_t pin = sensor->get_pin();
-    uint8_t value = sensor->state;
-    data.push_back(SWITCH_INFO);  // number one to indicate
-    data.push_back(pin);
-    data.push_back(value);  // Pin to send
+    data.push_back(sensor->get_pin());
+    data.push_back(sensor->state);
   }
   ESP_LOGD(TAG, "Sending switch info");
   this->write_array(data);
   this->setup_wait_response_(5000);
 }
-#endif
+
+void EbyteLoraComponent::send_repeater_info() {
+  if (!this->can_send_message_()) {
+    return;
+  }
+  uint8_t data[3];
+  data[0] = REPEATER_INFO;  // response
+  data[1] = this->repeater_;
+  data[2] = network_id;
+  ESP_LOGD(TAG, "Telling system if i am a repeater and what my network_id is");
+  this->write_array(data, sizeof(data));
+  this->setup_wait_response_(5000);
+}
+void EbyteLoraComponent::request_repeater_info() {
+  if (!this->can_send_message_()) {
+    return;
+  }
+  uint8_t data[1];
+  data[0] = REQUEST_REPEATER_INFO;  // Request
+  ESP_LOGD(TAG, "Asking for repeater info");
+  this->write_array(data, sizeof(data));
+  this->setup_wait_response_(5000);
+}
+void EbyteLoraComponent::repeat_message(std::vector<uint8_t> data) {
+  ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
+  if (!this->can_send_message_()) {
+    return;
+  }
+  this->write_array(data.data(), sizeof(data));
+  this->setup_wait_response_(5000);
+}
+
 }  // namespace ebyte_lora
 }  // namespace esphome
