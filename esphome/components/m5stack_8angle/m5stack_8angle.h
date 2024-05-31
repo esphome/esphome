@@ -34,6 +34,7 @@ class M5Stack_8AngleComponent : public i2c::I2CDevice, public Component {
   uint8_t fw_version_;
 };
 
+#ifdef USE_LIGHT
 class M5Stack_8AngleLightOutput : public light::AddressableLight {
  public:
   void setup() override;
@@ -66,7 +67,9 @@ class M5Stack_8AngleLightOutput : public light::AddressableLight {
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
 };
+#endif
 
+#ifdef USE_SENSOR
 class M5Stack_8AngleSensorKnob : public sensor::Sensor, public PollingComponent {
  public:
   void update() override;
@@ -80,7 +83,9 @@ class M5Stack_8AngleSensorKnob : public sensor::Sensor, public PollingComponent 
   M5Stack_8AngleComponent *parent_{nullptr};
   uint8_t knob_index_ = 0;
 };
+#endif
 
+#ifdef USE_BINARY_SENSOR
 class M5Stack_8AngleSensorSwitch : public binary_sensor::BinarySensor, public PollingComponent {
  public:
   void update() override;
@@ -90,6 +95,7 @@ class M5Stack_8AngleSensorSwitch : public binary_sensor::BinarySensor, public Po
  protected:
   M5Stack_8AngleComponent *parent_{nullptr};
 };
+#endif
 
 }  // namespace m5stack_8angle
 }  // namespace esphome

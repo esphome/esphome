@@ -7,6 +7,7 @@ namespace m5stack_8angle {
 
 static const char *const TAG = "m5stack_8angle";
 
+#ifdef USE_LIGHT
 void M5Stack_8AngleLightOutput::setup() {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->buf_ = allocator.allocate(M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED);
@@ -32,6 +33,7 @@ void M5Stack_8AngleLightOutput::write_state(light::LightState *state) {
                                   this->buf_ + i * M5STACK_8ANGLE_BYTES_PER_LED, M5STACK_8ANGLE_BYTES_PER_LED);
   }
 }
+#endif
 
 void M5Stack_8AngleComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up M5STACK_8ANGLE...");
@@ -80,6 +82,7 @@ int M5Stack_8AngleComponent::read_switch() {
 
 float M5Stack_8AngleComponent::get_setup_priority() const { return setup_priority::DATA; }
 
+#ifdef USE_SENSOR
 void M5Stack_8AngleSensorKnob::update() {
   if (this->parent_ != nullptr) {
     float knob_pos = this->parent_->read_knob_pos(this->knob_index_);
@@ -87,7 +90,9 @@ void M5Stack_8AngleSensorKnob::update() {
       this->publish_state(knob_pos);
   };
 }
+#endif
 
+#ifdef USE_BINARY_SENSOR
 void M5Stack_8AngleSensorSwitch::update() {
   if (this->parent_ != nullptr) {
     int sw_pos = this->parent_->read_switch();
@@ -95,6 +100,7 @@ void M5Stack_8AngleSensorSwitch::update() {
       this->publish_state(sw_pos);
   };
 }
+#endif
 
 }  // namespace m5stack_8angle
 }  // namespace esphome
