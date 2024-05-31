@@ -62,7 +62,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VWC): sensor.sensor_schema(
                 icon=ICON_ALPHA,
                 accuracy_decimals=3,
-                unit_of_measurement="cm3cm−3",
+                unit_of_measurement="cm3cm-3",
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
