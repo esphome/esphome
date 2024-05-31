@@ -124,7 +124,8 @@ void ModemComponent::setup() {
 
   ESP_LOGV(TAG, "DCE setup");
 
-  // clang-format off  ( create_modem_dce(dce_factory::ModemType, config, std::move(dte), netif) is private )
+  // NOLINTBEGIN(bugprone-branch-clone)
+  // ( because create_modem_dce(dce_factory::ModemType, config, std::move(dte), netif) is private )
   switch (this->model_) {
     case ModemModel::BG96:
       this->dce = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
@@ -143,7 +144,7 @@ void ModemComponent::setup() {
       return;
       break;
   }
-  // clang-format on
+  // NOLINTEND
 
   assert(this->dce);
 

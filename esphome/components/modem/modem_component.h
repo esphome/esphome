@@ -11,14 +11,12 @@
 
 // esp_modem will use esphome logger (needed if other components include esphome/core/log.h)
 // We need to do this because "cxx_include/esp_modem_api.hpp" is not a pure C++ header, and use logging.
-// FIXME: Find another workaround. clang is currently disabled.
+// FIXME: Find another workaround ?.
 // error: using declarations in the global namespace in headers are prohibited
 // [google-global-names-in-headers,-warnings-as-errors]
-// clang-format off
-using esphome::esp_log_printf_;
-// clang-format on
+using esphome::esp_log_printf_;  // NOLINT(google-global-names-in-headers):
 
-#include <cxx_include/esp_modem_api.hpp>
+#include <cxx_include/esp_modem_api.hpp>  // NOLINT(clang-diagnostic-error)
 #include <driver/gpio.h>
 #include <esp_modem_config.h>
 #include <unordered_map>
