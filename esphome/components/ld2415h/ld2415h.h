@@ -56,7 +56,6 @@ class LD2415HComponent : public Component, public uart::UARTDevice {
   void set_tracking_mode_select(select::Select *selector) { this->tracking_mode_selector_ = selector; };
 #endif
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  // void set_speed_sensor(sensor::Sensor *speed_sensor) { this->speed_sensor_ = speed_sensor; }
   void register_listener(LD2415HListener *listener) { this->listeners_.push_back(listener); }
 
   void set_min_speed_threshold(uint8_t speed);

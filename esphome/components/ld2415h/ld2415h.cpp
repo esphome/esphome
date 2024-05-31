@@ -110,6 +110,7 @@ void LD2415HComponent::loop() {
   }
 }
 
+#ifdef USE_NUMBER
 void LD2415HComponent::set_min_speed_threshold(uint8_t speed) {
   this->min_speed_threshold_ = speed;
   this->update_speed_angle_sense_ = true;
@@ -125,6 +126,23 @@ void LD2415HComponent::set_sensitivity(uint8_t sensitivity) {
   this->update_speed_angle_sense_ = true;
 }
 
+void LD2415HComponent::set_vibration_correction(uint8_t correction) {
+  this->vibration_correction_ = correction;
+  this->update_anti_vib_comp_ = true;
+}
+
+void LD2415HComponent::set_relay_trigger_duration(uint8_t duration) {
+  this->relay_trigger_duration_ = duration;
+  this->update_relay_duration_speed_ = true;
+}
+
+void LD2415HComponent::set_relay_trigger_speed(uint8_t speed) {
+  this->relay_trigger_speed_ = speed;
+  this->update_relay_duration_speed_ = true;
+}
+#endif
+
+#ifdef USE_SELECT
 void LD2415HComponent::set_tracking_mode(const std::string &state) {
   uint8_t mode = TRACKING_MODE_STR_TO_INT.at(state);
   this->set_tracking_mode(mode);
@@ -149,21 +167,7 @@ void LD2415HComponent::set_sample_rate(uint8_t rate) {
   this->sample_rate_ = rate;
   this->update_mode_rate_uom_ = true;
 }
-
-void LD2415HComponent::set_vibration_correction(uint8_t correction) {
-  this->vibration_correction_ = correction;
-  this->update_anti_vib_comp_ = true;
-}
-
-void LD2415HComponent::set_relay_trigger_duration(uint8_t duration) {
-  this->relay_trigger_duration_ = duration;
-  this->update_relay_duration_speed_ = true;
-}
-
-void LD2415HComponent::set_relay_trigger_speed(uint8_t speed) {
-  this->relay_trigger_speed_ = speed;
-  this->update_relay_duration_speed_ = true;
-}
+#endif
 
 void LD2415HComponent::issue_command_(const uint8_t cmd[], uint8_t size) {
   for (uint8_t i = 0; i < size; i++)
