@@ -43,7 +43,7 @@ CONFIG_SCHEMA = cv.Schema(
         ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
             MACAddressEthernetInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("1s")),
+        ),
     }
 )
 

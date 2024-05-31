@@ -181,7 +181,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MUE4094RT";
     result.raw_offset -= 6;
   } else if (device_uuid == 0x0347 ||  // ClearGrass-branded, round body, e-ink display
-             device_uuid == 0x0B48) {  // Qingping-branded, round body, e-ink display - with bindkeys
+             device_uuid == 0x0B48) {  // Qingping-branded, round body, e-ink display — with bindkeys
     result.type = XiaomiParseResult::TYPE_CGG1;
     result.name = "CGG1";
   } else if (device_uuid == 0x03bc) {  // VegTrug Grow Care Garden
