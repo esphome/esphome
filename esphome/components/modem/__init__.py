@@ -111,13 +111,5 @@ async def to_code(config):
 
     cg.add(var.set_rx_pin(getattr(gpio_num_t, f"GPIO_NUM_{config[CONF_RX_PIN]}")))
     cg.add(var.set_tx_pin(getattr(gpio_num_t, f"GPIO_NUM_{config[CONF_TX_PIN]}")))
-    if pwr_pin := config.get(CONF_POWER_PIN, None):
-        cg.add(var.set_power_pin(getattr(gpio_num_t, f"GPIO_NUM_{pwr_pin}")))
-    if flight_pin := config.get(CONF_FLIGHT_PIN, None):
-        cg.add(var.set_flight_pin(getattr(gpio_num_t, f"GPIO_NUM_{flight_pin}")))
-    if pin_status := config.get(CONF_STATUS_PIN, None):
-        cg.add(var.set_status_pin(getattr(gpio_num_t, f"GPIO_NUM_{pin_status}")))
-    if pin_dtr := config.get(CONF_DTR_PIN, None):
-        cg.add(var.set_dtr_pin(getattr(gpio_num_t, f"GPIO_NUM_{pin_dtr}")))
 
     await cg.register_component(var, config)

@@ -16,10 +16,6 @@ modem:
   ready: modem_ready
   rx_pin: 26
   tx_pin: 27
-  power_pin: 4
-  flight_pin: 25
-  status_pin: 34
-  dtr_pin: 32
   model: SIM7600
   apn: orange
   username: orange
