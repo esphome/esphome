@@ -16,7 +16,7 @@
 // [google-global-names-in-headers,-warnings-as-errors]
 using esphome::esp_log_printf_;  // NOLINT(google-global-names-in-headers):
 
-#include <cxx_include/esp_modem_api.hpp>  // NOLINT(clang-diagnostic-error)
+#include <cxx_include/esp_modem_api.hpp>  // NOLINT
 #include <driver/gpio.h>
 #include <esp_modem_config.h>
 #include <unordered_map>
