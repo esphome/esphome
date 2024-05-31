@@ -597,11 +597,11 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;
-  constexpr uint8_t ETH_PHY_PSR_REG_ADDR = 0x1F;
+  constexpr uint8_t eth_phy_psr_reg_addr = 0x1F;
 
   if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
     ESP_LOGD(TAG, "Select PHY Register Page: 0x%02" PRIX32, register_data.page);
-    err = mac->write_phy_reg(mac, this->phy_addr_, ETH_PHY_PSR_REG_ADDR, register_data.page);
+    err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, register_data.page);
     ESPHL_ERROR_CHECK(err, "Select PHY Register page failed");
   }
 
@@ -612,7 +612,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
 
   if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
     ESP_LOGD(TAG, "Select PHY Register Page 0x%02" PRIX32, 0x0);
-    err = mac->write_phy_reg(mac, this->phy_addr_, ETH_PHY_PSR_REG_ADDR, 0x0);
+    err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, 0x0);
     ESPHL_ERROR_CHECK(err, "Select PHY Register Page 0 failed");
   }
 }

@@ -247,13 +247,14 @@ async def to_code(config):
         cg.add(var.set_clk_mode(*CLK_MODES[config[CONF_CLK_MODE]]))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
-        for register_value in config[CONF_PHY_REGISTERS]:
-            reg = phy_register(
-                register_value.get(CONF_ADDRESS),
-                register_value.get(CONF_VALUE),
-                register_value.get(CONF_PAGE_ID),
-            )
-            cg.add(var.add_phy_register(reg))
+        if CONF_PHY_REGISTERS in config:
+            for register_value in config[CONF_PHY_REGISTERS]:
+                reg = phy_register(
+                    register_value.get(CONF_ADDRESS),
+                    register_value.get(CONF_VALUE),
+                    register_value.get(CONF_PAGE_ID),
+                )
+                cg.add(var.add_phy_register(reg))
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
