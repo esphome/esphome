@@ -353,12 +353,7 @@ class LvglComponent : public PollingComponent {
     this->custom_change_event_ = (lv_event_code_t) lv_event_register_id();
     for (auto v : this->init_lambdas_)
       v(this->disp_);
-    if (!this->pages_.empty()) {
-      auto page = this->pages_[0];
-      esph_log_d(TAG, "loading page: size = %zu, index %zu, ptr %p", this->pages_.size(), page->index, page->page);
-      if (page->page != nullptr)
-        lv_scr_load(this->pages_[0]->page);
-    }
+    this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
     // this->display_->set_writer([](display::Display &d) { lv_timer_handler(); });
     lv_disp_trig_activity(this->disp_);
     esph_log_config(TAG, "LVGL Setup complete");
@@ -433,6 +428,7 @@ class LvglComponent : public PollingComponent {
     this->show_page(next, anim, time);
   }
 
+  ssize_t get_page_index() { return this->page_index_; }
   lv_disp_t *get_disp() { return this->disp_; }
 
  protected:
@@ -481,7 +477,7 @@ class LvglComponent : public PollingComponent {
   std::vector<std::function<void(lv_disp_t *)>> init_lambdas_;
   std::vector<LvPageType *> pages_{};
   bool page_wrap_{true};
-  size_t page_index_{0};
+  ssize_t page_index_{-1};
   size_t buffer_frac_{1};
   bool paused_{};
   bool show_snow_{};

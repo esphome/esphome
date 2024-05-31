@@ -1,0 +1,564 @@
+lvgl:
+  touchscreens:
+    - touchscreen_id: tft_touch
+  rotary_encoders:
+    - group: general
+      long_press_time: 300ms
+      long_press_repeat_time: 50ms
+      enter_button: enter_button
+      sensor:
+        left_button: left_button
+        right_button: right_button
+    - group: general
+      enter_button: enter_button
+      sensor: rotary_sensor
+
+  on_idle:
+    - timeout: 30s
+      then:
+        - logger.log: "LVGL is idle"
+  buffer_size: 100%
+  log_level: WARN
+  color_depth: 16
+  default_font: montserrat_14
+  bg_color: my_light_red
+  disp_bg_color: my_light_red
+  disp_bg_image: cat_img
+  style_definitions:
+    - id: style_test
+      bg_color: 0x2F8CD8
+    - id: header_footer
+      bg_color: 0x20214F
+      bg_grad_color: 0x005782
+      bg_grad_dir: VER
+      bg_opa: cover
+      border_width: 0
+      radius: 0
+      pad_all: 0
+      pad_row: 0
+      pad_column: 0
+      border_color: 0x0077b3
+      text_color: 0xFFFFFF
+      width: 100%
+      height: 30
+      border_side: [left, top]
+      text_decor: [underline, strikethrough]
+  theme:
+    obj:
+      border_width: 1
+      group: general
+  top_layer:
+    widgets:
+      - label:
+          id: label_id
+          text: "Test"
+  msgboxes:
+    - id: message_box
+      close_button: true
+      title: Messagebox
+      body:
+        text: "This is a sample messagebox."
+        bg_color: 0x808080
+        bg_opa: 30%
+      buttons:
+        - id: msgbox_apply
+          text: "Apply"
+        - id: msgbox_close
+          text: "\uF00D"
+          on_click:
+            then:
+              - logger.log:
+                  format: "value %u"
+                  args: [x]
+              - lvgl.textarea.update:
+                  id: textarea_1
+                  text: "Updated text"
+              - lvgl.update:
+                  disp_bg_color: 0xFFFF00
+              - lvgl.widget.hide: message_box
+              - lvgl.widget.show: message_box
+              - lvgl.widget.enable: message_box
+              - lvgl.widget.disable: message_box
+              - lvgl.widget.hide: button_1
+              - lvgl.widget.show: button_1
+              - lvgl.widget.enable: button_1
+              - lvgl.widget.disable: button_1
+              - lvgl.label.update:
+                  id: label_id
+                  text: "Updated"
+  pages:
+    - id: main_page
+      skip: false
+      pad_all: 0
+      widgets:
+        - obj:
+            align: TOP_MID
+            styles: style_test
+            height: 146
+            width: 146
+            radius: 73
+            border_width: 0
+            bg_opa: 30%
+            pad_all: 0
+            widgets:
+              - btn:
+                  layout:
+                    type: grid
+                    grid_rows: [fr(1), content]
+                    grid_columns: [100, fr(2)]
+                    grid_column_align: space_evenly
+                    grid_row_align: center
+                  checkable: true
+                  widgets:
+                    - label:
+                        grid_cell_x_align: stretch
+                        grid_cell_y_align: stretch
+                        grid_cell_row_span: 2
+                        grid_cell_column_span: 2
+                        grid_cell_row_pos: 0
+                        grid_cell_column_pos: 0
+                        align: center
+                        id: my_label_id
+                        text: "Test Toggle Button"
+                        on_click:
+                          then:
+                            - lvgl.widget.update:
+                                id: my_label_id
+                                hidden: true
+            on_scroll:
+              then:
+                - lvgl.widget.show: message_box
+
+        - btnmatrix:
+            x: 10
+            y: 40
+            width: 220
+            items:
+              pressed:
+                bg_color: 0xFFFF00
+            id: b_matrix
+            on_click:
+              logger.log:
+                format: "matrix button clicked: %d, is button_1 = %u"
+                args: ["*x", "id(button_1) == x"]
+            rows:
+              - buttons:
+                  - id: button_1
+                    text: "\uF04B"
+                    control:
+                      checkable: true
+                  - id: button_2
+                    text: "\uF04C"
+                    control:
+                      checkable: true
+              - buttons:
+                  - id: button_3
+                    text: "A"
+                    control:
+                      popover: true
+                    on_press:
+                      then:
+                        - lvgl.page.previous:
+                  - id: button_4
+                    text: "B"
+                    control:
+                      disabled: true
+                    on_press:
+                      then:
+                        - lvgl.page.next:
+              - buttons:
+                  - id: button_5
+                    text: "It's #ff0000 red#"
+                    width: 2
+                    control:
+                      recolor: true
+                    on_press:
+                      then:
+                        - lvgl.page.show: main_page
+
+        - switch:
+            x: 10
+            y: 10
+            id: switch_id
+            on_defocus:
+              then:
+                - lvgl.button.update:
+                    id: button_1
+                    width: 1
+                    selected: true
+                    control:
+                      checkable: false
+                - lvgl.btnmatrix.update:
+                    id: b_matrix
+                    state:
+                      disabled: true
+                    items:
+                      bg_color: 0xf0f0f0
+
+        - checkbox:
+            id: checkbox_id
+            text: Checkbox
+            on_focus:
+              then:
+                - lvgl.checkbox.update:
+                    id: checkbox_id
+                    state:
+                      checked: true
+                    text: Checked
+                - logger.log:
+                    format: "Checkbox checked = %s"
+                    args: ['x ? "true" : "false"']
+        - dropdown:
+            id: dropdown_id
+            width: 90
+            align: CENTER
+            options:
+              - Violin
+              - Piano
+              - Bassoon
+              - Chello
+              - Drums
+            selected_index: 2
+            on_scroll_end:
+              then:
+                - lvgl.dropdown.update:
+                    id: dropdown_id
+                    selected_index: 5
+        - roller:
+            align: CENTER
+            id: roller_id
+            options:
+              - Violin
+              - Piano
+              - Bassoon
+              - Chello
+              - Drums
+            on_scroll_begin:
+              then:
+                - lvgl.roller.update:
+                    id: roller_id
+                    selected_index: 5
+            on_value:
+              then:
+                - lvgl.label.update:
+                    id: label_id
+                    text:
+                      format: "Roller changed = %d"
+                      args: [x]
+                - logger.log:
+                    format: "Roller changed = %d"
+                    args: [x]
+
+        - bar:
+            id: bar_id
+            value: 75
+            min_value: 1
+            max_value: 100
+        - slider:
+            width: 220
+            id: slider_id
+            value: 75
+            min_value: 0
+            max_value: 100
+            on_click:
+              then:
+                - lvgl.slider.update:
+                    id: slider_id
+                    knob:
+                      bg_color: 0x00FF00
+                    value: 55
+            on_value:
+              - lvgl.arc.update:
+                  id: arc_id
+                  value: !lambda return x;
+        - arc:
+            id: arc_id
+            value: 75
+            min_value: 0
+            max_value: 100
+            adjustable: true
+            on_release:
+              then:
+                - lvgl.arc.update:
+                    id: arc_id
+                    knob:
+                      bg_color: 0x00FF00
+                    value: 55
+            on_value:
+              - lvgl.slider.update:
+                  id: slider_id
+                  value: !lambda return x;
+        - meter:
+            align: center
+            scales:
+              - ticks:
+                  width: 1
+                  count: 81
+                  length: 5
+                  color: 0x000000
+                  major:
+                    stride: 10
+                    width: 2
+                    length: 8
+                    color: 0xC0C0C0
+                    label_gap: 8
+                range_from: -30
+                range_to: 50
+                angle_range: 240
+                rotation: 150
+                indicators:
+                  - line:
+                      id: temperature_needle
+                      width: 2
+                      color: 0xFF0000
+                      r_mod: -4
+                  - img:
+                      id: needle_img
+                      src: cat_img
+                      value: 4
+                      pivot_x: 31
+                      pivot_y: 9
+                  - arc:
+                      color: 0xFF3000
+                      r_mod: 10
+                      width: 31
+                      start_value: -10
+                      end_value: 0
+                  - tick_style:
+                      start_value: -10
+                      end_value: 0
+                      color_start: 0x00FF00
+                      color_end: 0xFF3000
+                      local: true
+                      width: 12
+            on_click:
+              then:
+                - lvgl.indicator.update:
+                    id: temperature_needle
+                    value: 3
+                - lvgl.indicator.update:
+                    id: needle_img
+                    value: 13
+        - spinbox:
+            text_font: space16
+            id: spinbox_id
+            align: center
+            width: 120
+            range_from: -10
+            range_to: 1000
+            step: 0.5
+            rollover: false
+            digits: 6
+            decimal_places: 2
+            value: 15
+            on_value:
+              then:
+                - logger.log:
+                    format: "Spinbox value is %f"
+                    args: [x]
+        - btn:
+            layout:
+              type: grid
+              grid_rows: [content, content]
+              grid_columns: [100, fr(2)]
+            id: spin_down
+            on_click:
+              - lvgl.spinbox.decrement: spinbox_id
+              - lvgl.spinbox.update:
+                  id: spinbox_id
+                  value: 100
+        - img:
+            layout:
+              type: FLEX
+              flex_flow: column_wrap
+              flex_align_main: space_evenly
+              flex_align_cross: center
+              flex_align_track: start
+            align: CENTER
+            src: cat_img
+            id: img_id
+            radius: 11
+            clip_corner: true
+            on_click:
+              then:
+                - lvgl.img.update:
+                    id: img_id
+                    src: dog_img
+        - animimg:
+            align: CENTER
+            id: anim_id
+            src: [cat_img, dog_img]
+            duration: 600ms
+            on_click:
+              then:
+                - lvgl.animimg.update:
+                    id: anim_id
+                    repeat_count: 100
+                    duration: 75ms
+            on_long_press:
+              then:
+                - lvgl.animimg.stop: anim_id
+            on_short_click:
+              then:
+                - lvgl.animimg.start:
+                    id: anim_id
+        - line:
+            points:
+              - 5, 5
+              - 70, 70
+              - 120, 10
+              - 180, 60
+              - 230, 15
+            line_width: 8
+            line_color: 0x0000FF
+            line_rounded: true
+        - led:
+            id: led_id
+            align: CENTER
+            color: 0xFF0000
+            brightness: 70%
+            on_long_press_repeat:
+              then:
+                - lvgl.led.update:
+                    id: led_id
+                    color: 0x00FF00
+        - spinner:
+            align: center
+            spin_time: 2s
+            arc_length: 60deg
+            id: spinner_id
+            indicator:
+              arc_color: 0xd4d4d4
+            on_press:
+              then:
+                - lvgl.spinner.update:
+                    id: spinner_id
+                    arc_color: 0x31de70
+    - id: secondary_page
+      widgets:
+        - tileview:
+            id: tv_id
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tile == id(cat_tile);
+                    then:
+                      - logger.log: "Cat tile is now showing"
+            tiles:
+              - id: cat_tile
+                dir: [LEFT, top]
+                row: 0
+                column: 0
+                widgets:
+                  - img:
+                      align: center
+                      src: cat_img
+                      on_click:
+                        then:
+                          - lvgl.tileview.select:
+                              id: tv_id
+                              row: 1
+                              column: 0
+                              animated: false
+
+              - id: dog_tile
+                row: 1
+                column: 0
+                widgets:
+                  - img:
+                      src: dog_img
+                      on_click:
+                        then:
+                          - lvgl.tileview.select:
+                              id: tv_id
+                              tile_id: cat_tile
+                              animated: true
+    - id: tabview_page
+      widgets:
+        - tabview:
+            id: tabview_id
+            width: 100%
+            height: 100%
+            position: top
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tab == id(tabview_tab_1);
+                    then:
+                      - logger.log: "Dog tab is now showing"
+            tabs:
+              - name: Tab1
+                id: tabview_tab_1
+                layout:
+                  type: flex
+                widgets:
+                  - img:
+                      src: dog_img
+                      on_click:
+                        then:
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              tab_id: tabview_tab_2
+                              animated: true
+              - name: Tab1
+                id: tabview_tab_2
+                widgets:
+                  - img:
+                      src: cat_img
+                      on_click:
+                        then:
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              tab_id: tabview_tab_1
+                              animated: true
+    - id: keyboard_page
+      widgets:
+        - label:
+            id: kb_code
+            align: center
+            y: -40
+        - textarea:
+            height: 150
+            id: textarea_1
+            align: TOP_LEFT
+            on_focus:
+              then:
+                lvgl.keyboard.update:
+                  id: keyboard_id
+                  mode: text_lower
+                  textarea: textarea_1
+        - textarea:
+            one_line: true
+            password_mode: true
+            height: 150
+            id: textarea_2
+            align: TOP_RIGHT
+            on_focus:
+              then:
+                lvgl.keyboard.update:
+                  id: keyboard_id
+                  mode: number
+                  textarea: textarea_2
+            on_value:
+              then:
+                - logger.log:
+                    format: "textarea on_value, value %s"
+                    args: ["text.c_str()"]
+            on_ready:
+              then:
+                - logger.log:
+                    format: "textarea ready, value %s"
+                    args: ["text.c_str()"]
+        - keyboard:
+            id: keyboard_id
+            align: BOTTOM_MID
+            textarea: textarea_1
+            y: -30
+            on_ready:
+              then:
+                - logger.log: Keyboard is ready
+            on_cancel:
+              then:
+                - logger.log: Keyboard cancelled

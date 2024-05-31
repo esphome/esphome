@@ -24,4 +24,7 @@ display:
     invert_colors: false
     update_interval: never
 
+packages:
+  lvgl: !include lvgl-package.yaml
+
 <<: !include common.yaml

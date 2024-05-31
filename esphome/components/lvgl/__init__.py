@@ -23,9 +23,9 @@ from esphome.const import (
     CONF_DISPLAY_ID,
     CONF_ON_IDLE,
     CONF_NAME,
-    CONF_DISPLAY,
     CONF_LAMBDA,
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_DISPLAY,
 )
 from esphome.core import (
     CORE,
@@ -396,13 +396,13 @@ def add_line_markers(value):
 
 
 async def generate_triggers(lv_component):
-    for widget in widget_map.values():
-        if widget.config:
+    for w in widget_map.values():
+        if w.config:
             init = []
-            obj = widget.obj
+            w_obj = w.obj
             for event, conf in {
                 event: conf
-                for event, conf in widget.config.items()
+                for event, conf in w.config.items()
                 if event in df.LV_EVENT_TRIGGERS
             }.items():
                 event = df.LV_EVENT[event[3:].upper()]
@@ -410,36 +410,36 @@ async def generate_triggers(lv_component):
                 tid = conf[CONF_TRIGGER_ID]
                 add_line_markers(tid)
                 trigger = cg.new_Pvariable(tid)
-                args = widget.get_args()
-                value = widget.get_value()
+                args = w.get_args()
+                value = w.get_value()
                 await automation.build_automation(trigger, args, conf)
-                init.extend(widget.add_flag("LV_OBJ_FLAG_CLICKABLE"))
+                init.extend(w.add_flag("LV_OBJ_FLAG_CLICKABLE"))
                 init.extend(
-                    widget.set_event_cb(
+                    w.set_event_cb(
                         f"{trigger}->trigger({value});", f"LV_EVENT_{event.upper()}"
                     )
                 )
-            if on_value := widget.config.get(CONF_ON_VALUE):
+            if on_value := w.config.get(CONF_ON_VALUE):
                 for conf in on_value:
                     tid = conf[CONF_TRIGGER_ID]
                     add_line_markers(tid)
                     trigger = cg.new_Pvariable(tid)
-                    args = widget.get_args()
-                    value = widget.get_value()
+                    args = w.get_args()
+                    value = w.get_value()
                     await automation.build_automation(trigger, args, conf)
                     init.extend(
-                        widget.set_event_cb(
+                        w.set_event_cb(
                             f"{trigger}->trigger({value})",
                             "LV_EVENT_VALUE_CHANGED",
                             f"{lv_component}->get_custom_change_event()",
                         )
                     )
-            if align_to := widget.config.get(df.CONF_ALIGN_TO):
+            if align_to := w.config.get(df.CONF_ALIGN_TO):
                 target = widget_map[align_to[CONF_ID]].obj
                 align = align_to[df.CONF_ALIGN]
                 x = align_to[df.CONF_X]
                 y = align_to[df.CONF_Y]
-                init.append(f"lv_obj_align_to({obj}, {target}, {align}, {x}, {y})")
+                init.append(f"lv_obj_align_to({w_obj}, {target}, {align}, {x}, {y})")
             await add_init_lambda(lv_component, init)
 
 
@@ -454,17 +454,33 @@ async def disp_update(disp, config: dict):
     return init
 
 
+def get_display_list(config):
+    result = []
+    display_list = config.get(df.CONF_DISPLAYS)
+    if isinstance(display_list, list):
+        for display in config.get(df.CONF_DISPLAYS, []):
+            result.append(display[CONF_DISPLAY_ID])
+    else:
+        result.append(display_list)
+    return result
+
+
 def warning_checks(config):
     global_config = CORE.config
-    display_id = config[CONF_DISPLAY_ID]
-    if display := global_config.get(CONF_DISPLAY):
-        display = list(filter(lambda c: c[CONF_ID] == display_id, display))[0]
-        if CONF_LAMBDA in display:
-            LOGGER.warning("Using lambda: in display config not recommended with LVGL")
-        if display[CONF_AUTO_CLEAR_ENABLED]:
-            LOGGER.warning(
-                "Using auto_clear_enabled: true in display config not recommended with LVGL"
-            )
+    displays = get_display_list(config)
+    if display_conf := global_config.get(CONF_DISPLAY):
+        for display_id in displays:
+            display = list(
+                filter(lambda c, k=display_id: c[CONF_ID] == k, display_conf)
+            )[0]
+            if CONF_LAMBDA in display:
+                LOGGER.warning(
+                    "Using lambda: in display config not recommended with LVGL"
+                )
+            if display[CONF_AUTO_CLEAR_ENABLED]:
+                LOGGER.warning(
+                    "Using auto_clear_enabled: true in display config not recommended with LVGL"
+                )
     buffer_frac = config[CONF_BUFFER_SIZE]
     if not CORE.is_host and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
@@ -518,11 +534,7 @@ async def to_code(config):
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
     Widget.create(config[CONF_ID], lv_component, WIDGET_TYPES[df.CONF_OBJ], config)
-    displays = set()
-    if display := config.get(CONF_DISPLAY_ID):
-        displays.add(display)
-    for display in config.get(df.CONF_DISPLAYS, []):
-        displays.add(display[CONF_DISPLAY_ID])
+    displays = get_display_list(config)
     for display in displays:
         cg.add(lv_component.add_display(await cg.get_variable(display)))
     frac = config[CONF_BUFFER_SIZE]
@@ -620,13 +632,15 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ID, default=df.CONF_LVGL_COMPONENT): cv.declare_id(
                 ty.LvglComponent
             ),
-            cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(Display),
-            cv.Optional(df.CONF_DISPLAYS): cv.ensure_list(
-                cv.maybe_simple_value(
-                    {
-                        cv.Required(CONF_DISPLAY_ID): cv.use_id(Display),
-                    },
-                    key=CONF_DISPLAY_ID,
+            cv.GenerateID(df.CONF_DISPLAYS): cv.Any(
+                cv.use_id(Display),
+                cv.ensure_list(
+                    cv.maybe_simple_value(
+                        {
+                            cv.Required(CONF_DISPLAY_ID): cv.use_id(Display),
+                        },
+                        key=CONF_DISPLAY_ID,
+                    ),
                 ),
             ),
             cv.Optional(df.CONF_KEYPADS): cv.ensure_list(
@@ -754,11 +768,11 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     if obj_id := config.get(CONF_ID):
-        widget = await get_widget(obj_id)
+        w = await get_widget(obj_id)
     else:
-        widget = lv_scr_act
-    action = [f"lv_obj_invalidate({widget.obj});"]
-    return await action_to_code(action, action_id, widget, template_arg, args)
+        w = lv_scr_act
+    action = [f"lv_obj_invalidate({w.obj});"]
+    return await action_to_code(action, action_id, w, template_arg, args)
 
 
 @automation.register_action(
@@ -845,38 +859,38 @@ async def lvgl_is_paused(config, condition_id, template_arg, args):
 @automation.register_action("lvgl.widget.disable", ObjUpdateAction, ACTION_SCHEMA)
 async def obj_disable_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
-    widget = await get_widget(obj_id)
-    action = widget.add_state("LV_STATE_DISABLED")
-    return await action_to_code(action, action_id, widget, template_arg, args)
+    w = await get_widget(obj_id)
+    action = w.add_state("LV_STATE_DISABLED")
+    return await action_to_code(action, action_id, w, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.enable", ObjUpdateAction, ACTION_SCHEMA)
 async def obj_enable_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
-    widget = await get_widget(obj_id)
-    action = widget.clear_state("LV_STATE_DISABLED")
-    return await action_to_code(action, action_id, widget, template_arg, args)
+    w = await get_widget(obj_id)
+    action = w.clear_state("LV_STATE_DISABLED")
+    return await action_to_code(action, action_id, w, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.show", ObjUpdateAction, ACTION_SCHEMA)
 async def obj_show_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
-    widget = await get_widget(obj_id)
-    action = widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
-    return await action_to_code(action, action_id, widget, template_arg, args)
+    w = await get_widget(obj_id)
+    action = w.clear_flag("LV_OBJ_FLAG_HIDDEN")
+    return await action_to_code(action, action_id, w, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.hide", ObjUpdateAction, ACTION_SCHEMA)
 async def obj_hide_to_code(config, action_id, template_arg, args):
     obj_id = config[CONF_ID]
-    widget = await get_widget(obj_id)
-    action = widget.add_flag("LV_OBJ_FLAG_HIDDEN")
-    return await action_to_code(action, action_id, widget, template_arg, args)
+    w = await get_widget(obj_id)
+    action = w.add_flag("LV_OBJ_FLAG_HIDDEN")
+    return await action_to_code(action, action_id, w, template_arg, args)
 
 
 @automation.register_action(
     "lvgl.widget.update", ObjUpdateAction, create_modify_schema(df.CONF_OBJ)
 )
 async def obj_update_to_code(config, action_id, template_arg, args):
-    widget = await get_widget(config[CONF_ID])
-    return await update_to_code(config, action_id, widget, [], template_arg, args)
+    w = await get_widget(config[CONF_ID])
+    return await update_to_code(config, action_id, w, [], template_arg, args)
