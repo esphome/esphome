@@ -144,7 +144,7 @@ void ModemComponent::setup() {
       return;
       break;
   }
-  // NOLINTEND
+  // NOLINTEND(bugprone-branch-clone)
 
   assert(this->dce);
 
@@ -156,7 +156,7 @@ void ModemComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning("Starting connection");
 
-  global_modem_component->got_ipv4_address_ = false;  // why not this ?
+  global_modem_component->got_ipv4_address_ = false;
 
   this->dce->set_mode(modem_mode::COMMAND_MODE);
   vTaskDelay(pdMS_TO_TICKS(2000));
