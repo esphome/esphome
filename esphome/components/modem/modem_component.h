@@ -11,7 +11,13 @@
 
 // esp_modem will use esphome logger (needed if other components include esphome/core/log.h)
 // We need to do this because "cxx_include/esp_modem_api.hpp" is not a pure C++ header, and use logging.
+// FIXME: Find another workaround. clang is currently disabled.
+// error: using declarations in the global namespace in headers are prohibited
+// [google-global-names-in-headers,-warnings-as-errors]
+// clang-format off
 using esphome::esp_log_printf_;
+// clang-format on
+
 #include <cxx_include/esp_modem_api.hpp>
 #include <driver/gpio.h>
 #include <esp_modem_config.h>
@@ -31,7 +37,7 @@ enum class ModemComponentState {
   CONNECTED,
 };
 
-enum class ModemModel { BG96, SIM800, SIM7000, SIM7070, SIM7070_GNSS, SIM7600, UNKNOWN };
+enum class ModemModel { BG96, SIM800, SIM7000, SIM7070, SIM7600, UNKNOWN };
 
 class ModemComponent : public Component {
  public:
@@ -73,7 +79,6 @@ class ModemComponent : public Component {
                                                                   {"SIM800", ModemModel::SIM800},
                                                                   {"SIM7000", ModemModel::SIM7000},
                                                                   {"SIM7070", ModemModel::SIM7070},
-                                                                  {"SIM7070_GNSS", ModemModel::SIM7070_GNSS},
                                                                   {"SIM7600", ModemModel::SIM7600}};
   std::shared_ptr<DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
