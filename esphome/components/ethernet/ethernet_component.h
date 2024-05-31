@@ -35,13 +35,11 @@ struct ManualIP {
   network::IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
 };
 
-#ifndef USE_ETHERNET_SPI
 struct PHYRegister {
   uint32_t address;
   uint32_t value;
   uint32_t page;
 };
-#endif
 
 enum class EthernetComponentState {
   STOPPED,
