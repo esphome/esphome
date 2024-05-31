@@ -291,7 +291,7 @@ void LD2415HComponent::parse_firmware_() {
     ++fw;
 
     // Copy string into firmware
-    std::strcpy(this->firmware_, fw);
+    std::strncpy(this->firmware_, fw, sizeof(this->firmware_));
   } else {
     ESP_LOGE(TAG, "Firmware value invalid.");
   }
