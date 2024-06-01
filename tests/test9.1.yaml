@@ -12,6 +12,7 @@ esphome:
 logger:
 
 ota:
+  - platform: esphome
 
 captive_portal:
 

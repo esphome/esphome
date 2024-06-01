@@ -105,6 +105,8 @@ class MultiClickTrigger : public Trigger<>, public Component {
 
   void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
 
+  void cancel();
+
  protected:
   void on_state_(bool state);
   void schedule_cooldown_();

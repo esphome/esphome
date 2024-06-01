@@ -12,7 +12,7 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
 #ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif  // USE_ESP32
@@ -22,7 +22,7 @@
 #endif  // USE_ESP8266
 #elif defined(USE_ESP_IDF)
 #include <esp_http_client.h>
-#endif  // ARDUINO vs ESP-IDF
+#endif  // ARDUINO vs USE_ESP_IDF
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
@@ -952,6 +952,73 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool set_protocol_reparse_mode(bool active_mode);
 
+  // ======== Nextion Intelligent Series ========
+
+  /**
+   * Set the video id of a component.
+   * @param component The component name.
+   * @param vid_id The video ID.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_vid("textview", 1);
+   * ```
+   *
+   * This will change the video id of the component `textview`.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_vid(const char *component, uint8_t vid_id);
+
+  /**
+   * Set the drag availability of a component.
+   * @param component The component name.
+   * @param drag False: Drag not available, True: Drag available.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_drag("textview", true);
+   * ```
+   *
+   * This will enable drag to the component `textview`.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_drag(const char *component, bool drag);
+
+  /**
+   * Set the opaqueness (fading) of a component.
+   * @param component The component name.
+   * @param aph An integer between 0 and 127 related to the opaqueness/fading level.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_aph("textview", 64);
+   * ```
+   *
+   * This will set the opaqueness level of the component `textview` to 64.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_aph(const char *component, uint8_t aph);
+
+  /**
+   * Set the position of a component.
+   * @param component The component name.
+   * @param x The new X (horizontal) coordinate for the component.
+   * @param y The new Y (vertical) coordinate for the component.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_aph("textview", 64, 35);
+   * ```
+   *
+   * This will move the component `textview` to the column 64 of row 35 of the display.
+   *
+   * Note: Requires Nextion Intelligent series display.
+   */
+  void set_component_position(const char *component, uint32_t x, uint32_t y);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   void register_touch_component(NextionComponentBase *obj) { this->touch_.push_back(obj); }
@@ -987,7 +1054,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problematic with arduino..
+   * Set the tft file URL. https seems problematic with Arduino..
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
@@ -1190,7 +1257,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
 
-#ifdef ARDUINO
+#ifdef USE_ARDUINO
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
@@ -1208,7 +1275,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#endif  // ARDUINO vs USE_ESP_IDF
+#endif  // USE_ARDUINO vs USE_ESP_IDF
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
