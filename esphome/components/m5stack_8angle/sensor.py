@@ -23,7 +23,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(M5Stack_8AngleSensorKnob),
             cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack_8AngleComponent),
-            cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
+            cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=8),
         }
     )
     .extend(
@@ -41,5 +41,5 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_M5STACK_8ANGLE_ID])
     sens = await sensor.new_sensor(config)
-    cg.add(sens.set_parent(hub, config[CONF_CHANNEL]))
+    cg.add(sens.set_parent(hub, config[CONF_CHANNEL] - 1))
     await cg.register_component(sens, config)
