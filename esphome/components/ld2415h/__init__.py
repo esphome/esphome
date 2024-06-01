@@ -14,7 +14,7 @@ LD2415HComponent = ld2415h_ns.class_("LD2415HComponent", cg.Component, uart.UART
 
 CONF_LD2415H_ID = "ld2415h_id"
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LD2415HComponent),
