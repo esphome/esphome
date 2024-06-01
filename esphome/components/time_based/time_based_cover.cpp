@@ -63,14 +63,18 @@ void TimeBasedCover::control(const CoverCall &call) {
     this->publish_state();
   }
   if (call.get_toggle().has_value()) {
+    // Cover is not idle -> stop it
     if (this->current_operation != COVER_OPERATION_IDLE) {
       this->start_direction_(COVER_OPERATION_IDLE);
       this->publish_state();
     } else {
-      if (this->position == COVER_CLOSED || this->last_operation_ == COVER_OPERATION_CLOSING) {
+      // Cover is idle, check its last direction of movement
+      if (this->position == COVER_CLOSED || this->last_moving_operation_ == COVER_OPERATION_CLOSING) {
+        // Cover was closing -> open it
         this->target_position_ = COVER_OPEN;
         this->start_direction_(COVER_OPERATION_OPENING);
       } else {
+        // Cover was opening -> close it
         this->target_position_ = COVER_CLOSED;
         this->start_direction_(COVER_OPERATION_CLOSING);
       }
@@ -126,17 +130,20 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
     return;
 
   this->recompute_position_();
+  // Keep track of the previous operation the cover was in
+  this->last_operation_ = current_operation;
+
   Trigger<> *trig;
   switch (dir) {
     case COVER_OPERATION_IDLE:
       trig = this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
-      this->last_operation_ = dir;
+      this->last_moving_operation_ = dir;
       trig = this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
-      this->last_operation_ = dir;
+      this->last_moving_operation_ = dir;
       trig = this->close_trigger_;
       break;
     default:
