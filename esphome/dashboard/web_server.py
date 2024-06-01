@@ -172,7 +172,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             return super().check_origin(origin)
         trusted_domains = [
             s.strip() for s in os.environ["ESPHOME_TRUSTED_DOMAINS"].split(",")
-        ]        
+        ]
         url = urlparse(origin)
         if url.hostname in trusted_domains:
             return True
