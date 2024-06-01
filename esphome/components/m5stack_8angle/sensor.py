@@ -8,11 +8,11 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
-from . import M5Stack_8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
+from . import M5Stack8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
 
 
-M5Stack_8AngleSensorKnob = m5stack_8angle_ns.class_(
-    "M5Stack_8AngleSensorKnob",
+M5Stack8AngleSensorKnob = m5stack_8angle_ns.class_(
+    "M5Stack8AngleSensorKnob",
     sensor.Sensor,
     cg.PollingComponent,
 )
@@ -21,14 +21,14 @@ M5Stack_8AngleSensorKnob = m5stack_8angle_ns.class_(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(M5Stack_8AngleSensorKnob),
-            cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack_8AngleComponent),
+            cv.GenerateID(): cv.declare_id(M5Stack8AngleSensorKnob),
+            cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack8AngleComponent),
             cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=8),
         }
     )
     .extend(
         sensor.sensor_schema(
-            M5Stack_8AngleSensorKnob,
+            M5Stack8AngleSensorKnob,
             accuracy_decimals=2,
             icon=ICON_ROTATE_RIGHT,
             state_class=STATE_CLASS_MEASUREMENT,
