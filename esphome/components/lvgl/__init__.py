@@ -258,7 +258,8 @@ async def msgbox_to_code(conf):
     msgbox = cg.new_variable(
         ID(f"{mbid.id}_msgbox", is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
     )
-    btnm_widg = Widget.create(mbid, msgbox, btnmatrix_spec, conf)
+    Widget.create(mbid, outer, obj_spec, conf)
+    btnm_widg = Widget.create(str(btnm), btnm, btnmatrix_spec, conf)
     text_id, ctrl_list, width_list, _, _ = await get_button_data(
         (conf,), mbid, btnm_widg
     )
