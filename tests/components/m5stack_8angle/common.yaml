@@ -1,0 +1,30 @@
+i2c:
+  sda: 0
+  scl: 1
+  id: bus_external
+
+m5stack_8angle:
+  i2c_id: bus_external
+  id: m5stack_8angle_base
+
+light:
+  - platform: m5stack_8angle
+    m5stack_8angle_id: m5stack_8angle_base
+    id: m8_angle_leds
+    name: Lights
+    effects:
+      - addressable_scan:
+
+sensor:
+  - platform: m5stack_8angle
+    m5stack_8angle_id: m5stack_8angle_base
+    channel: 1
+    name: Knob 1
+  - platform: m5stack_8angle
+    m5stack_8angle_id: m5stack_8angle_base
+    channel: 2
+    name: Knob 2
+binary_sensor:
+  - platform: m5stack_8angle
+    m5stack_8angle_id: m5stack_8angle_base
+    name: Switch
