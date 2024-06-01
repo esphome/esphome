@@ -22,7 +22,7 @@ static const uint8_t M5STACK_8ANGLE_NUM_LEDS = 9;
 
 static const uint8_t M5STACK_8ANGLE_BYTES_PER_LED = 4;
 
-class M5Stack_8AngleComponent : public i2c::I2CDevice, public Component {
+class M5Stack8AngleComponent : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -35,7 +35,7 @@ class M5Stack_8AngleComponent : public i2c::I2CDevice, public Component {
 };
 
 #ifdef USE_LIGHT
-class M5Stack_8AngleLightOutput : public light::AddressableLight {
+class M5Stack8AngleLightOutput : public light::AddressableLight {
  public:
   void setup() override;
 
@@ -48,9 +48,9 @@ class M5Stack_8AngleLightOutput : public light::AddressableLight {
     return traits;
   };
 
-  void set_parent(M5Stack_8AngleComponent *parent) { this->parent_ = parent; };
+  void set_parent(M5Stack8AngleComponent *parent) { this->parent_ = parent; };
 
-  M5Stack_8AngleComponent *get_parent() { return this->parent_; };
+  M5Stack8AngleComponent *get_parent() { return this->parent_; };
 
   void clear_effect_data() override { memset(this->effect_data_, 0x00, M5STACK_8ANGLE_NUM_LEDS); };
 
@@ -62,7 +62,7 @@ class M5Stack_8AngleLightOutput : public light::AddressableLight {
             nullptr,          this->effect_data_ + index, &this->correction_};
   }
 
-  M5Stack_8AngleComponent *parent_{nullptr};
+  M5Stack8AngleComponent *parent_{nullptr};
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
@@ -70,30 +70,30 @@ class M5Stack_8AngleLightOutput : public light::AddressableLight {
 #endif
 
 #ifdef USE_SENSOR
-class M5Stack_8AngleSensorKnob : public sensor::Sensor, public PollingComponent {
+class M5Stack8AngleSensorKnob : public sensor::Sensor, public PollingComponent {
  public:
   void update() override;
-  void set_parent(M5Stack_8AngleComponent *parent, uint8_t index) {
+  void set_parent(M5Stack8AngleComponent *parent, uint8_t index) {
     this->parent_ = parent;
     this->knob_index_ = index;
   };
-  M5Stack_8AngleComponent *get_parent() { return this->parent_; };
+  M5Stack8AngleComponent *get_parent() { return this->parent_; };
 
  protected:
-  M5Stack_8AngleComponent *parent_{nullptr};
+  M5Stack8AngleComponent *parent_{nullptr};
   uint8_t knob_index_ = 0;
 };
 #endif
 
 #ifdef USE_BINARY_SENSOR
-class M5Stack_8AngleSensorSwitch : public binary_sensor::BinarySensor, public PollingComponent {
+class M5Stack8AngleSensorSwitch : public binary_sensor::BinarySensor, public PollingComponent {
  public:
   void update() override;
-  void set_parent(M5Stack_8AngleComponent *parent) { this->parent_ = parent; };
-  M5Stack_8AngleComponent *get_parent() { return this->parent_; };
+  void set_parent(M5Stack8AngleComponent *parent) { this->parent_ = parent; };
+  M5Stack8AngleComponent *get_parent() { return this->parent_; };
 
  protected:
-  M5Stack_8AngleComponent *parent_{nullptr};
+  M5Stack8AngleComponent *parent_{nullptr};
 };
 #endif
 
