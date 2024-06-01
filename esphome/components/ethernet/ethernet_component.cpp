@@ -576,11 +576,11 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
   /*
    * Bit 7 is `RMII Reference Clock Select`. Default is `0`.
    * KSZ8081RNA:
-   *   0 - clock input to XI (Pin 8) is 25 MHz for RMII – 25 MHz clock mode.
-   *   1 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   *   0 - clock input to XI (Pin 8) is 25 MHz for RMII - 25 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 50 MHz for RMII - 50 MHz clock mode.
    * KSZ8081RND:
-   *   0 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
-   *   1 - clock input to XI (Pin 8) is 25 MHz (driven clock only, not a crystal) for RMII – 25 MHz clock mode.
+   *   0 - clock input to XI (Pin 8) is 50 MHz for RMII - 50 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 25 MHz (driven clock only, not a crystal) for RMII - 25 MHz clock mode.
    */
   if ((phy_control_2 & (1 << 7)) != (1 << 7)) {
     phy_control_2 |= 1 << 7;
