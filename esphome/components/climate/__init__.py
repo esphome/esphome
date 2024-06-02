@@ -408,9 +408,11 @@ async def setup_climate_core_(var, config):
             trigger, [(ClimateCall.operator("ref"), "x")], conf
         )
 
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+    if (web_server_config := config.get("web_server")) is not None and (
+        webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
+    ) is not None:
         web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+        web_server.add_entity_to_sorting_list(web_server_, var, web_server_config)
 
 
 async def register_climate(var, config):

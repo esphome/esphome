@@ -23,9 +23,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_VERSION,
     CONF_LOCAL,
+    CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
-    CONF_WEB_SERVER_SORTING_WEIGHT,
-    CONF_WEB_SERVER_SORTING_GROUP,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_BK72XX,
@@ -35,6 +34,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
 
+CONF_SORTING_GROUP = "sorting_group"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 
@@ -92,7 +92,7 @@ def _validate_no_sorting_component(
 ) -> None:
     if path is None:
         path = []
-    if sorting_component in config:
+    if CONF_WEB_SERVER in config and sorting_component in config[CONF_WEB_SERVER]:
         raise cv.FinalExternalInvalid(
             f"{sorting_component} on entities is not supported in web_server version {webserver_version}",
             path=path + [sorting_component],
@@ -113,10 +113,10 @@ def _validate_no_sorting_component(
 def _final_validate_sorting(config):
     if (webserver_version := config.get(CONF_VERSION)) != 3:
         _validate_no_sorting_component(
-            CONF_WEB_SERVER_SORTING_WEIGHT, webserver_version, fv.full_config.get()
+            CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
         )
         _validate_no_sorting_component(
-            CONF_WEB_SERVER_SORTING_GROUP, webserver_version, fv.full_config.get()
+            CONF_SORTING_GROUP, webserver_version, fv.full_config.get()
         )
     return config
 
@@ -131,15 +131,19 @@ sorting_group = {
 
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
     {
-        cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
-        cv.Optional(CONF_WEB_SERVER_SORTING_WEIGHT): cv.All(
-            cv.requires_component("web_server"),
-            cv.float_,
-        ),
-        cv.Optional(CONF_WEB_SERVER_SORTING_GROUP): cv.All(
-            cv.requires_component("web_server"),
-            cv.use_id(cg.int_),
-        ),
+        cv.Optional(CONF_WEB_SERVER): cv.Schema(
+            {
+                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
+                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.float_,
+                ),
+                cv.Optional(CONF_SORTING_GROUP): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.use_id(cg.int_),
+                ),
+            }
+        )
     }
 )
 
@@ -202,11 +206,11 @@ def add_sorting_groups(web_server_var, config):
 
 
 def add_entity_to_sorting_list(web_server, entity, config):
-    sorting_weight = config.get(CONF_WEB_SERVER_SORTING_WEIGHT, 50)
+    sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
 
     sorting_group_hash = None
-    if CONF_WEB_SERVER_SORTING_GROUP in config:
-        sorting_group_hash = hash(config[CONF_WEB_SERVER_SORTING_GROUP])
+    if CONF_SORTING_GROUP in config:
+        sorting_group_hash = hash(config[CONF_SORTING_GROUP])
     if sorting_group_hash is not None:
         cg.add(
             web_server.add_entity_to_sorting_list(
