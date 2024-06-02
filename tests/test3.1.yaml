@@ -75,7 +75,7 @@ sensor:
     name: APDS9960 Proximity
     web_server:
       sorting_group: sorting_group_1
-      sorting_sorting_weight: -100
+      sorting_weight: -100
   - platform: vl53l0x
     name: VL53L0x Distance
     address: 0x29
@@ -556,7 +556,7 @@ cover:
     id: endstop_cover
     web_server:
       sorting_group: sorting_group_4
-      sorting_sorting_weight: 100
+      sorting_weight: 100
 
     stop_action:
       - switch.turn_on: gpio_switch1
@@ -755,7 +755,7 @@ button:
     duration: 100ms
     web_server:
       sorting_group: sorting_group_2
-      sorting_sorting_weight: -100
+      sorting_weight: -100
   - platform: wake_on_lan
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1
