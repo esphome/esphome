@@ -134,7 +134,7 @@ void WebServer::setup() {
     client->send(this->get_config_json().c_str(), "ping", millis(), 30000);
 
     for (auto &group : this->sorting_groups_) {
-      client->send(json::build_json([this, group](JsonObject root) {
+      client->send(json::build_json([group](JsonObject root) {
                      root["name"] = group.second.name;
                      root["sorting_weight"] = group.second.weight;
                    }).c_str(),
