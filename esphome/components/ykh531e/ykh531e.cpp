@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ykh531e {
 
-static const char *TAG = "ykh531e.climate";
+static const char *const TAG = "ykh531e.climate";
 
 uint8_t encode_temperature_celsius(float temperature) {
   if (temperature > TEMP_MAX) {
@@ -28,20 +28,20 @@ void YKH531EClimate::transmit_state() {
   // byte2: 5 unknown bits and horizontal swing
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_BOTH:
-      ir_message[1] |= SwingOn;
-      ir_message[2] |= SwingOn << 5;
+      ir_message[1] |= SWING_ON;
+      ir_message[2] |= SWING_ON << 5;
       break;
     case climate::CLIMATE_SWING_VERTICAL:
-      ir_message[1] |= SwingOn;
-      ir_message[2] |= SwingOff << 5;
+      ir_message[1] |= SWING_ON;
+      ir_message[2] |= SWING_OFF << 5;
       break;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      ir_message[1] |= SwingOff;
-      ir_message[2] |= SwingOn << 5;
+      ir_message[1] |= SWING_OFF;
+      ir_message[2] |= SWING_ON << 5;
       break;
     case climate::CLIMATE_SWING_OFF:
-      ir_message[1] |= SwingOff;
-      ir_message[2] |= SwingOff << 5;
+      ir_message[1] |= SWING_OFF;
+      ir_message[2] |= SWING_OFF << 5;
       break;
   }
 
@@ -50,16 +50,18 @@ void YKH531EClimate::transmit_state() {
   // byte4: 5 unknown bits and fan speed
   switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
-      ir_message[4] |= FanSpeedLow << 5;
+      ir_message[4] |= FAN_SPEED_LOW << 5;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      ir_message[4] |= FanSpeedMid << 5;
+      ir_message[4] |= FAN_SPEED_MID << 5;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      ir_message[4] |= FanSpeedHigh << 5;
+      ir_message[4] |= FAN_SPEED_HIGH << 5;
       break;
     case climate::CLIMATE_FAN_AUTO:
-      ir_message[4] |= FanSpeedAuto << 5;
+      ir_message[4] |= FAN_SPEED_AUTO << 5;
+      break;
+    default:
       break;
   }
 
@@ -69,16 +71,18 @@ void YKH531EClimate::transmit_state() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_AUTO:
     case climate::CLIMATE_MODE_HEAT_COOL:
-      ir_message[6] |= ModeAuto << 5;
+      ir_message[6] |= MODE_AUTO << 5;
       break;
     case climate::CLIMATE_MODE_COOL:
-      ir_message[6] |= ModeCool << 5;
+      ir_message[6] |= MODE_COOL << 5;
       break;
     case climate::CLIMATE_MODE_DRY:
-      ir_message[6] |= ModeDry << 5;
+      ir_message[6] |= MODE_DRY << 5;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      ir_message[6] |= ModeFan << 5;
+      ir_message[6] |= MODE_FAN << 5;
+      break;
+    default:
       break;
   }
 
@@ -158,11 +162,11 @@ bool YKH531EClimate::on_receive(remote_base::RemoteReceiveData data) {
     uint8_t vertical_swing = ir_message[1] & 0b00000111;
     uint8_t horizontal_swing = (ir_message[2] & 0b11100000) >> 5;
 
-    if (vertical_swing == SwingOn && horizontal_swing == SwingOn) {
+    if (vertical_swing == SWING_ON && horizontal_swing == SWING_ON) {
       this->swing_mode = climate::CLIMATE_SWING_BOTH;
-    } else if (vertical_swing == SwingOn) {
+    } else if (vertical_swing == SWING_ON) {
       this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    } else if (horizontal_swing == SwingOn) {
+    } else if (horizontal_swing == SWING_ON) {
       this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
     } else {
       this->swing_mode = climate::CLIMATE_SWING_OFF;
@@ -173,16 +177,16 @@ bool YKH531EClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     uint8_t fan_speed = (ir_message[4] & 0b11100000) >> 5;
     switch (fan_speed) {
-      case FanSpeedLow:
+      case FAN_SPEED_LOW:
         this->fan_mode = climate::CLIMATE_FAN_LOW;
         break;
-      case FanSpeedMid:
+      case FAN_SPEED_MID:
         this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
         break;
-      case FanSpeedHigh:
+      case FAN_SPEED_HIGH:
         this->fan_mode = climate::CLIMATE_FAN_HIGH;
         break;
-      case FanSpeedAuto:
+      case FAN_SPEED_AUTO:
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
         break;
     }
@@ -191,16 +195,16 @@ bool YKH531EClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     uint8_t mode = (ir_message[6] & 0b11100000) >> 5;
     switch (mode) {
-      case ModeAuto:
+      case MODE_AUTO:
         this->mode = climate::CLIMATE_MODE_AUTO;
         break;
-      case ModeCool:
+      case MODE_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
         break;
-      case ModeDry:
+      case MODE_DRY:
         this->mode = climate::CLIMATE_MODE_DRY;
         break;
-      case ModeFan:
+      case MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
     }

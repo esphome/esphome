@@ -39,24 +39,18 @@ static const uint32_t ONE_SPACE = 1700;
  * YK-H/531E codes
  *
  *******************************************************************************/
-enum FanSpeed {
-  FanSpeedHigh = 0b001,
-  FanSpeedMid = 0b010,
-  FanSpeedLow = 0b011,
-  FanSpeedAuto = 0b101,
-};
+static const uint8_t FAN_SPEED_LOW = 0b011;
+static const uint8_t FAN_SPEED_MID = 0b010;
+static const uint8_t FAN_SPEED_HIGH = 0b001;
+static const uint8_t FAN_SPEED_AUTO = 0b101;
 
-enum Swing {
-  SwingOff = 0b111,
-  SwingOn = 0b000,
-};
+static const uint8_t SWING_ON = 0b000;
+static const uint8_t SWING_OFF = 0b111;
 
-enum Mode {
-  ModeAuto = 0b000,
-  ModeCool = 0b001,
-  ModeDry = 0b010,
-  ModeFan = 0b110,
-};
+static const uint8_t MODE_AUTO = 0b000;
+static const uint8_t MODE_COOL = 0b001;
+static const uint8_t MODE_DRY = 0b010;
+static const uint8_t MODE_FAN = 0b110;
 
 // Temperature range
 static const float TEMP_MIN = 16.0f;
