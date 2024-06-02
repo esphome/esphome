@@ -3,8 +3,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/gpio.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ft5x06 {
@@ -41,11 +41,10 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   void dump_config() override;
   void update_touches() override;
 
-  void continue_setup_();
-
   void set_interrupt_pin(InternalGPIOPin *interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 
  protected:
+  void continue_setup_();
   bool err_check_(i2c::ErrorCode err, const char *msg);
   bool set_mode_(FTMode mode);
   VendorId vendor_id_{FT5X06_ID_UNKNOWN};
