@@ -475,6 +475,22 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::V
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::VoiceAssistantTimerEvent>(enums::VoiceAssistantTimerEvent value) {
+  switch (value) {
+    case enums::VOICE_ASSISTANT_TIMER_STARTED:
+      return "VOICE_ASSISTANT_TIMER_STARTED";
+    case enums::VOICE_ASSISTANT_TIMER_UPDATED:
+      return "VOICE_ASSISTANT_TIMER_UPDATED";
+    case enums::VOICE_ASSISTANT_TIMER_CANCELLED:
+      return "VOICE_ASSISTANT_TIMER_CANCELLED";
+    case enums::VOICE_ASSISTANT_TIMER_FINISHED:
+      return "VOICE_ASSISTANT_TIMER_FINISHED";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums::AlarmControlPanelState value) {
   switch (value) {
     case enums::ALARM_STATE_DISARMED:
@@ -6853,6 +6869,82 @@ void VoiceAssistantAudio::dump_to(std::string &out) const {
 
   out.append("  end: ");
   out.append(YESNO(this->end));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->event_type = value.as_enum<enums::VoiceAssistantTimerEvent>();
+      return true;
+    }
+    case 4: {
+      this->total_seconds = value.as_uint32();
+      return true;
+    }
+    case 5: {
+      this->seconds_left = value.as_uint32();
+      return true;
+    }
+    case 6: {
+      this->is_active = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantTimerEventResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->timer_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantTimerEventResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_enum<enums::VoiceAssistantTimerEvent>(1, this->event_type);
+  buffer.encode_string(2, this->timer_id);
+  buffer.encode_string(3, this->name);
+  buffer.encode_uint32(4, this->total_seconds);
+  buffer.encode_uint32(5, this->seconds_left);
+  buffer.encode_bool(6, this->is_active);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantTimerEventResponse {\n");
+  out.append("  event_type: ");
+  out.append(proto_enum_to_string<enums::VoiceAssistantTimerEvent>(this->event_type));
+  out.append("\n");
+
+  out.append("  timer_id: ");
+  out.append("'").append(this->timer_id).append("'");
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  total_seconds: ");
+  sprintf(buffer, "%" PRIu32, this->total_seconds);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  seconds_left: ");
+  sprintf(buffer, "%" PRIu32, this->seconds_left);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  is_active: ");
+  out.append(YESNO(this->is_active));
   out.append("\n");
   out.append("}");
 }

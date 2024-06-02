@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
+from esphome.components import web_server
 from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
@@ -18,6 +19,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_OPERATION,
     CONF_CYCLE,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -167,26 +169,30 @@ NUMBER_OPERATION_OPTIONS = {
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.string_strict
 
-NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
-                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
-            },
-            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-        ),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-    }
+NUMBER_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                    cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
+                },
+                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+            ),
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
+            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+        }
+    )
 )
 
 _UNDEF = object()
@@ -247,6 +253,10 @@ async def setup_number_core_(
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_number(
