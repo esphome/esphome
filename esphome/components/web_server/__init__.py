@@ -76,33 +76,52 @@ def validate_ota(config):
     return config
 
 
-def _validate_no_sorting_weight(
-    webserver_version: int, config: dict, path: list[str] | None = None
-) -> None:
-    if path is None:
-        path = []
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
-        raise cv.FinalExternalInvalid(
-            f"Sorting weight on entities is not supported in web_server version {webserver_version}",
-            path=path + [CONF_WEB_SERVER_SORTING_WEIGHT],
+def validate_sorting_groups(config):
+    if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
+        raise cv.Invalid(
+            f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
         )
-    for p, value in config.items():
-        if isinstance(value, dict):
-            _validate_no_sorting_weight(webserver_version, value, path + [p])
-        elif isinstance(value, list):
-            for i, item in enumerate(value):
-                if isinstance(item, dict):
-                    _validate_no_sorting_weight(webserver_version, item, path + [p, i])
-
-
-def _final_validate_sorting_weight(config):
-    if (webserver_version := config.get(CONF_VERSION)) != 3:
-        _validate_no_sorting_weight(webserver_version, fv.full_config.get())
-
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate_sorting_weight
+def _validate_no_sorting_component(
+    sorting_component: str,
+    webserver_version: int,
+    config: dict,
+    path: list[str] | None = None,
+) -> None:
+    if path is None:
+        path = []
+    if sorting_component in config:
+        raise cv.FinalExternalInvalid(
+            f"{sorting_component} on entities is not supported in web_server version {webserver_version}",
+            path=path + [sorting_component],
+        )
+    for p, value in config.items():
+        if isinstance(value, dict):
+            _validate_no_sorting_component(
+                sorting_component, webserver_version, value, path + [p]
+            )
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, dict):
+                    _validate_no_sorting_component(
+                        sorting_component, webserver_version, item, path + [p, i]
+                    )
+
+
+def _final_validate_sorting(config):
+    if (webserver_version := config.get(CONF_VERSION)) != 3:
+        _validate_no_sorting_component(
+            CONF_WEB_SERVER_SORTING_WEIGHT, webserver_version, fv.full_config.get()
+        )
+        _validate_no_sorting_component(
+            CONF_WEB_SERVER_SORTING_GROUP, webserver_version, fv.full_config.get()
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_sorting
 
 sorting_group = {
     cv.Required(CONF_ID): cv.declare_id(cg.int_),
@@ -167,6 +186,7 @@ CONFIG_SCHEMA = cv.All(
     default_url,
     validate_local,
     validate_ota,
+    validate_sorting_groups,
 )
 
 
