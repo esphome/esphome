@@ -35,7 +35,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
 
-CONF_SORTING_GROUP = "sorting_group"
+CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -160,7 +160,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
-            cv.Optional(CONF_SORTING_GROUP): cv.ensure_list(sorting_group),
+            cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
@@ -280,5 +280,5 @@ async def to_code(config):
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
 
-    if (sorting_group_config := config.get(CONF_SORTING_GROUP)) is not None:
+    if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
         add_sorting_groups(var, sorting_group_config)
