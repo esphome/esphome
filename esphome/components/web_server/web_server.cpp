@@ -1837,11 +1837,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
-void WebServer::add_entity_to_sorting_list(EntityBase *entity, float weight, long long unsigned int group) {
+void WebServer::add_entity_to_sorting_list(EntityBase *entity, float weight, uint64_t group) {
   this->sorting_entitys_[entity] = SortingComponents{weight, group};
 }
 
-void WebServer::add_sorting_group(long long unsigned int group_id, const std::string &group_name, float weight) {
+void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {
   this->sorting_groups_[group_id] = SortingGroup{group_name, weight};
 }
 
