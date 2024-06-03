@@ -415,9 +415,9 @@ void EbyteLoraComponent::loop() {
       }
       // only configs with switches should sent too
 #ifdef USE_SWITCH
+      ESP_LOGD(TAG, "Got switch info, making sure it is itself");
       // Make sure it is not itself
       if (network_id != data[1]) {
-        ESP_LOGD(TAG, "Got switch info");
         for (int i = 2; i < data.size(); i = i + 2) {
           uint8_t pin = data[i];
           bool value = data[i + 1];
@@ -427,6 +427,8 @@ void EbyteLoraComponent::loop() {
             }
           }
         }
+        ESP_LOGD(TAG, "Updated all");
+        this->send_switch_info_();
       }
 #endif
       break;
