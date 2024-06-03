@@ -418,7 +418,8 @@ void EbyteLoraComponent::loop() {
       ESP_LOGD(TAG, "Got switch info, making sure it is itself");
       // Make sure it is not itself
       if (network_id != data[1]) {
-        for (int i = 2; i < data.size(); i = i + 2) {
+        // last data bit is rssi
+        for (int i = 2; i < data.size() - 1; i = i + 2) {
           uint8_t pin = data[i];
           bool value = data[i + 1];
           for (auto *sensor : this->sensors_) {
