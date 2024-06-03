@@ -24,15 +24,6 @@ namespace sntp {
 
 static const char *const TAG = "sntp";
 
-std::vector<std::pair<optional<struct timeval>, sntp_sync_status_t>> callback_args_;
-
-void sntp_sync_time_cb(struct timeval *tv) {
-  callback_args_.push_back({});
-  if (tv)
-    callback_args_.back().first = *tv;
-  callback_args_.back().second = sntp_get_sync_status();
-}
-
 void SNTPComponent::setup() {
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
@@ -54,9 +45,6 @@ void SNTPComponent::setup() {
     sntp_setservername(2, strdup(this->server_3_.c_str()));
   }
 #ifdef USE_ESP_IDF
-  ESP_LOGD(TAG, "Set notification callback");
-  sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
-
   if (sntp_get_sync_interval() != this->get_update_interval()) {
     sntp_set_sync_interval(this->get_update_interval());
     sntp_restart();
@@ -99,26 +87,6 @@ void SNTPComponent::update() {
 #endif
 }
 void SNTPComponent::loop() {
-#if defined(USE_ESP_IDF)
-  for (const auto &item : callback_args_) {
-    switch (item.second) {
-      case SNTP_SYNC_STATUS_RESET:
-        ESP_LOGD(TAG, "Time sync reset");
-        break;
-      case SNTP_SYNC_STATUS_COMPLETED:
-        ESP_LOGD(TAG, "Time sync completed");
-        break;
-      case SNTP_SYNC_STATUS_IN_PROGRESS:
-        ESP_LOGD(TAG, "Time sync in progress");
-        break;
-    }
-
-    if (item.first) {
-      ESP_LOGD(TAG, "Time value is %ds %dus", item.first->tv_sec, item.first->tv_usec);
-    }
-  }
-  callback_args_.clear();
-#endif
   if (this->has_time_)
     return;
 
