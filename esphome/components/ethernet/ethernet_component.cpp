@@ -98,11 +98,15 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
+#if USE_ESP_IDF && (ESP_IDF_VERSION_MAJOR >= 5)
+  eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
+#else
   spi_device_handle_t spi_handle = nullptr;
   err = spi_bus_add_device(host, &devcfg, &spi_handle);
   ESPHL_ERROR_CHECK(err, "SPI bus add device error");
 
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
+#endif
   w5500_config.int_gpio_num = this->interrupt_pin_;
   phy_config.phy_addr = this->phy_addr_spi_;
   phy_config.reset_gpio_num = this->reset_pin_;
@@ -406,7 +410,7 @@ void EthernetComponent::start_connect_() {
   global_eth_component->ipv6_count_ = 0;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
-  this->status_set_warning();
+  this->status_set_warning("waiting for IP configuration");
 
   esp_err_t err;
   err = esp_netif_set_hostname(this->eth_netif_, App.get_name().c_str());
@@ -572,11 +576,11 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
   /*
    * Bit 7 is `RMII Reference Clock Select`. Default is `0`.
    * KSZ8081RNA:
-   *   0 - clock input to XI (Pin 8) is 25 MHz for RMII – 25 MHz clock mode.
-   *   1 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   *   0 - clock input to XI (Pin 8) is 25 MHz for RMII - 25 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 50 MHz for RMII - 50 MHz clock mode.
    * KSZ8081RND:
-   *   0 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
-   *   1 - clock input to XI (Pin 8) is 25 MHz (driven clock only, not a crystal) for RMII – 25 MHz clock mode.
+   *   0 - clock input to XI (Pin 8) is 50 MHz for RMII - 50 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 25 MHz (driven clock only, not a crystal) for RMII - 25 MHz clock mode.
    */
   if ((phy_control_2 & (1 << 7)) != (1 << 7)) {
     phy_control_2 |= 1 << 7;
@@ -614,14 +618,14 @@ void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
 
   err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
   ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
-  ESP_LOGV(TAG, "Hardware default RTL8201 RMII Mode Register is: 0x%04X", phy_rmii_mode);
+  ESP_LOGV(TAG, "Hardware default RTL8201 RMII Mode Register is: 0x%04" PRIX32, phy_rmii_mode);
 
   err = mac->write_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, 0x1FFA);
   ESPHL_ERROR_CHECK(err, "Setting Register 16 RMII Mode Setting failed");
 
   err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
   ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
-  ESP_LOGV(TAG, "Setting RTL8201 RMII Mode Register to: 0x%04X", phy_rmii_mode);
+  ESP_LOGV(TAG, "Setting RTL8201 RMII Mode Register to: 0x%04" PRIX32, phy_rmii_mode);
 
   err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x0);
   ESPHL_ERROR_CHECK(err, "Setting Page 0 failed");
