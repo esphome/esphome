@@ -94,8 +94,8 @@ class EthernetComponent : public Component {
   void dump_connect_params_();
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
-  /// @brief Set `RMII Mode Setting Register` for RTL8201.
-  void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_value);
+  /// @brief Set arbitratry PHY registers from config.
+  void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 
   std::string use_address_;
 #ifdef USE_ETHERNET_SPI
