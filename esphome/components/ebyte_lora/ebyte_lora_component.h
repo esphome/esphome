@@ -90,7 +90,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   InternalGPIOPin *pin_m0_{nullptr};
   InternalGPIOPin *pin_m1_{nullptr};
 };
-#ifdef USE_SWITCH
 class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraComponent> {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
@@ -100,6 +99,5 @@ class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraCompone
   void write_state(bool state) override { this->parent_->send_switch_info_(); }
   uint8_t pin_;
 };
-#endif
 }  // namespace ebyte_lora
 }  // namespace esphome
