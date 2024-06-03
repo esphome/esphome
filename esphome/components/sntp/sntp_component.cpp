@@ -58,6 +58,7 @@ void SNTPComponent::setup() {
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 
   sntp_set_sync_interval(this->get_update_interval());
+  sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
 #endif
 
   sntp_init();
@@ -74,9 +75,11 @@ void SNTPComponent::update() {
 #if !defined(USE_HOST)
 #if defined(USE_ESP_IDF)
   if (sntp_enabled()) {
-    ESP_LOGD(TAG, "Reset SNTP");
+    ESP_LOGD(TAG, "Restart SNTP");
     this->has_time_ = false;
-    sntp_reset();
+    if (!sntp_restart()) {
+      ESP_LOGD(TAG, "Can't restart SNTP");
+    }
   } else {
     ESP_LOGD(TAG, "SNTP is not enabled");
   }
