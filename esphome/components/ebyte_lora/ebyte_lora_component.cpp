@@ -407,10 +407,7 @@ void EbyteLoraComponent::loop() {
       this->send_repeater_info();
       break;
     case REPEATER_INFO:
-      ESP_LOGD(TAG, "Got some repeater info: ");
-      for (int i = 0; i < data.size(); i++) {
-        ESP_LOGD(TAG, "%u", data[i]);
-      }
+      ESP_LOGD(TAG, "Got some repeater info from network %u ", data[2]);
       break;
     case SWITCH_INFO:
       if (this->repeater_) {
