@@ -129,7 +129,7 @@ void SNTPComponent::loop() {
   this->has_time_ = true;
 }
 
-bool SNTPComponent::is_in_progress() const { return sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED; }
+bool SNTPComponent::is_in_progress() const { return sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET; }
 
 }  // namespace sntp
 }  // namespace esphome
