@@ -57,7 +57,10 @@ void SNTPComponent::setup() {
   ESP_LOGD(TAG, "Set notification callback");
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 
-  sntp_set_sync_interval(this->get_update_interval());
+  if (sntp_get_sync_interval() != this->get_update_interval()) {
+    sntp_set_sync_interval(this->get_update_interval());
+    sntp_restart();
+  }
 
   // Stop pooler but ler the user update by the hands
   this->stop_poller();
