@@ -58,7 +58,6 @@ void SNTPComponent::setup() {
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 
   sntp_set_sync_interval(this->get_update_interval());
-  this->stop_poller();
 #endif
 
   sntp_init();
@@ -72,13 +71,23 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
 void SNTPComponent::update() {
-#if !defined(USE_ESP_IDF) && !defined(USE_HOST)
+#if !defined(USE_HOST)
+#if defined(USE_ESP_IDF)
+  if (sntp_enabled()) {
+    ESP_LOGD(TAG, "Reset SNTP");
+    this->has_time_ = false;
+    sntp_reset();
+  } else {
+    ESP_LOGD(TAG, "SNTP is not enabled");
+  }
+#else
   // force resync
   if (sntp_enabled()) {
     sntp_stop();
     this->has_time_ = false;
     sntp_init();
   }
+#endif
 #endif
 }
 void SNTPComponent::loop() {
