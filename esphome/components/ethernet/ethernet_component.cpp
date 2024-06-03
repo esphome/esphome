@@ -533,9 +533,7 @@ void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_
   this->clk_mode_ = clk_mode;
   this->clk_gpio_ = clk_gpio;
 }
-void EthernetComponent::add_phy_register(PHYRegister register_value) {
-  this->phy_registers_.push_back(std::move(register_value));
-}
+void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
 #endif
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
