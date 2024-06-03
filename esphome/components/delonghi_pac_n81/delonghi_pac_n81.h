@@ -39,8 +39,7 @@ class DelonghiClimate : public climate_ir::ClimateIR {
  public:
   DelonghiClimate()
       : climate_ir::ClimateIR(DELONGHI_TEMP_MIN, DELONGHI_TEMP_MAX, 1.0f, true, true,
-                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH}) {}
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH}) {}
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -54,5 +53,5 @@ class DelonghiClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 };
 
-}  // namespace delonghi
+}  // namespace delonghi_pac_n81
 }  // namespace esphome
