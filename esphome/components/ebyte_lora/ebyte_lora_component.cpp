@@ -415,9 +415,9 @@ void EbyteLoraComponent::loop() {
       }
       // only configs with switches should sent too
 #ifdef USE_SWITCH
-      ESP_LOGD(TAG, "Got switch info, making sure it is itself");
       // Make sure it is not itself
       if (network_id != data[1]) {
+        ESP_LOGD(TAG, "Got switch info to process");
         // last data bit is rssi
         for (int i = 2; i < data.size() - 1; i = i + 2) {
           uint8_t pin = data[i];
