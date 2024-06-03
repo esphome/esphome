@@ -5,7 +5,7 @@
 #include "esp_sntp.h"
 #elif USE_ESP8266
 #include "sntp.h"
-#else
+#elif !defined(USE_HOST)
 #include "lwip/apps/sntp.h"
 #endif
 
