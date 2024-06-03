@@ -58,7 +58,9 @@ void SNTPComponent::setup() {
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 
   sntp_set_sync_interval(this->get_update_interval());
-  sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
+
+  // Stop pooler but ler the user update by the hands
+  this->stop_poller();
 #endif
 
   sntp_init();
@@ -102,8 +104,6 @@ void SNTPComponent::loop() {
         break;
       case SNTP_SYNC_STATUS_COMPLETED:
         ESP_LOGD(TAG, "Time sync completed");
-        this->has_time_ = true;
-        this->time_sync_callback_.call();
         break;
       case SNTP_SYNC_STATUS_IN_PROGRESS:
         ESP_LOGD(TAG, "Time sync in progress");
@@ -115,7 +115,7 @@ void SNTPComponent::loop() {
     }
   }
   callback_args_.clear();
-#else
+#endif
   if (this->has_time_)
     return;
 
@@ -127,8 +127,9 @@ void SNTPComponent::loop() {
            time.minute, time.second);
   this->time_sync_callback_.call();
   this->has_time_ = true;
-#endif
 }
+
+bool SNTPComponent::is_in_progress() const { return sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED; }
 
 }  // namespace sntp
 }  // namespace esphome
