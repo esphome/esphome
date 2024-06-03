@@ -225,7 +225,7 @@ void EbyteLoraComponent::update() {
     this->set_mode_(NORMAL);
   }
 
-  if (!this->sent_switch_state)
+  if (this->sent_switch_state)
     this->send_switch_info_();
   // we always request repeater info, since nodes will response too that they are around
   // you can see it more of a health info
@@ -377,11 +377,17 @@ void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
   this->time_out_after_ = timeout;
 }
 void EbyteLoraComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Ebyte Lora E220");
-
-  LOG_PIN("Aux pin:", this->pin_aux_);
-  LOG_PIN("M0 Pin:", this->pin_m0_);
-  LOG_PIN("M1 Pin:", this->pin_m1_);
+  ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
+  ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id);
+  if (this->repeater_ && !this->sent_switch_state) {
+    ESP_LOGCONFIG(TAG, "  Normal mode");
+  }
+  if (this->repeater_) {
+    ESP_LOGCONFIG(TAG, "  Repeater mode");
+  }
+  if (this->sent_switch_state) {
+    ESP_LOGCONFIG(TAG, "  Remote switch mode");
+  }
 };
 
 void EbyteLoraComponent::loop() {
@@ -395,46 +401,51 @@ void EbyteLoraComponent::loop() {
     this->read_byte(&c);
     data.push_back(c);
   }
-
-  if (data[0] == REQUEST_REPEATER_INFO) {
-    this->send_repeater_info();
-  }
-  if (data[0] == REPEATER_INFO) {
-    ESP_LOGD(TAG, "Got repeater info ");
-    for (int i = 0; i < data.size(); i++) {
-      ESP_LOGD(TAG, "%u", data[i]);
-    }
-  }
-
-  // starting info loop
-  if (data[0] == SWITCH_INFO) {
-    if (this->repeater_) {
-      this->repeat_message(data);
-    }
-    // only configs with switches should sent too
+  switch (data[0]) {
+    case REQUEST_REPEATER_INFO:
+      ESP_LOGD(TAG, "Got request for repeater info from network id %u", data[1]);
+      this->send_repeater_info();
+      break;
+    case REPEATER_INFO:
+      ESP_LOGD(TAG, "Got some repeater info: ");
+      for (int i = 0; i < data.size(); i++) {
+        ESP_LOGD(TAG, "%u", data[i]);
+      }
+      break;
+    case SWITCH_INFO:
+      if (this->repeater_) {
+        this->repeat_message(data);
+      }
+      // only configs with switches should sent too
 #ifdef USE_SWITCH
-    // Make sure it is not itself
-    if (network_id != data[1]) {
-      ESP_LOGD(TAG, "Got switch info");
-      for (int i = 2; i < data.size(); i = i + 2) {
-        uint8_t pin = data[i];
-        bool value = data[i + 1];
-        for (auto *sensor : this->sensors_) {
-          if (pin == sensor->get_pin()) {
-            sensor->publish_state(value);
+      // Make sure it is not itself
+      if (network_id != data[1]) {
+        ESP_LOGD(TAG, "Got switch info");
+        for (int i = 2; i < data.size(); i = i + 2) {
+          uint8_t pin = data[i];
+          bool value = data[i + 1];
+          for (auto *sensor : this->sensors_) {
+            if (pin == sensor->get_pin()) {
+              sensor->publish_state(value);
+            }
           }
         }
       }
-    }
 #endif
-    this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
-    ESP_LOGD(TAG, "RSSI: %f", (data[data.size() - 1] / 255.0) * 100);
+      break;
+    case PROGRAM_CONF:
+      ESP_LOGD(TAG, "GOT PROGRAM_CONF");
+      this->setup_conf_(data);
+      this->set_mode_(NORMAL);
+      break;
+    default:
+      break;
   }
 
-  if (data[0] == PROGRAM_CONF) {
-    ESP_LOGD(TAG, "GOT PROGRAM_CONF");
-    this->setup_conf_(data);
-    this->set_mode_(NORMAL);
+  // RSSI is always found whenever it is not program info
+  if (data[0] != PROGRAM_CONF) {
+    this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
+    ESP_LOGD(TAG, "RSSI: %f", (data[data.size() - 1] / 255.0) * 100);
   }
 }
 void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
@@ -512,8 +523,9 @@ void EbyteLoraComponent::request_repeater_info() {
   if (!this->can_send_message_()) {
     return;
   }
-  uint8_t data[1];
+  uint8_t data[2];
   data[0] = REQUEST_REPEATER_INFO;  // Request
+  data[1] = this->network_id;       // for unique id
   ESP_LOGD(TAG, "Asking for repeater info");
   this->write_array(data, sizeof(data));
   this->setup_wait_response_(5000);
