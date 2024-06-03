@@ -54,13 +54,12 @@ void SNTPComponent::setup() {
     sntp_setservername(2, strdup(this->server_3_.c_str()));
   }
 #ifdef USE_ESP_IDF
-  sntp_set_sync_interval(this->get_update_interval());
-  this->stop_poller();
-#endif
-
   ESP_LOGD(TAG, "Set notification callback");
   sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
 
+  sntp_set_sync_interval(this->get_update_interval());
+  this->stop_poller();
+#endif
   sntp_init();
 #endif
 }
@@ -79,10 +78,6 @@ void SNTPComponent::update() {
     this->has_time_ = false;
     sntp_init();
   }
-#endif
-#if defined(USE_ESP_IDF)
-  this->has_time_ = false;
-  sntp_restart();
 #endif
 }
 void SNTPComponent::loop() {
