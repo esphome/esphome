@@ -3,7 +3,7 @@ import math
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ABOVE,
@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     CONF_FORCE_UPDATE,
     CONF_VALUE,
     CONF_MIN_VALUE,
@@ -252,43 +253,49 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
-        cv.GenerateID(): cv.declare_id(Sensor),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-        cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-        cv.Optional(CONF_STATE_CLASS): validate_state_class,
-        cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
-        cv.Optional("last_reset_type"): cv.invalid(
-            "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
-        ),
-        cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
-        cv.Optional(CONF_EXPIRE_AFTER): cv.All(
-            cv.requires_component("mqtt"),
-            cv.Any(None, cv.positive_time_period_milliseconds),
-        ),
-        cv.Optional(CONF_FILTERS): validate_filters,
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorRawStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
-                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
-            },
-            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-        ),
-    }
+SENSOR_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
+            cv.GenerateID(): cv.declare_id(Sensor),
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
+            cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(CONF_STATE_CLASS): validate_state_class,
+            cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
+            cv.Optional("last_reset_type"): cv.invalid(
+                "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
+            ),
+            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
+            cv.Optional(CONF_EXPIRE_AFTER): cv.All(
+                cv.requires_component("mqtt"),
+                cv.Any(None, cv.positive_time_period_milliseconds),
+            ),
+            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        SensorRawStateTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                    cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
+                },
+                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+            ),
+        }
+    )
 )
 
 _UNDEF = object()
@@ -771,6 +778,10 @@ async def setup_sensor_core_(var, config):
                 cg.add(mqtt_.disable_expire_after())
             else:
                 cg.add(mqtt_.set_expire_after(expire_after))
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_sensor(var, config):
