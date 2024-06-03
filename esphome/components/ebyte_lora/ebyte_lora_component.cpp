@@ -379,7 +379,7 @@ void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
 void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
   ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id);
-  if (this->repeater_ && !this->sent_switch_state) {
+  if (!this->repeater_ && !this->sent_switch_state) {
     ESP_LOGCONFIG(TAG, "  Normal mode");
   }
   if (this->repeater_) {
