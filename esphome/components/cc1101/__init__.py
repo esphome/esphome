@@ -22,6 +22,7 @@ from esphome.const import (
 
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["sensor", "remote_base", "voltage_sampler"]
+MULTI_CONF = True
 
 CODEOWNERS = ["@gabest11"]
 
