@@ -405,12 +405,15 @@ void EbyteLoraComponent::loop() {
       ESP_LOGD(TAG, "%u", data[i]);
     }
   }
+
   // starting info loop
   if (data[0] == SWITCH_INFO) {
     if (this->repeater_) {
       this->repeat_message(data);
     }
-    // it is it's own info
+    // only configs with switches should sent too
+#ifdef USE_SWITCH
+    // Make sure it is not itself
     if (network_id != data[1]) {
       ESP_LOGD(TAG, "Got switch info");
       for (int i = 2; i < data.size(); i = i + 2) {
@@ -422,6 +425,7 @@ void EbyteLoraComponent::loop() {
           }
         }
       }
+#endif
     }
     this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
     ESP_LOGD(TAG, "RSSI: %f", (data[data.size() - 1] / 255.0) * 100);
@@ -475,6 +479,7 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
 }
 
 void EbyteLoraComponent::send_switch_info_() {
+#ifdef USE_SWITCH
   if (!this->can_send_message_()) {
     return;
   }
@@ -488,6 +493,7 @@ void EbyteLoraComponent::send_switch_info_() {
   ESP_LOGD(TAG, "Sending switch info");
   this->write_array(data);
   this->setup_wait_response_(5000);
+#endif
 }
 
 void EbyteLoraComponent::send_repeater_info() {
