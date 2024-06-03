@@ -59,10 +59,6 @@ void MAX6921Component::set_brightness(float brightness) {
   }
 }
 
-void MAX6921Component::set_text(const std::string& text) {
-
-}
-
 /**
  * @brief Clocks data into MAX6921 via SPI (MSB first).
  *        Data must contain 3 bytes with following format:
@@ -100,7 +96,7 @@ void MAX6921Component::update() {
 uint8_t MAX6921Component::print(uint8_t start_pos, const char *str) {
   if (this->display_->mode != DISP_MODE_PRINT)                                  // not in "it.print" mode?
     return strlen(str);                                                         // yes -> abort
-  return this->display_->set_text(start_pos, str);
+  return this->display_->set_text(str, start_pos);
 }
 
 uint8_t MAX6921Component::print(const char *str) { return this->print(0, str); }

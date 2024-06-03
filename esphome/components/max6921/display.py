@@ -7,7 +7,8 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_LAMBDA,
     CONF_MODE,
-    # CONF_POSITION,
+    CONF_POSITION,
+    CONF_EFFECT,
 )
 
 
@@ -42,6 +43,7 @@ CONF_POS_12_PIN = "pos_12_pin"
 # CONF_DEMO_MODE = "demo_mode"
 CONF_CYCLE_NUM = "cycle_num"
 CONF_TEXT = "text"
+CONF_ALIGN = "align"
 
 
 max6921_ns = cg.esphome_ns.namespace("max6921")
@@ -204,7 +206,6 @@ async def max6921_set_brightness_to_code(config, action_id, template_arg, args):
     return var
 
 
-"""
 def validate_action_set_text(value):
     print(f"validate_action_set_text: {value}")
     return value
@@ -216,7 +217,12 @@ ACTION_SET_TEXT_SCHEMA = cv.All(
             cv.Schema(
                 {
                     cv.Required(CONF_TEXT): cv.templatable(cv.string),
-                    cv.Optional(CONF_POSITION): cv.templatable(cv.int_range(min=0, max=13))
+                    cv.Optional(CONF_POSITION): cv.templatable(
+                        cv.int_range(min=0, max=13)
+                    ),
+                    cv.Optional(CONF_ALIGN): cv.templatable(cv.string),
+                    cv.Optional(CONF_EFFECT): cv.templatable(cv.string),
+                    cv.Optional(CONF_CYCLE_NUM, default=0): cv.templatable(cv.uint8_t),
                 }
             )
         )
@@ -225,16 +231,25 @@ ACTION_SET_TEXT_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
-    "max6921.set_text", SetTextAction, ACTION_SET_TEXT_SCHEMA
-)
+@automation.register_action("max6921.set_text", SetTextAction, ACTION_SET_TEXT_SCHEMA)
 async def max6921_set_text_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_TEXT], args, cg.std_string)
     cg.add(var.set_text(template_))
+    if CONF_POSITION in config:
+        template_ = await cg.templatable(config[CONF_POSITION], args, cg.uint8)
+        cg.add(var.set_text_position(template_))
+    if CONF_ALIGN in config:
+        template_ = await cg.templatable(config[CONF_ALIGN], args, cg.std_string)
+        cg.add(var.set_text_align(template_))
+    if CONF_EFFECT in config:
+        template_ = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
+        cg.add(var.set_text_effect(template_))
+    if CONF_CYCLE_NUM in config:
+        template_ = await cg.templatable(config[CONF_CYCLE_NUM], args, cg.uint8)
+        cg.add(var.set_text_effect_cycle_num(template_))
     return var
-"""
 
 
 ACTION_SET_DEMO_MODE_SCHEMA = cv.All(
@@ -263,5 +278,5 @@ async def max6921_set_demo_mode_to_code(config, action_id, template_arg, args):
     cg.add(var.set_mode(template_))
     if CONF_CYCLE_NUM in config:
         template_ = await cg.templatable(config[CONF_CYCLE_NUM], args, cg.uint8)
-        cg.add(var.set_cycle_num(template_))
+        cg.add(var.set_demo_cycle_num(template_))
     return var

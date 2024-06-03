@@ -32,7 +32,6 @@ class MAX6921Component : public PollingComponent,
   void set_load_pin(GPIOPin *load) { this->load_pin_ = load; }
   void set_seg_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->seg_to_out_map__ = pin_map; }
   void set_pos_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->pos_to_out_map__ = pin_map; }
-  void set_text(const std::string& text);
   void set_writer(max6921_writer_t &&writer);
   void setup() override;
   uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));

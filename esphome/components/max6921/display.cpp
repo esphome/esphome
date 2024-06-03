@@ -164,7 +164,7 @@ void Display::setup(std::vector<uint8_t>& seg_to_out_map, std::vector<uint8_t>& 
   );
 
   ESP_LOGCONFIG(TAG, "Display mode: %u", this->mode);
-  ESP_LOGCONFIG(TAG, "Display scroll mode: %u", this->scroll_mode);
+  ESP_LOGCONFIG(TAG, "Display scroll mode: %u", this->disp_text_.effect);
 }
 
 void HOT Display::display_refresh_task_(void *pv) {
@@ -292,16 +292,19 @@ void Display::update(void) {
     this->brightness_cfg_changed_ = false;
   }
 
-  // handle display scroll modes...
-  switch (this->scroll_mode) {
-    case DISP_SCROLL_MODE_LEFT:
-      update_out_buf_(this->disp_text_);
-      scroll_left_(this->disp_text_);
-      break;
-    case DISP_SCROLL_MODE_OFF:
-    default:
-      this->mode = DISP_MODE_PRINT;
-      break;
+  // handle text effects...
+  if (this->disp_text_.effect != TEXT_EFFECT_NONE) {                            // any effect enabled?
+    switch (this->disp_text_.effect) {
+      case TEXT_EFFECT_SCROLL_LEFT:
+        update_out_buf_();
+        this->disp_text_.scroll_left();
+        break;
+      default:
+        set_mode(DISP_MODE_PRINT);
+        break;
+    }
+    if (this->disp_text_.effect == TEXT_EFFECT_NONE)                            // effect finished?
+      set_mode(DISP_MODE_PRINT);                                                // yes -> switch back to "it" interface
   }
 }
 
@@ -326,7 +329,7 @@ void Display::set_demo_mode(demo_mode_t mode, uint8_t cycle_num) {
       this->disp_text_.text[text_idx] = 0;
       ESP_LOGV(TAG, "%s(): text: %s", __func__, this->disp_text_.text);
 
-      set_scroll_mode(&this->disp_text_, DISP_SCROLL_MODE_LEFT, cycle_num);
+      this->disp_text_.set_text_effect(TEXT_EFFECT_SCROLL_LEFT, cycle_num);
       break;
     default:
       break;
@@ -346,48 +349,68 @@ void Display::set_demo_mode(const std::string& mode, uint8_t cycle_num) {
 }
 
 /**
- * @brief Shows the given text on the display at given position.
+ * @brief Triggered by action. Shows the given text on the display.
  *
- * @param start_pos display position 0..n
- * @param str text to display
+ * @param text text to display
+ * @param align text alignment
+ * @param effect text effect
+ * @param start_pos display position 0..n (optional, default=0)
+ * @param cycle_num text effect cycle count (optional, default=endless)
  *
  * @return number of characters displayed
  */
-int Display::set_text(uint8_t start_pos, const char *str) {
-  ESP_LOGVV(TAG, "%s(): str=%s, prev=%s", __func__, str, this->disp_text_.text);
-  if (strncmp(str, this->disp_text_.text, sizeof(this->disp_text_.text)) == 0)  // text not changed?
-  // if (strncmp(str, &this->disp_text_.text[this->disp_text_.visible_idx],
-  //             this->disp_text_.visible_len) == 0)                               // text not changed?
-    return strlen(str);                                                         // yes -> exit function
-  ESP_LOGV(TAG, "%s(): text changed: str=%s, prev=%s", __func__, str, this->disp_text_.text);
+int Display::set_text(const std::string& text, const std::string& align,
+                      const std::string& effect, uint8_t start_pos, uint8_t cycle_num) {
+  ESP_LOGD(TAG, "set text (given):  text=%s, start-pos=%u, align=%s, effect=%s, cycle-num=%u",
+           text.c_str(), start_pos, align.c_str(), effect.c_str(), cycle_num);
 
   // store new text...
-  this->disp_text_.set(start_pos, this->num_digits_ - 1, str);
+  this->disp_text_.set_text(start_pos, this->num_digits_ - 1, text);
 
-  // update visible text...
-  this->disp_text_.visible_idx = 0;
-  switch (this->scroll_mode) {
-    case DISP_SCROLL_MODE_LEFT:
-      this->disp_text_.visible_len = 1;
-      break;
-    case DISP_SCROLL_MODE_OFF:
-    default:
-      this->disp_text_.visible_len = std::min(strlen(this->disp_text_.text), this->num_digits_-start_pos);
-      break;
-  }
+  // set text align...
+  this->disp_text_.set_text_align(align);
 
-  return update_out_buf_(this->disp_text_);
+  // set text effect...
+  this->disp_text_.set_text_effect(effect, cycle_num);
+
+  // update display mode...
+  set_mode(DISP_MODE_OTHER);
+
+  ESP_LOGD(TAG, "set text (result): text=%s, start-pos=%u, vi-idx=%u, vi-len=%u",
+           this->disp_text_.text, this->disp_text_.start_pos,
+           this->disp_text_.visible_idx, this->disp_text_.visible_len);
+
+  return update_out_buf_();
+}
+
+/**
+ * @brief Triggered by it.print(). Shows the given text on the display.
+ *
+ * @param text text to display
+ * @param start_pos display position 0..n (optional, default=0)
+ *
+ * @return number of characters displayed
+ */
+int Display::set_text(const char *text, uint8_t start_pos) {
+  ESP_LOGVV(TAG, "%s(): str=%s, prev=%s", __func__, text, this->disp_text_.text);
+  if (strncmp(text, this->disp_text_.text, sizeof(this->disp_text_.text)) == 0)  // text not changed?
+    return strlen(text);                                                                  // yes -> exit function
+  ESP_LOGV(TAG, "%s(): text changed: str=%s, prev=%s", __func__, text, this->disp_text_.text);
+
+  // store new text...
+  std::string text_str = text;
+  this->disp_text_.set_text(start_pos, this->num_digits_ - 1, text_str);
+
+  return update_out_buf_();
 }
 
 /**
  * @brief Updates the display buffer containing the MAX6921 OUT data according
  *        to current visible text.
  *
- * @param text display text object
-
  * @return number of visible characters
  */
-int Display::update_out_buf_(DisplayText& disp_text) {
+int Display::update_out_buf_(void) {
   uint visible_idx_offset = 0;
 
   for (uint pos=0; pos<this->num_digits_; pos++) {
@@ -396,21 +419,21 @@ int Display::update_out_buf_(DisplayText& disp_text) {
     bool bGetNextChar, bClearPos = true;
     do {
       // determine character for current display position...
-      if ((pos < disp_text.start_pos) ||                                        // empty position before text or
-          ((disp_text.start_pos == 0) && (pos >= disp_text.visible_len)))       // empty positions after text?
+      if ((pos < this->disp_text_.start_pos) ||                                 // empty position before text or
+          (pos >= (this->disp_text_.start_pos + this->disp_text_.visible_len))) // empty position after text?
         pos_char = ' ';
       else
-        pos_char = disp_text.text[disp_text.visible_idx + visible_idx_offset++];
+        pos_char = this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset++];
 
       // special handling for point segment...
       bGetNextChar = false;
-      if (isPointSegOnly(pos_char)) {                                                           // is point segment only?
-        if (disp_text.visible_idx+visible_idx_offset-1 > 0) {                                   // not the 1st text character?
-          if (isPointSegOnly(disp_text.text[disp_text.visible_idx + visible_idx_offset - 2])) { // previous text character wasn't a point?
-            if (pos == 0) {                                                                     // 1st (most left) display position?
-              bGetNextChar = true;                                                              // yes -> ignore point, get next character
+      if (isPointSegOnly(pos_char)) {                                                         // is point segment only?
+        if (this->disp_text_.visible_idx+visible_idx_offset-1 > 0) {                          // not the 1st text character?
+          if (isPointSegOnly(this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset - 2])) {  // previous text character wasn't a point?
+            if (pos == 0) {                                                                   // 1st (most left) display position?
+              bGetNextChar = true;                                                            // yes -> ignore point, get next character
             } else {
-              --pos;                                                                            // no -> add point to previous display position
+              --pos;                                                                          // no -> add point to previous display position
               bClearPos = false;
             }
           }
@@ -425,7 +448,7 @@ int Display::update_out_buf_(DisplayText& disp_text) {
         ((pos_char - ' ') < ARRAY_ELEM_COUNT(ASCII_TO_SEG))) {                  // supported char?
       out_data = this->ascii_out_data_[pos_char - ' '];                         // yes ->
     } else {
-      ESP_LOGW(TAG, "Encountered unsupported character '%c (0x%02x)'!", pos_char, pos_char);
+      ESP_LOGW(TAG, "Encountered unsupported character (0x%02x): %c", pos_char, (pos_char>=0x20)?pos_char:' ');
       out_data = SEG_UNSUPPORTED_CHAR;
     }
     ESP_LOGVV(TAG, "%s(): segment data: 0x%06x", __func__, out_data);
@@ -456,90 +479,12 @@ int Display::update_out_buf_(DisplayText& disp_text) {
                   this->out_buf_[pos*3+2]);
 
     ESP_LOGV(TAG, "%s(): pos=%u, char='%c' (0x%02x), vi-idx=%u, vi-idx-off=%u, vi-len=%u",
-             __func__, pos, pos_char, pos_char, disp_text.visible_idx, visible_idx_offset, disp_text.visible_len);
+             __func__, pos, pos_char, pos_char, this->disp_text_.visible_idx, visible_idx_offset, this->disp_text_.visible_len);
   }
 
-  disp_text.content_changed = true;
+  this->disp_text_.content_changed = true;
 
-  return this->num_digits_ - disp_text.start_pos;
-}
-
-/**
- * @brief Constructor.
- */
-DisplayScrollMode::DisplayScrollMode() {
-  this->scroll_mode = DISP_SCROLL_MODE_OFF;
-  this->disp_text_ = NULL;
-}
-
-/**
- * @brief Inits the text object according to scroll mode.
- */
-void DisplayScrollMode::init_scroll_mode_(void) {
-  switch (this->scroll_mode) {
-    case DISP_SCROLL_MODE_LEFT:
-      this->disp_text_->start_pos = this->disp_text_->max_pos;                  // start at right side
-      this->disp_text_->visible_idx = 0;
-      this->disp_text_->visible_len = 1;
-      break;
-  }
-}
-
-/**
- * @brief Sets the scroll mode.
- *
- * @param disp_text display text object
- * @param mode scroll mode
- * @param cycle_num number of scroll cycles (optional, default=endless)
- */
-void DisplayScrollMode::set_scroll_mode(DisplayText *disp_text, display_scroll_mode_t mode, uint8_t cycle_num)
-{
-  if (!disp_text) {
-    ESP_LOGE(TAG, "Invalid display text object");
-    return;
-  }
-  if (mode >= DISP_SCROLL_MODE_LAST_ENUM) {
-    ESP_LOGE(TAG, "Invalid display scroll mode: %i", mode);
-    return;
-  }
-  this->disp_text_ = disp_text;
-  this->scroll_mode = mode;
-  this->cycle_num = cycle_num;
-  init_scroll_mode_();
-}
-
-/**
- * @brief Updates the mode "scroll left".
- *
- * @param text display text object
- */
-void DisplayScrollMode::scroll_left_(DisplayText& disp_text) {
-  ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u", __func__,
-           disp_text.start_pos, disp_text.visible_idx, disp_text.visible_len);
-
-  // update visible text...
-  if (disp_text.start_pos > 0) {                                                    // no start at left side of display (scroll in from right side)?
-    --disp_text.start_pos;                                                          // decrement display start position
-    ++disp_text.visible_len;                                                        // increment visible text length
-  } else {
-    ++disp_text.visible_idx;                                                        // increment visible start index
-    if ((disp_text.visible_idx + disp_text.visible_len) >= strlen(disp_text.text))  // visible part reached at end of text?
-      --disp_text.visible_len;                                                      // decrement visible text length (scroll out to left side)
-  }
-
-  // update scroll mode...
-  if (disp_text.visible_len == 0) {
-    init_scroll_mode_();
-    if (this->cycle_num > 0) {
-      if (--this->cycle_num == 0) {
-        this->scroll_mode = DISP_SCROLL_MODE_OFF;
-        return;
-      }
-    }
-  }
-
-  ESP_LOGV(TAG, "%s(): EXIT:  start-idx=%u, text-idx=%u, text-len=%u", __func__,
-           disp_text.start_pos, disp_text.visible_idx, disp_text.visible_len);
+  return this->num_digits_ - this->disp_text_.start_pos;
 }
 
 /**
@@ -552,18 +497,20 @@ DisplayText::DisplayText() {
   this->content_changed = false;
   this->start_pos = 0;
   this->max_pos = 0;
+  this->align = TEXT_ALIGN_CENTER;
+  this->effect = TEXT_EFFECT_NONE;
 }
 
 /**
  * @brief Stores the given text.
  *
- * @param start_pos display start position (0..n)
- * @param max_pos display max. position
- * @param str text to store
+ * @param start_pos display start position of text (0..n)
+ * @param max_pos display max. position (as index)
+ * @param text text to store
  *
  * @return number of stored characters
  */
-int DisplayText::set(uint start_pos, uint max_pos, const char *str) {
+int DisplayText::set_text(uint start_pos, uint max_pos, const std::string& text) {
   // check start position...
   if (start_pos >= max_pos) {
     ESP_LOGW(TAG, "Invalid start position: %u");
@@ -571,11 +518,180 @@ int DisplayText::set(uint start_pos, uint max_pos, const char *str) {
   }
   else
     this->start_pos = start_pos;
-  this->max_pos = max_pos;
 
-  strncpy(this->text, str, sizeof(this->text) - 1);
+  this->max_pos = max_pos;
+  strncpy(this->text, text.c_str(), sizeof(this->text) - 1);
   this->text[sizeof(this->text)-1] = 0;
+  this->visible_idx = 0;
+  this->visible_len = std::min(strlen(this->text), this->max_pos - this->start_pos + 1);
   return strlen(this->text);
+}
+
+
+/**
+ * @brief Inits the text object according to selected align.
+ */
+void DisplayText::init_text_align_(void) {
+  this->visible_idx = 0;
+  this->visible_len = std::min(strlen(this->text), this->max_pos + 1);
+  switch (this->align) {
+    case TEXT_ALIGN_LEFT:
+      this->start_pos = 0;
+      break;
+    case TEXT_ALIGN_CENTER:
+      this->start_pos = ((this->max_pos+1) - this->visible_len) / 2;
+      break;
+    case TEXT_ALIGN_RIGHT:
+      this->start_pos = (this->max_pos+1) - this->visible_len;
+      break;
+  }
+}
+
+/**
+ * @brief Inits the text object according to selected effect.
+ */
+void DisplayText::init_text_effect_(void) {
+  switch (this->effect) {
+    case TEXT_EFFECT_SCROLL_LEFT:
+      this->start_pos = this->max_pos;                                          // start at right side
+      this->visible_idx = 0;
+      this->visible_len = 1;
+      break;
+    case TEXT_EFFECT_NONE:
+    case TEXT_EFFECT_BLINK:
+    default:
+      // Don't change display start position!
+      this->visible_idx = 0;
+      this->visible_len = std::min(strlen(this->text), this->max_pos - this->start_pos + 1);
+      break;
+  }
+}
+
+/**
+ * @brief Sets the text align.
+ *
+ * @param align text align
+ */
+void DisplayText::set_text_align(text_align_t align)
+{
+  if (align >= TEXT_ALIGN_LAST_ENUM) {
+    ESP_LOGE(TAG, "Invalid display text align: %i", align);
+    return;
+  }
+  this->align = align;
+  init_text_align_();
+  ESP_LOGD(TAG, "set align: text=%s, align=%i, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u",
+           this->text, this->align, this->start_pos, this->max_pos, this->visible_idx, this->visible_len);
+}
+
+/**
+ * @brief Sets the text align.
+ *
+ * @param align text align (as string)
+ */
+void DisplayText::set_text_align(const std::string& align)
+{
+  text_align_t text_align = TEXT_ALIGN_LAST_ENUM;
+
+  if (!align.empty()) {
+    if (str_equals_case_insensitive(align, "left"))
+      text_align = TEXT_ALIGN_LEFT;
+    else if (str_equals_case_insensitive(align, "center"))
+      text_align = TEXT_ALIGN_CENTER;
+    else if (str_equals_case_insensitive(align, "right"))
+      text_align = TEXT_ALIGN_RIGHT;
+    else
+      ESP_LOGW(TAG, "Invalid text align: %s", align);
+  }
+  else
+    ESP_LOGW(TAG, "No text align given");
+  if (text_align >= TEXT_ALIGN_LAST_ENUM)
+    return;
+  set_text_align(text_align);
+}
+
+/**
+ * @brief Sets the text effect.
+ *
+ * @param effect text effect
+ * @param cycle_num number of effect cycles (optional, default=endless)
+ */
+void DisplayText::set_text_effect(text_effect_t effect, uint8_t cycle_num)
+{
+  if (effect >= TEXT_EFFECT_LAST_ENUM) {
+    ESP_LOGE(TAG, "Invalid display text effect: %i", effect);
+    return;
+  }
+  if (effect != this->effect) {
+    this->effect = effect;
+    this->cycle_num = cycle_num;
+    init_text_effect_();
+    ESP_LOGD(TAG, "set effect: text=%s, effect=%i, cycles=%u, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u",
+             this->text, this->effect, this->cycle_num, this->start_pos,
+             this->max_pos, this->visible_idx, this->visible_len);
+  }
+}
+
+/**
+ * @brief Sets the text effect.
+ *
+ * @param effect text effect (as string)
+ * @param cycle_num number of effect cycles (optional, default=endless)
+ */
+void DisplayText::set_text_effect(const std::string& effect, uint8_t cycle_num)
+{
+  text_effect_t text_effect = TEXT_EFFECT_LAST_ENUM;
+
+  if (!effect.empty()) {
+    if (str_equals_case_insensitive(effect, "none"))
+      text_effect = TEXT_EFFECT_NONE;
+    else if (str_equals_case_insensitive(effect, "blink"))
+      text_effect = TEXT_EFFECT_BLINK;
+    else if (str_equals_case_insensitive(effect, "scroll_left"))
+      text_effect = TEXT_EFFECT_SCROLL_LEFT;
+    else
+      ESP_LOGW(TAG, "Invalid text effect: %s", effect);
+  }
+  else
+    ESP_LOGW(TAG, "No text effect given");
+  if (text_effect >= TEXT_EFFECT_LAST_ENUM)
+    return;
+  set_text_effect(text_effect, cycle_num);
+}
+
+/**
+ * @brief Updates the mode "scroll left".
+ */
+void DisplayText::scroll_left(void) {
+  ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u", __func__,
+           this->start_pos, this->visible_idx, this->visible_len);
+
+  // update visible text...
+  if (this->start_pos > 0) {                                                    // left display side not reached (scroll in from right side)?
+    --this->start_pos;                                                          // decrement display start position
+    if (this->visible_len < strlen(this->text))
+      ++this->visible_len;                                                      // increment visible text length
+  } else {
+    ++this->visible_idx;                                                        // increment visible start index
+    if ((this->visible_idx + this->visible_len) > strlen(this->text))           // visible part reached at end of text?
+      --this->visible_len;                                                      // decrement visible text length (scroll out to left side)
+  }
+
+  // update effect mode...
+  if (this->visible_len == 0) {
+    init_text_effect_();
+    if (this->cycle_num > 0) {
+      ESP_LOGD(TAG, "scroll cycle finished (%u left)", this->cycle_num-1);
+      if (--this->cycle_num == 0) {
+        this->effect = TEXT_EFFECT_NONE;
+        ESP_LOGD(TAG, "scroll finished");
+        return;
+      }
+    }
+  }
+
+  ESP_LOGV(TAG, "%s(): EXIT:  start-idx=%u, text-idx=%u, text-len=%u", __func__,
+           this->start_pos, this->visible_idx, this->visible_len);
 }
 
 /**
@@ -595,7 +711,7 @@ uint32_t DisplayBrightness::config_brightness_pwm(uint8_t pwm_pin_no, uint8_t ch
   if ((freq_supported = ledcSetup(channel, freq, resolution)) != 0) {
     ledcAttachPin(pwm_pin_no, channel);
     this->brightness_pwm_channel_ = channel;
-    this->brightness_max_duty_ =  pow(2,resolution);                                        // max. duty value for given resolution
+    this->brightness_max_duty_ =  pow(2,resolution);                            // max. duty value for given resolution
     ESP_LOGD(TAG, "Prepare brightness PWM: pin=%u, channel=%u, resolution=%ubit, freq=%uHz",
              pwm_pin_no, channel, resolution, freq_supported);
   } else {
@@ -630,8 +746,10 @@ void DisplayMode::set_mode(display_mode_t display_mode) {
     ESP_LOGE(TAG, "Invalid display mode: %i", display_mode);
     return;
   }
-  this->mode = display_mode;
-  ESP_LOGD(TAG, "Set display mode: %i", this->mode);
+  if (display_mode != this->mode) {
+    this->mode = display_mode;
+    ESP_LOGD(TAG, "Set display mode: %i", this->mode);
+  }
 }
 
 

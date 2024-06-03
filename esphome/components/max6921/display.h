@@ -19,10 +19,19 @@ enum display_mode_t {
   DISP_MODE_LAST_ENUM
 };
 
-enum display_scroll_mode_t {
-  DISP_SCROLL_MODE_OFF,     // show text at given position, cut if too long
-  DISP_SCROLL_MODE_LEFT,    // scroll left, start with 1st char at right position
-  DISP_SCROLL_MODE_LAST_ENUM
+enum text_align_t {
+  TEXT_ALIGN_LEFT,
+  TEXT_ALIGN_CENTER,
+  TEXT_ALIGN_RIGHT,
+  TEXT_ALIGN_LAST_ENUM
+};
+
+enum text_effect_t {
+  TEXT_EFFECT_NONE,         // show text at given position, cut if too long
+  TEXT_EFFECT_BLINK,        // blink
+  TEXT_EFFECT_SCROLL_LEFT,  // scroll left, start with 1st char at right position
+  // TEXT_EFFECT_SCROLL_RIGHT, // scroll right, start with last char at left position
+  TEXT_EFFECT_LAST_ENUM
 };
 
 enum demo_mode_t {
@@ -45,6 +54,17 @@ class DisplayBrightness
   uint8_t brightness_pwm_channel_;
 };
 
+class DisplayMode
+{
+ public:
+  display_mode_t mode;
+  DisplayMode();
+  void set_mode(display_mode_t display_mode);
+
+ protected:
+
+};
+
 class DisplayText
 {
  public:
@@ -54,38 +74,24 @@ class DisplayText
   char text[DISPLAY_TEXT_LEN + 1];    // current text to display (may be larger then display)
   uint visible_idx;                   // current index of start of visible part
   uint visible_len;                   // current length of visible text
-  DisplayText();
-  int set(uint start_pos, uint max_pos, const char *str);
-};
-
-class DisplayMode
-{
- public:
-  display_mode_t mode;                                    // display mode
-  DisplayMode();
-  void set_mode(display_mode_t display_mode);
-
- protected:
-
-};
-
-class DisplayScrollMode
-{
- public:
-  display_scroll_mode_t scroll_mode;                      // scroll mode
+  text_align_t align;
+  text_effect_t effect;
   uint8_t cycle_num;
-  DisplayScrollMode();
-  void set_scroll_mode(DisplayText *disp_text, display_scroll_mode_t scroll_mode, uint8_t cycle_num=0);
+  DisplayText();
+  void scroll_left(void);
+  int set_text(uint start_pos, uint max_pos, const std::string& text);
+  void set_text_align(text_align_t align);
+  void set_text_align(const std::string& align);
+  void set_text_effect(text_effect_t effect, uint8_t cycle_num=0);
+  void set_text_effect(const std::string& effect, uint8_t cycle_num=0);
 
  protected:
-  DisplayText *disp_text_;
-  void init_scroll_mode_(void);
-  void scroll_left_(DisplayText& disp_text);
+  void init_text_align_(void);
+  void init_text_effect_(void);
 };
 
 class Display : public DisplayBrightness,
-                public DisplayMode,
-                public DisplayScrollMode
+                public DisplayMode
 {
  public:
   Display(MAX6921Component *max6921) { max6921_ = max6921; }
@@ -95,7 +101,9 @@ class Display : public DisplayBrightness,
   void setup(std::vector<uint8_t>& seg_to_out_map, std::vector<uint8_t>& pos_to_out_map);
   void set_demo_mode(demo_mode_t mode, uint8_t cycle_num);
   void set_demo_mode(const std::string& mode, uint8_t cycle_num);
-  int set_text(uint8_t start_pos, const char *str);
+  int set_text(const char *text, uint8_t start_pos);
+  int set_text(const std::string& text, const std::string& align, const std::string& effect,
+               uint8_t start_pos=0, uint8_t cycle_num=0);
   void update(void);
 
  protected:
@@ -110,7 +118,7 @@ class Display : public DisplayBrightness,
   uint32_t refresh_period_us_;
   DisplayText disp_text_;
   static void display_refresh_task_(void *pv);
-  int update_out_buf_(DisplayText& disp_text);
+  int update_out_buf_(void);
 
  private:
   void init_font__(void);
