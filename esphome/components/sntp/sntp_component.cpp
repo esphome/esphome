@@ -60,6 +60,7 @@ void SNTPComponent::setup() {
   sntp_set_sync_interval(this->get_update_interval());
   this->stop_poller();
 #endif
+
   sntp_init();
 #endif
 }
