@@ -1147,6 +1147,9 @@ message MediaPlayerCommandRequest {
 
   bool has_media_url = 6;
   string media_url = 7;
+
+  bool has_announcement = 8;
+  bool announcement = 9;
 }
 
 // ==================== BLUETOOTH ====================
@@ -1514,6 +1517,25 @@ message VoiceAssistantAudio {
   bool end = 2;
 }
 
+enum VoiceAssistantTimerEvent {
+  VOICE_ASSISTANT_TIMER_STARTED = 0;
+  VOICE_ASSISTANT_TIMER_UPDATED = 1;
+  VOICE_ASSISTANT_TIMER_CANCELLED = 2;
+  VOICE_ASSISTANT_TIMER_FINISHED = 3;
+}
+
+message VoiceAssistantTimerEventResponse {
+  option (id) = 115;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  VoiceAssistantTimerEvent event_type = 1;
+  string timer_id = 2;
+  string name = 3;
+  uint32 total_seconds = 4;
+  uint32 seconds_left = 5;
+  bool is_active = 6;
+}
 
 // ==================== ALARM CONTROL PANEL ====================
 enum AlarmControlPanelState {

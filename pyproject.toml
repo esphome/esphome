@@ -1,3 +1,107 @@
+[build-system]
+requires = ["setuptools==69.2.0", "wheel~=0.43.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name        = "esphome"
+license     = {text = "MIT"}
+description = "Make creating custom firmwares for ESP32/ESP8266 super easy."
+readme      = "README.md"
+authors     = [
+  {name = "The ESPHome Authors", email = "esphome@nabucasa.com"}
+]
+keywords    = ["home", "automation"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Topic :: Home Automation",
+]
+requires-python = ">=3.9.0"
+
+dynamic = ["dependencies", "optional-dependencies", "version"]
+
+[project.urls]
+"Documentation"           = "https://esphome.io"
+"Source Code"             = "https://github.com/esphome/esphome"
+"Bug Tracker"             = "https://github.com/esphome/issues/issues"
+"Feature Request Tracker" = "https://github.com/esphome/feature-requests/issues"
+"Discord"                 = "https://discord.gg/KhAMKrd"
+"Forum"                   = "https://community.home-assistant.io/c/esphome"
+"Twitter"                 = "https://twitter.com/esphome_"
+
+[project.scripts]
+esphome = "esphome.__main__:main"
+
+[tool.setuptools]
+platforms            = ["any"]
+zip-safe             = false
+include-package-data = true
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies.dev = { file = ["requirements_dev.txt"] }
+optional-dependencies.test = { file = ["requirements_test.txt"] }
+optional-dependencies.displays = { file = ["requirements_optional.txt"] }
+version = {attr = "esphome.const.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["esphome*"]
+
 [tool.black]
 target-version = ["py39", "py310"]
 exclude = 'generated'
+
+[tool.pytest.ini_options]
+testpaths = [
+  "tests",
+]
+addopts = [
+  "--cov=esphome",
+  "--cov-branch",
+]
+
+[tool.pylint.MAIN]
+py-version = "3.9"
+ignore = [
+  "api_pb2.py",
+]
+persistent = false
+
+[tool.pylint.REPORTS]
+score = false
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+  "format",
+  "missing-docstring",
+  "fixme",
+  "unused-argument",
+  "global-statement",
+  "too-few-public-methods",
+  "too-many-lines",
+  "too-many-locals",
+  "too-many-ancestors",
+  "too-many-branches",
+  "too-many-statements",
+  "too-many-arguments",
+  "too-many-return-statements",
+  "too-many-instance-attributes",
+  "duplicate-code",
+  "invalid-name",
+  "cyclic-import",
+  "redefined-builtin",
+  "undefined-loop-variable",
+  "useless-object-inheritance",
+  "stop-iteration-return",
+  "import-outside-toplevel",
+  # Broken
+  "unsupported-membership-test",
+  "unsubscriptable-object",
+]
+
+[tool.pylint.FORMAT]
+expected-line-ending-format = "LF"
