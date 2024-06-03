@@ -97,7 +97,12 @@ class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraCompone
   uint8_t get_pin() { return pin_; }
 
  protected:
-  void write_state(bool state) override { this->parent_->send_switch_info_(); }
+  void write_state(bool state) override {
+    // set it first
+    this->publish_state(state);
+    // then tell the world about it
+    this->parent_->send_switch_info_();
+  }
   uint8_t pin_;
 };
 #endif
