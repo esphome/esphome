@@ -3,6 +3,8 @@ from esphome.const import CONF_ID
 import esphome.config_validation as cv
 from esphome.components import time as time_
 
+CODEOWNERS = ["@clydebarrow"]
+
 time_ns = cg.esphome_ns.namespace("host")
 HostTime = time_ns.class_("HostTime", time_.RealTimeClock)
 CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
