@@ -143,7 +143,7 @@ async def to_code(config):
         decoded = base64.b64decode(encryption_config[CONF_KEY])
         cg.add(var.set_noise_psk(list(decoded)))
         cg.add_define("USE_API_NOISE")
-        load_noise(config)
+        load_noise()
     else:
         cg.add_define("USE_API_PLAINTEXT")
 

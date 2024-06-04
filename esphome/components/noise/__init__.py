@@ -6,5 +6,5 @@ CODEOWNERS = ["@clydebarrow"]
 CONFIG_SCHEMA = cv.Schema({})
 
 
-def load_noise(config):
+def load_noise():
     cg.add_library("esphome/noise-c", "0.1.4")
