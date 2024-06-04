@@ -17,7 +17,7 @@ FT5x06Touchscreen = ft5x06_ns.class_(
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(FT5x06Touchscreen),
-        cv.Optional(CONF_INTERRUPT_PIN): cv.All(pins.internal_gpio_input_pin_schema),
+        cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
     }
 ).extend(i2c.i2c_device_schema(0x48))
 
