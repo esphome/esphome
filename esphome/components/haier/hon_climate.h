@@ -7,28 +7,15 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/core/automation.h"
 #include "haier_base.h"
+#include "hon_packet.h"
 
 namespace esphome {
 namespace haier {
-
-enum class AirflowVerticalDirection : uint8_t {
-  HEALTH_UP = 0,
-  MAX_UP = 1,
-  UP = 2,
-  CENTER = 3,
-  DOWN = 4,
-  HEALTH_DOWN = 5,
-};
-
-enum class AirflowHorizontalDirection : uint8_t {
-  MAX_LEFT = 0,
-  LEFT = 1,
-  CENTER = 2,
-  RIGHT = 3,
-  MAX_RIGHT = 4,
-};
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -37,6 +24,11 @@ enum class CleaningState : uint8_t {
 };
 
 enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE_PARAMETER };
+
+struct HonSettings {
+  hon_protocol::VerticalSwingMode last_vertiacal_swing;
+  hon_protocol::HorizontalSwingMode last_horizontal_swing;
+};
 
 class HonClimate : public HaierClimateBase {
 #ifdef USE_SENSOR
@@ -81,6 +73,20 @@ class HonClimate : public HaierClimateBase {
   void update_sub_binary_sensor_(SubBinarySensorType type, uint8_t value);
   binary_sensor::BinarySensor *sub_binary_sensors_[(size_t) SubBinarySensorType::SUB_BINARY_SENSOR_TYPE_COUNT]{nullptr};
 #endif
+#ifdef USE_TEXT_SENSOR
+ public:
+  enum class SubTextSensorType {
+    CLEANING_STATUS = 0,
+    PROTOCOL_VERSION,
+    APPLIANCE_NAME,
+    SUB_TEXT_SENSOR_TYPE_COUNT,
+  };
+  void set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSensor *sens);
+
+ protected:
+  void update_sub_text_sensor_(SubTextSensorType type, const std::string &value);
+  text_sensor::TextSensor *sub_text_sensors_[(size_t) SubTextSensorType::SUB_TEXT_SENSOR_TYPE_COUNT]{nullptr};
+#endif
  public:
   HonClimate();
   HonClimate(const HonClimate &) = delete;
@@ -89,10 +95,10 @@ class HonClimate : public HaierClimateBase {
   void dump_config() override;
   void set_beeper_state(bool state);
   bool get_beeper_state() const;
-  AirflowVerticalDirection get_vertical_airflow() const;
-  void set_vertical_airflow(AirflowVerticalDirection direction);
-  AirflowHorizontalDirection get_horizontal_airflow() const;
-  void set_horizontal_airflow(AirflowHorizontalDirection direction);
+  esphome::optional<hon_protocol::VerticalSwingMode> get_vertical_airflow() const;
+  void set_vertical_airflow(hon_protocol::VerticalSwingMode direction);
+  esphome::optional<hon_protocol::HorizontalSwingMode> get_horizontal_airflow() const;
+  void set_horizontal_airflow(hon_protocol::HorizontalSwingMode direction);
   std::string get_cleaning_status_text() const;
   CleaningState get_cleaning_status() const;
   void start_self_cleaning();
@@ -108,6 +114,7 @@ class HonClimate : public HaierClimateBase {
   void process_phase(std::chrono::steady_clock::time_point now) override;
   haier_protocol::HaierMessage get_control_message() override;
   haier_protocol::HaierMessage get_power_message(bool state) override;
+  void initialization() override;
   bool prepare_pending_action() override;
   void process_protocol_reset() override;
   bool should_get_big_data_();
@@ -147,9 +154,9 @@ class HonClimate : public HaierClimateBase {
   bool beeper_status_;
   CleaningState cleaning_status_;
   bool got_valid_outdoor_temp_;
-  AirflowVerticalDirection vertical_direction_;
-  AirflowHorizontalDirection horizontal_direction_;
-  esphome::optional<HardwareInfo> hvac_hardware_info_;
+  esphome::optional<hon_protocol::VerticalSwingMode> pending_vertical_direction_{};
+  esphome::optional<hon_protocol::HorizontalSwingMode> pending_horizontal_direction_{};
+  esphome::optional<HardwareInfo> hvac_hardware_info_{};
   uint8_t active_alarms_[8];
   int extra_control_packet_bytes_;
   HonControlMethod control_method_;
@@ -159,6 +166,10 @@ class HonClimate : public HaierClimateBase {
   float active_alarm_count_{NAN};
   std::chrono::steady_clock::time_point last_alarm_request_;
   int big_data_sensors_{0};
+  esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
+  esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
+  HonSettings settings_;
+  ESPPreferenceObject rtc_;
 };
 
 class HaierAlarmStartTrigger : public Trigger<uint8_t, const char *> {
