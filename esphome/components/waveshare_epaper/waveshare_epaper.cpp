@@ -2983,9 +2983,9 @@ void WaveshareEPaper13P3InK::initialize() {
   this->data(0xc0);
   this->data(0x80);
 
-  this->command(0x01);                          // driver output control
-  this->data((get_height_internal() - 1)%256);  // Y
-  this->data((get_height_internal() - 1)/256);  // Y
+  this->command(0x01);                            // driver output control
+  this->data((get_height_internal() - 1) % 256);  // Y
+  this->data((get_height_internal() - 1) / 256);  // Y
   this->data(0x00);
 
   this->command(0x11);  // data entry mode
