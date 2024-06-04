@@ -74,15 +74,16 @@ bool MhiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   // loop_read = 0;
-  for (uint8_t a_byte = 0; a_byte < 11; a_byte++) {
+  for (unsigned char & a_byte : bytes) {
     uint8_t byte = 0;
     for (int8_t a_bit = 0; a_bit < 8; a_bit++) {
-      if (data.expect_item(MHI_BIT_MARK, MHI_ONE_SPACE))
+      if (data.expect_item(MHI_BIT_MARK, MHI_ONE_SPACE)) {
         byte |= 1 << a_bit;
-      else if (!data.expect_item(MHI_BIT_MARK, MHI_ZERO_SPACE))
+      } else if (!data.expect_item(MHI_BIT_MARK, MHI_ZERO_SPACE)) {
         return false;
+}
     }
-    bytes[a_byte] = byte;
+    a_byte = byte;
   }
 
   ESP_LOGD(TAG, "Received bytes 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X",
@@ -103,21 +104,21 @@ bool MhiClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   ESP_LOGD(TAG, "Passed check 2");
 
-  auto powerMode = bytes[9] & 0x08;
-  auto operationMode = bytes[9] & 0x07;
+  auto power_mode = bytes[9] & 0x08;
+  auto operation_mode = bytes[9] & 0x07;
   auto temperature = ((~bytes[9] & 0xF0) >> 4) + 17;
-  auto fanSpeed = bytes[7] & 0xE0;
-  auto swingV = ((bytes[5] & 0x02) | (bytes[7] & 0x18));
-  auto swingH = (bytes[5] & 0xCC);
+  auto fan_speed = bytes[7] & 0xE0;
+  auto swing_v = ((bytes[5] & 0x02) | (bytes[7] & 0x18));
+  auto swing_h = (bytes[5] & 0xCC);
 
   ESP_LOGD(TAG,
            "Resulting numbers: powerMode=0x%02X operationMode=0x%02X temperature=%d fanSpeed=0x%02X swingV=0x%02X "
            "swingH=0x%02X",
-           powerMode, operationMode, temperature, fanSpeed, swingV, swingH);
+           power_mode, operation_mode, temperature, fan_speed, swing_v, swing_h);
 
-  if (powerMode == MHI_ON) {
+  if (power_mode == MHI_ON) {
     // Power and operating mode
-    switch (operationMode) {
+    switch (operation_mode) {
       case MHI_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
         // swingV = MHI_VS_UP;
@@ -146,18 +147,18 @@ bool MhiClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->target_temperature = temperature;
 
   // Horizontal and vertical swing
-  if (swingV == MHI_VS_SWING && swingH == MHI_HS_SWING) {
+  if (swing_v == MHI_VS_SWING && swing_h == MHI_HS_SWING) {
     this->swing_mode = climate::CLIMATE_SWING_BOTH;
-  } else if (swingV == MHI_VS_SWING) {
+  } else if (swing_v == MHI_VS_SWING) {
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else if (swingH == MHI_HS_SWING) {
+  } else if (swing_h == MHI_HS_SWING) {
     this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
   } else {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
   // Fan speed
-  switch (fanSpeed) {
+  switch (fan_speed) {
     case MHI_FAN1:  // Only to support remote feedback
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
@@ -169,7 +170,7 @@ bool MhiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     case MHI_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      switch (swingH) {
+      switch (swing_h) {
         case MHI_HS_MIDDLE:
           this->fan_mode = climate::CLIMATE_FAN_MIDDLE;
           break;
@@ -198,14 +199,14 @@ void MhiClimate::transmit_state() {
   // Initial values
   // ----------------------
 
-  auto operatingMode = MHI_AUTO;
-  auto powerMode = MHI_ON;
-  auto cleanMode = 0x20;  // always off
+  auto operating_mode = MHI_AUTO;
+  auto power_mode = MHI_ON;
+  auto clean_mode = 0x20;  // always off
 
   auto temperature = 22;
-  auto fanSpeed = MHI_FAN_AUTO;
-  auto swingV = MHI_VS_STOP;
-  auto swingH = MHI_HS_STOP;
+  auto fan_speed = MHI_FAN_AUTO;
+  auto swing_v = MHI_VS_STOP;
+  auto swing_h = MHI_HS_STOP;
 
   // ----------------------
   // Assign the values
@@ -214,28 +215,28 @@ void MhiClimate::transmit_state() {
   // Power and operating mode
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
-      operatingMode = MHI_COOL;
-      swingV = MHI_VS_UP;  // custom preferred value for this mode
+      operating_mode = MHI_COOL;
+      swing_v = MHI_VS_UP;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
-      operatingMode = MHI_COOL;
-      swingV = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      operating_mode = MHI_COOL;
+      swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_AUTO:
-      operatingMode = MHI_COOL;
-      swingV = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      operating_mode = MHI_COOL;
+      swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      operatingMode = MHI_FAN;
-      swingV = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      operating_mode = MHI_FAN;
+      swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_DRY:
-      operatingMode = MHI_DRY;
-      swingV = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      operating_mode = MHI_DRY;
+      swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
-      powerMode = MHI_OFF;
+      power_mode = MHI_OFF;
       break;
   }
 
@@ -246,14 +247,14 @@ void MhiClimate::transmit_state() {
   // Horizontal and vertical swing
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_BOTH:
-      swingV = MHI_VS_SWING;
-      swingH = MHI_HS_SWING;
+      swing_v = MHI_VS_SWING;
+      swing_h = MHI_HS_SWING;
       break;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      swingH = MHI_HS_SWING;
+      swing_h = MHI_HS_SWING;
       break;
     case climate::CLIMATE_SWING_VERTICAL:
-      swingV = MHI_VS_SWING;
+      swing_v = MHI_VS_SWING;
       break;
     case climate::CLIMATE_SWING_OFF:
     default:
@@ -264,32 +265,32 @@ void MhiClimate::transmit_state() {
   // Fan speed
   switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
-      fanSpeed = MHI_FAN1;
+      fan_speed = MHI_FAN1;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fanSpeed = MHI_FAN2;
+      fan_speed = MHI_FAN2;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fanSpeed = MHI_FAN3;
+      fan_speed = MHI_FAN3;
       break;
     case climate::CLIMATE_FAN_MIDDLE:
-      fanSpeed = MHI_FAN_AUTO;
-      swingH = MHI_HS_MIDDLE;
-      swingV = MHI_VS_SWING;
+      fan_speed = MHI_FAN_AUTO;
+      swing_h = MHI_HS_MIDDLE;
+      swing_v = MHI_VS_SWING;
       break;
     case climate::CLIMATE_FAN_FOCUS:
-      fanSpeed = MHI_HIPOWER;
-      swingH = MHI_HS_RIGHTLEFT;
-      swingV = MHI_VS_SWING;
+      fan_speed = MHI_HIPOWER;
+      swing_h = MHI_HS_RIGHTLEFT;
+      swing_v = MHI_VS_SWING;
       break;
     case climate::CLIMATE_FAN_DIFFUSE:
-      fanSpeed = MHI_HIPOWER;
-      swingH = MHI_HS_LEFTRIGHT;
-      swingV = MHI_VS_SWING;
+      fan_speed = MHI_HIPOWER;
+      swing_h = MHI_HS_LEFTRIGHT;
+      swing_v = MHI_VS_SWING;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      fanSpeed = MHI_FAN_AUTO;
+      fan_speed = MHI_FAN_AUTO;
       break;
   }
 
@@ -298,13 +299,13 @@ void MhiClimate::transmit_state() {
   // ----------------------
 
   // Power state + operating mode
-  remote_state[5] |= swingH | (swingV & 0x02) | cleanMode;
+  remote_state[5] |= swing_h | (swing_v & 0x02) | clean_mode;
 
   // Temperature
-  remote_state[7] |= fanSpeed | (swingV & 0x18);
+  remote_state[7] |= fan_speed | (swing_v & 0x18);
 
   // Fan speed
-  remote_state[9] |= operatingMode | powerMode | ((~(((uint8_t) temperature - 17) << 4)) & 0xF0);
+  remote_state[9] |= operating_mode | power_mode | ((~(((uint8_t) temperature - 17) << 4)) & 0xF0);
 
   // There is no real checksum, but some bytes are inverted
   remote_state[6] = ~remote_state[5];
@@ -314,13 +315,13 @@ void MhiClimate::transmit_state() {
   // ESP_LOGD(TAG, "Sending MHI target temp: %.1f state: %02X mode: %02X temp: %02X", this->target_temperature,
   // remote_state[5], remote_state[6], remote_state[7]);
 
-  auto bytes = remote_state;
+  auto *bytes = remote_state;
   ESP_LOGD(TAG, "Sent bytes 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X",
            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9],
            bytes[10]);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
 
@@ -329,12 +330,13 @@ void MhiClimate::transmit_state() {
   data->space(MHI_HEADER_SPACE);
 
   // Data
-  for (uint8_t i : remote_state)
+  for (uint8_t i : remote_state) {
     for (uint8_t j = 0; j < 8; j++) {
       data->mark(MHI_BIT_MARK);
       bool bit = i & (1 << j);
       data->space(bit ? MHI_ONE_SPACE : MHI_ZERO_SPACE);
     }
+}
   data->mark(MHI_BIT_MARK);
   data->space(0);
 
