@@ -74,7 +74,7 @@ bool MhiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   // loop_read = 0;
-  for (unsigned char & a_byte : bytes) {
+  for (unsigned char &a_byte : bytes) {
     uint8_t byte = 0;
     for (int8_t a_bit = 0; a_bit < 8; a_bit++) {
       if (data.expect_item(MHI_BIT_MARK, MHI_ONE_SPACE)) {
