@@ -52,7 +52,7 @@ void MCP9808Sensor::update() {
     this->status_set_warning();
     return;
   }
-
+  
   float temp = NAN;
   uint8_t msb = (uint8_t) ((raw_temp & 0xff00) >> 8);
   uint8_t lsb = raw_temp & 0x00ff;
@@ -74,6 +74,13 @@ void MCP9808Sensor::update() {
   ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->name_.c_str(), temp);
   this->publish_state(temp);
   this->status_clear_warning();
+}
+void MCP9808Sensor::shutdown() {
+  // Enter shutdown mode
+  this->write_byte_16(0x01, 0x0100);
+}
+void MCP9808Sensor::write_byte_16(uint8_t a_register, uint16_t value) {
+  this->write_register_16(a_register, value);
 }
 float MCP9808Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
