@@ -10,39 +10,39 @@ void MitsubishiUART::control(const climate::ClimateCall &call) {
 
   SettingsSetRequestPacket set_request_packet = SettingsSetRequestPacket();
 
-  // Fan
-
+  // Apply fan settings
+  // Prioritize a custom fan mode if it's set.
   if (call.get_custom_fan_mode().has_value()) {
     if (call.get_custom_fan_mode().value() == FAN_MODE_VERYHIGH) {
       set_custom_fan_mode_(FAN_MODE_VERYHIGH);
       set_request_packet.set_fan(SettingsSetRequestPacket::FAN_4);
     }
-  }
-
-  switch (call.get_fan_mode().value()) {
-    case climate::CLIMATE_FAN_QUIET:
-      set_fan_mode_(climate::CLIMATE_FAN_QUIET);
-      set_request_packet.set_fan(SettingsSetRequestPacket::FAN_QUIET);
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      set_fan_mode_(climate::CLIMATE_FAN_LOW);
-      set_request_packet.set_fan(SettingsSetRequestPacket::FAN_1);
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      set_fan_mode_(climate::CLIMATE_FAN_MEDIUM);
-      set_request_packet.set_fan(SettingsSetRequestPacket::FAN_2);
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      set_fan_mode_(climate::CLIMATE_FAN_HIGH);
-      set_request_packet.set_fan(SettingsSetRequestPacket::FAN_3);
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-      set_fan_mode_(climate::CLIMATE_FAN_AUTO);
-      set_request_packet.set_fan(SettingsSetRequestPacket::FAN_AUTO);
-      break;
-    default:
-      ESP_LOGW(TAG, "Unhandled fan mode %i!", call.get_fan_mode().value());
-      break;
+  } else if (call.get_fan_mode().has_value()) {
+    switch (call.get_fan_mode().value()) {
+      case climate::CLIMATE_FAN_QUIET:
+        set_fan_mode_(climate::CLIMATE_FAN_QUIET);
+        set_request_packet.set_fan(SettingsSetRequestPacket::FAN_QUIET);
+        break;
+      case climate::CLIMATE_FAN_LOW:
+        set_fan_mode_(climate::CLIMATE_FAN_LOW);
+        set_request_packet.set_fan(SettingsSetRequestPacket::FAN_1);
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        set_fan_mode_(climate::CLIMATE_FAN_MEDIUM);
+        set_request_packet.set_fan(SettingsSetRequestPacket::FAN_2);
+        break;
+      case climate::CLIMATE_FAN_HIGH:
+        set_fan_mode_(climate::CLIMATE_FAN_HIGH);
+        set_request_packet.set_fan(SettingsSetRequestPacket::FAN_3);
+        break;
+      case climate::CLIMATE_FAN_AUTO:
+        set_fan_mode_(climate::CLIMATE_FAN_AUTO);
+        set_request_packet.set_fan(SettingsSetRequestPacket::FAN_AUTO);
+        break;
+      default:
+        ESP_LOGW(TAG, "Unhandled fan mode %i!", call.get_fan_mode().value());
+        break;
+    }
   }
 
   // Mode
