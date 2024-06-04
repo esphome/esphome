@@ -131,7 +131,7 @@ void SPS30Component::update() {
   }
 
   // Check if sensor needs to be woken up.  Only wake/sleep if sleep_interval is set.
-  if (millis() <= this->wake_ms_) {
+  if (millis() < this->wake_ms_) {
     ESP_LOGD(TAG, "Sensor is set to sleep.  Wake in %.0fms.", (this->wake_ms_ - millis()));
     return;
   } else if (this->sleep_interval_.has_value()) {
@@ -139,7 +139,7 @@ void SPS30Component::update() {
   }
 
   // Check if sensor needs to warm up.
-  if (millis() <= this->warm_up_ms_) {
+  if (millis() < this->warm_up_ms_) {
     ESP_LOGD(TAG, "Sensor needs to warm up after turning on to provide accurate readings.  Ready in %.0fms.",
              (this->warm_up_ms_ - millis()));
     return;
