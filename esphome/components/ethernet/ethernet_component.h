@@ -74,6 +74,10 @@ class EthernetComponent : public Component {
   network::IPAddress get_dns_address(uint8_t num);
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
+  void get_eth_mac_address_raw(uint8_t *mac);
+  std::string get_eth_mac_address_pretty();
+  eth_duplex_t get_duplex_mode();
+  eth_speed_t get_link_speed();
   bool powerdown();
 
  protected:
