@@ -25,7 +25,7 @@ from esphome.const import (
 )
 from esphome.core import coroutine
 
-CODEOWNERS = ["@Sammy1Am"]
+CODEOWNERS = ["@Sammy1Am", "@KazWolfe"]
 
 AUTO_LOAD = ["climate", "select", "sensor", "binary_sensor", "text_sensor", "switch"]
 DEPENDENCIES = [
@@ -38,8 +38,8 @@ DEPENDENCIES = [
     "switch",
 ]
 
-CONF_HEATPUMP_UART = "heatpump_uart"
-CONF_THERMOSTAT_UART = "thermostat_uart"
+CONF_UART_HEATPUMP = "uart_heatpump"
+CONF_UART_THERMOSTAT = "uart_thermostat"
 
 CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
 CONF_ERROR_CODE = "error_code"
@@ -93,8 +93,8 @@ BASE_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
-            cv.Required(CONF_HEATPUMP_UART): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_THERMOSTAT_UART): cv.use_id(uart.UARTComponent),
+            cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
+            cv.Optional(CONF_UART_THERMOSTAT): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_NAME, default="Climate"): cv.string,
             cv.Optional(
                 CONF_SUPPORTED_MODES, default=DEFAULT_CLIMATE_MODES
@@ -250,16 +250,16 @@ CONFIG_SCHEMA = BASE_SCHEMA.extend(
 
 @coroutine
 async def to_code(config):
-    hp_uart_component = await cg.get_variable(config[CONF_HEATPUMP_UART])
+    hp_uart_component = await cg.get_variable(config[CONF_UART_HEATPUMP])
     muart_component = cg.new_Pvariable(config[CONF_ID], hp_uart_component)
 
     await cg.register_component(muart_component, config)
     await climate.register_climate(muart_component, config)
 
     # If thermostat defined
-    if CONF_THERMOSTAT_UART in config:
+    if CONF_UART_THERMOSTAT in config:
         # Register thermostat with MUART
-        ts_uart_component = await cg.get_variable(config[CONF_THERMOSTAT_UART])
+        ts_uart_component = await cg.get_variable(config[CONF_UART_THERMOSTAT])
         cg.add(getattr(muart_component, "set_thermostat_uart")(ts_uart_component))
         # Add sensor as source
         SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2].append("Thermostat")
@@ -286,7 +286,7 @@ async def to_code(config):
     ) in SENSORS.items():
         # Only add the thermostat temp if we have a TS_UART
         if (sensor_designator == CONF_THERMOSTAT_TEMPERATURE) and (
-            CONF_THERMOSTAT_UART not in config
+            CONF_UART_THERMOSTAT not in config
         ):
             continue
 
