@@ -4,14 +4,16 @@ from esphome.components import climate_ir
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@mSapik"]
-AUTO_LOAD = ['climate_ir']
+AUTO_LOAD = ["climate_ir"]
 
-mhi_ns = cg.esphome_ns.namespace('mhi_zj')
-MhiClimate = mhi_ns.class_('MhiClimate', climate_ir.ClimateIR)
+mhi_ns = cg.esphome_ns.namespace("mhi_zj")
+MhiClimate = mhi_ns.class_("MhiClimate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(MhiClimate),
-})
+CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(MhiClimate),
+    }
+)
 
 
 def to_code(config):
