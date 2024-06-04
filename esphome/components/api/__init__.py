@@ -4,6 +4,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+from esphome.components.noise import load_noise
 from esphome.const import (
     CONF_DATA,
     CONF_DATA_TEMPLATE,
@@ -24,7 +25,7 @@ from esphome.const import (
 from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["socket", "noise"]
 CODEOWNERS = ["@OttoWinter"]
 
 api_ns = cg.esphome_ns.namespace("api")
@@ -142,7 +143,7 @@ async def to_code(config):
         decoded = base64.b64decode(encryption_config[CONF_KEY])
         cg.add(var.set_noise_psk(list(decoded)))
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.4")
+        load_noise(config)
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
