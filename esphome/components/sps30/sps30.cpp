@@ -143,11 +143,11 @@ void SPS30Component::update() {
     case WAKE:
       this->start_measurement();
       return;
-    case SLEEP:
-    // Sleep happens at the end of reading, so go through another read.
+    case IDLE:
+    // Idle happens at the end of reading, so go through another read.
     case READ:
-      if (this->sleep_interval_.has_value()) {
-        this->next_state_ = SLEEP;
+      if (this->idle_interval_.has_value()) {
+        this->next_state_ = IDLE;
       }
       break;
     case NONE:
@@ -234,10 +234,10 @@ void SPS30Component::update() {
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
 
-    // Sleep if we got a reading and our next state is to sleep
-    if(this->next_state_ == SLEEP && millis() >= this->next_state_ms_) {
+    // Idle if we got a reading and our next state is to idle
+    if(this->next_state_ == IDLE && millis() >= this->next_state_ms_) {
       this->stop_measurement();
-      this->next_state_ms_ = millis() + this->sleep_interval_.value();
+      this->next_state_ms_ = millis() + this->idle_interval_.value();
       this->next_state_ = WAKE;
     }
   });
