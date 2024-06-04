@@ -48,9 +48,6 @@ class DelonghiClimate : public climate_ir::ClimateIR {
   uint16_t fan_speed_();
   uint8_t temperature_();
   uint8_t power_();
-  uint8_t bit_reverse(uint8_t);
-  // Handle received IR Buffer
-  bool parse_state_frame_(const uint8_t frame[]);
 };
 
 }  // namespace delonghi_pac_n81
