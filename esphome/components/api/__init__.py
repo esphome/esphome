@@ -25,7 +25,7 @@ from esphome.const import (
 from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket", "noise"]
+AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@OttoWinter"]
 
 api_ns = cg.esphome_ns.namespace("api")
