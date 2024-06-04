@@ -134,8 +134,8 @@ void SPS30Component::update() {
 
   // If its not time to take an action, do nothing.
   if (millis() < this->next_state_ms_) {
-    ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.",
-             (this->next_state_ms_ - millis()), this->next_state_);
+    ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.", (this->next_state_ms_ - millis()),
+             this->next_state_);
     return;
   }
 
@@ -235,7 +235,7 @@ void SPS30Component::update() {
     this->skipped_data_read_cycles_ = 0;
 
     // Idle if we got a reading and our next state is to idle
-    if(this->next_state_ == IDLE && millis() >= this->next_state_ms_) {
+    if (this->next_state_ == IDLE && millis() >= this->next_state_ms_) {
       this->stop_measurement();
       this->next_state_ms_ = millis() + this->idle_interval_.value();
       this->next_state_ = WAKE;

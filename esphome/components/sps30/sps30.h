@@ -40,12 +40,7 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   uint8_t skipped_data_read_cycles_ = 0;
   uint32_t next_state_ms_ = 0;
 
-  enum NextState {
-    IDLE,
-    WAKE,
-    READ,
-    NONE
-  } next_state_{NONE};
+  enum NextState { IDLE, WAKE, READ, NONE } next_state_{NONE};
 
   enum ErrorCode {
     COMMUNICATION_FAILED,
