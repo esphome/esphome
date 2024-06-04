@@ -65,6 +65,8 @@ void SPS30Component::setup() {
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
     this->start_continuous_measurement_();
+    this->next_state_ms_ = millis() + SPS30_WARM_UP_SEC * 1000;
+    this->next_state_ = READ;
   });
 }
 
@@ -130,19 +132,26 @@ void SPS30Component::update() {
     return;
   }
 
-  // Check if sensor needs to be woken up.  Only wake/sleep if sleep_interval is set.
-  if (millis() < this->wake_ms_) {
-    ESP_LOGD(TAG, "Sensor is set to sleep.  Wake in %.0fms.", (this->wake_ms_ - millis()));
+  // If its not time to take an action, do nothing.
+  if (millis() < this->next_state_ms_) {
+    ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.",
+             (this->next_state_ms_ - millis()), this->next_state_);
     return;
-  } else if (this->sleep_interval_.has_value()) {
-    this->start_measurement();
   }
 
-  // Check if sensor needs to warm up.
-  if (millis() < this->warm_up_ms_) {
-    ESP_LOGD(TAG, "Sensor needs to warm up after turning on to provide accurate readings.  Ready in %.0fms.",
-             (this->warm_up_ms_ - millis()));
-    return;
+  switch (this->next_state_) {
+    case WAKE:
+      this->start_measurement();
+      return;
+    case SLEEP:
+    // Sleep happens at the end of reading, so go through another read.
+    case READ:
+      if (this->sleep_interval_.has_value()) {
+        this->next_state_ = SLEEP;
+      }
+      break;
+    case NONE:
+      return;
   }
 
   /// Check if measurement is ready before reading the value
@@ -225,10 +234,11 @@ void SPS30Component::update() {
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
 
-    // Check if sensor needs to be put back to sleep.
-    if (this->sleep_interval_.has_value()) {
+    // Sleep if we got a reading and our next state is to sleep
+    if(this->next_state_ == SLEEP && millis() >= this->next_state_ms_) {
       this->stop_measurement();
-      this->wake_ms_ = millis() + this->sleep_interval_.value() * 1000;
+      this->next_state_ms_ = millis() + this->sleep_interval_.value();
+      this->next_state_ = WAKE;
     }
   });
 }
@@ -244,7 +254,10 @@ bool SPS30Component::start_continuous_measurement_() {
     return false;
   }
   ESP_LOGD(TAG, "Started measurements");
-  this->warm_up_ms_ = millis() + SPS30_WARM_UP_SEC * 1000;
+
+  // Notify the state machine to wait the warm up interval before reading
+  this->next_state_ms_ = millis() + SPS30_WARM_UP_SEC * 1000;
+  this->next_state_ = READ;
   return true;
 }
 
@@ -255,6 +268,9 @@ bool SPS30Component::stop_measurement() {
     ESP_LOGE(TAG, "Error stopping measurements");
   } else {
     ESP_LOGD(TAG, "Stopped measurements");
+    // Exit the state machine if measurement is stopped.
+    this->next_state_ms_ = 0;
+    this->next_state_ = NONE;
   }
   return true;
 }

@@ -38,8 +38,14 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   uint16_t raw_firmware_version_;
   bool start_continuous_measurement_();
   uint8_t skipped_data_read_cycles_ = 0;
-  uint32_t warm_up_ms_ = 0;
-  uint32_t wake_ms_ = 0;
+  uint32_t next_state_ms_ = 0;
+
+  enum NextState {
+    SLEEP,
+    WAKE,
+    READ,
+    NONE
+  } next_state_{NONE};
 
   enum ErrorCode {
     COMMUNICATION_FAILED,
