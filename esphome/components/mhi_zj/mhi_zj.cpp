@@ -3,7 +3,8 @@
 
 namespace esphome {
 namespace mhi_zj {
-static const char *TAG = "mhi_zj.climate";
+
+static const char *const TAG = "mhi_zj.climate";
 
 // Power
 const uint32_t MHI_OFF = 0x08;
@@ -225,6 +226,7 @@ void MhiClimate::transmit_state() {
     case climate::CLIMATE_MODE_AUTO:
       operating_mode = MHI_COOL;
       swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      swing_h = MHI_HS_3DAUTO;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
       operating_mode = MHI_FAN;
