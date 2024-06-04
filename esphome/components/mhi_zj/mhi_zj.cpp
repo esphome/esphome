@@ -81,7 +81,7 @@ bool MhiClimate::on_receive(remote_base::RemoteReceiveData data) {
         byte |= 1 << a_bit;
       } else if (!data.expect_item(MHI_BIT_MARK, MHI_ZERO_SPACE)) {
         return false;
-}
+      }
     }
     a_byte = byte;
   }
@@ -336,7 +336,7 @@ void MhiClimate::transmit_state() {
       bool bit = i & (1 << j);
       data->space(bit ? MHI_ONE_SPACE : MHI_ZERO_SPACE);
     }
-}
+  }
   data->mark(MHI_BIT_MARK);
   data->space(0);
 
