@@ -66,13 +66,13 @@ namespace esphome {
 
             // The protocol sends the data twice, read here
             // uint32_t loop_read;
-            
+
             uint8_t bytes[11] = {};
 
             //for (uint16_t loop = 1; loop <= 2; loop++) {
             if (!data.expect_item(MHI_HEADER_MARK, MHI_HEADER_SPACE))
                 return false;
-            
+
             // loop_read = 0;
             for (uint8_t a_byte = 0; a_byte < 11; a_byte++) {
                 uint8_t byte = 0;
@@ -85,7 +85,7 @@ namespace esphome {
                 bytes[a_byte] = byte;
             }
 
-            ESP_LOGD(TAG, 
+            ESP_LOGD(TAG,
                 "Received bytes 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X",
                 bytes[0], bytes[1], bytes[2], bytes[3],
                 bytes[4], bytes[5], bytes[6], bytes[7],
@@ -106,7 +106,7 @@ namespace esphome {
             ) {
                 return false;
             }
-            
+
             ESP_LOGD(TAG, "Passed check 2");
 
             auto powerMode = bytes[9] & 0x08;
@@ -192,7 +192,7 @@ namespace esphome {
             }
 
             ESP_LOGD(TAG, "Finish it");
-            
+
             this->publish_state();
             return true;
         }
@@ -324,7 +324,7 @@ namespace esphome {
             // ESP_LOGD(TAG, "Sending MHI target temp: %.1f state: %02X mode: %02X temp: %02X", this->target_temperature, remote_state[5], remote_state[6], remote_state[7]);
 
             auto bytes = remote_state;
-            ESP_LOGD(TAG, 
+            ESP_LOGD(TAG,
                 "Sent bytes 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X",
                 bytes[0], bytes[1], bytes[2], bytes[3],
                 bytes[4], bytes[5], bytes[6], bytes[7],

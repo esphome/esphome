@@ -1,1 +1,1 @@
-
+CODEOWNERS = ["@mSapik"]
