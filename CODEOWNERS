@@ -235,7 +235,7 @@ esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
-esphome/components/mitsubishi_uart/* @Sammy1Am
+esphome/components/mitsubishi_uart/* @KazWolfe @Sammy1Am
 esphome/components/mlx90393/* @functionpointer
 esphome/components/mlx90614/* @jesserockz
 esphome/components/mmc5603/* @benhoff
