@@ -8,6 +8,8 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
+    PLATFORM_BK72XX,
 )
 
 DEPENDENCIES = ["network"]
@@ -25,7 +27,15 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_RP2040,
+            PLATFORM_BK72XX,
+            PLATFORM_RTL87XX,
+        ]
+    ),
 )
 
 
