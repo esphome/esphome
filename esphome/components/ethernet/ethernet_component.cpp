@@ -90,8 +90,8 @@ void EthernetComponent::setup() {
 
 #ifdef USE_ETHERNET_SPI  // Configure SPI interface and Ethernet driver for specific SPI module
   spi_device_interface_config_t devcfg = {
-      .command_bits = 16,  // Actually it's the address phase in W5500 SPI frame
-      .address_bits = 8,   // Actually it's the control phase in W5500 SPI frame
+      .command_bits = 0,
+      .address_bits = 0,
       .dummy_bits = 0,
       .mode = 0,
       .duty_cycle_pos = 0,
