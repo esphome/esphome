@@ -9,7 +9,7 @@ namespace one_wire {
 
 #define LOG_ONE_WIRE_DEVICE(this) \
   ESP_LOGCONFIG(TAG, "  Address: %s (%s)", this->get_address_name().c_str(), \
-                LOG_STR_ARG(this->bus_->get_model_str(this->address_ & 0xff)));  // NOLINT
+                LOG_STR_ARG(this->bus_->get_model_str(this->address_ & 0xff)));
 
 class OneWireDevice {
  public:
