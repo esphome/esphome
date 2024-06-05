@@ -140,7 +140,7 @@ async def to_code(config):
     cg.add_define("USE_ONLINE_IMAGE")
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
-        cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+        cg.add_define("USE_ONLINE_IMAGE_ESP8266_HTTPS")
 
     if CORE.is_esp32:
         cg.add_library("WiFiClientSecure", None)

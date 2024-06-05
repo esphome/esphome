@@ -1,11 +1,13 @@
 #ifdef USE_ARDUINO
 
 #include "png_image.h"
+
+#ifdef ONLINE_IMAGE_PNG_SUPPORT
+
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
-
-#ifdef ONLINE_IMAGE_PNG_SUPPORT
+#include "esphome/core/log.h"
 
 static const char *const TAG = "online_image.png";
 

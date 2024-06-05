@@ -8,7 +8,7 @@
 #endif
 #ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
+#ifdef USE_ONLINE_IMAGE_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
 #endif
 #endif

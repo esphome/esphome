@@ -9,7 +9,7 @@
 #endif
 #ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
+#ifdef USE_ONLINE_IMAGE_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
 
 #include <utility>
@@ -39,15 +39,16 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
-OnlineImage::OnlineImage(const char *url, int width, int height, ImageFormat format, ImageType type,
+OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFormat format, ImageType type,
                          uint32_t download_buffer_size)
     : Image(nullptr, 0, 0, type),
       buffer_(nullptr),
-      url_(url),
       download_buffer_(download_buffer_size),
       format_(format),
       fixed_width_(width),
-      fixed_height_(height) {}
+      fixed_height_(height) {
+  this->set_url(url);
+}
 
 void OnlineImage::draw(int x, int y, Display *display, Color color_on, Color color_off) {
   switch (type_) {
@@ -122,6 +123,26 @@ void OnlineImage::set_useragent(const char *useragent) {
     http_.setUserAgent(useragent);
   }
 }
+
+#ifdef USE_ESP8266
+std::shared_ptr<WiFiClient> OnlineImage::get_wifi_client_() {
+#ifdef USE_ONLINE_IMAGE_ESP8266_HTTPS
+  if (this->secure_) {
+    if (this->wifi_client_secure_ == nullptr) {
+      this->wifi_client_secure_ = std::make_shared<BearSSL::WiFiClientSecure>();
+      this->wifi_client_secure_->setInsecure();
+      this->wifi_client_secure_->setBufferSizes(512, 512);
+    }
+    return this->wifi_client_secure_;
+  }
+#endif
+
+  if (this->wifi_client_ == nullptr) {
+    this->wifi_client_ = std::make_shared<WiFiClient>();
+  }
+  return this->wifi_client_;
+}
+#endif
 
 void OnlineImage::release() {
   if (buffer_) {
@@ -356,9 +377,15 @@ void OnlineImage::update() {
     ESP_LOGI(TAG, "Updating image");
   }
 
-  int begin_status = http_.begin(url_);
+  int begin_status;
+  const char *url = this->url_.c_str();
+#if defined(USE_ESP32)
+  begin_status = http_.begin(url);
+#elif defined(USE_ESP8266)
+  begin_status = http_.begin(*this->get_wifi_client_(), url);
+#endif
   if (!begin_status) {
-    ESP_LOGE(TAG, "Could not download image from %s. Connection failed: %i", url_, begin_status);
+    ESP_LOGE(TAG, "Could not download image from %s. Connection failed: %i", url, begin_status);
     return;
   }
 
@@ -380,7 +407,8 @@ void OnlineImage::update() {
     return;
   }
   if (http_code != HTTP_CODE_OK) {
-    ESP_LOGE(TAG, "Could not download image from %s. Error code: %i", url_, http_code);
+    const char *error_string = http_.errorToString(http_code).c_str();
+    ESP_LOGE(TAG, "Could not download image from %s. Error: %s", url, error_string);
     end_connection_();
     download_error_callback_.call();
     return;
@@ -413,7 +441,7 @@ void OnlineImage::update() {
     return;
   }
   decoder_->prepare(total_size);
-  ESP_LOGI(TAG, "Downloading image from %s", url_);
+  ESP_LOGI(TAG, "Downloading image from %s", url);
 }
 
 void OnlineImage::add_on_finished_callback(std::function<void()> &&callback) {

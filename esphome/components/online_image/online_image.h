@@ -36,7 +36,8 @@ class OnlineImage : public PollingComponent, public image::Image {
    * @param format Format that the image is encoded in (@see ImageFormat).
    * @param buffer_size Size of the buffer used to download the image.
    */
-  OnlineImage(const char *url, int width, int height, ImageFormat format, image::ImageType type, uint32_t buffer_size);
+  OnlineImage(const std::string &url, int width, int height, ImageFormat format, image::ImageType type,
+              uint32_t buffer_size);
 
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
@@ -44,7 +45,10 @@ class OnlineImage : public PollingComponent, public image::Image {
   void loop() override;
 
   /** Set the URL to download the image from. */
-  void set_url(const char *url) { url_ = url; }
+  void set_url(const std::string &url) {
+    this->url_ = url;
+    this->secure_ = this->url_.compare(0, 6, "https:") == 0;
+  }
   /**
    * Release the buffer storing the image. The image will need to be downloaded again
    * to be able to be displayed.
@@ -87,10 +91,19 @@ class OnlineImage : public PollingComponent, public image::Image {
   CallbackManager<void()> download_error_callback_{};
 
   HTTPClient http_;
+#ifdef USE_ESP8266
+  std::shared_ptr<WiFiClient> wifi_client_;
+#ifdef USE_ONLINE_IMAGE_ESP8266_HTTPS
+  std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
+#endif
+  std::shared_ptr<WiFiClient> get_wifi_client_();
+#endif
+
   std::unique_ptr<ImageDecoder> decoder_;
 
   uint8_t *buffer_;
-  const char *url_;
+  std::string url_;
+  bool secure_ = false;
   String etag_ = "";
   DownloadBuffer download_buffer_;
 
