@@ -22,8 +22,8 @@ uart:
       number: GPIO4
 
 mitsubishi_uart:
-  heatpump_uart: hp_uart
-  thermostat_uart: tstat_uart
+  uart_heatpump: hp_uart
+  uart_thermostat: tstat_uart
   update_interval: 12s
   temperature_sources:
     - fake_temp
