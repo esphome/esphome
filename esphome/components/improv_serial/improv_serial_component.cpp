@@ -109,6 +109,7 @@ void ImprovSerialComponent::write_data_(std::vector<uint8_t> &data) {
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3)
     case logger::UART_SELECTION_USB_SERIAL_JTAG:
       usb_serial_jtag_write_bytes((char *) data.data(), data.size(), 20 / portTICK_PERIOD_MS);
+      usb_serial_jtag_ll_txfifo_flush();  // fixes for issue in IDF 4.4.7
       break;
 #endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
     default:
