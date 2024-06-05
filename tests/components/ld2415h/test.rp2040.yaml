@@ -1,0 +1,40 @@
+uart:
+  - id: uart_ld2415h
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+ld2415h:
+  id: my_ld2415h
+
+sensor:
+  - platform: ld2415h
+    speed:
+      name: Speed
+      filters:
+        - timeout:
+            timeout: 1s
+            value: 0
+        - delta: 0.1
+
+number:
+  - platform: ld2415h
+    min_speed_threshold:
+      name: Min Speed Threshold
+    compensation_angle:
+      name: Compensation Angle
+    sensitivity:
+      name: Sensitivity
+    vibration_correction:
+      name: Vibration Correction
+    relay_trigger_duration:
+      name: Relay Trigger Duration
+    relay_trigger_speed:
+      name: Relay Trigger Speed
+
+select:
+  - platform: ld2415h
+    sample_rate:
+      name: Sample Rate
+    tracking_mode:
+      name: Tracking Mode
