@@ -88,17 +88,6 @@ bool HOT IRAM_ATTR GPIOOneWireBus::read_bit_() {
   // release bus, delay E
   pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 
-  // Unfortunately some frameworks have different characteristics than others
-  // esp32 arduino appears to pull the bus low only after the digital_write(false),
-  // whereas on esp-idf it already happens during the pin_mode(OUTPUT)
-  // manually correct for this with these constants.
-
-#ifdef USE_ESP32
-  uint32_t timing_constant = 12;
-#else
-  uint32_t timing_constant = 14;
-#endif
-
   // measure from start value directly, to get best accurate timing no matter
   // how long pin_mode/delayMicroseconds took
   delayMicroseconds(12 - (micros() - start));
@@ -186,10 +175,11 @@ uint64_t IRAM_ATTR GPIOOneWireBus::search_() {
       }
     }
 
-    if (branch)
+    if (branch) {
       address |= bit_mask;
-    else
+    } else {
       address &= ~bit_mask;
+    }
 
     // choose/announce branch
     this->write_bit_(branch);
