@@ -20,7 +20,7 @@ struct Header {
 void OtaHttpRequestComponentArduino::http_init(const std::string &url) {
   const char *header_keys[] = {"Content-Length", "Content-Type"};
   const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
-  watchdog::WatchdogManager wdts;
+  watchdog::WatchdogManager wdts;  // NOLINT(clang-diagnostic-unused-variable)
 
 #ifdef USE_ESP8266
   if (this->stream_ptr_ == nullptr && this->set_stream_ptr_()) {
@@ -75,7 +75,7 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
 #endif  // USE_ARDUINO_VERSION_CODE
 #endif  // USE_ESP8266
 
-  watchdog::WatchdogManager wdts;
+  watchdog::WatchdogManager wdts;  // NOLINT(clang-diagnostic-unused-variable)
 
   // Since arduino8266 >= 3.1 using this->stream_ptr_ is broken (https://github.com/esp8266/Arduino/issues/9035)
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
@@ -96,7 +96,7 @@ int OtaHttpRequestComponentArduino::http_read(uint8_t *buf, const size_t max_len
 }
 
 void OtaHttpRequestComponentArduino::http_end() {
-  watchdog::WatchdogManager wdts;
+  watchdog::WatchdogManager wdts;  // NOLINT(clang-diagnostic-unused-variable)
   this->client_.end();
 }
 

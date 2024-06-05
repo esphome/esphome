@@ -51,7 +51,7 @@ void OtaHttpRequestComponentIDF::http_init(const std::string &url) {
 #endif
 #pragma GCC diagnostic pop
 
-  watchdog::WatchdogManager wdts;
+  watchdog::WatchdogManager wdts;  // NOLINT(clang-diagnostic-unused-variable)
   this->client_ = esp_http_client_init(&config);
   if ((this->status_ = esp_http_client_open(this->client_, 0)) == ESP_OK) {
     this->body_length_ = esp_http_client_fetch_headers(this->client_);
@@ -60,7 +60,7 @@ void OtaHttpRequestComponentIDF::http_init(const std::string &url) {
 }
 
 int OtaHttpRequestComponentIDF::http_read(uint8_t *buf, const size_t max_len) {
-  watchdog::WatchdogManager wdts;
+  watchdog::WatchdogManager wdts;  // NOLINT(clang-diagnostic-unused-variable)
   int bufsize = std::min(max_len, this->body_length_ - this->bytes_read_);
 
   App.feed_wdt();
@@ -74,7 +74,7 @@ int OtaHttpRequestComponentIDF::http_read(uint8_t *buf, const size_t max_len) {
 }
 
 void OtaHttpRequestComponentIDF::http_end() {
-  watchdog::WatchdogManager wdts;
+  watchdog::WatchdogManager wdts;  // NOLINT(clang-diagnostic-unused-variable)
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
