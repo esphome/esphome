@@ -101,12 +101,12 @@ i2c::ErrorCode TEM3200Component::read_(uint8_t &status, uint16_t &raw_temperatur
 }
 
 float TEM3200Component::convert_temperature_(uint16_t raw_temperature) {
-  const float temperature_bits_span_ = 2048;
-  const float temperature_max_ = 150;
-  const float temperature_min_ = -50;
-  const float temperature_span_ = temperature_max_ - temperature_min_;
+  const float temperature_bits_span = 2048;
+  const float temperature_max = 150;
+  const float temperature_min = -50;
+  const float temperature_span = temperature_max - temperature_min;
 
-  float temperature = (raw_temperature * temperature_span_ / temperature_bits_span_) + temperature_min_;
+  float temperature = (raw_temperature * temperature_span / temperature_bits_span) + temperature_min;
 
   return temperature;
 }

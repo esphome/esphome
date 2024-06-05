@@ -19,7 +19,7 @@ class TEM3200Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  i2c::ErrorCode read_(uint8_t &status, uint16_t &temperature_raw, uint16_t &pressure_raw);
+  i2c::ErrorCode read_(uint8_t &status, uint16_t &raw_temperature, uint16_t &raw_pressure);
   float convert_temperature_(uint16_t raw_temperature);
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *raw_pressure_sensor_{nullptr};
