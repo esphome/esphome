@@ -24,7 +24,7 @@ bool OneWireDevice::check_address_() {
   if (this->address_ != 0)
     return true;
   auto devices = this->bus_->get_devices();
-  if (devices.size() == 0) {
+  if (devices.empty()) {
     ESP_LOGE(TAG, "No devices, can't auto-select address");
     return false;
   }

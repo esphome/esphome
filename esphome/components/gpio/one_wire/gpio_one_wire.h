@@ -31,8 +31,8 @@ class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
   bool last_device_flag_{false};
   uint64_t address_;
 
-  void reset_search_() override;
-  uint64_t search_() override;
+  void reset_search() override;
+  uint64_t search_int() override;
   void write_bit_(bool bit);
   bool read_bit_();
 };

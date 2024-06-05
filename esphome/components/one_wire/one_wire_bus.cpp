@@ -28,7 +28,7 @@ bool IRAM_ATTR OneWireBus::select(uint64_t address) {
 void OneWireBus::search() {
   this->devices_.clear();
 
-  this->reset_search_();
+  this->reset_search();
   uint64_t address;
   while (true) {
     {
@@ -39,7 +39,7 @@ void OneWireBus::search() {
       }
 
       this->write8(ONE_WIRE_ROM_SEARCH);
-      address = this->search_();
+      address = this->search_int();
     }
     if (address == 0)
       break;

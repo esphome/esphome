@@ -131,13 +131,13 @@ uint64_t IRAM_ATTR GPIOOneWireBus::read64() {
   return ret;
 }
 
-void GPIOOneWireBus::reset_search_() {
+void GPIOOneWireBus::reset_search() {
   this->last_discrepancy_ = 0;
   this->last_device_flag_ = false;
   this->address_ = 0;
 }
 
-uint64_t IRAM_ATTR GPIOOneWireBus::search_() {
+uint64_t IRAM_ATTR GPIOOneWireBus::search_int() {
   if (this->last_device_flag_)
     return 0u;
 
