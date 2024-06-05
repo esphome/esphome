@@ -128,7 +128,7 @@ async def to_code(config):
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
-    if config[CONF_HARDWARE_UART]:
+    if CONF_HARDWARE_UART in config:
         cdc_id = UARTS[config[CONF_HARDWARE_UART]][1]
         if cdc_id >= 0:
             zephyr_add_cdc_acm(config, cdc_id)
