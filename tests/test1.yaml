@@ -344,10 +344,11 @@ as5600:
   slow_filter: 8x
   fast_filter: lsb6
 
-dallas:
-  pin:
-    allow_other_uses: true
-    number: GPIO23
+one_wire:
+  - platform: gpio
+    pin:
+      allow_other_uses: true
+      number: GPIO23
 
 as3935_spi:
   cs_pin:
@@ -743,12 +744,11 @@ sensor:
     update_interval: 15s
     iir_filter: 16x
     i2c_id: i2c_bus
-  - platform: dallas
+  - platform: dallas_temp
     address: 0x1C0000031EDD2A28
     name: Living Room Temperature
     resolution: 9
-  - platform: dallas
-    index: 1
+  - platform: dallas_temp
     name: Living Room Temperature 2
   - platform: dht
     pin:
