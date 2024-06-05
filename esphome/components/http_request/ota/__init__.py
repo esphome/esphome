@@ -8,8 +8,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_URL,
     CONF_USERNAME,
-    PLATFORM_ESP32,
-    PLATFORM_RP2040,
 )
 from esphome.components import esp32
 from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
@@ -21,9 +19,9 @@ CODEOWNERS = ["@oarcher"]
 AUTO_LOAD = ["md5"]
 DEPENDENCIES = ["network"]
 
-CONF_EXCLUDE_CERTIFICATE_BUNDLE = "exclude_certificate_bundle"
 CONF_MD5 = "md5"
 CONF_MD5_URL = "md5_url"
+CONF_VERIFY_SSL = "verify_ssl"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 
 OtaHttpRequestComponent = http_request_ns.class_(
@@ -40,11 +38,21 @@ OtaHttpRequestComponentFlashAction = http_request_ns.class_(
 )
 
 
-def validate_certificate_bundle(config):
-    if not CORE.using_esp_idf and not config:
+def validate_ssl_verification(config):
+    if CORE.is_esp32:
+        if not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
+            raise cv.Invalid(
+                "ESPHome supports certificate verification only via ESP-IDF. "
+                f"Set '{CONF_VERIFY_SSL}: false' to skip certificate validation and allow less secure HTTPS connections."
+            )
+    if CORE.is_rp2040 or (
+        CORE.is_esp8266
+        and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]
+        and config[CONF_VERIFY_SSL]
+    ):
         raise cv.Invalid(
-            "ESPHome supports certificate verification only via ESP-IDF. "
-            f"Set '{CONF_EXCLUDE_CERTIFICATE_BUNDLE}: true' to skip certificate validation."
+            "ESPHome does not support certificate verification in Arduino. "
+            f"Set '{CONF_VERIFY_SSL}: false' to skip certificate validation and allow less secure HTTPS connections."
         )
 
     return config
@@ -63,6 +71,10 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): _declare_request_class,
+            cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
+                cv.only_on_esp8266, cv.boolean
+            ),
+            cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
             cv.Optional(
                 CONF_TIMEOUT, default="5min"
             ): cv.positive_time_period_milliseconds,
@@ -70,16 +82,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
                 cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
-            ),
-            cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
-                cv.only_on_esp8266, cv.boolean
-            ),
-            cv.SplitDefault(
-                CONF_EXCLUDE_CERTIFICATE_BUNDLE, esp32=False, rp2040=False
-            ): cv.All(
-                cv.boolean,
-                cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040]),
-                validate_certificate_bundle,
             ),
         }
     )
@@ -91,6 +93,7 @@ CONFIG_SCHEMA = cv.All(
         esp_idf=cv.Version(0, 0, 0),
         rp2040_arduino=cv.Version(0, 0, 0),
     ),
+    validate_ssl_verification,
 )
 
 
@@ -114,15 +117,15 @@ async def to_code(config):
         if CORE.using_esp_idf:
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
-                not config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE),
+                config.get(CONF_VERIFY_SSL),
             )
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_INSECURE",
-                config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE),
+                not config.get(CONF_VERIFY_SSL),
             )
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
-                config.get(CONF_EXCLUDE_CERTIFICATE_BUNDLE),
+                not config.get(CONF_VERIFY_SSL),
             )
         else:
             cg.add_library("WiFiClientSecure", None)
