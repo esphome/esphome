@@ -1,4 +1,4 @@
 substitutions:
-  ecb: "false"
+  verify_ssl: "true"
 
 <<: !include common_ota.yaml

@@ -1,10 +1,12 @@
+<<: !include common_http_request.yaml
+
 wifi:
   ssid: MySSID
   password: password1
 
 ota:
   - platform: http_request
-    verify_ssl: ${verify_ssl}
+    esp8266_disable_ssl_support: true
     on_begin:
       then:
         - logger.log: "OTA start"

@@ -39,20 +39,25 @@ OtaHttpRequestComponentFlashAction = http_request_ns.class_(
 
 
 def validate_ssl_verification(config):
+    error_message = ""
+
     if CORE.is_esp32:
         if not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
-            raise cv.Invalid(
-                "ESPHome supports certificate verification only via ESP-IDF. "
-                f"Set '{CONF_VERIFY_SSL}: false' to skip certificate validation and allow less secure HTTPS connections."
-            )
-    if CORE.is_rp2040 or (
+            error_message = "ESPHome supports certificate verification only via ESP-IDF"
+
+    if CORE.is_rp2040 and config[CONF_VERIFY_SSL]:
+        error_message = "ESPHome does not support certificate verification in Arduino"
+
+    if (
         CORE.is_esp8266
         and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]
         and config[CONF_VERIFY_SSL]
     ):
+        error_message = "ESPHome does not support certificate verification in Arduino"
+
+    if len(error_message) > 0:
         raise cv.Invalid(
-            "ESPHome does not support certificate verification in Arduino. "
-            f"Set '{CONF_VERIFY_SSL}: false' to skip certificate validation and allow less secure HTTPS connections."
+            f"{error_message}. Set '{CONF_VERIFY_SSL}: false' to skip certificate validation and allow less secure HTTPS connections."
         )
 
     return config
