@@ -60,6 +60,13 @@ enum class TuyaCommandType : uint8_t {
   WIFI_RSSI = 0x24,
   VACUUM_MAP_UPLOAD = 0x28,
   GET_NETWORK_STATUS = 0x2B,
+  EXTENDED_SERVICES = 0x34,
+};
+
+enum class TuyaExtendedServicesCommandType : uint8_t {
+  RESET_NOTIFICATION = 0x04,
+  MODULE_RESET = 0x05,
+  UPDATE_IN_PROGRESS = 0x0A,
 };
 
 enum class TuyaInitState : uint8_t {
