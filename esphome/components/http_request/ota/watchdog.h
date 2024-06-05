@@ -1,29 +1,25 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #include <cstdint>
 
 namespace esphome {
 namespace http_request {
 namespace watchdog {
 
-static const char *const TAG = "watchdog.http_request.ota";
-
-class Watchdog {
+class WatchdogManager {
+#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
  public:
-  static uint32_t get_timeout();
-  static void set_timeout(uint32_t timeout_ms);
-  static void reset();
+  WatchdogManager();
+  ~WatchdogManager();
 
  private:
-  static uint32_t timeout_ms;       // NOLINT
-  static uint32_t init_timeout_ms;  // NOLINT
-  Watchdog() {}
-};
+  uint32_t get_timeout_();
+  void set_timeout_(uint32_t timeout_ms);
 
-class WatchdogSupervisor {
- public:
-  WatchdogSupervisor();
-  ~WatchdogSupervisor();
+  uint32_t saved_timeout_ms_{0};
+#endif
 };
 
 }  // namespace watchdog
