@@ -154,7 +154,7 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
         this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_fanonly_value_);
       }
     } else {
-      ESP_LOGE(TAG, "Active state (mode) datapoint not configured");
+      ESP_LOGW(TAG, "Active state (mode) datapoint not configured");
     }
   }
 
