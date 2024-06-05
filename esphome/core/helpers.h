@@ -435,10 +435,6 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
-static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                        "abcdefghijklmnopqrstuvwxyz"
-                                        "0123456789+/";
-
 std::string base64_encode(const uint8_t *buf, size_t buf_len);
 std::string base64_encode(const std::vector<uint8_t> &buf);
 
