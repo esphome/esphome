@@ -5,9 +5,9 @@
 #include "esphome/components/one_wire/one_wire.h"
 
 namespace esphome {
-namespace one_wire {
+namespace gpio {
 
-class GPIOOneWireBus : public OneWireBus, public Component {
+class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -37,5 +37,5 @@ class GPIOOneWireBus : public OneWireBus, public Component {
   bool read_bit_();
 };
 
-}  // namespace one_wire
+}  // namespace gpio
 }  // namespace esphome

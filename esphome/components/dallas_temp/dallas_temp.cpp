@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace one_wire {
+namespace dallas_temp {
 
 static const char *const TAG = "dallas.temp.sensor";
 
@@ -86,7 +86,7 @@ void DallasTemperatureSensor::setup() {
   if (!this->check_scratch_pad_())
     return;
 
-  if (this->address_ & 0xff == DALLAS_MODEL_DS18S20) {
+  if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
     // DS18S20 doesn't support resolution.
     ESP_LOGW(TAG, "DS18S20 doesn't support setting resolution.");
     return;
@@ -144,7 +144,7 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 
 float DallasTemperatureSensor::get_temp_c_() {
   int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
-  if (this->address_ & 0xff == DALLAS_MODEL_DS18S20) {
+  if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
     if (this->scratch_pad_[7] != 0x10)
       ESP_LOGE(TAG, "unexpected COUNT_PER_C value: %u", this->scratch_pad_[7]);
     temp = ((temp & 0xfff7) << 3) + (0x10 - this->scratch_pad_[6]) - 4;
@@ -168,5 +168,5 @@ float DallasTemperatureSensor::get_temp_c_() {
   return temp / 16.0f;
 }
 
-}  // namespace one_wire
+}  // namespace dallas_temp
 }  // namespace esphome

@@ -5,9 +5,9 @@
 #include "esphome/components/one_wire/one_wire.h"
 
 namespace esphome {
-namespace one_wire {
+namespace dallas_temp {
 
-class DallasTemperatureSensor : public PollingComponent, public sensor::Sensor, public OneWireDevice {
+class DallasTemperatureSensor : public PollingComponent, public sensor::Sensor, public one_wire::OneWireDevice {
  public:
   void setup() override;
   void update() override;
@@ -28,5 +28,5 @@ class DallasTemperatureSensor : public PollingComponent, public sensor::Sensor, 
   float get_temp_c_();
 };
 
-}  // namespace one_wire
+}  // namespace dallas_temp
 }  // namespace esphome

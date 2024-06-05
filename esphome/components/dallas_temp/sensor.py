@@ -8,7 +8,9 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 
-DallasTemperatureSensor = one_wire.one_wire_ns.class_(
+dallas_temp_ns = cg.esphome_ns.namespace("dallas_temp")
+
+DallasTemperatureSensor = dallas_temp_ns.class_(
     "DallasTemperatureSensor",
     cg.PollingComponent,
     sensor.Sensor,

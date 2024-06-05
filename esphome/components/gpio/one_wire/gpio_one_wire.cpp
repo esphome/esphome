@@ -3,7 +3,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-namespace one_wire {
+namespace gpio {
 
 static const char *const TAG = "gpio.one_wire";
 
@@ -205,5 +205,5 @@ uint64_t IRAM_ATTR GPIOOneWireBus::search_() {
   return address;
 }
 
-}  // namespace one_wire
+}  // namespace gpio
 }  // namespace esphome

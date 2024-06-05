@@ -2,11 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_ID, CONF_PIN
-from esphome.components.one_wire import one_wire_ns, OneWireBus
+from esphome.components.one_wire import OneWireBus
+from .. import gpio_ns
 
 CODEOWNERS = ["@ssieb"]
 
-GPIOOneWireBus = one_wire_ns.class_("GPIOOneWireBus", OneWireBus, cg.Component)
+GPIOOneWireBus = gpio_ns.class_("GPIOOneWireBus", OneWireBus, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema(
     {
