@@ -114,8 +114,6 @@ void TuyaCover::dump_config() {
   }
   if (this->invert_position_report_) {
     ESP_LOGCONFIG(TAG, "   Position Reporting Inverted");
-  } else {
-    ESP_LOGCONFIG(TAG, "   Position Reporting Normal");
   }
   if (this->control_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "   Control has datapoint ID %u", *this->control_id_);
