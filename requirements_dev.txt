@@ -1,4 +1,8 @@
 # Useful stuff when working in a development environment
 clang-format==13.0.1  # also change in .pre-commit-config.yaml and Dockerfile when updating
+# If using VS dev container: clang-tidy build takes ~12GB of RAM. The OMM failure is
+# not very clear if it does happen. Similar issue: https://github.com/llvm/llvm-project/issues/55369
+# Symptom: "c++: fatal error: Killed signal terminated program cc1plus"
+# Workaround: Go to [Docker dashboard -> Settings -> Resources] and allow RAM to grow to 13GB+
 clang-tidy==14.0.6  # When updating clang-tidy, also update Dockerfile
 yamllint==1.35.1  # also change in .pre-commit-config.yaml when updating
