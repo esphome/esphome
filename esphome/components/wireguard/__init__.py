@@ -122,7 +122,7 @@ async def to_code(config):
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("droscy/esp_wireguard", "0.4.0")
+    cg.add_library("droscy/esp_wireguard", "0.4.1")
 
     await cg.register_component(var, config)
 
