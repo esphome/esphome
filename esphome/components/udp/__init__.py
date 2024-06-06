@@ -16,6 +16,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
     PLATFORM_HOST,
+    CONF_INTERNAL,
 )
 from esphome.cpp_generator import MockObjClass
 
@@ -111,6 +112,12 @@ SENSOR_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_UDP_ID): cv.use_id(UDPComponent),
     }
 )
+
+
+def require_internal_with_name(config):
+    if CONF_NAME in config and CONF_INTERNAL not in config:
+        raise cv.Invalid("Must provide internal: config when using name:")
+    return config
 
 
 def hash_encryption_key(config: dict):
