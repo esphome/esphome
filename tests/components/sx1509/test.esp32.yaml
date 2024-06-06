@@ -13,3 +13,21 @@ binary_sensor:
     pin:
       sx1509: sx1509_hub
       number: 3
+
+switch:
+  - platform: gpio
+    name: GPIO SX1509 Test Out Open Drain
+    pin:
+      sx1509: sx1509_hub
+      number: 0
+      mode:
+        output: true
+        open_drain: true
+
+  - platform: gpio
+    name: GPIO SX1509 Test Out Standard
+    pin:
+      sx1509: sx1509_hub
+      number: 1
+      mode:
+        output: true

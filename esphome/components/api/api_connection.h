@@ -82,6 +82,11 @@ class APIConnection : public APIServerConnection {
   bool send_time_info(datetime::TimeEntity *time);
   void time_command(const TimeCommandRequest &msg) override;
 #endif
+#ifdef USE_DATETIME_DATETIME
+  bool send_datetime_state(datetime::DateTimeEntity *datetime);
+  bool send_datetime_info(datetime::DateTimeEntity *datetime);
+  void datetime_command(const DateTimeCommandRequest &msg) override;
+#endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text, std::string state);
   bool send_text_info(text::Text *text);
@@ -145,6 +150,7 @@ class APIConnection : public APIServerConnection {
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
   void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
+  void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) override;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

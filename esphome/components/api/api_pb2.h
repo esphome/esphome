@@ -191,6 +191,12 @@ enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_TTS_STREAM_START = 98,
   VOICE_ASSISTANT_TTS_STREAM_END = 99,
 };
+enum VoiceAssistantTimerEvent : uint32_t {
+  VOICE_ASSISTANT_TIMER_STARTED = 0,
+  VOICE_ASSISTANT_TIMER_UPDATED = 1,
+  VOICE_ASSISTANT_TIMER_CANCELLED = 2,
+  VOICE_ASSISTANT_TIMER_FINISHED = 3,
+};
 enum AlarmControlPanelState : uint32_t {
   ALARM_STATE_DISARMED = 0,
   ALARM_STATE_ARMED_HOME = 1,
@@ -1298,6 +1304,8 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   float volume{0.0f};
   bool has_media_url{false};
   std::string media_url{};
+  bool has_announcement{false};
+  bool announcement{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1773,6 +1781,23 @@ class VoiceAssistantAudio : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
+class VoiceAssistantTimerEventResponse : public ProtoMessage {
+ public:
+  enums::VoiceAssistantTimerEvent event_type{};
+  std::string timer_id{};
+  std::string name{};
+  uint32_t total_seconds{0};
+  uint32_t seconds_left{0};
+  bool is_active{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
  public:
   std::string object_id{};
@@ -2059,6 +2084,51 @@ class ValveCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesDateTimeResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class DateTimeStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  bool missing_state{false};
+  uint32_t epoch_seconds{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class DateTimeCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  uint32_t epoch_seconds{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
 
 }  // namespace api

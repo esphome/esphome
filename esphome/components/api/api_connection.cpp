@@ -772,6 +772,44 @@ void APIConnection::time_command(const TimeCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
+  if (!this->state_subscription_)
+    return false;
+
+  DateTimeStateResponse resp{};
+  resp.key = datetime->get_object_id_hash();
+  resp.missing_state = !datetime->has_state();
+  if (datetime->has_state()) {
+    ESPTime state = datetime->state_as_esptime();
+    resp.epoch_seconds = state.timestamp;
+  }
+  return this->send_date_time_state_response(resp);
+}
+bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
+  ListEntitiesDateTimeResponse msg;
+  msg.key = datetime->get_object_id_hash();
+  msg.object_id = datetime->get_object_id();
+  if (datetime->has_own_name())
+    msg.name = datetime->get_name();
+  msg.unique_id = get_default_unique_id("datetime", datetime);
+  msg.icon = datetime->get_icon();
+  msg.disabled_by_default = datetime->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(datetime->get_entity_category());
+
+  return this->send_list_entities_date_time_response(msg);
+}
+void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
+  datetime::DateTimeEntity *datetime = App.get_datetime_by_key(msg.key);
+  if (datetime == nullptr)
+    return;
+
+  auto call = datetime->make_call();
+  call.set_datetime(msg.epoch_seconds);
+  call.perform();
+}
+#endif
+
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)
@@ -964,7 +1002,11 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
 
   MediaPlayerStateResponse resp{};
   resp.key = media_player->get_object_id_hash();
-  resp.state = static_cast<enums::MediaPlayerState>(media_player->state);
+
+  media_player::MediaPlayerState report_state = media_player->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+                                                    ? media_player::MEDIA_PLAYER_STATE_PLAYING
+                                                    : media_player->state;
+  resp.state = static_cast<enums::MediaPlayerState>(report_state);
   resp.volume = media_player->volume;
   resp.muted = media_player->is_muted();
   return this->send_media_player_state_response(resp);
@@ -999,6 +1041,9 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   }
   if (msg.has_media_url) {
     call.set_media_url(msg.media_url);
+  }
+  if (msg.has_announcement) {
+    call.set_announcement(msg.announcement);
   }
   call.perform();
 }
@@ -1146,6 +1191,15 @@ void APIConnection::on_voice_assistant_audio(const VoiceAssistantAudio &msg) {
     }
 
     voice_assistant::global_voice_assistant->on_audio(msg);
+  }
+};
+void APIConnection::on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_timer_event(msg);
   }
 };
 

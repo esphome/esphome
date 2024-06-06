@@ -244,6 +244,9 @@ class APIServerConnectionBase : public ProtoService {
   bool send_voice_assistant_audio(const VoiceAssistantAudio &msg);
   virtual void on_voice_assistant_audio(const VoiceAssistantAudio &value){};
 #endif
+#ifdef USE_VOICE_ASSISTANT
+  virtual void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &value){};
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_list_entities_alarm_control_panel_response(const ListEntitiesAlarmControlPanelResponse &msg);
 #endif
@@ -294,6 +297,15 @@ class APIServerConnectionBase : public ProtoService {
 #endif
 #ifdef USE_VALVE
   virtual void on_valve_command_request(const ValveCommandRequest &value){};
+#endif
+#ifdef USE_DATETIME_DATETIME
+  bool send_list_entities_date_time_response(const ListEntitiesDateTimeResponse &msg);
+#endif
+#ifdef USE_DATETIME_DATETIME
+  bool send_date_time_state_response(const DateTimeStateResponse &msg);
+#endif
+#ifdef USE_DATETIME_DATETIME
+  virtual void on_date_time_command_request(const DateTimeCommandRequest &value){};
 #endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
@@ -357,6 +369,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_DATETIME_TIME
   virtual void time_command(const TimeCommandRequest &msg) = 0;
+#endif
+#ifdef USE_DATETIME_DATETIME
+  virtual void datetime_command(const DateTimeCommandRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
@@ -452,6 +467,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_DATETIME_TIME
   void on_time_command_request(const TimeCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_DATETIME
+  void on_date_time_command_request(const DateTimeCommandRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;

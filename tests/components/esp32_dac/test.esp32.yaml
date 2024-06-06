@@ -1,4 +1,1 @@
-output:
-  - platform: esp32_dac
-    id: dac_output
-    pin: 25
+<<: !include common.yaml

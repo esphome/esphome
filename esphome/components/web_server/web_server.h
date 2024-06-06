@@ -5,8 +5,10 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
+#include "esphome/core/entity_base.h"
 
 #include <vector>
+#include <map>
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -37,6 +39,10 @@ struct UrlMatch {
   std::string id;      ///< The id of the device that's being accessed, for example "living_room_fan"
   std::string method;  ///< The method that's being called, for example "turn_on"
   bool valid;          ///< Whether this match is valid
+};
+
+struct SortingComponents {
+  float weight;
 };
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
@@ -239,6 +245,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  /// Handle a datetime request under '/datetime/<id>'.
+  void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the datetime state with its value as a JSON string.
+  std::string datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
   /// Handle a text input request under '/text/<id>'.
@@ -311,12 +326,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
+  void add_entity_to_sorting_list(EntityBase *entity, float weight);
+
  protected:
   void schedule_(std::function<void()> &&f);
   friend ListEntitiesIterator;
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
+  std::map<EntityBase *, SortingComponents> sorting_entitys_;
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};
