@@ -10,23 +10,23 @@
 namespace esphome {
 namespace udp {
 
-typedef struct {
+using provider_t = struct {
   std::vector<uint8_t> encryption_key;
   const char *name;
   uint32_t last_code[2];
-} provider_t;
+};
 
-typedef struct {
+using sensor_t = struct {
   sensor::Sensor *sensor;
   const char *id;
   bool updated;
-} sensor_t;
+};
 
-typedef struct {
+using binary_sensor_t = struct {
   binary_sensor::BinarySensor *sensor;
   const char *id;
   bool updated;
-} binary_sensor_t;
+};
 
 class UDPComponent : public PollingComponent {
  public:

@@ -96,23 +96,23 @@ static void xxtea_decrypt(uint32_t *v, size_t n, const uint32_t *k) {
 
 inline static size_t round4(size_t value) { return (value + 3) & ~3; }
 
-typedef union {
+using fudata_t = union {
   uint32_t u32;
   float f32;
-} fudata_t;
+};
 
 static const size_t MAX_PACKET_SIZE = 508;
 static const uint16_t MAGIC_NUMBER = 0x4553;
 static const uint16_t MAGIC_PING = 0x5048;
 static const uint32_t PREF_HASH = 0x45535043;
-typedef enum {
+using key_t = enum {
   ZERO_FILL_KEY,
   DATA_KEY,
   SENSOR_KEY,
   BINARY_SENSOR_KEY,
   PING_KEY,
   ROLLING_CODE_KEY,
-} key_t;
+};
 
 static const size_t MAX_PING_KEYS = 4;
 
