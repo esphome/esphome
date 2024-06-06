@@ -96,7 +96,7 @@ static void xxtea_decrypt(uint32_t *v, size_t n, const uint32_t *k) {
 
 inline static size_t round4(size_t value) { return (value + 3) & ~3; }
 
-using fudata_t = union {
+union fudata_t {
   uint32_t u32;
   float f32;
 };
@@ -105,7 +105,7 @@ static const size_t MAX_PACKET_SIZE = 508;
 static const uint16_t MAGIC_NUMBER = 0x4553;
 static const uint16_t MAGIC_PING = 0x5048;
 static const uint32_t PREF_HASH = 0x45535043;
-using key_t = enum {
+enum key_t {
   ZERO_FILL_KEY,
   DATA_KEY,
   SENSOR_KEY,
@@ -148,8 +148,7 @@ static void add(std::vector<uint8_t> &vec, const char *str) {
 }
 
 void UDPComponent::setup() {
-  auto name = App.get_name().c_str();
-  this->name_ = name;
+  this->name_ = App.get_name().c_str();
   this->resend_ping_key_ = this->ping_pong_enable_;
   // restore the upper 32 bits of the rolling code, increment and save.
   this->pref_ = global_preferences->make_preference<uint32_t>(PREF_HASH, true);
@@ -165,7 +164,7 @@ void UDPComponent::setup() {
   }
   // set up broadcast socket
   if (!(this->sensors_.empty() && this->binary_sensors_.empty() && !this->ping_pong_enable_)) {
-    if (strlen(name) > 255) {
+    if (strlen(this->name_) > 255) {
       this->mark_failed();
       this->status_set_error("Device name exceeds 255 chars");
       return;
@@ -173,7 +172,7 @@ void UDPComponent::setup() {
     // initialise the header. This is invariant.
     add(this->header_, (uint8_t) MAGIC_NUMBER);
     add(this->header_, (uint8_t) (MAGIC_NUMBER >> 8));
-    add(this->header_, name);
+    add(this->header_, this->name_);
     // pad to a multiple of 4 bytes
     while (this->header_.size() & 0x3)
       this->header_.push_back(0);
@@ -310,16 +309,18 @@ void UDPComponent::send_data_(bool all) {
   this->init_data_();
   if (this->sensors_.empty() && this->binary_sensors_.empty())
     return;
-  for (auto &sensor : this->sensors_)
+  for (auto &sensor : this->sensors_) {
     if (all || sensor.updated) {
       sensor.updated = false;
       this->add_data_(SENSOR_KEY, sensor.id, sensor.sensor->get_state());
     }
-  for (auto &sensor : this->binary_sensors_)
+  }
+  for (auto &sensor : this->binary_sensors_) {
     if (all || sensor.updated) {
       sensor.updated = false;
       this->add_binary_data_(BINARY_SENSOR_KEY, sensor.id, sensor.sensor->state);
     }
+  }
   this->flush_();
   this->updated_ = false;
   this->resend_data_ = false;
@@ -333,7 +334,7 @@ void UDPComponent::update() {
 
 void UDPComponent::loop() {
   uint8_t buf[MAX_PACKET_SIZE];
-  if (this->listen_socket_ != nullptr)
+  if (this->listen_socket_ != nullptr) {
     for (;;) {
       ssize_t len = this->listen_socket_->read(buf, sizeof(buf));
       if (len > 0) {
@@ -342,6 +343,7 @@ void UDPComponent::loop() {
       }
       break;
     }
+  }
   if (this->resend_ping_key_)
     this->send_ping_pong_request_();
   if (this->updated_) {
@@ -351,7 +353,7 @@ void UDPComponent::loop() {
 
 #define CK_LEN(x) \
   { \
-    if (end - buf < x) { \
+    if (end - buf < (x)) { \
       ESP_LOGV(TAG, "Required len %u not available", x); \
       return; \
     } \
@@ -379,7 +381,7 @@ void UDPComponent::process_ping_request_(const char *name, uint8_t *ptr, size_t 
   ESP_LOGV(TAG, "Updated ping key for %s to %08X", name, (unsigned) key);
 }
 
-static bool process_rolling_code_(provider_t &provider, uint8_t *&buf, const uint8_t *end) {
+static bool process_rolling_code(provider_t &provider, uint8_t *&buf, const uint8_t *end) {
   if (end - buf < 8)
     return false;
   auto code0 = get_uint32(buf);
@@ -455,7 +457,7 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
   }
   byte = *buf++;
   if (byte == ROLLING_CODE_KEY) {
-    if (!process_rolling_code_(provider, buf, end))
+    if (!process_rolling_code(provider, buf, end))
       return;
   } else if (byte != DATA_KEY) {
     ESP_LOGV(TAG, "Expected rolling_key or data_key, got %X", byte);

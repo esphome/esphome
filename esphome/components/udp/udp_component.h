@@ -10,19 +10,19 @@
 namespace esphome {
 namespace udp {
 
-using provider_t = struct {
+struct provider_t {
   std::vector<uint8_t> encryption_key;
   const char *name;
   uint32_t last_code[2];
 };
 
-using sensor_t = struct {
+struct sensor_t {
   sensor::Sensor *sensor;
   const char *id;
   bool updated;
 };
 
-using binary_sensor_t = struct {
+struct binary_sensor_t {
   binary_sensor::BinarySensor *sensor;
   const char *id;
   bool updated;
