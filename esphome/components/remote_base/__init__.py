@@ -1769,7 +1769,17 @@ def aeha_dumper(var, config):
     pass
 
 
-@register_action("aeha", AEHAAction, AEHA_SCHEMA)
+@register_action(
+    "aeha",
+    AEHAAction,
+    AEHA_SCHEMA.extend(
+        {
+            cv.Optional(CONF_CARRIER_FREQUENCY, default="38000Hz"): cv.All(
+                cv.frequency, cv.int_
+            ),
+        }
+    ),
+)
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
@@ -1777,6 +1787,8 @@ async def aeha_action(var, config, args):
         config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
     )
     cg.add(var.set_data(template_))
+    templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
+    cg.add(var.set_carrier_frequency(templ))
 
 
 # Haier
