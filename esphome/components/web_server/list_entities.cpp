@@ -104,6 +104,15 @@ bool ListEntitiesIterator::on_climate(climate::Climate *climate) {
 }
 #endif
 
+#ifdef USE_HUMIDIFIER
+bool ListEntitiesIterator::on_humidifier(humidifier::Humidifier *humidifier) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->humidifier_json(humidifier, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_NUMBER
 bool ListEntitiesIterator::on_number(number::Number *number) {
   if (this->web_server_->events_.count() == 0)

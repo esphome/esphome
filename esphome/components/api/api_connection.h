@@ -67,6 +67,12 @@ class APIConnection : public APIServerConnection {
   bool send_climate_info(climate::Climate *climate);
   void climate_command(const ClimateCommandRequest &msg) override;
 #endif
+#ifdef USE_HUMIDIFIER
+  bool send_humidifier_state(humidifier::Humidifier *humidifier);
+  bool send_humidifier_info(humidifier::Humidifier *humidifier);
+  void humidifier_command(const HumidifierCommandRequest &msg);
+  //  override;
+#endif
 #ifdef USE_NUMBER
   bool send_number_state(number::Number *number, float state);
   bool send_number_info(number::Number *number);

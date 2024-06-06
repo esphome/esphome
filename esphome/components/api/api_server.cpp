@@ -246,6 +246,15 @@ void APIServer::on_climate_update(climate::Climate *obj) {
 }
 #endif
 
+#ifdef USE_HUMIDIFIER
+void APIServer::on_humidifier_update(humidifier::Humidifier *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_humidifier_state(obj);
+}
+#endif
+
 #ifdef USE_NUMBER
 void APIServer::on_number_update(number::Number *obj, float state) {
   if (obj->is_internal())

@@ -246,6 +246,24 @@ bool APIServerConnectionBase::send_climate_state_response(const ClimateStateResp
 #endif
 #ifdef USE_CLIMATE
 #endif
+#ifdef USE_HUMIDIFIER
+bool APIServerConnectionBase::send_list_entities_humidifier_response(const ListEntitiesHumidifierResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_humidifier_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesHumidifierResponse>(msg, 66);
+}
+#endif
+#ifdef USE_HUMIDIFIER
+bool APIServerConnectionBase::send_humidifier_state_response(const HumidifierStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_humidifier_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<HumidifierStateResponse>(msg, 67);
+}
+#endif
+#ifdef USE_HUMIDIFIER
+#endif
 #ifdef USE_NUMBER
 bool APIServerConnectionBase::send_list_entities_number_response(const ListEntitiesNumberResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP

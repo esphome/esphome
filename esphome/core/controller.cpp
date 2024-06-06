@@ -53,6 +53,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj](climate::Climate & /*unused*/) { this->on_climate_update(obj); });
   }
 #endif
+#ifdef USE_HUMIDIFIER
+  for (auto *obj : App.get_humidifiers()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_humidifier_update(obj); });
+  }
+#endif
 #ifdef USE_NUMBER
   for (auto *obj : App.get_numbers()) {
     if (include_internal || !obj->is_internal())

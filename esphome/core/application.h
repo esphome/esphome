@@ -30,6 +30,9 @@
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
 #endif
+#ifdef USE_HUMIDIFIER
+#include "esphome/components/humidifier/humidifier.h"
+#endif
 #ifdef USE_LIGHT
 #include "esphome/components/light/light_state.h"
 #endif
@@ -126,6 +129,10 @@ class Application {
 
 #ifdef USE_CLIMATE
   void register_climate(climate::Climate *climate) { this->climates_.push_back(climate); }
+#endif
+
+#ifdef USE_HUMIDIFIER
+  void register_humidifier(humidifier::Humidifier *humidifier) { this->humidifiers_.push_back(humidifier); }
 #endif
 
 #ifdef USE_LIGHT
@@ -317,6 +324,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_HUMIDIFIER
+  const std::vector<humidifier::Humidifier *> &get_humidifiers() { return this->humidifiers_; }
+  humidifier::Humidifier *get_humidifier_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->humidifiers_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_NUMBER
   const std::vector<number::Number *> &get_numbers() { return this->numbers_; }
   number::Number *get_number_by_key(uint32_t key, bool include_internal = false) {
@@ -461,6 +477,9 @@ class Application {
 #endif
 #ifdef USE_CLIMATE
   std::vector<climate::Climate *> climates_{};
+#endif
+#ifdef USE_HUMIDIFIER
+  std::vector<humidifier::Humidifier *> humidifiers_{};
 #endif
 #ifdef USE_LIGHT
   std::vector<light::LightState *> lights_{};

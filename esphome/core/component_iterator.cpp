@@ -187,6 +187,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_HUMIDIFIER
+    case IteratorState::HUMIDIFIER:
+      if (this->at_ >= App.get_humidifiers().size()) {
+        advance_platform = true;
+      } else {
+        auto *humidifier = App.get_humidifiers()[this->at_];
+        if (humidifier->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_humidifier(humidifier);
+        }
+      }
+      break;
+#endif
 #ifdef USE_NUMBER
     case IteratorState::NUMBER:
       if (this->at_ >= App.get_numbers().size()) {

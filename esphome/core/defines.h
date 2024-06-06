@@ -33,6 +33,7 @@
 #define USE_GRAPH
 #define USE_GRAPHICAL_DISPLAY_MENU
 #define USE_HOMEASSISTANT_TIME
+#define USE_HUMIDIFIER
 #define USE_JSON
 #define USE_LIGHT
 #define USE_LOCK

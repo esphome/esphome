@@ -40,6 +40,9 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_CLIMATE
   bool on_climate(climate::Climate *climate) override;
 #endif
+#ifdef USE_HUMIDIFIER
+  bool on_humidifier(humidifier::Humidifier *humidifier) override;
+#endif
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
 #endif

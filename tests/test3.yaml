@@ -1430,3 +1430,16 @@ alarm_control_panel:
     on_cleared:
       then:
         - logger.log: "### CLEARED ###"
+
+humidifier:
+  - platform: hygrostat
+    sensor: ha_hello_world
+    name: my_humidifier
+    idle_action:
+      - switch.turn_off: gpio_switch1
+    min_idle_time: 60s
+    min_humidifying_off_time: 5s
+    min_humidifying_run_time: 5s
+    default_target_humidity_low: 50%
+    humidify_action:
+      - switch.turn_on: gpio_switch1

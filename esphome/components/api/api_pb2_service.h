@@ -112,6 +112,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_CLIMATE
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
 #endif
+#ifdef USE_HUMIDIFIER
+  bool send_list_entities_humidifier_response(const ListEntitiesHumidifierResponse &msg);
+#endif
+#ifdef USE_HUMIDIFIER
+  bool send_humidifier_state_response(const HumidifierStateResponse &msg);
+#endif
+#ifdef USE_HUMIDIFIER
+  virtual void on_humidifier_command_request(const HumidifierCommandRequest &value){};
+#endif
 #ifdef USE_NUMBER
   bool send_list_entities_number_response(const ListEntitiesNumberResponse &msg);
 #endif
