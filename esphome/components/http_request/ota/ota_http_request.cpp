@@ -1,4 +1,5 @@
 #include "ota_http_request.h"
+#include "watchdog.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -10,17 +11,6 @@
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 #include "esphome/components/ota/ota_backend.h"
-
-#ifdef USE_ESP8266
-#include "esphome/components/esp8266/preferences.h"
-#endif
-#ifdef USE_RP2040
-#include "esphome/components/rp2040/preferences.h"
-#endif
-
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-#include "watchdog.h"
-#endif
 
 namespace esphome {
 namespace http_request {
