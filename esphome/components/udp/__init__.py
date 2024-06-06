@@ -102,7 +102,7 @@ SENSOR_SCHEMA = cv.Schema(
 
 
 def hash_encryption_key(config: dict):
-    return list(hashlib.sha256(config[CONF_KEY].encode()).digest()[0:16])
+    return list(hashlib.sha256(config[CONF_KEY].encode()).digest())
 
 
 async def to_code(config):

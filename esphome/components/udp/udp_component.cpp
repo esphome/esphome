@@ -52,7 +52,7 @@ static const char *const TAG = "udp";
  */
 
 static const uint32_t DELTA = 0x9e3779b9;
-#define MX ((((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4))) ^ ((sum ^ y) + (k[(p & 3) ^ e] ^ z)))
+#define MX ((((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4))) ^ ((sum ^ y) + (k[(p ^ e) & 7] ^ z)))
 
 /**
  * Encrypt a block of data in-place
@@ -66,7 +66,7 @@ static void xxtea_encrypt(uint32_t *v, size_t n, const uint32_t *k) {
   z = v[n - 1];
   while (q-- != 0) {
     sum += DELTA;
-    e = (sum >> 2) & 3;
+    e = (sum >> 2);
     for (p = 0; p != n - 1; p++) {
       y = v[p + 1];
       z = v[p] += MX;
@@ -83,7 +83,7 @@ static void xxtea_decrypt(uint32_t *v, size_t n, const uint32_t *k) {
   sum = q * DELTA;
   y = v[0];
   while (q-- != 0) {
-    e = (sum >> 2) & 3;
+    e = (sum >> 2);
     for (p = n - 1; p != 0; p--) {
       z = v[p - 1];
       y = v[p] -= MX;
@@ -150,7 +150,7 @@ static void add(std::vector<uint8_t> &vec, const char *str) {
 void UDPComponent::setup() {
   auto name = App.get_name().c_str();
   this->name_ = name;
-  this->recycle_ping_key_ = this->ping_pong_enable_;
+  this->resend_ping_key_ = this->ping_pong_enable_;
   // restore the upper 32 bits of the rolling code, increment and save.
   this->pref_ = global_preferences->make_preference<uint32_t>(PREF_HASH, true);
   this->pref_.load(&this->rolling_code_[1]);
@@ -321,11 +321,14 @@ void UDPComponent::send_data_(bool all) {
       this->add_binary_data_(BINARY_SENSOR_KEY, sensor.id, sensor.sensor->state);
     }
   this->flush_();
+  this->updated_ = false;
+  this->resend_data_ = false;
 }
 
 void UDPComponent::update() {
-  this->send_data_(true);
-  this->recycle_ping_key_ = this->ping_pong_enable_;
+  this->updated_ = true;
+  this->resend_data_ = this->broadcast_socket_ != nullptr;
+  this->resend_ping_key_ = this->ping_pong_enable_;
 }
 
 void UDPComponent::loop() {
@@ -339,11 +342,10 @@ void UDPComponent::loop() {
       }
       break;
     }
-  if (this->recycle_ping_key_)
+  if (this->resend_ping_key_)
     this->send_ping_pong_request_();
   if (this->updated_) {
-    this->updated_ = false;
-    this->send_data_(false);
+    this->send_data_(this->resend_data_);
   }
 }
 
@@ -363,6 +365,7 @@ void UDPComponent::add_key_(const char *name, uint32_t key) {
     return;
   }
   this->ping_keys_[name] = key;
+  this->resend_data_ = true;
   ESP_LOGV(TAG, "Ping key from %s now %X", name, (unsigned) key);
 }
 
@@ -475,7 +478,7 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
     }
     if (!ping_key_seen) {
       ESP_LOGW(TAG, "Ping key not seen");
-      this->recycle_ping_key_ = true;
+      this->resend_ping_key_ = true;
       break;
     }
     CK_LEN(3)  // data, len plus at least one name byte
@@ -548,7 +551,7 @@ void UDPComponent::send_ping_pong_request_() {
   add(this->ping_header_, this->name_);
   add(this->ping_header_, this->ping_key_);
   this->send_packet_(this->ping_header_.data(), this->ping_header_.size());
-  this->recycle_ping_key_ = false;
+  this->resend_ping_key_ = false;
   ESP_LOGV(TAG, "Sent new ping request %08X", (unsigned) this->ping_key_);
 }
 }  // namespace udp

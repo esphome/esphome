@@ -92,7 +92,8 @@ class UDPComponent : public PollingComponent {
   uint32_t rolling_code_[2]{};
   bool rolling_code_enable_{};
   bool ping_pong_enable_{};
-  bool recycle_ping_key_{};
+  bool resend_ping_key_{};
+  bool resend_data_{};
   const char *name_{};
   ESPPreferenceObject pref_;
 
