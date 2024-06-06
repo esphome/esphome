@@ -96,7 +96,7 @@ static void xxtea_decrypt(uint32_t *v, size_t n, const uint32_t *k) {
 
 inline static size_t round4(size_t value) { return (value + 3) & ~3; }
 
-union fudata_t {
+union FuData {
   uint32_t u32;
   float f32;
 };
@@ -105,7 +105,7 @@ static const size_t MAX_PACKET_SIZE = 508;
 static const uint16_t MAGIC_NUMBER = 0x4553;
 static const uint16_t MAGIC_PING = 0x5048;
 static const uint32_t PREF_HASH = 0x45535043;
-enum key_t {
+enum DataKey {
   ZERO_FILL_KEY,
   DATA_KEY,
   SENSOR_KEY,
@@ -138,7 +138,7 @@ static inline uint16_t get_uint16(uint8_t *&buf) {
 }
 
 static inline void add(std::vector<uint8_t> &vec, uint8_t data) { vec.push_back(data); }
-static inline void add(std::vector<uint8_t> &vec, key_t data) { vec.push_back(data); }
+static inline void add(std::vector<uint8_t> &vec, DataKey data) { vec.push_back(data); }
 static void add(std::vector<uint8_t> &vec, const char *str) {
   auto len = strlen(str);
   vec.push_back(len);
@@ -290,7 +290,7 @@ void UDPComponent::add_binary_data_(uint8_t key, const char *id, bool data) {
   add(this->data_, id);
 }
 void UDPComponent::add_data_(uint8_t key, const char *id, float data) {
-  fudata_t udata{.f32 = data};
+  FuData udata{.f32 = data};
   this->add_data_(key, id, udata.u32);
 }
 
@@ -381,7 +381,7 @@ void UDPComponent::process_ping_request_(const char *name, uint8_t *ptr, size_t 
   ESP_LOGV(TAG, "Updated ping key for %s to %08X", name, (unsigned) key);
 }
 
-static bool process_rolling_code(provider_t &provider, uint8_t *&buf, const uint8_t *end) {
+static bool process_rolling_code(Provider &provider, uint8_t *&buf, const uint8_t *end) {
   if (end - buf < 8)
     return false;
   auto code0 = get_uint32(buf);
@@ -411,7 +411,7 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
   uint8_t byte;
   uint8_t *start_ptr = buf;
   const uint8_t *end = buf + len;
-  fudata_t rdata{};
+  FuData rdata{};
 
   auto magic = get_uint16(buf);
   if (magic != MAGIC_NUMBER && magic != MAGIC_PING)

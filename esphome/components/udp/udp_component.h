@@ -10,19 +10,19 @@
 namespace esphome {
 namespace udp {
 
-struct provider_t {
+struct Provider {
   std::vector<uint8_t> encryption_key;
   const char *name;
   uint32_t last_code[2];
 };
 
-struct sensor_t {
+struct Sensor {
   sensor::Sensor *sensor;
   const char *id;
   bool updated;
 };
 
-struct binary_sensor_t {
+struct BinarySensor {
   binary_sensor::BinarySensor *sensor;
   const char *id;
   bool updated;
@@ -36,11 +36,11 @@ class UDPComponent : public PollingComponent {
   void dump_config() override;
 
   void add_sensor(const char *id, sensor::Sensor *sensor) {
-    sensor_t st{sensor, id, true};
+    Sensor st{sensor, id, true};
     this->sensors_.push_back(st);
   }
   void add_binary_sensor(const char *id, binary_sensor::BinarySensor *sensor) {
-    binary_sensor_t st{sensor, id, true};
+    BinarySensor st{sensor, id, true};
     this->binary_sensors_.push_back(st);
   }
 
@@ -58,7 +58,7 @@ class UDPComponent : public PollingComponent {
 
   void add_provider(const char *hostname) {
     if (this->providers_.count(hostname) == 0) {
-      provider_t provider;
+      Provider provider;
       provider.encryption_key = std::vector<uint8_t>{};
       provider.last_code[0] = 0;
       provider.last_code[1] = 0;
@@ -102,10 +102,10 @@ class UDPComponent : public PollingComponent {
   std::vector<uint8_t> encryption_key_{};
   std::vector<std::string> addresses_{};
 
-  std::vector<sensor_t> sensors_{};
-  std::vector<binary_sensor_t> binary_sensors_{};
+  std::vector<Sensor> sensors_{};
+  std::vector<BinarySensor> binary_sensors_{};
 
-  std::map<std::string, provider_t> providers_{};
+  std::map<std::string, Provider> providers_{};
   std::map<std::string, std::map<std::string, sensor::Sensor *>> remote_sensors_{};
   std::map<std::string, std::map<std::string, binary_sensor::BinarySensor *>> remote_binary_sensors_{};
   std::vector<uint8_t> ping_header_{};
