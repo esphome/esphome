@@ -1193,6 +1193,15 @@ void APIConnection::on_voice_assistant_audio(const VoiceAssistantAudio &msg) {
     voice_assistant::global_voice_assistant->on_audio(msg);
   }
 };
+void APIConnection::on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_timer_event(msg);
+  }
+};
 
 #endif
 
