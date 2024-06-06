@@ -3,8 +3,8 @@ import hashlib
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.api import CONF_ENCRYPTION
-from esphome.components.sensor import Sensor
 from esphome.components.binary_sensor import BinarySensor
+from esphome.components.sensor import Sensor
 from esphome.const import (
     CONF_PORT,
     CONF_SENSORS,
@@ -12,6 +12,10 @@ from esphome.const import (
     CONF_BINARY_SENSORS,
     CONF_NAME,
     CONF_KEY,
+    PLATFORM_ESP32,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
+    PLATFORM_HOST,
 )
 from esphome.cpp_generator import MockObjClass
 
@@ -89,6 +93,14 @@ CONFIG_SCHEMA = cv.All(
         },
     )
     .extend(ENCRYPTION_SCHEMA),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_BK72XX,
+            PLATFORM_RTL87XX,
+            PLATFORM_HOST,
+        ]
+    ),
     validate_,
 )
 
