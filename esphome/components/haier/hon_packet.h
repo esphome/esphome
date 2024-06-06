@@ -13,7 +13,10 @@ enum class VerticalSwingMode : uint8_t {
   UP = 0x04,
   CENTER = 0x06,
   DOWN = 0x08,
-  AUTO = 0x0C
+  MAX_DOWN = 0x0A,
+  AUTO = 0x0C,
+  // Auto for special modes
+  AUTO_SPECIAL = 0x0E
 };
 
 enum class HorizontalSwingMode : uint8_t {

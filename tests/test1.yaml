@@ -264,30 +264,32 @@ uart:
     parity: EVEN
     baud_rate: 9600
 
-ota:
-  safe_mode: true
-  password: "superlongpasswordthatnoonewillknow"
-  port: 3286
+safe_mode:
+  num_attempts: 3
   reboot_timeout: 2min
-  num_attempts: 5
-  on_state_change:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "State %d", state);
-  on_begin:
-    then:
-      logger.log: OTA begin
-  on_progress:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "Got progress %f", x);
-  on_end:
-    then:
-      logger.log: OTA end
-  on_error:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "Got error code %d", x);
+
+ota:
+  - platform: esphome
+    password: "superlongpasswordthatnoonewillknow"
+    port: 3286
+    on_state_change:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "State %d", state);
+    on_begin:
+      then:
+        logger.log: OTA begin
+    on_progress:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "Got progress %f", x);
+    on_end:
+      then:
+        logger.log: OTA end
+    on_error:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "Got error code %d", x);
 
 logger:
   baud_rate: 0
@@ -2904,6 +2906,7 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_aeha:
         address: 0x8008
+        carrier_frequency: 36700Hz
         data:
           [
             0x00,

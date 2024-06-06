@@ -8,6 +8,9 @@ namespace ltr390 {
 
 static const char *const TAG = "ltr390";
 
+static const uint8_t LTR390_WAKEUP_TIME = 10;
+static const uint8_t LTR390_SETTLE_TIME = 5;
+
 static const uint8_t LTR390_MAIN_CTRL = 0x00;
 static const uint8_t LTR390_MEAS_RATE = 0x04;
 static const uint8_t LTR390_GAIN = 0x05;
@@ -101,21 +104,27 @@ void LTR390Component::read_mode_(int mode_index) {
 
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
   ctrl[LTR390_CTRL_MODE] = mode;
+  ctrl[LTR390_CTRL_EN] = true;
   this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
 
   // After the sensor integration time do the following
-  this->set_timeout(((uint32_t) RESOLUTIONVALUE[this->res_]) * 100, [this, mode_index]() {
-    // Read from the sensor
-    std::get<1>(this->mode_funcs_[mode_index])();
+  this->set_timeout(((uint32_t) RESOLUTIONVALUE[this->res_]) * 100 + LTR390_WAKEUP_TIME + LTR390_SETTLE_TIME,
+                    [this, mode_index]() {
+                      // Read from the sensor
+                      std::get<1>(this->mode_funcs_[mode_index])();
 
-    // If there are more modes to read then begin the next
-    // otherwise stop
-    if (mode_index + 1 < (int) this->mode_funcs_.size()) {
-      this->read_mode_(mode_index + 1);
-    } else {
-      this->reading_ = false;
-    }
-  });
+                      // If there are more modes to read then begin the next
+                      // otherwise stop
+                      if (mode_index + 1 < (int) this->mode_funcs_.size()) {
+                        this->read_mode_(mode_index + 1);
+                      } else {
+                        // put sensor in standby
+                        std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
+                        ctrl[LTR390_CTRL_EN] = false;
+                        this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
+                        this->reading_ = false;
+                      }
+                    });
 }
 
 void LTR390Component::setup() {

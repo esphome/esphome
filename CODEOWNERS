@@ -6,7 +6,7 @@
 # the integration's code owner is automatically notified.
 
 # Core Code
-setup.py @esphome/core
+pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
@@ -51,6 +51,8 @@ esphome/components/bang_bang/* @OttoWinter
 esphome/components/bedjet/* @jhansche
 esphome/components/bedjet/climate/* @jhansche
 esphome/components/bedjet/fan/* @jhansche
+esphome/components/bedjet/sensor/* @javawizard @jhansche
+esphome/components/beken_spi_led_strip/* @Mat931
 esphome/components/bh1750/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/bk72xx/* @kuba2k2
@@ -109,7 +111,10 @@ esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/touchscreen/* @jesserockz
 esphome/components/emc2101/* @ellull
 esphome/components/emmeti/* @E440QF
-esphome/components/ens160/* @vincentscode
+esphome/components/ens160/* @latonita
+esphome/components/ens160_base/* @latonita @vincentscode
+esphome/components/ens160_i2c/* @latonita
+esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @Rapsssito @jesserockz
@@ -135,6 +140,7 @@ esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
+esphome/components/gdk101/* @Szewcson
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
@@ -146,6 +152,10 @@ esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
+esphome/components/haier/binary_sensor/* @paveldn
+esphome/components/haier/button/* @paveldn
+esphome/components/haier/sensor/* @paveldn
+esphome/components/haier/text_sensor/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
@@ -157,9 +167,11 @@ esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywell_hih_i2c/* @Benichou34
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/honeywellabp2_i2c/* @jpfaff
-esphome/components/host/* @esphome/core
+esphome/components/host/* @clydebarrow @esphome/core
+esphome/components/host/time/* @clydebarrow
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
+esphome/components/http_request/ota/* @oarcher
 esphome/components/htu31d/* @betterengineering
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/hyt271/* @Philippe12
@@ -174,6 +186,9 @@ esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
 esphome/components/ina226/* @Sergio303 @latonita
 esphome/components/ina260/* @mreditor97
+esphome/components/ina2xx_base/* @latonita
+esphome/components/ina2xx_i2c/* @latonita
+esphome/components/ina2xx_spi/* @latonita
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
@@ -197,6 +212,7 @@ esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @sjtrny
+esphome/components/ltr_als_ps/* @latonita
 esphome/components/matrix_keypad/* @ssieb
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger
@@ -297,7 +313,7 @@ esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet
-esphome/components/safe_mode/* @jsuanet @paulmonigatti
+esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
@@ -401,7 +417,7 @@ esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz
-esphome/components/wake_on_lan/* @willwill2will54
+esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/web_server_idf/* @dentra
