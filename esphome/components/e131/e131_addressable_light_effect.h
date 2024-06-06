@@ -27,6 +27,7 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
 
   void set_first_universe(int universe) { this->first_universe_ = universe; }
   void set_channels(E131LightChannels channels) { this->channels_ = channels; }
+  void set_channel_offset(int offset) { this->channel_offset_ = offset; }
   void set_e131(E131Component *e131) { this->e131_ = e131; }
 
  protected:
@@ -34,6 +35,7 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
 
   int first_universe_{0};
   int last_universe_{0};
+  int channel_offset_{0};
   E131LightChannels channels_{E131_RGB};
   E131Component *e131_{nullptr};
 
