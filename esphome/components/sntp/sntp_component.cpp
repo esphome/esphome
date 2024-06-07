@@ -51,6 +51,7 @@ void SNTPComponent::setup() {
 #ifdef USE_ESP_IDF
   this->stop_poller();
   sntp_set_time_sync_notification_cb([](struct timeval *tv) { sync_time_to_report_ = tv->tv_sec; });
+  sntp_set_sync_interval(this->get_update_interval());
 #endif  // USE_ESP_IDF
 
   sntp_init();
