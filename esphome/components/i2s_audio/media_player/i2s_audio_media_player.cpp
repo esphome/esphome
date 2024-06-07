@@ -27,6 +27,11 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       this->start();
     }
   }
+
+  if (this->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
+    this->is_announcement_ = true;
+  }
+
   if (call.get_volume().has_value()) {
     this->volume = call.get_volume().value();
     this->set_volume_(volume);
@@ -171,9 +176,8 @@ void I2SAudioMediaPlayer::start_() {
   if (this->current_url_.has_value()) {
     this->audio_->connecttohost(this->current_url_.value().c_str());
     this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-    if (this->is_announcement_.has_value()) {
-      this->state = this->is_announcement_.value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
-                                                   : media_player::MEDIA_PLAYER_STATE_PLAYING;
+    if (this->is_announcement_) {
+      this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
     }
     this->publish_state();
   }
@@ -202,6 +206,7 @@ void I2SAudioMediaPlayer::stop_() {
   this->high_freq_.stop();
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
   this->publish_state();
+  this->is_announcement_ = false;
 }
 
 media_player::MediaPlayerTraits I2SAudioMediaPlayer::get_traits() {
