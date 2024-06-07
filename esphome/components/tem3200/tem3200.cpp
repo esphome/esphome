@@ -112,44 +112,42 @@ float TEM3200Component::convert_temperature_(uint16_t raw_temperature) {
 }
 
 void TEM3200Component::update() {
-  this->set_timeout(50, [this]() {
-    uint8_t status(NONE);
-    uint16_t raw_temperature(0);
-    uint16_t raw_pressure(0);
-    i2c::ErrorCode err = this->read_(status, raw_temperature, raw_pressure);
+  uint8_t status(NONE);
+  uint16_t raw_temperature(0);
+  uint16_t raw_pressure(0);
+  i2c::ErrorCode err = this->read_(status, raw_temperature, raw_pressure);
 
-    if (err != i2c::ERROR_OK) {
-      ESP_LOGW(TAG, "I2C Communication Failed");
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "I2C Communication Failed");
+    this->status_set_warning();
+    return;
+  }
+
+  switch (status) {
+    case RESERVED:
+      ESP_LOGE(TAG, "Failed: Device return RESERVED status");
       this->status_set_warning();
       return;
-    }
+    case FAULT:
+      ESP_LOGE(TAG, "Failed: FAULT condition in the SSC or sensing element");
+      this->mark_failed();
+      return;
+    case STALE:
+      ESP_LOGE(TAG, "Warning: STALE data. Data has not been updated since last fetch");
+      this->status_set_warning();
+      return;
+  }
 
-    switch (status) {
-      case RESERVED:
-        ESP_LOGE(TAG, "Failed: Device return RESERVED status");
-        this->status_set_warning();
-        return;
-      case FAULT:
-        ESP_LOGE(TAG, "Failed: FAULT condition in the SSC or sensing element");
-        this->mark_failed();
-        return;
-      case STALE:
-        ESP_LOGE(TAG, "Warning: STALE data. Data has not been updated since last fetch");
-        this->status_set_warning();
-        return;
-    }
+  float temperature = convert_temperature_(raw_temperature);
 
-    float temperature = convert_temperature_(raw_temperature);
+  ESP_LOGD(TAG, "Got pressure=%draw temperature=%.1f°C", raw_pressure, temperature);
 
-    ESP_LOGD(TAG, "Got pressure=%draw temperature=%.1f°C", raw_pressure, temperature);
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(temperature);
+  if (this->raw_pressure_sensor_ != nullptr)
+    this->raw_pressure_sensor_->publish_state(raw_pressure);
 
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->raw_pressure_sensor_ != nullptr)
-      this->raw_pressure_sensor_->publish_state(raw_pressure);
-
-    this->status_clear_warning();
-  });
+  this->status_clear_warning();
 }
 
 }  // namespace tem3200
