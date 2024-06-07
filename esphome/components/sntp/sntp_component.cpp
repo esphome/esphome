@@ -52,7 +52,6 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
 void SNTPComponent::set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3) {
-#if !defined(USE_HOST)
   if (this->servers_was_setup_) {
     for (uint8_t i = 0; i < 3; ++i) {
       const auto &buff = this->servers_[i].empty() ? nullptr : this->servers_[i].c_str();
@@ -60,15 +59,14 @@ void SNTPComponent::set_servers(const std::string &server_1, const std::string &
         sntp_setservername(i, nullptr);
     }
   }
-#endif
+
   this->servers_[0] = server_1;
   this->servers_[1] = server_2;
   this->servers_[2] = server_3;
-#if !defined(USE_HOST)
+
   if (this->servers_was_setup_) {
     this->setup_servers_();
   }
-#endif
 }
 void SNTPComponent::update() {
   // force resync
