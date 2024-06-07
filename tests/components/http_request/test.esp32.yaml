@@ -1,2 +1,5 @@
-packages:
-  common: !include common.yaml
+substitutions:
+  verify_ssl: "false"
+
+<<: !include common_http_request.yaml
+<<: !include common_ota.yaml
