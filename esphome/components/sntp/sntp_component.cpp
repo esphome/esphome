@@ -88,6 +88,7 @@ void SNTPComponent::update() {
   // force resync
   if (sntp_enabled()) {
 #if defined(USE_ESP_IDF)
+    ESP_LOGD(TAG, "Forsing resync");
     sntp_restart();
 #else
     sntp_stop();
@@ -99,13 +100,12 @@ void SNTPComponent::update() {
 }
 void SNTPComponent::loop() {
 #ifdef USE_ESP_IDF
-  if (sync_time_to_report_ != 0) {
-    this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
-    const ESPTime time = ESPTime::from_epoch_local(sync_time_to_report_);
-    ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month,
-             time.hour, time.minute, time.second);
-    sync_time_to_report_ = 0;
-  }
+  if (sync_time_to_report_ == 0)
+    return
+
+        this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
+  const ESPTime time = ESPTime::from_epoch_local(sync_time_to_report_);
+  sync_time_to_report_ = 0;
 #else
   if (this->has_time_)
     return;
@@ -114,11 +114,11 @@ void SNTPComponent::loop() {
   if (!time.is_valid())
     return;
 
+  this->has_time_ = true;
+#endif
   ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
-#endif
   this->time_sync_callback_.call();
-  this->has_time_ = true;
 }
 #ifdef USE_ESP_IDF
 void SNTPComponent::set_update_interval(uint32_t update_interval) {
