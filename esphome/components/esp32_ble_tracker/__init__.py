@@ -167,7 +167,6 @@ CONFIG_SCHEMA = cv.Schema(
                     cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
                     cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
                     cv.Optional(CONF_ALLOWLIST_ADDRESS): cv.All(
-                        cv.only_with_esp_idf,
                         cv.ensure_list(cv.mac_address),
                         cv.Length(min=1, max=MAX_ALLOWLIST),
                     ),
