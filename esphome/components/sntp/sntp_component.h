@@ -36,7 +36,6 @@ class SNTPComponent : public time::RealTimeClock {
 
  protected:
   bool has_time_{false};
-#endif
   bool servers_was_setup_{false};
 };
 
