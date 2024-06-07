@@ -50,7 +50,6 @@ void SNTPComponent::setup() {
   }
 #ifdef USE_ESP_IDF
   this->stop_poller();
-  sntp_set_time_sync_notification_cb([](struct timeval *tv) { sync_time_to_report_ = tv->tv_sec; });
   sntp_set_sync_interval(this->get_update_interval());
 #endif  // USE_ESP_IDF
 
@@ -88,7 +87,7 @@ void SNTPComponent::update() {
   // force resync
   if (sntp_enabled()) {
 #if defined(USE_ESP_IDF)
-    ESP_LOGD(TAG, "Forsing resync");
+    ESP_LOGD(TAG, "Force resync");
     sntp_restart();
 #else
     sntp_stop();
@@ -100,12 +99,14 @@ void SNTPComponent::update() {
 }
 void SNTPComponent::loop() {
 #ifdef USE_ESP_IDF
-  if (sync_time_to_report_ == 0)
+  if (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET)
+    return;
+
+  auto time = this->now();
+  if (!time.is_valid())
     return;
 
   this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
-  const ESPTime time = ESPTime::from_epoch_local(sync_time_to_report_);
-  sync_time_to_report_ = 0;
 #else
   if (this->has_time_)
     return;
