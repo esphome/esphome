@@ -18,7 +18,6 @@ namespace esphome {
 namespace sntp {
 
 static const char *const TAG = "sntp";
-static const std::string FORCE_UPDATE_SCHEDULE = "force_update_schedule";
 
 const char *server_name_buffer(const std::string &server) { return server.empty() ? nullptr : server.c_str(); }
 
@@ -47,7 +46,7 @@ void SNTPComponent::setup() {
 #ifdef USE_ESP_IDF
   this->stop_poller();
   sntp_set_sync_interval(this->get_update_interval());
-#endif  // USE_ESP_IDF
+#endif
 
   sntp_init();
 #endif  // USE_HOST
@@ -95,14 +94,12 @@ void SNTPComponent::update() {
 }
 void SNTPComponent::loop() {
 #ifdef USE_ESP_IDF
-  if (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET)
+  if (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED)
     return;
 
   auto time = this->now();
   if (!time.is_valid())
     return;
-
-  this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
 #else
   if (this->has_time_)
     return;
@@ -126,7 +123,7 @@ void SNTPComponent::set_update_interval(uint32_t update_interval) {
   time::RealTimeClock::set_update_interval(new_sync_interval);
 
   if (previous_sync_interval > new_sync_interval) {
-    this->set_timeout(FORCE_UPDATE_SCHEDULE, new_sync_interval, [] { sntp_restart(); });
+    sntp_restart();
   }
 }
 uint32_t SNTPComponent::get_update_interval() const { return sntp_get_sync_interval(); }
