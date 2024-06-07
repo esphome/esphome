@@ -34,10 +34,12 @@ enum WakeupPinMode {
   WAKEUP_PIN_MODE_INVERT_WAKEUP,
 };
 
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 struct Ext1Wakeup {
   uint64_t mask;
   esp_sleep_ext1_wakeup_mode_t wakeup_mode;
 };
+#endif
 
 struct WakeupCauseToRunDuration {
   // Run duration if woken up by timer or any other reason besides those below.
