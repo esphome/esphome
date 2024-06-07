@@ -14,8 +14,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include "watchdog.h"
-
 namespace esphome {
 namespace http_request {
 
@@ -24,7 +22,9 @@ struct Header {
   const char *value;
 };
 
-class HttpContainer {
+class HttpRequestComponent;
+
+class HttpContainer : public Parented<HttpRequestComponent> {
  public:
   virtual ~HttpContainer() = default;
   size_t content_length;
@@ -126,7 +126,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       headers.push_back(header);
     }
 
-    watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
     auto container = this->parent_->start(this->url_.value(x...), this->method_.value(x...), body, headers);
 
     if (container == nullptr) {

@@ -7,6 +7,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
+#include "watchdog.h"
+
 namespace esphome {
 namespace http_request {
 
@@ -21,10 +23,14 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
   }
 
   std::shared_ptr<HttpContainerArduino> container = std::make_shared<HttpContainerArduino>();
+  container->set_parent(this);
+
   const uint32_t start = millis();
 
   bool secure = url.find("https:") != std::string::npos;
   container->set_secure(secure);
+
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
 #if defined(USE_ESP8266)
   std::unique_ptr<WiFiClient> stream_ptr;
@@ -119,6 +125,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
 
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
+  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
     ESP_LOGE(TAG, "Stream pointer vanished!");
@@ -142,7 +150,10 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   return read_len;
 }
 
-void HttpContainerArduino::end() { this->client_.end(); }
+void HttpContainerArduino::end() {
+  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  this->client_.end();
+}
 
 }  // namespace http_request
 }  // namespace esphome
