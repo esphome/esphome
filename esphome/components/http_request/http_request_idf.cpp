@@ -7,94 +7,54 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#include "esp_crt_bundle.h"
+#endif
+
 namespace esphome {
 namespace http_request {
 
 static const char *const TAG = "http_request.idf";
 
-esp_err_t http_event_handler(esp_http_client_event_t *evt) {
-  App.feed_wdt();
-  switch (evt->event_id) {
-    case HTTP_EVENT_ERROR:
-      ESP_LOGE(TAG, "HTTP_EVENT_ERROR");
-      break;
-    case HTTP_EVENT_ON_CONNECTED:
-      ESP_LOGV(TAG, "HTTP_EVENT_ON_CONNECTED");
-      break;
-    case HTTP_EVENT_HEADER_SENT:
-      ESP_LOGV(TAG, "HTTP_EVENT_HEADER_SENT");
-      break;
-    case HTTP_EVENT_ON_HEADER:
-      ESP_LOGV(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
-      break;
-    case HTTP_EVENT_ON_DATA:
-      ESP_LOGV(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-      /*
-       *  Check for chunked encoding is added as the URL for chunked encoding used in this example returns binary data.
-       *  However, event handler can also be used in case chunked encoding is used.
-       */
-      if (!esp_http_client_is_chunked_response(evt->client)) {
-        auto &response = *reinterpret_cast<HttpResponse *>(evt->user_data);
-        if (response.capture_response) {
-          auto *const data_begin = reinterpret_cast<char *>(evt->data);
-          auto *const data_end = data_begin + evt->data_len;
-          response.data.insert(response.data.end(), data_begin, data_end);
-        }
-      }
-
-      break;
-
-    case HTTP_EVENT_ON_FINISH:
-      ESP_LOGV(TAG, "HTTP_EVENT_ON_FINISH");
-      break;
-    case HTTP_EVENT_DISCONNECTED:
-      ESP_LOGV(TAG, "HTTP_EVENT_DISCONNECTED");
-      break;
-  }
-  return ESP_OK;
-}
-
-void HttpRequestIDF::set_url(std::string url) { this->url_ = std::move(url); }
-
-HttpResponse HttpRequestIDF::send() {
+std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::string method, std::string body,
+                                                     std::list<Header> headers) {
   if (!network::is_connected()) {
-    this->status_set_warning();
+    this->status_momentary_error("failed", 1000);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
-    return {};
+    return nullptr;
   }
 
-  esp_http_client_method_t method;
-  if (this->method_ == "GET") {
-    method = HTTP_METHOD_GET;
-  } else if (this->method_ == "POST") {
-    method = HTTP_METHOD_POST;
-  } else if (this->method_ == "PUT") {
-    method = HTTP_METHOD_PUT;
-  } else if (this->method_ == "DELETE") {
-    method = HTTP_METHOD_DELETE;
-  } else if (this->method_ == "PATCH") {
-    method = HTTP_METHOD_PATCH;
+  esp_http_client_method_t method_idf;
+  if (method == "GET") {
+    method_idf = HTTP_METHOD_GET;
+  } else if (method == "POST") {
+    method_idf = HTTP_METHOD_POST;
+  } else if (method == "PUT") {
+    method_idf = HTTP_METHOD_PUT;
+  } else if (method == "DELETE") {
+    method_idf = HTTP_METHOD_DELETE;
+  } else if (method == "PATCH") {
+    method_idf = HTTP_METHOD_PATCH;
   } else {
-    this->status_set_warning();
+    this->status_momentary_error("failed", 1000);
     ESP_LOGE(TAG, "HTTP Request failed; Unsupported method");
-    return {};
+    return nullptr;
   }
 
-  HttpResponse response = {};  // used as user_data, by http_event_handler, in esp_http_client_perform
-  response.capture_response = this->capture_response_;
-  if (this->capture_response_)
-    response.data.reserve(this->rx_buffer_size_);
+  bool secure = url.find("https:") != std::string::npos;
+
   esp_http_client_config_t config = {};
 
-  config.url = this->url_.c_str();
-  config.method = method;
+  config.url = url.c_str();
+  config.method = method_idf;
   config.timeout_ms = this->timeout_;
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
-  config.user_data = reinterpret_cast<void *>(&response);
-  config.event_handler = &http_event_handler;
-  config.buffer_size_tx = this->tx_buffer_size_;
-  config.buffer_size = this->rx_buffer_size_;
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+  if (secure) {
+    config.crt_bundle_attach = esp_crt_bundle_attach;
+  }
+#endif
 
   if (this->useragent_ != nullptr) {
     config.user_agent = this->useragent_;
@@ -102,43 +62,77 @@ HttpResponse HttpRequestIDF::send() {
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
 
-  for (const auto &header : this->headers_) {
+  std::shared_ptr<HttpContainerIDF> container = std::make_shared<HttpContainerIDF>(client);
+
+  container->set_secure(secure);
+
+  for (const auto &header : headers) {
     esp_http_client_set_header(client, header.name, header.value);
   }
 
-  if (!this->body_.empty()) {
-    esp_http_client_set_post_field(client, this->body_.c_str(), this->body_.length());
+  int body_len = body.length();
+
+  esp_err_t err = esp_http_client_open(client, body_len);
+  if (err != ESP_OK) {
+    this->status_momentary_error("failed", 1000);
+    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
+    esp_http_client_cleanup(client);
+    return nullptr;
   }
 
-  uint32_t start_time = millis();
-  esp_err_t err = esp_http_client_perform(client);
-  uint32_t duration = millis() - start_time;
+  if (body_len > 0) {
+    int write_left = body_len;
+    int write_index = 0;
+    const char *buf = body.c_str();
+    while (body_len > 0) {
+      int written = esp_http_client_write(client, buf + write_index, write_left);
+      if (written < 0) {
+        err = ESP_FAIL;
+        break;
+      }
+      write_left -= written;
+      write_index += written;
+    }
+  }
 
   if (err != ESP_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "HTTP Request failed: %s; Duration: %u ms", esp_err_to_name(err), duration);
+    this->status_momentary_error("failed", 1000);
+    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(client);
-    return {};
+    return nullptr;
   }
 
+  container->content_length = esp_http_client_fetch_headers(client);
   const auto status_code = esp_http_client_get_status_code(client);
-  response.status_code = status_code;
-  response.content_length = esp_http_client_get_content_length(client);
-  response.duration_ms = duration;
-
-  esp_http_client_cleanup(client);
+  container->status_code = status_code;
 
   if (status_code < 200 || status_code >= 300) {
-    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), status_code, duration);
-    this->status_set_warning();
-    return response;
+    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), status_code);
+    this->status_momentary_error("failed", 1000);
+    esp_http_client_cleanup(client);
+    return nullptr;
   }
 
-  this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), status_code,
-           duration);
+  return container;
+}
 
-  return response;
+int HttpContainerIDF::read(uint8_t *buf, const size_t max_len) {
+  int bufsize = std::min(max_len, this->content_length - this->bytes_read_);
+  App.feed_wdt();
+
+  if (bufsize == 0) {
+    return 0;
+  }
+
+  int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
+  this->bytes_read_ += read_len;
+
+  return read_len;
+}
+
+void HttpContainerIDF::end() {
+  esp_http_client_close(this->client_);
+  esp_http_client_cleanup(this->client_);
 }
 
 }  // namespace http_request

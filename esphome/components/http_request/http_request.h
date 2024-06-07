@@ -7,10 +7,14 @@
 #include <vector>
 
 #include "esphome/components/json/json_util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+#include "watchdog.h"
 
 namespace esphome {
 namespace http_request {
@@ -20,17 +24,28 @@ struct Header {
   const char *value;
 };
 
-struct HttpResponse {
-  int32_t status_code;
-  int content_length;
-  std::vector<char> data;
-  uint32_t duration_ms;
-  bool capture_response;
+class HttpContainer {
+ public:
+  size_t content_length;
+  int status_code;
+
+  virtual int read(uint8_t *buf, const size_t max_len) = 0;
+  virtual void end() = 0;
+
+  void set_secure(bool secure) { this->secure_ = secure; }
+
+  size_t get_bytes_read() const { return this->bytes_read_; }
+
+ protected:
+  size_t bytes_read_{0};
+  bool secure_{false};
 };
 
-class HttpRequestResponseTrigger : public Trigger<int32_t, uint32_t, HttpResponse &> {
+class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string> {
  public:
-  void process(HttpResponse &response) { this->trigger(response.status_code, response.duration_ms, response); }
+  void process(std::shared_ptr<HttpContainer> container, std::string response_body) {
+    this->trigger(container, response_body);
+  }
 };
 
 class HttpRequestComponent : public Component {
@@ -38,29 +53,22 @@ class HttpRequestComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_method(std::string method) { this->method_ = std::move(method); }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+  void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
+  uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
-  void set_body(const std::string &body) { this->body_ = body; }
-  void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
-  void set_capture_response(bool capture_response) { this->capture_response_ = capture_response; }
 
-  virtual void set_url(std::string url) = 0;
-  virtual HttpResponse send() = 0;
+  virtual std::shared_ptr<HttpContainer> start(std::string url, std::string method = "GET", std::string body = "",
+                                               std::list<Header> headers = {}) = 0;
 
  protected:
-  std::string url_;
-  std::string method_;
   const char *useragent_{nullptr};
-  bool secure_;
   bool follow_redirects_;
-  bool capture_response_;
   uint16_t redirect_limit_;
   uint16_t timeout_{5000};
-  std::string body_;
-  std::list<Header> headers_;
+  uint32_t watchdog_timeout_{0};
 };
 
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
@@ -79,20 +87,22 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
   void register_response_trigger(HttpRequestResponseTrigger *trigger) { this->response_triggers_.push_back(trigger); }
 
+  void set_max_response_buffer_size(size_t max_response_buffer_size) {
+    this->max_response_buffer_size_ = max_response_buffer_size;
+  }
+
   void play(Ts... x) override {
-    this->parent_->set_url(this->url_.value(x...));
-    this->parent_->set_method(this->method_.value(x...));
-    this->parent_->set_capture_response(this->capture_response_.value(x...));
+    std::string body;
     if (this->body_.has_value()) {
-      this->parent_->set_body(this->body_.value(x...));
+      body = this->body_.value(x...);
     }
     if (!this->json_.empty()) {
       auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_, this, x..., std::placeholders::_1);
-      this->parent_->set_body(json::build_json(f));
+      body = json::build_json(f);
     }
     if (this->json_func_ != nullptr) {
       auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
-      this->parent_->set_body(json::build_json(f));
+      body = json::build_json(f);
     }
     std::list<Header> headers;
     for (const auto &item : this->headers_) {
@@ -102,12 +112,38 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       header.value = val.value(x...);
       headers.push_back(header);
     }
-    this->parent_->set_headers(headers);
-    HttpResponse response = this->parent_->send();
 
-    for (auto *trigger : this->response_triggers_)
-      trigger->process(response);
-    this->parent_->set_body("");
+    watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+    auto container = this->parent_->start(this->url_.value(x...), this->method_.value(x...), body, headers);
+
+    if (container == nullptr) {
+      return;
+    }
+
+    size_t content_length = container->content_length;
+    size_t max_length = std::min(content_length, this->max_response_buffer_size_);
+
+    std::string response_body;
+    if (this->capture_response_.value(x...)) {
+      ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+      uint8_t *buf = allocator.allocate(max_length);
+      if (buf != nullptr) {
+        size_t read_index = 0;
+        while (container->get_bytes_read() < max_length) {
+          int read = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
+          App.feed_wdt();
+          yield();
+          read_index += read;
+        }
+        response_body.reserve(read_index);
+        response_body.assign((char *) buf, read_index);
+      }
+    }
+
+    for (auto *trigger : this->response_triggers_) {
+      trigger->process(container, response_body);
+    }
+    container->end();
   }
 
  protected:
@@ -123,6 +159,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
+
+  size_t max_response_buffer_size_{SIZE_MAX};
 };
 
 }  // namespace http_request

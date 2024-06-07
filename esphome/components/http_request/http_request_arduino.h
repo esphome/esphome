@@ -4,7 +4,7 @@
 
 #ifdef USE_ARDUINO
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_RP2040)
 #include <HTTPClient.h>
 #endif
 #ifdef USE_ESP8266
@@ -17,21 +17,21 @@
 namespace esphome {
 namespace http_request {
 
-class HttpRequestArduino : public HttpRequestComponent {
+class HttpRequestArduino;
+class HttpContainerArduino : public HttpContainer {
  public:
-  void set_url(std::string url) override;
-  HttpResponse send() override;
+  int read(uint8_t *buf, const size_t max_len) override;
+  void end() override;
 
  protected:
-  std::string last_url_;
+  friend class HttpRequestArduino;
   HTTPClient client_{};
-#ifdef USE_ESP8266
-  std::shared_ptr<WiFiClient> wifi_client_;
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
-  std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
-#endif
-  std::shared_ptr<WiFiClient> get_wifi_client_();
-#endif
+};
+
+class HttpRequestArduino : public HttpRequestComponent {
+ public:
+  std::shared_ptr<HttpContainer> start(std::string url, std::string method = "GET", std::string body = "",
+                                       std::list<Header> headers = {}) override;
 };
 
 }  // namespace http_request

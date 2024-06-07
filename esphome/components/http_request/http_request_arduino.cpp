@@ -3,6 +3,7 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
@@ -11,123 +12,132 @@ namespace http_request {
 
 static const char *const TAG = "http_request.arduino";
 
-void HttpRequestArduino::set_url(std::string url) {
-  this->url_ = std::move(url);
-  this->secure_ = this->url_.compare(0, 6, "https:") == 0;
+static const char *header_keys[] = {"Content-Length", "Content-Type"};
+static const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
 
-  if (!this->last_url_.empty() && this->url_ != this->last_url_) {
-    // Close connection if url has been changed
-    this->client_.setReuse(false);
-    this->client_.end();
-  }
-  this->client_.setReuse(true);
-}
-
-HttpResponse HttpRequestArduino::send() {
+std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::string method, std::string body,
+                                                         std::list<Header> headers) {
   if (!network::is_connected()) {
-    this->client_.end();
-    this->status_set_warning();
+    this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
-    return {-1, 0, {}, 0, this->capture_response_};
+    return nullptr;
   }
 
-  bool begin_status = false;
-  const String url = this->url_.c_str();
-#if defined(USE_ESP32) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0))
-#if defined(USE_ESP32) || USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
-  if (this->follow_redirects_) {
-    this->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-  } else {
-    this->client_.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-  }
-#else
-  this->client_.setFollowRedirects(this->follow_redirects_);
-#endif
-  this->client_.setRedirectLimit(this->redirect_limit_);
-#endif
-#if defined(USE_ESP32)
-  begin_status = this->client_.begin(url);
-#elif defined(USE_ESP8266)
-  begin_status = this->client_.begin(*this->get_wifi_client_(), url);
-#endif
+  std::shared_ptr<HttpContainerArduino> container = std::make_shared<HttpContainerArduino>();
 
-  if (!begin_status) {
-    this->client_.end();
-    this->status_set_warning();
-    ESP_LOGW(TAG, "HTTP Request failed at the begin phase. Please check the configuration");
-    return {-1, 0, {}, 0, this->capture_response_};
-  }
+  bool secure = url.find("https:") != std::string::npos;
+  container->set_secure(secure);
 
-  this->client_.setTimeout(this->timeout_);
-#if defined(USE_ESP32)
-  this->client_.setConnectTimeout(this->timeout_);
-#endif
-  if (this->useragent_ != nullptr) {
-    this->client_.setUserAgent(this->useragent_);
-  }
-  for (const auto &header : this->headers_) {
-    this->client_.addHeader(header.name, header.value, false, true);
-  }
-
-  uint32_t start_time = millis();
-  int http_code = this->client_.sendRequest(this->method_.c_str(), this->body_.c_str());
-  uint32_t duration = millis() - start_time;
-
-  HttpResponse response = {};
-
-  response.status_code = http_code;
-  response.content_length = this->client_.getSize();
-  response.duration_ms = duration;
-
-  if (http_code < 0) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s; Duration: %u ms", this->url_.c_str(),
-             HTTPClient::errorToString(http_code).c_str(), duration);
-    this->status_set_warning();
-    return {http_code, 0, {}, 0, this->capture_response_};
-  }
-  if (this->capture_response_) {
-#ifdef USE_ESP32
-    String str;
-#else
-    auto &
-#endif
-    str = this->client_.getString();
-    response.data = std::vector<char>(str.c_str(), str.c_str() + str.length());
-  }
-
-  if (http_code < 200 || http_code >= 300) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
-    this->status_set_warning();
-    return response;
-  }
-
-  this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
-
-  this->last_url_ = this->url_;
-  this->client_.end();
-  return response;
-}
-
-#ifdef USE_ESP8266
-std::shared_ptr<WiFiClient> HttpRequestArduino::get_wifi_client_() {
+#if defined(USE_ESP8266)
+  std::unique_ptr<WiFiClient> stream_ptr;
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
-  if (this->secure_) {
-    if (this->wifi_client_secure_ == nullptr) {
-      this->wifi_client_secure_ = std::make_shared<BearSSL::WiFiClientSecure>();
-      this->wifi_client_secure_->setInsecure();
-      this->wifi_client_secure_->setBufferSizes(512, 512);
-    }
-    return this->wifi_client_secure_;
+  if (secure) {
+    ESP_LOGV(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
+    stream_ptr = std::make_unique<WiFiClientSecure>();
+    WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
+    secure_client->setBufferSizes(512, 512);
+    secure_client->setInsecure();
+  } else {
+    stream_ptr = std::make_unique<WiFiClient>();
   }
+#else
+  ESP_LOGV(TAG, "ESP8266 HTTP connection with WiFiClient");
+  if (secure) {
+    ESP_LOGE(TAG, "Can't use HTTPS connection with esp8266_disable_ssl_support");
+    return nullptr;
+  }
+  stream_ptr = std::make_unique<WiFiClient>();
+#endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
+
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
+  if (!secure) {
+    ESP_LOGW(TAG, "Using HTTP on Arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 "
+                  "in your YAML, or use HTTPS");
+  }
+#endif  // USE_ARDUINO_VERSION_CODE
+
+  container->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  bool status = container->client_.begin(*stream_ptr, url.c_str());
+
+#elif defined(USE_RP2040)
+  if (secure) {
+    container->client_.setInsecure();
+  }
+  bool status = container->client_.begin(url.c_str());
+#elif defined(USE_ESP32)
+  bool status = container->client_.begin(url.c_str());
 #endif
 
-  if (this->wifi_client_ == nullptr) {
-    this->wifi_client_ = std::make_shared<WiFiClient>();
+  App.feed_wdt();
+
+  if (!status) {
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s", url.c_str());
+    container->end();
+    this->status_momentary_error("failed", 1000);
+    return nullptr;
   }
-  return this->wifi_client_;
-}
+
+  container->client_.setReuse(true);
+  container->client_.setTimeout(this->timeout_);
+#if defined(USE_ESP32)
+  container->client_.setConnectTimeout(this->timeout_);
 #endif
+
+  if (this->useragent_ != nullptr) {
+    container->client_.setUserAgent(this->useragent_);
+  }
+  for (const auto &header : headers) {
+    container->client_.addHeader(header.name, header.value, false, true);
+  }
+
+  // returned needed headers must be collected before the requests
+  container->client_.collectHeaders(header_keys, header_count);
+
+  container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
+  if (container->status_code < 0) {
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url.c_str(),
+             HTTPClient::errorToString(container->status_code).c_str());
+    this->status_momentary_error("failed", 1000);
+    container->end();
+    return nullptr;
+  }
+
+  if (container->status_code < 200 || container->status_code >= 300) {
+    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
+    this->status_momentary_error("failed", 1000);
+    container->end();
+    return nullptr;
+  }
+
+  int content_length = container->client_.getSize();
+  ESP_LOGD(TAG, "Content-Length: %d", content_length);
+  container->content_length = (size_t) content_length;
+
+  return container;
+}
+
+int HttpContainerArduino::read(uint8_t *buf, const size_t max_len) {
+  WiFiClient *stream_ptr = this->client_.getStreamPtr();
+  if (stream_ptr == nullptr) {
+    ESP_LOGE(TAG, "Stream pointer vanished!");
+    return -1;
+  }
+
+  int available_data = stream_ptr->available();
+  int bufsize = std::min(max_len, std::min(this->content_length - this->bytes_read_, (size_t) available_data));
+
+  if (bufsize == 0) {
+    return 0;
+  }
+
+  App.feed_wdt();
+  int read_len = stream_ptr->readBytes(buf, bufsize);
+  this->bytes_read_ += read_len;
+
+  return read_len;
+}
+
+void HttpContainerArduino::end() { this->client_.end(); }
 
 }  // namespace http_request
 }  // namespace esphome
