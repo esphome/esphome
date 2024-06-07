@@ -20,9 +20,7 @@ namespace sntp {
 static const char *const TAG = "sntp";
 static const std::string FORCE_UPDATE_SCHEDULE = "force_update_schedule";
 
-const char *server_name_buffer(const std::string &server) {
-  return this->server.empty() ? nullptr : this->server.c_str();
-}
+const char *server_name_buffer(const std::string &server) { return server.empty() ? nullptr : server.c_str(); }
 
 #ifdef USE_ESP_IDF
 static time_t sync_time_to_report_ = 0;
