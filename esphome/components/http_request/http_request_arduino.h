@@ -20,7 +20,7 @@ namespace http_request {
 class HttpRequestArduino;
 class HttpContainerArduino : public HttpContainer {
  public:
-  int read(uint8_t *buf, const size_t max_len) override;
+  int read(uint8_t *buf, size_t max_len) override;
   void end() override;
 
  protected:

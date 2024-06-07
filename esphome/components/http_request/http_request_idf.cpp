@@ -116,7 +116,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   return container;
 }
 
-int HttpContainerIDF::read(uint8_t *buf, const size_t max_len) {
+int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   int bufsize = std::min(max_len, this->content_length - this->bytes_read_);
   App.feed_wdt();
 

@@ -73,7 +73,7 @@ void OtaHttpRequestComponent::flash() {
 }
 
 void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
-                                       std::shared_ptr<HttpContainer> container) {
+                                       const std::shared_ptr<HttpContainer> &container) {
   if (this->update_started_) {
     ESP_LOGV(TAG, "Aborting OTA backend");
     backend->abort();
@@ -83,7 +83,7 @@ void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
 };
 
 uint8_t OtaHttpRequestComponent::do_ota_() {
-  uint8_t buf[OtaHttpRequestComponent::http_recv_buffer_ + 1];
+  uint8_t buf[OtaHttpRequestComponent::HTTP_RECV_BUFFER + 1];
   uint32_t last_progress = 0;
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
@@ -123,7 +123,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   while (container->get_bytes_read() < container->content_length) {
     // read a maximum of chunk_size bytes into buf. (real read size returned)
-    int bufsize = container->read(buf, OtaHttpRequestComponent::http_recv_buffer_);
+    int bufsize = container->read(buf, OtaHttpRequestComponent::HTTP_RECV_BUFFER);
     ESP_LOGVV(TAG, "bytes_read_ = %u, body_length_ = %u, bufsize = %i", container->get_bytes_read(),
               container->content_length, bufsize);
 
@@ -135,7 +135,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       ESP_LOGE(TAG, "Stream closed");
       this->cleanup_(std::move(backend), container);
       return OTA_CONNECTION_ERROR;
-    } else if (bufsize > 0 && bufsize <= OtaHttpRequestComponent::http_recv_buffer_) {
+    } else if (bufsize > 0 && bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
       // add read bytes to MD5
       md5_receive.add(buf, bufsize);
 

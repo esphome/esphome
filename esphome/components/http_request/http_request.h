@@ -29,7 +29,7 @@ class HttpContainer {
   size_t content_length;
   int status_code;
 
-  virtual int read(uint8_t *buf, const size_t max_len) = 0;
+  virtual int read(uint8_t *buf, size_t max_len) = 0;
   virtual void end() = 0;
 
   void set_secure(bool secure) { this->secure_ = secure; }
@@ -44,7 +44,7 @@ class HttpContainer {
 class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string> {
  public:
   void process(std::shared_ptr<HttpContainer> container, std::string response_body) {
-    this->trigger(container, response_body);
+    this->trigger(std::move(container), std::move(response_body));
   }
 };
 

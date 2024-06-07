@@ -116,7 +116,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
   return container;
 }
 
-int HttpContainerArduino::read(uint8_t *buf, const size_t max_len) {
+int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
     ESP_LOGE(TAG, "Stream pointer vanished!");

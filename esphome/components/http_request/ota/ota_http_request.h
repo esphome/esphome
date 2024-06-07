@@ -41,7 +41,7 @@ class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRe
   void flash();
 
  protected:
-  void cleanup_(std::unique_ptr<ota::OTABackend> backend, std::shared_ptr<HttpContainer> container);
+  void cleanup_(std::unique_ptr<ota::OTABackend> backend, const std::shared_ptr<HttpContainer> &container);
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
@@ -55,7 +55,7 @@ class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRe
   std::string url_{};
   int status_ = -1;
   bool update_started_ = false;
-  static const uint16_t http_recv_buffer_ = 256;  // the firmware GET chunk size
+  static const uint16_t HTTP_RECV_BUFFER = 256;  // the firmware GET chunk size
 };
 
 }  // namespace http_request
