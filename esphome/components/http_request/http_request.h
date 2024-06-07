@@ -61,8 +61,19 @@ class HttpRequestComponent : public Component {
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
 
-  virtual std::shared_ptr<HttpContainer> start(std::string url, std::string method = "GET", std::string body = "",
-                                               std::list<Header> headers = {}) = 0;
+  std::shared_ptr<HttpContainer> get(std::string url) { return std::move(this->start(url, "GET", "", {})); }
+  std::shared_ptr<HttpContainer> get(std::string url, std::list<Header> headers) {
+    return std::move(this->start(url, "GET", "", headers));
+  }
+  std::shared_ptr<HttpContainer> post(std::string url, std::string body) {
+    return std::move(this->start(url, "POST", body, {}));
+  }
+  std::shared_ptr<HttpContainer> post(std::string url, std::string body, std::list<Header> headers) {
+    return std::move(this->start(url, "POST", body, headers));
+  }
+
+  virtual std::shared_ptr<HttpContainer> start(std::string url, std::string method, std::string body,
+                                               std::list<Header> headers) = 0;
 
  protected:
   const char *useragent_{nullptr};

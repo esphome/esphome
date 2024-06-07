@@ -24,8 +24,8 @@ class HttpContainerIDF : public HttpContainer {
 
 class HttpRequestIDF : public HttpRequestComponent {
  public:
-  std::shared_ptr<HttpContainer> start(std::string url, std::string method = "GET", std::string body = "",
-                                       std::list<Header> headers = {}) override;
+  std::shared_ptr<HttpContainer> start(std::string url, std::string method, std::string body,
+                                       std::list<Header> headers) override;
 };
 
 }  // namespace http_request

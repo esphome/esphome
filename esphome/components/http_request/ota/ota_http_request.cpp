@@ -102,7 +102,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
   ESP_LOGI(TAG, "Connecting to: %s", this->url_.c_str());
 
-  auto container = this->parent_->start(url_with_auth);
+  auto container = this->parent_->get(url_with_auth);
 
   if (container == nullptr) {
     return OTA_CONNECTION_ERROR;
@@ -226,7 +226,7 @@ bool OtaHttpRequestComponent::http_get_md5_() {
 
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
   ESP_LOGI(TAG, "Connecting to: %s", this->md5_url_.c_str());
-  auto container = this->parent_->start(url_with_auth);
+  auto container = this->parent_->get(url_with_auth);
   if (container == nullptr) {
     ESP_LOGE(TAG, "Failed to connect to MD5 URL");
     container->end();
