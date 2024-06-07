@@ -24,7 +24,7 @@ const char *server_name_buffer(const auto &server) { return this->server.empty()
 
 #ifdef USE_ESP_IDF
 static time_t sync_time_to_report_ = 0;
-#else
+#endif
 
 void SNTPComponent::setup() {
 #ifndef USE_HOST
@@ -42,17 +42,15 @@ void SNTPComponent::setup() {
   setup_servers_();
   this->servers_was_setup_ = true;
 
-  for(uint8_t i = 0; i<3; ++i) {
-    const auto& buff = server_name_buffer(server_[i]);
-    if(buff != nullptr && buff != sntp_getservername()) {
-      ESP_LOGCONFIG(TAG, "Can't set server %d", i+1);
+  for (uint8_t i = 0; i < 3; ++i) {
+    const auto &buff = server_name_buffer(server_[i]);
+    if (buff != nullptr && buff != sntp_getservername()) {
+      ESP_LOGCONFIG(TAG, "Can't set server %d", i + 1);
     }
   }
 #ifdef USE_ESP_IDF
   this->stop_poller();
-  sntp_set_time_sync_notification_cb([](struct timeval *tv){
-    sync_time_to_report_ = tv->tv_sec;
-  });
+  sntp_set_time_sync_notification_cb([](struct timeval *tv) { sync_time_to_report_ = tv->tv_sec; });
 #endif  // USE_ESP_IDF
 
   sntp_init();
@@ -68,20 +66,18 @@ void SNTPComponent::dump_config() {
 void set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3);
 {
 #if !defined(USE_HOST)
-  if(servers_was_setup_) {
-    for(uint8_t i = 0; i<3; ++i) {
-      const auto& buff = this->servers_[i].empty()
-        ? nullptr
-        : this->servers_[i].c_str();
-      if(buff != nullptr && buff == sntp_getservername(i))
+  if (servers_was_setup_) {
+    for (uint8_t i = 0; i < 3; ++i) {
+      const auto &buff = this->servers_[i].empty() ? nullptr : this->servers_[i].c_str();
+      if (buff != nullptr && buff == sntp_getservername(i))
         sntp_setservername(i, nullptr);
-        max_setup_server = max(max_setup_server, i);
+      max_setup_server = max(max_setup_server, i);
     }
   }
 #endif
   this->servers_ = {server_1, server_2, server_3};
 #if !defined(USE_HOST)
-  if(this->servers_was_setup_) {
+  if (this->servers_was_setup_) {
     setup_servers_();
   }
 #endif
@@ -107,8 +103,8 @@ void SNTPComponent::loop() {
     time_t time_to_report = 0;
     swap(sync_time_to_report_, time_to_report);
     const ESPTime time = ESPTime::from_epoch_local(time_to_report);
-    ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
-           time.minute, time.second);
+    ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month,
+             time.hour, time.minute, time.second);
   }
 #else
   if (this->has_time_)
@@ -132,22 +128,18 @@ void SNTPComponent::set_update_interval(uint32_t update_interval) {
   sntp_set_sync_interval(update_interval);
   const auto new_sync_interval = sntp_get_sync_interval();
 
-  if(previous_sync_interval > new_sync_interval) {
-    this->set_timeout(FORCE_UPDATE_SCHEDULE, new_sync_interval, []{
-      sntp_restart();
-    });
+  if (previous_sync_interval > new_sync_interval) {
+    this->set_timeout(FORCE_UPDATE_SCHEDULE, new_sync_interval, [] { sntp_restart(); });
   }
 }
-uint32_t SNTPComponent::get_update_interval() const {
-  return sntp_get_sync_interval();
-}
+uint32_t SNTPComponent::get_update_interval() const { return sntp_get_sync_interval(); }
 #endif
 void SNTPComponent::setup_servers_() {
-  for(uint8_t i = 0; i<3; ++i) {
-    const auto& buff = server_name_buffer(this->servers_[i]);
+  for (uint8_t i = 0; i < 3; ++i) {
+    const auto &buff = server_name_buffer(this->servers_[i]);
     sntp_setservername(i, buff);
-    if(buff != nullptr && buff != sntp_getservername()) {
-      ESP_LOGE(TAG, "Can't set server %d", i+1);
+    if (buff != nullptr && buff != sntp_getservername()) {
+      ESP_LOGE(TAG, "Can't set server %d", i + 1);
     }
   }
 }
