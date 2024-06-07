@@ -57,7 +57,9 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.use_id(OtaHttpRequestComponent),
             cv.Optional(CONF_MD5_URL): cv.templatable(cv.url),
-            cv.Optional(CONF_MD5): cv.templatable(cv.string),
+            cv.Optional(CONF_MD5): cv.templatable(
+                cv.All(cv.string, cv.Length(min=32, max=32))
+            ),
             cv.Optional(CONF_PASSWORD): cv.templatable(cv.string),
             cv.Optional(CONF_USERNAME): cv.templatable(cv.string),
             cv.Required(CONF_URL): cv.templatable(cv.url),
