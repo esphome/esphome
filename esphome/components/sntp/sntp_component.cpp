@@ -101,9 +101,9 @@ void SNTPComponent::update() {
 void SNTPComponent::loop() {
 #ifdef USE_ESP_IDF
   if (sync_time_to_report_ == 0)
-    return
+    return;
 
-        this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
+  this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
   const ESPTime time = ESPTime::from_epoch_local(sync_time_to_report_);
   sync_time_to_report_ = 0;
 #else
