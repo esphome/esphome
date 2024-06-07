@@ -96,8 +96,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
 
   // returned needed headers must be collected before the requests
   static const char *header_keys[] = {"Content-Length", "Content-Type"};
-  static const size_t header_count = sizeof(header_keys) / sizeof(header_keys[0]);
-  container->client_.collectHeaders(header_keys, header_count);
+  static const size_t HEADER_COUNT = sizeof(header_keys) / sizeof(header_keys[0]);
+  container->client_.collectHeaders(header_keys, HEADER_COUNT);
 
   container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
   if (container->status_code < 0) {
