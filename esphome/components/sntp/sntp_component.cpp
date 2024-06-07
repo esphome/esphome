@@ -70,11 +70,12 @@ void SNTPComponent::set_servers(const std::string &server_1, const std::string &
       const auto &buff = this->servers_[i].empty() ? nullptr : this->servers_[i].c_str();
       if (buff != nullptr && buff == sntp_getservername(i))
         sntp_setservername(i, nullptr);
-      max_setup_server = max(max_setup_server, i);
     }
   }
 #endif
-  this->servers_ = {server_1, server_2, server_3};
+  this->servers_[0] = server_1;
+  this->servers_[1] = server_2;
+  this->servers_[2] = server_3;
 #if !defined(USE_HOST)
   if (this->servers_was_setup_) {
     this->setup_servers_();
