@@ -143,7 +143,7 @@ void I2SAudioSpeaker::player_task(void *params) {
         }
         continue;
       }
-      if (bytes_written == 0 || bytes_written != sizeof(sample)) {
+      if (bytes_written != sizeof(sample)) {
         event = {.type = TaskEventType::WARNING, .err = ESP_FAIL};
         if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
           ESP_LOGW(TAG, "Failed to send WARNING event");
