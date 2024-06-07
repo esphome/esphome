@@ -116,7 +116,11 @@ class DeepSleepComponent : public Component {
 #ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_;
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
+
+#if !defined(USE_ESP32_VARIANT_ESP32C3)
   optional<Ext1Wakeup> ext1_wakeup_;
+#endif
+
   optional<bool> touch_wakeup_;
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
 #endif
