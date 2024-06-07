@@ -22,7 +22,7 @@ static const char *const TAG = "sntp";
 const char *server_name_buffer(const std::string &server) { return server.empty() ? nullptr : server.c_str(); }
 
 void SNTPComponent::setup() {
-#ifndef USE_HOST
+#if !defined(USE_HOST)
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   if (sntp_enabled()) {
@@ -49,7 +49,7 @@ void SNTPComponent::setup() {
 #endif
 
   sntp_init();
-#endif  // USE_HOST
+#endif  // !defined(USE_HOST)
 }
 void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SNTP Time:");
@@ -90,17 +90,17 @@ void SNTPComponent::update() {
     sntp_init();
 #endif
   }
-#endif
+#endif  // !defined(USE_HOST)
 }
 void SNTPComponent::loop() {
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF)
   if (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED)
     return;
 
   auto time = this->now();
   if (!time.is_valid())
     return;
-#else
+#else   // defined(USE_ESP_IDF)
   if (this->has_time_)
     return;
 
@@ -109,12 +109,12 @@ void SNTPComponent::loop() {
     return;
 
   this->has_time_ = true;
-#endif
+#endif  // defined(USE_ESP_IDF)
   ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
   this->time_sync_callback_.call();
 }
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF)
 void SNTPComponent::set_update_interval(uint32_t update_interval) {
   const auto previous_sync_interval = sntp_get_sync_interval();
 
@@ -127,7 +127,7 @@ void SNTPComponent::set_update_interval(uint32_t update_interval) {
   }
 }
 uint32_t SNTPComponent::get_update_interval() const { return sntp_get_sync_interval(); }
-#endif
+#endif  // defined(USE_ESP_IDF)
 void SNTPComponent::setup_servers_() {
   for (uint8_t i = 0; i < 3; ++i) {
     const auto &buff = server_name_buffer(this->servers_[i]);
