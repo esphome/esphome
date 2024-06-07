@@ -101,11 +101,10 @@ void SNTPComponent::loop() {
 #ifdef USE_ESP_IDF
   if (sync_time_to_report_ != 0) {
     this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
-    time_t time_to_report = 0;
-    std::swap(sync_time_to_report_, time_to_report);
-    const ESPTime time = ESPTime::from_epoch_local(time_to_report);
+    const ESPTime time = ESPTime::from_epoch_local(sync_time_to_report_);
     ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month,
              time.hour, time.minute, time.second);
+    sync_time_to_report_ = 0;
   }
 #else
   if (this->has_time_)
