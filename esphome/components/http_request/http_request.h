@@ -64,7 +64,7 @@ class HttpRequestComponent : public Component {
 
   std::shared_ptr<HttpContainer> get(std::string url) { return this->start(std::move(url), "GET", "", {}); }
   std::shared_ptr<HttpContainer> get(std::string url, std::list<Header> headers) {
-    return this->start(std::move(url), "GET", "", headers);
+    return this->start(std::move(url), "GET", "", std::move(headers));
   }
   std::shared_ptr<HttpContainer> post(std::string url, std::string body) {
     return this->start(std::move(url), "POST", std::move(body), {});
