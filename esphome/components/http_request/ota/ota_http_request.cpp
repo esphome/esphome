@@ -229,7 +229,6 @@ bool OtaHttpRequestComponent::http_get_md5_() {
   auto container = this->parent_->get(url_with_auth);
   if (container == nullptr) {
     ESP_LOGE(TAG, "Failed to connect to MD5 URL");
-    container->end();
     return false;
   }
   size_t length = container->content_length;
