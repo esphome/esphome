@@ -62,15 +62,15 @@ class HttpRequestComponent : public Component {
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
 
-  std::shared_ptr<HttpContainer> get(std::string url) { return std::move(this->start(url, "GET", "", {})); }
+  std::shared_ptr<HttpContainer> get(std::string url) { return this->start(std::move(url), "GET", "", {}); }
   std::shared_ptr<HttpContainer> get(std::string url, std::list<Header> headers) {
-    return std::move(this->start(url, "GET", "", headers));
+    return this->start(std::move(url), "GET", "", headers);
   }
   std::shared_ptr<HttpContainer> post(std::string url, std::string body) {
-    return std::move(this->start(url, "POST", body, {}));
+    return this->start(std::move(url), "POST", std::move(body), {});
   }
   std::shared_ptr<HttpContainer> post(std::string url, std::string body, std::list<Header> headers) {
-    return std::move(this->start(url, "POST", body, headers));
+    return this->start(std::move(url), "POST", std::move(body), std::move(headers));
   }
 
   virtual std::shared_ptr<HttpContainer> start(std::string url, std::string method, std::string body,
