@@ -80,7 +80,6 @@ void SNTPComponent::update() {
     sntp_init();
 #endif
   }
-#endif
 }
 void SNTPComponent::loop() {
 #if defined(USE_ESP_IDF)
