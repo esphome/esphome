@@ -251,7 +251,7 @@ bool OtaHttpRequestComponent::http_get_md5_() {
   }
   container->end();
 
-  ESP_LOGD(TAG, "Read len: %u, MD5 expected: %u", read_len, MD5_SIZE);
+  ESP_LOGV(TAG, "Read len: %u, MD5 expected: %u", read_len, MD5_SIZE);
   return read_len == MD5_SIZE;
 }
 
