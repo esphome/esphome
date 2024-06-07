@@ -171,6 +171,7 @@ esphome/components/host/* @clydebarrow @esphome/core
 esphome/components/host/time/* @clydebarrow
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
+esphome/components/http_request/ota/* @oarcher
 esphome/components/htu31d/* @betterengineering
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/hyt271/* @Philippe12
