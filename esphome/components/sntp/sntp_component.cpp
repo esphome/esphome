@@ -1,16 +1,11 @@
 #include "sntp_component.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-#include "lwip/apps/sntp.h"
 #ifdef USE_ESP_IDF
 #include "esp_sntp.h"
-#endif
-#endif
-#ifdef USE_ESP8266
+#elif USE_ESP8266
 #include "sntp.h"
-#endif
-#ifdef USE_RP2040
+#else
 #include "lwip/apps/sntp.h"
 #endif
 
@@ -22,16 +17,15 @@ static const char *const TAG = "sntp";
 const char *server_name_buffer(const std::string &server) { return server.empty() ? nullptr : server.c_str(); }
 
 void SNTPComponent::setup() {
-#if !defined(USE_HOST)
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  if (sntp_enabled()) {
-    sntp_stop();
+#if defined(USE_ESP_IDF)
+  if (esp_sntp_enabled()) {
+    esp_sntp_stop();
   }
-  sntp_setoperatingmode(SNTP_OPMODE_POLL);
-#endif
-#ifdef USE_ESP8266
+  esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+#else
   sntp_stop();
+  sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #endif
 
   setup_servers_();
@@ -45,17 +39,16 @@ void SNTPComponent::setup() {
   }
 #ifdef USE_ESP_IDF
   this->stop_poller();
-  sntp_set_sync_interval(this->get_update_interval());
+  esp_sntp_set_sync_interval(this->get_update_interval());
 #endif
 
   sntp_init();
-#endif  // !defined(USE_HOST)
 }
 void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SNTP Time:");
-  ESP_LOGCONFIG(TAG, "  Server 1: '%s'", this->server_1_.c_str());
-  ESP_LOGCONFIG(TAG, "  Server 2: '%s'", this->server_2_.c_str());
-  ESP_LOGCONFIG(TAG, "  Server 3: '%s'", this->server_3_.c_str());
+  for (uint8_t i = 0; i < 3; ++i) {
+    ESP_LOGCONFIG(TAG, "  Server %d: '%s'", i + 1, this->servers_[i].c_str());
+  }
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
 void SNTPComponent::set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3) {
@@ -78,7 +71,6 @@ void SNTPComponent::set_servers(const std::string &server_1, const std::string &
 #endif
 }
 void SNTPComponent::update() {
-#if !defined(USE_HOST)
   // force resync
   if (sntp_enabled()) {
 #if defined(USE_ESP_IDF)
@@ -90,7 +82,7 @@ void SNTPComponent::update() {
     sntp_init();
 #endif
   }
-#endif  // !defined(USE_HOST)
+#endif
 }
 void SNTPComponent::loop() {
 #if defined(USE_ESP_IDF)
