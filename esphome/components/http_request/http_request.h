@@ -26,6 +26,7 @@ struct Header {
 
 class HttpContainer {
  public:
+  virtual ~HttpContainer() = default;
   size_t content_length;
   int status_code;
   uint32_t duration_ms;
