@@ -20,7 +20,9 @@ namespace sntp {
 static const char *const TAG = "sntp";
 static const std::string FORCE_UPDATE_SCHEDULE = "force_update_schedule";
 
-const char *server_name_buffer(const auto &server) { return this->server.empty() ? nullptr : this->server.c_str(); }
+const char *server_name_buffer(const std::string &server) {
+  return this->server.empty() ? nullptr : this->server.c_str();
+}
 
 #ifdef USE_ESP_IDF
 static time_t sync_time_to_report_ = 0;
@@ -43,8 +45,8 @@ void SNTPComponent::setup() {
   this->servers_was_setup_ = true;
 
   for (uint8_t i = 0; i < 3; ++i) {
-    const auto &buff = server_name_buffer(server_[i]);
-    if (buff != nullptr && buff != sntp_getservername()) {
+    const auto &buff = server_name_buffer(servers_[i]);
+    if (buff != nullptr && buff != sntp_getservername(i)) {
       ESP_LOGCONFIG(TAG, "Can't set server %d", i + 1);
     }
   }
@@ -101,7 +103,7 @@ void SNTPComponent::loop() {
   if (sync_time_to_report_ != 0) {
     this->cancel_timeout(FORCE_UPDATE_SCHEDULE);
     time_t time_to_report = 0;
-    swap(sync_time_to_report_, time_to_report);
+    std::swap(sync_time_to_report_, time_to_report);
     const ESPTime time = ESPTime::from_epoch_local(time_to_report);
     ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month,
              time.hour, time.minute, time.second);
@@ -138,7 +140,7 @@ void SNTPComponent::setup_servers_() {
   for (uint8_t i = 0; i < 3; ++i) {
     const auto &buff = server_name_buffer(this->servers_[i]);
     sntp_setservername(i, buff);
-    if (buff != nullptr && buff != sntp_getservername()) {
+    if (buff != nullptr && buff != sntp_getservername(i)) {
       ESP_LOGE(TAG, "Can't set server %d", i + 1);
     }
   }
