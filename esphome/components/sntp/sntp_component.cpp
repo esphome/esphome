@@ -122,11 +122,11 @@ void SNTPComponent::loop() {
 }
 #ifdef USE_ESP_IDF
 void SNTPComponent::set_update_interval(uint32_t update_interval) {
-  time::RealTimeClock::set_update_interval(update_interval);
   const auto previous_sync_interval = sntp_get_sync_interval();
 
   sntp_set_sync_interval(update_interval);
   const auto new_sync_interval = sntp_get_sync_interval();
+  time::RealTimeClock::set_update_interval(new_sync_interval);
 
   if (previous_sync_interval > new_sync_interval) {
     this->set_timeout(FORCE_UPDATE_SCHEDULE, new_sync_interval, [] { sntp_restart(); });
