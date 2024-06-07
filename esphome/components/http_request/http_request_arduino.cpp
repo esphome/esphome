@@ -12,7 +12,7 @@ namespace http_request {
 
 static const char *const TAG = "http_request.arduino";
 
-static const char *HEADER_KEYS[] = {"Content-Length", "Content-Type"};
+static const char *const HEADER_KEYS[] = {"Content-Length", "Content-Type"};
 static const size_t HEADER_COUNT = sizeof(HEADER_KEYS) / sizeof(HEADER_KEYS[0]);
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::string method, std::string body,
