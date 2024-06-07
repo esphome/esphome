@@ -70,7 +70,7 @@ void SNTPComponent::set_servers(const std::string &server_1, const std::string &
 }
 void SNTPComponent::update() {
   // force resync
-  if (sntp_enabled()) {
+  if (esp_sntp_enabled()) {
 #if defined(USE_ESP_IDF)
     ESP_LOGD(TAG, "Force resync");
     sntp_restart();
