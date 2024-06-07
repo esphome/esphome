@@ -24,6 +24,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
   }
 
   std::shared_ptr<HttpContainerArduino> container = std::make_shared<HttpContainerArduino>();
+  const uint32_t start = millis();
 
   bool secure = url.find("https:") != std::string::npos;
   container->set_secure(secure);
@@ -112,11 +113,13 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
   int content_length = container->client_.getSize();
   ESP_LOGD(TAG, "Content-Length: %d", content_length);
   container->content_length = (size_t) content_length;
+  container->duration_ms = millis() - start;
 
   return container;
 }
 
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
+  const uint32_t start = millis();
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
     ESP_LOGE(TAG, "Stream pointer vanished!");
@@ -127,12 +130,15 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   int bufsize = std::min(max_len, std::min(this->content_length - this->bytes_read_, (size_t) available_data));
 
   if (bufsize == 0) {
+    this->duration_ms += (millis() - start);
     return 0;
   }
 
   App.feed_wdt();
   int read_len = stream_ptr->readBytes(buf, bufsize);
   this->bytes_read_ += read_len;
+
+  this->duration_ms += (millis() - start);
 
   return read_len;
 }

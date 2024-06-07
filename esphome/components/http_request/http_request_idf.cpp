@@ -63,6 +63,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   esp_http_client_handle_t client = esp_http_client_init(&config);
 
   std::shared_ptr<HttpContainerIDF> container = std::make_shared<HttpContainerIDF>(client);
+  const uint32_t start = millis();
 
   container->set_secure(secure);
 
@@ -112,20 +113,24 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     esp_http_client_cleanup(client);
     return nullptr;
   }
-
+  container->duration_ms = millis() - start;
   return container;
 }
 
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
+  const uint32_t start = millis();
   int bufsize = std::min(max_len, this->content_length - this->bytes_read_);
   App.feed_wdt();
 
   if (bufsize == 0) {
+    this->duration_ms += (millis() - start);
     return 0;
   }
 
   int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
   this->bytes_read_ += read_len;
+
+  this->duration_ms += (millis() - start);
 
   return read_len;
 }

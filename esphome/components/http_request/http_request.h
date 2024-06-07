@@ -28,6 +28,7 @@ class HttpContainer {
  public:
   size_t content_length;
   int status_code;
+  uint32_t duration_ms;
 
   virtual int read(uint8_t *buf, size_t max_len) = 0;
   virtual void end() = 0;
