@@ -101,6 +101,14 @@
 #ifdef USE_ESP_IDF
 #define USE_ESP_IDF_VERSION_CODE VERSION_CODE(4, 4, 2)
 #endif
+
+#if defined(USE_ESP32_VARIANT_ESP32S2)
+#define USE_LOGGER_USB_CDC
+#elif defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
+#define USE_LOGGER_USB_CDC
+#define USE_LOGGER_USB_SERIAL_JTAG
+#endif
 #endif
 
 // ESP8266-specific feature flags
@@ -123,6 +131,7 @@
 
 #ifdef USE_RP2040
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
+#define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_SPI
 #endif
