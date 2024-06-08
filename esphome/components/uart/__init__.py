@@ -59,6 +59,7 @@ UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
+MULTI_CONF_NO_DEFAULT = True
 
 
 def validate_raw_data(value):

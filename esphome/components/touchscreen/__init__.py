@@ -5,6 +5,7 @@ from esphome.components import display
 from esphome import automation
 
 from esphome.const import (
+    CONF_DISPLAY,
     CONF_ON_TOUCH,
     CONF_ON_RELEASE,
     CONF_ON_UPDATE,
@@ -31,7 +32,6 @@ TouchPoints_t = cg.std_vector.template(TouchPoint)
 TouchPoints_t_const_ref = TouchPoints_t.operator("ref").operator("const")
 TouchListener = touchscreen_ns.class_("TouchListener")
 
-CONF_DISPLAY = "display"
 CONF_TOUCHSCREEN_ID = "touchscreen_id"
 CONF_REPORT_INTERVAL = "report_interval"  # not used yet:
 CONF_TOUCH_TIMEOUT = "touch_timeout"

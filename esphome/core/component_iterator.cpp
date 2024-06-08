@@ -232,6 +232,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_DATETIME_DATETIME
+    case IteratorState::DATETIME_DATETIME:
+      if (this->at_ >= App.get_datetimes().size()) {
+        advance_platform = true;
+      } else {
+        auto *datetime = App.get_datetimes()[this->at_];
+        if (datetime->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_datetime(datetime);
+        }
+      }
+      break;
+#endif
 #ifdef USE_TEXT
     case IteratorState::TEXT:
       if (this->at_ >= App.get_texts().size()) {
@@ -277,6 +292,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_VALVE
+    case IteratorState::VALVE:
+      if (this->at_ >= App.get_valves().size()) {
+        advance_platform = true;
+      } else {
+        auto *valve = App.get_valves()[this->at_];
+        if (valve->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_valve(valve);
+        }
+      }
+      break;
+#endif
 #ifdef USE_MEDIA_PLAYER
     case IteratorState::MEDIA_PLAYER:
       if (this->at_ >= App.get_media_players().size()) {
@@ -303,6 +333,21 @@ void ComponentIterator::advance() {
           break;
         } else {
           success = this->on_alarm_control_panel(a_alarm_control_panel);
+        }
+      }
+      break;
+#endif
+#ifdef USE_EVENT
+    case IteratorState::EVENT:
+      if (this->at_ >= App.get_events().size()) {
+        advance_platform = true;
+      } else {
+        auto *event = App.get_events()[this->at_];
+        if (event->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_event(event);
         }
       }
       break;

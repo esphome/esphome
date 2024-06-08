@@ -1,7 +1,5 @@
-wifi:
-  ssid: MySSID
-  password: password1
+substitutions:
+  verify_ssl: "false"
 
-http_request:
-  useragent: esphome/tagreader
-  timeout: 10s
+<<: !include common_http_request.yaml
+<<: !include common_ota.yaml

@@ -85,7 +85,7 @@ class Component {
 
   /** priority of setup(). higher -> executed earlier
    *
-   * Defaults to 0.
+   * Defaults to setup_priority::DATA, i.e. 600.
    *
    * @return The setup priority of this component
    */
@@ -118,9 +118,9 @@ class Component {
    */
   virtual void mark_failed();
 
-  bool is_failed();
+  bool is_failed() const;
 
-  bool is_ready();
+  bool is_ready() const;
 
   virtual bool can_proceed();
 
