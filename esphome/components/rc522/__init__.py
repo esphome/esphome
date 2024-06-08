@@ -3,11 +3,11 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import i2c
 from esphome.const import (
+    CONF_GAIN,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
     CONF_RESET_PIN,
-    CONF_GAIN,
 )
 
 CODEOWNERS = ["@glmnet"]
