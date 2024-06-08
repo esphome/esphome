@@ -124,8 +124,9 @@ void APDS9306::update() {
 
   this->status_clear_warning();
 
-  if (!(status &= 0b00001000))  // No new data
+  if (!(status &= 0b00001000)) {  // No new data
     return;
+  }
   
   // Set to standby mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
