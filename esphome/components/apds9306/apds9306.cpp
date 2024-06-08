@@ -69,9 +69,6 @@ void APDS9306::setup() {
     return;
   }
 
-  // Put in standby mode
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
-
   // ALS resolution and measurement, see datasheet or init.py for options
   uint8_t als_meas_rate = ((this->bit_width_ & 0x07) << 4) | (this->measurement_rate_ & 0x07);
   APDS9306_WRITE_BYTE(APDS9306_ALS_MEAS_RATE, als_meas_rate);
@@ -80,7 +77,14 @@ void APDS9306::setup() {
   uint8_t als_gain = (this->gain_ & 0x07);
   APDS9306_WRITE_BYTE(APDS9306_ALS_GAIN, als_gain);
 
-  // Set to Active mode
+  // Set to standby mode
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
+
+  // Check for data, clear main status
+  uint8_t status;
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading MAIN STATUS failed.");
+
+  // Set to active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 
   ESP_LOGCONFIG(TAG, "setup complete");
@@ -114,23 +118,28 @@ void APDS9306::dump_config() {
 }
 
 void APDS9306::update() {
+  // Check for new data
   uint8_t status;
-  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.");
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading MAIN STATUS failed.");
 
   this->status_clear_warning();
 
-  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
-
-  while (!(status &= 0b00001000)) {  // No new data
-    APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading status bit failed.")
-  }
+  if (!(status &= 0b00001000))  // No new data
+    return;
   
+  // Set to standby mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x00);
-  
+
+  // Clear MAIN STATUS
+  APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading MAIN STATUS failed.");
+
   this->convert_config_variables_();
 
   uint8_t als_data[3];
   APDS9306_WARNING_CHECK(this->read_byte(APDS9306_ALS_DATA_0, als_data, 3), "Reading ALS data has failed.");
+
+  // Set to active mode
+  APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 
   uint32_t light_level = 0x00 | encode_uint24(als_data[2], als_data[1], als_data[0]);
 
@@ -138,8 +147,6 @@ void APDS9306::update() {
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx from", lux);
   this->publish_state(lux);
-
-  // Restart
 }
 
 void APDS9306::convert_config_variables_() {
