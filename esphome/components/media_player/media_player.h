@@ -54,6 +54,13 @@ enum MediaPlayerRepeatMode : uint8_t {
 };
 const char *media_player_repeat_mode_to_string(MediaPlayerRepeatMode repeat_mode);
 
+enum MediaPlayerMRM : uint8_t {
+  MEDIA_PLAYER_MRM_OFF = 0,
+  MEDIA_PLAYER_MRM_FOLLOWER = 1,
+  MEDIA_PLAYER_MRM_LEADER = 2,
+};
+const char *media_player_mrm_to_string(MediaPlayerMRM mrm);
+
 class MediaPlayer;
 
 class MediaPlayerTraits {
@@ -87,27 +94,32 @@ class MediaPlayerCall {
   MediaPlayerCall &set_command(const std::string &command);
 
   MediaPlayerCall &set_media_url(const std::string &url);
-  MediaPlayerCall &set_enqueue(const std::string &url);
+  MediaPlayerCall &set_enqueue(MediaPlayerEnqueue enqueue);
+  MediaPlayerCall &set_enqueue(const std::string &enqueue);
 
   MediaPlayerCall &set_volume(float volume);
   MediaPlayerCall &set_announcement(bool announce);
+  MediaPlayerCall &set_mrm(MediaPlayerMRM mrm);
+  MediaPlayerCall &set_mrm(const std::string &mrm);
 
   void perform();
 
   const optional<MediaPlayerCommand> &get_command() const { return command_; }
   const optional<std::string> &get_media_url() const { return media_url_; }
-  const optional<std::string> &get_enqueue() const { return enqueue_; }
+  const optional<MediaPlayerEnqueue> &get_enqueue() const { return enqueue_; }
   const optional<float> &get_volume() const { return volume_; }
   const optional<bool> &get_announcement() const { return announcement_; }
+  const optional<MediaPlayerMRM> &get_mrm() const { return mrm_; }
 
  protected:
   void validate_();
   MediaPlayer *const parent_;
   optional<MediaPlayerCommand> command_;
   optional<std::string> media_url_;
-  optional<std::string> enqueue_;
+  optional<MediaPlayerEnqueue> enqueue_;
   optional<float> volume_;
   optional<bool> announcement_;
+  optional<MediaPlayerMRM> mrm_;
 };
 
 class MediaPlayer : public EntityBase {

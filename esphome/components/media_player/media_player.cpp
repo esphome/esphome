@@ -99,6 +99,19 @@ const char *media_player_repeat_mode_to_string(MediaPlayerRepeatMode repeat_mode
   }
 }
 
+const char *media_player_mrm_to_string(MediaPlayerMRM mrm) {
+  switch (mrm) {
+    case MEDIA_PLAYER_MRM_OFF:
+      return "off";
+    case MEDIA_PLAYER_MRM_FOLLOWER:
+      return "follower";
+    case MEDIA_PLAYER_MRM_LEADER:
+      return "leader";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void MediaPlayerCall::validate_() {
   if (this->media_url_.has_value()) {
     if (this->command_.has_value()) {
@@ -125,10 +138,13 @@ void MediaPlayerCall::perform() {
     ESP_LOGD(TAG, "  Media URL: %s", this->media_url_.value().c_str());
   }
   if (this->enqueue_.has_value()) {
-    ESP_LOGD(TAG, "  Enqueue: %s", this->enqueue_.value().c_str());
+    ESP_LOGD(TAG, "  Enqueue: %s", media_player_enqueue_to_string(this->enqueue_.value()));
   }
   if (this->announcement_.has_value()) {
     ESP_LOGD(TAG, " Announcement: %s", this->announcement_.value() ? "yes" : "no");
+  }
+  if (this->mrm_.has_value()) {
+    ESP_LOGD(TAG, "  MRM: %s", media_player_mrm_to_string(this->mrm_.value()));
   }
   if (this->volume_.has_value()) {
     ESP_LOGD(TAG, "  Volume: %.2f", this->volume_.value());
@@ -188,8 +204,23 @@ MediaPlayerCall &MediaPlayerCall::set_media_url(const std::string &media_url) {
   return *this;
 }
 
-MediaPlayerCall &MediaPlayerCall::set_enqueue(const std::string &enqueue) {
+MediaPlayerCall &MediaPlayerCall::set_enqueue(MediaPlayerEnqueue enqueue) {
   this->enqueue_ = enqueue;
+  return *this;
+}
+
+MediaPlayerCall &MediaPlayerCall::set_enqueue(const std::string &enqueue) {
+  if (str_equals_case_insensitive(enqueue, "ADD")) {
+    this->set_enqueue(MEDIA_PLAYER_ENQUEUE_ADD);
+  } else if (str_equals_case_insensitive(enqueue, "NEXT")) {
+    this->set_enqueue(MEDIA_PLAYER_ENQUEUE_NEXT);
+  } else if (str_equals_case_insensitive(enqueue, "PLAY")) {
+    this->set_enqueue(MEDIA_PLAYER_ENQUEUE_PLAY);
+  } else if (str_equals_case_insensitive(enqueue, "REPLACE")) {
+    this->set_enqueue(MEDIA_PLAYER_ENQUEUE_REPLACE);
+  } else {
+    ESP_LOGW(TAG, "'%s' - Unrecognized enqueue %s", this->parent_->get_name().c_str(), enqueue.c_str());
+  }
   return *this;
 }
 
@@ -200,6 +231,24 @@ MediaPlayerCall &MediaPlayerCall::set_volume(float volume) {
 
 MediaPlayerCall &MediaPlayerCall::set_announcement(bool announce) {
   this->announcement_ = announce;
+  return *this;
+}
+
+MediaPlayerCall &MediaPlayerCall::set_mrm(MediaPlayerMRM mrm) {
+  this->mrm_ = mrm;
+  return *this;
+}
+
+MediaPlayerCall &MediaPlayerCall::set_mrm(const std::string &mrm) {
+  if (str_equals_case_insensitive(mrm, "ADD")) {
+    this->set_mrm(MEDIA_PLAYER_MRM_OFF);
+  } else if (str_equals_case_insensitive(mrm, "FOLLOWER")) {
+    this->set_mrm(MEDIA_PLAYER_MRM_FOLLOWER);
+  } else if (str_equals_case_insensitive(mrm, "LEADER")) {
+    this->set_mrm(MEDIA_PLAYER_MRM_LEADER);
+  } else {
+    ESP_LOGW(TAG, "'%s' - Unrecognized mrm %s", this->parent_->get_name().c_str(), mrm.c_str());
+  }
   return *this;
 }
 

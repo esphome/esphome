@@ -1055,6 +1055,9 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   if (msg.has_enqueue) {
     call.set_enqueue(msg.enqueue);
   }
+  if (msg.has_mrm) {
+    call.set_mrm(msg.mrm);
+  }
   call.perform();
 }
 #endif

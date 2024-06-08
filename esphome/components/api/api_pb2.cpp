@@ -5352,6 +5352,10 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->has_enqueue = value.as_bool();
       return true;
     }
+    case 12: {
+      this->has_mrm = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5364,6 +5368,10 @@ bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDeli
     }
     case 11: {
       this->enqueue = value.as_string();
+      return true;
+    }
+    case 13: {
+      this->mrm = value.as_string();
       return true;
     }
     default:
@@ -5396,6 +5404,8 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(9, this->announcement);
   buffer.encode_bool(10, this->has_enqueue);
   buffer.encode_string(11, this->enqueue);
+  buffer.encode_bool(12, this->has_mrm);
+  buffer.encode_string(13, this->mrm);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerCommandRequest::dump_to(std::string &out) const {
@@ -5447,6 +5457,15 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   out.append("  enqueue: ");
   out.append("'").append(this->enqueue).append("'");
   out.append("\n");
+  
+  out.append("  has_mrm: ");
+  out.append(YESNO(this->has_mrm));
+  out.append("\n");
+
+  out.append("  mrm: ");
+  out.append("'").append(this->mrm).append("'");
+  out.append("\n");
+  out.append("}");
 }
 #endif
 bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {

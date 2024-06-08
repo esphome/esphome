@@ -1176,6 +1176,9 @@ message MediaPlayerCommandRequest {
 
   bool has_enqueue = 10;
   string enqueue = 11;
+
+  bool has_mrm = 12;
+  string mrm = 13;
 }
 
 // ==================== BLUETOOTH ====================
