@@ -1,9 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/socket/socket.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+#include "esphome/components/socket/socket.h"
+#else
+#include <WiFiUdp.h>
+#endif
 #include <vector>
 #include <map>
 
@@ -72,6 +76,7 @@ class UDPComponent : public PollingComponent {
   void set_encryption_key(std::vector<uint8_t> key) { this->encryption_key_ = std::move(key); }
   void set_rolling_code_enable(bool enable) { this->rolling_code_enable_ = enable; }
   void set_ping_pong_enable(bool enable) { this->ping_pong_enable_ = enable; }
+  void set_ping_pong_recycle_time(uint32_t recycle_time) { this->ping_pong_recyle_time_ = recycle_time; }
   void set_provider_encryption(const char *name, std::vector<uint8_t> key) {
     this->providers_[name].encryption_key = std::move(key);
   }
@@ -92,13 +97,23 @@ class UDPComponent : public PollingComponent {
   uint32_t rolling_code_[2]{};
   bool rolling_code_enable_{};
   bool ping_pong_enable_{};
+  uint32_t ping_pong_recyle_time_{};
+  uint32_t last_key_time_{};
   bool resend_ping_key_{};
   bool resend_data_{};
+  bool should_send_{};
   const char *name_{};
+  bool should_listen_{};
   ESPPreferenceObject pref_;
 
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
+  std::vector<struct sockaddr> sockaddrs_{};
+#else
+  std::vector<IPAddress> ipaddrs_{};
+  WiFiUDP udp_client_{};
+#endif
   std::vector<uint8_t> encryption_key_{};
   std::vector<std::string> addresses_{};
 
@@ -111,7 +126,6 @@ class UDPComponent : public PollingComponent {
   std::vector<uint8_t> ping_header_{};
   std::vector<uint8_t> header_{};
   std::vector<uint8_t> data_{};
-  std::vector<struct sockaddr> sockaddrs_{};
   std::map<const char *, uint32_t> ping_keys_{};
   void add_key_(const char *name, uint32_t key);
   void send_ping_pong_request_();

@@ -12,10 +12,6 @@ from esphome.const import (
     CONF_BINARY_SENSORS,
     CONF_NAME,
     CONF_KEY,
-    PLATFORM_ESP32,
-    PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
-    PLATFORM_HOST,
     CONF_INTERNAL,
 )
 from esphome.cpp_generator import MockObjClass
@@ -34,6 +30,7 @@ CONF_PROVIDERS = "providers"
 CONF_REMOTE_ID = "remote_id"
 CONF_UDP_ID = "udp_id"
 CONF_PING_PONG_ENABLE = "ping_pong_enable"
+CONF_PING_PONG_RECYCLE_TIME = "ping_pong_recycle_time"
 CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
 
 
@@ -86,6 +83,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ADDRESSES): cv.ensure_list(cv.ipv4),
             cv.Optional(CONF_ROLLING_CODE_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_PING_PONG_ENABLE, default=False): cv.boolean,
+            cv.Optional(
+                CONF_PING_PONG_RECYCLE_TIME, default="600s"
+            ): cv.positive_time_period_seconds,
             cv.Optional(CONF_SENSORS): cv.ensure_list(sensor_validation(Sensor)),
             cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
                 sensor_validation(BinarySensor)
@@ -94,14 +94,6 @@ CONFIG_SCHEMA = cv.All(
         },
     )
     .extend(ENCRYPTION_SCHEMA),
-    cv.only_on(
-        [
-            PLATFORM_ESP32,
-            PLATFORM_BK72XX,
-            PLATFORM_RTL87XX,
-            PLATFORM_HOST,
-        ]
-    ),
     validate_,
 )
 
@@ -132,6 +124,11 @@ async def to_code(config):
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_rolling_code_enable(config[CONF_ROLLING_CODE_ENABLE]))
     cg.add(var.set_ping_pong_enable(config[CONF_PING_PONG_ENABLE]))
+    cg.add(
+        var.set_ping_pong_recycle_time(
+            config[CONF_PING_PONG_RECYCLE_TIME].total_seconds
+        )
+    )
     if sensors := config.get(CONF_SENSORS):
         for sensor_id in sensors:
             sensor = await cg.get_variable(sensor_id)

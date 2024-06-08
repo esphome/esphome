@@ -48,7 +48,7 @@ namespace udp {
 static const char *const TAG = "udp";
 
 /**
- * XXTEA implementation
+ * XXTEA implementation, using 256 bit key.
  */
 
 static const uint32_t DELTA = 0x9e3779b9;
@@ -157,25 +157,40 @@ void UDPComponent::setup() {
   this->pref_.save(&this->rolling_code_[1]);
   this->ping_key_ = random_uint32();
   ESP_LOGV(TAG, "Rolling code incremented, upper part now %u", (unsigned) this->rolling_code_[1]);
+  for (auto &sensor : this->sensors_) {
+    sensor.sensor->add_on_state_callback([this, &sensor](float x) {
+      this->updated_ = true;
+      sensor.updated = true;
+    });
+  }
+  for (auto &sensor : this->binary_sensors_) {
+    sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
+      this->updated_ = true;
+      sensor.updated = true;
+    });
+  }
+  if (strlen(this->name_) > 255) {
+    this->mark_failed();
+    this->status_set_error("Device name exceeds 255 chars");
+    return;
+  }
+  this->should_send_ = !(this->sensors_.empty() && this->binary_sensors_.empty() && !this->ping_pong_enable_);
+  this->should_listen_ = !this->providers_.empty() || this->is_encrypted_();
+  // initialise the header. This is invariant.
+  add(this->header_, (uint8_t) MAGIC_NUMBER);
+  add(this->header_, (uint8_t) (MAGIC_NUMBER >> 8));
+  add(this->header_, this->name_);
+  // pad to a multiple of 4 bytes
+  while (this->header_.size() & 0x3)
+    this->header_.push_back(0);
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &address : this->addresses_) {
     struct sockaddr saddr {};
     socket::set_sockaddr(&saddr, sizeof(saddr), address, this->port_);
     this->sockaddrs_.push_back(saddr);
   }
   // set up broadcast socket
-  if (!(this->sensors_.empty() && this->binary_sensors_.empty() && !this->ping_pong_enable_)) {
-    if (strlen(this->name_) > 255) {
-      this->mark_failed();
-      this->status_set_error("Device name exceeds 255 chars");
-      return;
-    }
-    // initialise the header. This is invariant.
-    add(this->header_, (uint8_t) MAGIC_NUMBER);
-    add(this->header_, (uint8_t) (MAGIC_NUMBER >> 8));
-    add(this->header_, this->name_);
-    // pad to a multiple of 4 bytes
-    while (this->header_.size() & 0x3)
-      this->header_.push_back(0);
+  if (this->should_send_) {
     this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->broadcast_socket_ == nullptr) {
       this->mark_failed();
@@ -192,22 +207,10 @@ void UDPComponent::setup() {
     if (err != 0) {
       this->status_set_warning("Socket unable to set broadcast");
     }
-    for (auto &sensor : this->sensors_) {
-      sensor.sensor->add_on_state_callback([this, &sensor](float x) {
-        this->updated_ = true;
-        sensor.updated = true;
-      });
-    }
-    for (auto &sensor : this->binary_sensors_) {
-      sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
-        this->updated_ = true;
-        sensor.updated = true;
-      });
-    }
   }
   // create listening socket if we either want to subscribe to providers, or need to listen
   // for ping key broadcasts.
-  if (!this->providers_.empty() || this->is_encrypted_()) {
+  if (this->should_listen_) {
     this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->listen_socket_ == nullptr) {
       this->mark_failed();
@@ -245,6 +248,16 @@ void UDPComponent::setup() {
       return;
     }
   }
+#else
+  // 8266 and RP2040 `Duino
+  for (const auto &address : this->addresses_) {
+    auto ipaddr = IPAddress();
+    ipaddr.fromString(address.c_str());
+    this->ipaddrs_.push_back(ipaddr);
+  }
+  if (this->should_listen_)
+    this->udp_client_.begin(this->port_);
+#endif
 }
 
 void UDPComponent::init_data_() {
@@ -328,15 +341,25 @@ void UDPComponent::send_data_(bool all) {
 
 void UDPComponent::update() {
   this->updated_ = true;
-  this->resend_data_ = this->broadcast_socket_ != nullptr;
-  this->resend_ping_key_ = this->ping_pong_enable_;
+  this->resend_data_ = this->should_send_;
+  auto now = millis() / 1000;
+  if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
+    this->resend_ping_key_ = this->ping_pong_enable_;
+    this->last_key_time_ = now;
+  }
 }
 
 void UDPComponent::loop() {
   uint8_t buf[MAX_PACKET_SIZE];
-  if (this->listen_socket_ != nullptr) {
+  if (this->should_listen_) {
     for (;;) {
-      ssize_t len = this->listen_socket_->read(buf, sizeof(buf));
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+      auto len = this->listen_socket_->read(buf, sizeof(buf));
+#else
+      auto len = this->udp_client_.parsePacket();
+      if (len > 0)
+        len = this->udp_client_.read(buf, sizeof(buf));
+#endif
       if (len > 0) {
         this->process_(buf, len);
         continue;
@@ -536,11 +559,23 @@ void UDPComponent::increment_code_() {
   }
 }
 void UDPComponent::send_packet_(void *data, size_t len) {
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &saddr : this->sockaddrs_) {
     auto result = this->broadcast_socket_->sendto(data, len, 0, &saddr, sizeof(saddr));
     if (result < 0)
       ESP_LOGW(TAG, "sendto() error %d", errno);
   }
+#else
+  auto iface = IPAddress(0, 0, 0, 0);
+  for (const auto &saddr : this->ipaddrs_) {
+    if (this->udp_client_.beginPacketMulticast(saddr, this->port_, iface, 128) != 0) {
+      this->udp_client_.write((const uint8_t *) data, len);
+      auto result = this->udp_client_.endPacket();
+      if (result == 0)
+        ESP_LOGW(TAG, "udp.write() error");
+    }
+  }
+#endif
 }
 
 void UDPComponent::send_ping_pong_request_() {
