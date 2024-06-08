@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_YEAR,
 )
 
-from esphome.core import coroutine_with_priority
 from .. import template_ns
 
 CODEOWNERS = ["@rfdarter"]
@@ -29,6 +28,10 @@ TemplateDate = template_ns.class_(
 
 TemplateTime = template_ns.class_(
     "TemplateTime", datetime.TimeEntity, cg.PollingComponent
+)
+
+TemplateDateTime = template_ns.class_(
+    "TemplateDateTime", datetime.DateTimeEntity, cg.PollingComponent
 )
 
 
@@ -68,14 +71,25 @@ CONFIG_SCHEMA = cv.All(
             .extend(_BASE_SCHEMA)
             .extend(
                 {
-                    cv.Optional(CONF_INITIAL_VALUE): cv.date_time(allowed_time=False),
+                    cv.Optional(CONF_INITIAL_VALUE): cv.date_time(
+                        date=True, time=False
+                    ),
                 }
             ),
             "TIME": datetime.time_schema(TemplateTime)
             .extend(_BASE_SCHEMA)
             .extend(
                 {
-                    cv.Optional(CONF_INITIAL_VALUE): cv.date_time(allowed_date=False),
+                    cv.Optional(CONF_INITIAL_VALUE): cv.date_time(
+                        date=False, time=True
+                    ),
+                }
+            ),
+            "DATETIME": datetime.datetime_schema(TemplateDateTime)
+            .extend(_BASE_SCHEMA)
+            .extend(
+                {
+                    cv.Optional(CONF_INITIAL_VALUE): cv.date_time(date=True, time=True),
                 }
             ),
         },
@@ -85,7 +99,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(-100.0)
 async def to_code(config):
     var = await datetime.new_datetime(config)
 
@@ -116,6 +129,17 @@ async def to_code(config):
                     ("hour", initial_value[CONF_HOUR]),
                 )
                 cg.add(var.set_initial_value(time_struct))
+            elif config[CONF_TYPE] == "DATETIME":
+                datetime_struct = cg.StructInitializer(
+                    cg.ESPTime,
+                    ("second", initial_value[CONF_SECOND]),
+                    ("minute", initial_value[CONF_MINUTE]),
+                    ("hour", initial_value[CONF_HOUR]),
+                    ("day_of_month", initial_value[CONF_DAY]),
+                    ("month", initial_value[CONF_MONTH]),
+                    ("year", initial_value[CONF_YEAR]),
+                )
+                cg.add(var.set_initial_value(datetime_struct))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(

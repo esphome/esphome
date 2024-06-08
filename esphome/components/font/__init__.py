@@ -400,8 +400,7 @@ class BitmapFontWrapper:
         for glyph in glyphs:
             mask = self.getmask(glyph, mode="1")
             _, height = mask.size
-            if height > max_height:
-                max_height = height
+            max_height = max(max_height, height)
         return (max_height, 0)
 
 

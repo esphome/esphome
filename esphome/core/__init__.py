@@ -340,6 +340,8 @@ class ID:
 
         if self.id is None:
             base = str(self.type).replace("::", "_").lower()
+            if base == self.type:
+                base = base + "_id"
             name = "".join(c for c in base if c.isalnum() or c == "_")
             used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
             self.id = ensure_unique_string(name, used)

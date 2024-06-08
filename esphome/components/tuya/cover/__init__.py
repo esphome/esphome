@@ -16,6 +16,7 @@ CONF_DIRECTION_DATAPOINT = "direction_datapoint"
 CONF_POSITION_DATAPOINT = "position_datapoint"
 CONF_POSITION_REPORT_DATAPOINT = "position_report_datapoint"
 CONF_INVERT_POSITION = "invert_position"
+CONF_INVERT_POSITION_REPORT = "invert_position_report"
 
 TuyaCover = tuya_ns.class_("TuyaCover", cover.Cover, cg.Component)
 
@@ -47,6 +48,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
             cv.Optional(CONF_MAX_VALUE, default=100): cv.int_,
             cv.Optional(CONF_INVERT_POSITION, default=False): cv.boolean,
+            cv.Optional(CONF_INVERT_POSITION_REPORT, default=False): cv.boolean,
             cv.Optional(CONF_RESTORE_MODE, default="RESTORE"): cv.enum(
                 RESTORE_MODES, upper=True
             ),
@@ -71,6 +73,7 @@ async def to_code(config):
     cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
     cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
     cg.add(var.set_invert_position(config[CONF_INVERT_POSITION]))
+    cg.add(var.set_invert_position_report(config[CONF_INVERT_POSITION_REPORT]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
     paren = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(paren))

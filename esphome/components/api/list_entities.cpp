@@ -38,6 +38,9 @@ bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) 
 #ifdef USE_LOCK
 bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_info(a_lock); }
 #endif
+#ifdef USE_VALVE
+bool ListEntitiesIterator::on_valve(valve::Valve *valve) { return this->client_->send_valve_info(valve); }
+#endif
 
 bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
@@ -68,6 +71,12 @@ bool ListEntitiesIterator::on_date(datetime::DateEntity *date) { return this->cl
 bool ListEntitiesIterator::on_time(datetime::TimeEntity *time) { return this->client_->send_time_info(time); }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *datetime) {
+  return this->client_->send_datetime_info(datetime);
+}
+#endif
+
 #ifdef USE_TEXT
 bool ListEntitiesIterator::on_text(text::Text *text) { return this->client_->send_text_info(text); }
 #endif
@@ -85,6 +94,9 @@ bool ListEntitiesIterator::on_media_player(media_player::MediaPlayer *media_play
 bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   return this->client_->send_alarm_control_panel_info(a_alarm_control_panel);
 }
+#endif
+#ifdef USE_EVENT
+bool ListEntitiesIterator::on_event(event::Event *event) { return this->client_->send_event_info(event); }
 #endif
 
 }  // namespace api

@@ -96,6 +96,9 @@ void TimeBasedCover::control(const CoverCall &call) {
       }
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
+      if (this->manual_control_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
+        this->position = pos == COVER_CLOSED ? COVER_OPEN : COVER_CLOSED;
+      }
       this->target_position_ = pos;
       this->start_direction_(op);
     }

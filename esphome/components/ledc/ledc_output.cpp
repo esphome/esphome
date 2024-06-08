@@ -52,12 +52,12 @@ float ledc_min_frequency_for_bit_depth(uint8_t bit_depth, bool low_frequency) {
 }
 
 optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
-  ESP_LOGD(TAG, "Calculating resolution bit-depth for frequency %f", frequency);
+  ESP_LOGV(TAG, "Calculating resolution bit-depth for frequency %f", frequency);
   for (int i = MAX_RES_BITS; i >= 1; i--) {
     const float min_frequency = ledc_min_frequency_for_bit_depth(i, (frequency < 100));
     const float max_frequency = ledc_max_frequency_for_bit_depth(i);
     if (min_frequency <= frequency && frequency <= max_frequency) {
-      ESP_LOGD(TAG, "Resolution calculated as %d", i);
+      ESP_LOGV(TAG, "Resolution calculated as %d", i);
       return i;
     }
   }
