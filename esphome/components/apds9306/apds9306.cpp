@@ -142,7 +142,7 @@ void APDS9306::update() {
   // Set to active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 
-  uint32_t light_level = 0x00 | encode_uint24(als_data[0], als_data[1], als_data[2]);
+  uint32_t light_level = 0x00 | encode_uint24(als_data[2], als_data[1], als_data[0]);
 
   float lux = (light_level / this->gain_val_) * (100.0f / this->measurement_time_);
 
