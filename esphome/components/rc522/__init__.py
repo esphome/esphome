@@ -33,16 +33,6 @@ GAIN = {
     "48dB": RC522Gain.RC522_GAIN_48DB,
 }
 
-
-def validate_gain(value):
-    if isinstance(value, int):
-        value = f"{value}dB"
-    elif not isinstance(value, str):
-        raise cv.Invalid(f'invalid gain "{value}"')
-
-    return cv.enum(GAIN)(value)
-
-
 RC522_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(RC522),
@@ -57,7 +47,7 @@ RC522_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
             }
         ),
-        cv.Optional(CONF_GAIN, default="38dB"): validate_gain,
+        cv.Optional(CONF_GAIN, default="38dB"): cv.decibel,
     }
 ).extend(cv.polling_component_schema("1s"))
 
