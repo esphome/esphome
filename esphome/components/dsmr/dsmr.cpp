@@ -17,10 +17,6 @@ void Dsmr::setup() {
   if (this->request_pin_ != nullptr) {
     this->request_pin_->setup();
   }
-  // Prevent telegram to be pubished elsewhere
-  if (this->s_telegram_ != nullptr) {
-    this->s_telegram_->set_internal(true);
-  }
 }
 
 void Dsmr::loop() {
