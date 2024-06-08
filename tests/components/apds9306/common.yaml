@@ -6,7 +6,7 @@ i2c:
 sensor:
   - platform: apds9306
     name: "APDS9306 Light Level"
-    gain: 1
-    bit_width: 18
-    measurement_rate: 100
+    gain: 3
+    bit_width: 16
+    measurement_rate: 2000
     update_interval: 60s
