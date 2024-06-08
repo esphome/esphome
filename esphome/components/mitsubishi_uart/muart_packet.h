@@ -160,11 +160,11 @@ class GetRequestPacket : public Packet {
     return instance;
   }
   static GetRequestPacket &get_status_instance() {
-    static GetRequestPacket instance = GetRequestPacket(GetCommand::STANDBY);
+    static GetRequestPacket instance = GetRequestPacket(GetCommand::STATUS);
     return instance;
   }
   static GetRequestPacket &get_standby_instance() {
-    static GetRequestPacket instance = GetRequestPacket(GetCommand::STATUS);
+    static GetRequestPacket instance = GetRequestPacket(GetCommand::STANDBY);
     return instance;
   }
   static GetRequestPacket &get_error_info_instance() {
