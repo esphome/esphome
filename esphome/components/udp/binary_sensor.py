@@ -7,8 +7,8 @@ from . import (
     CONF_PROVIDER,
     require_internal_with_name,
 )
-from ...config_validation import All, has_at_least_one_key
-from ...const import CONF_ID
+from esphome.config_validation import All, has_at_least_one_key
+from esphome.const import CONF_ID
 
 AUTO_LOAD = ["udp"]
 
