@@ -171,7 +171,7 @@ async def to_code(config):
     if conf_file[CONF_SOURCE] == SOURCE_LOCAL:
         path = CORE.relative_config_path(conf_file[CONF_PATH])
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
-        path = espImage._compute_local_image_path(conf_file).as_posix()
+        path = espImage.compute_local_image_path(conf_file).as_posix()
     try:
         image = Image.open(path)
     except Exception as e:
