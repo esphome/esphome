@@ -428,14 +428,15 @@ void VoiceAssistant::loop() {
 #ifdef USE_SPEAKER
 void VoiceAssistant::write_speaker_() {
   if (this->speaker_buffer_size_ > 0) {
-    size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
+    size_t write_chunk = std::min<size_t>(this->speaker_buffer_size_, 4 * 1024);
+    size_t written = this->speaker_->play(this->speaker_buffer_, write_chunk);
     if (written > 0) {
       memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
       this->speaker_buffer_size_ -= written;
       this->speaker_buffer_index_ -= written;
       this->set_timeout("speaker-timeout", 5000, [this]() { this->speaker_->stop(); });
     } else {
-      ESP_LOGD(TAG, "Speaker buffer full, trying again next loop");
+      ESP_LOGV(TAG, "Speaker buffer full, trying again next loop");
     }
   }
 }
