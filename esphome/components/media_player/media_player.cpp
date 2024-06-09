@@ -66,6 +66,10 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "REPEAT_ONE";
     case MEDIA_PLAYER_COMMAND_REPEAT_ALL:
       return "REPEAT_ALL";
+    case MEDIA_PLAYER_COMMAND_JOIN:
+      return "JOIN";
+    case MEDIA_PLAYER_COMMAND_UNJOIN:
+      return "UNJOIN";
     default:
       return "UNKNOWN";
   }
@@ -146,6 +150,9 @@ void MediaPlayerCall::perform() {
   if (this->mrm_.has_value()) {
     ESP_LOGD(TAG, "  MRM: %s", media_player_mrm_to_string(this->mrm_.value()));
   }
+  if (this->group_members_.has_value()) {
+    ESP_LOGD(TAG, "  group_members: %s", this->group_members_.value().c_str());
+  }
   if (this->volume_.has_value()) {
     ESP_LOGD(TAG, "  Volume: %.2f", this->volume_.value());
   }
@@ -193,6 +200,10 @@ MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
     this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ONE);
   } else if (str_equals_case_insensitive(command, "REPEAT_ALL")) {
     this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ALL);
+  } else if (str_equals_case_insensitive(command, "JOIN")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_JOIN);
+  } else if (str_equals_case_insensitive(command, "UNJOIN")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_UNJOIN);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command.c_str());
   }
@@ -249,6 +260,11 @@ MediaPlayerCall &MediaPlayerCall::set_mrm(const std::string &mrm) {
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized mrm %s", this->parent_->get_name().c_str(), mrm.c_str());
   }
+  return *this;
+}
+
+MediaPlayerCall &MediaPlayerCall::set_group_members(const std::string &group_members) {
+  this->group_members_ = group_members;
   return *this;
 }
 

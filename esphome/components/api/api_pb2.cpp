@@ -5116,6 +5116,10 @@ bool ListEntitiesMediaPlayerResponse::decode_varint(uint32_t field_id, ProtoVarI
       this->supports_turn_off_on = value.as_bool();
       return true;
     }
+    case 11: {
+      this->supports_grouping = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5163,6 +5167,7 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(8, this->supports_pause);
   buffer.encode_bool(9, this->supports_next_previous_track);
   buffer.encode_bool(10, this->supports_turn_off_on);
+  buffer.encode_bool(11, this->supports_grouping);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
@@ -5209,6 +5214,11 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
 
   out.append("  supports_turn_off_on: ");
   out.append(YESNO(this->supports_turn_off_on));
+  out.append("\n");
+  out.append("}");
+
+  out.append("  supports_grouping: ");
+  out.append(YESNO(this->supports_grouping));
   out.append("\n");
   out.append("}");
 }
@@ -5356,6 +5366,10 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->has_mrm = value.as_bool();
       return true;
     }
+    case 14: {
+      this->has_group_members = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -5372,6 +5386,10 @@ bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDeli
     }
     case 13: {
       this->mrm = value.as_string();
+      return true;
+    }
+    case 15: {
+      this->group_members = value.as_string();
       return true;
     }
     default:
@@ -5406,6 +5424,8 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(11, this->enqueue);
   buffer.encode_bool(12, this->has_mrm);
   buffer.encode_string(13, this->mrm);
+  buffer.encode_bool(12, this->has_group_members);
+  buffer.encode_string(13, this->group_members);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerCommandRequest::dump_to(std::string &out) const {
@@ -5464,6 +5484,14 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
 
   out.append("  mrm: ");
   out.append("'").append(this->mrm).append("'");
+  out.append("\n");
+  
+  out.append("  has_group_members: ");
+  out.append(YESNO(this->has_group_members));
+  out.append("\n");
+
+  out.append("  group_members: ");
+  out.append("'").append(this->group_members).append("'");
   out.append("\n");
   out.append("}");
 }

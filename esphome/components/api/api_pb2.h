@@ -171,6 +171,8 @@ enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_REPEAT_OFF = 15,
   MEDIA_PLAYER_COMMAND_REPEAT_ONE = 16,
   MEDIA_PLAYER_COMMAND_REPEAT_ALL = 17,
+  MEDIA_PLAYER_COMMAND_JOIN = 18,
+  MEDIA_PLAYER_COMMAND_UNJOIN = 19,
 };
 enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0,
@@ -1288,6 +1290,7 @@ class ListEntitiesMediaPlayerResponse : public ProtoMessage {
   bool supports_pause{false};
   bool supports_next_previous_track{false};
   bool supports_turn_off_on{false};
+  bool supports_grouping{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1334,7 +1337,9 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   bool has_enqueue{false};
   std::string enqueue{"play"};
   bool has_mrm{false};
-  std::string mrm{"off"};
+  std::string mrm{""};
+  bool has_group_members{false};
+  std::string group_members{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

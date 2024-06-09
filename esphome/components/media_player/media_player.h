@@ -36,6 +36,8 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_REPEAT_OFF = 15,
   MEDIA_PLAYER_COMMAND_REPEAT_ONE = 16,
   MEDIA_PLAYER_COMMAND_REPEAT_ALL = 17,
+  MEDIA_PLAYER_COMMAND_JOIN = 18,
+  MEDIA_PLAYER_COMMAND_UNJOIN = 19,
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
@@ -79,10 +81,15 @@ class MediaPlayerTraits {
 
   bool get_supports_turn_off_on() const { return this->supports_turn_off_on_; }
 
+  void set_supports_grouping(bool supports_grouping) { this->supports_grouping_ = supports_grouping; }
+
+  bool get_supports_grouping() const { return this->supports_grouping_; }
+
  protected:
   bool supports_pause_{false};
   bool supports_next_previous_track_{false};
   bool supports_turn_off_on_{false};
+  bool supports_grouping_{false};
 };
 
 class MediaPlayerCall {
@@ -101,6 +108,7 @@ class MediaPlayerCall {
   MediaPlayerCall &set_announcement(bool announce);
   MediaPlayerCall &set_mrm(MediaPlayerMRM mrm);
   MediaPlayerCall &set_mrm(const std::string &mrm);
+  MediaPlayerCall &set_group_members(const std::string &group_members);
 
   void perform();
 
@@ -110,6 +118,7 @@ class MediaPlayerCall {
   const optional<float> &get_volume() const { return volume_; }
   const optional<bool> &get_announcement() const { return announcement_; }
   const optional<MediaPlayerMRM> &get_mrm() const { return mrm_; }
+  const optional<std::string> &get_group_members() const { return group_members_; }
 
  protected:
   void validate_();
@@ -120,6 +129,7 @@ class MediaPlayerCall {
   optional<float> volume_;
   optional<bool> announcement_;
   optional<MediaPlayerMRM> mrm_;
+  optional<std::string> group_members_{};
 };
 
 class MediaPlayer : public EntityBase {
@@ -136,9 +146,9 @@ class MediaPlayer : public EntityBase {
 
   virtual bool is_muted() const { return false; }
 
-  virtual std::string repeat() const { return ""; }
-
   virtual bool is_shuffle() const { return false; }
+
+  virtual std::string repeat() const { return ""; }
 
   virtual std::string artist() const { return ""; }
 
