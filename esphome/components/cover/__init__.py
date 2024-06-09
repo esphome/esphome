@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_TILT_STATE_TOPIC,
     CONF_STOP,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
     CONF_TRIGGER_ID,
     DEVICE_CLASS_AWNING,
@@ -152,11 +153,11 @@ async def setup_cover_core_(var, config):
         if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_tilt_command_topic(tilt_command_topic))
 
-    if (web_server_config := config.get("web_server")) is not None and (
+    if (web_server_config := config.get(CONF_WEB_SERVER)) is not None and (
         webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
     ) is not None:
         web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, web_server_config)
+        web_server.add_entity_config(web_server_, var, web_server_config)
 
 
 async def register_cover(var, config):

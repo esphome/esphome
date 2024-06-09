@@ -29,9 +29,10 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEB_SERVER,
+    CONF_WEB_SERVER_ID,
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
     CONF_FORCE_UPDATE,
     CONF_VALUE,
     CONF_MIN_VALUE,
@@ -779,11 +780,11 @@ async def setup_sensor_core_(var, config):
             else:
                 cg.add(mqtt_.set_expire_after(expire_after))
 
-    if (web_server_config := config.get("web_server")) is not None and (
+    if (web_server_config := config.get(CONF_WEB_SERVER)) is not None and (
         webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
     ) is not None:
         web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, web_server_config)
+        web_server.add_entity_config(web_server_, var, web_server_config)
 
 
 async def register_sensor(var, config):

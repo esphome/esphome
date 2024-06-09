@@ -193,7 +193,7 @@ async def setup_alarm_control_panel_core_(var, config):
         webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
     ) is not None:
         web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, web_server_config)
+        web_server.add_entity_config(web_server_, var, web_server_config)
 
 
 async def register_alarm_control_panel(var, config):

@@ -332,7 +332,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
-  void add_entity_to_sorting_list(EntityBase *entity, float weight, uint64_t group = 0);
+  void add_entity_config(EntityBase *entity, float weight, uint64_t group = 0);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
  protected:

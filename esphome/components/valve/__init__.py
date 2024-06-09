@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_STOP,
     CONF_TRIGGER_ID,
+    CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GAS,
@@ -124,11 +125,11 @@ async def setup_valve_core_(var, config):
                 mqtt_.set_custom_position_command_topic(position_command_topic_config)
             )
 
-    if (web_server_config := config.get("web_server")) is not None and (
+    if (web_server_config := config.get(CONF_WEB_SERVER)) is not None and (
         webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
     ) is not None:
         web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, web_server_config)
+        web_server.add_entity_config(web_server_, var, web_server_config)
 
 
 async def register_valve(var, config):
