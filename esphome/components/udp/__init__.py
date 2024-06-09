@@ -18,7 +18,7 @@ from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket", "sensor", "binary_sensor"]
+AUTO_LOAD = ["socket"]
 
 udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.PollingComponent)

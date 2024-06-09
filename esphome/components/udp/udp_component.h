@@ -1,8 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
 #else
@@ -20,17 +24,20 @@ struct Provider {
   uint32_t last_code[2];
 };
 
+#ifdef USE_SENSOR
 struct Sensor {
   sensor::Sensor *sensor;
   const char *id;
   bool updated;
 };
-
+#endif
+#ifdef USE_BINARY_SENSOR
 struct BinarySensor {
   binary_sensor::BinarySensor *sensor;
   const char *id;
   bool updated;
 };
+#endif
 
 class UDPComponent : public PollingComponent {
  public:
@@ -39,23 +46,27 @@ class UDPComponent : public PollingComponent {
   void update() override;
   void dump_config() override;
 
+#ifdef USE_SENSOR
   void add_sensor(const char *id, sensor::Sensor *sensor) {
     Sensor st{sensor, id, true};
     this->sensors_.push_back(st);
   }
+  void add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
+    this->add_provider(hostname);
+    this->remote_sensors_[hostname][remote_id] = sensor;
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
   void add_binary_sensor(const char *id, binary_sensor::BinarySensor *sensor) {
     BinarySensor st{sensor, id, true};
     this->binary_sensors_.push_back(st);
   }
 
-  void add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
-    this->add_provider(hostname);
-    this->remote_sensors_[hostname][remote_id] = sensor;
-  }
   void add_remote_binary_sensor(const char *hostname, const char *remote_id, binary_sensor::BinarySensor *sensor) {
     this->add_provider(hostname);
     this->remote_binary_sensors_[hostname][remote_id] = sensor;
   }
+#endif
   void add_address(const char *addr) { this->addresses_.emplace_back(addr); }
   void set_port(uint16_t port) { this->port_ = port; }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -68,8 +79,12 @@ class UDPComponent : public PollingComponent {
       provider.last_code[1] = 0;
       provider.name = hostname;
       this->providers_[hostname] = provider;
+#ifdef USE_SENSOR
       this->remote_sensors_[hostname] = std::map<std::string, sensor::Sensor *>();
+#endif
+#ifdef USE_BINARY_SENSOR
       this->remote_binary_sensors_[hostname] = std::map<std::string, binary_sensor::BinarySensor *>();
+#endif
     }
   }
 
@@ -117,12 +132,16 @@ class UDPComponent : public PollingComponent {
   std::vector<uint8_t> encryption_key_{};
   std::vector<std::string> addresses_{};
 
+#ifdef USE_SENSOR
   std::vector<Sensor> sensors_{};
+  std::map<std::string, std::map<std::string, sensor::Sensor *>> remote_sensors_{};
+#endif
+#ifdef USE_BINARY_SENSOR
   std::vector<BinarySensor> binary_sensors_{};
+  std::map<std::string, std::map<std::string, binary_sensor::BinarySensor *>> remote_binary_sensors_{};
+#endif
 
   std::map<std::string, Provider> providers_{};
-  std::map<std::string, std::map<std::string, sensor::Sensor *>> remote_sensors_{};
-  std::map<std::string, std::map<std::string, binary_sensor::BinarySensor *>> remote_binary_sensors_{};
   std::vector<uint8_t> ping_header_{};
   std::vector<uint8_t> header_{};
   std::vector<uint8_t> data_{};

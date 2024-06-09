@@ -138,6 +138,10 @@ static inline uint16_t get_uint16(uint8_t *&buf) {
 }
 
 static inline void add(std::vector<uint8_t> &vec, uint8_t data) { vec.push_back(data); }
+static inline void add(std::vector<uint8_t> &vec, uint16_t data) {
+  vec.push_back((uint8_t) data);
+  vec.push_back((uint8_t) (data >> 8));
+}
 static inline void add(std::vector<uint8_t> &vec, DataKey data) { vec.push_back(data); }
 static void add(std::vector<uint8_t> &vec, const char *str) {
   auto len = strlen(str);
@@ -157,28 +161,37 @@ void UDPComponent::setup() {
   this->pref_.save(&this->rolling_code_[1]);
   this->ping_key_ = random_uint32();
   ESP_LOGV(TAG, "Rolling code incremented, upper part now %u", (unsigned) this->rolling_code_[1]);
+#ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
     sensor.sensor->add_on_state_callback([this, &sensor](float x) {
       this->updated_ = true;
       sensor.updated = true;
     });
   }
+#endif
+#ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
     sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
       this->updated_ = true;
       sensor.updated = true;
     });
   }
+#endif
   if (strlen(this->name_) > 255) {
     this->mark_failed();
     this->status_set_error("Device name exceeds 255 chars");
     return;
   }
-  this->should_send_ = !(this->sensors_.empty() && this->binary_sensors_.empty() && !this->ping_pong_enable_);
+  this->should_send_ = this->ping_pong_enable_;
+#ifdef USE_SENSOR
+  this->should_send_ |= !this->sensors_.empty();
+#endif
+#ifdef USE_BINARY_SENSOR
+  this->should_send_ |= !this->binary_sensors_.empty();
+#endif
   this->should_listen_ = !this->providers_.empty() || this->is_encrypted_();
   // initialise the header. This is invariant.
-  add(this->header_, (uint8_t) MAGIC_NUMBER);
-  add(this->header_, (uint8_t) (MAGIC_NUMBER >> 8));
+  add(this->header_, MAGIC_NUMBER);
   add(this->header_, this->name_);
   // pad to a multiple of 4 bytes
   while (this->header_.size() & 0x3)
@@ -317,23 +330,25 @@ void UDPComponent::add_data_(uint8_t key, const char *id, uint32_t data) {
   add(this->data_, id);
 }
 void UDPComponent::send_data_(bool all) {
-  if (!network::is_connected())
+  if (!this->should_send_ || !network::is_connected())
     return;
   this->init_data_();
-  if (this->sensors_.empty() && this->binary_sensors_.empty())
-    return;
+#ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
     if (all || sensor.updated) {
       sensor.updated = false;
       this->add_data_(SENSOR_KEY, sensor.id, sensor.sensor->get_state());
     }
   }
+#endif
+#ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
     if (all || sensor.updated) {
       sensor.updated = false;
       this->add_binary_data_(BINARY_SENSOR_KEY, sensor.id, sensor.sensor->state);
     }
   }
+#endif
   this->flush_();
   this->updated_ = false;
   this->resend_data_ = false;
@@ -373,14 +388,6 @@ void UDPComponent::loop() {
     this->send_data_(this->resend_data_);
   }
 }
-
-#define CK_LEN(x) \
-  { \
-    if (end - buf < (x)) { \
-      ESP_LOGV(TAG, "Required len %u not available", x); \
-      return; \
-    } \
-  }
 
 void UDPComponent::add_key_(const char *name, uint32_t key) {
   if (!this->is_encrypted_())
@@ -427,23 +434,20 @@ static bool process_rolling_code(Provider &provider, uint8_t *&buf, const uint8_
 void UDPComponent::process_(uint8_t *buf, const size_t len) {
   auto ping_key_seen = !this->ping_pong_enable_;
   if (len < 8) {
-    ESP_LOGV(TAG, "Bad length %zu", len);
-    return;
+    return ESP_LOGV(TAG, "Bad length %zu", len);
   }
   char namebuf[256]{};
   uint8_t byte;
   uint8_t *start_ptr = buf;
   const uint8_t *end = buf + len;
   FuData rdata{};
-
   auto magic = get_uint16(buf);
   if (magic != MAGIC_NUMBER && magic != MAGIC_PING)
     return ESP_LOGV(TAG, "Bad magic %X", magic);
 
   auto hlen = *buf++;
   if (hlen > len - 3) {
-    ESP_LOGV(TAG, "Bad hostname length %u > %zu", hlen, len - 3);
-    return;
+    return ESP_LOGV(TAG, "Bad hostname length %u > %zu", hlen, len - 3);
   }
   memcpy(namebuf, buf, hlen);
   if (strcmp(this->name_, namebuf) == 0) {
@@ -453,19 +457,16 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
   if (magic == MAGIC_PING)
     return this->process_ping_request_(namebuf, buf, end - buf);
   if (round4(len) != len) {
-    ESP_LOGW(TAG, "Bad length %zu", len);
-    return;
+    return ESP_LOGW(TAG, "Bad length %zu", len);
   }
   hlen = round4(hlen + 3);
   buf = start_ptr + hlen;
   if (buf == end) {
-    ESP_LOGV(TAG, "No data after header");
-    return;
+    return ESP_LOGV(TAG, "No data after header");
   }
 
   if (this->providers_.count(namebuf) == 0) {
-    ESP_LOGV(TAG, "Unknown hostname %s", namebuf);
-    return;
+    return ESP_LOGVV(TAG, "Unknown hostname %s", namebuf);
   }
   auto &provider = this->providers_[namebuf];
   // if encryption not used with this host, ping check is pointless since it would be easily spoofed.
@@ -473,8 +474,13 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
     ping_key_seen = true;
 
   ESP_LOGV(TAG, "Found hostname %s", namebuf);
+#ifdef USE_SENSOR
   auto &sensors = this->remote_sensors_[namebuf];
+#endif
+#ifdef USE_BINARY_SENSOR
   auto &binary_sensors = this->remote_binary_sensors_[namebuf];
+#endif
+
   if (!provider.encryption_key.empty()) {
     xxtea_decrypt((uint32_t *) buf, (end - buf) / 4, (uint32_t *) provider.encryption_key.data());
   }
@@ -483,15 +489,16 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
     if (!process_rolling_code(provider, buf, end))
       return;
   } else if (byte != DATA_KEY) {
-    ESP_LOGV(TAG, "Expected rolling_key or data_key, got %X", byte);
-    return;
+    return ESP_LOGV(TAG, "Expected rolling_key or data_key, got %X", byte);
   }
   while (buf < end) {
     byte = *buf++;
     if (byte == ZERO_FILL_KEY)
       continue;
     if (byte == PING_KEY) {
-      CK_LEN(4)
+      if (end - buf < 4) {
+        return ESP_LOGV(TAG, "PING_KEY requires 4 more bytes");
+      }
       auto key = get_uint32(buf);
       if (key == this->ping_key_) {
         ping_key_seen = true;
@@ -506,27 +513,36 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
       this->resend_ping_key_ = true;
       break;
     }
-    CK_LEN(3)  // data, len plus at least one name byte
     if (byte == BINARY_SENSOR_KEY) {
+      if (end - buf < 3) {
+        return ESP_LOGV(TAG, "Binary sensor key requires at least 3 more bytes");
+      }
       rdata.u32 = *buf++;
     } else if (byte == SENSOR_KEY) {
-      CK_LEN(6)  // data, len plus at least one name byte
+      if (end - buf < 6) {
+        return ESP_LOGV(TAG, "Sensor key requires at least 6 more bytes");
+      }
       rdata.u32 = get_uint32(buf);
     } else {
-      ESP_LOGW(TAG, "Unknown key byte %X", byte);
-      break;
+      return ESP_LOGW(TAG, "Unknown key byte %X", byte);
     }
 
     hlen = *buf++;
-    CK_LEN(hlen)
+    if (end - buf < hlen) {
+      return ESP_LOGV(TAG, "Name length of %u not available", hlen);
+    }
     memset(namebuf, 0, sizeof namebuf);
     memcpy(namebuf, buf, hlen);
     ESP_LOGV(TAG, "Found sensor key %d, id %s, data %lX", byte, namebuf, (unsigned long) rdata.u32);
     buf += hlen;
+#ifdef USE_SENSOR
     if (byte == SENSOR_KEY && sensors.count(namebuf) != 0)
       sensors[namebuf]->publish_state(rdata.f32);
+#endif
+#ifdef USE_BINARY_SENSOR
     if (byte == BINARY_SENSOR_KEY && binary_sensors.count(namebuf) != 0)
       binary_sensors[namebuf]->publish_state(rdata.u32 != 0);
+#endif
   }
 }
 
@@ -537,17 +553,25 @@ void UDPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Ping-pong: %s", YESNO(this->ping_pong_enable_));
   for (const auto &address : this->addresses_)
     ESP_LOGCONFIG(TAG, "  Address: %s", address.c_str());
+#ifdef USE_SENSOR
   for (auto sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
+#endif
+#ifdef USE_BINARY_SENSOR
   for (auto sensor : this->binary_sensors_)
     ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
+#endif
   for (const auto &host : this->providers_) {
     ESP_LOGCONFIG(TAG, "  Remote host: %s", host.first.c_str());
     ESP_LOGCONFIG(TAG, "    Encrypted: %s", YESNO(!host.second.encryption_key.empty()));
+#ifdef USE_SENSOR
     for (const auto &sensor : this->remote_sensors_[host.first.c_str()])
       ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor.first.c_str());
+#endif
+#ifdef USE_BINARY_SENSOR
     for (const auto &sensor : this->remote_binary_sensors_[host.first.c_str()])
       ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", sensor.first.c_str());
+#endif
   }
 }
 void UDPComponent::increment_code_() {
@@ -583,8 +607,7 @@ void UDPComponent::send_ping_pong_request_() {
     return;
   this->ping_key_ = random_uint32();
   this->ping_header_.clear();
-  add(this->ping_header_, (uint8_t) MAGIC_PING);
-  add(this->ping_header_, (uint8_t) (MAGIC_PING >> 8));
+  add(this->ping_header_, MAGIC_PING);
   add(this->ping_header_, this->name_);
   add(this->ping_header_, this->ping_key_);
   this->send_packet_(this->ping_header_.data(), this->ping_header_.size());
