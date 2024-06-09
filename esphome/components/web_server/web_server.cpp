@@ -1493,8 +1493,13 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
     if (obj->get_traits().get_supports_position())
       root["position"] = obj->position;
-    if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
-      root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+    if (start_config == DETAIL_ALL) {
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
+      }
     }
   });
 }
