@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ON_STATE,
     CONF_TRIGGER_ID,
     CONF_CODE,
+    CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
 )
 from esphome.cpp_helpers import setup_entity
@@ -189,7 +190,7 @@ async def setup_alarm_control_panel_core_(var, config):
     for conf in config.get(CONF_ON_READY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
-    if (web_server_config := config.get("web_server")) is not None and (
+    if (web_server_config := config.get(CONF_WEB_SERVER)) is not None and (
         webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
     ) is not None:
         web_server_ = await cg.get_variable(webserver_id)
