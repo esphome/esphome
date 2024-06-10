@@ -34,7 +34,7 @@ void SafeModeComponent::dump_config() {
 float SafeModeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 void SafeModeComponent::loop() {
-  if (!this->boot_successful_ && (millis() - this->safe_mode_start_time_) > this->safe_mode_enable_time_) {
+  if (!this->boot_successful_ && (millis() - this->safe_mode_start_time_) > this->safe_mode_attempt_time_) {
     // successful boot, reset counter
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
     this->clean_rtc();
@@ -60,9 +60,10 @@ bool SafeModeComponent::get_safe_mode_pending() {
   return this->read_rtc_() == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
 }
 
-bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
+bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t attempt_time) {
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
+  this->safe_mode_attempt_time_ = attempt_time_time;
   this->safe_mode_num_attempts_ = num_attempts;
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
