@@ -18,9 +18,10 @@ struct UpdateInfo {
 };
 
 enum UpdateState : uint8_t {
-  UPDATE_STATE_NO_UPDATE = 0,
-  UPDATE_STATE_AVAILABLE = 1,
-  UPDATE_STATE_INSTALLING = 2,
+  UPDATE_STATE_UNKNOWN,
+  UPDATE_STATE_NO_UPDATE,
+  UPDATE_STATE_AVAILABLE,
+  UPDATE_STATE_INSTALLING,
 };
 
 class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
@@ -37,7 +38,7 @@ class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
   void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 
  protected:
-  UpdateState state_{UPDATE_STATE_NO_UPDATE};
+  UpdateState state_{UPDATE_STATE_UNKNOWN};
   UpdateInfo update_info_;
   bool has_state_{false};
 
