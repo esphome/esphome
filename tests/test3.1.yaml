@@ -447,26 +447,6 @@ switch:
     switches:
       - id: custom_switch
         name: Custom Switch
-        on_turn_on:
-          - http_request.get:
-              url: https://esphome.io
-              headers:
-                Content-Type: application/json
-              verify_ssl: false
-          - http_request.post:
-              url: https://esphome.io
-              verify_ssl: false
-              json:
-                key: !lambda |-
-                  return id(custom_text_sensor).state;
-                greeting: Hello World
-          - http_request.send:
-              method: PUT
-              url: https://esphome.io
-              headers:
-                Content-Type: application/json
-              body: Some data
-              verify_ssl: false
   - platform: template
     name: open_vent
     id: open_vent
@@ -721,10 +701,6 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
-
-http_request:
-  useragent: esphome/device
-  timeout: 10s
 
 button:
   - platform: output
