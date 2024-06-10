@@ -28,7 +28,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     }
   }
 
-  if (this->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
+  if (play_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
     this->is_announcement_ = true;
   }
 
