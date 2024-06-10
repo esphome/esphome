@@ -30,7 +30,7 @@ void ByteBuffer::clear() {
 uint16_t ByteBuffer::get_uint16() {
   assert(this->get_remaining() >= 2);
   uint16_t value;
-  if (endianness_ == Little) {
+  if (endianness_ == LITTLE) {
     value = this->data_[this->position_++];
     value |= this->data_[this->position_++] << 8;
   } else {
@@ -43,7 +43,7 @@ uint16_t ByteBuffer::get_uint16() {
 uint32_t ByteBuffer::get_uint32() {
   assert(this->get_remaining() >= 4);
   uint32_t value;
-  if (endianness_ == Little) {
+  if (endianness_ == LITTLE) {
     value = this->data_[this->position_++];
     value |= this->data_[this->position_++] << 8;
     value |= this->data_[this->position_++] << 16;
@@ -59,7 +59,7 @@ uint32_t ByteBuffer::get_uint32() {
 uint32_t ByteBuffer::get_uint24() {
   assert(this->get_remaining() >= 3);
   uint32_t value;
-  if (endianness_ == Little) {
+  if (endianness_ == LITTLE) {
     value = this->data_[this->position_++];
     value |= this->data_[this->position_++] << 8;
     value |= this->data_[this->position_++] << 16;
@@ -92,7 +92,7 @@ void ByteBuffer::put_uint8(uint8_t value) {
 
 void ByteBuffer::put_uint16(uint16_t value) {
   assert(this->get_remaining() >= 2);
-  if (this->endianness_ == Little) {
+  if (this->endianness_ == LITTLE) {
     this->data_[this->position_++] = (uint8_t) value;
     this->data_[this->position_++] = (uint8_t) (value >> 8);
   } else {
@@ -102,7 +102,7 @@ void ByteBuffer::put_uint16(uint16_t value) {
 }
 void ByteBuffer::put_uint24(uint32_t value) {
   assert(this->get_remaining() >= 3);
-  if (this->endianness_ == Little) {
+  if (this->endianness_ == LITTLE) {
     this->data_[this->position_++] = (uint8_t) value;
     this->data_[this->position_++] = (uint8_t) (value >> 8);
     this->data_[this->position_++] = (uint8_t) (value >> 16);
@@ -114,7 +114,7 @@ void ByteBuffer::put_uint24(uint32_t value) {
 }
 void ByteBuffer::put_uint32(uint32_t value) {
   assert(this->get_remaining() >= 4);
-  if (this->endianness_ == Little) {
+  if (this->endianness_ == LITTLE) {
     this->data_[this->position_++] = (uint8_t) value;
     this->data_[this->position_++] = (uint8_t) (value >> 8);
     this->data_[this->position_++] = (uint8_t) (value >> 16);

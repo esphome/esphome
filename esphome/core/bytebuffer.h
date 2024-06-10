@@ -7,7 +7,7 @@
 
 namespace esphome {
 
-enum Endian { Little = 0, Big = 1 };
+enum Endian { LITTLE, BIG };
 
 /**
  * A class modelled on the Java ByteBuffer class. It wraps a vector of bytes and permits putting and getting
@@ -71,8 +71,8 @@ class ByteBuffer {
   inline size_t get_remaining() const { return this->get_limit() - this->get_position(); }
   inline Endian get_endianness() const { return this->endianness_; }
   inline void mark() { this->mark_ = this->position_; }
-  inline void big_endian() { this->endianness_ = Big; }
-  inline void little_endian() { this->endianness_ = Little; }
+  inline void big_endian() { this->endianness_ = BIG; }
+  inline void little_endian() { this->endianness_ = LITTLE; }
   void set_limit(size_t limit);
   void set_position(size_t position);
   // set position to 0, limit to capacity.
@@ -87,7 +87,7 @@ class ByteBuffer {
  protected:
   ByteBuffer(std::vector<uint8_t> data) : data_(std::move(data)) { this->limit_ = this->get_capacity(); }
   std::vector<uint8_t> data_;
-  Endian endianness_{Little};
+  Endian endianness_{LITTLE};
   size_t position_{0};
   size_t mark_{0};
   size_t limit_{0};
