@@ -24,6 +24,12 @@ void HttpRequestUpdate::update() {
 
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   uint8_t *data = allocator.allocate(container->content_length);
+  if (data == nullptr) {
+    std::string msg = str_sprintf("Failed to allocate %d bytes for manifest", container->content_length);
+    this->status_set_error(msg.c_str());
+    container->end();
+    return;
+  }
 
   size_t read_index = 0;
   while (container->get_bytes_read() < container->content_length) {
@@ -35,7 +41,9 @@ void HttpRequestUpdate::update() {
     read_index += read_bytes;
   }
 
-  std::string response(reinterpret_cast<char *>(data), read_index);
+  std::string response;
+  response.resize(read_index);
+  response.assign((char *) data, read_index);
   container->end();
 
   bool valid = json::parse_json(response, [this](JsonObject root) -> bool {
@@ -77,6 +85,7 @@ void HttpRequestUpdate::update() {
     this->state_ = update::UPDATE_STATE_AVAILABLE;
   }
 
+  this->status_clear_error();
   this->publish_state();
 }
 
