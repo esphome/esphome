@@ -76,9 +76,8 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
 #elif defined(USE_LIBRETINY)
   const size_t free_heap = lt_heap_get_free();
 #endif
-  bool pass = false;
   size_t request_size = std::min(free_heap, (size_t) (data.size() * 1.5));
-  do {
+  while (true) {
     DynamicJsonDocument json_document(request_size);
     if (json_document.capacity() == 0) {
       ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, free heap: %u", request_size,
@@ -91,7 +90,6 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
     JsonObject root = json_document.as<JsonObject>();
 
     if (err == DeserializationError::Ok) {
-      pass = true;
       return f(root);
     } else if (err == DeserializationError::NoMemory) {
       if (request_size * 2 >= free_heap) {
@@ -105,7 +103,7 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
       ESP_LOGE(TAG, "JSON parse error: %s", err.c_str());
       return false;
     }
-  } while (!pass);
+  };
   return false;
 }
 
