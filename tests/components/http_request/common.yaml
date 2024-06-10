@@ -1,0 +1,75 @@
+substitutions:
+  verify_ssl: "true"
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+esphome:
+  on_boot:
+    then:
+      - http_request.get:
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          on_response:
+            then:
+              - logger.log:
+                  format: "Response status: %d, Duration: %u ms"
+                  args:
+                    - response->status_code
+                    - response->duration_ms
+      - http_request.post:
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          json:
+            key: value
+      - http_request.send:
+          method: PUT
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          body: "Some data"
+
+http_request:
+  useragent: esphome/tagreader
+  timeout: 10s
+  verify_ssl: ${verify_ssl}
+
+ota:
+  - platform: http_request
+    on_begin:
+      then:
+        - logger.log: "OTA start"
+    on_progress:
+      then:
+        - logger.log:
+            format: "OTA progress %0.1f%%"
+            args: ["x"]
+    on_end:
+      then:
+        - logger.log: "OTA end"
+    on_error:
+      then:
+        - logger.log:
+            format: "OTA update error %d"
+            args: ["x"]
+    on_state_change:
+      then:
+        lambda: 'ESP_LOGD("ota", "State %d", state);'
+
+button:
+  - platform: template
+    name: Firmware update
+    on_press:
+      then:
+        - ota.http_request.flash:
+            md5_url: http://my.ha.net:8123/local/esphome/firmware.md5
+            url: http://my.ha.net:8123/local/esphome/firmware.bin
+
+        - ota.http_request.flash:
+            md5: 0123456789abcdef0123456789abcdef
+            url: http://my.ha.net:8123/local/esphome/firmware.bin
+
+        - logger.log: "This message should be not displayed (reboot)"

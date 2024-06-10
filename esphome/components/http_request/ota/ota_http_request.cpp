@@ -1,16 +1,16 @@
 #include "ota_http_request.h"
-#include "watchdog.h"
+#include "../watchdog.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/md5/md5.h"
+#include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_arduino_esp32.h"
 #include "esphome/components/ota/ota_backend_arduino_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
-#include "esphome/components/ota/ota_backend.h"
 
 namespace esphome {
 namespace http_request {
@@ -21,25 +21,7 @@ void OtaHttpRequestComponent::setup() {
 #endif
 }
 
-void OtaHttpRequestComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request:");
-  ESP_LOGCONFIG(TAG, "  Timeout: %llus", this->timeout_ / 1000);
-#ifdef USE_ESP8266
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
-  ESP_LOGCONFIG(TAG, "  ESP8266 SSL support: No");
-#else
-  ESP_LOGCONFIG(TAG, "  ESP8266 SSL support: Yes");
-#endif
-#endif
-#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-  ESP_LOGCONFIG(TAG, "  TLS server verification: Yes");
-#else
-  ESP_LOGCONFIG(TAG, "  TLS server verification: No");
-#endif
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-  ESP_LOGCONFIG(TAG, "  Watchdog timeout: %ds", USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT / 1000);
-#endif
-};
+void OtaHttpRequestComponent::dump_config() { ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request"); };
 
 void OtaHttpRequestComponent::set_md5_url(const std::string &url) {
   if (!this->validate_url_(url)) {
@@ -56,20 +38,6 @@ void OtaHttpRequestComponent::set_url(const std::string &url) {
     return;
   }
   this->url_ = url;
-}
-
-bool OtaHttpRequestComponent::check_status() {
-  // status can be -1, or HTTP status code
-  if (this->status_ < 100) {
-    ESP_LOGE(TAG, "HTTP server did not respond (error %d)", this->status_);
-    return false;
-  }
-  if (this->status_ >= 310) {
-    ESP_LOGE(TAG, "HTTP error %d", this->status_);
-    return false;
-  }
-  ESP_LOGV(TAG, "HTTP status %d", this->status_);
-  return true;
 }
 
 void OtaHttpRequestComponent::flash() {
@@ -104,17 +72,18 @@ void OtaHttpRequestComponent::flash() {
   }
 }
 
-void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend) {
+void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
+                                       const std::shared_ptr<HttpContainer> &container) {
   if (this->update_started_) {
     ESP_LOGV(TAG, "Aborting OTA backend");
     backend->abort();
   }
   ESP_LOGV(TAG, "Aborting HTTP connection");
-  this->http_end();
+  container->end();
 };
 
 uint8_t OtaHttpRequestComponent::do_ota_() {
-  uint8_t buf[this->http_recv_buffer_ + 1];
+  uint8_t buf[OtaHttpRequestComponent::HTTP_RECV_BUFFER + 1];
   uint32_t last_progress = 0;
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
@@ -132,9 +101,10 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   }
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
   ESP_LOGI(TAG, "Connecting to: %s", this->url_.c_str());
-  this->http_init(url_with_auth);
-  if (!this->check_status()) {
-    this->http_end();
+
+  auto container = this->parent_->get(url_with_auth);
+
+  if (container == nullptr) {
     return OTA_CONNECTION_ERROR;
   }
 
@@ -144,18 +114,18 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   ESP_LOGV(TAG, "OTA backend begin");
   auto backend = ota::make_ota_backend();
-  auto error_code = backend->begin(this->body_length_);
+  auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "backend->begin error: %d", error_code);
-    this->cleanup_(std::move(backend));
+    this->cleanup_(std::move(backend), container);
     return error_code;
   }
 
-  this->bytes_read_ = 0;
-  while (this->bytes_read_ < this->body_length_) {
+  while (container->get_bytes_read() < container->content_length) {
     // read a maximum of chunk_size bytes into buf. (real read size returned)
-    int bufsize = this->http_read(buf, this->http_recv_buffer_);
-    ESP_LOGVV(TAG, "bytes_read_ = %u, body_length_ = %u, bufsize = %i", this->bytes_read_, this->body_length_, bufsize);
+    int bufsize = container->read(buf, OtaHttpRequestComponent::HTTP_RECV_BUFFER);
+    ESP_LOGVV(TAG, "bytes_read_ = %u, body_length_ = %u, bufsize = %i", container->get_bytes_read(),
+              container->content_length, bufsize);
 
     // feed watchdog and give other tasks a chance to run
     App.feed_wdt();
@@ -163,9 +133,9 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
     if (bufsize < 0) {
       ESP_LOGE(TAG, "Stream closed");
-      this->cleanup_(std::move(backend));
+      this->cleanup_(std::move(backend), container);
       return OTA_CONNECTION_ERROR;
-    } else if (bufsize > 0 && bufsize <= this->http_recv_buffer_) {
+    } else if (bufsize > 0 && bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
       // add read bytes to MD5
       md5_receive.add(buf, bufsize);
 
@@ -176,16 +146,16 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
         // error code explanation available at
         // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
         ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
-                 this->bytes_read_ - bufsize, this->body_length_);
-        this->cleanup_(std::move(backend));
+                 container->get_bytes_read() - bufsize, container->content_length);
+        this->cleanup_(std::move(backend), container);
         return error_code;
       }
     }
 
     uint32_t now = millis();
-    if ((now - last_progress > 1000) or (this->bytes_read_ == this->body_length_)) {
+    if ((now - last_progress > 1000) or (container->get_bytes_read() == container->content_length)) {
       last_progress = now;
-      float percentage = this->bytes_read_ * 100.0f / this->body_length_;
+      float percentage = container->get_bytes_read() * 100.0f / container->content_length;
       ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
 #ifdef USE_OTA_STATE_CALLBACK
       this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage, 0);
@@ -201,13 +171,13 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   this->md5_computed_ = md5_receive_str.get();
   if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
-    this->cleanup_(std::move(backend));
+    this->cleanup_(std::move(backend), container);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
     backend->set_update_md5(md5_receive_str.get());
   }
 
-  this->http_end();
+  container->end();
 
   // feed watchdog and give other tasks a chance to run
   App.feed_wdt();
@@ -217,7 +187,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   error_code = backend->end();
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "Error ending update! error_code: %d", error_code);
-    this->cleanup_(std::move(backend));
+    this->cleanup_(std::move(backend), container);
     return error_code;
   }
 
@@ -256,28 +226,32 @@ bool OtaHttpRequestComponent::http_get_md5_() {
 
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
   ESP_LOGI(TAG, "Connecting to: %s", this->md5_url_.c_str());
-  this->http_init(url_with_auth);
-  if (!this->check_status()) {
-    this->http_end();
+  auto container = this->parent_->get(url_with_auth);
+  if (container == nullptr) {
+    ESP_LOGE(TAG, "Failed to connect to MD5 URL");
     return false;
   }
-  int length = this->body_length_;
-  if (length < 0) {
-    this->http_end();
+  size_t length = container->content_length;
+  if (length == 0) {
+    container->end();
     return false;
   }
   if (length < MD5_SIZE) {
-    ESP_LOGE(TAG, "MD5 file must be %u bytes; %u bytes reported by HTTP server. Aborting", MD5_SIZE,
-             this->body_length_);
-    this->http_end();
+    ESP_LOGE(TAG, "MD5 file must be %u bytes; %u bytes reported by HTTP server. Aborting", MD5_SIZE, length);
+    container->end();
     return false;
   }
 
-  this->bytes_read_ = 0;
   this->md5_expected_.resize(MD5_SIZE);
-  auto read_len = this->http_read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
-  this->http_end();
+  int read_len = 0;
+  while (container->get_bytes_read() < MD5_SIZE) {
+    read_len = container->read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
+    App.feed_wdt();
+    yield();
+  }
+  container->end();
 
+  ESP_LOGV(TAG, "Read len: %u, MD5 expected: %u", read_len, MD5_SIZE);
   return read_len == MD5_SIZE;
 }
 

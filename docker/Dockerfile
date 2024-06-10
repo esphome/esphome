@@ -101,7 +101,7 @@ RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "a
     && /platformio_install_deps.py /platformio.ini --libraries
 
 # Avoid unsafe git error when container user and file config volume permissions don't match
-RUN git config --system --add safe.directory '/config/*'
+RUN git config --system --add safe.directory '*'
 
 
 # ======================= docker-type image =======================
