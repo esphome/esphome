@@ -4,8 +4,10 @@ from esphome import automation
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ACTUAL_GAIN,
+    CONF_ACTUAL_INTEGRATION_TIME,
     CONF_AMBIENT_LIGHT,
     CONF_AUTO_MODE,
+    CONF_FULL_SPECTRUM_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ID,
@@ -27,8 +29,6 @@ from esphome.const import (
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 
-CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
-CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
 CONF_INFRARED_COUNTS = "infrared_counts"
 CONF_ON_PS_HIGH_THRESHOLD = "on_ps_high_threshold"
 CONF_ON_PS_LOW_THRESHOLD = "on_ps_low_threshold"
