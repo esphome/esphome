@@ -2,7 +2,8 @@
 
 #include <utility>
 #include <vector>
-#include <cstdint>
+#include <cinttypes>
+#include <cstddef>
 
 namespace esphome {
 
