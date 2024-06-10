@@ -53,6 +53,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   bool initialized_{false};
   std::vector<rmt_item32_t> rmt_temp_;
   esp_err_t error_code_{ESP_OK};
+  std::string error_string_{""};
   bool inverted_{false};
 #endif
   uint8_t carrier_duty_percent_;

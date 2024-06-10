@@ -47,6 +47,12 @@ ILI9XXXDisplay = ili9xxx_ns.class_(
     display.DisplayBuffer,
 )
 
+PixelMode = ili9xxx_ns.enum("PixelMode")
+PIXEL_MODES = {
+    "16bit": PixelMode.PIXEL_MODE_16,
+    "18bit": PixelMode.PIXEL_MODE_18,
+}
+
 ILI9XXXColorMode = ili9xxx_ns.enum("ILI9XXXColorMode")
 ColorOrder = display.display_ns.enum("ColorMode")
 
@@ -68,6 +74,7 @@ MODELS = {
     "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
     "S3BOX_LITE": ili9xxx_ns.class_("ILI9XXXS3BoxLite", ILI9XXXDisplay),
     "WAVESHARE_RES_3_5": ili9xxx_ns.class_("WAVESHARERES35", ILI9XXXDisplay),
+    "CUSTOM": ILI9XXXDisplay,
 }
 
 COLOR_ORDERS = {
@@ -80,14 +87,37 @@ COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
+CONF_PIXEL_MODE = "pixel_mode"
+CONF_INIT_SEQUENCE = "init_sequence"
+
+
+def cmd(c, *args):
+    """
+    Create a command sequence
+    :param c: The command (8 bit)
+    :param args: zero or more arguments (8 bit values)
+    :return: a list with the command, the argument count and the arguments
+    """
+    return [c, len(args)] + list(args)
+
+
+def map_sequence(value):
+    """
+    An initialisation sequence is a literal array of data bytes.
+    The format is a repeated sequence of [CMD, <data>]
+    """
+    if len(value) == 0:
+        raise cv.Invalid("Empty sequence")
+    return cmd(*value)
 
 
 def _validate(config):
-    if config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE" and not config.get(
-        CONF_COLOR_PALETTE_IMAGES
+    if (
+        config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE"
+        and CONF_COLOR_PALETTE_IMAGES not in config
     ):
         raise cv.Invalid(
-            "Color palette in IMAGE_ADAPTIVE mode requires at least one 'color_palette_images' entry to generate palette"
+            "IMAGE_ADAPTIVE palette requires at least one 'color_palette_images' entry"
         )
     if (
         config.get(CONF_COLOR_PALETTE_IMAGES)
@@ -96,7 +126,8 @@ def _validate(config):
         raise cv.Invalid(
             "Providing color palette images requires palette mode to be 'IMAGE_ADAPTIVE'"
         )
-    if CORE.is_esp8266 and config.get(CONF_MODEL) not in [
+    model = config[CONF_MODEL]
+    if CORE.is_esp8266 and model not in [
         "M5STACK",
         "TFT_2.4",
         "TFT_2.4R",
@@ -104,9 +135,12 @@ def _validate(config):
         "ILI9342",
         "ST7789V",
     ]:
-        raise cv.Invalid(
-            "Provided model can't run on ESP8266. Use an ESP32 with PSRAM onboard"
-        )
+        raise cv.Invalid("Selected model can't run on ESP8266.")
+
+    if model == "CUSTOM":
+        if CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config:
+            raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
+
     return config
 
 
@@ -116,6 +150,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
             cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
+            cv.Optional(CONF_PIXEL_MODE): cv.enum(PIXEL_MODES),
             cv.Optional(CONF_DIMENSIONS): cv.Any(
                 cv.dimensions,
                 cv.Schema(
@@ -150,6 +185,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
                 }
             ),
+            cv.Optional(CONF_INIT_SEQUENCE): cv.ensure_list(map_sequence),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -167,6 +203,14 @@ async def to_code(config):
     await spi.register_spi_device(var, config)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
+    if init_sequences := config.get(CONF_INIT_SEQUENCE):
+        sequence = []
+        for seq in init_sequences:
+            sequence.extend(seq)
+        cg.add(var.add_init_sequence(sequence))
+
+    if pixel_mode := config.get(CONF_PIXEL_MODE):
+        cg.add(var.set_pixel_mode(pixel_mode))
     if CONF_COLOR_ORDER in config:
         cg.add(var.set_color_order(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     if CONF_TRANSFORM in config:

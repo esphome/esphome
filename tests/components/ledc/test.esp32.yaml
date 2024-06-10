@@ -1,11 +1,1 @@
-esphome:
-  on_boot:
-    then:
-      - output.ledc.set_frequency:
-          id: test_ledc
-          frequency: 100Hz
-
-output:
-  - platform: ledc
-    id: test_ledc
-    pin: 4
+<<: !include common.yaml
