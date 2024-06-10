@@ -1,7 +1,5 @@
 #include "watchdog.h"
 
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
-
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
@@ -20,14 +18,22 @@ namespace esphome {
 namespace http_request {
 namespace watchdog {
 
-static const char *const TAG = "watchdog.http_request.ota";
+static const char *const TAG = "http_request.watchdog";
 
-WatchdogManager::WatchdogManager() {
+WatchdogManager::WatchdogManager(uint32_t timeout_ms) : timeout_ms_(timeout_ms) {
+  if (timeout_ms == 0) {
+    return;
+  }
   this->saved_timeout_ms_ = this->get_timeout_();
-  this->set_timeout_(USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT);
+  this->set_timeout_(timeout_ms);
 }
 
-WatchdogManager::~WatchdogManager() { this->set_timeout_(this->saved_timeout_ms_); }
+WatchdogManager::~WatchdogManager() {
+  if (this->timeout_ms_ == 0) {
+    return;
+  }
+  this->set_timeout_(this->saved_timeout_ms_);
+}
 
 void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
   ESP_LOGV(TAG, "Adjusting WDT to %" PRIu32 "ms", timeout_ms);
@@ -68,4 +74,3 @@ uint32_t WatchdogManager::get_timeout_() {
 }  // namespace watchdog
 }  // namespace http_request
 }  // namespace esphome
-#endif
