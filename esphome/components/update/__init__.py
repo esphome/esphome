@@ -1,9 +1,11 @@
 from esphome import automation
+from esphome.components import web_server
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ID,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_FIRMWARE,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -27,8 +29,7 @@ DEVICE_CLASSES = [
 CONF_ON_UPDATE_AVAILABLE = "on_update_available"
 
 UPDATE_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA
-    # .extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     # .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
@@ -59,9 +60,9 @@ async def setup_update_core_(var, config):
     #     mqtt_ = cg.new_Pvariable(mqtt_id_config, var)
     #     await mqtt.register_mqtt_component(mqtt_, config)
 
-    # if web_server_id_config := config.get(CONF_WEB_SERVER_ID):
-    #     web_server_ = cg.get_variable(web_server_id_config)
-    #     web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_id_config := config.get(CONF_WEB_SERVER_ID):
+        web_server_ = cg.get_variable(web_server_id_config)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_update(var, config):
