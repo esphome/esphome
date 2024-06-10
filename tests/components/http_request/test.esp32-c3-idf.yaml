@@ -1,4 +1,4 @@
 substitutions:
-  verify_ssl: "false"
+  verify_ssl: "true"
 
 <<: !include common.yaml
