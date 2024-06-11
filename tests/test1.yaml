@@ -344,12 +344,6 @@ as5600:
   slow_filter: 8x
   fast_filter: lsb6
 
-one_wire:
-  - platform: gpio
-    pin:
-      allow_other_uses: true
-      number: GPIO23
-
 as3935_spi:
   cs_pin:
     ignore_strapping_warning: true
