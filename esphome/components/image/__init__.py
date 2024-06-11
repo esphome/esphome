@@ -68,7 +68,7 @@ def _compute_local_icon_path(value: dict) -> Path:
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
-def _compute_local_image_path(value: dict) -> Path:
+def compute_local_image_path(value: dict) -> Path:
     url = value[CONF_URL]
     h = hashlib.new("sha256")
     h.update(url.encode())
@@ -117,7 +117,7 @@ def download_mdi(value):
 
 def download_image(value):
     url = value[CONF_URL]
-    path = _compute_local_image_path(value)
+    path = compute_local_image_path(value)
 
     download_content(url, path)
 
@@ -295,7 +295,7 @@ async def to_code(config):
         path = _compute_local_icon_path(conf_file).as_posix()
 
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
-        path = _compute_local_image_path(conf_file).as_posix()
+        path = compute_local_image_path(conf_file).as_posix()
 
     try:
         with open(path, "rb") as f:
