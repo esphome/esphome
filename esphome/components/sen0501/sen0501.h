@@ -1,0 +1,52 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/i2c/i2c.h"
+
+// ref:
+// https://github.com/DFRobot/DFRobot_EnvironmentalSensor
+
+namespace esphome {
+namespace sen0501 {
+
+class sen0501Component : public PollingComponent, public i2c::I2CDevice {
+ public:
+  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
+  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
+  void set_uv_intensity(sensor::Sensor *uv_intensity) { uv_intensity_ = uv_intensity; }
+  void set_luminous_intensity(sensor::Sensor *luminous_intensity) { luminous_intensity_ = luminous_intensity; }
+  void set_atmospheric_pressure(sensor::Sensor *atmospheric_pressure) { atmospheric_pressure_ = atmospheric_pressure; }
+  void set_elevation(sensor::Sensor *elevation) { elevation_ = elevation; }
+
+  void setup() override;
+  void dump_config() override;
+  float get_setup_priority() const override;
+  void update() override;
+
+ protected:
+  float mapfloat(float x, float in_min, float in_max, float out_min, float out_max);
+
+  void read_temperature_();
+  void read_humidity_();
+  void read_uv_intensity_();
+  void read_luminous_intensity_();
+  void read_atmospheric_pressure_();
+
+  sensor::Sensor *temperature_{nullptr};
+  sensor::Sensor *humidity_{nullptr};
+  sensor::Sensor *uv_intensity_{nullptr};
+  sensor::Sensor *luminous_intensity_{nullptr};
+  sensor::Sensor *atmospheric_pressure_{nullptr};
+  sensor::Sensor *elevation_{nullptr};
+
+  enum ErrorCode {
+    NONE = 0,
+    COMMUNICATION_FAILED,
+    WRONG_DEVICE_ID,
+    WRONG_VENDOR_ID,
+  } error_code_{NONE};
+};
+
+}  // namespace sen0501
+}  // namespace esphome
