@@ -30,7 +30,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
-CODEOWNERS = ["@thetestspecimen"]
 DEPENDENCIES = ["i2c"]
 
 sen0501_ns = cg.esphome_ns.namespace("sen0501")
