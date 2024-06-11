@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_INC_PIN,
     CONF_UD_PIN,
     CONF_INITIAL_VALUE,
+    CONF_OPERATION_SPEED,
 )
 
 CODEOWNERS = ["@EtienneMD"]
@@ -26,6 +27,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INITIAL_VALUE, default=1.0): cv.float_range(
                 min=0.01, max=1.0
             ),
+            cv.Optional(CONF_OPERATION_SPEED, default=1): cv.int_range(min=1, max=100),
         }
     )
 )
@@ -44,3 +46,4 @@ async def to_code(config):
     cg.add(var.set_ud_pin(ud_pin))
 
     cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
+    cg.add(var.set_operation_speed(config[CONF_OPERATION_SPEED]))

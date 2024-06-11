@@ -22,9 +22,9 @@ void X9cOutput::trim_value(int change_amount) {
 
   for (int i = 0; i < abs(change_amount); i++) {  // Move wiper
     this->inc_pin_->digital_write(true);
-    delayMicroseconds(1);
+    delayMicroseconds(this->operation_speed_);
     this->inc_pin_->digital_write(false);
-    delayMicroseconds(1);
+    delayMicroseconds(this->operation_speed_);
   }
 
   delayMicroseconds(100);  // Let value settle
@@ -69,6 +69,7 @@ void X9cOutput::dump_config() {
   LOG_PIN("  Increment Pin: ", this->inc_pin_);
   LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
   ESP_LOGCONFIG(TAG, "  Initial Value: %f", this->initial_value_);
+  ESP_LOGCONFIG(TAG, "  Operation Speed: %d", this->operation_speed_);
   LOG_FLOAT_OUTPUT(this);
 }
 
