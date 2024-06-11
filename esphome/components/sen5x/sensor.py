@@ -82,6 +82,7 @@ GAS_SENSOR = cv.Schema(
                 ): cv.int_range(0, 3000),
                 cv.Optional(CONF_STD_INITIAL, default=50): cv.int_,
                 cv.Optional(CONF_GAIN_FACTOR, default=230): cv.int_range(1, 1000),
+                cv.Optional(CONF_INDEX_OFFSET_NOX, default=1): cv.int_range(1, 250),
             }
         )
     }
@@ -219,7 +220,7 @@ async def to_code(config):
         cfg = config[CONF_NOX][CONF_ALGORITHM_TUNING]
         cg.add(
             var.set_nox_algorithm_tuning(
-                cfg[CONF_INDEX_OFFSET],
+                cfg[CONF_INDEX_OFFSET_NOX],
                 cfg[CONF_LEARNING_TIME_OFFSET_HOURS],
                 cfg[CONF_LEARNING_TIME_GAIN_HOURS],
                 cfg[CONF_GATING_MAX_DURATION_MINUTES],
