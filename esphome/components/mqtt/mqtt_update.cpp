@@ -52,6 +52,8 @@ void MQTTUpdateComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
+const EntityBase *MQTTUpdateComponent::get_entity() const { return this->update_; }
+
 }  // namespace mqtt
 }  // namespace esphome
 
