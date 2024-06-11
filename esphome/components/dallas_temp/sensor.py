@@ -40,5 +40,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     await one_wire.register_one_wire_device(var, config)
 
-    if CONF_RESOLUTION in config:
-        cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+    cg.add(var.set_resolution(config[CONF_RESOLUTION]))

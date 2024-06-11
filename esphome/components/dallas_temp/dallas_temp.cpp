@@ -57,7 +57,7 @@ void DallasTemperatureSensor::update() {
 }
 
 void IRAM_ATTR DallasTemperatureSensor::read_scratch_pad_int_() {
-  for (unsigned char &i : this->scratch_pad_) {
+  for (uint8_t &i : this->scratch_pad_) {
     i = this->bus_->read8();
   }
 }
