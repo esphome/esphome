@@ -1,10 +1,11 @@
 from esphome import automation
-from esphome.components import web_server
+from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
     DEVICE_CLASS_FIRMWARE,
 )
@@ -30,10 +31,10 @@ CONF_ON_UPDATE_AVAILABLE = "on_update_available"
 
 UPDATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
-    # .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            # cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTUpdateComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTUpdateComponent),
             cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_ON_UPDATE_AVAILABLE): automation.validate_automation(
                 single=True
@@ -56,9 +57,9 @@ async def setup_update_core_(var, config):
             on_update_available,
         )
 
-    # if mqtt_id_config := config.get(CONF_MQTT_ID):
-    #     mqtt_ = cg.new_Pvariable(mqtt_id_config, var)
-    #     await mqtt.register_mqtt_component(mqtt_, config)
+    if mqtt_id_config := config.get(CONF_MQTT_ID):
+        mqtt_ = cg.new_Pvariable(mqtt_id_config, var)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
     if web_server_id_config := config.get(CONF_WEB_SERVER_ID):
         web_server_ = cg.get_variable(web_server_id_config)
