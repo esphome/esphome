@@ -56,32 +56,64 @@ void HttpRequestUpdate::update() {
     read_index += read_bytes;
   }
 
-  std::string response;
-  response.resize(read_index);
-  response.assign((char *) data, read_index);
+  std::string response((char *) data, read_index);
+  allocator.deallocate(data, container->content_length);
+
   container->end();
 
   bool valid = json::parse_json(response, [this](JsonObject root) -> bool {
-    if (!root.containsKey("firmware_url") || !root.containsKey("md5") || !root.containsKey("version")) {
+    if (!root.containsKey("name") || !root.containsKey("version") || !root.containsKey("builds")) {
+      ESP_LOGE(TAG, "Manifest does not contain required fields");
       return false;
     }
-    this->update_info_.firmware_url = root["firmware_url"].as<std::string>();
-    this->update_info_.md5 = root["md5"].as<std::string>();
+    this->update_info_.title = root["name"].as<std::string>();
     this->update_info_.latest_version = root["version"].as<std::string>();
 
-    if (root.containsKey("title"))
-      this->update_info_.title = root["title"].as<std::string>();
-    if (root.containsKey("summary"))
-      this->update_info_.summary = root["summary"].as<std::string>();
-    if (root.containsKey("release_url"))
-      this->update_info_.release_url = root["release_url"].as<std::string>();
-    return true;
+    for (auto build : root["builds"].as<JsonArray>()) {
+      if (!build.containsKey("chipFamily")) {
+        ESP_LOGE(TAG, "Manifest does not contain required fields");
+        return false;
+      }
+      if (build["chipFamily"] == ESPHOME_VARIANT) {
+        if (!build.containsKey("ota")) {
+          ESP_LOGE(TAG, "Manifest does not contain required fields");
+          return false;
+        }
+        auto ota = build["ota"];
+        if (!ota.containsKey("path") || !ota.containsKey("md5")) {
+          ESP_LOGE(TAG, "Manifest does not contain required fields");
+          return false;
+        }
+        this->update_info_.firmware_url = ota["path"].as<std::string>();
+        this->update_info_.md5 = ota["md5"].as<std::string>();
+
+        if (ota.containsKey("summary"))
+          this->update_info_.summary = ota["summary"].as<std::string>();
+        if (ota.containsKey("release_url"))
+          this->update_info_.release_url = ota["release_url"].as<std::string>();
+
+        return true;
+      }
+    }
+    return false;
   });
 
   if (!valid) {
     std::string msg = str_sprintf("Failed to parse JSON from %s", this->source_url_.c_str());
     this->status_set_error(msg.c_str());
     return;
+  }
+
+  // Merge source_url_ and this->update_info_.firmware_url
+  if (this->update_info_.firmware_url.find("http") == std::string::npos) {
+    std::string path = this->update_info_.firmware_url;
+    if (path[0] == '/') {
+      std::string domain = this->source_url_.substr(0, this->source_url_.find('/', 8));
+      this->update_info_.firmware_url = domain + path;
+    } else {
+      std::string domain = this->source_url_.substr(0, this->source_url_.rfind('/') + 1);
+      this->update_info_.firmware_url = domain + path;
+    }
   }
 
   std::string current_version = this->current_version_;
