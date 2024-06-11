@@ -1,4 +1,4 @@
 substitutions:
   verify_ssl: "false"
 
-<<: !include common_ota.yaml
+<<: !include common.yaml

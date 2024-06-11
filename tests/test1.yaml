@@ -25,31 +25,6 @@ esphome:
     then:
       - lambda: >-
           ESP_LOGV("main", "ON LOOP!");
-      - http_request.get:
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          verify_ssl: false
-      - http_request.post:
-          url: https://esphome.io
-          verify_ssl: false
-          json:
-            key: !lambda |-
-              return id(${textname}_text).state;
-            greeting: Hello World
-      - http_request.send:
-          method: PUT
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          body: Some data
-          verify_ssl: false
-          on_response:
-            then:
-              - logger.log:
-                  format: "Response status: %d"
-                  args:
-                    - status_code
   build_path: build/test1
 
 packages:
@@ -83,10 +58,6 @@ network:
 
 mdns:
   disabled: false
-
-http_request:
-  useragent: esphome/device
-  timeout: 10s
 
 mqtt:
   broker: "192.168.178.84"

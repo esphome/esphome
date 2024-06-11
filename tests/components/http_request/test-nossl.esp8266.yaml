@@ -1,38 +1,4 @@
-<<: !include common_http_request.yaml
+<<: !include common.yaml
 
-wifi:
-  ssid: MySSID
-  password: password1
-
-ota:
-  - platform: http_request
-    esp8266_disable_ssl_support: true
-    on_begin:
-      then:
-        - logger.log: "OTA start"
-    on_progress:
-      then:
-        - logger.log:
-            format: "OTA progress %0.1f%%"
-            args: ["x"]
-    on_end:
-      then:
-        - logger.log: "OTA end"
-    on_error:
-      then:
-        - logger.log:
-            format: "OTA update error %d"
-            args: ["x"]
-    on_state_change:
-      then:
-        lambda: 'ESP_LOGD("ota", "State %d", state);'
-
-button:
-  - platform: template
-    name: Firmware update
-    on_press:
-      then:
-        - ota_http_request.flash:
-            md5_url: http://my.ha.net:8123/local/esphome/firmware.md5
-            url: http://my.ha.net:8123/local/esphome/firmware.bin
-        - logger.log: "This message should be not displayed (reboot)"
+http_request:
+  esp8266_disable_ssl_support: true
