@@ -13,6 +13,21 @@ static const char *const TAG = "http_request.update";
 
 static const size_t MAX_READ_SIZE = 256;
 
+void HttpRequestUpdate::setup() {
+  this->ota_parent_->add_on_state_callback([this](ota::OTAState state, float progress, uint8_t err) {
+    if (state == ota::OTAState::OTA_IN_PROGRESS) {
+      this->state_ = update::UPDATE_STATE_INSTALLING;
+      this->update_info_.has_progress = true;
+      this->update_info_.progress = progress;
+      this->publish_state();
+    } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
+      this->state_ = update::UPDATE_STATE_AVAILABLE;
+      this->status_set_error("Failed to install firmware");
+      this->publish_state();
+    }
+  });
+}
+
 void HttpRequestUpdate::update() {
   auto container = this->request_parent_->get(this->source_url_);
 
@@ -84,6 +99,9 @@ void HttpRequestUpdate::update() {
   } else if (this->update_info_.latest_version != this->current_version_) {
     this->state_ = update::UPDATE_STATE_AVAILABLE;
   }
+
+  this->update_info_.has_progress = false;
+  this->update_info_.progress = 0.0f;
 
   this->status_clear_error();
   this->publish_state();

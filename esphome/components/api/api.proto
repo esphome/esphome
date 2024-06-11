@@ -1864,11 +1864,13 @@ message UpdateStateResponse {
   fixed32 key = 1;
   bool missing_state = 2;
   bool in_progress = 3;
-  string current_version = 4;
-  string latest_version = 5;
-  string title = 6;
-  string release_summary = 7;
-  string release_url = 8;
+  bool has_progress = 4;
+  float progress = 5;
+  string current_version = 6;
+  string latest_version = 7;
+  string title = 8;
+  string release_summary = 9;
+  string release_url = 10;
 }
 message UpdateCommandRequest {
   option (id) = 118;

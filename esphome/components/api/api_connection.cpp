@@ -1297,6 +1297,10 @@ bool APIConnection::send_update_state(update::UpdateEntity *update) {
   resp.missing_state = !update->has_state();
   if (update->has_state()) {
     resp.in_progress = update->state == update::UpdateState::UPDATE_STATE_INSTALLING;
+    if (update->update_info.has_progress) {
+      resp.has_progress = true;
+      resp.progress = update->update_info.progress;
+    }
     resp.current_version = update->update_info.current_version;
     resp.latest_version = update->update_info.latest_version;
     resp.title = update->update_info.title;

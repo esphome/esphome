@@ -39,4 +39,6 @@ async def to_code(config):
 
     cg.add(var.set_source_url(config[CONF_SOURCE]))
 
+    cg.add_define("USE_OTA_STATE_CALLBACK")
+
     await cg.register_component(var, config)

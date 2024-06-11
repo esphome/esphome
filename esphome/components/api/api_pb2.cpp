@@ -8485,29 +8485,33 @@ bool UpdateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->in_progress = value.as_bool();
       return true;
     }
+    case 4: {
+      this->has_progress = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
 }
 bool UpdateStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4: {
+    case 6: {
       this->current_version = value.as_string();
       return true;
     }
-    case 5: {
+    case 7: {
       this->latest_version = value.as_string();
       return true;
     }
-    case 6: {
+    case 8: {
       this->title = value.as_string();
       return true;
     }
-    case 7: {
+    case 9: {
       this->release_summary = value.as_string();
       return true;
     }
-    case 8: {
+    case 10: {
       this->release_url = value.as_string();
       return true;
     }
@@ -8521,6 +8525,10 @@ bool UpdateStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
+    case 5: {
+      this->progress = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -8529,11 +8537,13 @@ void UpdateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->missing_state);
   buffer.encode_bool(3, this->in_progress);
-  buffer.encode_string(4, this->current_version);
-  buffer.encode_string(5, this->latest_version);
-  buffer.encode_string(6, this->title);
-  buffer.encode_string(7, this->release_summary);
-  buffer.encode_string(8, this->release_url);
+  buffer.encode_bool(4, this->has_progress);
+  buffer.encode_float(5, this->progress);
+  buffer.encode_string(6, this->current_version);
+  buffer.encode_string(7, this->latest_version);
+  buffer.encode_string(8, this->title);
+  buffer.encode_string(9, this->release_summary);
+  buffer.encode_string(10, this->release_url);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void UpdateStateResponse::dump_to(std::string &out) const {
@@ -8550,6 +8560,15 @@ void UpdateStateResponse::dump_to(std::string &out) const {
 
   out.append("  in_progress: ");
   out.append(YESNO(this->in_progress));
+  out.append("\n");
+
+  out.append("  has_progress: ");
+  out.append(YESNO(this->has_progress));
+  out.append("\n");
+
+  out.append("  progress: ");
+  sprintf(buffer, "%g", this->progress);
+  out.append(buffer);
   out.append("\n");
 
   out.append("  current_version: ");

@@ -2155,6 +2155,8 @@ class UpdateStateResponse : public ProtoMessage {
   uint32_t key{0};
   bool missing_state{false};
   bool in_progress{false};
+  bool has_progress{false};
+  float progress{0.0f};
   std::string current_version{};
   std::string latest_version{};
   std::string title{};

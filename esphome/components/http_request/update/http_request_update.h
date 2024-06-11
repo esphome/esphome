@@ -12,6 +12,7 @@ namespace http_request {
 
 class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
  public:
+  void setup() override;
   void update() override;
 
   void perform() override;
