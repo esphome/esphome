@@ -1,0 +1,21 @@
+i2c:
+  - id: i2c_sen0501
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: sen0501
+    address: 0x22
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
+    uv_irradiance:
+      name: "UV Irradiance"
+    illuminance:
+      name: "Ambient Light"
+    pressure:
+      name: "Atmospheric Pressure"
+    elevation:
+      name: "Elevation"
+    update_interval: 10s
