@@ -27,7 +27,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INITIAL_VALUE, default=1.0): cv.float_range(
                 min=0.01, max=1.0
             ),
-            cv.Optional(CONF_STEP_DELAY, default=1): cv.int_range(min=1, max=100),
+            cv.Optional(CONF_STEP_DELAY, default="1us"): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(
+                    min=cv.TimePeriod(microseconds=1),
+                    max=cv.TimePeriod(microseconds=100),
+                ),
+            ),
         }
     )
 )
