@@ -455,7 +455,7 @@ jobs:
         file: ${{ fromJson(needs.list-components.outputs.components) }}
     steps:
       - name: Install libsodium
-        run: sudo apt-get install libsodium-dev
+        run: sudo apt-get install libsodium-dev libsdl2-dev
 
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.6
