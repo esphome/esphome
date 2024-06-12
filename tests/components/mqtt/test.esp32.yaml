@@ -1,2 +1,6 @@
+substitutions:
+  verify_ssl: "false"
+
 packages:
   common: !include common.yaml
+  update: !include common-update.yaml

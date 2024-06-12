@@ -73,3 +73,9 @@ button:
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
         - logger.log: "This message should be not displayed (reboot)"
+
+update:
+  - platform: http_request
+    name: OTA Update
+    id: ota_update
+    source: http://my.ha.net:8123/local/esphome/manifest.json
