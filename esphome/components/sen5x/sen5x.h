@@ -60,6 +60,13 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { pm_4_0_sensor_ = pm_4_0; }
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { pm_10_0_sensor_ = pm_10_0; }
 
+  void set_pm_n_0_5_sensor(sensor::Sensor *pm_n_0_5) { pm_n_0_5_sensor_ = pm_n_0_5; }
+  void set_pm_n_1_0_sensor(sensor::Sensor *pm_n_1_0) { pm_n_1_0_sensor_ = pm_n_1_0; }
+  void set_pm_n_2_5_sensor(sensor::Sensor *pm_n_2_5) { pm_n_2_5_sensor_ = pm_n_2_5; }
+  void set_pm_n_4_0_sensor(sensor::Sensor *pm_n_4_0) { pm_n_4_0_sensor_ = pm_n_4_0; }
+  void set_pm_n_10_0_sensor(sensor::Sensor *pm_n_10_0) { pm_n_10_0_sensor_ = pm_n_10_0; }
+  void set_pm_tps_sensor(sensor::Sensor *pm_tps) { pm_tps_sensor_ = pm_tps; }
+
   void set_voc_sensor(sensor::Sensor *voc_sensor) { voc_sensor_ = voc_sensor; }
   void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
@@ -101,14 +108,29 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool start_fan_cleaning();
 
  protected:
+  // Returns a valid measurement for an unsigned int, NAN otherwise
+  float get_valid_measurement_(uint16_t measurement, float scaling);
+  // Returns a valid measurement for a signed int, NAN otherwise
+  float get_valid_measurement_signed_(uint16_t measurement, float scaling);
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+  void write_voc_baseline_();
+  void update_measured_values_();
+  void update_measured_pm_();
+  void trigger_update_measured_pm_();
   ERRORCODE error_code_;
   bool initialized_{false};
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};
+  // Firmware >0.7 only
+  sensor::Sensor *pm_n_0_5_sensor_{nullptr};
+  sensor::Sensor *pm_n_1_0_sensor_{nullptr};
+  sensor::Sensor *pm_n_2_5_sensor_{nullptr};
+  sensor::Sensor *pm_n_4_0_sensor_{nullptr};
+  sensor::Sensor *pm_n_10_0_sensor_{nullptr};
+  sensor::Sensor *pm_tps_sensor_{nullptr};
   // SEN54 and SEN55 only
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
@@ -118,7 +140,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   std::string product_name_;
   uint8_t serial_number_[4];
-  uint16_t firmware_version_;
+  uint8_t firmware_version_major_;
+  uint8_t firmware_version_minor_;
   Sen5xBaselines voc_baselines_storage_;
   bool store_baseline_;
   uint32_t seconds_since_last_store_;
@@ -128,6 +151,10 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
+  // Driver state variables
+  bool get_pm_number_concentration_and_tps_;
+  enum FsmStates { IDLE, VALUE_UPDATE_ONGOING, VALUE_UPDATE_DONE };
+  FsmStates fsm_;
 };
 
 }  // namespace sen5x

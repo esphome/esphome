@@ -26,7 +26,9 @@ from esphome.const import (
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_COUNTS_PER_CUBIC_CENTIMETER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MICROMETER,
     UNIT_PERCENT,
 )
 
@@ -40,6 +42,12 @@ SEN5XComponent = sen5x_ns.class_(
 )
 RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
+CONF_PM_N_0_5 = "pm_n_0_5"
+CONF_PM_N_1_0 = "pm_n_1_0"
+CONF_PM_N_2_5 = "pm_n_2_5"
+CONF_PM_N_4_0 = "pm_n_4_0"
+CONF_PM_N_10_0 = "pm_n_10_0"
+CONF_PM_TPS = "pm_tps"
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_ALGORITHM_TUNING = "algorithm_tuning"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
@@ -127,6 +135,42 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_PM_N_0_5): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_N_1_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_N_2_5): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_N_4_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_N_10_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_TPS): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROMETER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
             cv.Optional(CONF_VOC): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
@@ -177,6 +221,12 @@ SENSOR_MAP = {
     CONF_PM_2_5: "set_pm_2_5_sensor",
     CONF_PM_4_0: "set_pm_4_0_sensor",
     CONF_PM_10_0: "set_pm_10_0_sensor",
+    CONF_PM_N_0_5: "set_pm_n_0_5_sensor",
+    CONF_PM_N_1_0: "set_pm_n_1_0_sensor",
+    CONF_PM_N_2_5: "set_pm_n_2_5_sensor",
+    CONF_PM_N_4_0: "set_pm_n_4_0_sensor",
+    CONF_PM_N_10_0: "set_pm_n_10_0_sensor",
+    CONF_PM_TPS: "set_pm_tps_sensor",
     CONF_VOC: "set_voc_sensor",
     CONF_NOX: "set_nox_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",

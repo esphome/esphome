@@ -16,6 +16,7 @@ static const uint16_t SEN5X_CMD_GET_PRODUCT_NAME = 0xD014;
 static const uint16_t SEN5X_CMD_GET_SERIAL_NUMBER = 0xD033;
 static const uint16_t SEN5X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
 static const uint16_t SEN5X_CMD_READ_MEASUREMENT = 0x03C4;
+static const uint16_t SEN5X_CMD_READ_PM_MEASUREMENT = 0x0413;
 static const uint16_t SEN5X_CMD_RHT_ACCELERATION_MODE = 0x60F7;
 static const uint16_t SEN5X_CMD_START_CLEANING_FAN = 0x5607;
 static const uint16_t SEN5X_CMD_START_MEASUREMENTS = 0x0021;
@@ -27,6 +28,8 @@ static const uint16_t SEN5X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 
 void SEN5XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen5x...");
+
+  this->fsm_ = IDLE;
 
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
@@ -126,14 +129,16 @@ void SEN5XComponent::setup() {
         this->nox_sensor_ = nullptr;  // mark as not used
       }
 
-      if (!this->get_register(SEN5X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
+      uint16_t firmware_version;
+      if (!this->get_register(SEN5X_CMD_GET_FIRMWARE_VERSION, firmware_version, 20)) {
         ESP_LOGE(TAG, "Failed to read firmware version");
         this->error_code_ = FIRMWARE_FAILED;
         this->mark_failed();
         return;
       }
-      this->firmware_version_ >>= 8;
-      ESP_LOGD(TAG, "Firmware version %d", this->firmware_version_);
+      this->firmware_version_major_ = firmware_version >> 8;
+      this->firmware_version_minor_ = firmware_version & 0xFF;
+      ESP_LOGD(TAG, "Firmware version %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
         uint32_t combined_serial =
@@ -215,9 +220,28 @@ void SEN5XComponent::setup() {
         delay(20);
       }
 
+      if ((this->pm_n_0_5_sensor_ || this->pm_n_1_0_sensor_ || this->pm_n_2_5_sensor_ || this->pm_n_4_0_sensor_ ||
+           this->pm_n_10_0_sensor_ || this->pm_tps_sensor_)) {
+        if (this->firmware_version_major_ > 0 || this->firmware_version_minor_ > 7) {
+          this->get_pm_number_concentration_and_tps_ = true;
+        } else {
+          ESP_LOGE(TAG, "For number concentration and TPS, firmware >0.7 is required. You are using <%u.%u>",
+                   this->firmware_version_major_, this->firmware_version_minor_);
+          this->pm_n_0_5_sensor_ = nullptr;
+          this->pm_n_1_0_sensor_ = nullptr;
+          this->pm_n_2_5_sensor_ = nullptr;
+          this->pm_n_4_0_sensor_ = nullptr;
+          this->pm_n_10_0_sensor_ = nullptr;
+          this->pm_tps_sensor_ = nullptr;
+          this->get_pm_number_concentration_and_tps_ = false;
+        }
+      }
+
       // Finally start sensor measurements
       auto cmd = SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY;
-      if (this->pm_1_0_sensor_ || this->pm_2_5_sensor_ || this->pm_4_0_sensor_ || this->pm_10_0_sensor_) {
+      if (this->pm_1_0_sensor_ || this->pm_2_5_sensor_ || this->pm_4_0_sensor_ || this->pm_10_0_sensor_ ||
+          this->pm_n_0_5_sensor_ || this->pm_n_1_0_sensor_ || this->pm_n_2_5_sensor_ || this->pm_n_4_0_sensor_ ||
+          this->pm_n_10_0_sensor_ || this->pm_tps_sensor_) {
         // if any of the gas sensors are active we need a full measurement
         cmd = SEN5X_CMD_START_MEASUREMENTS;
       }
@@ -260,7 +284,7 @@ void SEN5XComponent::dump_config() {
     }
   }
   ESP_LOGCONFIG(TAG, "  Productname: %s", this->product_name_.c_str());
-  ESP_LOGCONFIG(TAG, "  Firmware version: %d", this->firmware_version_);
+  ESP_LOGCONFIG(TAG, "  Firmware version: %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
   ESP_LOGCONFIG(TAG, "  Serial number %02d.%02d.%02d", serial_number_[0], serial_number_[1], serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval %" PRId32 " seconds", auto_cleaning_interval_.value());
@@ -283,6 +307,12 @@ void SEN5XComponent::dump_config() {
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
+  LOG_SENSOR("  ", "PM_N  0.5", this->pm_n_0_5_sensor_);
+  LOG_SENSOR("  ", "PM_N  1.0", this->pm_n_1_0_sensor_);
+  LOG_SENSOR("  ", "PM_N  2.5", this->pm_n_2_5_sensor_);
+  LOG_SENSOR("  ", "PM_N  4.0", this->pm_n_4_0_sensor_);
+  LOG_SENSOR("  ", "PM_N 10.0", this->pm_n_10_0_sensor_);
+  LOG_SENSOR("  ", "PM_TPS", this->pm_tps_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "VOC", this->voc_sensor_);  // SEN54 and SEN55 only
@@ -297,38 +327,116 @@ void SEN5XComponent::update() {
   // Store baselines after defined interval or if the difference between current and stored baseline becomes too
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
-    if (this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE)) {
-      // run it a bit later to avoid adding a delay here
-      this->set_timeout(550, [this]() {
-        uint16_t states[4];
-        if (this->read_data(states, 4)) {
-          uint32_t state0 = states[0] << 16 | states[1];
-          uint32_t state1 = states[2] << 16 | states[3];
-          if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
-                  MAXIMUM_STORAGE_DIFF ||
-              (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
-                  MAXIMUM_STORAGE_DIFF) {
-            this->seconds_since_last_store_ = 0;
-            this->voc_baselines_storage_.state0 = state0;
-            this->voc_baselines_storage_.state1 = state1;
-
-            if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
-                       this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
-            } else {
-              ESP_LOGW(TAG, "Could not store VOC baselines");
-            }
-          }
-        }
-      });
-    }
+    this->write_voc_baseline_();
   }
 
+  this->update_measured_values_();
+
+  if (this->get_pm_number_concentration_and_tps_) {
+    this->set_timeout(10, [this]() { this->trigger_update_measured_pm_(); });
+  }
+}
+
+void SEN5XComponent::trigger_update_measured_pm_() {
+  ESP_LOGD(TAG, "fsm: %d", this->fsm_);
+  if (this->fsm_ != VALUE_UPDATE_DONE) {
+    this->set_timeout(20, [this]() { this->trigger_update_measured_pm_(); });
+  } else if (this->fsm_ == VALUE_UPDATE_DONE) {
+    this->update_measured_pm_();
+  }
+}
+
+float SEN5XComponent::get_valid_measurement_(uint16_t measurement, float scaling) {
+  if (measurement == 0xFFFF) {
+    return NAN;
+  }
+  return measurement / scaling;
+}
+
+float SEN5XComponent::get_valid_measurement_signed_(uint16_t measurement, float scaling) {
+  if (measurement == 0x7FFF) {
+    return NAN;
+  }
+  return (int16_t) measurement / scaling;
+}
+
+void SEN5XComponent::write_voc_baseline_() {
+  if (this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE)) {
+    // run it a bit later to avoid adding a delay here
+    this->set_timeout(550, [this]() {
+      uint16_t states[4];
+      if (this->read_data(states, 4)) {
+        uint32_t state0 = states[0] << 16 | states[1];
+        uint32_t state1 = states[2] << 16 | states[3];
+        if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
+                MAXIMUM_STORAGE_DIFF ||
+            (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
+                MAXIMUM_STORAGE_DIFF) {
+          this->seconds_since_last_store_ = 0;
+          this->voc_baselines_storage_.state0 = state0;
+          this->voc_baselines_storage_.state1 = state1;
+
+          if (this->pref_.save(&this->voc_baselines_storage_)) {
+            ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
+                     this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
+          } else {
+            ESP_LOGW(TAG, "Could not store VOC baselines");
+          }
+        }
+      }
+    });
+  }
+}
+
+void SEN5XComponent::update_measured_pm_() {
+  if (!this->write_command(SEN5X_CMD_READ_PM_MEASUREMENT)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "write error read measurement (%d)", this->last_error_);
+    return;
+  }
+
+  this->set_timeout(20, [this]() {
+    uint16_t measurements[10];
+
+    if (!this->read_data(measurements, 10)) {
+      this->status_set_warning();
+      ESP_LOGD(TAG, "read data error (%d)", this->last_error_);
+      return;
+    }
+
+    float pm_n_0_5 = this->get_valid_measurement_(measurements[4], 10.0f);
+    float pm_n_1_0 = this->get_valid_measurement_(measurements[5], 10.0f);
+    float pm_n_2_5 = this->get_valid_measurement_(measurements[6], 10.0f);
+    float pm_n_4_0 = this->get_valid_measurement_(measurements[7], 10.0f);
+    float pm_n_10_0 = this->get_valid_measurement_(measurements[8], 10.0f);
+    float pm_tps = this->get_valid_measurement_(measurements[9], 1000.0f);
+
+    if (this->pm_n_0_5_sensor_ != nullptr)
+      this->pm_n_0_5_sensor_->publish_state(pm_n_0_5);
+    if (this->pm_n_1_0_sensor_ != nullptr)
+      this->pm_n_1_0_sensor_->publish_state(pm_n_1_0);
+    if (this->pm_n_2_5_sensor_ != nullptr)
+      this->pm_n_2_5_sensor_->publish_state(pm_n_2_5);
+    if (this->pm_n_4_0_sensor_ != nullptr)
+      this->pm_n_4_0_sensor_->publish_state(pm_n_4_0);
+    if (this->pm_n_10_0_sensor_ != nullptr)
+      this->pm_n_10_0_sensor_->publish_state(pm_n_10_0);
+    if (this->pm_tps_sensor_ != nullptr)
+      this->pm_tps_sensor_->publish_state(pm_tps);
+
+    this->status_clear_warning();
+    this->fsm_ = IDLE;
+  });
+}
+
+void SEN5XComponent::update_measured_values_() {
+  this->fsm_ = VALUE_UPDATE_ONGOING;
   if (!this->write_command(SEN5X_CMD_READ_MEASUREMENT)) {
     this->status_set_warning();
     ESP_LOGD(TAG, "write error read measurement (%d)", this->last_error_);
     return;
   }
+
   this->set_timeout(20, [this]() {
     uint16_t measurements[8];
 
@@ -337,30 +445,16 @@ void SEN5XComponent::update() {
       ESP_LOGD(TAG, "read data error (%d)", this->last_error_);
       return;
     }
-    float pm_1_0 = measurements[0] / 10.0;
-    if (measurements[0] == 0xFFFF)
-      pm_1_0 = NAN;
-    float pm_2_5 = measurements[1] / 10.0;
-    if (measurements[1] == 0xFFFF)
-      pm_2_5 = NAN;
-    float pm_4_0 = measurements[2] / 10.0;
-    if (measurements[2] == 0xFFFF)
-      pm_4_0 = NAN;
-    float pm_10_0 = measurements[3] / 10.0;
-    if (measurements[3] == 0xFFFF)
-      pm_10_0 = NAN;
-    float humidity = measurements[4] / 100.0;
-    if (measurements[4] == 0xFFFF)
-      humidity = NAN;
-    float temperature = (int16_t) measurements[5] / 200.0;
-    if (measurements[5] == 0xFFFF)
-      temperature = NAN;
-    float voc = measurements[6] / 10.0;
-    if (measurements[6] == 0xFFFF)
-      voc = NAN;
-    float nox = measurements[7] / 10.0;
-    if (measurements[7] == 0xFFFF)
-      nox = NAN;
+
+    float pm_1_0 = this->get_valid_measurement_(measurements[0], 10.0f);
+    float pm_2_5 = this->get_valid_measurement_(measurements[1], 10.0f);
+    float pm_4_0 = this->get_valid_measurement_(measurements[2], 10.0f);
+    float pm_10_0 = this->get_valid_measurement_(measurements[3], 10.0f);
+
+    float humidity = this->get_valid_measurement_signed_(measurements[4], 100.0f);
+    float temperature = this->get_valid_measurement_signed_(measurements[5], 200.0f);
+    float voc = this->get_valid_measurement_signed_(measurements[6], 10.0f);
+    float nox = this->get_valid_measurement_signed_(measurements[7], 10.0f);
 
     if (this->pm_1_0_sensor_ != nullptr)
       this->pm_1_0_sensor_->publish_state(pm_1_0);
@@ -378,7 +472,9 @@ void SEN5XComponent::update() {
       this->voc_sensor_->publish_state(voc);
     if (this->nox_sensor_ != nullptr)
       this->nox_sensor_->publish_state(nox);
+
     this->status_clear_warning();
+    this->fsm_ = VALUE_UPDATE_DONE;
   });
 }
 
