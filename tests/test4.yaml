@@ -668,6 +668,26 @@ display:
       number: GPIO1
       allow_other_uses: true
 
+  - platform: waveshare_epaper_1in9_i2c
+    command_address: 0x3C
+    data_address: 0x3D
+    busy_pin:
+      number: GPIO23
+      allow_other_uses: true
+    reset_pin:
+      number: GPIO23
+      allow_other_uses: true
+    update_interval: 5s
+    full_update_every: 30
+    lambda: |-
+      static float value1 = 218.3;
+      it.display_low_power_indicator(true);
+      it.display_bluetooth_indicator(true);
+      it.display_temperature_unit(true);
+      it.display_percent(true);
+      it.set_temperature(value1);
+      it.set_humidity(value1);
+
 number:
   - platform: tuya
     id: tuya_number
