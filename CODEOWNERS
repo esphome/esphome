@@ -94,6 +94,7 @@ esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
 esphome/components/daikin_arc/* @MagicBear
 esphome/components/daikin_brc/* @hagak
+esphome/components/dallas_temp/* @ssieb
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/datetime/* @jesserockz @rfdarter
@@ -144,6 +145,7 @@ esphome/components/gdk101/* @Szewcson
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
+esphome/components/gpio/one_wire/* @ssieb
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/graphical_display_menu/* @MrMDavidson
@@ -270,6 +272,7 @@ esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/number/* @esphome/core
+esphome/components/one_wire/* @ssieb
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pca6416a/* @Mat931
