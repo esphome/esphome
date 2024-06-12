@@ -7,31 +7,44 @@
 namespace esphome {
 namespace mpu6050 {
 
-class MPU6050Component : public PollingComponent, public i2c::I2CDevice {
+const uint8_t MPU6050_REGISTER_WHO_AM_I = 0x75;
+const uint8_t MPU6050_REGISTER_POWER_MANAGEMENT_1 = 0x6B;
+const uint8_t MPU6050_REGISTER_INT_ENABLE = 0x38;
+const uint8_t MPU6050_REGISTER_MOTION_THRESHOLD = 0x1F;
+const uint8_t MPU6050_REGISTER_MOTION_DURATION = 0x20;
+const uint8_t MPU6050_REGISTER_GYRO_CONFIG = 0x1B;
+const uint8_t MPU6050_REGISTER_ACCEL_CONFIG = 0x1C;
+const uint8_t MPU6050_REGISTER_ACCEL_XOUT_H = 0x3B;
+const uint8_t MPU6050_REGISTER_INT_PIN_CFG = 0x37;
+const uint8_t MPU6050_REGISTER_MOT_DETECT_CTRL = 0x69;
+const uint8_t MPU6050_BIT_RESET = 7;
+const uint8_t MPU6050_BIT_SLEEP_ENABLED = 6;
+const uint8_t MPU6050_BIT_TEMPERATURE_DISABLED = 3;
+const uint8_t MPU6050_BIT_MOTION_DET = 6;
+const uint8_t MPU6050_CLOCK_SOURCE_X_GYRO = 0b001;
+const uint8_t MPU6050_SCALE_2000_DPS = 0b11;
+const float MPU6050_SCALE_DPS_PER_DIGIT_2000 = 0.060975f;
+const uint8_t MPU6050_RANGE_2G = 0b00;
+const float MPU6050_RANGE_PER_DIGIT_2G = 0.000061f;
+
+const uint8_t MPU6050_BIT_MOT_EN = 6;
+
+class MPU6050Component : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
   void dump_config() override;
 
-  void update() override;
-
   float get_setup_priority() const override;
 
-  void set_accel_x_sensor(sensor::Sensor *accel_x_sensor) { accel_x_sensor_ = accel_x_sensor; }
-  void set_accel_y_sensor(sensor::Sensor *accel_y_sensor) { accel_y_sensor_ = accel_y_sensor; }
-  void set_accel_z_sensor(sensor::Sensor *accel_z_sensor) { accel_z_sensor_ = accel_z_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_gyro_x_sensor(sensor::Sensor *gyro_x_sensor) { gyro_x_sensor_ = gyro_x_sensor; }
-  void set_gyro_y_sensor(sensor::Sensor *gyro_y_sensor) { gyro_y_sensor_ = gyro_y_sensor; }
-  void set_gyro_z_sensor(sensor::Sensor *gyro_z_sensor) { gyro_z_sensor_ = gyro_z_sensor; }
+#ifdef USE_MPU6050_INTERRUPT
+  void set_interrupt(uint8_t threshold, uint8_t duration);
+#endif  // USE_MPU6050_INTERRUPT
 
  protected:
-  sensor::Sensor *accel_x_sensor_{nullptr};
-  sensor::Sensor *accel_y_sensor_{nullptr};
-  sensor::Sensor *accel_z_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *gyro_x_sensor_{nullptr};
-  sensor::Sensor *gyro_y_sensor_{nullptr};
-  sensor::Sensor *gyro_z_sensor_{nullptr};
+#ifdef USE_MPU6050_INTERRUPT
+  uint8_t threshold_;
+  uint8_t duration_;
+#endif  // USE_MPU6050_INTERRUPT
 };
 ;
 
