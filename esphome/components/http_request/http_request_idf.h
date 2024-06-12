@@ -26,6 +26,11 @@ class HttpRequestIDF : public HttpRequestComponent {
  public:
   std::shared_ptr<HttpContainer> start(std::string url, std::string method, std::string body,
                                        std::list<Header> headers) override;
+
+  void set_certificate_pem(const char *cert_pem) { this->cert_pem_ = cert_pem; }
+
+ protected:
+  const char *cert_pem_{nullptr};
 };
 
 }  // namespace http_request
