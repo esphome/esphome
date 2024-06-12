@@ -10,7 +10,7 @@
 namespace esphome {
 namespace sen0501 {
 
-class sen0501Component : public PollingComponent, public i2c::I2CDevice {
+class Sen0501Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
@@ -25,7 +25,7 @@ class sen0501Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  float mapfloat(float x, float in_min, float in_max, float out_min, float out_max);
+  float map_float_(float x, float in_min, float in_max, float out_min, float out_max);
 
   void read_temperature_();
   void read_humidity_();

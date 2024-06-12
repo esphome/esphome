@@ -29,7 +29,7 @@ static const uint16_t REG_ATMOSPHERIC_PRESSURE = 0x0018;
 
 // PUBLIC
 
-void sen0501Component::setup() {
+void Sen0501Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen0501...");
   uint8_t product_id_first_byte;
   if (!this->read_byte(REG_PID, &product_id_first_byte)) {
@@ -55,7 +55,7 @@ void sen0501Component::setup() {
   }
 }
 
-void sen0501Component::update() {
+void Sen0501Component::update() {
   this->read_temperature_();
   this->read_humidity_();
   this->read_uv_intensity_();
@@ -63,7 +63,7 @@ void sen0501Component::update() {
   this->read_atmospheric_pressure_();
 }
 
-void sen0501Component::dump_config() {
+void Sen0501Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DFRobot Environmental Sensor - sen0501:");
   LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
@@ -89,15 +89,15 @@ void sen0501Component::dump_config() {
   LOG_SENSOR("  ", "Elevation", this->elevation_);
 }
 
-float sen0501Component::get_setup_priority() const { return setup_priority::DATA; }
+float Sen0501Component::get_setup_priority() const { return setup_priority::DATA; }
 
 // PROTECTED
 
-float sen0501Component::mapfloat(float x, float in_min, float in_max, float out_min, float out_max) {
+float Sen0501Component::map_float_(float x, float in_min, float in_max, float out_min, float out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-void sen0501Component::read_temperature_() {
+void Sen0501Component::read_temperature_() {
   uint8_t buffer[2];
   uint16_t data;
   float temp;
@@ -107,7 +107,7 @@ void sen0501Component::read_temperature_() {
   this->temperature_->publish_state(temp);
 }
 
-void sen0501Component::read_humidity_() {
+void Sen0501Component::read_humidity_() {
   uint8_t buffer[2];
   uint16_t data;
   float humidity;
@@ -117,31 +117,32 @@ void sen0501Component::read_humidity_() {
   this->humidity_->publish_state(humidity);
 }
 
-void sen0501Component::read_uv_intensity_() {
+void Sen0501Component::read_uv_intensity_() {
   uint8_t buffer[2];
-  uint16_t uvLevel;
+  uint16_t uv_level;
   uint16_t version = 0;
-  float ultraviolet;
+  float ultra_violet;
   read_bytes(REG_VERSION, buffer, 2);
   version = buffer[0] << 8 | buffer[1];
   if (version == 0x1001) {
     read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
-    uvLevel = buffer[0] << 8 | buffer[1];
-    ultraviolet = (float) uvLevel / 1800.0;
+    uv_level = buffer[0] << 8 | buffer[1];
+    ultra_violet = (float) uv_level / 1800.0;
   } else {
     read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
-    uvLevel = buffer[0] << 8 | buffer[1];
-    float outputVoltage = 3.0 * uvLevel / 1024;
-    if (outputVoltage <= 0.99)
-      outputVoltage = 0.99;
-    else if (outputVoltage >= 2.99)
-      outputVoltage = 2.99;
-    ultraviolet = mapfloat(outputVoltage, 0.99, 2.9, 0.0, 15.0);
+    uv_level = buffer[0] << 8 | buffer[1];
+    float output_voltage = 3.0 * uv_level / 1024;
+    if (output_voltage <= 0.99) {
+      output_voltage = 0.99;
+    } else if (output_voltage >= 2.99) {
+      output_voltage = 2.99;
+    }
+    ultra_violet = map_float_(output_voltage, 0.99, 2.9, 0.0, 15.0);
   }
-  this->uv_intensity_->publish_state(ultraviolet);
+  this->uv_intensity_->publish_state(ultra_violet);
 }
 
-void sen0501Component::read_luminous_intensity_() {
+void Sen0501Component::read_luminous_intensity_() {
   uint8_t buffer[2];
   uint16_t data;
   read_bytes(REG_LUMINOUS_INTENSITY, buffer, 2);
@@ -151,7 +152,7 @@ void sen0501Component::read_luminous_intensity_() {
   this->luminous_intensity_->publish_state(luminous);
 }
 
-void sen0501Component::read_atmospheric_pressure_() {
+void Sen0501Component::read_atmospheric_pressure_() {
   uint8_t buffer[2];
   uint16_t atmosphere;
   read_bytes(REG_ATMOSPHERIC_PRESSURE, buffer, 2);
