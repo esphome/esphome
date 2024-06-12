@@ -20,7 +20,6 @@ from esphome.const import (
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_IRRADIANCE,
     DEVICE_CLASS_TEMPERATURE,
-    CONF_ELEVATION,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_ILLUMINANCE,
@@ -29,6 +28,8 @@ from esphome.const import (
     CONF_UV_IRRADIANCE,
     STATE_CLASS_MEASUREMENT,
 )
+
+CONF_ELEVATION = "elevation"
 
 DEPENDENCIES = ["i2c"]
 
