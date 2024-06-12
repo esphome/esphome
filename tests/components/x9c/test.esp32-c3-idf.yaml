@@ -5,3 +5,4 @@ output:
     inc_pin: 4
     ud_pin: 5
     initial_value: 0.5
+    step_delay: 50
