@@ -488,6 +488,15 @@ def command_run(args, config):
     if exit_code != 0:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        idedata = get_idedata(config)
+        if idedata is None:
+            return 1
+        program_path = idedata.raw["prog_path"]
+        return run_external_process(program_path)
+
     port = choose_upload_log_host(
         default=args.device,
         check_default=None,
