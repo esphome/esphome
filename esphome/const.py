@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.6.0-dev"
+__version__ = "2024.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1083,6 +1083,7 @@ DEVICE_CLASS_DURATION = "duration"
 DEVICE_CLASS_EMPTY = ""
 DEVICE_CLASS_ENERGY = "energy"
 DEVICE_CLASS_ENERGY_STORAGE = "energy_storage"
+DEVICE_CLASS_FIRMWARE = "firmware"
 DEVICE_CLASS_FREQUENCY = "frequency"
 DEVICE_CLASS_GARAGE = "garage"
 DEVICE_CLASS_GARAGE_DOOR = "garage_door"

@@ -102,6 +102,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_EVENT
   void on_event(event::Event *obj, const std::string &event_type) override;
 #endif
+#ifdef USE_UPDATE
+  void on_update(update::UpdateEntity *obj) override;
+#endif
 
   bool is_connected() const;
 
