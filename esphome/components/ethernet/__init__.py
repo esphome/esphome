@@ -11,6 +11,7 @@ from esphome.components.esp32.const import (
 from esphome.const import (
     CONF_DOMAIN,
     CONF_ID,
+    CONF_VALUE,
     CONF_MANUAL_IP,
     CONF_STATIC_IP,
     CONF_TYPE,
@@ -26,6 +27,8 @@ from esphome.const import (
     CONF_INTERRUPT_PIN,
     CONF_RESET_PIN,
     CONF_SPI,
+    CONF_PAGE_ID,
+    CONF_ADDRESS,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.components.network import IPAddress
@@ -36,11 +39,13 @@ DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
+PHYRegister = ethernet_ns.struct("PHYRegister")
 CONF_PHY_ADDR = "phy_addr"
 CONF_MDC_PIN = "mdc_pin"
 CONF_MDIO_PIN = "mdio_pin"
 CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
+CONF_PHY_REGISTERS = "phy_registers"
 
 CONF_CLOCK_SPEED = "clock_speed"
 
@@ -117,6 +122,13 @@ BASE_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+PHY_REGISTER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.hex_int,
+        cv.Required(CONF_VALUE): cv.hex_int,
+        cv.Optional(CONF_PAGE_ID): cv.hex_int,
+    }
+)
 RMII_SCHEMA = BASE_SCHEMA.extend(
     cv.Schema(
         {
@@ -127,6 +139,7 @@ RMII_SCHEMA = BASE_SCHEMA.extend(
             ),
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
         }
     )
 )
@@ -198,6 +211,15 @@ def manual_ip(config):
     )
 
 
+def phy_register(address: int, value: int, page: int):
+    return cg.StructInitializer(
+        PHYRegister,
+        ("address", address),
+        ("value", value),
+        ("page", page),
+    )
+
+
 @coroutine_with_priority(60.0)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -225,6 +247,13 @@ async def to_code(config):
         cg.add(var.set_clk_mode(*CLK_MODES[config[CONF_CLK_MODE]]))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        for register_value in config.get(CONF_PHY_REGISTERS, []):
+            reg = phy_register(
+                register_value.get(CONF_ADDRESS),
+                register_value.get(CONF_VALUE),
+                register_value.get(CONF_PAGE_ID),
+            )
+            cg.add(var.add_phy_register(reg))
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))

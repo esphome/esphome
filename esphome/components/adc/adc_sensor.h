@@ -33,16 +33,16 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
  public:
 #ifdef USE_ESP32
   /// Set the attenuation for this pin. Only available on the ESP32.
-  void set_attenuation(adc_atten_t attenuation) { attenuation_ = attenuation; }
+  void set_attenuation(adc_atten_t attenuation) { this->attenuation_ = attenuation; }
   void set_channel1(adc1_channel_t channel) {
-    channel1_ = channel;
-    channel2_ = ADC2_CHANNEL_MAX;
+    this->channel1_ = channel;
+    this->channel2_ = ADC2_CHANNEL_MAX;
   }
   void set_channel2(adc2_channel_t channel) {
-    channel2_ = channel;
-    channel1_ = ADC1_CHANNEL_MAX;
+    this->channel2_ = channel;
+    this->channel1_ = ADC1_CHANNEL_MAX;
   }
-  void set_autorange(bool autorange) { autorange_ = autorange; }
+  void set_autorange(bool autorange) { this->autorange_ = autorange; }
 #endif
 
   /// Update ADC values
@@ -53,7 +53,8 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   /// `HARDWARE_LATE` setup priority
   float get_setup_priority() const override;
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
-  void set_output_raw(bool output_raw) { output_raw_ = output_raw; }
+  void set_output_raw(bool output_raw) { this->output_raw_ = output_raw; }
+  void set_sample_count(uint8_t sample_count);
   float sample() override;
 
 #ifdef USE_ESP8266
@@ -61,12 +62,13 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #endif
 
 #ifdef USE_RP2040
-  void set_is_temperature() { is_temperature_ = true; }
+  void set_is_temperature() { this->is_temperature_ = true; }
 #endif
 
  protected:
   InternalGPIOPin *pin_;
   bool output_raw_{false};
+  uint8_t sample_count_{1};
 
 #ifdef USE_RP2040
   bool is_temperature_{false};

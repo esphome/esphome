@@ -57,7 +57,7 @@ void I2SAudioMicrophone::start_() {
       .use_apll = this->use_apll_,
       .tx_desc_auto_clear = false,
       .fixed_mclk = 0,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
+      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
 
