@@ -454,7 +454,7 @@ jobs:
       matrix:
         file: ${{ fromJson(needs.list-components.outputs.components) }}
     steps:
-      - name: Install libsodium
+      - name: Install dependencies
         run: sudo apt-get install libsodium-dev libsdl2-dev
 
       - name: Check out code from GitHub
@@ -508,8 +508,8 @@ jobs:
       - name: List components
         run: echo ${{ matrix.components }}
 
-      - name: Install libsodium
-        run: sudo apt-get install libsodium-dev
+      - name: Install dependencies
+        run: sudo apt-get install libsodium-dev libsdl2-dev
 
       - name: Check out code from GitHub
         uses: actions/checkout@v4.1.6
