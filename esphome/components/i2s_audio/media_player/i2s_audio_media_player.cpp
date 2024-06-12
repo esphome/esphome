@@ -56,6 +56,8 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         this->unmute_();
         break;
       }
+      default:
+        break;
     }
     if (this->i2s_state_ != I2S_STATE_RUNNING) {
       return;
@@ -81,6 +83,8 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         } else {
           this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
         }
+        break;
+      default:
         break;
     }
   }
