@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/esp32_ble/ble.h"
 
 #ifdef USE_ESP32
 
@@ -9,6 +10,8 @@
 
 namespace esphome {
 namespace esp32_ble_beacon {
+
+using namespace esp32_ble;
 
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
@@ -33,7 +36,10 @@ typedef struct {
   esp_ble_ibeacon_vendor_t ibeacon_vendor;
 } __attribute__((packed)) esp_ble_ibeacon_t;
 
-class ESP32BLEBeacon : public Component {
+class ESP32BLEBeacon : public Component,
+                       public GAPEventHandler,
+                       public Parented<ESP32BLE>
+{
  public:
   explicit ESP32BLEBeacon(const std::array<uint8_t, 16> &uuid) : uuid_(uuid) {}
 
@@ -47,12 +53,9 @@ class ESP32BLEBeacon : public Component {
   void set_max_interval(uint16_t val) { this->max_interval_ = val; }
   void set_measured_power(int8_t val) { this->measured_power_ = val; }
   void set_tx_power(int8_t val) { this->tx_power_ = val; }
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
  protected:
-  static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
-  static void ble_core_task(void *params);
-  static void ble_setup();
-
   std::array<uint8_t, 16> uuid_;
   uint16_t major_{};
   uint16_t minor_{};

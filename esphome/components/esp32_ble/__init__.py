@@ -7,7 +7,6 @@ from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito"]
-CONFLICTS_WITH = ["esp32_ble_beacon"]
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
