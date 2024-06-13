@@ -14,15 +14,15 @@
 namespace esphome {
 namespace rtttl {
 
-#ifdef USE_SPEAKER
-static const size_t SAMPLE_BUFFER_SIZE = 512;
-
 enum State : uint8_t {
   STATE_STOPPED = 0,
   STATE_INIT,
   STATE_STARTING,
   STATE_RUNNING,
 };
+
+#ifdef USE_SPEAKER
+static const size_t SAMPLE_BUFFER_SIZE = 512;
 
 struct SpeakerSample {
   int16_t left{0};
@@ -76,7 +76,7 @@ class Rtttl : public Component {
 
   uint32_t output_freq_;
   float gain_{0.6f};
-  State state_{STATE_STOPPED};
+  State state_{State::STATE_STOPPED};
 
 #ifdef USE_OUTPUT
   output::FloatOutput *output_;
