@@ -146,7 +146,6 @@ void Nextion::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Wake On Touch:    %s", YESNO(this->auto_wake_on_touch_));
   ESP_LOGCONFIG(TAG, "  Exit reparse:     %s", YESNO(this->exit_reparse_on_start_));
-  
 
   if (this->touch_sleep_timeout_ != 0) {
     ESP_LOGCONFIG(TAG, "  Touch Timeout:    %" PRIu32, this->touch_sleep_timeout_);
