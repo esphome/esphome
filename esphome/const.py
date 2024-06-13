@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.6.0-dev"
+__version__ = "2024.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -784,6 +784,7 @@ CONF_STATIC_IP = "static_ip"
 CONF_STATUS = "status"
 CONF_STB_PIN = "stb_pin"
 CONF_STEP = "step"
+CONF_STEP_DELAY = "step_delay"
 CONF_STEP_MODE = "step_mode"
 CONF_STEP_PIN = "step_pin"
 CONF_STOP = "stop"
