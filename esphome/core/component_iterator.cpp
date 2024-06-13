@@ -352,6 +352,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_UPDATE
+    case IteratorState::UPDATE:
+      if (this->at_ >= App.get_updates().size()) {
+        advance_platform = true;
+      } else {
+        auto *update = App.get_updates()[this->at_];
+        if (update->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_update(update);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;
