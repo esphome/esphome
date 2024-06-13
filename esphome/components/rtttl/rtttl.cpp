@@ -32,7 +32,7 @@ void Rtttl::play(std::string rtttl) {
   if (this->state_ != State::STATE_STOPPED) {
     int pos = rtttl_.find(':');
     auto name = this->rtttl_.substr(0, pos);
-    ESP_LOGW(TAG, "RTTL Component is already playing: %s", name);
+    ESP_LOGW(TAG, "RTTL Component is already playing: %s", name).c_str();
     return;
   }
 
