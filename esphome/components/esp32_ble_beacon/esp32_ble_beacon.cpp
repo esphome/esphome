@@ -35,7 +35,7 @@ static esp_ble_adv_params_t ble_adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
-#define ENDIAN_CHANGE_U16(x) ((((x) &0xFF00) >> 8) + (((x) &0xFF) << 8))
+#define ENDIAN_CHANGE_U16(x) ((((x) & 0xFF00) >> 8) + (((x) & 0xFF) << 8))
 
 static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
     .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = {0x4C, 0x00}, .beacon_type = {0x02, 0x15}};
@@ -69,12 +69,11 @@ void ESP32BLEBeacon::setup() {
 float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-
   // init raw advertising data
   if (!init_finished) {
     ESP_LOGD(TAG, "Setting up BLE TX power");
-    esp_err_t err_tx = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,
-                               static_cast<esp_power_level_t>((global_esp32_ble_beacon->tx_power_ + 12) / 3));
+    esp_err_t err_tx = esp_ble_tx_power_set(
+        ESP_BLE_PWR_TYPE_ADV, static_cast<esp_power_level_t>((global_esp32_ble_beacon->tx_power_ + 12) / 3));
     if (err_tx != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err_tx));
       return;

@@ -36,10 +36,7 @@ typedef struct {
   esp_ble_ibeacon_vendor_t ibeacon_vendor;
 } __attribute__((packed)) esp_ble_ibeacon_t;
 
-class ESP32BLEBeacon : public Component,
-                       public GAPEventHandler,
-                       public Parented<ESP32BLE>
-{
+class ESP32BLEBeacon : public Component, public GAPEventHandler, public Parented<ESP32BLE> {
  public:
   explicit ESP32BLEBeacon(const std::array<uint8_t, 16> &uuid) : uuid_(uuid) {}
 
