@@ -266,7 +266,12 @@ def main():
     if args.fix and failed_files:
         print("Applying fixes ...")
         try:
-            subprocess.call(["clang-apply-replacements-14", tmpdir])
+            try:
+                subprocess.call(["clang-apply-replacements-14", tmpdir])
+            except FileNotFoundError:
+                subprocess.call(["clang-apply-replacements", tmpdir])
+        except FileNotFoundError:
+                print("Error please install clang-apply-replacements-14 or clang-apply-replacements.\n", file=sys.stderr)
         except:
             print("Error applying fixes.\n", file=sys.stderr)
             raise

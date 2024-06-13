@@ -6,12 +6,14 @@ from esphome.components import uart, climate, logger
 from esphome import automation
 from esphome.const import (
     CONF_BEEPER,
+    CONF_DISPLAY,
     CONF_ID,
     CONF_LEVEL,
     CONF_LOGGER,
     CONF_LOGS,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_PROTOCOL,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
@@ -43,11 +45,9 @@ CONF_ALTERNATIVE_SWING_CONTROL = "alternative_swing_control"
 CONF_ANSWER_TIMEOUT = "answer_timeout"
 CONF_CONTROL_METHOD = "control_method"
 CONF_CONTROL_PACKET_SIZE = "control_packet_size"
-CONF_DISPLAY = "display"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_ON_ALARM_START = "on_alarm_start"
 CONF_ON_ALARM_END = "on_alarm_end"
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_VERTICAL_AIRFLOW = "vertical_airflow"
 CONF_WIFI_SIGNAL = "wifi_signal"
 
@@ -55,6 +55,7 @@ PROTOCOL_HON = "HON"
 PROTOCOL_SMARTAIR2 = "SMARTAIR2"
 
 haier_ns = cg.esphome_ns.namespace("haier")
+hon_protocol_ns = haier_ns.namespace("hon_protocol")
 HaierClimateBase = haier_ns.class_(
     "HaierClimateBase", uart.UARTDevice, climate.Climate, cg.Component
 )
@@ -63,7 +64,7 @@ Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 
 CONF_HAIER_ID = "haier_id"
 
-AirflowVerticalDirection = haier_ns.enum("AirflowVerticalDirection", True)
+AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
     "HEALTH_UP": AirflowVerticalDirection.HEALTH_UP,
     "MAX_UP": AirflowVerticalDirection.MAX_UP,
@@ -73,7 +74,7 @@ AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
     "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
 }
 
-AirflowHorizontalDirection = haier_ns.enum("AirflowHorizontalDirection", True)
+AirflowHorizontalDirection = hon_protocol_ns.enum("HorizontalSwingMode", True)
 AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
     "MAX_LEFT": AirflowHorizontalDirection.MAX_LEFT,
     "LEFT": AirflowHorizontalDirection.LEFT,
@@ -483,4 +484,4 @@ async def to_code(config):
             trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
         )
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.25")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.28")

@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
     CONF_TRIGGER_ID,
+    CONF_VSYNC_PIN,
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -112,7 +113,6 @@ ENUM_SPECIAL_EFFECT = {
 }
 
 # pin assignment
-CONF_VSYNC_PIN = "vsync_pin"
 CONF_HREF_PIN = "href_pin"
 CONF_PIXEL_CLOCK_PIN = "pixel_clock_pin"
 CONF_EXTERNAL_CLOCK = "external_clock"

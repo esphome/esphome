@@ -49,7 +49,7 @@ def _load_tzdata(iana_key: str) -> Optional[bytes]:
     package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
-        return resources.read_binary(package, resource)
+        return (resources.files(package) / resource).read_bytes()
     except (FileNotFoundError, ModuleNotFoundError):
         return None
 

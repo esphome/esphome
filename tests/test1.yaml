@@ -25,31 +25,6 @@ esphome:
     then:
       - lambda: >-
           ESP_LOGV("main", "ON LOOP!");
-      - http_request.get:
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          verify_ssl: false
-      - http_request.post:
-          url: https://esphome.io
-          verify_ssl: false
-          json:
-            key: !lambda |-
-              return id(${textname}_text).state;
-            greeting: Hello World
-      - http_request.send:
-          method: PUT
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          body: Some data
-          verify_ssl: false
-          on_response:
-            then:
-              - logger.log:
-                  format: "Response status: %d"
-                  args:
-                    - status_code
   build_path: build/test1
 
 packages:
@@ -83,10 +58,6 @@ network:
 
 mdns:
   disabled: false
-
-http_request:
-  useragent: esphome/device
-  timeout: 10s
 
 mqtt:
   broker: "192.168.178.84"
@@ -264,30 +235,32 @@ uart:
     parity: EVEN
     baud_rate: 9600
 
-ota:
-  safe_mode: true
-  password: "superlongpasswordthatnoonewillknow"
-  port: 3286
+safe_mode:
+  num_attempts: 3
   reboot_timeout: 2min
-  num_attempts: 5
-  on_state_change:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "State %d", state);
-  on_begin:
-    then:
-      logger.log: OTA begin
-  on_progress:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "Got progress %f", x);
-  on_end:
-    then:
-      logger.log: OTA end
-  on_error:
-    then:
-      lambda: >-
-        ESP_LOGD("ota", "Got error code %d", x);
+
+ota:
+  - platform: esphome
+    password: "superlongpasswordthatnoonewillknow"
+    port: 3286
+    on_state_change:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "State %d", state);
+    on_begin:
+      then:
+        logger.log: OTA begin
+    on_progress:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "Got progress %f", x);
+    on_end:
+      then:
+        logger.log: OTA end
+    on_error:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "Got error code %d", x);
 
 logger:
   baud_rate: 0
@@ -341,11 +314,6 @@ as5600:
   hysteresis: lsb1
   slow_filter: 8x
   fast_filter: lsb6
-
-dallas:
-  pin:
-    allow_other_uses: true
-    number: GPIO23
 
 as3935_spi:
   cs_pin:
@@ -705,35 +673,6 @@ sensor:
     update_interval: 30s
     mode: low_power
     i2c_id: i2c_bus
-  - platform: bme280_i2c
-    temperature:
-      name: Outside Temperature
-      oversampling: 16x
-    pressure:
-      name: Outside Pressure
-      oversampling: none
-    humidity:
-      name: Outside Humidity
-      oversampling: 8x
-    address: 0x77
-    iir_filter: 16x
-    update_interval: 15s
-    i2c_id: i2c_bus
-  - platform: bme280_spi
-    temperature:
-      name: Outside Temperature
-      oversampling: 16x
-    pressure:
-      name: Outside Pressure
-      oversampling: none
-    humidity:
-      name: Outside Humidity
-      oversampling: 8x
-    cs_pin:
-      allow_other_uses: true
-      number: GPIO23
-    iir_filter: 16x
-    update_interval: 15s
   - platform: bme680
     temperature:
       name: Outside Temperature
@@ -770,13 +709,6 @@ sensor:
     update_interval: 15s
     iir_filter: 16x
     i2c_id: i2c_bus
-  - platform: dallas
-    address: 0x1C0000031EDD2A28
-    name: Living Room Temperature
-    resolution: 9
-  - platform: dallas
-    index: 1
-    name: Living Room Temperature 2
   - platform: dht
     pin:
       allow_other_uses: true
@@ -2933,6 +2865,7 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_aeha:
         address: 0x8008
+        carrier_frequency: 36700Hz
         data:
           [
             0x00,
@@ -3996,6 +3929,7 @@ sn74hc595:
       number: GPIO32
     sr_count: 2
     spi_id: spi_bus
+    type: spi
 
 rtttl:
   output: gpio_19

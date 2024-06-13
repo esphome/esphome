@@ -1,11 +1,11 @@
 #include "esphome/core/component.h"
 
+#include <cinttypes>
+#include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <utility>
-#include <cinttypes>
 
 namespace esphome {
 
@@ -76,7 +76,12 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 
 void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
-void Component::call_dump_config() { this->dump_config(); }
+void Component::call_dump_config() {
+  this->dump_config();
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "  Component %s is marked FAILED", this->get_component_source());
+  }
+}
 
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
@@ -135,8 +140,8 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
                           float backoff_increase_factor) {  // NOLINT
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
-bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
-bool Component::is_ready() {
+bool Component::is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
+bool Component::is_ready() const {
   return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
@@ -149,26 +154,26 @@ void Component::status_set_warning(const char *message) {
     return;
   this->component_state_ |= STATUS_LED_WARNING;
   App.app_state_ |= STATUS_LED_WARNING;
-  ESP_LOGW(this->get_component_source(), "Warning set: %s", message);
+  ESP_LOGW(TAG, "Component %s set Warning flag: %s", this->get_component_source(), message);
 }
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
   this->component_state_ |= STATUS_LED_ERROR;
   App.app_state_ |= STATUS_LED_ERROR;
-  ESP_LOGE(this->get_component_source(), "Error set: %s", message);
+  ESP_LOGE(TAG, "Component %s set Error flag: %s", this->get_component_source(), message);
 }
 void Component::status_clear_warning() {
   if ((this->component_state_ & STATUS_LED_WARNING) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_WARNING;
-  ESP_LOGW(this->get_component_source(), "Warning cleared");
+  ESP_LOGW(TAG, "Component %s cleared Warning flag", this->get_component_source());
 }
 void Component::status_clear_error() {
   if ((this->component_state_ & STATUS_LED_ERROR) == 0)
     return;
   this->component_state_ &= ~STATUS_LED_ERROR;
-  ESP_LOGE(this->get_component_source(), "Error cleared");
+  ESP_LOGE(TAG, "Component %s cleared Error flag", this->get_component_source());
 }
 void Component::status_momentary_warning(const std::string &name, uint32_t length) {
   this->status_set_warning();

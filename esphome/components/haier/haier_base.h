@@ -44,7 +44,7 @@ class HaierClimateBase : public esphome::Component,
   void set_supported_modes(const std::set<esphome::climate::ClimateMode> &modes);
   void set_supported_swing_modes(const std::set<esphome::climate::ClimateSwingMode> &modes);
   void set_supported_presets(const std::set<esphome::climate::ClimatePreset> &presets);
-  bool valid_connection() { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
+  bool valid_connection() const { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
   size_t read_array(uint8_t *data, size_t len) noexcept override {
     return esphome::uart::UARTDevice::read_array(data, len) ? len : 0;
@@ -80,6 +80,7 @@ class HaierClimateBase : public esphome::Component,
   virtual void process_phase(std::chrono::steady_clock::time_point now) = 0;
   virtual haier_protocol::HaierMessage get_control_message() = 0;
   virtual haier_protocol::HaierMessage get_power_message(bool state) = 0;
+  virtual void initialization(){};
   virtual bool prepare_pending_action();
   virtual void process_protocol_reset();
   esphome::climate::ClimateTraits traits() override;

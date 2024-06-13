@@ -65,6 +65,18 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj]() { this->on_date_update(obj); });
   }
 #endif
+#ifdef USE_DATETIME_TIME
+  for (auto *obj : App.get_times()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_time_update(obj); });
+  }
+#endif
+#ifdef USE_DATETIME_DATETIME
+  for (auto *obj : App.get_datetimes()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_datetime_update(obj); });
+  }
+#endif
 #ifdef USE_TEXT
   for (auto *obj : App.get_texts()) {
     if (include_internal || !obj->is_internal())
@@ -85,6 +97,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj]() { this->on_lock_update(obj); });
   }
 #endif
+#ifdef USE_VALVE
+  for (auto *obj : App.get_valves()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_valve_update(obj); });
+  }
+#endif
 #ifdef USE_MEDIA_PLAYER
   for (auto *obj : App.get_media_players()) {
     if (include_internal || !obj->is_internal())
@@ -95,6 +113,18 @@ void Controller::setup_controller(bool include_internal) {
   for (auto *obj : App.get_alarm_control_panels()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_alarm_control_panel_update(obj); });
+  }
+#endif
+#ifdef USE_EVENT
+  for (auto *obj : App.get_events()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_event_callback([this, obj](const std::string &event_type) { this->on_event(obj, event_type); });
+  }
+#endif
+#ifdef USE_UPDATE
+  for (auto *obj : App.get_updates()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_update(obj); });
   }
 #endif
 }
