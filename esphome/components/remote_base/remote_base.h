@@ -56,7 +56,9 @@ class RemoteReceiveData {
   int32_t size() const { return this->data_.size(); }
   bool is_valid(uint32_t offset) const { return this->index_ + offset < this->data_.size(); }
   int32_t peek(uint32_t offset = 0) const { return this->data_[this->index_ + offset]; }
+  bool peek_mark(int32_t min_length, int32_t max_length, uint32_t offset) const;
   bool peek_mark(uint32_t length, uint32_t offset = 0) const;
+  bool peek_space(int32_t min_length, int32_t max_length, uint32_t offset) const;
   bool peek_space(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
   bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
@@ -64,7 +66,9 @@ class RemoteReceiveData {
   }
 
   bool expect_mark(uint32_t length);
+  bool expect_mark(int32_t min_length, int32_t max_length);
   bool expect_space(uint32_t length);
+  bool expect_space(int32_t min_length, int32_t max_length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
   void advance(uint32_t amount = 1) { this->index_ += amount; }

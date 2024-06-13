@@ -155,3 +155,7 @@ binary_sensor:
     panasonic:
       address: 0x4004
       command: 0x100BCBD
+  - platform: remote_receiver
+    name: Hob2Hood Light On
+    hob2hood:
+      command: light_on

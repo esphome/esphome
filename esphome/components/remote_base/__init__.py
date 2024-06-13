@@ -1791,6 +1791,52 @@ async def aeha_action(var, config, args):
     cg.add(var.set_carrier_frequency(templ))
 
 
+# Hob2Hood
+(
+    Hob2HoodData,
+    Hob2HoodBinarySensor,
+    Hob2HoodTrigger,
+    Hob2HoodAction,
+    Hob2HoodDumper,
+) = declare_protocol("Hob2Hood")
+
+Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
+HOB2HOOD_COMMAND_OPTIONS = {
+    "light_off": Hob2HoodCommand.HOB2HOOD_CMD_LIGHT_OFF,
+    "light_on": Hob2HoodCommand.HOB2HOOD_CMD_LIGHT_ON,
+    "fan_off": Hob2HoodCommand.HOB2HOOD_CMD_FAN_OFF,
+    "fan_low": Hob2HoodCommand.HOB2HOOD_CMD_FAN_LOW,
+    "fan_medium": Hob2HoodCommand.HOB2HOOD_CMD_FAN_MEDIUM,
+    "fan_high": Hob2HoodCommand.HOB2HOOD_CMD_FAN_HIGH,
+    "fan_max": Hob2HoodCommand.HOB2HOOD_CMD_FAN_MAX,
+}
+
+
+HOB2HOOD_SCHEMA = cv.Schema(
+    {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS)}
+)
+
+
+@register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
+def hob2hood_binary_sensor(var, config):
+    cg.add(var.set_command(config[CONF_COMMAND]))
+
+
+@register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
+def hob2hood_trigger(var, config):
+    pass
+
+
+@register_dumper("hob2hood", Hob2HoodDumper)
+def hob2hood_dumper(var, config):
+    pass
+
+
+@register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
+async def hob2hood_action(var, config, args):
+    cg.add(var.set_command(await cg.templatable(config[CONF_COMMAND], args, cg.uint8)))
+
+
 # Haier
 HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_protocol(
     "Haier"
