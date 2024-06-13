@@ -1,6 +1,9 @@
 dependencies:
   esp-tflite-micro:
     git: https://github.com/espressif/esp-tflite-micro.git
+  esp32_camera:
+    git: https://github.com/espressif/esp32-camera.git
+    version: v2.0.9
   mdns:
     git: https://github.com/espressif/esp-protocols.git
     version: mdns-v1.2.5
