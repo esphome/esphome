@@ -113,7 +113,7 @@ void Rtttl::play(std::string rtttl) {
 #endif
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
-    this->state_ == State::STATE_RUNNING;
+    this->state_ = State::STATE_RUNNING;
   }
 #endif
 }
@@ -144,12 +144,12 @@ void Rtttl::loop() {
     if (this->state_ == State::STATE_INIT) {
       if (this->speaker_->is_stopped()) {
         this->speaker_->start();
-        this->state_ == State::STATE_STARTING;
+        this->state_ = State::STATE_STARTING;
       }
       return;
     } else if (this->state_ == State::STATE_STARTING) {
       if (this->speaker_->is_running()) {
-        this->state_ == State::STATE_RUNNING;
+        this->state_ = State::STATE_RUNNING;
       }
       return;
     }
