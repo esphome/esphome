@@ -1,0 +1,9 @@
+dependencies:
+  esp-tflite-micro:
+    git: https://github.com/espressif/esp-tflite-micro.git
+  mdns:
+    git: https://github.com/espressif/esp-protocols.git
+    version: mdns-v1.2.5
+    path: components/mdns
+    rules:
+      - if: "idf_version >=5.0"
