@@ -1,15 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number, homeassistant
-from esphome.const import (
-    CONF_ENTITY_ID,
-    CONF_NAME,
-    CONF_ID,
-    CONF_INTERNAL,
-    CONF_MAX_VALUE,
-    CONF_MIN_VALUE,
-    CONF_STEP,
-)
+from esphome.const import CONF_ENTITY_ID, CONF_NAME, CONF_ID, CONF_INTERNAL
 
 CODEOWNERS = ["@landonr"]
 homeassistant_number_ns = cg.esphome_ns.namespace("homeassistant_number")
@@ -26,9 +18,6 @@ CONFIG_SCHEMA = number.NUMBER_SCHEMA.extend(
         cv.Required(CONF_ENTITY_ID): cv.entity_id,
         cv.Required(CONF_NAME): cv.string,
         cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
-        cv.Required(CONF_MAX_VALUE): cv.float_,
-        cv.Required(CONF_MIN_VALUE): cv.float_,
-        cv.Required(CONF_STEP): cv.positive_float,
     }
 ).extend(homeassistant.COMPONENT_CONFIG_SCHEMA)
 
@@ -41,9 +30,9 @@ async def to_code(config):
     await number.register_number(
         var,
         config,
-        min_value=config[CONF_MIN_VALUE],
-        max_value=config[CONF_MAX_VALUE],
-        step=config[CONF_STEP],
+        min_value=0,
+        max_value=0,
+        step=0,
     )
     homeassistant.base_to_code(var, config)
     return var

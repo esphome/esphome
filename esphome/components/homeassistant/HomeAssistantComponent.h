@@ -9,7 +9,7 @@ namespace homeassistant {
 class HomeAssistantComponent : public Component, public api::CustomAPIDevice {
  public:
   void setup() override{};
-  void set_entity_id(const std::string& entity_id) { entity_id_ = entity_id; }
+  void set_entity_id(const std::string &entity_id) { entity_id_ = entity_id; }
   std::string get_entity_id() { return entity_id_; }
   float get_setup_priority() const override { return setup_priority::LATE; }
 
