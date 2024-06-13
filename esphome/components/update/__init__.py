@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_FIRMWARE,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -24,6 +25,7 @@ PerformAction = update_ns.class_("PerformAction", automation.Action)
 IsAvailableCondition = update_ns.class_("IsAvailableCondition", automation.Condition)
 
 DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_FIRMWARE,
 ]
 
