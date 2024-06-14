@@ -1,3 +1,4 @@
+#pragma once
 #include <map>
 #include <string>
 #include "esphome/components/homeassistant/HomeAssistantComponent.h"
