@@ -164,6 +164,12 @@ class APIConnection : public APIServerConnection {
   bool send_event_info(event::Event *event);
 #endif
 
+#ifdef USE_UPDATE
+  bool send_update_state(update::UpdateEntity *update);
+  bool send_update_info(update::UpdateEntity *update);
+  void update_command(const UpdateCommandRequest &msg) override;
+#endif
+
   void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping

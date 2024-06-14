@@ -1501,6 +1501,65 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 }
 #endif
 
+#ifdef USE_UPDATE
+void WebServer::on_update(update::UpdateEntity *obj) {
+  if (this->events_.count() == 0)
+    return;
+  this->events_.send(this->update_json(obj, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (update::UpdateEntity *obj : App.get_updates()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      std::string data = this->update_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "install") {
+      request->send(404);
+      return;
+    }
+
+    this->schedule_([obj]() mutable { obj->perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_config) {
+  return json::build_json([this, obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "update-" + obj->get_object_id(), start_config);
+    root["value"] = obj->update_info.latest_version;
+    switch (obj->state) {
+      case update::UPDATE_STATE_NO_UPDATE:
+        root["state"] = "NO UPDATE";
+        break;
+      case update::UPDATE_STATE_AVAILABLE:
+        root["state"] = "UPDATE AVAILABLE";
+        break;
+      case update::UPDATE_STATE_INSTALLING:
+        root["state"] = "INSTALLING";
+        break;
+      default:
+        root["state"] = "UNKNOWN";
+        break;
+    }
+    if (start_config == DETAIL_ALL) {
+      root["current_version"] = obj->update_info.current_version;
+      root["title"] = obj->update_info.title;
+      root["summary"] = obj->update_info.summary;
+      root["release_url"] = obj->update_info.release_url;
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+      }
+    }
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -1617,6 +1676,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
   if (request->method() == HTTP_GET && match.domain == "alarm_control_panel")
+    return true;
+#endif
+
+#ifdef USE_UPDATE
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "update")
     return true;
 #endif
 
@@ -1774,6 +1838,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (match.domain == "alarm_control_panel") {
     this->handle_alarm_control_panel_request(request, match);
 
+    return;
+  }
+#endif
+
+#ifdef USE_UPDATE
+  if (match.domain == "update") {
+    this->handle_update_request(request, match);
     return;
   }
 #endif

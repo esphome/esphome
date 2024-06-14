@@ -9,9 +9,8 @@ namespace http_request {
 namespace watchdog {
 
 class WatchdogManager {
-#ifdef USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT
  public:
-  WatchdogManager();
+  WatchdogManager(uint32_t timeout_ms);
   ~WatchdogManager();
 
  private:
@@ -19,7 +18,7 @@ class WatchdogManager {
   void set_timeout_(uint32_t timeout_ms);
 
   uint32_t saved_timeout_ms_{0};
-#endif
+  uint32_t timeout_ms_{0};
 };
 
 }  // namespace watchdog
