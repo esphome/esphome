@@ -13,34 +13,12 @@ namespace esp32_ble_beacon {
 
 using namespace esp32_ble;
 
-// NOLINTNEXTLINE(modernize-use-using)
-typedef struct {
-  uint8_t flags[3];
-  uint8_t length;
-  uint8_t type;
-  uint8_t company_id[2];
-  uint8_t beacon_type[2];
-} __attribute__((packed)) esp_ble_ibeacon_head_t;
-
-// NOLINTNEXTLINE(modernize-use-using)
-typedef struct {
-  uint8_t proximity_uuid[16];
-  uint16_t major;
-  uint16_t minor;
-  uint8_t measured_power;
-} __attribute__((packed)) esp_ble_ibeacon_vendor_t;
-
-// NOLINTNEXTLINE(modernize-use-using)
-typedef struct {
-  esp_ble_ibeacon_head_t ibeacon_head;
-  esp_ble_ibeacon_vendor_t ibeacon_vendor;
-} __attribute__((packed)) esp_ble_ibeacon_t;
-
 class ESP32BLEBeacon : public Component, public GAPEventHandler, public Parented<ESP32BLE> {
  public:
   explicit ESP32BLEBeacon(const std::array<uint8_t, 16> &uuid) : uuid_(uuid) {}
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
@@ -60,6 +38,7 @@ class ESP32BLEBeacon : public Component, public GAPEventHandler, public Parented
   uint16_t max_interval_{};
   int8_t measured_power_{};
   int8_t tx_power_{};
+  bool finished_init_{false};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

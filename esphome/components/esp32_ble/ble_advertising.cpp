@@ -12,6 +12,9 @@ namespace esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
+static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
+    .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = {0x4C, 0x00}, .beacon_type = {0x02, 0x15}};
+
 BLEAdvertising::BLEAdvertising() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;
@@ -122,6 +125,23 @@ void BLEAdvertising::stop() {
   esp_err_t err = esp_ble_gap_stop_advertising();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_advertising failed: %d", err);
+    return;
+  }
+}
+
+void BLEAdvertising::set_ibeacon_data(std::array<uint8_t, 16> uuid, uint16_t major, uint16_t minor,
+                                      int8_t measured_power) {
+  esp_ble_ibeacon_t ibeacon_adv_data;
+  memcpy(&ibeacon_adv_data.ibeacon_head, &IBEACON_COMMON_HEAD, sizeof(esp_ble_ibeacon_head_t));
+  memcpy(&ibeacon_adv_data.ibeacon_vendor.proximity_uuid, uuid.data(),
+         sizeof(ibeacon_adv_data.ibeacon_vendor.proximity_uuid));
+  ibeacon_adv_data.ibeacon_vendor.minor = minor;
+  ibeacon_adv_data.ibeacon_vendor.major = major;
+  ibeacon_adv_data.ibeacon_vendor.measured_power = measured_power;
+
+  esp_err_t err = esp_ble_gap_config_adv_data_raw((uint8_t *) &ibeacon_adv_data, sizeof(ibeacon_adv_data));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data_raw failed: %d", err);
     return;
   }
 }

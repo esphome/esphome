@@ -37,9 +37,6 @@ static esp_ble_adv_params_t ble_adv_params = {
 
 #define ENDIAN_CHANGE_U16(x) ((((x) &0xFF00) >> 8) + (((x) &0xFF) << 8))
 
-static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
-    .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = {0x4C, 0x00}, .beacon_type = {0x02, 0x15}};
-
 void ESP32BLEBeacon::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 BLE Beacon:");
   char uuid[37];
@@ -66,12 +63,11 @@ void ESP32BLEBeacon::setup() {
   ble_adv_params.adv_int_max = static_cast<uint16_t>(global_esp32_ble_beacon->max_interval_ / 0.625f);
 }
 
-float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::BLUETOOTH; }
+float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
-void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  // init raw advertising data
-  if (!init_finished) {
-    ESP_LOGD(TAG, "Setting up BLE TX power");
+void ESP32BLEBeacon::loop() {
+  if (!this->finished_init_) {
+    ESP_LOGD(TAG, "Setting BLE TX power");
     esp_err_t err_tx = esp_ble_tx_power_set(
         ESP_BLE_PWR_TYPE_ADV, static_cast<esp_power_level_t>((global_esp32_ble_beacon->tx_power_ + 12) / 3));
     if (err_tx != ESP_OK) {
@@ -79,19 +75,17 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
       return;
     }
 
-    esp_ble_ibeacon_t ibeacon_adv_data;
-    memcpy(&ibeacon_adv_data.ibeacon_head, &IBEACON_COMMON_HEAD, sizeof(esp_ble_ibeacon_head_t));
-    memcpy(&ibeacon_adv_data.ibeacon_vendor.proximity_uuid, global_esp32_ble_beacon->uuid_.data(),
-           sizeof(ibeacon_adv_data.ibeacon_vendor.proximity_uuid));
-    ibeacon_adv_data.ibeacon_vendor.minor = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->minor_);
-    ibeacon_adv_data.ibeacon_vendor.major = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->major_);
-    ibeacon_adv_data.ibeacon_vendor.measured_power = static_cast<uint8_t>(global_esp32_ble_beacon->measured_power_);
+    esp32_ble::global_ble->advertising_set_ibeacon_data(
+        global_esp32_ble_beacon->uuid_, ENDIAN_CHANGE_U16(global_esp32_ble_beacon->major_),
+        ENDIAN_CHANGE_U16(global_esp32_ble_beacon->minor_),
+        static_cast<uint8_t>(
+            global_esp32_ble_beacon->measured_power_));  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast
 
-    esp_ble_gap_config_adv_data_raw((uint8_t *) &ibeacon_adv_data, sizeof(ibeacon_adv_data));
-
-    init_finished = true;
+    this->finished_init_ = true;
   }
+}
 
+void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   esp_err_t err;
   switch (event) {
     case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: {

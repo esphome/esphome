@@ -89,6 +89,8 @@ class ESP32BLE : public Component {
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
+  void advertising_set_ibeacon_data(std::array<uint8_t, 16> uuid, uint16_t major, uint16_t minor,
+                                    int8_t measured_power);
 
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }

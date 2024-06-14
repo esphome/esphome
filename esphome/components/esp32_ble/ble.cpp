@@ -78,6 +78,12 @@ void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &dat
   this->advertising_start();
 }
 
+void ESP32BLE::advertising_set_ibeacon_data(std::array<uint8_t, 16> uuid, uint16_t major, uint16_t minor,
+                                            int8_t measured_power) {
+  this->advertising_init_();
+  this->advertising_->set_ibeacon_data(uuid, major, minor, measured_power);
+}
+
 void ESP32BLE::advertising_add_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->add_service_uuid(uuid);
