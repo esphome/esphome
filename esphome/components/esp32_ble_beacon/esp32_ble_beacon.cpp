@@ -21,8 +21,6 @@ namespace esp32_ble_beacon {
 
 static const char *const TAG = "esp32_ble_beacon";
 
-static bool init_finished = false;
-
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_ble_adv_params_t ble_adv_params = {
     .adv_int_min = 0x20,

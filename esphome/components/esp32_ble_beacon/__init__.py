@@ -6,6 +6,7 @@ from esphome.core import CORE, TimePeriod
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components import esp32_ble
 
+AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
 
 esp32_ble_beacon_ns = cg.esphome_ns.namespace("esp32_ble_beacon")
