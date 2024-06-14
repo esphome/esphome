@@ -34,12 +34,17 @@ enum class GetCommand : uint8_t {
   CURRENT_TEMP = 0x03,
   ERROR_INFO = 0x04,
   STATUS = 0x06,
-  STANDBY = 0x09,
+  RUN_STATE = 0x09,
   A_9 = 0xa9
 };
 
 // Used to specify certain packet subtypes
-enum class SetCommand : uint8_t { SETTINGS = 0x01, REMOTE_TEMPERATURE = 0x07, THERMOSTAT_HELLO = 0xa7 };
+enum class SetCommand : uint8_t {
+  SETTINGS = 0x01,
+  REMOTE_TEMPERATURE = 0x07,
+  RUN_STATE = 0x08,
+  THERMOSTAT_HELLO = 0xa7
+};
 
 // Which MUARTBridge was the packet read from (used to determine flow direction of the packet)
 enum class SourceBridge { NONE, HEATPUMP, THERMOSTAT };

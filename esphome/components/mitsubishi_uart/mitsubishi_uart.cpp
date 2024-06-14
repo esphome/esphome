@@ -162,7 +162,7 @@ void MitsubishiUART::update() {
       //       cadence, depending on their utility (e.g. we dont need to check for errors every loop).
       hp_bridge_.send_packet(
           GetRequestPacket::get_settings_instance());  // Needs to be done before status packet for mode logic to work
-      hp_bridge_.send_packet(GetRequestPacket::get_standby_instance());
+      hp_bridge_.send_packet(GetRequestPacket::get_runstate_instance());
       hp_bridge_.send_packet(GetRequestPacket::get_status_instance());
       hp_bridge_.send_packet(GetRequestPacket::get_current_temp_instance());
       hp_bridge_.send_packet(GetRequestPacket::get_error_info_instance());)
@@ -199,7 +199,7 @@ void MitsubishiUART::do_publish_() {
   }
 
   // Binary sensors automatically dedup publishes (I think) and so will only actually publish on change
-  service_filter_sensor_->publish_state(service_filter_sensor_->state);
+  filter_status_sensor_->publish_state(filter_status_sensor_->state);
   defrost_sensor_->publish_state(defrost_sensor_->state);
   hot_adjust_sensor_->publish_state(hot_adjust_sensor_->state);
   standby_sensor_->publish_state(standby_sensor_->state);
@@ -310,6 +310,16 @@ void MitsubishiUART::temperature_source_report(const std::string &temperature_so
       temperature_source_select_->publish_state(temperature_source);
     }
   }
+}
+
+void MitsubishiUART::reset_filter_status() {
+  ESP_LOGI(TAG, "Received a request to reset the filter status.");
+
+  IFNOTACTIVE(return;)
+
+  SetRunStatePacket pkt = SetRunStatePacket();
+  pkt.set_filter_reset(true);
+  hp_bridge_.send_packet(pkt);
 }
 
 }  // namespace mitsubishi_uart
