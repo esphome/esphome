@@ -8,7 +8,6 @@ from esphome.components import (
     button,
     text_sensor,
     select,
-    switch,
 )
 from esphome.const import (
     CONF_CUSTOM_FAN_MODES,
@@ -35,7 +34,6 @@ AUTO_LOAD = [
     "binary_sensor",
     "button",
     "text_sensor",
-    "switch",
 ]
 DEPENDENCIES = [
     "uart",
@@ -45,7 +43,6 @@ DEPENDENCIES = [
     "button",
     "text_sensor",
     "select",
-    "switch",
 ]
 
 CONF_UART_HEATPUMP = "uart_heatpump"
@@ -86,10 +83,6 @@ HorizontalVanePositionSelect = mitsubishi_itp_ns.class_(
 
 FilterResetButton = mitsubishi_itp_ns.class_(
     "FilterResetButton", button.Button, cg.Component
-)
-
-ActiveModeSwitch = mitsubishi_itp_ns.class_(
-    "ActiveModeSwitch", switch.Switch, cg.Component
 )
 
 DEFAULT_CLIMATE_MODES = ["OFF", "HEAT", "DRY", "COOL", "FAN_ONLY", "HEAT_COOL"]
