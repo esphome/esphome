@@ -148,6 +148,8 @@ void Rtttl::loop() {
       } else {
         return;
       }
+    } else if (!this->speaker_->is_running()) {
+      return;
     }
 
     if (this->samples_sent_ != this->samples_count_) {
