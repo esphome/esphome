@@ -67,7 +67,7 @@ CONF_TEMPERATURE_SOURCES = (
     "temperature_sources"  # This is for specifying additional sources
 )
 
-CONF_ACTIVE_MODE_SWITCH = "active_mode_switch"
+CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -125,14 +125,7 @@ BASE_SCHEMA = (
             cv.Optional(CONF_TEMPERATURE_SOURCES, default=[]): cv.ensure_list(
                 cv.use_id(sensor.Sensor)
             ),
-            cv.Optional(
-                CONF_ACTIVE_MODE_SWITCH, default={"name": "Active Mode"}
-            ): switch.switch_schema(
-                ActiveModeSwitch,
-                entity_category=ENTITY_CATEGORY_CONFIG,
-                default_restore_mode="RESTORE_DEFAULT_ON",
-                icon="mdi:upload-network",
-            ),
+            cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
         }
     )
 )
@@ -377,8 +370,6 @@ async def to_code(config):
         await cg.register_component(button_component, button_conf)
         await cg.register_parented(button_component, muart_component)
 
-    # Switches
-    if am_switch_conf := config.get(CONF_ACTIVE_MODE_SWITCH):
-        switch_component = await switch.new_switch(am_switch_conf)
-        await cg.register_component(switch_component, am_switch_conf)
-        await cg.register_parented(switch_component, muart_component)
+    # Debug Settings
+    if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
+        cg.add(getattr(muart_component, "set_active_mode")(not dam_conf))
