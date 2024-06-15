@@ -17,6 +17,7 @@ import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from urllib.parse import urlparse
 
 import tornado
 import tornado.concurrent
@@ -165,6 +166,18 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Windows doesn't support non-blocking pipes,
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
+
+    def check_origin(self, origin):
+        if "ESPHOME_TRUSTED_DOMAINS" not in os.environ:
+            return super().check_origin(origin)
+        trusted_domains = [
+            s.strip() for s in os.environ["ESPHOME_TRUSTED_DOMAINS"].split(",")
+        ]
+        url = urlparse(origin)
+        if url.hostname in trusted_domains:
+            return True
+        _LOGGER.info("check_origin %s, domain is not trusted", origin)
+        return False
 
     def open(self, *args: str, **kwargs: str) -> None:
         """Handle new WebSocket connection."""
