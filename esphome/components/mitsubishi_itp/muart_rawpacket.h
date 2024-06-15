@@ -6,7 +6,7 @@
 #include <type_traits>
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 static constexpr char PTAG[] = "mitsubishi_uart.packets";
 
@@ -110,5 +110,5 @@ class RawPacket {
   RawPacket &update_checksum_();
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

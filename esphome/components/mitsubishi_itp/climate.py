@@ -71,35 +71,35 @@ CONF_ACTIVE_MODE_SWITCH = "active_mode_switch"
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
-mitsubishi_uart_ns = cg.esphome_ns.namespace("mitsubishi_uart")
-MitsubishiUART = mitsubishi_uart_ns.class_(
+mitsubishi_itp_ns = cg.esphome_ns.namespace("mitsubishi_itp")
+MitsubishiUART = mitsubishi_itp_ns.class_(
     "MitsubishiUART", cg.PollingComponent, climate.Climate
 )
 
-TemperatureSourceSelect = mitsubishi_uart_ns.class_(
+TemperatureSourceSelect = mitsubishi_itp_ns.class_(
     "TemperatureSourceSelect", select.Select
 )
-VanePositionSelect = mitsubishi_uart_ns.class_("VanePositionSelect", select.Select)
-HorizontalVanePositionSelect = mitsubishi_uart_ns.class_(
+VanePositionSelect = mitsubishi_itp_ns.class_("VanePositionSelect", select.Select)
+HorizontalVanePositionSelect = mitsubishi_itp_ns.class_(
     "HorizontalVanePositionSelect", select.Select
 )
 
-FilterResetButton = mitsubishi_uart_ns.class_(
+FilterResetButton = mitsubishi_itp_ns.class_(
     "FilterResetButton", button.Button, cg.Component
 )
 
-ActiveModeSwitch = mitsubishi_uart_ns.class_(
+ActiveModeSwitch = mitsubishi_itp_ns.class_(
     "ActiveModeSwitch", switch.Switch, cg.Component
 )
 
 DEFAULT_CLIMATE_MODES = ["OFF", "HEAT", "DRY", "COOL", "FAN_ONLY", "HEAT_COOL"]
 DEFAULT_FAN_MODES = ["AUTO", "QUIET", "LOW", "MEDIUM", "HIGH"]
-CUSTOM_FAN_MODES = {"VERYHIGH": mitsubishi_uart_ns.FAN_MODE_VERYHIGH}
+CUSTOM_FAN_MODES = {"VERYHIGH": mitsubishi_itp_ns.FAN_MODE_VERYHIGH}
 VANE_POSITIONS = ["Auto", "1", "2", "3", "4", "5", "Swing"]
 HORIZONTAL_VANE_POSITIONS = ["Auto", "<<", "<", "|", ">", ">>", "<>", "Swing"]
 
 INTERNAL_TEMPERATURE_SOURCE_OPTIONS = [
-    mitsubishi_uart_ns.TEMPERATURE_SOURCE_INTERNAL
+    mitsubishi_itp_ns.TEMPERATURE_SOURCE_INTERNAL
 ]  # These will always be available
 
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)

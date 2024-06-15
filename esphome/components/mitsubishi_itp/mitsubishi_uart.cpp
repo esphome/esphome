@@ -1,7 +1,7 @@
 #include "mitsubishi_uart.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 ////
 // MitsubishiUART
@@ -322,5 +322,5 @@ void MitsubishiUART::reset_filter_status() {
   hp_bridge_.send_packet(pkt);
 }
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

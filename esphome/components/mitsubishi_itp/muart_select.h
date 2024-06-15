@@ -4,7 +4,7 @@
 #include "mitsubishi_uart.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 class MUARTSelect : public select::Select, public Parented<MitsubishiUART> {
  public:
@@ -42,5 +42,5 @@ class HorizontalVanePositionSelect : public MUARTSelect {
   }
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

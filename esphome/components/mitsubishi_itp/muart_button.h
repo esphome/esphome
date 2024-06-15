@@ -4,7 +4,7 @@
 #include "mitsubishi_uart.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 class MUARTButton : public button::Button, public Component, public Parented<MitsubishiUART> {
  public:
@@ -20,5 +20,5 @@ class FilterResetButton : public MUARTButton {
   void press_action() { this->parent_->reset_filter_status(); }
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

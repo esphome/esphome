@@ -3,7 +3,7 @@
 #include "mitsubishi_uart.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 // Packet to_strings()
 
@@ -318,5 +318,5 @@ climate::ClimateTraits ExtendedConnectResponsePacket::as_traits() const {
   return ct;
 }
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome
