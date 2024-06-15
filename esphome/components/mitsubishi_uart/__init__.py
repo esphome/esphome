@@ -5,6 +5,7 @@ from esphome.components import (
     uart,
     sensor,
     binary_sensor,
+    button,
     text_sensor,
     select,
     switch,
@@ -27,12 +28,21 @@ from esphome.core import coroutine
 
 CODEOWNERS = ["@Sammy1Am", "@KazWolfe"]
 
-AUTO_LOAD = ["climate", "select", "sensor", "binary_sensor", "text_sensor", "switch"]
+AUTO_LOAD = [
+    "climate",
+    "select",
+    "sensor",
+    "binary_sensor",
+    "button",
+    "text_sensor",
+    "switch",
+]
 DEPENDENCIES = [
     "uart",
     "climate",
     "sensor",
     "binary_sensor",
+    "button",
     "text_sensor",
     "select",
     "switch",
@@ -49,6 +59,9 @@ CONF_SELECTS = "selects"
 CONF_TEMPERATURE_SOURCE_SELECT = "temperature_source_select"  # This is to create a Select object for selecting a source
 CONF_VANE_POSITION_SELECT = "vane_position_select"
 CONF_HORIZONTAL_VANE_POSITION_SELECT = "horizontal_vane_position_select"
+
+CONF_BUTTONS = "buttons"
+CONF_FILTER_RESET_BUTTON = "filter_reset_button"
 
 CONF_TEMPERATURE_SOURCES = (
     "temperature_sources"  # This is for specifying additional sources
@@ -69,6 +82,10 @@ TemperatureSourceSelect = mitsubishi_uart_ns.class_(
 VanePositionSelect = mitsubishi_uart_ns.class_("VanePositionSelect", select.Select)
 HorizontalVanePositionSelect = mitsubishi_uart_ns.class_(
     "HorizontalVanePositionSelect", select.Select
+)
+
+FilterResetButton = mitsubishi_uart_ns.class_(
+    "FilterResetButton", button.Button, cg.Component
 )
 
 ActiveModeSwitch = mitsubishi_uart_ns.class_(
@@ -149,9 +166,11 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
             ),
             text_sensor.register_text_sensor,
         ),
-        "service_filter": (
-            "Service Filter",
-            binary_sensor.binary_sensor_schema(),
+        "filter_status": (
+            "Filter Status",
+            binary_sensor.binary_sensor_schema(
+                device_class="problem", icon="mdi:air-filter"
+            ),
             binary_sensor.register_binary_sensor,
         ),
         "defrost": (
@@ -239,11 +258,32 @@ SELECTS_SCHEMA = cv.All(
     }
 )
 
+BUTTONS = {
+    CONF_FILTER_RESET_BUTTON: (
+        "Filter Reset",
+        button.button_schema(
+            FilterResetButton,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:air-filter",
+        ),
+    )
+}
+
+BUTTONS_SCHEMA = cv.All(
+    {
+        cv.Optional(
+            button_designator, default={"name": f"{button_name}"}
+        ): button_schema
+        for button_designator, (button_name, button_schema) in BUTTONS.items()
+    }
+)
+
 
 CONFIG_SCHEMA = BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_SENSORS, default={}): SENSORS_SCHEMA,
         cv.Optional(CONF_SELECTS, default={}): SELECTS_SCHEMA,
+        cv.Optional(CONF_BUTTONS, default={}): BUTTONS_SCHEMA,
     }
 )
 
@@ -329,6 +369,13 @@ async def to_code(config):
         )
         cg.add(getattr(muart_component, f"set_{select_designator}")(select_component))
         await cg.register_parented(select_component, muart_component)
+
+    # Buttons
+    for button_designator, (_, _) in BUTTONS.items():
+        button_conf = config[CONF_BUTTONS][button_designator]
+        button_component = await button.new_button(button_conf)
+        await cg.register_component(button_component, button_conf)
+        await cg.register_parented(button_component, muart_component)
 
     # Switches
     if am_switch_conf := config.get(CONF_ACTIVE_MODE_SWITCH):

@@ -70,7 +70,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void set_thermostat_temperature_sensor(sensor::Sensor *sensor) { thermostat_temperature_sensor_ = sensor; };
   void set_compressor_frequency_sensor(sensor::Sensor *sensor) { compressor_frequency_sensor_ = sensor; };
   void set_actual_fan_sensor(text_sensor::TextSensor *sensor) { actual_fan_sensor_ = sensor; };
-  void set_service_filter_sensor(binary_sensor::BinarySensor *sensor) { service_filter_sensor_ = sensor; };
+  void set_filter_status_sensor(binary_sensor::BinarySensor *sensor) { filter_status_sensor_ = sensor; };
   void set_defrost_sensor(binary_sensor::BinarySensor *sensor) { defrost_sensor_ = sensor; };
   void set_hot_adjust_sensor(binary_sensor::BinarySensor *sensor) { hot_adjust_sensor_ = sensor; };
   void set_standby_sensor(binary_sensor::BinarySensor *sensor) { standby_sensor_ = sensor; };
@@ -91,6 +91,9 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Used by external sources to report a temperature
   void temperature_source_report(const std::string &temperature_source, const float &v);
 
+  // Button triggers
+  void reset_filter_status();
+
   // Turns on or off actively sending packets
   void set_active_mode(const bool active) { active_mode_ = active; };
 
@@ -106,7 +109,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void process_packet(const SettingsGetResponsePacket &packet) override;
   void process_packet(const CurrentTempGetResponsePacket &packet) override;
   void process_packet(const StatusGetResponsePacket &packet) override;
-  void process_packet(const StandbyGetResponsePacket &packet) override;
+  void process_packet(const RunStateGetResponsePacket &packet) override;
   void process_packet(const ErrorStateGetResponsePacket &packet) override;
   void process_packet(const RemoteTemperatureSetRequestPacket &packet) override;
   void process_packet(const SetResponsePacket &packet) override;
@@ -155,7 +158,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   sensor::Sensor *thermostat_temperature_sensor_ = nullptr;
   sensor::Sensor *compressor_frequency_sensor_ = nullptr;
   text_sensor::TextSensor *actual_fan_sensor_ = nullptr;
-  binary_sensor::BinarySensor *service_filter_sensor_ = nullptr;
+  binary_sensor::BinarySensor *filter_status_sensor_ = nullptr;
   binary_sensor::BinarySensor *defrost_sensor_ = nullptr;
   binary_sensor::BinarySensor *hot_adjust_sensor_ = nullptr;
   binary_sensor::BinarySensor *standby_sensor_ = nullptr;

@@ -167,8 +167,8 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case GetCommand::ERROR_INFO:
           process_raw_packet_<ErrorStateGetResponsePacket>(pkt, false);
           break;
-        case GetCommand::STANDBY:
-          process_raw_packet_<StandbyGetResponsePacket>(pkt, false);
+        case GetCommand::RUN_STATE:
+          process_raw_packet_<RunStateGetResponsePacket>(pkt, false);
           break;
         case GetCommand::STATUS:
           process_raw_packet_<StatusGetResponsePacket>(pkt, false);

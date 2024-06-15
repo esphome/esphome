@@ -265,14 +265,14 @@ void MitsubishiUART::process_packet(const StatusGetResponsePacket &packet) {
     publish_on_update_ |= (old_compressor_frequency != compressor_frequency_sensor_->raw_state);
   }
 };
-void MitsubishiUART::process_packet(const StandbyGetResponsePacket &packet) {
+void MitsubishiUART::process_packet(const RunStateGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
 
-  if (service_filter_sensor_) {
-    const bool old_service_filter = service_filter_sensor_->state;
-    service_filter_sensor_->state = packet.service_filter();
-    publish_on_update_ |= (old_service_filter != service_filter_sensor_->state);
+  if (filter_status_sensor_) {
+    const bool old_service_filter = filter_status_sensor_->state;
+    filter_status_sensor_->state = packet.service_filter();
+    publish_on_update_ |= (old_service_filter != filter_status_sensor_->state);
   }
 
   if (defrost_sensor_) {

@@ -43,8 +43,8 @@ std::string SettingsGetResponsePacket::to_string() const {
           "\n PowerLock:" + (locked_power() ? "Yes" : "No") + " ModeLock:" + (locked_mode() ? "Yes" : "No") +
           " TempLock:" + (locked_temp() ? "Yes" : "No"));
 }
-std::string StandbyGetResponsePacket::to_string() const {
-  return ("Standby Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+std::string RunStateGetResponsePacket::to_string() const {
+  return ("RunState Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
           "\n ServiceFilter:" + (service_filter() ? "Yes" : "No") + " Defrost:" + (in_defrost() ? "Yes" : "No") +
           " HotAdjust:" + (in_hot_adjust() ? "Yes" : "No") + " Standby:" + (in_standby() ? "Yes" : "No") +
           " ActualFan:" + ACTUAL_FAN_SPEED_NAMES[get_actual_fan_speed()] + " (" +
@@ -175,6 +175,13 @@ RemoteTemperatureSetRequestPacket &RemoteTemperatureSetRequestPacket::set_remote
 }
 RemoteTemperatureSetRequestPacket &RemoteTemperatureSetRequestPacket::use_internal_temperature() {
   set_flags(0x00);  // Set flags to say to use internal temperature
+  return *this;
+}
+
+// SettingsSetRunStatisPacket functions
+SetRunStatePacket &SetRunStatePacket::set_filter_reset(bool do_reset) {
+  pkt_.set_payload_byte(PLINDEX_FILTER_RESET, do_reset ? 1 : 0);
+  set_flags(0x01);
   return *this;
 }
 
