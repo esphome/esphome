@@ -37,37 +37,13 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     this->set_volume_(volume);
     this->unmute_();
   }
-  if (this->i2s_state_ != I2S_STATE_RUNNING) {
-    return;
-  }
   if (call.get_command().has_value()) {
     switch (call.get_command().value()) {
-      case media_player::MEDIA_PLAYER_COMMAND_PLAY:
-        if (!this->audio_->isRunning())
-          this->audio_->pauseResume();
-        this->state = play_state;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
-        if (this->audio_->isRunning())
-          this->audio_->pauseResume();
-        this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_STOP:
-        this->stop();
-        break;
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->mute_();
         break;
       case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
         this->unmute_();
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
-        this->audio_->pauseResume();
-        if (this->audio_->isRunning()) {
-          this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-        } else {
-          this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
-        }
         break;
       case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP: {
         float new_volume = this->volume + 0.1f;
@@ -85,6 +61,36 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         this->unmute_();
         break;
       }
+      default:
+        break;
+    }
+    if (this->i2s_state_ != I2S_STATE_RUNNING) {
+      return;
+    }
+    switch (call.get_command().value()) {
+      case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+        if (!this->audio_->isRunning())
+          this->audio_->pauseResume();
+        this->state = play_state;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
+        if (this->audio_->isRunning())
+          this->audio_->pauseResume();
+        this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_STOP:
+        this->stop();
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+        this->audio_->pauseResume();
+        if (this->audio_->isRunning()) {
+          this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+        } else {
+          this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+        }
+        break;
+      default:
+        break;
     }
   }
   this->publish_state();

@@ -48,6 +48,7 @@ service APIConnection {
   rpc date_command (DateCommandRequest) returns (void) {}
   rpc time_command (TimeCommandRequest) returns (void) {}
   rpc datetime_command (DateTimeCommandRequest) returns (void) {}
+  rpc update_command (UpdateCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -1836,4 +1837,47 @@ message DateTimeCommandRequest {
 
   fixed32 key = 1;
   fixed32 epoch_seconds = 2;
+}
+
+// ==================== UPDATE ====================
+message ListEntitiesUpdateResponse {
+  option (id) = 116;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_UPDATE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+}
+message UpdateStateResponse {
+  option (id) = 117;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_UPDATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool missing_state = 2;
+  bool in_progress = 3;
+  bool has_progress = 4;
+  float progress = 5;
+  string current_version = 6;
+  string latest_version = 7;
+  string title = 8;
+  string release_summary = 9;
+  string release_url = 10;
+}
+message UpdateCommandRequest {
+  option (id) = 118;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_UPDATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool install = 2;
 }
