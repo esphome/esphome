@@ -147,6 +147,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
 
   optional<ExtendedConnectResponsePacket> capabilities_cache_;
   bool capabilities_requested_ = false;
+  uint8_t failed_run_state_requests_ = 0;
 
   // Preferences
   void save_preferences_();

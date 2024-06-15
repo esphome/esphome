@@ -162,7 +162,10 @@ void MitsubishiUART::update() {
       //       cadence, depending on their utility (e.g. we dont need to check for errors every loop).
       hp_bridge_.send_packet(
           GetRequestPacket::get_settings_instance());  // Needs to be done before status packet for mode logic to work
-      hp_bridge_.send_packet(GetRequestPacket::get_runstate_instance());
+      if (failed_run_state_requests_++ < 5) {
+        hp_bridge_.send_packet(GetRequestPacket::get_runstate_instance());
+      } else if (failed_run_state_requests_ == 5) { ESP_LOGI(TAG, "Run State packets not supported on this unit."); }
+
       hp_bridge_.send_packet(GetRequestPacket::get_status_instance());
       hp_bridge_.send_packet(GetRequestPacket::get_current_temp_instance());
       hp_bridge_.send_packet(GetRequestPacket::get_error_info_instance());)
