@@ -10,6 +10,8 @@ namespace gpio {
 class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
  public:
   void setup() override;
+  void loop() override;
+  bool can_proceed() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
@@ -30,6 +32,7 @@ class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
   uint8_t last_discrepancy_{0};
   bool last_device_flag_{false};
   uint64_t address_;
+  int retries_{0};
 
   void reset_search() override;
   uint64_t search_int() override;

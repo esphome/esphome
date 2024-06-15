@@ -12,6 +12,13 @@ void GPIOOneWireBus::setup() {
   this->search();
 }
 
+void GPIOOneWireBus::loop() {
+  if (this->devices_.empty() && (this->retries_++ < 5))
+    this->search();
+}
+
+bool GPIOOneWireBus::can_proceed() { return (!this->devices_.empty() || (this->retries_ >= 5)); }
+
 void GPIOOneWireBus::dump_config() {
   ESP_LOGCONFIG(TAG, "GPIO 1-wire bus:");
   LOG_PIN("  Pin: ", this->t_pin_);
