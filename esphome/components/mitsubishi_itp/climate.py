@@ -349,6 +349,10 @@ async def to_code(config):
             )
         )
 
+    # Remove Temperature Source select if there aren't at least two options
+    if len(SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2]) < 2:
+        del SELECTS[CONF_TEMPERATURE_SOURCE_SELECT]
+
     # Register selects
     for select_designator, (
         _,
