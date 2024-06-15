@@ -21,8 +21,6 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   void set_ambient_light_gain(uint8_t gain) { this->gain_ = gain; }
 
  protected:
-  void convert_config_variables_();
-
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
@@ -30,12 +28,11 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   } error_code_{NONE};
 
   uint8_t bit_width_;
-  uint8_t bit_width_val_;
+  uint8_t bit_width_val_[6] = {20, 19, 18, 17, 16, 13};
   uint8_t measurement_rate_;
-  float measurement_rate_val_;
+  float measurement_time_[7] = {25, 50, 100, 200, 500, 1000, 2000};
   uint8_t gain_;
-  float gain_val_;
-  float measurement_time_;
+  float gain_val_[5] = {1, 3, 6, 9, 18};
 };
 
 }  // namespace apds9306

@@ -108,11 +108,9 @@ void APDS9306::dump_config() {
     }
   }
 
-  this->convert_config_variables_();
-
-  ESP_LOGCONFIG(TAG, "  Gain: %f", gain_val_);
-  ESP_LOGCONFIG(TAG, "  Measurement rate: %f", measurement_rate_val_);
-  ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", bit_width_val_);
+  ESP_LOGCONFIG(TAG, "  Gain: %f", gain_val_[gain_]);
+  ESP_LOGCONFIG(TAG, "  Measurement rate: %f", measurement_time_[measurement_rate_]);
+  ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", bit_width_val_[bit_width_]);
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -134,8 +132,6 @@ void APDS9306::update() {
   // Clear MAIN STATUS
   APDS9306_WARNING_CHECK(this->read_byte(APDS9306_MAIN_STATUS, &status), "Reading MAIN STATUS failed.");
 
-  this->convert_config_variables_();
-
   uint8_t als_data[3];
   APDS9306_WARNING_CHECK(this->read_bytes(APDS9306_ALS_DATA_0, als_data, 3), "Reading ALS data has failed.");
 
@@ -144,81 +140,10 @@ void APDS9306::update() {
 
   uint32_t light_level = 0x00 | encode_uint24(als_data[2], als_data[1], als_data[0]);
 
-  float lux = (light_level / this->gain_val_) * (100.0f / this->measurement_time_);
+  float lux = (light_level / this->gain_val_[gain_]) * (100.0f / this->measurement_time_[measurement_rate_]);
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx from", lux);
   this->publish_state(lux);
-}
-
-void APDS9306::convert_config_variables_() {
-  switch (this->gain_) {
-    case 0:
-      gain_val_ = 1;
-      break;
-    case 1:
-      gain_val_ = 3;
-      break;
-    case 2:
-      gain_val_ = 6;
-      break;
-    case 3:
-      gain_val_ = 9;
-      break;
-    case 4:
-      gain_val_ = 18;
-      break;
-  }
-
-  switch (this->measurement_rate_) {
-    case 0:
-      measurement_rate_val_ = 25;
-      break;
-    case 1:
-      measurement_rate_val_ = 50;
-      break;
-    case 2:
-      measurement_rate_val_ = 100;
-      break;
-    case 3:
-      measurement_rate_val_ = 200;
-      break;
-    case 4:
-      measurement_rate_val_ = 500;
-      break;
-    case 5:
-      measurement_rate_val_ = 1000;
-      break;
-    case 6:
-      measurement_rate_val_ = 2000;
-      break;
-  }
-
-  switch (this->bit_width_) {
-    case 0:
-      bit_width_val_ = 20;
-      measurement_time_ = 400;
-      break;
-    case 1:
-      bit_width_val_ = 19;
-      measurement_time_ = 200;
-      break;
-    case 2:
-      bit_width_val_ = 18;
-      measurement_time_ = 100;
-      break;
-    case 3:
-      bit_width_val_ = 17;
-      measurement_time_ = 50;
-      break;
-    case 4:
-      bit_width_val_ = 16;
-      measurement_time_ = 25;
-      break;
-    case 5:
-      bit_width_val_ = 13;
-      measurement_time_ = 3.125;
-      break;
-  }
 }
 
 }  // namespace apds9306
