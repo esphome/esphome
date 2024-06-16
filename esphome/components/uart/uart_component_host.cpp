@@ -85,11 +85,13 @@ void HostUartComponent::setup() {
   speed_t baud = get_baud(this->baud_rate_);
   if (baud == B0) {
     ESP_LOGE(TAG, "Unsupported baud rate: %d", this->baud_rate_);
+    this->mark_failed();
     return;
   }
   this->file_descriptor_ = ::open(this->port_name_.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
   if (this->file_descriptor_ == -1) {
     this->update_error_(strerror(errno));
+    this->mark_failed();
     return;
   }
   fcntl(this->file_descriptor_, F_SETFL, 0);
@@ -193,7 +195,7 @@ bool HostUartComponent::peek_byte(uint8_t *data) {
   if (this->available() == 0) {
     return false;
   }
-  if (read(this->file_descriptor_, &data, 1) != 1) {
+  if (::read(this->file_descriptor_, &data, 1) != 1) {
     this->update_error_(strerror(errno));
     return false;
   }
