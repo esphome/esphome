@@ -31,8 +31,6 @@
 #include <unordered_set>
 #include <functional>
 
-#define OT_TAG "opentherm"
-
 // Ensure that all component macros are defined, even if the component is not used
 #ifndef OPENTHERM_SENSOR_LIST
 #define OPENTHERM_SENSOR_LIST(F, sep)

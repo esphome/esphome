@@ -11,6 +11,13 @@
 #include <sstream>
 #include <iomanip>
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+
+#ifdef ESP32
+#include "driver/timer.h"
+#endif
+
+#define OT_TAG "opentherm"
 
 #define readBit(value, bit) (((value) >> (bit)) & 0x01)
 #define setBit(value, bit) ((value) |= (1UL << (bit)))
@@ -185,7 +192,7 @@ class OpenTherm {
   /**
    * Setup pins.
    */
-  void begin();
+  void initialize();
 
   /**
    * Start listening for Opentherm data packet comming from line connected to given pin.
@@ -269,7 +276,7 @@ class OpenTherm {
    */
   bool is_protocol_error() { return mode_ == OperationMode::ERROR_PROTOCOL; }
 
-  bool is_active() { return active_; }
+  bool is_active() { return mode_ == LISTEN || mode_ == READ || mode_ == WRITE; }
 
   OperationMode get_mode() { return mode_; }
 
@@ -293,25 +300,30 @@ class OpenTherm {
   ISRInternalGPIOPin isr_in_pin_;
   ISRInternalGPIOPin isr_out_pin_;
 
+#ifdef ESP32
+  timer_group_t timer_group_;
+  timer_idx_t timer_idx_;
+#endif
+
   volatile OperationMode mode_;
   volatile ProtocolErrorType error_type_;
   volatile uint32_t capture_;
   volatile uint8_t clock_;
   volatile uint32_t data_;
   volatile uint8_t bit_pos_;
-  volatile bool active_;
   volatile int32_t timeout_counter_;  // <0 no timeout
-  volatile bool timer_initialized_;
 
   int32_t device_timeout_;
 
+#ifdef ESP32
+  bool init_esp32_timer_();
+#endif
+  void stop_timer_();
+  
   void read_();  // data detected start reading
-  void stop_();  // stop timers and interrupts
-  void init_timer_();
   void start_timer_(uint64_t alarm_value);
   void start_read_timer_();   // reading timer_ to sample at 1/5 of manchester code bit length (at 5kHz)
   void start_write_timer_();  // writing timer_ to send manchester code (at 2kHz)
-  void stop_timer_();
   bool check_parity_(uint32_t val);
 
   void bit_read_(uint8_t value);

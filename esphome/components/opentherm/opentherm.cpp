@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 #ifdef ESP32
 #include "driver/timer.h"
+#include "esp_err.h"
 #endif
 #ifdef ESP8266
 #include "Arduino.h"
@@ -34,29 +35,32 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
       clock_(0),
       data_(0),
       bit_pos_(0),
-      active_(false),
       timeout_counter_(-1),
-      timer_initialized_(false),
-      device_timeout_(device_timeout) {
+      device_timeout_(device_timeout),
+      timer_group_(TIMER_GROUP_0),
+      timer_idx_(TIMER_0) {
   isr_in_pin_ = in_pin->to_isr();
   isr_out_pin_ = out_pin->to_isr();
 }
 
-void OpenTherm::begin() {
+void OpenTherm::initialize() {
 #ifdef ESP8266
   instance_ = this;
 #endif
   in_pin_->pin_mode(gpio::FLAG_INPUT);
   out_pin_->pin_mode(gpio::FLAG_OUTPUT);
   out_pin_->digital_write(true);
+
+#ifdef ESP32
+  init_esp32_timer_();
+#endif  
 }
 
 void OpenTherm::listen() {
-  stop_();
+  stop_timer_();
   this->timeout_counter_ = device_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
 
   mode_ = OperationMode::LISTEN;
-  active_ = true;
   data_ = 0;
   bit_pos_ = 0;
 
@@ -64,7 +68,7 @@ void OpenTherm::listen() {
 }
 
 void OpenTherm::send(OpenthermData &data) {
-  stop_();
+  stop_timer_();
   data_ = data.type;
   data_ = (data_ << 12) | data.id;
   data_ = (data_ << 8) | data.valueHB;
@@ -76,8 +80,7 @@ void OpenTherm::send(OpenthermData &data) {
   clock_ = 1;     // clock starts at HIGH
   bit_pos_ = 33;  // count down (33 == start bit, 32-1 data, 0 == stop bit)
   mode_ = OperationMode::WRITE;
-
-  active_ = true;
+  
   start_write_timer_();
 }
 
@@ -107,15 +110,8 @@ bool OpenTherm::get_protocol_error(OpenThermError &error) {
 }
 
 void OpenTherm::stop() {
-  stop_();
+  stop_timer_();
   mode_ = OperationMode::IDLE;
-}
-
-void IRAM_ATTR OpenTherm::stop_() {
-  if (active_) {
-    stop_timer_();
-    active_ = false;
-  }
 }
 
 void IRAM_ATTR OpenTherm::read_() {
@@ -132,7 +128,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
   if (arg->mode_ == OperationMode::LISTEN) {
     if (arg->timeout_counter_ == 0) {
       arg->mode_ = OperationMode::ERROR_TIMEOUT;
-      arg->stop_();
+      arg->stop_timer_();
       return false;
     }
     bool const value = arg->isr_in_pin_.digital_read();
@@ -151,7 +147,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
         // no transition in the middle of the bit
         arg->mode_ = OperationMode::ERROR_PROTOCOL;
         arg->error_type_ = ProtocolErrorType::NO_TRANSITION;
-        arg->stop_();
+        arg->stop_timer_();
         return false;
       } else if (arg->clock_ == 1 || arg->capture_ > 0xF) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
@@ -160,13 +156,13 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
           auto stop_bit_error = arg->verify_stop_bit_(last);
           if (stop_bit_error == ProtocolErrorType::NO_ERROR) {
             arg->mode_ = OperationMode::RECEIVED;
-            arg->stop_();
+            arg->stop_timer_();
             return false;
           } else {
             // end of data not verified, invalid data
             arg->mode_ = OperationMode::ERROR_PROTOCOL;
             arg->error_type_ = stop_bit_error;
-            arg->stop_();
+            arg->stop_timer_();
             return false;
           }
         } else {
@@ -183,7 +179,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       // no change for too long, invalid mancheter encoding
       arg->mode_ = OperationMode::ERROR_PROTOCOL;
       arg->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
-      arg->stop_();
+      arg->stop_timer_();
       return false;
     }
     arg->capture_ = (arg->capture_ << 1) | value;
@@ -197,7 +193,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
     if (arg->clock_ == 0) {
       if (arg->bit_pos_ <= 0) {            // check termination
         arg->mode_ = OperationMode::SENT;  // all data written
-        arg->stop_();
+        arg->stop_timer_();
       }
       arg->bit_pos_--;
       arg->clock_ = 1;
@@ -236,58 +232,123 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
 
 #ifdef ESP32
 
-void IRAM_ATTR OpenTherm::init_timer_() {
-  if (timer_initialized_)
-    return;
+bool OpenTherm::init_esp32_timer_() {
+  // Search for a free timer. Maybe unstable, we'll see.
+  int cur_timer = 0;
+  timer_group_t timer_group = TIMER_GROUP_0;
+  timer_idx_t timer_idx = TIMER_0;
+  bool timer_found = false;
+  
+  for (; cur_timer < SOC_TIMER_GROUP_TOTAL_TIMERS; cur_timer++) {
+    timer_config_t temp_config;
+    timer_group = cur_timer < 2 ? TIMER_GROUP_0 : TIMER_GROUP_1;
+    timer_idx = cur_timer < 2 ? (timer_idx_t)cur_timer : (timer_idx_t)(cur_timer - 2);
+    
+    auto err = timer_get_config(timer_group, timer_idx, &temp_config);
+    if (err == ESP_ERR_INVALID_ARG)
+    {
+      // Error means timer was not initialized (or other things, but we are careful with our args)
+      timer_found = true;
+      break;
+    }
+
+    ESP_LOGD(OT_TAG, "Timer %d:%d seems to be occupied, will try another", timer_group, timer_idx);
+  }
+  
+  if (!timer_found)
+  {
+    ESP_LOGE(OT_TAG, "No free timer was found! OpenTherm cannot function without a timer.");
+    return false;
+  }
+
+  ESP_LOGD(OT_TAG, "Found free timer %d:%d", timer_group, timer_idx);
+  timer_group_ = timer_group;
+  timer_idx_ = timer_idx;
 
   timer_config_t const config = {
-      .alarm_en = TIMER_ALARM_DIS,
+      .alarm_en = TIMER_ALARM_EN,
       .counter_en = TIMER_PAUSE,
       .intr_type = TIMER_INTR_LEVEL,
       .counter_dir = TIMER_COUNT_UP,
-      .auto_reload = TIMER_AUTORELOAD_DIS,
+      .auto_reload = TIMER_AUTORELOAD_EN,
       .divider = 80,
   };
 
-  timer_init(TIMER_GROUP_0, TIMER_0, &config);
-  timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
-  timer_start(TIMER_GROUP_0, TIMER_0);
-
-  timer_initialized_ = true;
+  esp_err_t result;
+  
+  result = timer_init(timer_group_, timer_idx_, &config);
+  if (result != ESP_OK)
+  {
+    auto error = esp_err_to_name(result);
+    ESP_LOGE(OT_TAG, "Failed to init timer. Error: %s", error);
+    return false;
+  }
+  
+  result = timer_set_counter_value(timer_group_, timer_idx_, 0);
+  if (result != ESP_OK) {
+    auto error = esp_err_to_name(result);
+    ESP_LOGE(OT_TAG, "Failed to set counter value. Error: %s", error);
+    return false;
+  }
+  
+  result = timer_isr_callback_add(timer_group_, timer_idx_, reinterpret_cast<bool (*)(void *)>(timer_isr), this, 0);
+  if (result != ESP_OK) {
+    auto error = esp_err_to_name(result);
+    ESP_LOGE(OT_TAG, "Failed to register timer interrupt. Error: %s", error);
+    return false;
+  }
+  
+  return true;
 }
 
 void IRAM_ATTR OpenTherm::start_timer_(uint64_t alarm_value) {
-  timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, reinterpret_cast<bool (*)(void *)>(timer_isr), this, 0);
-  timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, alarm_value);
-  timer_set_auto_reload(TIMER_GROUP_0, TIMER_0, TIMER_AUTORELOAD_EN);
-  timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_EN);
+  esp_err_t result;
+  
+  result = timer_set_alarm_value(timer_group_, timer_idx_, alarm_value);
+  if (result != ESP_OK) {
+    auto error = esp_err_to_name(result);
+    ESP_LOGE(OT_TAG, "Failed to set alarm value. Error: %s", error);
+    return;
+  }
+
+  result = timer_start(timer_group_, timer_idx_);
+  if (result != ESP_OK) {
+    auto error = esp_err_to_name(result);
+    ESP_LOGE(OT_TAG, "Failed to start the timer. Error: %s", error);
+    return;
+  }
 }
 
 // 5 kHz timer_
 void IRAM_ATTR OpenTherm::start_read_timer_() {
-  {
     InterruptLock const lock;
-    init_timer_();
     start_timer_(200);
-  }
 }
 
 // 2 kHz timer_
 void IRAM_ATTR OpenTherm::start_write_timer_() {
-  {
     InterruptLock const lock;
-    init_timer_();
     start_timer_(500);
-  }
 }
 
 void IRAM_ATTR OpenTherm::stop_timer_() {
-  {
     InterruptLock const lock;
-    init_timer_();
-    timer_set_alarm(TIMER_GROUP_0, TIMER_0, TIMER_ALARM_DIS);
-    timer_isr_callback_remove(TIMER_GROUP_0, TIMER_0);
-  }
+
+    esp_err_t result;
+    
+    result = timer_pause(timer_group_, timer_idx_);
+    if (result != ESP_OK) {
+      auto error = esp_err_to_name(result);
+      ESP_LOGE(OT_TAG, "Failed to pause the timer. Error: %s", error);
+      return;
+    }
+    
+    result = timer_set_counter_value(timer_group_, timer_idx_, 0);
+    if (result != ESP_OK) {
+      auto error = esp_err_to_name(result);
+      ESP_LOGE(OT_TAG, "Failed to set timer counter to 0 after pausing. Error: %s", error);
+      return;
+    }
 }
 
 #endif  // END ESP32

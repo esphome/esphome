@@ -210,7 +210,7 @@ void OpenthermHub::process_response(OpenthermData &data) {
 void OpenthermHub::setup() {
   ESP_LOGD(OT_TAG, "Setting up OpenTherm component");
   this->opentherm_ = new OpenTherm(this->in_pin_, this->out_pin_);  // NOLINT because hub is never deleted
-  this->opentherm_->begin();
+  this->opentherm_->initialize();
 
   // Ensure that there is at least one request, as we are required to
   // communicate at least once every second. Sending the status request is
@@ -244,7 +244,7 @@ void OpenthermHub::loop() {
   }
 
   if (last_conversation_end_ > 0 && (cur_time - last_conversation_end_) < 100) {
-    ESP_LOGD(OT_TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
+    ESP_LOGV(OT_TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
     return;
   }
 
