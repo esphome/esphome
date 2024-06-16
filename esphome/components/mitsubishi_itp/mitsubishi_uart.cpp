@@ -97,6 +97,7 @@ void MitsubishiUART::loop() {
 
   // If it's been too long since we received a temperature update (and we're not set to Internal)
   if (((millis() - last_received_temperature_) > TEMPERATURE_SOURCE_TIMEOUT_MS) &&
+      (temperature_source_select_->has_option(TEMPERATURE_SOURCE_INTERNAL)) &&
       (temperature_source_select_->state != TEMPERATURE_SOURCE_INTERNAL)) {
     ESP_LOGW(TAG, "No temperature received from %s for %i milliseconds, reverting to Internal source",
              current_temperature_source_.c_str(), TEMPERATURE_SOURCE_TIMEOUT_MS);
