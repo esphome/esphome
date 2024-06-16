@@ -348,10 +348,6 @@ async def to_code(config):
             )
         )
 
-    # Remove Temperature Source select if there aren't at least two options
-    if len(SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2]) < 2:
-        del SELECTS[CONF_TEMPERATURE_SOURCE_SELECT]
-
     # Register selects
     for select_designator, (
         _,
@@ -360,11 +356,17 @@ async def to_code(config):
     ) in SELECTS.items():
         select_conf = config[CONF_SELECTS][select_designator]
         select_component = cg.new_Pvariable(select_conf[CONF_ID])
+        cg.add(getattr(muart_component, f"set_{select_designator}")(select_component))
+        await cg.register_parented(select_component, muart_component)
+
+        # For temperature source select, skip registration if there are less than two sources
+        if select_designator == CONF_TEMPERATURE_SOURCE_SELECT:
+            if len(SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2]) < 2:
+                continue
+
         await select.register_select(
             select_component, select_conf, options=select_options
         )
-        cg.add(getattr(muart_component, f"set_{select_designator}")(select_component))
-        await cg.register_parented(select_component, muart_component)
 
     # Buttons
     for button_designator, (_, _) in BUTTONS.items():
