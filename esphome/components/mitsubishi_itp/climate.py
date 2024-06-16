@@ -19,6 +19,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_FREQUENCY,
     ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_NONE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_HERTZ,
@@ -220,7 +221,7 @@ SELECTS = {
         "Vane Position",
         select.select_schema(
             VanePositionSelect,
-            entity_category=ENTITY_CATEGORY_CONFIG,
+            entity_category=ENTITY_CATEGORY_NONE,
             icon="mdi:arrow-expand-vertical",
         ),
         VANE_POSITIONS,
@@ -229,7 +230,7 @@ SELECTS = {
         "Horizontal Vane Position",
         select.select_schema(
             HorizontalVanePositionSelect,
-            entity_category=ENTITY_CATEGORY_CONFIG,
+            entity_category=ENTITY_CATEGORY_NONE,
             icon="mdi:arrow-expand-horizontal",
         ),
         HORIZONTAL_VANE_POSITIONS,
