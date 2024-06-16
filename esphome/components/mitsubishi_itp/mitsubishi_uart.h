@@ -27,10 +27,10 @@ const uint32_t TEMPERATURE_SOURCE_TIMEOUT_MS = 420000;  // (7min) The heatpump w
 
 const std::string TEMPERATURE_SOURCE_THERMOSTAT = "Thermostat";
 
-// these names come from Kumo. They are bad, but I am also too lazy to think of better names. they also
-// may not map perfectly yet?
-const std::array<std::string, 7> ACTUAL_FAN_SPEED_NAMES = {"Off",      "Very Low",       "Quiet",      "Low",
-                                                           "Powerful", "Super Powerful", "Super Quiet"};
+// These are named to match with set fan speeds where possible.  "Very Low" is a special speed
+// for e.g. preheating or thermal off
+const std::array<std::string, 7> ACTUAL_FAN_SPEED_NAMES = {"Off",  "Very Low",        "Low",  "Medium",
+                                                           "High", FAN_MODE_VERYHIGH, "Quiet"};
 
 class MitsubishiUART : public PollingComponent, public climate::Climate, public PacketProcessor {
  public:
