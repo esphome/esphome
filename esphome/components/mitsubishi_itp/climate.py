@@ -97,31 +97,36 @@ INTERNAL_TEMPERATURE_SOURCE_OPTIONS = [
 
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 
-BASE_SCHEMA = (
-    cv.polling_component_schema(DEFAULT_POLLING_INTERVAL)
-    .extend(climate.CLIMATE_SCHEMA)
-    .extend(
-        {
-            cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
-            cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_UART_THERMOSTAT): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_NAME, default="Climate"): cv.string,
-            cv.Optional(
-                CONF_SUPPORTED_MODES, default=DEFAULT_CLIMATE_MODES
-            ): cv.ensure_list(climate.validate_climate_mode),
-            cv.Optional(
-                CONF_SUPPORTED_FAN_MODES, default=DEFAULT_FAN_MODES
-            ): cv.ensure_list(climate.validate_climate_fan_mode),
-            cv.Optional(CONF_CUSTOM_FAN_MODES, default=["VERYHIGH"]): cv.ensure_list(
-                validate_custom_fan_modes
+BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
+        cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
+        cv.Optional(CONF_UART_THERMOSTAT): cv.use_id(uart.UARTComponent),
+        # Overwrite name from ENTITY_BASE_SCHEMA with "Climate" as default
+        cv.Optional(CONF_NAME, default="Climate"): cv.Any(
+            cv.All(
+                cv.none,
+                cv.requires_friendly_name(
+                    "Name cannot be None when esphome->friendly_name is not set!"
+                ),
             ),
-            cv.Optional(CONF_TEMPERATURE_SOURCES, default=[]): cv.ensure_list(
-                cv.use_id(sensor.Sensor)
-            ),
-            cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
-        }
-    )
-)
+            cv.string,
+        ),
+        cv.Optional(
+            CONF_SUPPORTED_MODES, default=DEFAULT_CLIMATE_MODES
+        ): cv.ensure_list(climate.validate_climate_mode),
+        cv.Optional(
+            CONF_SUPPORTED_FAN_MODES, default=DEFAULT_FAN_MODES
+        ): cv.ensure_list(climate.validate_climate_fan_mode),
+        cv.Optional(CONF_CUSTOM_FAN_MODES, default=["VERYHIGH"]): cv.ensure_list(
+            validate_custom_fan_modes
+        ),
+        cv.Optional(CONF_TEMPERATURE_SOURCES, default=[]): cv.ensure_list(
+            cv.use_id(sensor.Sensor)
+        ),
+        cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
+    }
+).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
 # TODO Storing the registration function here seems weird, but I can't figure out how to determine schema type later
 SENSORS = dict[str, tuple[str, cv.Schema, callable]](
