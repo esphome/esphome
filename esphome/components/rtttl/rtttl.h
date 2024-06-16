@@ -25,8 +25,8 @@ enum State : uint8_t {
 static const size_t SAMPLE_BUFFER_SIZE = 512;
 
 struct SpeakerSample {
-  int16_t left{0};
-  int16_t right{0};
+  int8_t left{0};
+  int8_t right{0};
 };
 #endif
 

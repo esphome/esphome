@@ -163,7 +163,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = (49152 * this->gain_) * sin(deg2rad(rem));
+          int16_t val = (127 * this->gain_) * sin(deg2rad(rem));  // 16bit = 49152
 
           sample[x].left = val;
           sample[x].right = val;
@@ -180,9 +180,9 @@ void Rtttl::loop() {
         x++;
       }
       if (x > 0) {
-        int send = this->speaker_->play((uint8_t *) (&sample), x * 4);
+        int send = this->speaker_->play((uint8_t *) (&sample), x * 2);
         if (send != x * 4) {
-          this->samples_sent_ -= (x - (send / 4));
+          this->samples_sent_ -= (x - (send / 2));
         }
         return;
       }
