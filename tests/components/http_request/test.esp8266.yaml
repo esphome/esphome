@@ -1,2 +1,4 @@
-packages:
-  common: !include common.yaml
+substitutions:
+  verify_ssl: "false"
+
+<<: !include common.yaml

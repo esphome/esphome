@@ -81,7 +81,8 @@ RUN \
     fi; \
     pip3 install \
     --break-system-packages --no-cache-dir \
-    platformio==6.1.13 \
+    # Keep platformio version in sync with requirements.txt
+    platformio==6.1.15 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -99,6 +100,9 @@ RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "a
     pip3 install \
     --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini --libraries
+
+# Avoid unsafe git error when container user and file config volume permissions don't match
+RUN git config --system --add safe.directory '*'
 
 
 # ======================= docker-type image =======================

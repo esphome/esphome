@@ -80,6 +80,17 @@ void DateCall::validate_() {
 
 void DateCall::perform() {
   this->validate_();
+  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+
+  if (this->year_.has_value()) {
+    ESP_LOGD(TAG, " Year: %d", *this->year_);
+  }
+  if (this->month_.has_value()) {
+    ESP_LOGD(TAG, " Month: %d", *this->month_);
+  }
+  if (this->day_.has_value()) {
+    ESP_LOGD(TAG, " Day: %d", *this->day_);
+  }
   this->parent_->control(*this);
 }
 
