@@ -46,7 +46,7 @@ RC522_SCHEMA = cv.Schema(
             }
         ),
         cv.Optional(CONF_GAIN, default="38dB"): cv.All(
-            cv.decibel(GAIN), cv.enum(GAIN, string=True)
+            cv.decibel, cv.enum(GAIN, string=True)
         ),
     }
 ).extend(cv.polling_component_schema("1s"))
