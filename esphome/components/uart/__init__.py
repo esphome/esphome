@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_RX_PIN,
     CONF_TX_PIN,
+    CONF_NAME,
     CONF_UART_ID,
     CONF_DATA,
     CONF_RX_BUFFER_SIZE,
@@ -45,6 +46,7 @@ RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Co
 LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
+HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
 
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
@@ -52,6 +54,7 @@ NATIVE_UART_CLASSES = (
     str(ESP8266UartComponent),
     str(RP2040UartComponent),
     str(LibreTinyUARTComponent),
+    str(HostUartComponent),
 )
 
 UARTDevice = uart_ns.class_("UARTDevice")
@@ -95,6 +98,20 @@ def validate_invert_esp32(config):
     return config
 
 
+def validate_port_name(config):
+    if CORE.is_host:
+        if CONF_TX_PIN in config or CONF_RX_PIN in config:
+            raise cv.Invalid(
+                "TX and RX pins are not supported for UART on host platform."
+            )
+        if CONF_NAME not in config:
+            raise cv.Invalid("Name is required for UART on host platform.")
+    else:
+        if CONF_NAME in config:
+            raise cv.Invalid("Name is not supported for UART on non-host platforms.")
+    return config
+
+
 def _uart_declare_type(value):
     if CORE.is_esp8266:
         return cv.declare_id(ESP8266UartComponent)(value)
@@ -107,6 +124,8 @@ def _uart_declare_type(value):
         return cv.declare_id(RP2040UartComponent)(value)
     if CORE.is_libretiny:
         return cv.declare_id(LibreTinyUARTComponent)(value)
+    if CORE.is_host:
+        return cv.declare_id(HostUartComponent)(value)
     raise NotImplementedError
 
 
@@ -181,6 +200,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
+            cv.Optional(CONF_NAME): cv.string_strict,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -193,8 +213,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN),
+    cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_NAME),
     validate_invert_esp32,
+    validate_port_name,
 )
 
 
@@ -236,6 +257,8 @@ async def to_code(config):
     if CONF_RX_PIN in config:
         rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
         cg.add(var.set_rx_pin(rx_pin))
+    if CONF_NAME in config:
+        cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
