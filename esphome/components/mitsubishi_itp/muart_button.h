@@ -12,12 +12,12 @@ class MUARTButton : public button::Button, public Component, public Parented<Mit
   using Parented<MitsubishiUART>::Parented;
 
  protected:
-  virtual void press_action() override;
+  virtual void press_action() override = 0;
 };
 
 class FilterResetButton : public MUARTButton {
  protected:
-  void press_action() { this->parent_->reset_filter_status(); }
+  void press_action() override { this->parent_->reset_filter_status(); }
 };
 
 }  // namespace mitsubishi_itp
