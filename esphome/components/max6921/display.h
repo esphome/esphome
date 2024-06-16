@@ -58,11 +58,12 @@ class DisplayMode
 {
  public:
   display_mode_t mode;
+  uint32_t duration_ms;
   DisplayMode();
-  void set_mode(display_mode_t display_mode);
+  void set_mode(display_mode_t mode, uint32_t duration_ms=0);
 
  protected:
-
+  uint32_t duration_ms_start_;
 };
 
 class DisplayText
@@ -102,8 +103,8 @@ class Display : public DisplayBrightness,
   void set_demo_mode(demo_mode_t mode, uint8_t cycle_num);
   void set_demo_mode(const std::string& mode, uint8_t cycle_num);
   int set_text(const char *text, uint8_t start_pos);
-  int set_text(const std::string& text, const std::string& align, const std::string& effect,
-               uint8_t start_pos=0, uint8_t cycle_num=0);
+  int set_text(const std::string& text, uint8_t start_pos, const std::string& align,
+               uint32_t duration, const std::string& effect, uint32_t interval, uint8_t cycle_num);
   void update(void);
 
  protected:
@@ -117,6 +118,7 @@ class Display : public DisplayBrightness,
   uint seg_out_smallest_;
   uint32_t refresh_period_us_;
   DisplayText disp_text_;
+  uint32_t restore_update_interval_;
   static void display_refresh_task_(void *pv);
   int update_out_buf_(void);
 
