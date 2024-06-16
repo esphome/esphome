@@ -167,17 +167,17 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
         ),
         "defrost": (
             "Defrost",
-            binary_sensor.binary_sensor_schema(),
+            binary_sensor.binary_sensor_schema(icon="mdi:snowflake-melt"),
             binary_sensor.register_binary_sensor,
         ),
         "hot_adjust": (
             "Hot Adjust",
-            binary_sensor.binary_sensor_schema(),
+            binary_sensor.binary_sensor_schema(icon="mdi:heating-coil"),
             binary_sensor.register_binary_sensor,
         ),
         "standby": (
             "Standby",
-            binary_sensor.binary_sensor_schema(),
+            binary_sensor.binary_sensor_schema(icon="mdi:pause-circle-outline"),
             binary_sensor.register_binary_sensor,
         ),
         CONF_ISEE_STATUS: (
@@ -187,7 +187,7 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
         ),
         CONF_ERROR_CODE: (
             "Error Code",
-            text_sensor.text_sensor_schema(),
+            text_sensor.text_sensor_schema(icon="mdi:alert-circle-outline"),
             text_sensor.register_text_sensor,
         ),
     }
@@ -256,7 +256,7 @@ BUTTONS = {
         button.button_schema(
             FilterResetButton,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:air-filter",
+            icon="mdi:restore",
         ),
     )
 }
