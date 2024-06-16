@@ -54,7 +54,6 @@ NATIVE_UART_CLASSES = (
     str(ESP8266UartComponent),
     str(RP2040UartComponent),
     str(LibreTinyUARTComponent),
-    str(HostUartComponent),
 )
 
 UARTDevice = uart_ns.class_("UARTDevice")
@@ -104,11 +103,6 @@ def validate_port_name(config):
             raise cv.Invalid(
                 "TX and RX pins are not supported for UART on host platform."
             )
-        if CONF_NAME not in config:
-            raise cv.Invalid("Name is required for UART on host platform.")
-    else:
-        if CONF_NAME in config:
-            raise cv.Invalid("Name is not supported for UART on non-host platforms.")
     return config
 
 
@@ -200,7 +194,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
-            cv.Optional(CONF_NAME): cv.string_strict,
+            cv.Optional(CONF_PORT): cv.All(cv.file_, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
