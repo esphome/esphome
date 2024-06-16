@@ -40,8 +40,10 @@ std::string format_uid(std::vector<uint8_t> &uid) {
 const LogString *rc522_gain_to_string(RC522Gain gain) {
   switch (gain) {
     case RC522Gain::RC522_GAIN_18DB:
+    case RC522Gain::RC522_GAIN_18DBA:
       return LOG_STR("18 decibels");
     case RC522Gain::RC522_GAIN_23DB:
+    case RC522Gain::RC522_GAIN_23DBA:
       return LOG_STR("23 decibels");
     case RC522Gain::RC522_GAIN_33DB:
       return LOG_STR("33 decibels");

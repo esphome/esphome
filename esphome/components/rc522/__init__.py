@@ -25,6 +25,8 @@ RC522Gain = rc522_ns.enum("RC522Gain")
 GAIN = {
     "18dB": RC522Gain.RC522_GAIN_18DB,
     "23dB": RC522Gain.RC522_GAIN_23DB,
+    "18dB_a": RC522Gain.RC522_GAIN_18DBA,
+    "23dB_a": RC522Gain.RC522_GAIN_23DBA,
     "33dB": RC522Gain.RC522_GAIN_33DB,
     "38dB": RC522Gain.RC522_GAIN_38DB,
     "43dB": RC522Gain.RC522_GAIN_43DB,
@@ -45,9 +47,7 @@ RC522_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
             }
         ),
-        cv.Optional(CONF_GAIN, default="38dB"): cv.All(
-            cv.decibel(GAIN), cv.enum(GAIN, string=True)
-        ),
+        cv.Optional(CONF_GAIN, default="38dB"): cv.enum(GAIN, string=True),
     }
 ).extend(cv.polling_component_schema("1s"))
 
