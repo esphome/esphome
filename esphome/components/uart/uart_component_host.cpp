@@ -195,7 +195,7 @@ bool HostUartComponent::peek_byte(uint8_t *data) {
   if (this->available() == 0) {
     return false;
   }
-  if (::read(this->file_descriptor_, &data, 1) != 1) {
+  if (::read(this->file_descriptor_, data, 1) != 1) {
     this->update_error_(strerror(errno));
     return false;
   }
