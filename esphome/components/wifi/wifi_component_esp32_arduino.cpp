@@ -694,9 +694,9 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.netmask = network::IPAddress(255, 255, 255, 0);
   }
 
-  err = esp_netif_dhcpc_stop(s_ap_netif);
+  err = esp_netif_dhcps_stop(s_ap_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGE(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_netif_dhcps_stop failed: %s", esp_err_to_name(err));
     return false;
   }
 
