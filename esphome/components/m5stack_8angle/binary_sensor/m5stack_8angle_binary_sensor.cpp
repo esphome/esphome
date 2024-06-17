@@ -9,7 +9,7 @@ void M5Stack8AngleBinarySensor::update() {
     this->status_set_warning("Could not read binary sensor state from M5Stack 8Angle.");
     return;
   }
-  this->publish_state(out ? true : false);
+  this->publish_state(out != 0);
   this->status_clear_warning();
 }
 
