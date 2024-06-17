@@ -5251,6 +5251,14 @@ bool MediaPlayerStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value)
       this->volume = value.as_float();
       return true;
     }
+    case 10: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 11: {
+      this->key = value.as_fixed32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5287,6 +5295,8 @@ void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(7, this->artist);
   buffer.encode_string(8, this->album);
   buffer.encode_string(9, this->title);
+  buffer.encode_int32(10, this->duration);
+  buffer.encode_int32(11, this->position);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
@@ -5328,6 +5338,18 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
 
   out.append("  title: ");
   out.append("'").append(this->this->title).append("'");
+  out.append("\n");
+  out.append("}");
+
+  out.append("  duration: ");
+  sprintf(buffer, "%d", this->duration);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+
+  out.append("  position: ");
+  sprintf(buffer, "%d", this->position);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

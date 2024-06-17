@@ -156,6 +156,10 @@ class MediaPlayer : public EntityBase {
 
   virtual std::string title() const { return ""; }
 
+  virtual int duration() const { return 0; }
+
+  virtual int position() const { return 0; }
+
   virtual MediaPlayerTraits get_traits() = 0;
 
  protected:
