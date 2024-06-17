@@ -13,7 +13,7 @@ void M5Stack8AngleKnobSensor::update() {
     if (this->raw_) {
       this->publish_state(raw_pos);
     } else {
-      float knob_pos = raw_pos / ((1 << this->bits_) - 1);
+      float knob_pos = (float) raw_pos / ((1 << this->bits_) - 1);
       this->publish_state(knob_pos);
     }
     this->status_clear_warning();
