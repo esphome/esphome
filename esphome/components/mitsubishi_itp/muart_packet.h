@@ -210,11 +210,14 @@ class SettingsGetResponsePacket : public Packet {
 
 class CurrentTempGetResponsePacket : public Packet {
   static const int PLINDEX_CURRENTTEMP_LEGACY = 3;
+  static const int PLINDEX_OUTDOORTEMP = 5;
   static const int PLINDEX_CURRENTTEMP = 6;
   using Packet::Packet;
 
  public:
   float get_current_temp() const;
+  // Returns outdoor temperature or NAN if unsupported
+  float get_outdoor_temp() const;
   std::string to_string() const override;
 };
 

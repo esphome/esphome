@@ -205,6 +205,13 @@ void MitsubishiUART::process_packet(const CurrentTempGetResponsePacket &packet) 
   current_temperature = packet.get_current_temp();
 
   publish_on_update_ |= (old_current_temperature != current_temperature);
+
+  if (!std::isnan(packet.get_outdoor_temp())) {
+    const float old_outdoor_temperature = outdoor_temperature_sensor_->state;
+    outdoor_temperature_sensor_->state = packet.get_outdoor_temp();
+
+    publish_on_update_ |= (old_outdoor_temperature != outdoor_temperature_sensor_->state);
+  }
 };
 
 void MitsubishiUART::process_packet(const StatusGetResponsePacket &packet) {
