@@ -22,7 +22,7 @@ uart:
       number: GPIO4
 
 climate:
-  - platform: mitsubishi_uart
+  - platform: mitsubishi_itp
     uart_heatpump: hp_uart
     uart_thermostat: tstat_uart
     update_interval: 12s
