@@ -42,6 +42,13 @@ COLOR_ORDERS = {
 }
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
+
+def validate_dimension(value):
+    if value % 2 != 0:
+        raise cv.Invalid("Width/height must be divisible by 2")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         cv.Schema(
@@ -52,8 +59,12 @@ CONFIG_SCHEMA = cv.All(
                     cv.dimensions,
                     cv.Schema(
                         {
-                            cv.Required(CONF_WIDTH): cv.int_,
-                            cv.Required(CONF_HEIGHT): cv.int_,
+                            cv.Required(CONF_WIDTH): cv.All(
+                                cv.int_, validate_dimension
+                            ),
+                            cv.Required(CONF_HEIGHT): cv.All(
+                                cv.int_, validate_dimension
+                            ),
                             cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.int_,
                             cv.Optional(CONF_OFFSET_WIDTH, default=0): cv.int_,
                         }

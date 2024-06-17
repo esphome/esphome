@@ -30,13 +30,13 @@ void QspiAmoLed::update() {
   if (this->x_low_ % 2 == 1) {
     this->x_low_--;
   }
-  if (this->x_high_ % 2 == 0 && this->x_high_ < this->get_width_internal() - 1) {
+  if (this->x_high_ % 2 == 0) {
     this->x_high_++;
   }
   if (this->y_low_ % 2 == 1) {
     this->y_low_--;
   }
-  if (this->y_high_ % 2 == 0 && this->y_high_ < this->get_height_internal() - 1) {
+  if (this->y_high_ % 2 == 0) {
     this->y_high_++;
   }
   int w = this->x_high_ - this->x_low_ + 1;
