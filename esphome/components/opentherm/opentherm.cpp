@@ -29,6 +29,8 @@ using std::to_string;
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
+      timer_group_(TIMER_GROUP_0),
+      timer_idx_(TIMER_0),
       mode_(OperationMode::IDLE),
       error_type_(ProtocolErrorType::NO_ERROR),
       capture_(0),
@@ -36,9 +38,7 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
       data_(0),
       bit_pos_(0),
       timeout_counter_(-1),
-      device_timeout_(device_timeout),
-      timer_group_(TIMER_GROUP_0),
-      timer_idx_(TIMER_0) {
+      device_timeout_(device_timeout) {
   isr_in_pin_ = in_pin->to_isr();
   isr_out_pin_ = out_pin->to_isr();
 }
@@ -276,21 +276,21 @@ bool OpenTherm::init_esp32_timer_() {
 
   result = timer_init(timer_group_, timer_idx_, &config);
   if (result != ESP_OK) {
-    auto error = esp_err_to_name(result);
+    const auto *error = esp_err_to_name(result);
     ESP_LOGE(OT_TAG, "Failed to init timer. Error: %s", error);
     return false;
   }
 
   result = timer_set_counter_value(timer_group_, timer_idx_, 0);
   if (result != ESP_OK) {
-    auto error = esp_err_to_name(result);
+    const auto *error = esp_err_to_name(result);
     ESP_LOGE(OT_TAG, "Failed to set counter value. Error: %s", error);
     return false;
   }
 
   result = timer_isr_callback_add(timer_group_, timer_idx_, reinterpret_cast<bool (*)(void *)>(timer_isr), this, 0);
   if (result != ESP_OK) {
-    auto error = esp_err_to_name(result);
+    const auto *error = esp_err_to_name(result);
     ESP_LOGE(OT_TAG, "Failed to register timer interrupt. Error: %s", error);
     return false;
   }
@@ -303,14 +303,14 @@ void IRAM_ATTR OpenTherm::start_timer_(uint64_t alarm_value) {
 
   result = timer_set_alarm_value(timer_group_, timer_idx_, alarm_value);
   if (result != ESP_OK) {
-    auto error = esp_err_to_name(result);
+    const auto *error = esp_err_to_name(result);
     ESP_LOGE(OT_TAG, "Failed to set alarm value. Error: %s", error);
     return;
   }
 
   result = timer_start(timer_group_, timer_idx_);
   if (result != ESP_OK) {
-    auto error = esp_err_to_name(result);
+    const auto *error = esp_err_to_name(result);
     ESP_LOGE(OT_TAG, "Failed to start the timer. Error: %s", error);
     return;
   }
@@ -335,14 +335,14 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
 
   result = timer_pause(timer_group_, timer_idx_);
   if (result != ESP_OK) {
-    auto error = esp_err_to_name(result);
+    const auto *error = esp_err_to_name(result);
     ESP_LOGE(OT_TAG, "Failed to pause the timer. Error: %s", error);
     return;
   }
 
   result = timer_set_counter_value(timer_group_, timer_idx_, 0);
   if (result != ESP_OK) {
-    auto error = esp_err_to_name(result);
+    const auto *error = esp_err_to_name(result);
     ESP_LOGE(OT_TAG, "Failed to set timer counter to 0 after pausing. Error: %s", error);
     return;
   }
