@@ -40,19 +40,21 @@ std::string format_uid(std::vector<uint8_t> &uid) {
 const LogString *rc522_gain_to_string(RC522Gain gain) {
   switch (gain) {
     case RC522Gain::RC522_GAIN_18DB:
+      return LOG_STR("18dB");
     case RC522Gain::RC522_GAIN_18DBA:
-      return LOG_STR("18 decibels");
+      return LOG_STR("18dB_a");
     case RC522Gain::RC522_GAIN_23DB:
+      return LOG_STR("23dB");
     case RC522Gain::RC522_GAIN_23DBA:
-      return LOG_STR("23 decibels");
+      return LOG_STR("23dB_a");
     case RC522Gain::RC522_GAIN_33DB:
-      return LOG_STR("33 decibels");
+      return LOG_STR("33dB");
     case RC522Gain::RC522_GAIN_38DB:
-      return LOG_STR("38 decibels");
+      return LOG_STR("38dB");
     case RC522Gain::RC522_GAIN_43DB:
-      return LOG_STR("43 decibels");
+      return LOG_STR("43dB");
     case RC522Gain::RC522_GAIN_48DB:
-      return LOG_STR("48 decibels");
+      return LOG_STR("48dB");
     default:
       return LOG_STR("UNKNOWN");
   }
