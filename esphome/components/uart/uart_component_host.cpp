@@ -192,51 +192,62 @@ bool HostUartComponent::peek_byte(uint8_t *data) {
   if (this->file_descriptor_ == -1) {
     return false;
   }
-  if (this->available() == 0) {
-    return false;
+  if (!this->has_peek_) {
+    if (!this->check_read_timeout_()) {
+      return false;
+    }
+    if (::read(this->file_descriptor_, &this->peek_byte_, 1) != 1) {
+      this->update_error_(strerror(errno));
+      return false;
+    }
+    this->has_peek_ = true;
   }
-  if (::read(this->file_descriptor_, data, 1) != 1) {
-    this->update_error_(strerror(errno));
-    return false;
-  }
-  // Move the read pointer back by one byte
-  if (lseek(this->file_descriptor_, -1, SEEK_CUR) == -1) {
-    this->update_error_(strerror(errno));
-    return false;
-  }
+  *data = this->peek_byte_;
   return true;
 }
 
 bool HostUartComponent::read_array(uint8_t *data, size_t len) {
-  if (this->file_descriptor_ == -1) {
+  if ((this->file_descriptor_ == -1) || (len == 0)) {
     return false;
   }
   if (!this->check_read_timeout_(len))
     return false;
-  int sz = ::read(this->file_descriptor_, data, len);
-  if (sz == -1) {
-    this->update_error_(strerror(errno));
-    return false;
+  uint8_t *data_ptr = data;
+  size_t length_to_read = len;
+  if (this->has_peek_) {
+    length_to_read--;
+    *data_ptr = this->peek_byte_;
+    data_ptr++;
+    this->has_peek_ = false;
+  }
+  if (length_to_read > 0) {
+    int sz = ::read(this->file_descriptor_, data_ptr, length_to_read);
+    if (sz == -1) {
+      this->update_error_(strerror(errno));
+      return false;
+    }
   }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
 #endif
-  return sz > 0;
+  return true;
 }
 
 int HostUartComponent::available() {
   if (this->file_descriptor_ == -1) {
     return 0;
   }
-  int nread;
-  int res = ioctl(this->file_descriptor_, FIONREAD, &nread);
+  int available;
+  int res = ioctl(this->file_descriptor_, FIONREAD, &available);
   if (res == -1) {
     this->update_error_(strerror(errno));
     return 0;
   }
-  return nread;
+  if (this->has_peek_)
+    available++;
+  return available;
 };
 
 void HostUartComponent::flush() {

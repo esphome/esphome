@@ -28,6 +28,8 @@ class HostUartComponent : public UARTComponent, public Component {
   std::string port_name_;
   std::string first_error_{""};
   int file_descriptor_ = -1;
+  bool has_peek_{false};
+  uint8_t peek_byte_;
 };
 
 }  // namespace uart
