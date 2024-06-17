@@ -1,13 +1,5 @@
-uart:
-  - id: uart_a01nyub
-    tx_pin:
-      number: 4
-    rx_pin:
-      number: 5
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-sensor:
-  - platform: a01nyub
-    id: a01nyub_sensor
-    name: a01nyub Distance
-    uart_id: uart_a01nyub
+<<: !include common.yaml
