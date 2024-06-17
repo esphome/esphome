@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 
-from . import M5Stack8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
+from .. import M5Stack8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
 
 
 M5Stack8AngleSensorSwitch = m5stack_8angle_ns.class_(

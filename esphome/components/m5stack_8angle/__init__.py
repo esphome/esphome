@@ -17,6 +17,8 @@ M5Stack8AngleComponent = m5stack_8angle_ns.class_(
     cg.Component,
 )
 
+AnalogBits = m5stack_8angle_ns.enum("AnalogBits")
+
 
 CONFIG_SCHEMA = cv.Schema(
     {

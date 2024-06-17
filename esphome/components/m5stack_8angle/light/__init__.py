@@ -4,7 +4,7 @@ from esphome.components import light
 
 from esphome.const import CONF_OUTPUT_ID
 
-from . import M5Stack8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
+from .. import M5Stack8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
 
 
 M5Stack8AngleLightsComponent = m5stack_8angle_ns.class_(

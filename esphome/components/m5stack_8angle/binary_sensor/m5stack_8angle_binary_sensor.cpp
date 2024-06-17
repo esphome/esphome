@@ -1,0 +1,17 @@
+#include "m5stack_8angle_binary_sensor.h"
+
+namespace esphome {
+namespace m5stack_8angle {
+
+void M5Stack8AngleBinarySensor::update() {
+  uint8_t out = this->parent_->read_switch();
+  if (std::isnan(out)) {
+    this->status_set_warning("Could not read binary sensor state from M5Stack 8Angle.");
+    return;
+  }
+  this->publish_state(out ? true : false);
+  this->status_clear_warning();
+}
+
+}  // namespace m5stack_8angle
+}  // namespace esphome
