@@ -3,9 +3,9 @@
 namespace esphome {
 namespace m5stack_8angle {
 
-void M5Stack8AngleBinarySensor::update() {
-  uint8_t out = this->parent_->read_switch();
-  if (std::isnan(out)) {
+void M5Stack8AngleSwitchBinarySensor::update() {
+  int8_t out = this->parent_->read_switch();
+  if (out == -1) {
     this->status_set_warning("Could not read binary sensor state from M5Stack 8Angle.");
     return;
   }

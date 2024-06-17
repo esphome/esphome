@@ -5,8 +5,8 @@ from esphome.components import binary_sensor
 from .. import M5Stack8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
 
 
-M5Stack8AngleSensorSwitch = m5stack_8angle_ns.class_(
-    "M5Stack8AngleSensorSwitch",
+M5Stack8AngleSwitchBinarySensor = m5stack_8angle_ns.class_(
+    "M5Stack8AngleSwitchBinarySensor",
     binary_sensor.BinarySensor,
     cg.PollingComponent,
 )
@@ -18,7 +18,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack8AngleComponent),
         }
     )
-    .extend(binary_sensor.binary_sensor_schema(M5Stack8AngleSensorSwitch))
+    .extend(binary_sensor.binary_sensor_schema(M5Stack8AngleSwitchBinarySensor))
     .extend(cv.polling_component_schema("10s"))
 )
 

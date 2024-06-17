@@ -33,14 +33,14 @@ void M5Stack8AngleComponent::dump_config() {
 }
 
 float M5Stack8AngleComponent::read_knob_pos(uint8_t channel, AnalogBits bits) {
-  uint16_t raw_pos = this->read_knob_pos_raw(channel, bits);
-  if (std::isnan(raw_pos)) {
+  int32_t raw_pos = this->read_knob_pos_raw(channel, bits);
+  if (raw_pos == -1) {
     return NAN;
   }
   return (float) raw_pos / ((1 << bits) - 1);
 }
 
-uint16_t M5Stack8AngleComponent::read_knob_pos_raw(uint8_t channel, AnalogBits bits) {
+int32_t M5Stack8AngleComponent::read_knob_pos_raw(uint8_t channel, AnalogBits bits) {
   uint16_t knob_pos;
   i2c::ErrorCode err;
   if (bits == BITS_8) {
@@ -49,22 +49,22 @@ uint16_t M5Stack8AngleComponent::read_knob_pos_raw(uint8_t channel, AnalogBits b
     err = this->read_register(M5STACK_8ANGLE_REGISTER_ANALOG_INPUT_12B + (channel * 2), (uint8_t *) &knob_pos, 2);
   } else {
     ESP_LOGE(TAG, "Invalid number of bits: %d", bits);
-    return NAN;
+    return -1;
   }
   if (err == i2c::NO_ERROR) {
     return knob_pos;
   } else {
-    return NAN;
+    return -1;
   }
 }
 
-uint8_t M5Stack8AngleComponent::read_switch() {
+int8_t M5Stack8AngleComponent::read_switch() {
   uint8_t out;
   i2c::ErrorCode err = this->read_register(M5STACK_8ANGLE_REGISTER_DIGITAL_INPUT, (uint8_t *) &out, 1);
   if (err == i2c::NO_ERROR) {
     return out ? 1 : 0;
   } else {
-    return NAN;
+    return -1;
   }
 }
 

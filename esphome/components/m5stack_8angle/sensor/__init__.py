@@ -18,8 +18,8 @@ from .. import (
 )
 
 
-M5Stack8AngleSensorKnob = m5stack_8angle_ns.class_(
-    "M5Stack8AngleSensorKnob",
+M5Stack8AngleKnobSensor = m5stack_8angle_ns.class_(
+    "M5Stack8AngleKnobSensor",
     sensor.Sensor,
     cg.PollingComponent,
 )
@@ -36,7 +36,7 @@ _validate_bits = cv.float_with_unit("bits", "bit")
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(M5Stack8AngleSensorKnob),
+            cv.GenerateID(): cv.declare_id(M5Stack8AngleKnobSensor),
             cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack8AngleComponent),
             cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=8),
             cv.Optional(CONF_BIT_DEPTH, default="8bit"): cv.All(
@@ -47,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         sensor.sensor_schema(
-            M5Stack8AngleSensorKnob,
+            M5Stack8AngleKnobSensor,
             accuracy_decimals=2,
             icon=ICON_ROTATE_RIGHT,
             state_class=STATE_CLASS_MEASUREMENT,

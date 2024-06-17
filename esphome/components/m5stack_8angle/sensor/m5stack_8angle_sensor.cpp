@@ -3,10 +3,10 @@
 namespace esphome {
 namespace m5stack_8angle {
 
-void M5Stack8AngleSensorKnob::update() {
+void M5Stack8AngleKnobSensor::update() {
   if (this->parent_ != nullptr) {
-    uint16_t raw_pos = this->parent_->read_knob_pos_raw(this->channel_, this->bits_);
-    if (std::isnan(raw_pos)) {
+    int32_t raw_pos = this->parent_->read_knob_pos_raw(this->channel_, this->bits_);
+    if (raw_pos == -1) {
       this->status_set_warning("Could not read knob position from M5Stack 8Angle.");
       return;
     }

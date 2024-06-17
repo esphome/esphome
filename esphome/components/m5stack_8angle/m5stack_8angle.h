@@ -23,8 +23,8 @@ class M5Stack8AngleComponent : public i2c::I2CDevice, public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   float read_knob_pos(uint8_t channel, AnalogBits bits = AnalogBits::BITS_8);
-  uint16_t read_knob_pos_raw(uint8_t channel, AnalogBits bits = AnalogBits::BITS_8);
-  uint8_t read_switch();
+  int32_t read_knob_pos_raw(uint8_t channel, AnalogBits bits = AnalogBits::BITS_8);
+  int8_t read_switch();
 
  protected:
   uint8_t fw_version_;

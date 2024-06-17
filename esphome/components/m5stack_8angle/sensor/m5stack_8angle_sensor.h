@@ -8,7 +8,7 @@
 namespace esphome {
 namespace m5stack_8angle {
 
-class M5Stack8AngleSensorKnob : public sensor::Sensor,
+class M5Stack8AngleKnobSensor : public sensor::Sensor,
                                 public PollingComponent,
                                 public Parented<M5Stack8AngleComponent> {
  public:
