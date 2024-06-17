@@ -96,13 +96,13 @@ def get_board(core_obj=None):
 def get_download_types(storage_json):
     return [
         {
-            "title": "Factory format",
+            "title": "Factory format (Previously Modern)",
             "description": "For use with ESPHome Web and other tools.",
             "file": "firmware.factory.bin",
             "download": f"{storage_json.name}.factory.bin",
         },
         {
-            "title": "OTA format",
+            "title": "OTA format (Previously Legacy)",
             "description": "For OTA updating a device.",
             "file": "firmware.ota.bin",
             "download": f"{storage_json.name}.ota.bin",
