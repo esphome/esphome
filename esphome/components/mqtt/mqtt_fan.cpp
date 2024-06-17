@@ -118,9 +118,13 @@ void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig
   }
 }
 bool MQTTFanComponent::publish_state() {
-  const char *state_s = this->state_->state ? "ON" : "OFF";
+  const char *state_s = this->state_->state ? "1" : "0";
+  if (mqtt::global_mqtt_client->is_ha_flavored()) {
+    state_s = this->state_->state ? "ON" : "OFF";
+  }
   ESP_LOGD(TAG, "'%s' Sending state %s.", this->state_->get_name().c_str(), state_s);
   this->publish(this->get_state_topic_(), state_s);
+
   bool failed = false;
   if (this->state_->get_traits().supports_oscillation()) {
     bool success = this->publish(this->get_oscillation_state_topic(),

@@ -49,7 +49,10 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
   if (this->binary_sensor_->is_status_binary_sensor())
     return true;
 
-  const char *state_s = state ? "ON" : "OFF";
+  const char *state_s = state ? "1" : "0";
+  if (mqtt::global_mqtt_client->is_ha_flavored()) {
+    state_s = state ? "ON" : "OFF";
+  }
   return this->publish(this->get_state_topic_(), state_s);
 }
 

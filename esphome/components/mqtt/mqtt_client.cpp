@@ -567,6 +567,8 @@ bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_mes
 void MQTTClientComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
+void MQTTClientComponent::set_ha_flavored(bool ha_flavored) { this->ha_flavored_ = ha_flavored; }
+bool MQTTClientComponent::is_ha_flavored() const { return this->ha_flavored_; }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }

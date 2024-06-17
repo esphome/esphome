@@ -70,6 +70,7 @@ mqtt:
   discovery_retain: false
   discovery_prefix: discovery
   discovery_unique_id_generator: legacy
+  ha_flavored: false
   topic_prefix: helloworld
   log_topic:
     topic: helloworld/hi

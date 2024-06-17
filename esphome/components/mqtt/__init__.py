@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
+    CONF_HA_FLAVORED,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
@@ -251,6 +252,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
                 cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
             ),
+            cv.Optional(CONF_HA_FLAVORED, default=True): cv.boolean,
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -388,6 +390,8 @@ async def to_code(config):
             ]
             cg.add(var.add_ssl_fingerprint(arr))
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
+
+    cg.add(var.set_ha_flavored(config[CONF_HA_FLAVORED]))
 
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
