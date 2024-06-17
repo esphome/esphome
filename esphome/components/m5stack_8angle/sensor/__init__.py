@@ -40,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_M5STACK_8ANGLE_ID): cv.use_id(M5Stack8AngleComponent),
             cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=8),
             cv.Optional(CONF_BIT_DEPTH, default="8bit"): cv.All(
-                _validate_bits, cv.validate_bytes, cv.enum(AnalogBits, upper=True)
+                _validate_bits, cv.enum(AnalogBits, upper=True)
             ),
             cv.Optional(CONF_RAW, default=False): cv.boolean,
         }
