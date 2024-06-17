@@ -1,11 +1,11 @@
 ethernet:
   type: W5500
-  clk_pin: GPIO19
-  mosi_pin: GPIO21
-  miso_pin: GPIO23
-  cs_pin: GPIO18
-  interrupt_pin: GPIO36
-  reset_pin: GPIO22
+  clk_pin: 19
+  mosi_pin: 21
+  miso_pin: 23
+  cs_pin: 18
+  interrupt_pin: 36
+  reset_pin: 22
   clock_speed: 10Mhz
   manual_ip:
     static_ip: 192.168.178.56

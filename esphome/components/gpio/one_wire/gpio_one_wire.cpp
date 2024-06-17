@@ -60,7 +60,7 @@ void HOT IRAM_ATTR GPIOOneWireBus::write_bit_(bool bit) {
   // recovery time: t_rec: min=1µs
   // ds18b20 appears to read the bus after roughly 14µs
   uint32_t delay0 = bit ? 6 : 60;
-  uint32_t delay1 = bit ? 54 : 5;
+  uint32_t delay1 = bit ? 59 : 5;
 
   // delay A/C
   delayMicroseconds(delay0);

@@ -1,1 +1,3 @@
-<<: !include common.yaml
+sensor:
+  - platform: esp32_hall
+    name: ESP32 Hall Sensor
