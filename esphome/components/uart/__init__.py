@@ -104,6 +104,45 @@ def validate_host_config(config):
             raise cv.Invalid(
                 "TX and RX pins are not supported for UART on host platform."
             )
+        if CORE.is_host:
+            baud_rate_supported = [
+                50,
+                75,
+                110,
+                134,
+                150,
+                200,
+                300,
+                600,
+                1200,
+                1800,
+                2400,
+                4800,
+                9600,
+                19200,
+                38400,
+                57600,
+                115200,
+                230400,
+                460800,
+                500000,
+                576000,
+                921600,
+                1000000,
+                1152000,
+                1500000,
+                2000000,
+                2500000,
+                3000000,
+                3500000,
+                4000000,
+            ]
+            if (CONF_BAUD_RATE in config) and (
+                not config[CONF_BAUD_RATE] in baud_rate_supported
+            ):
+                raise cv.Invalid(
+                    f"Host platform doesn't support baud rate {config[CONF_BAUD_RATE]}"
+                )
     return config
 
 
