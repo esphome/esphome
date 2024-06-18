@@ -58,6 +58,7 @@ from esphome.cpp_types import (  # noqa
     bool_,
     int_,
     std_ns,
+    std_shared_ptr,
     std_string,
     std_vector,
     uint8,
