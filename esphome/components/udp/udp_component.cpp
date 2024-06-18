@@ -500,9 +500,9 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
       auto key = get_uint32(buf);
       if (key == this->ping_key_) {
         ping_key_seen = true;
-        ESP_LOGV(TAG, "Found good ping key %X", (unsigned)key);
+        ESP_LOGV(TAG, "Found good ping key %X", (unsigned) key);
       } else {
-        ESP_LOGV(TAG, "Unknown ping key %X", (unsigned)key);
+        ESP_LOGV(TAG, "Unknown ping key %X", (unsigned) key);
       }
       continue;
     }
