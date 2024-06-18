@@ -6,12 +6,12 @@
 #include "mqtt_const.h"
 
 #ifdef USE_MQTT
-#ifdef USE_DATETIME_TIME
+#ifdef USE_DATETIME_DATETIME
 
 namespace esphome {
 namespace mqtt {
 
-static const char *const TAG = "mqtt.datetime.time";
+static const char *const TAG = "mqtt.datetime.datetime";
 
 using namespace esphome::datetime;
 
@@ -80,5 +80,5 @@ bool MQTTDateTimeComponent::publish_state(uint16_t year, uint8_t month, uint8_t 
 }  // namespace mqtt
 }  // namespace esphome
 
-#endif  // USE_DATETIME_TIME
+#endif  // USE_DATETIME_DATETIME
 #endif  // USE_MQTT
