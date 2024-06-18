@@ -1,5 +1,5 @@
 ethernet:
-  type: LAN8720
+  type: RTL8201
   mdc_pin: 23
   mdio_pin: 25
   clk_mode: GPIO0_IN
