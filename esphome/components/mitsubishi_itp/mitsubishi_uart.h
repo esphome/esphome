@@ -144,9 +144,15 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   bool hp_connected_ = false;
   // Should we call publish on the next update?
   bool publish_on_update_ = false;
+  // Are we still discovering information about the device?
+  bool in_discovery_ = true;
+  // Number of times update() has been called in discovery mode
+  size_t discovery_updates_ = 0;
 
   optional<ExtendedConnectResponsePacket> capabilities_cache_;
   bool capabilities_requested_ = false;
+  // Have we received at least one RunState response?
+  bool run_state_received_ = false;
 
   // Preferences
   void save_preferences_();

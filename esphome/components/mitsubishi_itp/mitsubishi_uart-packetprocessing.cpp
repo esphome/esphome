@@ -269,6 +269,8 @@ void MitsubishiUART::process_packet(const RunStateGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
 
+  run_state_received_ = true;  // Set this since we received one
+
   if (filter_status_sensor_) {
     const bool old_service_filter = filter_status_sensor_->state;
     filter_status_sensor_->state = packet.service_filter();

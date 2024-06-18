@@ -162,10 +162,24 @@ void MitsubishiUART::update() {
       //       cadence, depending on their utility (e.g. we dont need to check for errors every loop).
       hp_bridge_.send_packet(
           GetRequestPacket::get_settings_instance());  // Needs to be done before status packet for mode logic to work
-      hp_bridge_.send_packet(GetRequestPacket::get_runstate_instance());
+      if (in_discovery_ || run_state_received_) { hp_bridge_.send_packet(GetRequestPacket::get_runstate_instance()); }
+
       hp_bridge_.send_packet(GetRequestPacket::get_status_instance());
       hp_bridge_.send_packet(GetRequestPacket::get_current_temp_instance());
       hp_bridge_.send_packet(GetRequestPacket::get_error_info_instance());)
+
+  if (in_discovery_) {
+    // After criteria met, exit discovery mode
+    // Currently this is either 5 updates or a successful RunState response.
+    if (discovery_updates_++ > 5 || run_state_received_) {
+      ESP_LOGD(TAG, "Discovery complete.");
+      in_discovery_ = false;
+
+      if (!run_state_received_) {
+        ESP_LOGI(TAG, "RunState packets not supported.");
+      }
+    }
+  }
 }
 
 void MitsubishiUART::do_publish_() {
