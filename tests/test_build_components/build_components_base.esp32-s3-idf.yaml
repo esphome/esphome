@@ -1,5 +1,5 @@
 esphome:
-  name: componenttestesp32s3ard
+  name: componenttestesp32s3idf
   friendly_name: $component_name
 
 esp32:
