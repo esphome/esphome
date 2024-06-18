@@ -334,6 +334,13 @@ void APIServer::on_event(event::Event *obj, const std::string &event_type) {
 }
 #endif
 
+#ifdef USE_UPDATE
+void APIServer::on_update(update::UpdateEntity *obj) {
+  for (auto &c : this->clients_)
+    c->send_update_state(obj);
+}
+#endif
+
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

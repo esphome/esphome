@@ -50,12 +50,12 @@ api:
       then:
         - logger.log:
             # yamllint disable rule:line-length
-            format: "Bool: %s (%u), Int: %d (%u), Float: %f (%u), String: %s (%u)"
+            format: "Bool: %s (%u), Int: %ld (%u), Float: %f (%u), String: %s (%u)"
             # yamllint enable rule:line-length
             args:
               - YESNO(bool_arr[0])
               - bool_arr.size()
-              - int_arr[0]
+              - (long) int_arr[0]
               - int_arr.size()
               - float_arr[0]
               - float_arr.size()
