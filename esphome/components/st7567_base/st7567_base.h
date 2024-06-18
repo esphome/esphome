@@ -89,8 +89,9 @@ class ST7567 : public display::DisplayBuffer {
   int get_height_internal() override;
   int get_width_internal() override;
   size_t get_buffer_length_();
-
   int get_offset_x_();
+
+  void command_set_start_line_();
 
   std::string model_str_();
 
@@ -118,6 +119,7 @@ class ST7567 : public display::DisplayBuffer {
     uint8_t visible_height{64};
 
     std::function<void()> display_init{nullptr};
+    std::function<void()> command_set_start_line{nullptr};
 
   } device_config_;
 };

@@ -120,6 +120,8 @@ size_t ST7567::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
 
+void ST7567::command_set_start_line_() { this->device_config_.command_set_start_line(); }
+
 void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
@@ -158,6 +160,14 @@ void ST7567::init_model_() {
     this->command(ST7567_SCAN_START_LINE);
   };
 
+  auto st7567_set_start_line = [this]() {
+    this->command(ST7567_SET_START_LINE + this->start_line_);  // one-byte command
+  };
+  auto st7570_set_start_line = [this]() {
+    this->command(ST7567_SET_START_LINE);  // two-byte command
+    this->command(this->start_line_);
+  };
+
   switch (this->device_config_.model) {
     case ST7567Model::ST7567_128x64:
       this->device_config_.name = "ST7567";
@@ -170,6 +180,7 @@ void ST7567::init_model_() {
         this->set_brightness(this->brightness_);
         this->set_contrast(this->contrast_);
       };
+      this->device_config_.command_set_start_line = st7567_set_start_line;
       break;
     case ST7567Model::ST7570_128x128:
       this->device_config_.name = "ST7570";
@@ -178,6 +189,7 @@ void ST7567::init_model_() {
       this->device_config_.visible_width = 128;
       this->device_config_.visible_height = 128;
       this->device_config_.display_init = [this, common_init]() { common_init(); };
+      this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
     case ST7567Model::ST7570_102x102a:
@@ -187,6 +199,7 @@ void ST7567::init_model_() {
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
       this->device_config_.display_init = [this, common_init]() { common_init(); };
+      this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
     case ST7567Model::ST7570_102x102b:
@@ -196,6 +209,7 @@ void ST7567::init_model_() {
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
       this->device_config_.display_init = [this, common_init]() { common_init(); };
+      this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
     default:
