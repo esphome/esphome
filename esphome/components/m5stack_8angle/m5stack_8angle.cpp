@@ -41,7 +41,7 @@ float M5Stack8AngleComponent::read_knob_pos(uint8_t channel, AnalogBits bits) {
 }
 
 int32_t M5Stack8AngleComponent::read_knob_pos_raw(uint8_t channel, AnalogBits bits) {
-  uint16_t knob_pos;
+  uint16_t knob_pos = 0;
   i2c::ErrorCode err;
   if (bits == BITS_8) {
     err = this->read_register(M5STACK_8ANGLE_REGISTER_ANALOG_INPUT_8B + channel, (uint8_t *) &knob_pos, 1);
