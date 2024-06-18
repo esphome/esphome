@@ -371,7 +371,6 @@ class LvglComponent : public PollingComponent {
     if (this->paused_) {
       if (this->show_snow_)
         this->write_random();
-      return;
     }
     lv_timer_handler_run_in_period(5);
   }
@@ -460,11 +459,13 @@ class LvglComponent : public PollingComponent {
   }
 
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
-    auto now = millis();
-    this->draw_buffer_(area, (const uint8_t *) color_p);
+    if (!this->paused_) {
+      auto now = millis();
+      this->draw_buffer_(area, (const uint8_t *) color_p);
+      esph_log_v(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
+                 lv_area_get_height(area), (int) (millis() - now));
+    }
     lv_disp_flush_ready(disp_drv);
-    esph_log_v(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
-               lv_area_get_height(area), (int) (millis() - now));
   }
 
   std::vector<display::Display *> displays_{};
