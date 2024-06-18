@@ -105,8 +105,10 @@ async def tileview_select(config, action_id, template_arg, args):
         tile = await cg.get_variable(tile)
         init = [f"lv_obj_set_tile({widget.obj}, {tile}, {config[CONF_ANIMATED]})"]
     else:
+        row = await lv.lv_int.process(config[CONF_ROW])
+        column = await lv.lv_int.process(config[CONF_COLUMN])
         init = [
-            f"lv_obj_set_tile_id({widget.obj}, {config[CONF_COLUMN]}, {config[CONF_ROW]}, {config[CONF_ANIMATED]})",
+            f"lv_obj_set_tile_id({widget.obj}, {column}, {row}, {config[CONF_ANIMATED]})",
             f" lv_event_send({widget.obj}, LV_EVENT_VALUE_CHANGED, nullptr);",
         ]
     return await action_to_code(init, action_id, widget, template_arg, args)

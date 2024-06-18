@@ -555,6 +555,7 @@ async def to_code(config):
     init = []
     if helpers.esphome_fonts_used:
         for font in helpers.esphome_fonts_used:
+            await cg.get_variable(font)
             getter = cg.RawExpression(f"(new lvgl::FontEngine({font}))->get_lv_font()")
             cg.Pvariable(
                 ID(f"{font}_as_lv_font_", True, ty.lv_font_t.operator("const")), getter
