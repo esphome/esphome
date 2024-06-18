@@ -34,11 +34,20 @@ static const uint8_t ST7567_SET_EV_PARAM = 0x00;
 static const uint8_t ST7567_RESISTOR_RATIO = 0x20;
 static const uint8_t ST7567_SW_REFRESH = 0xE2;
 
+enum class ST7567Model {
+  ST7567_128x64 = 0,  // standard version
+  ST7570_128x128,     // standard version
+  ST7570_102x102a,    // implementation with 102x102 pixels, 128x128 memory
+  ST7570_102x102b,    // implementation with 102x102 pixels, 104x104 memory
+};
+
 class ST7567 : public display::DisplayBuffer {
  public:
   void setup() override;
 
   void update() override;
+
+  void set_model(ST7567Model model) { this->device_config_.model = model; }
 
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void init_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
@@ -67,10 +76,13 @@ class ST7567 : public display::DisplayBuffer {
   virtual void command(uint8_t value) = 0;
   virtual void write_display_data() = 0;
 
+  void init_model_();
   void init_reset_();
   void display_init_();
   void display_init_registers_();
   void display_sw_refresh_();
+
+  void reset_();
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
@@ -78,9 +90,9 @@ class ST7567 : public display::DisplayBuffer {
   int get_width_internal() override;
   size_t get_buffer_length_();
 
-  int get_offset_x_() { return mirror_x_ ? 4 : 0; };
+  int get_offset_x_();
 
-  const char *model_str_();
+  std::string model_str_();
 
   GPIOPin *reset_pin_{nullptr};
   bool is_on_{false};
@@ -94,6 +106,20 @@ class ST7567 : public display::DisplayBuffer {
   bool all_pixels_on_{false};
   uint8_t start_line_{0};
   bool refresh_requested_{false};
+
+  struct {
+    ST7567Model model{ST7567Model::ST7567_128x64};
+    const char *name;
+
+    uint8_t memory_width{132};
+    uint8_t memory_height{64};
+
+    uint8_t visible_width{128};
+    uint8_t visible_height{64};
+
+    std::function<void()> display_init{nullptr};
+
+  } device_config_;
 };
 
 }  // namespace st7567_base

@@ -19,6 +19,10 @@ class SPIST7567 : public st7567_base::ST7567,
 
  protected:
   void command(uint8_t value) override;
+  void start_command_();
+  void end_command_();
+  void start_data_();
+  void end_data_();
 
   void write_display_data() override;
 

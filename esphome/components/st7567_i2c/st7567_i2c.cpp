@@ -22,7 +22,7 @@ void I2CST7567::setup() {
 void I2CST7567::dump_config() {
   LOG_DISPLAY("", "I2CST7567", this);
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_().c_str());
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->mirror_x_));
   ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->mirror_y_));
@@ -37,6 +37,13 @@ void I2CST7567::dump_config() {
 void I2CST7567::command(uint8_t value) { this->write_byte(0x00, value); }
 
 void HOT I2CST7567::write_display_data() {
+  static const size_t MAX_BLOCK_SIZE = 64;
+
+  size_t block_size = MAX_BLOCK_SIZE;
+  if (this->get_width_internal() < MAX_BLOCK_SIZE) {
+    block_size = this->get_width_internal();
+  }
+
   // ST7567A has built-in RAM with 132x65 bit capacity which stores the display data.
   // but only first 128 pixels from each line are shown on screen
   // if screen got flipped horizontally then it shows last 128 pixels,
@@ -47,10 +54,9 @@ void HOT I2CST7567::write_display_data() {
     this->command(esphome::st7567_base::ST7567_COL_ADDR_H);                          // Set MSB Column address
     this->command(esphome::st7567_base::ST7567_COL_ADDR_L + this->get_offset_x_());  // Set LSB Column address
 
-    static const size_t BLOCK_SIZE = 64;
-    for (uint8_t x = 0; x < (uint8_t) this->get_width_internal(); x += BLOCK_SIZE) {
+    for (uint8_t x = 0; x < (uint8_t) this->get_width_internal(); x += block_size) {
       this->write_register(esphome::st7567_base::ST7567_SET_START_LINE, &buffer_[y * this->get_width_internal() + x],
-                           this->get_width_internal() - x > BLOCK_SIZE ? BLOCK_SIZE : this->get_width_internal() - x,
+                           this->get_width_internal() - x > block_size ? block_size : this->get_width_internal() - x,
                            true);
     }
   }
