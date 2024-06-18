@@ -31,9 +31,9 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
+    CONF_PAYLOAD_FALSE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_PAYLOAD_TRUE,
-    CONF_PAYLOAD_FALSE,
     CONF_PORT,
     CONF_QOS,
     CONF_REBOOT_TIMEOUT,
@@ -515,6 +515,10 @@ async def register_mqtt_component(var, config):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
         cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+    if CONF_PAYLOAD_TRUE in config:
+        cg.add(var.set_custom_true_payload(config[CONF_PAYLOAD_TRUE]))
+    if CONF_PAYLOAD_FALSE in config:
+        cg.add(var.set_custom_false_payload(config[CONF_PAYLOAD_FALSE]))
     if CONF_COMMAND_TOPIC in config:
         cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
     if CONF_COMMAND_RETAIN in config:

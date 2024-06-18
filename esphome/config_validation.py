@@ -27,7 +27,9 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_NAME,
     CONF_PAYLOAD_AVAILABLE,
+    CONF_PAYLOAD_FALSE,
     CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_PAYLOAD_TRUE,
     CONF_RETAIN,
     CONF_QOS,
     CONF_SETUP_PRIORITY,
@@ -1882,6 +1884,8 @@ MQTT_COMPONENT_SCHEMA = Schema(
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
+        Optional(CONF_PAYLOAD_TRUE): All(requires_component("mqtt"), string),
+        Optional(CONF_PAYLOAD_FALSE): All(requires_component("mqtt"), string),
         Optional(CONF_AVAILABILITY): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
