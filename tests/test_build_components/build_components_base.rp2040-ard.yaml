@@ -1,12 +1,12 @@
 esphome:
-  name: componenttestesp32s2idf
+  name: componenttestrp2040ard
   friendly_name: $component_name
 
-esp32:
-  board: esp32-s2-saola-1
-  variant: ESP32S2
+rp2040:
+  board: rpipicow
   framework:
-    type: esp-idf
+    # Waiting for https://github.com/platformio/platform-raspberrypi/pull/36
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 
 logger:
   level: VERY_VERBOSE
