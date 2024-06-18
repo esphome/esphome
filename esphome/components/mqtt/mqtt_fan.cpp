@@ -118,7 +118,7 @@ void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig
   }
 }
 bool MQTTFanComponent::publish_state() {
-  const char *state_s = this->state_->state ? "ON" : "OFF";
+  const char *state_s = mqtt::global_mqtt_client->get_payload_for_bool(this->state_->state).c_str();
   ESP_LOGD(TAG, "'%s' Sending state %s.", this->state_->get_name().c_str(), state_s);
   this->publish(this->get_state_topic_(), state_s);
   bool failed = false;

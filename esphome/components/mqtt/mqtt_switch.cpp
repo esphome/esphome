@@ -51,7 +51,7 @@ void MQTTSwitchComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 bool MQTTSwitchComponent::send_initial_state() { return this->publish_state(this->switch_->state); }
 
 bool MQTTSwitchComponent::publish_state(bool state) {
-  const char *state_s = state ? "ON" : "OFF";
+  const char *state_s = mqtt::global_mqtt_client->get_payload_for_bool(state).c_str();
   return this->publish(this->get_state_topic_(), state_s);
 }
 

@@ -572,6 +572,11 @@ void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
 void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) { this->topic_prefix_ = topic_prefix; }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
+void MQTTClientComponent::set_payload_true(const std::string &payload) { this->payload_true_ = payload; }
+void MQTTClientComponent::set_payload_false(const std::string &payload) { this->payload_false_ = payload; }
+const std::string &MQTTClientComponent::get_payload_for_bool(bool state) const {
+  return (state) ? this->payload_true_ : this->payload_false_;
+}
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
   this->recalculate_availability_();

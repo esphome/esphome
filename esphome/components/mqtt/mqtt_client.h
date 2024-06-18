@@ -113,6 +113,10 @@ class MQTTClientComponent : public Component {
   /// Set the keep alive time in seconds, every 0.7*keep_alive a ping will be sent.
   void set_keep_alive(uint16_t keep_alive_s);
 
+  void set_payload_true(const std::string &payload);
+  void set_payload_false(const std::string &payload);
+  const std::string &get_payload_for_bool(bool state) const;
+
   /** Set the Home Assistant discovery info
    *
    * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -298,6 +302,8 @@ class MQTTClientComponent : public Component {
   MQTTMessage log_message_;
   std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
+  std::string payload_true_{};
+  std::string payload_false_{};
 
   std::vector<MQTTSubscription> subscriptions_;
 #if defined(USE_ESP32)

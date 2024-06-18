@@ -32,6 +32,8 @@ from esphome.const import (
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_PAYLOAD_TRUE,
+    CONF_PAYLOAD_FALSE,
     CONF_PORT,
     CONF_QOS,
     CONF_REBOOT_TIMEOUT,
@@ -251,6 +253,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
                 cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
             ),
+            cv.Optional(CONF_PAYLOAD_TRUE, default="ON"): cv.string,
+            cv.Optional(CONF_PAYLOAD_FALSE, default="OFF"): cv.string,
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -388,6 +392,9 @@ async def to_code(config):
             ]
             cg.add(var.add_ssl_fingerprint(arr))
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
+
+    cg.add(var.set_payload_true(config[CONF_PAYLOAD_TRUE]))
+    cg.add(var.set_payload_false(config[CONF_PAYLOAD_FALSE]))
 
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
