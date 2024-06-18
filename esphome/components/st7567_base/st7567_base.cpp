@@ -139,9 +139,7 @@ void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
 void ST7567::fill(Color color) { memset(buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
 
 void ST7567::init_model_() {
-  // common init
   auto common_init = [this]() {
-    this->command(ST7567_BIAS_9);
     this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
     this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
 
@@ -152,8 +150,8 @@ void ST7567::init_model_() {
     this->command(ST7567_POWER_ON);
     delay(10);
 
-    // this->set_brightness(this->brightness_);
-    // this->set_contrast(this->contrast_);
+    this->set_brightness(this->brightness_);
+    this->set_contrast(this->contrast_);
 
     this->command(ST7567_INVERT_OFF | this->invert_colors_);
     this->command(ST7567_PIXELS_NORMAL | this->all_pixels_on_);
@@ -176,9 +174,8 @@ void ST7567::init_model_() {
       this->device_config_.memory_width = 132;
       this->device_config_.memory_height = 64;
       this->device_config_.display_init = [this, common_init]() {
+        this->command(ST7567_BIAS_9);
         common_init();
-        this->set_brightness(this->brightness_);
-        this->set_contrast(this->contrast_);
       };
       this->device_config_.command_set_start_line = st7567_set_start_line;
       break;
@@ -188,7 +185,7 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 128;  // 129 actually, 1 bit line for icons, not supported
       this->device_config_.visible_width = 128;
       this->device_config_.visible_height = 128;
-      this->device_config_.display_init = [this, common_init]() { common_init(); };
+      this->device_config_.display_init = common_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
@@ -198,7 +195,7 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 128;
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
-      this->device_config_.display_init = [this, common_init]() { common_init(); };
+      this->device_config_.display_init = common_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
@@ -208,7 +205,7 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 104;
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
-      this->device_config_.display_init = [this, common_init]() { common_init(); };
+      this->device_config_.display_init = common_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
