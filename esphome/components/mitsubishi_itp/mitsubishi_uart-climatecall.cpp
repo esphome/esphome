@@ -1,7 +1,7 @@
 #include "mitsubishi_uart.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 // Called to instruct a change of the climate controls
 void MitsubishiUART::control(const climate::ClimateCall &call) {
@@ -94,5 +94,5 @@ void MitsubishiUART::control(const climate::ClimateCall &call) {
   do_publish_();
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

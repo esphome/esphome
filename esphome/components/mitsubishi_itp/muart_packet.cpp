@@ -1,7 +1,7 @@
 #include "muart_packet.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 // Creates an empty packet
 Packet::Packet() {
@@ -73,5 +73,5 @@ void Packet::add_flag2(const uint8_t flag2_to_add) {
   pkt_.set_payload_byte(PLINDEX_FLAGS2, pkt_.get_payload_byte(PLINDEX_FLAGS2) | flag2_to_add);
 }
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

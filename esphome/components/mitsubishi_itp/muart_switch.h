@@ -4,7 +4,7 @@
 #include "mitsubishi_uart.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 class MUARTSwitch : public switch_::Switch, public Component, public Parented<MitsubishiUART> {
  public:
@@ -27,5 +27,5 @@ class ActiveModeSwitch : public MUARTSwitch {
   }
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

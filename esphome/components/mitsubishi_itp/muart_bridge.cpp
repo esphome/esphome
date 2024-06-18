@@ -1,7 +1,7 @@
 #include "muart_bridge.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 MUARTBridge::MUARTBridge(uart::UARTComponent *uart_component, PacketProcessor *packet_processor)
     : uart_comp_{*uart_component}, pkt_processor_{*packet_processor} {}
@@ -204,5 +204,5 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
   }
 }
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

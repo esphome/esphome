@@ -8,7 +8,7 @@
 #include <sstream>
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 static constexpr char PACKETS_TAG[] = "mitsubishi_uart.packets";
 
 #define CONSOLE_COLOR_NONE "\033[0m"
@@ -426,5 +426,5 @@ class PacketProcessor {
   virtual void process_packet(const SetResponsePacket &packet){};
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

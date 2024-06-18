@@ -12,7 +12,7 @@
 #include <map>
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 static constexpr char TAG[] = "mitsubishi_uart";
 
@@ -185,5 +185,5 @@ struct MUARTPreferences {
   // changed since last save)
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

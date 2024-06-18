@@ -1,7 +1,7 @@
 #include "mitsubishi_uart.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 void MitsubishiUART::route_packet_(const Packet &packet) {
   // If the packet is associated with the thermostat and just came from the thermostat, send it to the heatpump
@@ -354,5 +354,5 @@ void MitsubishiUART::process_packet(const SetResponsePacket &packet) {
   route_packet_(packet);
 }
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

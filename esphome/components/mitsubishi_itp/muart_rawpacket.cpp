@@ -1,7 +1,7 @@
 #include "muart_rawpacket.h"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 // Creates an empty packet
 RawPacket::RawPacket(PacketType packet_type, uint8_t payload_size, SourceBridge source_bridge,
@@ -60,5 +60,5 @@ RawPacket &RawPacket::set_payload_byte(const uint8_t payload_byte_index, const u
   return *this;
 }
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

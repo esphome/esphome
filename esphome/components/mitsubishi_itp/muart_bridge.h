@@ -5,7 +5,7 @@
 #include "queue"
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 static constexpr char BRIDGE_TAG[] = "muart_bridge";
 static const uint32_t RESPONSE_TIMEOUT_MS = 3000;  // Maximum amount of time to wait for an expected response packet
@@ -53,5 +53,5 @@ class ThermostatBridge : public MUARTBridge {
   void loop() override;
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome

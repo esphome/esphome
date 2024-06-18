@@ -1,7 +1,7 @@
 #pragma once
 
 namespace esphome {
-namespace mitsubishi_uart {
+namespace mitsubishi_itp {
 
 class MUARTUtils {
  public:
@@ -73,5 +73,5 @@ class MUARTUtils {
   }
 };
 
-}  // namespace mitsubishi_uart
+}  // namespace mitsubishi_itp
 }  // namespace esphome
