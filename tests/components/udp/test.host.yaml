@@ -1,17 +1,20 @@
 network:
 
 udp:
-  update_interval: 5s
-  encryption: "our key goes here"
-  rolling_code_enable: true
-  ping_pong_enable: true
-  binary_sensors:
-    - binary_sensor_id1
-  sensors:
-    - sensor_id1
-  providers:
-    - name: some-device-name
-      encryption: "their key goes here"
+  - update_interval: 5s
+    encryption: "our key goes here"
+    rolling_code_enable: true
+    ping_pong_enable: true
+    binary_sensors:
+      - binary_sensor_id1
+    sensors:
+      - sensor_id1
+    providers:
+      - name: some-device-name
+        encryption: "their key goes here"
+  - id: second_udp
+    sensors:
+      - sensor_id1
 
 sensor:
   - platform: template
