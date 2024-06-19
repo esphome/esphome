@@ -152,8 +152,6 @@ void WaveshareEPaper4P26In::deep_sleep() {
   // Set deep sleep mode
   this->command(0x10);
   this->data(0x01);
-
-  delay(50);
 }
 
 int WaveshareEPaper4P26In::get_width_internal() { return 800; }
