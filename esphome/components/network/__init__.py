@@ -33,20 +33,20 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    enable_ipv6 = config[CONF_ENABLE_IPV6]
-    cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
-    if enable_ipv6:
-        cg.add_define(
-            "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-        )
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
-    else:
+    if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
+        cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:
-            cg.add_build_flag("-DCONFIG_LWIP_IPV6")
-            cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
-            if CORE.is_rp2040:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-            if CORE.is_esp8266:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+            cg.add_define(
+                "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
+            )
+        if CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
+        else:
+            if enable_ipv6:
+                cg.add_build_flag("-DCONFIG_LWIP_IPV6")
+                cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
+                if CORE.is_rp2040:
+                    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+                if CORE.is_esp8266:
+                    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
