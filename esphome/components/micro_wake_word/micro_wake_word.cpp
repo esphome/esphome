@@ -21,7 +21,6 @@
 #include <tensorflow/lite/micro/micro_interpreter.h>
 #include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
 
-#include <cinttypes>
 #include <cmath>
 
 namespace esphome {
@@ -299,212 +298,200 @@ void MicroWakeWord::unload_models_() {
   for (auto &model : this->wake_word_models_) {
     model.unload_model();
   }
-
-  ESP_LOGV(TAG, "Streaming Inference Latency=%" PRIu32 " ms", (millis() - prior_invoke));
-
-  TfLiteTensor *output = this->streaming_interpreter_->output(0);
-
-  return static_cast<float>(output->data.uint8[0]) / 255.0;
+#ifdef USE_MWW_VAD
+  this->vad_model_->unload_model();
+#endif
 }
 
-bool MicroWakeWord::detect_wake_word_() {
-  // Preprocess the newest audio samples into features
-  if (!this->update_features_()) {
+void MicroWakeWord::update_model_probabilities_() {
+  if (!this->stride_audio_samples_()) {
+    return;
+  }
+
+  int8_t audio_features[PREPROCESSOR_FEATURE_SIZE];
+
+  if (!this->generate_features_for_window_(audio_features)) {
+    return;
+  }
+
+  // Increase the counter since the last positive detection
+  this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
+
+  for (auto &model : this->wake_word_models_) {
+    // Perform inference
+    model.perform_streaming_inference(audio_features);
+  }
+#ifdef USE_MWW_VAD
+  this->vad_model_->perform_streaming_inference(audio_features);
+#endif
+}
+
+bool MicroWakeWord::detect_wake_words_() {
+  // Verify we have processed samples since the last positive detection
+  if (this->ignore_windows_ < 0) {
     return false;
-#ifdef USE_MWW_VAD
-    this->vad_model_->unload_model();
-#endif
   }
 
-  void MicroWakeWord::update_model_probabilities_() {
-    if (!this->stride_audio_samples_()) {
-      return;
-    }
-
-    int8_t audio_features[PREPROCESSOR_FEATURE_SIZE];
-
-    if (!this->generate_features_for_window_(audio_features)) {
-      return;
-    }
-
-    // Increase the counter since the last positive detection
-    this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
-
-    for (auto &model : this->wake_word_models_) {
-      // Perform inference
-      model.perform_streaming_inference(audio_features);
-    }
 #ifdef USE_MWW_VAD
-    this->vad_model_->perform_streaming_inference(audio_features);
-#endif
-  }
-
-  bool MicroWakeWord::detect_wake_words_() {
-    // Verify we have processed samples since the last positive detection
-    if (this->ignore_windows_ < 0) {
-      return false;
-    }
-
-#ifdef USE_MWW_VAD
-    bool vad_state = this->vad_model_->determine_detected();
+  bool vad_state = this->vad_model_->determine_detected();
 #endif
 
-    for (auto &model : this->wake_word_models_) {
-      if (model.determine_detected()) {
+  for (auto &model : this->wake_word_models_) {
+    if (model.determine_detected()) {
 #ifdef USE_MWW_VAD
-        if (vad_state) {
+      if (vad_state) {
 #endif
-          this->detected_wake_word_ = model.get_wake_word();
-          return true;
+        this->detected_wake_word_ = model.get_wake_word();
+        return true;
 #ifdef USE_MWW_VAD
-        } else {
-          ESP_LOGD(TAG, "Wake word model predicts %s, but VAD model doesn't.", model.get_wake_word().c_str());
-        }
-#endif
+      } else {
+        ESP_LOGD(TAG, "Wake word model predicts %s, but VAD model doesn't.", model.get_wake_word().c_str());
       }
+#endif
     }
+  }
 
+  return false;
+}
+
+bool MicroWakeWord::stride_audio_samples_() {
+  // Ensure we have enough new audio samples in the ring buffer for a full window
+  if (this->ring_buffer_->available() < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
     return false;
   }
 
-  bool MicroWakeWord::stride_audio_samples_() {
-    // Ensure we have enough new audio samples in the ring buffer for a full window
-    if (this->ring_buffer_->available() < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
-      return false;
-    }
+  // Copy the last 320 bytes (160 samples over 10 ms) from the audio buffer to the start of the audio buffer
+  memcpy((void *) (this->preprocessor_audio_buffer_), (void *) (this->preprocessor_audio_buffer_ + NEW_SAMPLES_TO_GET),
+         HISTORY_SAMPLES_TO_KEEP * sizeof(int16_t));
 
-    // Copy the last 320 bytes (160 samples over 10 ms) from the audio buffer to the start of the audio buffer
-    memcpy((void *) (this->preprocessor_audio_buffer_),
-           (void *) (this->preprocessor_audio_buffer_ + NEW_SAMPLES_TO_GET), HISTORY_SAMPLES_TO_KEEP * sizeof(int16_t));
+  // Copy 640 bytes (320 samples over 20 ms) from the ring buffer into the audio buffer offset 320 bytes (160 samples
+  // over 10 ms)
+  size_t bytes_read = this->ring_buffer_->read((void *) (this->preprocessor_audio_buffer_ + HISTORY_SAMPLES_TO_KEEP),
+                                               NEW_SAMPLES_TO_GET * sizeof(int16_t), pdMS_TO_TICKS(200));
 
-    // Copy 640 bytes (320 samples over 20 ms) from the ring buffer into the audio buffer offset 320 bytes (160 samples
-    // over 10 ms)
-    size_t bytes_read = this->ring_buffer_->read((void *) (this->preprocessor_audio_buffer_ + HISTORY_SAMPLES_TO_KEEP),
-                                                 NEW_SAMPLES_TO_GET * sizeof(int16_t), pdMS_TO_TICKS(200));
-
-    if (bytes_read == 0) {
-      ESP_LOGE(TAG, "Could not read data from Ring Buffer");
-    } else if (bytes_read < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
-      ESP_LOGD(TAG, "Partial Read of Data by Model");
-      ESP_LOGD(TAG, "Could only read %d bytes when required %d bytes ", bytes_read,
-               (int) (NEW_SAMPLES_TO_GET * sizeof(int16_t)));
-      return false;
-    }
-
-    return true;
+  if (bytes_read == 0) {
+    ESP_LOGE(TAG, "Could not read data from Ring Buffer");
+  } else if (bytes_read < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
+    ESP_LOGD(TAG, "Partial Read of Data by Model");
+    ESP_LOGD(TAG, "Could only read %d bytes when required %d bytes ", bytes_read,
+             (int) (NEW_SAMPLES_TO_GET * sizeof(int16_t)));
+    return false;
   }
 
-  bool MicroWakeWord::generate_features_for_window_(int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
-    TfLiteTensor *input = this->preprocessor_interpreter_->input(0);
-    TfLiteTensor *output = this->preprocessor_interpreter_->output(0);
-    std::copy_n(this->preprocessor_audio_buffer_, SAMPLE_DURATION_COUNT, tflite::GetTensorData<int16_t>(input));
+  return true;
+}
 
-    if (this->preprocessor_interpreter_->Invoke() != kTfLiteOk) {
-      ESP_LOGE(TAG, "Failed to preprocess audio for local wake word.");
-      return false;
-    }
-    std::memcpy(features, tflite::GetTensorData<int8_t>(output), PREPROCESSOR_FEATURE_SIZE * sizeof(int8_t));
+bool MicroWakeWord::generate_features_for_window_(int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
+  TfLiteTensor *input = this->preprocessor_interpreter_->input(0);
+  TfLiteTensor *output = this->preprocessor_interpreter_->output(0);
+  std::copy_n(this->preprocessor_audio_buffer_, SAMPLE_DURATION_COUNT, tflite::GetTensorData<int16_t>(input));
 
-    return true;
+  if (this->preprocessor_interpreter_->Invoke() != kTfLiteOk) {
+    ESP_LOGE(TAG, "Failed to preprocess audio for local wake word.");
+    return false;
   }
+  std::memcpy(features, tflite::GetTensorData<int8_t>(output), PREPROCESSOR_FEATURE_SIZE * sizeof(int8_t));
 
-  void MicroWakeWord::reset_states_() {
-    ESP_LOGD(TAG, "Resetting buffers and probabilities");
-    this->ring_buffer_->reset();
-    this->ignore_windows_ = -MIN_SLICES_BEFORE_DETECTION;
-    for (auto &model : this->wake_word_models_) {
-      model.reset_probabilities();
-    }
+  return true;
+}
+
+void MicroWakeWord::reset_states_() {
+  ESP_LOGD(TAG, "Resetting buffers and probabilities");
+  this->ring_buffer_->reset();
+  this->ignore_windows_ = -MIN_SLICES_BEFORE_DETECTION;
+  for (auto &model : this->wake_word_models_) {
+    model.reset_probabilities();
+  }
 #ifdef USE_MWW_VAD
-    this->vad_model_->reset_probabilities();
+  this->vad_model_->reset_probabilities();
 #endif
-  }
+}
 
-  bool MicroWakeWord::register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> & op_resolver) {
-    if (op_resolver.AddReshape() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddCast() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddStridedSlice() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddConcatenation() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddMul() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddAdd() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddDiv() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddMinimum() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddMaximum() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddWindow() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddFftAutoScale() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddRfft() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddEnergy() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddFilterBank() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddFilterBankSquareRoot() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddFilterBankSpectralSubtraction() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddPCAN() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddFilterBankLog() != kTfLiteOk)
-      return false;
+bool MicroWakeWord::register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> &op_resolver) {
+  if (op_resolver.AddReshape() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddCast() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddStridedSlice() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddConcatenation() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddMul() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddAdd() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddDiv() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddMinimum() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddMaximum() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddWindow() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddFftAutoScale() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddRfft() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddEnergy() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddFilterBank() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddFilterBankSquareRoot() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddFilterBankSpectralSubtraction() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddPCAN() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddFilterBankLog() != kTfLiteOk)
+    return false;
 
-    return true;
-  }
+  return true;
+}
 
-  bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<20> & op_resolver) {
-    if (op_resolver.AddCallOnce() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddVarHandle() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddReshape() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddReadVariable() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddStridedSlice() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddConcatenation() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddAssignVariable() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddConv2D() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddMul() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddAdd() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddMean() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddFullyConnected() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddLogistic() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddQuantize() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddDepthwiseConv2D() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddAveragePool2D() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddMaxPool2D() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddPad() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddPack() != kTfLiteOk)
-      return false;
-    if (op_resolver.AddSplitV() != kTfLiteOk)
-      return false;
+bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver) {
+  if (op_resolver.AddCallOnce() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddVarHandle() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddReshape() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddReadVariable() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddStridedSlice() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddConcatenation() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddAssignVariable() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddConv2D() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddMul() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddAdd() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddMean() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddFullyConnected() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddLogistic() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddQuantize() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddDepthwiseConv2D() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddAveragePool2D() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddMaxPool2D() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddPad() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddPack() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddSplitV() != kTfLiteOk)
+    return false;
 
-    return true;
-  }
+  return true;
+}
 
 }  // namespace micro_wake_word
 }  // namespace esphome
