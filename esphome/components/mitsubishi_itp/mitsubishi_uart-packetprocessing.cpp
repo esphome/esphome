@@ -384,6 +384,8 @@ void MitsubishiUART::process_packet(const RemoteTemperatureSetRequestPacket &pac
 }
 
 void MitsubishiUART::process_packet(const KumoThermostatSensorStatusPacket &packet) {
+  if (!kumo_emulation_mode_) return;
+
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
   if (thermostat_humidity_sensor_ && packet.get_flags() & 0x04) {
@@ -402,12 +404,16 @@ void MitsubishiUART::process_packet(const KumoThermostatSensorStatusPacket &pack
 }
 
 void MitsubishiUART::process_packet(const KumoThermostatHelloPacket &packet) {
+  if (!kumo_emulation_mode_) return;
+
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
   ts_bridge_->send_packet(SetResponsePacket());
 }
 
 void MitsubishiUART::process_packet(const KumoThermostatStateSyncPacket &packet) {
+  if (!kumo_emulation_mode_) return;
+
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
   if (packet.get_flags() & 0x08) this->last_heat_setpoint_ = packet.get_heat_setpoint();
@@ -417,6 +423,8 @@ void MitsubishiUART::process_packet(const KumoThermostatStateSyncPacket &packet)
 }
 
 void MitsubishiUART::process_packet(const KumoAASetRequestPacket &packet) {
+  if (!kumo_emulation_mode_) return;
+
   ESP_LOGV(TAG, "Processing inbound KumoAASetRequestPacket: %s", packet.to_string().c_str());
 
   ts_bridge_->send_packet(SetResponsePacket());
@@ -430,6 +438,8 @@ void MitsubishiUART::process_packet(const SetResponsePacket &packet) {
 
 // Process incoming data requests (Kumo)
 void MitsubishiUART::handle_kumo_adapter_state_get_request(const GetRequestPacket &packet) {
+  if (!kumo_emulation_mode_) return;
+
   auto response = KumoCloudStateSyncPacket();
 
   response.set_heat_setpoint(this->last_heat_setpoint_);
@@ -446,6 +456,8 @@ void MitsubishiUART::handle_kumo_adapter_state_get_request(const GetRequestPacke
 }
 
 void MitsubishiUART::handle_kumo_aa_get_request(const GetRequestPacket &packet) {
+  if (!kumo_emulation_mode_) return;
+
   auto response = KumoABGetRequestPacket();
 
   ts_bridge_->send_packet(response);

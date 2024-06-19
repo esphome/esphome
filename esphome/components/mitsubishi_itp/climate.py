@@ -74,6 +74,7 @@ CONF_TEMPERATURE_SOURCES = (
 )
 
 CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
+CONF_ENABLE_KUMO_EMULATION = "kumo_emulation"  # EXPERIMENTAL FEATURE - Enables Kumo packet handling.
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -135,6 +136,7 @@ BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
             cv.use_id(sensor.Sensor)
         ),
         cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
+        cv.Optional(CONF_ENABLE_KUMO_EMULATION, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
@@ -420,3 +422,6 @@ async def to_code(config):
     # Debug Settings
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
         cg.add(getattr(muart_component, "set_active_mode")(not dam_conf))
+
+    if kumo_emulation := config.get(CONF_ENABLE_KUMO_EMULATION):
+        cg.add(getattr(muart_component, "set_kumo_emulation_mode")(kumo_emulation))

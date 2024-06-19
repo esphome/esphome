@@ -103,6 +103,9 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Turns on or off actively sending packets
   void set_active_mode(const bool active) { active_mode_ = active; };
 
+  // Turns on or off Kumo emulation mode
+  void set_kumo_emulation_mode(const bool mode) { kumo_emulation_mode_ = mode; }
+
   void set_time_source(time::RealTimeClock *rtc) { time_source = rtc; }
 
  protected:
@@ -206,6 +209,11 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void send_if_active_(const Packet &packet);
   bool active_mode_ = true;
 
+  bool kumo_emulation_mode_ = false;
+
+  // used to track heat/cool setpoints for parity sync with MHK units.
+  // necessary to not clobber the union of setpoints, since ESPHome doesnt gracefully handle simultaneous cool and
+  // heat setpoints being set.
   float last_cool_setpoint_ = NAN;
   float last_heat_setpoint_ = NAN;
 };

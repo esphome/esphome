@@ -114,6 +114,10 @@ void MitsubishiUART::dump_config() {
   if (capabilities_cache_.has_value()) {
     ESP_LOGCONFIG(TAG, "Discovered Capabilities: %s", capabilities_cache_.value().to_string().c_str());
   }
+
+  if (kumo_emulation_mode_) {
+    ESP_LOGCONFIG(TAG, "Kumo Emulation Mode is ENABLED! This is an *experimental mode* and things may break.");
+  }
 }
 
 // Set thermostat UART component
