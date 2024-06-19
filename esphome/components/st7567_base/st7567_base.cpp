@@ -114,26 +114,36 @@ void ST7567::turn_off() {
 
 void ST7567::set_scroll(uint8_t line) { this->start_line_ = line % this->get_height_internal(); }
 
-int ST7567::get_width_internal() { return this->device_config_.memory_width; }
+int ST7567::get_width_internal() { return this->device_config_.visible_width; }
 
-int ST7567::get_height_internal() { return this->device_config_.memory_height; }
+int ST7567::get_height_internal() { return this->device_config_.visible_height; }
 
-int ST7567::get_offset_x_() { return mirror_x_ ? device_config_.offset_x_mirror : device_config_.offset_x_normal; };
+uint8_t ST7567::get_visible_area_offset_x_() {
+  return mirror_x_ ? device_config_.visible_offset_x_mirror : device_config_.visible_offset_x_normal;
+};
 
-int ST7567::get_offset_y_() { return mirror_y_ ? device_config_.offset_y_mirror : device_config_.offset_y_normal; };
+uint8_t ST7567::get_visible_area_offset_y_() {
+  return mirror_y_ ? device_config_.visible_offset_y_mirror : device_config_.visible_offset_y_normal;
+};
 
 size_t ST7567::get_buffer_length_() {
-  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
+  return size_t(this->device_config_.memory_width) * size_t(this->device_config_.memory_height) / 8u;
 }
 
-void ST7567::command_set_start_line_() { this->device_config_.command_set_start_line(this->get_offset_y_()); }
+void ST7567::command_set_start_line_() {
+  uint8_t start_line = this->start_line_ + this->get_visible_area_offset_y_();
+  start_line %= this->device_config_.memory_height;
+
+  this->device_config_.command_set_start_line(start_line);
+}
 
 void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
+  x += this->get_visible_area_offset_x_();
 
-  uint16_t pos = x + (y / 8) * this->get_width_internal();
+  uint16_t pos = x + (y / 8) * this->device_config_.memory_width;
   uint8_t subpos = y & 0x07;
   if (color.is_on()) {
     this->buffer_[pos] |= (1 << subpos);
@@ -145,9 +155,13 @@ void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
 void ST7567::fill(Color color) { memset(buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
 
 void ST7567::init_model_() {
-  auto common_init = [this]() {
+  auto st7567_init = [this]() {
+    this->command(ST7567_BIAS_9);
     this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
     this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
+
+    this->set_brightness(this->brightness_);
+    this->set_contrast(this->contrast_);
 
     this->command(ST7567_BOOSTER_ON);
     delay(10);
@@ -156,49 +170,42 @@ void ST7567::init_model_() {
     this->command(ST7567_POWER_ON);
     delay(10);
 
-    this->set_brightness(this->brightness_);
-    this->set_contrast(this->contrast_);
-
     this->command(ST7567_INVERT_OFF | this->invert_colors_);
     this->command(ST7567_PIXELS_NORMAL | this->all_pixels_on_);
     this->command(ST7567_SCAN_START_LINE);
   };
 
   auto st7570_init = [this]() {
-    // this->command(ST7570_OSCILLATOR_ON);
-    // this->set_contrast(this->contrast_);
     this->command(0x7B);
     this->command(0x11);
     this->command(0x00);
+
     // Initial internal counters
-    this->command(0x25);  // Initial power counter
-    this->command(0x38);  // MODE SET
-    this->command(0x08);  // FR=0000 => 77Hz; // BE[1:0]=1,0 => BE Level-3
-    // this->command(0xA0);  // MX select,0 -normal MX=1 =>reverse direction
-    // this->command(0xC0);//8);  // MY select, MY=1 => reverse direction
+    this->command(0x25);             // Initial power counter
+    this->command(ST7570_MODE_SET);  // MODE SET
+    this->command(0x08);             // FR=0000 => 77Hz; // BE[1:0]=1,0 => BE Level-3
+
     this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
     this->command(this->mirror_y_ ? ST7567_COM_REMAP : ST7567_COM_NORMAL);
 
-    this->command(0x44);  // Set initial COM0 register
-    this->command(0x00);  //
-    this->command(0x40);  // Set display start line register
-    this->command(0x00);  //
-    this->command(0x4C);  // Set N-line Inversion
-    this->command(0x00);  //
-    this->command(0xAB);  // OSC. ON
+    this->command(0x44);                  // Set initial COM0 register
+    this->command(0x00);                  //
+    this->command(0x40);                  // Set display start line register
+    this->command(0x00);                  //
+    this->command(0x4C);                  // Set N-line Inversion
+    this->command(0x00);                  //
+    this->command(ST7570_OSCILLATOR_ON);  // OSC. ON
 
-    // this->command(0x81);  // Set Contrast
-    // this->command(0x23);  // EV=35
     this->set_contrast(this->contrast_);
 
-    this->command(0x2C);  // Power Control, VC: ON VR: OFF VF: OFF
-    delay(100);           // Minimum Delay 100ms
-    this->command(0x2E);  // Power Control, VC: ON VR: ON VF: OFF
-    delay(100);           // Minimum Delay 100ms
-    this->command(0x2F);  // Power Control, VC: ON VR: ON VF: ON
+    this->command(ST7567_BOOSTER_ON);    // Power Control, VC: ON VR: OFF VF: OFF
+    delay(100);                          // Minimum Delay 100ms
+    this->command(ST7567_REGULATOR_ON);  // Power Control, VC: ON VR: ON VF: OFF
+    delay(100);                          // Minimum Delay 100ms
+    this->command(ST7567_POWER_ON);      // Power Control, VC: ON VR: ON VF: ON
     // WritePattern(0x00);   // Fill the 1st (initial) display pattern
     //  including clear Icon page
-    this->command(0xAF);  // Display ON
+    //  this->command(0xAF);  // Display ON
   };
 
   auto st7567_set_start_line = [this](uint8_t x) {
@@ -216,52 +223,30 @@ void ST7567::init_model_() {
       this->device_config_.visible_height = 64;  // 65 actually, 1 bit line for icons, not supported
       this->device_config_.memory_width = 132;
       this->device_config_.memory_height = 64;
-      this->device_config_.display_init = [this, common_init]() {
-        this->command(ST7567_BIAS_9);
-        common_init();
-      };
+      this->device_config_.visible_offset_x_mirror = 4;
+      this->device_config_.display_init = st7567_init;
       this->device_config_.command_set_start_line = st7567_set_start_line;
       break;
+
     case ST7567Model::ST7570_128x128:
       this->device_config_.name = "ST7570";
       this->device_config_.memory_width = 128;
       this->device_config_.memory_height = 128;  // 129 actually, 1 bit line for icons, not supported
       this->device_config_.visible_width = 128;
       this->device_config_.visible_height = 128;
-      this->device_config_.offset_x_mirror = 4;
       this->device_config_.display_init = st7570_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
-    case ST7567Model::ST7570_102x102a:
+    case ST7567Model::ST7570_102x102:
       this->device_config_.name = "ST7570a";
       this->device_config_.memory_width = 128;
       this->device_config_.memory_height = 128;
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
-      this->device_config_.offset_x_mirror = 26;
-      this->device_config_.offset_y_mirror = 102;
+      this->device_config_.visible_offset_x_mirror = 26;
+      this->device_config_.visible_offset_y_mirror = 102;
       this->device_config_.display_init = st7570_init;
-      this->device_config_.command_set_start_line = st7570_set_start_line;
-      break;
-
-    case ST7567Model::ST7570_102x102b:
-      this->device_config_.name = "ST7570b";
-      this->device_config_.memory_width = 104;
-      this->device_config_.memory_height = 104;
-      this->device_config_.visible_width = 102;
-      this->device_config_.visible_height = 102;
-      this->device_config_.display_init = st7570_init;
-      this->device_config_.command_set_start_line = st7570_set_start_line;
-      break;
-
-    case ST7567Model::ST7522_96x16:
-      this->device_config_.name = "ST7522";
-      this->device_config_.memory_width = 96;
-      this->device_config_.memory_height = 16;
-      this->device_config_.visible_width = 96;
-      this->device_config_.visible_height = 16;
-      this->device_config_.display_init = common_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 

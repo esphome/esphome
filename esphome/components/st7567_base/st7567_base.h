@@ -7,6 +7,9 @@
 namespace esphome {
 namespace st7567_base {
 
+//
+// commands for ST7567. "base"
+//
 static const uint8_t ST7567_BOOSTER_ON = 0x2C;    // internal power supply on
 static const uint8_t ST7567_REGULATOR_ON = 0x2E;  // internal power supply on
 static const uint8_t ST7567_POWER_ON = 0x2F;      // internal power supply on
@@ -34,21 +37,24 @@ static const uint8_t ST7567_SET_EV_PARAM = 0x00;
 static const uint8_t ST7567_RESISTOR_RATIO = 0x20;
 static const uint8_t ST7567_SW_REFRESH = 0xE2;
 
+//
+// commands for ST7570, which differ from ST7567
+//
 static const uint8_t ST7570_OSCILLATOR_ON = 0b10101011;
+static const uint8_t ST7570_MODE_SET = 0b00111000;
 
-static const uint8_t ST7591_SET_START_LINE = 0b11010000;
-
-static const uint8_t ST7591_PAGE_ADDR = 0b01111100;
-static const uint8_t ST7591_COL_ADDR_H = 0b00010000;
+// for future support:
+// static const uint8_t ST7591_SET_START_LINE = 0b11010000;
+// static const uint8_t ST7591_PAGE_ADDR = 0b01111100;
+// static const uint8_t ST7591_COL_ADDR_H = 0b00010000;
 
 enum class ST7567Model {
   ST7567_128x64 = 0,  // standard version
-  ST7522_96x16,       // standard version
-  ST7565_128x64,
-  ST7570_128x128,   // standard version
-  ST7570_102x102a,  // implementation with 102x102 pixels, 128x128 memory
-  ST7570_102x102b,  // implementation with 102x102 pixels, 104x104 memory
-  ST7591_160x132,   // set page, start line
+  ST7570_128x128,     // standard version
+  ST7570_102x102,     // implementation with 102x102 pixels, 128x128 memory
+  // ST7522_96x16,
+  // ST7565_128x64,
+  // ST7591_160x132,
 };
 
 class ST7567 : public display::DisplayBuffer {
@@ -102,8 +108,9 @@ class ST7567 : public display::DisplayBuffer {
   int get_height_internal() override;
   int get_width_internal() override;
   size_t get_buffer_length_();
-  int get_offset_x_();
-  int get_offset_y_();
+
+  uint8_t get_visible_area_offset_x_();
+  uint8_t get_visible_area_offset_y_();
 
   void command_set_start_line_();
 
@@ -113,8 +120,6 @@ class ST7567 : public display::DisplayBuffer {
 
   GPIOPin *reset_pin_{nullptr};
   bool is_on_{false};
-  // float contrast_{1.0};
-  // float brightness_{1.0};
   uint8_t contrast_{27};
   uint8_t brightness_{5};
   bool mirror_x_{true};
@@ -136,11 +141,11 @@ class ST7567 : public display::DisplayBuffer {
     uint8_t visible_width{128};
     uint8_t visible_height{64};
 
-    uint8_t offset_x_normal{0};
-    uint8_t offset_x_mirror{0};
+    uint8_t visible_offset_x_normal{0};
+    uint8_t visible_offset_x_mirror{0};
 
-    uint8_t offset_y_normal{0};
-    uint8_t offset_y_mirror{0};
+    uint8_t visible_offset_y_normal{0};
+    uint8_t visible_offset_y_mirror{0};
 
     std::function<void()> display_init{nullptr};
     std::function<void(uint8_t)> command_set_start_line{nullptr};
