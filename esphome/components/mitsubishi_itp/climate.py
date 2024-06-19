@@ -182,8 +182,8 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
             binary_sensor.binary_sensor_schema(icon="mdi:snowflake-melt"),
             binary_sensor.register_binary_sensor,
         ),
-        "hot_adjust": (
-            "Hot Adjust",
+        "preheat": (
+            "Preheat",
             binary_sensor.binary_sensor_schema(icon="mdi:heating-coil"),
             binary_sensor.register_binary_sensor,
         ),

@@ -289,10 +289,10 @@ void MitsubishiUART::process_packet(const RunStateGetResponsePacket &packet) {
     publish_on_update_ |= (old_defrost != defrost_sensor_->state);
   }
 
-  if (hot_adjust_sensor_) {
-    const bool old_hot_adjust = hot_adjust_sensor_->state;
-    hot_adjust_sensor_->state = packet.in_hot_adjust();
-    publish_on_update_ |= (old_hot_adjust != hot_adjust_sensor_->state);
+  if (preheat_sensor_) {
+    const bool old_preheat = preheat_sensor_->state;
+    preheat_sensor_->state = packet.in_preheat();
+    publish_on_update_ |= (old_preheat != preheat_sensor_->state);
   }
 
   if (standby_sensor_) {

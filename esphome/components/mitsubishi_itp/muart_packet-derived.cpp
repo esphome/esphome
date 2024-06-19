@@ -47,7 +47,7 @@ std::string SettingsGetResponsePacket::to_string() const {
 std::string RunStateGetResponsePacket::to_string() const {
   return ("RunState Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
           "\n ServiceFilter:" + (service_filter() ? "Yes" : "No") + " Defrost:" + (in_defrost() ? "Yes" : "No") +
-          " HotAdjust:" + (in_hot_adjust() ? "Yes" : "No") + " Standby:" + (in_standby() ? "Yes" : "No") +
+          " Preheat:" + (in_preheat() ? "Yes" : "No") + " Standby:" + (in_standby() ? "Yes" : "No") +
           " ActualFan:" + ACTUAL_FAN_SPEED_NAMES[get_actual_fan_speed()] + " (" +
           std::to_string(get_actual_fan_speed()) + ")" + " AutoMode:" + format_hex(get_auto_mode()));
 }

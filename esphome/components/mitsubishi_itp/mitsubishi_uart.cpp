@@ -220,7 +220,7 @@ void MitsubishiUART::do_publish_() {
   // Binary sensors automatically dedup publishes (I think) and so will only actually publish on change
   filter_status_sensor_->publish_state(filter_status_sensor_->state);
   defrost_sensor_->publish_state(defrost_sensor_->state);
-  hot_adjust_sensor_->publish_state(hot_adjust_sensor_->state);
+  preheat_sensor_->publish_state(preheat_sensor_->state);
   standby_sensor_->publish_state(standby_sensor_->state);
   isee_status_sensor_->publish_state(isee_status_sensor_->state);
 }
