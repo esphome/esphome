@@ -14,8 +14,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cinttypes>
-
 static const char *const TAG = "micro_wake_word";
 
 namespace esphome {
@@ -71,10 +69,9 @@ bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver)
 
     // Verify input tensor matches expected values
     TfLiteTensor *input = this->interpreter_->input(0);
-    if ((input->dims->size != 3) || (input->dims->data[0] != 1) || (input->dims->data[0] != 1) ||
-        (input->dims->data[1] != 1) || (input->dims->data[2] != PREPROCESSOR_FEATURE_SIZE)) {
-      ESP_LOGE(TAG, "Streaming model tensor input dimensions is not 1x1x%" PRIu8, PREPROCESSOR_FEATURE_SIZE);
-
+    if ((input->dims->size != 3) || (input->dims->data[0] != 1) ||
+        (input->dims->data[2] != PREPROCESSOR_FEATURE_SIZE)) {
+      ESP_LOGE(TAG, "Streaming model tensor input dimensions has improper dimensions.");
       return false;
     }
 
@@ -114,23 +111,29 @@ bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCES
   if (this->interpreter_ != nullptr) {
     TfLiteTensor *input = this->interpreter_->input(0);
 
-    size_t bytes_to_copy = input->bytes;
+    std::memmove(
+        (int8_t *) (tflite::GetTensorData<int8_t>(input)) + PREPROCESSOR_FEATURE_SIZE * this->current_stride_step_,
+        features, PREPROCESSOR_FEATURE_SIZE);
+    ++this->current_stride_step_;
 
-    memcpy((void *) (tflite::GetTensorData<int8_t>(input)), (const void *) (features), bytes_to_copy);
+    uint8_t stride = this->interpreter_->input(0)->dims->data[1];
 
-    TfLiteStatus invoke_status = this->interpreter_->Invoke();
-    if (invoke_status != kTfLiteOk) {
-      ESP_LOGW(TAG, "Streaming interpreter invoke failed");
-      return false;
+    if (this->current_stride_step_ >= stride) {
+      this->current_stride_step_ = 0;
+
+      TfLiteStatus invoke_status = this->interpreter_->Invoke();
+      if (invoke_status != kTfLiteOk) {
+        ESP_LOGW(TAG, "Streaming interpreter invoke failed");
+        return false;
+      }
+
+      TfLiteTensor *output = this->interpreter_->output(0);
+
+      ++this->last_n_index_;
+      if (this->last_n_index_ == this->sliding_window_size_)
+        this->last_n_index_ = 0;
+      this->recent_streaming_probabilities_[this->last_n_index_] = output->data.uint8[0];  // probability;
     }
-
-    TfLiteTensor *output = this->interpreter_->output(0);
-
-    ++this->last_n_index_;
-    if (this->last_n_index_ == this->sliding_window_size_)
-      this->last_n_index_ = 0;
-    this->recent_streaming_probabilities_[this->last_n_index_] = output->data.uint8[0];  // probability;
-
     return true;
   }
   ESP_LOGE(TAG, "Streaming interpreter is not initialized.");

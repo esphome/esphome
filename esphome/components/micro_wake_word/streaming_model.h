@@ -40,6 +40,8 @@ class StreamingModel {
   void unload_model();
 
  protected:
+  uint8_t current_stride_step_{0};
+
   size_t sliding_window_size_;
   size_t last_n_index_{0};
   size_t tensor_arena_size_;

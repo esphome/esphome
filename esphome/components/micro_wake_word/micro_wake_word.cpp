@@ -31,7 +31,11 @@ static const char *const TAG = "micro_wake_word";
 static const size_t SAMPLE_RATE_HZ = 16000;  // 16 kHz
 static const size_t BUFFER_LENGTH = 100;     // 0.1 seconds
 static const size_t BUFFER_SIZE = SAMPLE_RATE_HZ / 1000 * BUFFER_LENGTH;
+#ifdef MWW_SLIDE_20MS
 static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
+#else
+static const size_t INPUT_BUFFER_SIZE = 16 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
+#endif
 
 float MicroWakeWord::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
@@ -360,12 +364,12 @@ bool MicroWakeWord::stride_audio_samples_() {
     return false;
   }
 
-  // Copy the last 320 bytes (160 samples over 10 ms) from the audio buffer to the start of the audio buffer
-  memcpy((void *) (this->preprocessor_audio_buffer_), (void *) (this->preprocessor_audio_buffer_ + NEW_SAMPLES_TO_GET),
-         HISTORY_SAMPLES_TO_KEEP * sizeof(int16_t));
+  // Copy the old audio samples from the end of the audio buffer to the start of the audio buffer
+  std::memmove((void *) (this->preprocessor_audio_buffer_),
+               (void *) (this->preprocessor_audio_buffer_ + NEW_SAMPLES_TO_GET),
+               HISTORY_SAMPLES_TO_KEEP * sizeof(int16_t));
 
-  // Copy 640 bytes (320 samples over 20 ms) from the ring buffer into the audio buffer offset 320 bytes (160 samples
-  // over 10 ms)
+  // Copy new audio samples from the ring buffer to the end of the audio buffer
   size_t bytes_read = this->ring_buffer_->read((void *) (this->preprocessor_audio_buffer_ + HISTORY_SAMPLES_TO_KEEP),
                                                NEW_SAMPLES_TO_GET * sizeof(int16_t), pdMS_TO_TICKS(200));
 

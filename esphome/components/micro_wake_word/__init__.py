@@ -9,7 +9,7 @@ import requests
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from esphome.core import CORE, HexInt, EsphomeError
+from esphome.core import CORE, HexInt
 
 from esphome.components import esp32, microphone
 from esphome import automation, git, external_files
@@ -109,6 +109,7 @@ KEY_WEBSITE = "website"
 KEY_VERSION = "version"
 KEY_MICRO = "micro"
 KEY_MINIMUM_ESPHOME_VERSION = "minimum_esphome_version"
+CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
 
 MANIFEST_SCHEMA_V1 = cv.Schema(
     {
@@ -125,6 +126,30 @@ MANIFEST_SCHEMA_V1 = cv.Schema(
                 cv.Optional(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
                     cv.version_number, cv.validate_esphome_version
                 ),
+            }
+        ),
+    }
+)
+
+MANIFEST_SCHEMA_V2 = cv.Schema(
+    {
+        cv.Required(CONF_TYPE): "micro",
+        cv.Required(CONF_MODEL): cv.string,
+        cv.Required(KEY_AUTHOR): cv.string,
+        cv.Required(KEY_VERSION): cv.All(cv.int_, 2),
+        cv.Required(KEY_WAKE_WORD): cv.string,
+        cv.Optional(KEY_WEBSITE): cv.url,
+        cv.Required(KEY_MICRO): cv.Schema(
+            {
+                cv.Required(CONF_TENSOR_ARENA_SIZE): cv.int_,
+                cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
+                cv.Required(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+                cv.Optional(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
+                    cv.version_number, cv.validate_esphome_version
+                ),
+                # cv.Required(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
+                #     cv.version_number, cv.validate_esphome_version
+                # ),
             }
         ),
     }
@@ -172,10 +197,21 @@ def _process_http_source(config):
     if not isinstance(manifest_data, dict):
         raise cv.Invalid("Manifest file must contain a JSON object")
 
-    try:
-        MANIFEST_SCHEMA_V1(manifest_data)
-    except cv.Invalid as e:
-        raise cv.Invalid(f"Invalid manifest file: {e}") from e
+    if manifest_version := manifest_data["version"]:
+        if manifest_version == 1:
+            try:
+                MANIFEST_SCHEMA_V1(manifest_data)
+            except cv.Invalid as e:
+                raise cv.Invalid(f"Invalid manifest file: {e}") from e
+        elif manifest_version == 2:
+            try:
+                MANIFEST_SCHEMA_V2(manifest_data)
+            except cv.Invalid as e:
+                raise cv.Invalid(f"Invalid manifest file: {e}") from e
+        else:
+            raise cv.Invalid("Invalid manifest version")
+    else:
+        raise cv.Invalid("Invalid manifest file, missing 'version' key.")
 
     model = manifest_data[CONF_MODEL]
     model_url = urljoin(url, model)
@@ -311,10 +347,21 @@ def _load_model_data(manifest_path: Path):
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
-    try:
-        MANIFEST_SCHEMA_V1(manifest)
-    except cv.Invalid as e:
-        raise EsphomeError(f"Invalid manifest file: {e}") from e
+    if manifest_version := manifest["version"]:
+        if manifest_version == 1:
+            try:
+                MANIFEST_SCHEMA_V1(manifest)
+            except cv.Invalid as e:
+                raise cv.Invalid(f"Invalid manifest file: {e}") from e
+        elif manifest_version == 2:
+            try:
+                MANIFEST_SCHEMA_V2(manifest)
+            except cv.Invalid as e:
+                raise cv.Invalid(f"Invalid manifest file: {e}") from e
+        else:
+            raise cv.Invalid("Invalid manifest version")
+    else:
+        raise cv.Invalid("Invalid manifest file, missing 'version' key.")
 
     model_path = manifest_path.parent / manifest[CONF_MODEL]
 
@@ -348,6 +395,9 @@ async def to_code(config):
             on_wake_word_detection_config,
         )
 
+    manifest_version_1 = False
+    manifest_version_2 = False
+
     if vad_model := config.get(CONF_VAD_MODEL):
         cg.add_define("USE_MWW_VAD")
         model_config = vad_model.get(CONF_MODEL)
@@ -370,6 +420,11 @@ async def to_code(config):
             raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
 
         manifest, data = _load_model_data(file)
+
+        if manifest["version"] == 1:
+            manifest_version_1 = True
+        else:
+            manifest_version_2 = True
 
         rhs = [HexInt(x) for x in data]
         prog_arr = cg.progmem_array(vad_model[CONF_RAW_DATA_ID], rhs)
@@ -418,6 +473,11 @@ async def to_code(config):
 
         manifest, data = _load_model_data(file)
 
+        if manifest["version"] == 1:
+            manifest_version_1 = True
+        else:
+            manifest_version_2 = True
+
         rhs = [HexInt(x) for x in data]
         prog_arr = cg.progmem_array(model_parameters[CONF_RAW_DATA_ID], rhs)
 
@@ -429,15 +489,25 @@ async def to_code(config):
             manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
         )
 
+        arena_size = manifest[KEY_MICRO].get(
+            CONF_TENSOR_ARENA_SIZE, 45672
+        )  # Original Inception-based models need 45672 bytes
+
         cg.add(
             var.add_wake_word_model(
                 prog_arr,
                 probability_cutoff,
                 sliding_window_average_size,
                 manifest[KEY_WAKE_WORD],
-                45672,  # Tensor arena size for original Inception-based models
+                arena_size,
             )
         )
+
+    if manifest_version_1:
+        cg.add_define("MWW_SLIDE_20MS")
+
+    if manifest_version_1 and manifest_version_2:
+        raise cv.Invalid("Cannot load models with different manifest versions.")
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
