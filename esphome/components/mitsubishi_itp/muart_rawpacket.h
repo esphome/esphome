@@ -24,8 +24,8 @@ enum class PacketType : uint8_t {
   GET_RESPONSE = 0x62,
   SET_REQUEST = 0x41,
   SET_RESPONSE = 0x61,
-  EXTENDED_CONNECT_REQUEST = 0x5b,
-  EXTENDED_CONNECT_RESPONSE = 0x7b
+  IDENTIFY_REQUEST = 0x5b,
+  IDENTIFY_RESPONSE = 0x7b
 };
 
 // Used to specify certain packet subtypes

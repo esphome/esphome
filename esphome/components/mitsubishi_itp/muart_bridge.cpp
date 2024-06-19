@@ -146,11 +146,11 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
       process_raw_packet_<ConnectResponsePacket>(pkt, false);
       break;
 
-    case PacketType::EXTENDED_CONNECT_REQUEST:
-      process_raw_packet_<ExtendedConnectRequestPacket>(pkt, true);
+    case PacketType::IDENTIFY_REQUEST:
+      process_raw_packet_<BaseCapabilitiesRequestPacket>(pkt, true);
       break;
-    case PacketType::EXTENDED_CONNECT_RESPONSE:
-      process_raw_packet_<ExtendedConnectResponsePacket>(pkt, false);
+    case PacketType::IDENTIFY_RESPONSE:
+      process_raw_packet_<BaseCapabilitiesResponsePacket>(pkt, false);
       break;
 
     case PacketType::GET_REQUEST:

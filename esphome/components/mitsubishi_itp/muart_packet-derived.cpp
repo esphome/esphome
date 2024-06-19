@@ -10,9 +10,9 @@ namespace mitsubishi_itp {
 
 std::string ConnectRequestPacket::to_string() const { return ("Connect Request: " + Packet::to_string()); }
 std::string ConnectResponsePacket::to_string() const { return ("Connect Response: " + Packet::to_string()); }
-std::string ExtendedConnectResponsePacket::to_string() const {
+std::string BaseCapabilitiesResponsePacket::to_string() const {
   return (
-      "Extended Connect Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+      "Identify Base Capabilities Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
       "\n HeatDisabled:" + (is_heat_disabled() ? "Yes" : "No") + " SupportsVane:" + (supports_vane() ? "Yes" : "No") +
       " SupportsVaneSwing:" + (supports_vane_swing() ? "Yes" : "No")
 
@@ -28,6 +28,9 @@ std::string ExtendedConnectResponsePacket::to_string() const {
       std::to_string(get_max_cool_dry_setpoint()) + " HeatSetpoint:" + std::to_string(get_min_heating_setpoint()) +
       "/" + std::to_string(get_max_heating_setpoint()) + " AutoSetpoint:" + std::to_string(get_min_auto_setpoint()) +
       "/" + std::to_string(get_max_auto_setpoint()) + " FanSpeeds:" + std::to_string(get_supported_fan_speeds()));
+}
+std::string IdentifyCDResponsePacket::to_string() const {
+  return "Identify CD Response: " + Packet::to_string();
 }
 std::string CurrentTempGetResponsePacket::to_string() const {
   return ("Current Temp Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
@@ -350,8 +353,8 @@ std::string ErrorStateGetResponsePacket::get_short_code() const {
   return {upper_alphabet[(error_code & 0xE0) >> 5], lower_alphabet[low_bits]};
 }
 
-// ExtendedConnectResponsePacket functions
-uint8_t ExtendedConnectResponsePacket::get_supported_fan_speeds() const {
+// BaseCapabilitiesResponsePacket functions
+uint8_t BaseCapabilitiesResponsePacket::get_supported_fan_speeds() const {
   uint8_t raw_value = ((pkt_.get_payload_byte(7) & 0x10) >> 2) + ((pkt_.get_payload_byte(8) & 0x08) >> 2) +
                       ((pkt_.get_payload_byte(9) & 0x02) >> 1);
 
@@ -371,7 +374,7 @@ uint8_t ExtendedConnectResponsePacket::get_supported_fan_speeds() const {
   }
 }
 
-climate::ClimateTraits ExtendedConnectResponsePacket::as_traits() const {
+climate::ClimateTraits BaseCapabilitiesResponsePacket::as_traits() const {
   auto ct = climate::ClimateTraits();
 
   // always enabled

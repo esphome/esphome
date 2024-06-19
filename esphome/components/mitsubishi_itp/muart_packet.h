@@ -91,23 +91,23 @@ class ConnectResponsePacket : public Packet {
 };
 
 ////
-// Extended Connect
+// Identify packets
 ////
-class ExtendedConnectRequestPacket : public Packet {
+class BaseCapabilitiesRequestPacket : public Packet {
  public:
-  static ExtendedConnectRequestPacket &instance() {
-    static ExtendedConnectRequestPacket instance;
+  static BaseCapabilitiesRequestPacket &instance() {
+    static BaseCapabilitiesRequestPacket instance;
     return instance;
   }
   using Packet::Packet;
 
  private:
-  ExtendedConnectRequestPacket() : Packet(RawPacket(PacketType::EXTENDED_CONNECT_REQUEST, 1)) {
+  BaseCapabilitiesRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) {
     pkt_.set_payload_byte(0, 0xc9);
   }
 };
 
-class ExtendedConnectResponsePacket : public Packet {
+class BaseCapabilitiesResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
@@ -146,6 +146,27 @@ class ExtendedConnectResponsePacket : public Packet {
   // This will also not handle things like MHK2 humidity detection.
   climate::ClimateTraits as_traits() const;
 
+  std::string to_string() const override;
+};
+
+class IdentifyCDRequestPacket : public Packet {
+ public:
+  static IdentifyCDRequestPacket &instance() {
+    static IdentifyCDRequestPacket instance;
+    return instance;
+  }
+  using Packet::Packet;
+
+ private:
+  IdentifyCDRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) {
+    pkt_.set_payload_byte(0, 0xCD);
+  }
+};
+
+class IdentifyCDResponsePacket : public Packet {
+  using Packet::Packet;
+
+ public:
   std::string to_string() const override;
 };
 
@@ -511,8 +532,8 @@ class PacketProcessor {
   virtual void process_packet(const Packet &packet){};
   virtual void process_packet(const ConnectRequestPacket &packet){};
   virtual void process_packet(const ConnectResponsePacket &packet){};
-  virtual void process_packet(const ExtendedConnectRequestPacket &packet){};
-  virtual void process_packet(const ExtendedConnectResponsePacket &packet){};
+  virtual void process_packet(const BaseCapabilitiesRequestPacket &packet){};
+  virtual void process_packet(const BaseCapabilitiesResponsePacket &packet){};
   virtual void process_packet(const GetRequestPacket &packet){};
   virtual void process_packet(const SettingsGetResponsePacket &packet){};
   virtual void process_packet(const CurrentTempGetResponsePacket &packet){};

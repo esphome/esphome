@@ -114,8 +114,8 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void process_packet(const Packet &packet) override;
   void process_packet(const ConnectRequestPacket &packet) override;
   void process_packet(const ConnectResponsePacket &packet) override;
-  void process_packet(const ExtendedConnectRequestPacket &packet) override;
-  void process_packet(const ExtendedConnectResponsePacket &packet) override;
+  void process_packet(const BaseCapabilitiesRequestPacket &packet) override;
+  void process_packet(const BaseCapabilitiesResponsePacket &packet) override;
   void process_packet(const GetRequestPacket &packet) override;
   void process_packet(const SettingsGetResponsePacket &packet) override;
   void process_packet(const CurrentTempGetResponsePacket &packet) override;
@@ -168,7 +168,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Number of times update() has been called in discovery mode
   size_t discovery_updates_ = 0;
 
-  optional<ExtendedConnectResponsePacket> capabilities_cache_;
+  optional<BaseCapabilitiesResponsePacket> capabilities_cache_;
   bool capabilities_requested_ = false;
   // Have we received at least one RunState response?
   bool run_state_received_ = false;
