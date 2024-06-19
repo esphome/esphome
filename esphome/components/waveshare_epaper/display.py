@@ -31,6 +31,9 @@ WaveshareEPaperTypeA = waveshare_epaper_ns.class_(
 WaveshareEpaper1P54INBV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper1P54InBV2", WaveshareEPaperBWR
 )
+WaveshareEPaper4P26In = waveshare_epaper_ns.class_(
+    "WaveshareEPaper4P26In", WaveshareEPaper
+)
 WaveshareEPaper2P7In = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P7In", WaveshareEPaper
 )
@@ -139,6 +142,7 @@ MODELS = {
     "2.13in-ttgo-b74": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B74),
     "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
+    "4.26in": ("a", WaveshareEPaper4P26In),
     "gdew029t5": ("c", GDEW029T5),
     "2.70in": ("b", WaveshareEPaper2P7In),
     "2.70in-b": ("b", WaveshareEPaper2P7InB),
@@ -229,7 +233,10 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 async def to_code(config):
     model_type, model = MODELS[config[CONF_MODEL]]
-    if model_type == "a":
+    if config[CONF_MODEL] == "4.26in":
+        rhs = model.new()
+        var = cg.Pvariable(config[CONF_ID], rhs, model)
+    elif model_type == "a":
         rhs = WaveshareEPaperTypeA.new(model)
         var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
     elif model_type in ("b", "c"):
