@@ -14,7 +14,7 @@
 namespace esphome {
 namespace mitsubishi_itp {
 
-static constexpr char TAG[] = "mitsubishi_uart";
+static constexpr char TAG[] = "mitsubishi_itp";
 
 const uint8_t MUART_MIN_TEMP = 16;  // Degrees C
 const uint8_t MUART_MAX_TEMP = 31;  // Degrees C
