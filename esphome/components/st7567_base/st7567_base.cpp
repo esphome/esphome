@@ -175,7 +175,7 @@ void ST7567::init_model_() {
     // this->command(0xA0);  // MX select,0 -normal MX=1 =>reverse direction
     // this->command(0xC0);//8);  // MY select, MY=1 => reverse direction
     this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
-    this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
+    this->command(this->mirror_y_ ? ST7567_COM_REMAP : ST7567_COM_NORMAL);
 
     this->command(0x44);  // Set initial COM0 register
     this->command(0x00);  //
