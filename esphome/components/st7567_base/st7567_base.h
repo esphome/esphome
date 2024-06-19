@@ -103,6 +103,7 @@ class ST7567 : public display::DisplayBuffer {
   int get_width_internal() override;
   size_t get_buffer_length_();
   int get_offset_x_();
+  int get_offset_y_();
 
   void command_set_start_line_();
 
@@ -135,8 +136,14 @@ class ST7567 : public display::DisplayBuffer {
     uint8_t visible_width{128};
     uint8_t visible_height{64};
 
+    uint8_t offset_x_normal{0};
+    uint8_t offset_x_mirror{0};
+
+    uint8_t offset_y_normal{0};
+    uint8_t offset_y_mirror{0};
+
     std::function<void()> display_init{nullptr};
-    std::function<void()> command_set_start_line{nullptr};
+    std::function<void(uint8_t)> command_set_start_line{nullptr};
 
   } device_config_;
 };

@@ -57,6 +57,8 @@ void HOT SPIST7567::write_display_data() {
 
   // this->command(esphome::st7567_base::ST7567_SET_START_LINE + this->start_line_);
 
+  this->command_set_start_line_();
+
   for (uint8_t y = 0; y < (uint8_t) this->get_height_internal() / 8; y++) {
     this->command(esphome::st7567_base::ST7567_PAGE_ADDR + y);                       // Set Page
     this->command(esphome::st7567_base::ST7567_COL_ADDR_H);                          // Set MSB Column address

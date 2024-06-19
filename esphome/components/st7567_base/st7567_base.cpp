@@ -118,13 +118,15 @@ int ST7567::get_width_internal() { return this->device_config_.memory_width; }
 
 int ST7567::get_height_internal() { return this->device_config_.memory_height; }
 
-int ST7567::get_offset_x_() { return mirror_x_ ? device_config_.memory_width - device_config_.visible_width : 0; };
+int ST7567::get_offset_x_() { return mirror_x_ ? device_config_.offset_x_mirror : device_config_.offset_x_normal; };
+
+int ST7567::get_offset_y_() { return mirror_y_ ? device_config_.offset_y_mirror : device_config_.offset_y_normal; };
 
 size_t ST7567::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
 
-void ST7567::command_set_start_line_() { this->device_config_.command_set_start_line(); }
+void ST7567::command_set_start_line_() { this->device_config_.command_set_start_line(this->get_offset_y_()); }
 
 void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
@@ -199,12 +201,12 @@ void ST7567::init_model_() {
     this->command(0xAF);  // Display ON
   };
 
-  auto st7567_set_start_line = [this]() {
-    this->command(ST7567_SET_START_LINE + this->start_line_);  // one-byte command
+  auto st7567_set_start_line = [this](uint8_t x) {
+    this->command(ST7567_SET_START_LINE + x);  // one-byte command
   };
-  auto st7570_set_start_line = [this]() {
+  auto st7570_set_start_line = [this](uint8_t x) {
     this->command(ST7567_SET_START_LINE);  // two-byte command
-    this->command(this->start_line_);
+    this->command(x);
   };
 
   switch (this->device_config_.model) {
@@ -226,6 +228,7 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 128;  // 129 actually, 1 bit line for icons, not supported
       this->device_config_.visible_width = 128;
       this->device_config_.visible_height = 128;
+      this->device_config_.offset_x_mirror = 4;
       this->device_config_.display_init = st7570_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
@@ -236,6 +239,8 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 128;
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
+      this->device_config_.offset_x_mirror = 26;
+      this->device_config_.offset_y_mirror = 102;
       this->device_config_.display_init = st7570_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
