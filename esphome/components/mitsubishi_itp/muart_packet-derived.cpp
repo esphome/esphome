@@ -30,7 +30,8 @@ std::string ExtendedConnectResponsePacket::to_string() const {
 }
 std::string CurrentTempGetResponsePacket::to_string() const {
   return ("Current Temp Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
-          "\n Temp:" + std::to_string(get_current_temp()));
+          "\n Temp:" + std::to_string(get_current_temp()) +
+          " Outdoor:" + (std::isnan(get_outdoor_temp()) ? "Unsupported" : std::to_string(get_outdoor_temp())));
 }
 std::string SettingsGetResponsePacket::to_string() const {
   return ("Settings Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE + "\n Fan:" + format_hex(get_fan()) +
@@ -46,7 +47,7 @@ std::string SettingsGetResponsePacket::to_string() const {
 std::string RunStateGetResponsePacket::to_string() const {
   return ("RunState Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
           "\n ServiceFilter:" + (service_filter() ? "Yes" : "No") + " Defrost:" + (in_defrost() ? "Yes" : "No") +
-          " HotAdjust:" + (in_hot_adjust() ? "Yes" : "No") + " Standby:" + (in_standby() ? "Yes" : "No") +
+          " Preheat:" + (in_preheat() ? "Yes" : "No") + " Standby:" + (in_standby() ? "Yes" : "No") +
           " ActualFan:" + ACTUAL_FAN_SPEED_NAMES[get_actual_fan_speed()] + " (" +
           std::to_string(get_actual_fan_speed()) + ")" + " AutoMode:" + format_hex(get_auto_mode()));
 }
@@ -196,6 +197,13 @@ float CurrentTempGetResponsePacket::get_current_temp() const {
   }
 
   return MUARTUtils::temp_scale_a_to_deg_c(enhanced_raw_temp);
+}
+
+float CurrentTempGetResponsePacket::get_outdoor_temp() const {
+  uint8_t enhanced_raw_temp = pkt_.get_payload_byte(PLINDEX_OUTDOORTEMP);
+
+  // Return NAN if unsupported
+  return enhanced_raw_temp == 0 ? NAN : MUARTUtils::temp_scale_a_to_deg_c(enhanced_raw_temp);
 }
 
 // ThermostatHelloRequestPacket functions

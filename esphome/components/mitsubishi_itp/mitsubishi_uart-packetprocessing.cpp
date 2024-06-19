@@ -205,6 +205,12 @@ void MitsubishiUART::process_packet(const CurrentTempGetResponsePacket &packet) 
   current_temperature = packet.get_current_temp();
 
   publish_on_update_ |= (old_current_temperature != current_temperature);
+
+  if (!std::isnan(packet.get_outdoor_temp())) {
+    const float old_outdoor_temperature = outdoor_temperature_sensor_->raw_state;
+    outdoor_temperature_sensor_->raw_state = packet.get_outdoor_temp();
+    publish_on_update_ |= (old_outdoor_temperature != outdoor_temperature_sensor_->raw_state);
+  }
 };
 
 void MitsubishiUART::process_packet(const StatusGetResponsePacket &packet) {
@@ -283,10 +289,10 @@ void MitsubishiUART::process_packet(const RunStateGetResponsePacket &packet) {
     publish_on_update_ |= (old_defrost != defrost_sensor_->state);
   }
 
-  if (hot_adjust_sensor_) {
-    const bool old_hot_adjust = hot_adjust_sensor_->state;
-    hot_adjust_sensor_->state = packet.in_hot_adjust();
-    publish_on_update_ |= (old_hot_adjust != hot_adjust_sensor_->state);
+  if (preheat_sensor_) {
+    const bool old_preheat = preheat_sensor_->state;
+    preheat_sensor_->state = packet.in_preheat();
+    publish_on_update_ |= (old_preheat != preheat_sensor_->state);
   }
 
   if (standby_sensor_) {

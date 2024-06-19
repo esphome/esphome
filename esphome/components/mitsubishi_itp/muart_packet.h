@@ -9,7 +9,7 @@
 
 namespace esphome {
 namespace mitsubishi_itp {
-static constexpr char PACKETS_TAG[] = "mitsubishi_uart.packets";
+static constexpr char PACKETS_TAG[] = "mitsubishi_itp.packets";
 
 #define CONSOLE_COLOR_NONE "\033[0m"
 #define CONSOLE_COLOR_GREEN "\033[0;32m"
@@ -210,11 +210,14 @@ class SettingsGetResponsePacket : public Packet {
 
 class CurrentTempGetResponsePacket : public Packet {
   static const int PLINDEX_CURRENTTEMP_LEGACY = 3;
+  static const int PLINDEX_OUTDOORTEMP = 5;
   static const int PLINDEX_CURRENTTEMP = 6;
   using Packet::Packet;
 
  public:
   float get_current_temp() const;
+  // Returns outdoor temperature or NAN if unsupported
+  float get_outdoor_temp() const;
   std::string to_string() const override;
 };
 
@@ -239,7 +242,7 @@ class RunStateGetResponsePacket : public Packet {
  public:
   bool service_filter() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x01; }
   bool in_defrost() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x02; }
-  bool in_hot_adjust() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x04; }
+  bool in_preheat() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x04; }
   bool in_standby() const { return pkt_.get_payload_byte(PLINDEX_STATUSFLAGS) & 0x08; }
   uint8_t get_actual_fan_speed() const { return pkt_.get_payload_byte(PLINDEX_ACTUALFAN); }
   uint8_t get_auto_mode() const { return pkt_.get_payload_byte(PLINDEX_AUTOMODE); }

@@ -8,18 +8,19 @@ from esphome.components import (
     button,
     text_sensor,
     select,
-    switch,
 )
 from esphome.const import (
     CONF_CUSTOM_FAN_MODES,
     CONF_ID,
     CONF_NAME,
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_SENSORS,
     CONF_SUPPORTED_FAN_MODES,
     CONF_SUPPORTED_MODES,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_FREQUENCY,
     ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_NONE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_HERTZ,
@@ -35,7 +36,6 @@ AUTO_LOAD = [
     "binary_sensor",
     "button",
     "text_sensor",
-    "switch",
 ]
 DEPENDENCIES = [
     "uart",
@@ -45,7 +45,6 @@ DEPENDENCIES = [
     "button",
     "text_sensor",
     "select",
-    "switch",
 ]
 
 CONF_UART_HEATPUMP = "uart_heatpump"
@@ -67,7 +66,7 @@ CONF_TEMPERATURE_SOURCES = (
     "temperature_sources"  # This is for specifying additional sources
 )
 
-CONF_ACTIVE_MODE_SWITCH = "active_mode_switch"
+CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -88,10 +87,6 @@ FilterResetButton = mitsubishi_itp_ns.class_(
     "FilterResetButton", button.Button, cg.Component
 )
 
-ActiveModeSwitch = mitsubishi_itp_ns.class_(
-    "ActiveModeSwitch", switch.Switch, cg.Component
-)
-
 DEFAULT_CLIMATE_MODES = ["OFF", "HEAT", "DRY", "COOL", "FAN_ONLY", "HEAT_COOL"]
 DEFAULT_FAN_MODES = ["AUTO", "QUIET", "LOW", "MEDIUM", "HIGH"]
 CUSTOM_FAN_MODES = {"VERYHIGH": mitsubishi_itp_ns.FAN_MODE_VERYHIGH}
@@ -104,38 +99,36 @@ INTERNAL_TEMPERATURE_SOURCE_OPTIONS = [
 
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 
-BASE_SCHEMA = (
-    cv.polling_component_schema(DEFAULT_POLLING_INTERVAL)
-    .extend(climate.CLIMATE_SCHEMA)
-    .extend(
-        {
-            cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
-            cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_UART_THERMOSTAT): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_NAME, default="Climate"): cv.string,
-            cv.Optional(
-                CONF_SUPPORTED_MODES, default=DEFAULT_CLIMATE_MODES
-            ): cv.ensure_list(climate.validate_climate_mode),
-            cv.Optional(
-                CONF_SUPPORTED_FAN_MODES, default=DEFAULT_FAN_MODES
-            ): cv.ensure_list(climate.validate_climate_fan_mode),
-            cv.Optional(CONF_CUSTOM_FAN_MODES, default=["VERYHIGH"]): cv.ensure_list(
-                validate_custom_fan_modes
+BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
+        cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
+        cv.Optional(CONF_UART_THERMOSTAT): cv.use_id(uart.UARTComponent),
+        # Overwrite name from ENTITY_BASE_SCHEMA with "Climate" as default
+        cv.Optional(CONF_NAME, default="Climate"): cv.Any(
+            cv.All(
+                cv.none,
+                cv.requires_friendly_name(
+                    "Name cannot be None when esphome->friendly_name is not set!"
+                ),
             ),
-            cv.Optional(CONF_TEMPERATURE_SOURCES, default=[]): cv.ensure_list(
-                cv.use_id(sensor.Sensor)
-            ),
-            cv.Optional(
-                CONF_ACTIVE_MODE_SWITCH, default={"name": "Active Mode"}
-            ): switch.switch_schema(
-                ActiveModeSwitch,
-                entity_category=ENTITY_CATEGORY_CONFIG,
-                default_restore_mode="RESTORE_DEFAULT_ON",
-                icon="mdi:upload-network",
-            ),
-        }
-    )
-)
+            cv.string,
+        ),
+        cv.Optional(
+            CONF_SUPPORTED_MODES, default=DEFAULT_CLIMATE_MODES
+        ): cv.ensure_list(climate.validate_climate_mode),
+        cv.Optional(
+            CONF_SUPPORTED_FAN_MODES, default=DEFAULT_FAN_MODES
+        ): cv.ensure_list(climate.validate_climate_fan_mode),
+        cv.Optional(CONF_CUSTOM_FAN_MODES, default=["VERYHIGH"]): cv.ensure_list(
+            validate_custom_fan_modes
+        ),
+        cv.Optional(CONF_TEMPERATURE_SOURCES, default=[]): cv.ensure_list(
+            cv.use_id(sensor.Sensor)
+        ),
+        cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
+    }
+).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
 # TODO Storing the registration function here seems weird, but I can't figure out how to determine schema type later
 SENSORS = dict[str, tuple[str, cv.Schema, callable]](
@@ -147,6 +140,17 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
                 accuracy_decimals=1,
+            ),
+            sensor.register_sensor,
+        ),
+        CONF_OUTDOOR_TEMPERATURE: (
+            "Outdoor Temperature",
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=1,
+                icon="mdi:sun-thermometer-outline",
             ),
             sensor.register_sensor,
         ),
@@ -175,17 +179,17 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
         ),
         "defrost": (
             "Defrost",
-            binary_sensor.binary_sensor_schema(),
+            binary_sensor.binary_sensor_schema(icon="mdi:snowflake-melt"),
             binary_sensor.register_binary_sensor,
         ),
-        "hot_adjust": (
-            "Hot Adjust",
-            binary_sensor.binary_sensor_schema(),
+        "preheat": (
+            "Preheat",
+            binary_sensor.binary_sensor_schema(icon="mdi:heating-coil"),
             binary_sensor.register_binary_sensor,
         ),
         "standby": (
             "Standby",
-            binary_sensor.binary_sensor_schema(),
+            binary_sensor.binary_sensor_schema(icon="mdi:pause-circle-outline"),
             binary_sensor.register_binary_sensor,
         ),
         CONF_ISEE_STATUS: (
@@ -195,7 +199,7 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
         ),
         CONF_ERROR_CODE: (
             "Error Code",
-            text_sensor.text_sensor_schema(),
+            text_sensor.text_sensor_schema(icon="mdi:alert-circle-outline"),
             text_sensor.register_text_sensor,
         ),
     }
@@ -229,7 +233,7 @@ SELECTS = {
         "Vane Position",
         select.select_schema(
             VanePositionSelect,
-            entity_category=ENTITY_CATEGORY_CONFIG,
+            entity_category=ENTITY_CATEGORY_NONE,
             icon="mdi:arrow-expand-vertical",
         ),
         VANE_POSITIONS,
@@ -238,7 +242,7 @@ SELECTS = {
         "Horizontal Vane Position",
         select.select_schema(
             HorizontalVanePositionSelect,
-            entity_category=ENTITY_CATEGORY_CONFIG,
+            entity_category=ENTITY_CATEGORY_NONE,
             icon="mdi:arrow-expand-horizontal",
         ),
         HORIZONTAL_VANE_POSITIONS,
@@ -264,7 +268,7 @@ BUTTONS = {
         button.button_schema(
             FilterResetButton,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:air-filter",
+            icon="mdi:restore",
         ),
     )
 }
@@ -364,11 +368,17 @@ async def to_code(config):
     ) in SELECTS.items():
         select_conf = config[CONF_SELECTS][select_designator]
         select_component = cg.new_Pvariable(select_conf[CONF_ID])
+        cg.add(getattr(muart_component, f"set_{select_designator}")(select_component))
+        await cg.register_parented(select_component, muart_component)
+
+        # For temperature source select, skip registration if there are less than two sources
+        if select_designator == CONF_TEMPERATURE_SOURCE_SELECT:
+            if len(SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2]) < 2:
+                continue
+
         await select.register_select(
             select_component, select_conf, options=select_options
         )
-        cg.add(getattr(muart_component, f"set_{select_designator}")(select_component))
-        await cg.register_parented(select_component, muart_component)
 
     # Buttons
     for button_designator, (_, _) in BUTTONS.items():
@@ -377,8 +387,6 @@ async def to_code(config):
         await cg.register_component(button_component, button_conf)
         await cg.register_parented(button_component, muart_component)
 
-    # Switches
-    if am_switch_conf := config.get(CONF_ACTIVE_MODE_SWITCH):
-        switch_component = await switch.new_switch(am_switch_conf)
-        await cg.register_component(switch_component, am_switch_conf)
-        await cg.register_parented(switch_component, muart_component)
+    # Debug Settings
+    if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
+        cg.add(getattr(muart_component, "set_active_mode")(not dam_conf))

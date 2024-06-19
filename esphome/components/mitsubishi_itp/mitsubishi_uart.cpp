@@ -97,8 +97,9 @@ void MitsubishiUART::loop() {
 
   // If it's been too long since we received a temperature update (and we're not set to Internal)
   if (((millis() - last_received_temperature_) > TEMPERATURE_SOURCE_TIMEOUT_MS) &&
+      (temperature_source_select_->has_option(TEMPERATURE_SOURCE_INTERNAL)) &&
       (temperature_source_select_->state != TEMPERATURE_SOURCE_INTERNAL)) {
-    ESP_LOGW(TAG, "No temperature received from %s for %i milliseconds, reverting to Internal source",
+    ESP_LOGW(TAG, "No temperature received from %s for %lu milliseconds, reverting to Internal source",
              current_temperature_source_.c_str(), TEMPERATURE_SOURCE_TIMEOUT_MS);
     // Set the select to show Internal (but do not change currentTemperatureSource)
     temperature_source_select_->publish_state(TEMPERATURE_SOURCE_INTERNAL);
@@ -198,6 +199,10 @@ void MitsubishiUART::do_publish_() {
     ESP_LOGI(TAG, "Thermostat temp differs, do publish");
     thermostat_temperature_sensor_->publish_state(thermostat_temperature_sensor_->raw_state);
   }
+  if (outdoor_temperature_sensor_ && (outdoor_temperature_sensor_->raw_state != outdoor_temperature_sensor_->state)) {
+    ESP_LOGI(TAG, "Outdoor temp differs, do publish");
+    outdoor_temperature_sensor_->publish_state(outdoor_temperature_sensor_->raw_state);
+  }
   if (compressor_frequency_sensor_ &&
       (compressor_frequency_sensor_->raw_state != compressor_frequency_sensor_->state)) {
     ESP_LOGI(TAG, "Compressor frequency differs, do publish");
@@ -215,7 +220,7 @@ void MitsubishiUART::do_publish_() {
   // Binary sensors automatically dedup publishes (I think) and so will only actually publish on change
   filter_status_sensor_->publish_state(filter_status_sensor_->state);
   defrost_sensor_->publish_state(defrost_sensor_->state);
-  hot_adjust_sensor_->publish_state(hot_adjust_sensor_->state);
+  preheat_sensor_->publish_state(preheat_sensor_->state);
   standby_sensor_->publish_state(standby_sensor_->state);
   isee_status_sensor_->publish_state(isee_status_sensor_->state);
 }
