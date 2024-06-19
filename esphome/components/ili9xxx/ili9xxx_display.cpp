@@ -34,8 +34,8 @@ void ILI9XXXDisplay::setup() {
   ESP_LOGD(TAG, "Setting up ILI9xxx");
 
   this->setup_pins_();
-  this->init_lcd_(this->init_sequence_);
-  this->init_lcd_(this->extra_init_sequence_.data());
+  this->init_lcd(this->init_sequence_);
+  this->init_lcd(this->extra_init_sequence_.data());
   switch (this->pixel_mode_) {
     case PIXEL_MODE_16:
       if (this->is_18bitdisplay_) {
@@ -405,7 +405,7 @@ void ILI9XXXDisplay::reset_() {
   }
 }
 
-void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
+void ILI9XXXDisplay::init_lcd(const uint8_t *addr) {
   if (addr == nullptr)
     return;
   uint8_t cmd, x, num_args;
@@ -424,6 +424,20 @@ void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
         delay(150);  // NOLINT
       }
     }
+  }
+}
+
+void ILI9XXXGC9A01A::init_lcd(const uint8_t *addr) {
+  if (addr == nullptr)
+    return;
+  uint8_t cmd, x, num_args;
+  while ((cmd = *addr++) != 0) {
+    x = *addr++;
+    num_args = x & 0x7F;
+    this->send_command(cmd, addr, num_args);
+    addr += num_args;
+    if (x & 0x80)
+      delay(150);  // NOLINT
   }
 }
 
