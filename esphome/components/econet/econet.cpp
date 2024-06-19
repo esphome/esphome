@@ -1,5 +1,7 @@
 #include "econet.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace econet {
 
@@ -212,8 +214,9 @@ void Econet::parse_message_(bool is_tx) {
         if (item_type == EconetDatapointType::RAW) {
           std::vector<uint8_t> raw(pdata, pdata + data_len);
           const std::string &datapoint_id = read_req_.obj_names[0];
-          this->send_datapoint_(EconetDatapointID{.name = datapoint_id, .address = src_adr},
-                                EconetDatapoint{.type = item_type, .value_raw = raw});
+          this->send_datapoint_(
+              EconetDatapointID{.name = datapoint_id, .address = src_adr},
+              EconetDatapoint{.type = item_type, .value_float = 0, .value_string = "", .value_raw = raw});
         }
       } else if (read_req_.type == 2) {
         // 1st pass to validate response and avoid any buffer over-read
@@ -305,7 +308,9 @@ void Econet::handle_response_(const EconetDatapointID &datapoint_id, const uint8
       }
       float item_value = bytes_to_float(p);
       ESP_LOGI(TAG, "  %s : %f", datapoint_id.name.c_str(), item_value);
-      this->send_datapoint_(datapoint_id, EconetDatapoint{.type = item_type, .value_float = item_value});
+      this->send_datapoint_(
+          datapoint_id,
+          EconetDatapoint{.type = item_type, .value_float = item_value, .value_string = "", .value_raw = {}});
       break;
     }
     case EconetDatapointType::TEXT: {
@@ -313,7 +318,8 @@ void Econet::handle_response_(const EconetDatapointID &datapoint_id, const uint8
       len -= 3;
       std::string s = trim_trailing_whitespace((const char *) p, len);
       ESP_LOGI(TAG, "  %s : (%s)", datapoint_id.name.c_str(), s.c_str());
-      this->send_datapoint_(datapoint_id, EconetDatapoint{.type = item_type, .value_string = s});
+      this->send_datapoint_(datapoint_id,
+                            EconetDatapoint{.type = item_type, .value_float = 0, .value_string = s, .value_raw = {}});
       break;
     }
     case EconetDatapointType::ENUM_TEXT: {
@@ -331,8 +337,9 @@ void Econet::handle_response_(const EconetDatapointID &datapoint_id, const uint8
       }
       std::string s = trim_trailing_whitespace((const char *) p + 2, item_text_len);
       ESP_LOGI(TAG, "  %s : %d (%s)", datapoint_id.name.c_str(), item_value, s.c_str());
-      this->send_datapoint_(datapoint_id,
-                            EconetDatapoint{.type = item_type, .value_enum = item_value, .value_string = s});
+      this->send_datapoint_(
+          datapoint_id,
+          EconetDatapoint{.type = item_type, .value_enum = item_value, .value_string = s, .value_raw = {}});
       break;
     }
     case EconetDatapointType::RAW:
@@ -340,7 +347,8 @@ void Econet::handle_response_(const EconetDatapointID &datapoint_id, const uint8
       break;
     case EconetDatapointType::UNSUPPORTED:
       ESP_LOGW(TAG, "  %s : UNSUPPORTED", datapoint_id.name.c_str());
-      this->send_datapoint_(datapoint_id, EconetDatapoint{.type = item_type});
+      this->send_datapoint_(datapoint_id,
+                            EconetDatapoint{.type = item_type, .value_float = 0, .value_string = "", .value_raw = {}});
       break;
   }
 }
@@ -384,7 +392,7 @@ void Econet::loop() {
   int bytes_available = this->available();
   if (bytes_available > 0) {
     this->last_read_data_ = now;
-    ESP_LOGI(TAG, "Read %d. ms=%d", bytes_available, now);
+    ESP_LOGI(TAG, "Read %d. ms=%" PRIu32, bytes_available, now);
     this->read_buffer_(bytes_available);
     return;
   }
@@ -523,14 +531,17 @@ void Econet::transmit_message_(uint8_t command, const std::vector<uint8_t> &data
 
 void Econet::set_float_datapoint_value(const std::string &datapoint_id, float value, uint32_t address) {
   ESP_LOGD(TAG, "Setting datapoint %s to %f", datapoint_id.c_str(), value);
-  this->set_datapoint_(EconetDatapointID{.name = datapoint_id, .address = address},
-                       EconetDatapoint{.type = EconetDatapointType::FLOAT, .value_float = value});
+  this->set_datapoint_(
+      EconetDatapointID{.name = datapoint_id, .address = address},
+      EconetDatapoint{.type = EconetDatapointType::FLOAT, .value_float = value, .value_string = "", .value_raw = {}});
 }
 
 void Econet::set_enum_datapoint_value(const std::string &datapoint_id, uint8_t value, uint32_t address) {
   ESP_LOGD(TAG, "Setting datapoint %s to %u", datapoint_id.c_str(), value);
-  this->set_datapoint_(EconetDatapointID{.name = datapoint_id, .address = address},
-                       EconetDatapoint{.type = EconetDatapointType::ENUM_TEXT, .value_enum = value});
+  this->set_datapoint_(
+      EconetDatapointID{.name = datapoint_id, .address = address},
+      EconetDatapoint{
+          .type = EconetDatapointType::ENUM_TEXT, .value_enum = value, .value_string = "", .value_raw = {}});
 }
 
 void Econet::set_datapoint_(const EconetDatapointID &datapoint_id, const EconetDatapoint &value) {
@@ -641,7 +652,7 @@ void Econet::register_listener(const std::string &datapoint_id, int8_t request_m
 // Fires a Home Assistant event: "esphome.econet_event" with the response.
 void Econet::homeassistant_read(const std::string &datapoint_id, uint32_t address) {
   if (address == 0) {
-    address = src_adr_;
+    address = dst_adr_;
   }
   register_listener(datapoint_id, -1, true, [this, datapoint_id](const EconetDatapoint &datapoint) {
     std::map<std::string, std::string> data;
@@ -672,14 +683,17 @@ void Econet::homeassistant_read(const std::string &datapoint_id, uint32_t addres
   });
   datapoint_ids_for_read_service_.push(EconetDatapointID{.name = datapoint_id, .address = address});
 }
+
 void Econet::homeassistant_write(const std::string &datapoint_id, uint8_t value) {
   set_datapoint_(EconetDatapointID{.name = datapoint_id, .address = 0},
-                 EconetDatapoint{.type = EconetDatapointType::ENUM_TEXT, .value_enum = value});
+                 EconetDatapoint{
+                     .type = EconetDatapointType::ENUM_TEXT, .value_enum = value, .value_string = "", .value_raw = {}});
 }
 
 void Econet::homeassistant_write(const std::string &datapoint_id, float value) {
-  set_datapoint_(EconetDatapointID{.name = datapoint_id, .address = 0},
-                 EconetDatapoint{.type = EconetDatapointType::FLOAT, .value_float = value});
+  set_datapoint_(
+      EconetDatapointID{.name = datapoint_id, .address = 0},
+      EconetDatapoint{.type = EconetDatapointType::FLOAT, .value_float = value, .value_string = "", .value_raw = {}});
 }
 
 }  // namespace econet
