@@ -145,23 +145,23 @@ SettingsSetRequestPacket &SettingsSetRequestPacket::set_mode(const ModeByte mode
   return *this;
 }
 
-SettingsSetRequestPacket &SettingsSetRequestPacket::set_target_temperature(const float temperature_degress_c) {
-  if (temperature_degress_c < 63.5 && temperature_degress_c > -64.0) {
-    pkt_.set_payload_byte(PLINDEX_TARGET_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degress_c));
+SettingsSetRequestPacket &SettingsSetRequestPacket::set_target_temperature(const float temperature_degrees_c) {
+  if (temperature_degrees_c < 63.5 && temperature_degrees_c > -64.0) {
+    pkt_.set_payload_byte(PLINDEX_TARGET_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degrees_c));
     pkt_.set_payload_byte(PLINDEX_TARGET_TEMPERATURE_CODE,
-                          MUARTUtils::deg_c_to_legacy_target_temp(temperature_degress_c));
+                          MUARTUtils::deg_c_to_legacy_target_temp(temperature_degrees_c));
 
     // TODO: while spawning a warning here is fine, we should (a) only actually send that warning if the system can't
     //       support this setpoint, and (b) clamp the setpoint to the known-acceptable values.
     // The utility class will already clamp this for us, so we only need to worry about the warning.
-    if (temperature_degress_c < 16 || temperature_degress_c > 31.5) {
+    if (temperature_degrees_c < 16 || temperature_degrees_c > 31.5) {
       ESP_LOGW(PTAG, "Target temp %f is out of range for the legacy temp scale. This may be a problem on older units.",
-               temperature_degress_c);
+               temperature_degrees_c);
     }
 
     add_settings_flag_(SF_TARGET_TEMPERATURE);
   } else {
-    ESP_LOGW(PTAG, "Target temp %f is outside valid range - target temperature not set!", temperature_degress_c);
+    ESP_LOGW(PTAG, "Target temp %f is outside valid range - target temperature not set!", temperature_degrees_c);
   }
 
   return *this;
@@ -229,14 +229,14 @@ float RemoteTemperatureSetRequestPacket::get_remote_temperature() const {
 }
 
 RemoteTemperatureSetRequestPacket &RemoteTemperatureSetRequestPacket::set_remote_temperature(
-    float temperature_degress_c) {
-  if (temperature_degress_c < 63.5 && temperature_degress_c > -64.0) {
-    pkt_.set_payload_byte(PLINDEX_REMOTE_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degress_c));
+    float temperature_degrees_c) {
+  if (temperature_degrees_c < 63.5 && temperature_degrees_c > -64.0) {
+    pkt_.set_payload_byte(PLINDEX_REMOTE_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degrees_c));
     pkt_.set_payload_byte(PLINDEX_LEGACY_REMOTE_TEMPERATURE,
-                          MUARTUtils::deg_c_to_legacy_room_temp(temperature_degress_c));
+                          MUARTUtils::deg_c_to_legacy_room_temp(temperature_degrees_c));
     set_flags(0x01);  // Set flags to say we're providing the temperature
   } else {
-    ESP_LOGW(PTAG, "Remote temp %f is outside valid range.", temperature_degress_c);
+    ESP_LOGW(PTAG, "Remote temp %f is outside valid range.", temperature_degrees_c);
   }
   return *this;
 }
@@ -245,7 +245,7 @@ RemoteTemperatureSetRequestPacket &RemoteTemperatureSetRequestPacket::use_intern
   return *this;
 }
 
-// SettingsSetRunStatisPacket functions
+// SettingsSetRunStatusPacket functions
 SetRunStatePacket &SetRunStatePacket::set_filter_reset(bool do_reset) {
   pkt_.set_payload_byte(PLINDEX_FILTER_RESET, do_reset ? 1 : 0);
   set_flags(0x01);

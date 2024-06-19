@@ -27,7 +27,7 @@ class Packet {
   Packet(RawPacket &&pkt) : pkt_(pkt){};  // TODO: Confirm this needs std::move if call to constructor ALSO has move
   Packet();                               // For optional<> construction
 
-  // Returns a (more) human readable string of the packet
+  // Returns a (more) human-readable string of the packet
   virtual std::string to_string() const;
 
   // Is a response packet expected when this packet is sent.  Defaults to true since
@@ -370,7 +370,7 @@ class SettingsSetRequestPacket : public Packet {
 
   SettingsSetRequestPacket &set_power(bool is_on);
   SettingsSetRequestPacket &set_mode(ModeByte mode);
-  SettingsSetRequestPacket &set_target_temperature(float temperature_degress_c);
+  SettingsSetRequestPacket &set_target_temperature(float temperature_degrees_c);
   SettingsSetRequestPacket &set_fan(FanByte fan);
   SettingsSetRequestPacket &set_vane(VaneByte vane);
   SettingsSetRequestPacket &set_horizontal_vane(HorizontalVaneByte horizontal_vane);
@@ -394,7 +394,7 @@ class RemoteTemperatureSetRequestPacket : public Packet {
 
   float get_remote_temperature() const;
 
-  RemoteTemperatureSetRequestPacket &set_remote_temperature(float temperature_degress_c);
+  RemoteTemperatureSetRequestPacket &set_remote_temperature(float temperature_degrees_c);
   RemoteTemperatureSetRequestPacket &use_internal_temperature();
 
   std::string to_string() const override;
