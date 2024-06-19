@@ -95,7 +95,7 @@ void DutyTimeSensor::publish_and_save_(const uint32_t sec, const uint32_t ms) {
 
 void DutyTimeSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Duty Time:");
-  ESP_LOGCONFIG(TAG, "  Update Interval: %dms", this->get_update_interval());
+  ESP_LOGCONFIG(TAG, "  Update Interval: %" PRId32 "ms", this->get_update_interval());
   ESP_LOGCONFIG(TAG, "  Restore: %s", ONOFF(this->restore_));
   LOG_SENSOR("  ", "Duty Time Sensor:", this);
   LOG_SENSOR("  ", "Last Duty Time Sensor:", this->last_duty_time_sensor_);

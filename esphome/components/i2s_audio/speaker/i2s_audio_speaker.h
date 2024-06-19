@@ -56,9 +56,10 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
 
   size_t play(const uint8_t *data, size_t length) override;
 
+  bool has_buffered_data() const override;
+
  protected:
   void start_();
-  // void stop_();
   void watch_();
 
   static void player_task(void *params);
@@ -68,6 +69,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
   QueueHandle_t event_queue_;
 
   uint8_t dout_pin_{0};
+  bool task_created_{false};
 
 #if SOC_I2S_SUPPORTS_DAC
   i2s_dac_mode_t internal_dac_mode_{I2S_DAC_CHANNEL_DISABLE};

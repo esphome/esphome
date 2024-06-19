@@ -7,6 +7,10 @@ namespace x9c {
 static const char *const TAG = "x9c.output";
 
 void X9cOutput::trim_value(int change_amount) {
+  if (change_amount == 0) {
+    return;
+  }
+
   if (change_amount > 0) {  // Set change direction
     this->ud_pin_->digital_write(true);
   } else {
@@ -18,9 +22,9 @@ void X9cOutput::trim_value(int change_amount) {
 
   for (int i = 0; i < abs(change_amount); i++) {  // Move wiper
     this->inc_pin_->digital_write(true);
-    delayMicroseconds(1);
+    delayMicroseconds(this->step_delay_);
     this->inc_pin_->digital_write(false);
-    delayMicroseconds(1);
+    delayMicroseconds(this->step_delay_);
   }
 
   delayMicroseconds(100);  // Let value settle
@@ -45,17 +49,17 @@ void X9cOutput::setup() {
 
   if (this->initial_value_ <= 0.50) {
     this->trim_value(-101);  // Set min value (beyond 0)
-    this->trim_value((int) (this->initial_value_ * 100));
+    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100)));
   } else {
     this->trim_value(101);  // Set max value (beyond 100)
-    this->trim_value((int) (this->initial_value_ * 100) - 100);
+    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100) - 100));
   }
   this->pot_value_ = this->initial_value_;
   this->write_state(this->initial_value_);
 }
 
 void X9cOutput::write_state(float state) {
-  this->trim_value((int) ((state - this->pot_value_) * 100));
+  this->trim_value(static_cast<uint32_t>(roundf((state - this->pot_value_) * 100)));
   this->pot_value_ = state;
 }
 
@@ -65,6 +69,7 @@ void X9cOutput::dump_config() {
   LOG_PIN("  Increment Pin: ", this->inc_pin_);
   LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
   ESP_LOGCONFIG(TAG, "  Initial Value: %f", this->initial_value_);
+  ESP_LOGCONFIG(TAG, "  Step Delay: %d", this->step_delay_);
   LOG_FLOAT_OUTPUT(this);
 }
 

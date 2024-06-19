@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 
+#include <cinttypes>
 #include <vector>
 
 namespace esphome {

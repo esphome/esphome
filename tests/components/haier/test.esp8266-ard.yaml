@@ -1,0 +1,113 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart:
+  - id: uart_haier
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+climate:
+  - platform: haier
+    id: haier_ac
+    protocol: hOn
+    name: Haier AC
+    wifi_signal: true
+    answer_timeout: 200ms
+    beeper: true
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step:
+        target_temperature: 1
+        current_temperature: 0.5
+    supported_modes:
+      - 'OFF'
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
+      - FAN_ONLY
+    supported_swing_modes:
+      - 'OFF'
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
+    supported_presets:
+      - AWAY
+      - BOOST
+      - ECO
+      - SLEEP
+    on_alarm_start:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Alarm activated. Code: %d. Message: \"%s\""
+            args: [code, message]
+    on_alarm_end:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Alarm deactivated. Code: %d. Message: \"%s\""
+            args: [code, message]
+
+sensor:
+  - platform: haier
+    haier_id: haier_ac
+    outdoor_temperature:
+      name: Haier outdoor temperature
+    humidity:
+      name: Haier Indoor Humidity
+    compressor_current:
+      name: Haier Compressor Current
+    compressor_frequency:
+      name: Haier Compressor Frequency
+    expansion_valve_open_degree:
+      name: Haier Expansion Valve Open Degree
+    indoor_coil_temperature:
+      name: Haier Indoor Coil Temperature
+    outdoor_coil_temperature:
+      name: Haier Outdoor Coil Temperature
+    outdoor_defrost_temperature:
+      name: Haier Outdoor Defrost Temperature
+    outdoor_in_air_temperature:
+      name: Haier Outdoor In Air Temperature
+    outdoor_out_air_temperature:
+      name: Haier Outdoor Out Air Temperature
+    power:
+      name: Haier Power
+
+binary_sensor:
+  - platform: haier
+    haier_id: haier_ac
+    compressor_status:
+      name: Haier Outdoor Compressor Status
+    defrost_status:
+      name: Haier Defrost Status
+    four_way_valve_status:
+      name: Haier Four Way Valve Status
+    indoor_electric_heating_status:
+      name: Haier Indoor Electric Heating Status
+    indoor_fan_status:
+      name: Haier Indoor Fan Status
+    outdoor_fan_status:
+      name: Haier Outdoor Fan Status
+
+button:
+  - platform: haier
+    haier_id: haier_ac
+    self_cleaning:
+      name: Haier start self cleaning
+    steri_cleaning:
+      name: Haier start 56°C steri-cleaning
+
+text_sensor:
+  - platform: haier
+    haier_id: haier_ac
+    appliance_name:
+      name: Haier appliance name
+    cleaning_status:
+      name: Haier cleaning status
+    protocol_version:
+      name: Haier protocol version

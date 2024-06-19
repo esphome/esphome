@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_OPTION,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     CONF_CYCLE,
     CONF_MODE,
     CONF_OPERATION,
@@ -47,16 +48,20 @@ SELECT_OPERATION_OPTIONS = {
 }
 
 
-SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
-        cv.GenerateID(): cv.declare_id(Select),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
-            }
-        ),
-    }
+SELECT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
+            cv.GenerateID(): cv.declare_id(Select),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 _UNDEF = object()
@@ -95,9 +100,13 @@ async def setup_select_core_(var, config, *, options: list[str]):
             trigger, [(cg.std_string, "x"), (cg.size_t, "i")], conf
         )
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_select(var, config, *, options: list[str]):
@@ -113,7 +122,7 @@ async def new_select(config, *, options: list[str]):
     return var
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)
@@ -223,14 +232,14 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 async def select_operation_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_OPERATION in config:
-        op_ = await cg.templatable(config[CONF_OPERATION], args, SelectOperation)
+    if (operation := config.get(CONF_OPERATION)) is not None:
+        op_ = await cg.templatable(operation, args, SelectOperation)
         cg.add(var.set_operation(op_))
-        if CONF_CYCLE in config:
-            cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
-            cg.add(var.set_cycle(cycle_))
-    if CONF_MODE in config:
-        cg.add(var.set_operation(SELECT_OPERATION_OPTIONS[config[CONF_MODE]]))
-        if CONF_CYCLE in config:
-            cg.add(var.set_cycle(config[CONF_CYCLE]))
+        if (cycle := config.get(CONF_CYCLE)) is not None:
+            template_ = await cg.templatable(cycle, args, bool)
+            cg.add(var.set_cycle(template_))
+    if (mode := config.get(CONF_MODE)) is not None:
+        cg.add(var.set_operation(SELECT_OPERATION_OPTIONS[mode]))
+        if (cycle := config.get(CONF_CYCLE)) is not None:
+            cg.add(var.set_cycle(cycle))
     return var

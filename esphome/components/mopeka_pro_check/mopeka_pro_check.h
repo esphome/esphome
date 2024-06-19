@@ -1,10 +1,11 @@
 #pragma once
 
+#include <cinttypes>
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-
-#include <vector>
 
 #ifdef USE_ESP32
 
@@ -16,7 +17,9 @@ enum SensorType {
   TOP_DOWN_AIR_ABOVE = 0x04,
   BOTTOM_UP_WATER = 0x05,
   LIPPERT_BOTTOM_UP = 0x06,
-  PLUS_BOTTOM_UP = 0x08
+  PLUS_BOTTOM_UP = 0x08,
+  PRO_UNIVERSAL = 0xC  // Pro Check Universal
+
   // all other values are reserved
 };
 

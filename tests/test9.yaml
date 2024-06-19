@@ -12,6 +12,7 @@ esphome:
 logger:
 
 ota:
+  - platform: esphome
 
 captive_portal:
 
@@ -26,3 +27,9 @@ sensor:
     name: ADC
     pin: GPIO23
     update_interval: 1s
+
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant

@@ -1,4 +1,5 @@
 """Tests for the wizard.py file."""
+
 import os
 
 import esphome.wizard as wz
@@ -319,7 +320,7 @@ def test_wizard_accepts_default_answers_esp8266(tmpdir, monkeypatch, wizard_answ
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -341,7 +342,7 @@ def test_wizard_accepts_default_answers_esp32(tmpdir, monkeypatch, wizard_answer
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -371,7 +372,7 @@ def test_wizard_offers_better_node_name(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -394,7 +395,7 @@ def test_wizard_requires_correct_platform(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -416,7 +417,7 @@ def test_wizard_requires_correct_board(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
@@ -438,7 +439,7 @@ def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
-    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
     monkeypatch.setattr(wz, "sleep", lambda _: 0)
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 

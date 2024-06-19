@@ -20,13 +20,16 @@ void RemoteReceiverComponent::setup() {
     rmt.rx_config.filter_en = false;
   } else {
     rmt.rx_config.filter_en = true;
-    rmt.rx_config.filter_ticks_thresh = this->from_microseconds_(this->filter_us_);
+    rmt.rx_config.filter_ticks_thresh = static_cast<uint8_t>(
+        std::min(this->from_microseconds_(this->filter_us_) * this->clock_divider_, (uint32_t) 255));
   }
-  rmt.rx_config.idle_threshold = this->from_microseconds_(this->idle_us_);
+  rmt.rx_config.idle_threshold =
+      static_cast<uint16_t>(std::min(this->from_microseconds_(this->idle_us_), (uint32_t) 65535));
 
   esp_err_t error = rmt_config(&rmt);
   if (error != ESP_OK) {
     this->error_code_ = error;
+    this->error_string_ = "in rmt_config";
     this->mark_failed();
     return;
   }
@@ -34,18 +37,25 @@ void RemoteReceiverComponent::setup() {
   error = rmt_driver_install(this->channel_, this->buffer_size_, 0);
   if (error != ESP_OK) {
     this->error_code_ = error;
+    if (error == ESP_ERR_INVALID_STATE) {
+      this->error_string_ = str_sprintf("RMT channel %i is already in use by another component", this->channel_);
+    } else {
+      this->error_string_ = "in rmt_driver_install";
+    }
     this->mark_failed();
     return;
   }
   error = rmt_get_ringbuf_handle(this->channel_, &this->ringbuf_);
   if (error != ESP_OK) {
     this->error_code_ = error;
+    this->error_string_ = "in rmt_get_ringbuf_handle";
     this->mark_failed();
     return;
   }
   error = rmt_rx_start(this->channel_, true);
   if (error != ESP_OK) {
     this->error_code_ = error;
+    this->error_string_ = "in rmt_rx_start";
     this->mark_failed();
     return;
   }
@@ -60,11 +70,13 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
   ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
-  ESP_LOGCONFIG(TAG, "  Tolerance: %u%%", this->tolerance_);
-  ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);
-  ESP_LOGCONFIG(TAG, "  Signal is done after %u us of no changes", this->idle_us_);
+  ESP_LOGCONFIG(TAG, "  Tolerance: %" PRIu32 "%s", this->tolerance_,
+                (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%");
+  ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %" PRIu32 " us", this->filter_us_);
+  ESP_LOGCONFIG(TAG, "  Signal is done after %" PRIu32 " us of no changes", this->idle_us_);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring RMT driver failed: %s", esp_err_to_name(this->error_code_));
+    ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_),
+             this->error_string_.c_str());
   }
 }
 
@@ -88,18 +100,23 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   this->temp_.clear();
   int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
   size_t item_count = len / sizeof(rmt_item32_t);
+  uint32_t filter_ticks = this->from_microseconds_(this->filter_us_);
 
   ESP_LOGVV(TAG, "START:");
   for (size_t i = 0; i < item_count; i++) {
     if (item[i].level0) {
-      ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%zu A: ON %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration0),
+                item[i].duration0);
     } else {
-      ESP_LOGVV(TAG, "%u A: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%zu A: OFF %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration0),
+                item[i].duration0);
     }
     if (item[i].level1) {
-      ESP_LOGVV(TAG, "%u B: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%zu B: ON %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration1),
+                item[i].duration1);
     } else {
-      ESP_LOGVV(TAG, "%u B: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%zu B: OFF %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration1),
+                item[i].duration1);
     }
   }
   ESP_LOGVV(TAG, "\n");
@@ -108,7 +125,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   for (size_t i = 0; i < item_count; i++) {
     if (item[i].duration0 == 0u) {
       // Do nothing
-    } else if (bool(item[i].level0) == prev_level) {
+    } else if ((bool(item[i].level0) == prev_level) || (item[i].duration0 < filter_ticks)) {
       prev_length += item[i].duration0;
     } else {
       if (prev_length > 0) {
@@ -124,7 +141,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
 
     if (item[i].duration1 == 0u) {
       // Do nothing
-    } else if (bool(item[i].level1) == prev_level) {
+    } else if ((bool(item[i].level1) == prev_level) || (item[i].duration1 < filter_ticks)) {
       prev_length += item[i].duration1;
     } else {
       if (prev_length > 0) {

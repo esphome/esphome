@@ -1,0 +1,36 @@
+touchscreen:
+  - platform: cst816
+    id: my_touchscreen
+    interrupt_pin:
+      number: 21
+    reset_pin: GPIO16
+    transform:
+      mirror_x: false
+      mirror_y: false
+      swap_xy: false
+
+i2c:
+  sda: 3
+  scl: 2
+
+display:
+  - id: my_display
+    platform: ili9xxx
+    dimensions: 480x320
+    model: ST7796
+    cs_pin: 15
+    dc_pin: 20
+    reset_pin: 22
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    auto_clear_enabled: false
+
+spi:
+  clk_pin: 14
+  mosi_pin: 13
+
+binary_sensor:
+  - platform: cst816
+    name: Home Button

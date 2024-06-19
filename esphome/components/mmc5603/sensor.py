@@ -3,6 +3,10 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_FIELD_STRENGTH_X,
+    CONF_FIELD_STRENGTH_Y,
+    CONF_FIELD_STRENGTH_Z,
+    CONF_HEADING,
     CONF_ID,
     ICON_MAGNET,
     STATE_CLASS_MEASUREMENT,
@@ -15,11 +19,6 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 mmc5603_ns = cg.esphome_ns.namespace("mmc5603")
-
-CONF_FIELD_STRENGTH_X = "field_strength_x"
-CONF_FIELD_STRENGTH_Y = "field_strength_y"
-CONF_FIELD_STRENGTH_Z = "field_strength_z"
-CONF_HEADING = "heading"
 
 MMC5603Component = mmc5603_ns.class_(
     "MMC5603Component", cg.PollingComponent, i2c.I2CDevice

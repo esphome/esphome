@@ -1,0 +1,19 @@
+esphome:
+  on_boot:
+    then:
+      - servo.write:
+          id: test_servo
+          level: -100.0%
+      - servo.detach: test_servo
+
+output:
+  - platform: esp8266_pwm
+    id: servo_output_1
+    pin: 12
+
+servo:
+  id: test_servo
+  output: servo_output_1
+  restore: true
+  min_level: 4%
+  max_level: 8%
