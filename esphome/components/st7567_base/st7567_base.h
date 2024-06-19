@@ -124,6 +124,8 @@ class ST7567 : public display::DisplayBuffer {
     ST7567Model model{ST7567Model::ST7567_128x64};
     const char *name;
 
+    uint8_t wait_ms_after_reset{20};
+
     uint8_t memory_width{132};
     uint8_t memory_height{64};
 

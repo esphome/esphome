@@ -19,7 +19,7 @@ void ST7567::setup() {
 void ST7567::init_reset_() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
+    this->reset_pin_->digital_write(false);  // keep low until reset
     delay(1);
   }
 }
@@ -29,7 +29,7 @@ void ST7567::reset_() {
     this->reset_pin_->digital_write(false);
     delay(20);
     this->reset_pin_->digital_write(true);
-    delay(20);
+    delay(this->device_config_.wait_ms_after_reset);
   }
 }
 void ST7567::reset_sw_() {
@@ -162,6 +162,39 @@ void ST7567::init_model_() {
     this->command(ST7567_SCAN_START_LINE);
   };
 
+  auto st7570_init = [this]() {
+    //     this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
+    // this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
+    // this->command(ST7570_OSCILLATOR_ON);
+    // this->set_contrast(this->contrast_);
+    this->command(0x7B);
+    this->command(0x11);
+    this->command(0x00);
+    // Initial internal counters
+    this->command(0x25);  // Initial power counter
+    this->command(0x38);  // MODE SET
+    this->command(0x08);  // FR=0000 => 77Hz; // BE[1:0]=1,0 => BE Level-3
+    this->command(0xA1);  // MX select, MX=1 =>reverse direction
+    this->command(0xC8);  // MY select, MY=1 => reverse direction
+    this->command(0x44);  // Set initial COM0 register
+    this->command(0x00);  //
+    this->command(0x40);  // Set display start line register
+    this->command(0x00);  //
+    this->command(0x4C);  // Set N-line Inversion
+    this->command(0x00);  //
+    this->command(0xAB);  // OSC. ON
+    this->command(0x81);  // Set Contrast
+    this->command(0x23);  // EV=35
+    this->command(0x2C);  // Power Control, VC: ON VR: OFF VF: OFF
+    delay(100);           // Minimum Delay 100ms
+    this->command(0x2E);  // Power Control, VC: ON VR: ON VF: OFF
+    delay(100);           // Minimum Delay 100ms
+    this->command(0x2F);  // Power Control, VC: ON VR: ON VF: ON
+    // WritePattern(0x00);   // Fill the 1st (initial) display pattern
+    //  including clear Icon page
+    this->command(0xAF);  // Display ON
+  };
+
   auto st7567_set_start_line = [this]() {
     this->command(ST7567_SET_START_LINE + this->start_line_);  // one-byte command
   };
@@ -189,7 +222,7 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 128;  // 129 actually, 1 bit line for icons, not supported
       this->device_config_.visible_width = 128;
       this->device_config_.visible_height = 128;
-      this->device_config_.display_init = common_init;
+      this->device_config_.display_init = st7570_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
@@ -199,7 +232,7 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 128;
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
-      this->device_config_.display_init = common_init;
+      this->device_config_.display_init = st7570_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
@@ -209,7 +242,7 @@ void ST7567::init_model_() {
       this->device_config_.memory_height = 104;
       this->device_config_.visible_width = 102;
       this->device_config_.visible_height = 102;
-      this->device_config_.display_init = common_init;
+      this->device_config_.display_init = st7570_init;
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
