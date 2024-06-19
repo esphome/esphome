@@ -26,6 +26,19 @@ void QspiAmoLed::setup() {
 
 void QspiAmoLed::update() {
   this->do_update_();
+  // Start addresses and widths/heights must be divisible by 2 (CASET/RASET restriction in datasheet)
+  if (this->x_low_ % 2 == 1) {
+    this->x_low_--;
+  }
+  if (this->x_high_ % 2 == 0) {
+    this->x_high_++;
+  }
+  if (this->y_low_ % 2 == 1) {
+    this->y_low_--;
+  }
+  if (this->y_high_ % 2 == 0) {
+    this->y_high_++;
+  }
   int w = this->x_high_ - this->x_low_ + 1;
   int h = this->y_high_ - this->y_low_ + 1;
   this->draw_pixels_at(this->x_low_, this->y_low_, w, h, this->buffer_, this->color_mode_, display::COLOR_BITNESS_565,
