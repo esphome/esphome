@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
 from esphome.const import (
+    CONF_CONTRAST,
     CONF_LAMBDA,
     CONF_RESET_PIN,
     CONF_MIRROR_X,
@@ -36,6 +37,7 @@ ST7567_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
             }
         ),
         cv.Optional(CONF_MODEL, default="ST7567_128x64"): cv.enum(MODELS),
+        cv.Optional(CONF_CONTRAST, default=35): cv.int_range(min=0, max=63),
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -50,6 +52,7 @@ async def setup_st7567(var, config):
         cg.add(var.set_reset_pin(reset))
 
     cg.add(var.init_invert_colors(config[CONF_INVERT_COLORS]))
+    cg.add(var.init_contrast(config[CONF_CONTRAST]))
 
     if CONF_TRANSFORM in config:
         transform = config[CONF_TRANSFORM]

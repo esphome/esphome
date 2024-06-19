@@ -34,6 +34,8 @@ static const uint8_t ST7567_SET_EV_PARAM = 0x00;
 static const uint8_t ST7567_RESISTOR_RATIO = 0x20;
 static const uint8_t ST7567_SW_REFRESH = 0xE2;
 
+static const uint8_t ST7570_OSCILLATOR_ON = 0b10101011;
+
 static const uint8_t ST7591_SET_START_LINE = 0b11010000;
 
 static const uint8_t ST7591_PAGE_ADDR = 0b01111100;
@@ -61,6 +63,7 @@ class ST7567 : public display::DisplayBuffer {
   void init_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
   void init_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
   void init_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
+  void init_contrast(uint8_t val) { this->contrast_ = val; }
 
   void set_invert_colors(bool invert_colors);  // inversion of screen colors
   void set_contrast(uint8_t val);              // 0..63, 27-30 normal

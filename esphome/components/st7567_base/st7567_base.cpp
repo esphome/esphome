@@ -163,8 +163,6 @@ void ST7567::init_model_() {
   };
 
   auto st7570_init = [this]() {
-    //     this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
-    // this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
     // this->command(ST7570_OSCILLATOR_ON);
     // this->set_contrast(this->contrast_);
     this->command(0x7B);
@@ -174,8 +172,11 @@ void ST7567::init_model_() {
     this->command(0x25);  // Initial power counter
     this->command(0x38);  // MODE SET
     this->command(0x08);  // FR=0000 => 77Hz; // BE[1:0]=1,0 => BE Level-3
-    this->command(0xA1);  // MX select, MX=1 =>reverse direction
-    this->command(0xC8);  // MY select, MY=1 => reverse direction
+    // this->command(0xA0);  // MX select,0 -normal MX=1 =>reverse direction
+    // this->command(0xC0);//8);  // MY select, MY=1 => reverse direction
+    this->command(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
+    this->command(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
+
     this->command(0x44);  // Set initial COM0 register
     this->command(0x00);  //
     this->command(0x40);  // Set display start line register
@@ -183,8 +184,11 @@ void ST7567::init_model_() {
     this->command(0x4C);  // Set N-line Inversion
     this->command(0x00);  //
     this->command(0xAB);  // OSC. ON
-    this->command(0x81);  // Set Contrast
-    this->command(0x23);  // EV=35
+
+    // this->command(0x81);  // Set Contrast
+    // this->command(0x23);  // EV=35
+    this->set_contrast(this->contrast_);
+
     this->command(0x2C);  // Power Control, VC: ON VR: OFF VF: OFF
     delay(100);           // Minimum Delay 100ms
     this->command(0x2E);  // Power Control, VC: ON VR: ON VF: OFF
