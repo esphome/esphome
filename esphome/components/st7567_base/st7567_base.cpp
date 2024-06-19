@@ -32,6 +32,10 @@ void ST7567::reset_() {
     delay(20);
   }
 }
+void ST7567::reset_sw_() {
+  const uint8_t ST7567_SOFT_RESET = 0b11101000;
+  this->command(ST7567_SOFT_RESET);
+}
 
 void ST7567::display_init_() {
   ESP_LOGD(TAG, "Initializing ST7567 display...");
@@ -209,6 +213,16 @@ void ST7567::init_model_() {
       this->device_config_.command_set_start_line = st7570_set_start_line;
       break;
 
+    case ST7567Model::ST7522_96x16:
+      this->device_config_.name = "ST7522";
+      this->device_config_.memory_width = 96;
+      this->device_config_.memory_height = 16;
+      this->device_config_.visible_width = 96;
+      this->device_config_.visible_height = 16;
+      this->device_config_.display_init = common_init;
+      this->device_config_.command_set_start_line = st7570_set_start_line;
+      break;
+
     default:
       this->mark_failed();
   }
@@ -218,6 +232,8 @@ std::string ST7567::model_str_() {
   return str_sprintf("%s (%dx%d)", this->device_config_.name, this->device_config_.visible_width,
                      this->device_config_.visible_height);
 }
+
+void ST7567::display_on_off_(bool on) { this->command(on ? ST7567_DISPLAY_ON : ST7567_DISPLAY_OFF); }
 
 }  // namespace st7567_base
 }  // namespace esphome

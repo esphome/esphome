@@ -34,11 +34,19 @@ static const uint8_t ST7567_SET_EV_PARAM = 0x00;
 static const uint8_t ST7567_RESISTOR_RATIO = 0x20;
 static const uint8_t ST7567_SW_REFRESH = 0xE2;
 
+static const uint8_t ST7591_SET_START_LINE = 0b11010000;
+
+static const uint8_t ST7591_PAGE_ADDR = 0b01111100;
+static const uint8_t ST7591_COL_ADDR_H = 0b00010000;
+
 enum class ST7567Model {
   ST7567_128x64 = 0,  // standard version
-  ST7570_128x128,     // standard version
-  ST7570_102x102a,    // implementation with 102x102 pixels, 128x128 memory
-  ST7570_102x102b,    // implementation with 102x102 pixels, 104x104 memory
+  ST7522_96x16,       // standard version
+  ST7565_128x64,
+  ST7570_128x128,   // standard version
+  ST7570_102x102a,  // implementation with 102x102 pixels, 128x128 memory
+  ST7570_102x102b,  // implementation with 102x102 pixels, 104x104 memory
+  ST7591_160x132,   // set page, start line
 };
 
 class ST7567 : public display::DisplayBuffer {
@@ -73,6 +81,7 @@ class ST7567 : public display::DisplayBuffer {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
  protected:
+ public:
   virtual void command(uint8_t value) = 0;
   virtual void write_display_data() = 0;
 
@@ -83,6 +92,7 @@ class ST7567 : public display::DisplayBuffer {
   void display_sw_refresh_();
 
   void reset_();
+  void reset_sw_();
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
@@ -92,6 +102,8 @@ class ST7567 : public display::DisplayBuffer {
   int get_offset_x_();
 
   void command_set_start_line_();
+
+  void display_on_off_(bool on);
 
   std::string model_str_();
 

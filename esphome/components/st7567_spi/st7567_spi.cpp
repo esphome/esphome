@@ -55,7 +55,7 @@ void HOT SPIST7567::write_display_data() {
   // if screen got flipped horizontally then it shows last 128 pixels,
   // so we need to write x coordinate starting from column 4, not column 0
 
-  this->command(esphome::st7567_base::ST7567_SET_START_LINE + this->start_line_);
+  // this->command(esphome::st7567_base::ST7567_SET_START_LINE + this->start_line_);
 
   for (uint8_t y = 0; y < (uint8_t) this->get_height_internal() / 8; y++) {
     this->command(esphome::st7567_base::ST7567_PAGE_ADDR + y);                       // Set Page
