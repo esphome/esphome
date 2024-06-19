@@ -14,6 +14,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 static const char *const TAG = "micro_wake_word";
 
 namespace esphome {
@@ -71,7 +73,8 @@ bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver)
     TfLiteTensor *input = this->interpreter_->input(0);
     if ((input->dims->size != 3) || (input->dims->data[0] != 1) || (input->dims->data[0] != 1) ||
         (input->dims->data[1] != 1) || (input->dims->data[2] != PREPROCESSOR_FEATURE_SIZE)) {
-      ESP_LOGE(TAG, "Streaming model tensor input dimensions is not 1x1x%u", PREPROCESSOR_FEATURE_SIZE);
+      ESP_LOGE(TAG, "Streaming model tensor input dimensions is not 1x1x%" PRIu8, PREPROCESSOR_FEATURE_SIZE);
+
       return false;
     }
 

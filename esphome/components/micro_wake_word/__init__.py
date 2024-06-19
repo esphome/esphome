@@ -348,23 +348,6 @@ async def to_code(config):
             on_wake_word_detection_config,
         )
 
-    esp32.add_idf_component(
-        name="esp-tflite-micro",
-        repo="https://github.com/espressif/esp-tflite-micro",
-        ref="v1.3.1",
-    )
-
-    cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
-    cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
-    cg.add_build_flag("-DESP_NN")
-
-    if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
-        await automation.build_automation(
-            var.get_wake_word_detected_trigger(),
-            [(cg.std_string, "wake_word")],
-            on_wake_word_detection_config,
-        )
-
     if vad_model := config.get(CONF_VAD_MODEL):
         cg.add_define("USE_MWW_VAD")
         model_config = vad_model.get(CONF_MODEL)
@@ -425,7 +408,7 @@ async def to_code(config):
             file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
 
         elif model_config[CONF_TYPE] == TYPE_LOCAL:
-            file = model_config[CONF_PATH]
+            file = Path(model_config[CONF_PATH])
 
         elif model_config[CONF_TYPE] == TYPE_HTTP:
             file = _compute_local_file_path(model_config) / "manifest.json"
