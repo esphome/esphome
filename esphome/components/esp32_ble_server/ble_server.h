@@ -51,9 +51,9 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
     this->restart_advertising_();
   }
 
-  void create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15, uint8_t inst_id = 0);
-  void remove_service(ESPBTUUID uuid);
-  BLEService *get_service(ESPBTUUID uuid);
+  BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
+  void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
+  BLEService *get_service(ESPBTUUID uuid, uint8_t inst_id = 0);
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
   uint32_t get_connected_client_count() { return this->connected_clients_; }
@@ -67,6 +67,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   void register_service_component(BLEServiceComponent *component) { this->service_components_.push_back(component); }
 
  protected:
+  static std::string get_service_key(ESPBTUUID uuid, uint8_t inst_id);
   bool create_device_characteristics_();
   void restart_advertising_();
 

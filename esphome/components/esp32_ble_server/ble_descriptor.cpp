@@ -38,7 +38,52 @@ void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   this->state_ = CREATING;
 }
 
-void BLEDescriptor::set_value(const std::string &value) { this->set_value((uint8_t *) value.data(), value.length()); }
+void BLEDescriptor::set_value(std::vector<uint8_t> value) {
+  this->set_value(value.data(), value.size());
+}
+void BLEDescriptor::set_value(const std::string &value) {
+  this->set_value((uint8_t *) value.data(), value.length());
+}
+void BLEDescriptor::set_value(uint8_t &data) {
+  uint8_t temp[1];
+  temp[0] = data;
+  this->set_value(temp, 1);
+}
+void BLEDescriptor::set_value(uint16_t &data) {
+  uint8_t temp[2];
+  temp[0] = data;
+  temp[1] = data >> 8;
+  this->set_value(temp, 2);
+}
+void BLEDescriptor::set_value(uint32_t &data) {
+  uint8_t temp[4];
+  temp[0] = data;
+  temp[1] = data >> 8;
+  temp[2] = data >> 16;
+  temp[3] = data >> 24;
+  this->set_value(temp, 4);
+}
+void BLEDescriptor::set_value(int &data) {
+  uint8_t temp[4];
+  temp[0] = data;
+  temp[1] = data >> 8;
+  temp[2] = data >> 16;
+  temp[3] = data >> 24;
+  this->set_value(temp, 4);
+}
+void BLEDescriptor::set_value(float &data) {
+  float temp = data;
+  this->set_value((uint8_t *) &temp, 4);
+}
+void BLEDescriptor::set_value(double &data) {
+  double temp = data;
+  this->set_value((uint8_t *) &temp, 8);
+}
+void BLEDescriptor::set_value(bool &data) {
+  uint8_t temp[1];
+  temp[0] = data;
+  this->set_value(temp, 1);
+}
 void BLEDescriptor::set_value(const uint8_t *data, size_t length) {
   if (length > this->value_.attr_max_len) {
     ESP_LOGE(TAG, "Size %d too large, must be no bigger than %d", length, this->value_.attr_max_len);

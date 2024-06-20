@@ -58,9 +58,7 @@ void BLEServer::loop() {
           pair.second->do_create(this);
         }
         if (this->device_information_service_ == nullptr) {
-          this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
-          this->device_information_service_ =
-              this->get_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID));
+          this->device_information_service_ = this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID), false, 7);
           this->create_device_characteristics_();
         }
         this->state_ = STARTING_SERVICE;
@@ -115,37 +113,49 @@ bool BLEServer::create_device_characteristics_() {
   return true;
 }
 
-void BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
+BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles) {
   ESP_LOGV(TAG, "Creating BLE service - %s", uuid.to_string().c_str());
-  // If the service already exists, do nothing
-  BLEService *service = this->get_service(uuid);
-  if (service != nullptr) {
-    ESP_LOGW(TAG, "BLE service %s already exists", uuid.to_string().c_str());
-    return;
+  // Calculate the inst_id for the service
+  uint8_t inst_id = 0;
+  for (; inst_id < 0xFF; inst_id++) {
+    if (this->get_service(uuid, inst_id) == nullptr) {
+      break;
+    }
   }
-  service = new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
-  this->services_.emplace(uuid.to_string(), service);
-  service->do_create(this);
+  if (inst_id == 0xFF) {
+    ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", uuid.to_string().c_str());
+    return nullptr;
+  }
+  BLEService *service = new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+  this->services_.emplace(BLEServer::get_service_key(uuid, inst_id), service);
+  if (this->is_running()) {
+    service->do_create(this);
+  }
+  return service;
 }
 
-void BLEServer::remove_service(ESPBTUUID uuid) {
-  ESP_LOGV(TAG, "Removing BLE service - %s", uuid.to_string().c_str());
-  BLEService *service = this->get_service(uuid);
+void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
+  ESP_LOGV(TAG, "Removing BLE service - %s %d", uuid.to_string().c_str(), inst_id);
+  BLEService *service = this->get_service(uuid, inst_id);
   if (service == nullptr) {
-    ESP_LOGW(TAG, "BLE service %s not found", uuid.to_string().c_str());
+    ESP_LOGW(TAG, "BLE service %s %d does not exist", uuid.to_string().c_str(), inst_id);
     return;
   }
   service->do_delete();
   delete service;  // NOLINT(cppcoreguidelines-owning-memory)
-  this->services_.erase(uuid.to_string());
+  this->services_.erase(BLEServer::get_service_key(uuid, inst_id));
 }
 
-BLEService *BLEServer::get_service(ESPBTUUID uuid) {
+BLEService *BLEServer::get_service(ESPBTUUID uuid, uint8_t inst_id) {
   BLEService *service = nullptr;
-  if (this->services_.count(uuid.to_string()) > 0) {
-    service = this->services_.at(uuid.to_string());
+  if (this->services_.count(BLEServer::get_service_key(uuid, inst_id)) > 0) {
+    service = this->services_.at(BLEServer::get_service_key(uuid, inst_id));
   }
   return service;
+}
+
+std::string BLEServer::get_service_key(ESPBTUUID uuid, uint8_t inst_id) {
+  return uuid.to_string() + std::to_string(inst_id);
 }
 
 void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,

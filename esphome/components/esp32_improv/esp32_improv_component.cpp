@@ -75,8 +75,7 @@ void ESP32ImprovComponent::loop() {
   if (this->service_ == nullptr) {
     // Setup the service
     ESP_LOGD(TAG, "Creating Improv service");
-    global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
-    this->service_ = global_ble_server->get_service(ESPBTUUID::from_raw(improv::SERVICE_UUID));
+    this->service_ = global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
     this->setup_characteristics();
   }
 
