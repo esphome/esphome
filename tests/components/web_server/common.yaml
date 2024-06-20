@@ -18,3 +18,22 @@ web_server:
     - id: sorting_group_4
       name: "Group 4 Displayed First"
       sorting_weight: 10
+
+number:
+  - platform: template
+    name: "Template number"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    web_server:
+      sorting_group: sorting_group_1
+      sorting_weight: -1
+
+switch:
+  - platform: template
+    name: "Template Switch"
+    optimistic: true
+    web_server:
+      sorting_group: sorting_group_2
+      sorting_weight: -10
