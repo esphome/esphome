@@ -35,8 +35,8 @@ enum class GetCommand : uint8_t {
   ERROR_INFO = 0x04,
   STATUS = 0x06,
   RUN_STATE = 0x09,
-  KUMO_GET_ADAPTER_STATE = 0xa9,
-  KUMO_AB = 0xab,
+  THERMOSTAT_STATE_DOWNLOAD = 0xa9,
+  THERMOSTAT_GET_AB = 0xab,
 };
 
 // Used to specify certain packet subtypes
@@ -44,10 +44,10 @@ enum class SetCommand : uint8_t {
   SETTINGS = 0x01,
   REMOTE_TEMPERATURE = 0x07,
   RUN_STATE = 0x08,
-  KUMO_THERMOSTAT_SENSOR_STATUS = 0xa6,
-  KUMO_THERMOSTAT_HELLO = 0xa7,
-  KUMO_THERMOSTAT_STATE_SYNC = 0xa8,
-  KUMO_AA = 0xaa,
+  THERMOSTAT_SENSOR_STATUS = 0xa6,
+  THERMOSTAT_HELLO = 0xa7,
+  THERMOSTAT_STATE_UPLOAD = 0xa8,
+  THERMOSTAT_SET_AA = 0xaa,
 };
 
 // Which MUARTBridge was the packet read from (used to determine flow direction of the packet)

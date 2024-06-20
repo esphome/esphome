@@ -74,7 +74,7 @@ CONF_TEMPERATURE_SOURCES = (
 )
 
 CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
-CONF_ENABLE_KUMO_EMULATION = "kumo_emulation"  # EXPERIMENTAL FEATURE - Enables Kumo packet handling.
+CONF_ENHANCED_MHK_SUPPORT = "enhanced_mhk"  # EXPERIMENTAL. Will be set to default eventually.
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -136,7 +136,7 @@ BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
             cv.use_id(sensor.Sensor)
         ),
         cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
-        cv.Optional(CONF_ENABLE_KUMO_EMULATION, default=False): cv.boolean,
+        cv.Optional(CONF_ENHANCED_MHK_SUPPORT, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
@@ -339,8 +339,8 @@ async def to_code(config):
     if CONF_TIME_SOURCE in config:
         rtc_component = await cg.get_variable(config[CONF_TIME_SOURCE])
         cg.add(getattr(muart_component, "set_time_source")(rtc_component))
-    elif CONF_UART_THERMOSTAT in config and not config.get(CONF_ENABLE_KUMO_EMULATION):
-        raise cv.RequiredFieldInvalid(f"{CONF_TIME_SOURCE} is required if {CONF_ENABLE_KUMO_EMULATION} is set.")
+    elif CONF_UART_THERMOSTAT in config and config.get(CONF_ENHANCED_MHK_SUPPORT):
+        raise cv.RequiredFieldInvalid(f"{CONF_TIME_SOURCE} is required if {CONF_ENHANCED_MHK_SUPPORT} is set.")
 
     # Traits
     traits = muart_component.config_traits()
@@ -423,5 +423,5 @@ async def to_code(config):
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
         cg.add(getattr(muart_component, "set_active_mode")(not dam_conf))
 
-    if kumo_emulation := config.get(CONF_ENABLE_KUMO_EMULATION):
-        cg.add(getattr(muart_component, "set_kumo_emulation_mode")(kumo_emulation))
+    if enhanced_mhk_protocol := config.get(CONF_ENHANCED_MHK_SUPPORT):
+        cg.add(getattr(muart_component, "set_enhanced_mhk_support")(enhanced_mhk_protocol))

@@ -104,9 +104,9 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void set_active_mode(const bool active) { active_mode_ = active; };
 
   // Turns on or off Kumo emulation mode
-  void set_kumo_emulation_mode(const bool mode) { kumo_emulation_mode_ = mode; }
+  void set_enhanced_mhk_support(const bool mode) { enhanced_mhk_support_ = mode; }
 
-  void set_time_source(time::RealTimeClock *rtc) { time_source = rtc; }
+  void set_time_source(time::RealTimeClock *rtc) { time_source_ = rtc; }
 
  protected:
   void route_packet_(const Packet &packet);
@@ -114,8 +114,8 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void process_packet(const Packet &packet) override;
   void process_packet(const ConnectRequestPacket &packet) override;
   void process_packet(const ConnectResponsePacket &packet) override;
-  void process_packet(const BaseCapabilitiesRequestPacket &packet) override;
-  void process_packet(const BaseCapabilitiesResponsePacket &packet) override;
+  void process_packet(const CapabilitiesRequestPacket &packet) override;
+  void process_packet(const CapabilitiesResponsePacket &packet) override;
   void process_packet(const GetRequestPacket &packet) override;
   void process_packet(const SettingsGetResponsePacket &packet) override;
   void process_packet(const CurrentTempGetResponsePacket &packet) override;
@@ -124,14 +124,14 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void process_packet(const ErrorStateGetResponsePacket &packet) override;
   void process_packet(const SettingsSetRequestPacket &packet) override;
   void process_packet(const RemoteTemperatureSetRequestPacket &packet) override;
-  void process_packet(const KumoThermostatSensorStatusPacket &packet) override;
-  void process_packet(const KumoThermostatHelloPacket &packet) override;
-  void process_packet(const KumoThermostatStateSyncPacket &packet) override;
-  void process_packet(const KumoAASetRequestPacket &packet) override;
+  void process_packet(const ThermostatSensorStatusPacket &packet) override;
+  void process_packet(const ThermostatHelloPacket &packet) override;
+  void process_packet(const ThermostatStateUploadPacket &packet) override;
+  void process_packet(const ThermostatAASetRequestPacket &packet) override;
   void process_packet(const SetResponsePacket &packet) override;
 
-  void handle_kumo_adapter_state_get_request(const GetRequestPacket &packet) override;
-  void handle_kumo_aa_get_request(const GetRequestPacket &packet) override;
+  void handle_thermostat_state_download_request(const GetRequestPacket &packet) override;
+  void handle_thermostat_ab_get_request(const GetRequestPacket &packet) override;
 
   void do_publish_();
 
@@ -168,7 +168,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Number of times update() has been called in discovery mode
   size_t discovery_updates_ = 0;
 
-  optional<BaseCapabilitiesResponsePacket> capabilities_cache_;
+  optional<CapabilitiesResponsePacket> capabilities_cache_;
   bool capabilities_requested_ = false;
   // Have we received at least one RunState response?
   bool run_state_received_ = false;
@@ -180,7 +180,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   ESPPreferenceObject preferences_;
 
   // Time Source
-  time::RealTimeClock *time_source = nullptr;
+  time::RealTimeClock *time_source_ = nullptr;
 
   // Internal sensors
   sensor::Sensor *thermostat_temperature_sensor_ = nullptr;
@@ -209,7 +209,8 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void send_if_active_(const Packet &packet);
   bool active_mode_ = true;
 
-  bool kumo_emulation_mode_ = false;
+  // used to track whether to support/handle the enhanced MHK protocol packets
+  bool enhanced_mhk_support_ = false;
 
   // used to track heat/cool setpoints for parity sync with MHK units.
   // necessary to not clobber the union of setpoints, since ESPHome doesnt gracefully handle simultaneous cool and

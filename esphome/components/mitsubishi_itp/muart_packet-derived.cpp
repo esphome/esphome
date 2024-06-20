@@ -10,7 +10,7 @@ namespace mitsubishi_itp {
 
 std::string ConnectRequestPacket::to_string() const { return ("Connect Request: " + Packet::to_string()); }
 std::string ConnectResponsePacket::to_string() const { return ("Connect Response: " + Packet::to_string()); }
-std::string BaseCapabilitiesResponsePacket::to_string() const {
+std::string CapabilitiesResponsePacket::to_string() const {
   return (
       "Identify Base Capabilities Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
       "\n HeatDisabled:" + (is_heat_disabled() ? "Yes" : "No") + " SupportsVane:" + (supports_vane() ? "Yes" : "No") +
@@ -69,23 +69,23 @@ std::string RemoteTemperatureSetRequestPacket::to_string() const {
           "\n Temp:" + std::to_string(get_remote_temperature()));
 }
 
-std::string KumoThermostatSensorStatusPacket::to_string() const {
-  return ("Kumo Thermostat Sensor Status: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+std::string ThermostatSensorStatusPacket::to_string() const {
+  return ("Thermostat Sensor Status: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
           "\n Indoor RH: " + std::to_string(get_indoor_humidity_percent()) + "%" +
           "  MHK Battery: " + THERMOSTAT_BATTERY_STATE_NAMES[get_thermostat_battery_state()] +
           "(" + std::to_string(get_thermostat_battery_state()) + ")" +
           "  Sensor Flags: " + std::to_string(get_sensor_flags()));
 }
 
-std::string KumoThermostatHelloPacket::to_string() const {
-  return ("Kumo Thermostat Hello: " + Packet::to_string() + CONSOLE_COLOR_PURPLE + "\n Model: " + get_thermostat_model() +
+std::string ThermostatHelloPacket::to_string() const {
+  return ("Thermostat Hello: " + Packet::to_string() + CONSOLE_COLOR_PURPLE + "\n Model: " + get_thermostat_model() +
           " Serial: " + get_thermostat_serial() + " Version: " + get_thermostat_version_string());
 }
 
-std::string KumoThermostatStateSyncPacket::to_string() const {
+std::string ThermostatStateUploadPacket::to_string() const {
   uint8_t flags = get_flags();
 
-  std::string result = "Kumo Thermostat Sync " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+  std::string result = "Thermostat Sync " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
                        "\n Flags: " + format_hex(flags) + " =>";
 
   if (flags & TSSF_TIMESTAMP) {
@@ -272,24 +272,24 @@ float CurrentTempGetResponsePacket::get_outdoor_temp() const {
   return enhanced_raw_temp == 0 ? NAN : MUARTUtils::temp_scale_a_to_deg_c(enhanced_raw_temp);
 }
 
-// KumoThermostatHelloPacket functions
-std::string KumoThermostatHelloPacket::get_thermostat_model() const {
+// ThermostatHelloPacket functions
+std::string ThermostatHelloPacket::get_thermostat_model() const {
   return MUARTUtils::decode_n_bit_string((pkt_.get_payload_bytes(1)), 4, 6);
 }
 
-std::string KumoThermostatHelloPacket::get_thermostat_serial() const {
+std::string ThermostatHelloPacket::get_thermostat_serial() const {
   return MUARTUtils::decode_n_bit_string((pkt_.get_payload_bytes(4)), 12, 6);
 }
 
-std::string KumoThermostatHelloPacket::get_thermostat_version_string() const {
+std::string ThermostatHelloPacket::get_thermostat_version_string() const {
   char buf[16];
   sprintf(buf, "%02d.%02d.%02d", pkt_.get_payload_byte(13), pkt_.get_payload_byte(14), pkt_.get_payload_byte(15));
 
   return buf;
 }
 
-// KumoThermostatStateSyncPacket functions
-int32_t KumoThermostatStateSyncPacket::get_thermostat_timestamp(esphome::ESPTime *outTimestamp) const {
+// ThermostatStateUploadPacket functions
+int32_t ThermostatStateUploadPacket::get_thermostat_timestamp(esphome::ESPTime *outTimestamp) const {
   int32_be_t magic;
   std::memcpy(&magic, pkt_.get_payload_bytes(PLINDEX_THERMOSTAT_TIMESTAMP), 4);
 
@@ -304,36 +304,40 @@ int32_t KumoThermostatStateSyncPacket::get_thermostat_timestamp(esphome::ESPTime
   return outTimestamp->timestamp;
 }
 
-float KumoThermostatStateSyncPacket::get_heat_setpoint() const {
+float ThermostatStateUploadPacket::get_heat_setpoint() const {
   uint8_t enhancedRawTemp = pkt_.get_payload_byte(PLINDEX_HEAT_SETPOINT);
   return MUARTUtils::temp_scale_a_to_deg_c(enhancedRawTemp);
 }
 
-float KumoThermostatStateSyncPacket::get_cool_setpoint() const {
+float ThermostatStateUploadPacket::get_cool_setpoint() const {
   uint8_t enhancedRawTemp = pkt_.get_payload_byte(PLINDEX_COOL_SETPOINT);
   return MUARTUtils::temp_scale_a_to_deg_c(enhancedRawTemp);
 }
 
-// KumoCloudStateSyncPacket functions
-KumoCloudStateSyncPacket &KumoCloudStateSyncPacket::set_timestamp(esphome::ESPTime ts) {
+// ThermostatStateDownloadResponsePacket functions
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_timestamp(esphome::ESPTime ts) {
   int32_t encodedTimestamp = ((ts.year - 2017) << 26) | (ts.month << 22) | (ts.day_of_month << 17) |
                                     (ts.hour << 12) | (ts.minute << 6) | (ts.second);
 
   int32_t swappedTimestamp = byteswap(encodedTimestamp);
 
-  pkt_.set_payload_bytes(PLINDEX_KUMOCLOUD_TIMESTAMP, &swappedTimestamp, 4);
+  pkt_.set_payload_bytes(PLINDEX_ADAPTER_TIMESTAMP, &swappedTimestamp, 4);
   pkt_.set_payload_byte(10, 0x07);  // ???
 
   return *this;
 }
 
-KumoCloudStateSyncPacket &KumoCloudStateSyncPacket::set_heat_setpoint(float highTemp) {
-  pkt_.set_payload_byte(PLINDEX_HEAT_SETPOINT, MUARTUtils::deg_c_to_temp_scale_a(highTemp));
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_heat_setpoint(float highTemp) {
+  uint8_t temp_a = highTemp != NAN ? MUARTUtils::deg_c_to_temp_scale_a(highTemp) : 0x00;
+
+  pkt_.set_payload_byte(PLINDEX_HEAT_SETPOINT, temp_a);
   return *this;
 }
 
-KumoCloudStateSyncPacket &KumoCloudStateSyncPacket::set_cool_setpoint(float lowTemp) {
-  pkt_.set_payload_byte(PLINDEX_COOL_SETPOINT, MUARTUtils::deg_c_to_temp_scale_a(lowTemp));
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_cool_setpoint(float lowTemp) {
+  uint8_t temp_a = lowTemp != NAN ? MUARTUtils::deg_c_to_temp_scale_a(lowTemp) : 0x00;
+
+  pkt_.set_payload_byte(PLINDEX_COOL_SETPOINT, temp_a);
   return *this;
 }
 
@@ -353,8 +357,8 @@ std::string ErrorStateGetResponsePacket::get_short_code() const {
   return {upper_alphabet[(error_code & 0xE0) >> 5], lower_alphabet[low_bits]};
 }
 
-// BaseCapabilitiesResponsePacket functions
-uint8_t BaseCapabilitiesResponsePacket::get_supported_fan_speeds() const {
+// CapabilitiesResponsePacket functions
+uint8_t CapabilitiesResponsePacket::get_supported_fan_speeds() const {
   uint8_t raw_value = ((pkt_.get_payload_byte(7) & 0x10) >> 2) + ((pkt_.get_payload_byte(8) & 0x08) >> 2) +
                       ((pkt_.get_payload_byte(9) & 0x02) >> 1);
 
@@ -374,7 +378,7 @@ uint8_t BaseCapabilitiesResponsePacket::get_supported_fan_speeds() const {
   }
 }
 
-climate::ClimateTraits BaseCapabilitiesResponsePacket::as_traits() const {
+climate::ClimateTraits CapabilitiesResponsePacket::as_traits() const {
   auto ct = climate::ClimateTraits();
 
   // always enabled

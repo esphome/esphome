@@ -115,8 +115,8 @@ void MitsubishiUART::dump_config() {
     ESP_LOGCONFIG(TAG, "Discovered Capabilities: %s", capabilities_cache_.value().to_string().c_str());
   }
 
-  if (kumo_emulation_mode_) {
-    ESP_LOGCONFIG(TAG, "Kumo Emulation Mode is ENABLED! This is an *experimental mode* and things may break.");
+  if (enhanced_mhk_support_) {
+    ESP_LOGCONFIG(TAG, "MHK Enhanced Protocol Mode is ENABLED! This is currently *experimental* and things may break!");
   }
 }
 
@@ -150,7 +150,7 @@ void MitsubishiUART::update() {
   // autoconf.
   //       For now, just requesting it as part of our "init loops" is a good first step.
   if (!this->capabilities_requested_) {
-    IFACTIVE(hp_bridge_.send_packet(BaseCapabilitiesRequestPacket::instance()); this->capabilities_requested_ = true;)
+    IFACTIVE(hp_bridge_.send_packet(CapabilitiesRequestPacket::instance()); this->capabilities_requested_ = true;)
   }
 
   // Before requesting additional updates, publish any changes waiting from packets received

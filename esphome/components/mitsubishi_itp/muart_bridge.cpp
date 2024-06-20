@@ -147,10 +147,10 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
       break;
 
     case PacketType::IDENTIFY_REQUEST:
-      process_raw_packet_<BaseCapabilitiesRequestPacket>(pkt, true);
+      process_raw_packet_<CapabilitiesRequestPacket>(pkt, true);
       break;
     case PacketType::IDENTIFY_RESPONSE:
-      process_raw_packet_<BaseCapabilitiesResponsePacket>(pkt, false);
+      process_raw_packet_<CapabilitiesResponsePacket>(pkt, false);
       break;
 
     case PacketType::GET_REQUEST:
@@ -173,8 +173,8 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case GetCommand::STATUS:
           process_raw_packet_<StatusGetResponsePacket>(pkt, false);
           break;
-        case GetCommand::KUMO_GET_ADAPTER_STATE:
-          process_raw_packet_<KumoCloudStateSyncPacket>(pkt, false);
+        case GetCommand::THERMOSTAT_STATE_DOWNLOAD:
+          process_raw_packet_<ThermostatStateDownloadResponsePacket>(pkt, false);
           break;
         default:
           process_raw_packet_<Packet>(pkt, false);
@@ -188,17 +188,17 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case SetCommand::SETTINGS:
           process_raw_packet_<SettingsSetRequestPacket>(pkt, true);
           break;
-        case SetCommand::KUMO_THERMOSTAT_SENSOR_STATUS:
-          process_raw_packet_<KumoThermostatSensorStatusPacket>(pkt, true);
+        case SetCommand::THERMOSTAT_SENSOR_STATUS:
+          process_raw_packet_<ThermostatSensorStatusPacket>(pkt, true);
           break;
-        case SetCommand::KUMO_THERMOSTAT_HELLO:
-          process_raw_packet_<KumoThermostatHelloPacket>(pkt, false);
+        case SetCommand::THERMOSTAT_HELLO:
+          process_raw_packet_<ThermostatHelloPacket>(pkt, false);
           break;
-        case SetCommand::KUMO_THERMOSTAT_STATE_SYNC:
-          process_raw_packet_<KumoThermostatStateSyncPacket>(pkt, true);
+        case SetCommand::THERMOSTAT_STATE_UPLOAD:
+          process_raw_packet_<ThermostatStateUploadPacket>(pkt, true);
           break;
-        case SetCommand::KUMO_AA:
-          process_raw_packet_<KumoAASetRequestPacket>(pkt, true);
+        case SetCommand::THERMOSTAT_SET_AA:
+          process_raw_packet_<ThermostatAASetRequestPacket>(pkt, true);
           break;
         default:
           process_raw_packet_<Packet>(pkt, true);
