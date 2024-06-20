@@ -92,8 +92,9 @@ void ST7567::init_model_() {
     this->command_(this->mirror_y_ ? ST7567_COM_NORMAL : ST7567_COM_REMAP);
     this->command_(this->mirror_x_ ? ST7567_SEG_REVERSE : ST7567_SEG_NORMAL);
 
-    this->set_brightness(this->brightness_);
-    this->set_contrast(this->contrast_);
+    this->change_brightness(this->brightness_);
+    this->command_(ST7567_SET_EV_CMD);
+    this->command_(this->contrast_);
 
     this->command_(ST7567_INVERT_OFF | this->invert_colors_);
     this->command_(ST7567_PIXELS_NORMAL | this->all_pixels_on_);
@@ -130,7 +131,8 @@ void ST7567::init_model_() {
 
     this->command_(ST7570_OSCILLATOR_ON);  // OSC ON
 
-    // this->set_contrast(this->contrast_);
+    this->command_(ST7567_SET_EV_CMD);
+    this->command_(this->contrast_);
     this->command_(0x81);                            // Set Contrast
     this->command_(53);                              // EV=xx
     this->command_(ST7567_BOOSTER_ON);               // Power Control, VC: ON VR: OFF VF: OFF
