@@ -460,6 +460,7 @@ void MitsubishiUART::handle_thermostat_state_download_request(const GetRequestPa
 
   auto response = ThermostatStateDownloadResponsePacket();
 
+  response.set_auto_mode((mode == climate::CLIMATE_MODE_HEAT_COOL || mode == climate::CLIMATE_MODE_AUTO));
   response.set_heat_setpoint(this->mhk_state_.heat_setpoint_);
   response.set_cool_setpoint(this->mhk_state_.cool_setpoint_);
 

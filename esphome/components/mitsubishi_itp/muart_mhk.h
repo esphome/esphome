@@ -1,3 +1,8 @@
+#ifndef MITSUBISHIITP_MHK
+#define MITSUBISHIITP_MHK
+
+#include <cmath>
+
 namespace esphome {
 namespace mitsubishi_itp {
 
@@ -9,3 +14,5 @@ struct MHKState {
 
 }  // namespace mitsubishi_itp
 }  // namespace esphome
+
+#endif  // MITSUBISHIITP_MHK

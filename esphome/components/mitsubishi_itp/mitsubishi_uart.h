@@ -8,9 +8,9 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
-#include "muart_mhk.h"
 #include "muart_packet.h"
 #include "muart_bridge.h"
+#include "muart_mhk.h"
 #include <map>
 
 namespace esphome {

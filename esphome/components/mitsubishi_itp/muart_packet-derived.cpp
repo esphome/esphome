@@ -95,6 +95,7 @@ std::string ThermostatStateUploadPacket::to_string() const {
     result += " TS Time: " + timestamp.strftime("%Y-%m-%d %H:%M:%S");
   }
 
+  if (flags & TSSF_AUTO_MODE) result += " AutoMode: " + std::to_string(get_auto_mode());
   if (flags & TSSF_HEAT_SETPOINT) result += " HeatSetpoint: " + std::to_string(get_heat_setpoint());
   if (flags & TSSF_COOL_SETPOINT) result += " CoolSetpoint: " + std::to_string(get_cool_setpoint());
 
@@ -304,6 +305,10 @@ int32_t ThermostatStateUploadPacket::get_thermostat_timestamp(esphome::ESPTime *
   return outTimestamp->timestamp;
 }
 
+uint8_t ThermostatStateUploadPacket::get_auto_mode() const {
+  return pkt_.get_payload_byte(PLINDEX_AUTO_MODE);
+}
+
 float ThermostatStateUploadPacket::get_heat_setpoint() const {
   uint8_t enhancedRawTemp = pkt_.get_payload_byte(PLINDEX_HEAT_SETPOINT);
   return MUARTUtils::temp_scale_a_to_deg_c(enhancedRawTemp);
@@ -324,6 +329,11 @@ ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::se
   pkt_.set_payload_bytes(PLINDEX_ADAPTER_TIMESTAMP, &swappedTimestamp, 4);
   pkt_.set_payload_byte(10, 0x07);  // ???
 
+  return *this;
+}
+
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_auto_mode(bool is_auto) {
+  pkt_.set_payload_byte(PLINDEX_AUTO_MODE, is_auto ? 0x01 : 0x00);
   return *this;
 }
 
