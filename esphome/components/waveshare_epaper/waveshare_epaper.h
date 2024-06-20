@@ -36,7 +36,7 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
 
  protected:
   bool wait_until_idle_();
-  void wait_until_idle_async_(const std::function<void()> f);
+  void wait_until_idle_async_(const std::function<void()> &&f);
 
   void setup_pins_();
 
@@ -167,7 +167,7 @@ class WaveshareEPaper4P26In : public WaveshareEPaper {
   void set_full_update_every(uint32_t full_update_every);
 
  protected:
-  void init_display_async_(bool fast_update, const std::function<void()> f);
+  void init_display_async_(bool fast_update, const std::function<void()> &&f);
 
   int get_width_internal() override;
   int get_height_internal() override;
