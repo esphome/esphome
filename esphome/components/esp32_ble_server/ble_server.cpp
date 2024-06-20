@@ -128,7 +128,7 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
   }
   BLEService *service = new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.emplace(BLEServer::get_service_key(uuid, inst_id), service);
-  if (this->is_running()) {
+  if (this->parent_->is_active() && this->registered_) {
     service->do_create(this);
   }
   return service;
