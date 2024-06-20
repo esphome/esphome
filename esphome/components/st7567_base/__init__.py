@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
 from esphome.const import (
+    CONF_BRIGHTNESS,
     CONF_CONTRAST,
     CONF_LAMBDA,
     CONF_RESET_PIN,
@@ -37,6 +38,7 @@ ST7567_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
         ),
         cv.Optional(CONF_MODEL, default="ST7567_128x64"): cv.enum(MODELS),
         cv.Optional(CONF_CONTRAST, default=35): cv.int_range(min=0, max=63),
+        cv.Optional(CONF_BRIGHTNESS, default=5): cv.int_range(min=0, max=7),
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -50,13 +52,14 @@ async def setup_st7567(var, config):
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
 
-    cg.add(var.init_invert_colors(config[CONF_INVERT_COLORS]))
-    cg.add(var.init_contrast(config[CONF_CONTRAST]))
+    cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
+    cg.add(var.set_contrast(config[CONF_CONTRAST]))
+    cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
 
     if CONF_TRANSFORM in config:
         transform = config[CONF_TRANSFORM]
-        cg.add(var.init_mirror_x(transform[CONF_MIRROR_X]))
-        cg.add(var.init_mirror_y(transform[CONF_MIRROR_Y]))
+        cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
+        cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

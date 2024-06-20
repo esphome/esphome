@@ -14,23 +14,17 @@ void SPIST7567::setup() {
 
   this->spi_setup();
 
-  this->init_reset_();
   ST7567::setup();
 }
 
 void SPIST7567::dump_config() {
-  LOG_DISPLAY("", "SPI ST7567", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_().c_str());
+  ST7567::dump_config();
+  ESP_LOGCONFIG(TAG, "  Interface: 4-wire SPI");
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  D/C Pin: ", this->dc_pin_);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->mirror_x_));
-  ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->mirror_y_));
-  ESP_LOGCONFIG(TAG, "  Invert Colors: %s", YESNO(this->invert_colors_));
-  LOG_UPDATE_INTERVAL(this);
 }
 
-void SPIST7567::command(uint8_t value) {
+void SPIST7567::command_(uint8_t value) {
   this->start_command_();
   this->write_byte(value);
   this->end_command_();
@@ -49,17 +43,20 @@ void SPIST7567::end_command_() { this->disable(); }
 
 void SPIST7567::end_data_() { this->disable(); }
 
-void HOT SPIST7567::write_display_data() {
-  this->command_set_start_line_();
+void HOT SPIST7567::write_display_data_() {
+  uint8_t off_x = this->get_visible_area_offset_x_();
+  uint8_t off_y = this->get_visible_area_offset_y_();
+  ESP_LOGD(TAG, "write_display_data_ off_x=%d off_y=%d", off_x, off_y);
 
-  for (uint8_t y = 0; y < (uint8_t) this->get_height_internal() / 8; y++) {
-    this->command(esphome::st7567_base::ST7567_PAGE_ADDR + y);  // Set Page
-    this->command(esphome::st7567_base::ST7567_COL_ADDR_H);     // Set MSB Column address
-    this->command(esphome::st7567_base::ST7567_COL_ADDR_L +
-                  this->get_visible_area_offset_x_());  // Set LSB Column address
+  // this->command_set_start_line_();
+
+  for (uint8_t page = 0; page < this->device_config_.memory_height / 8; page++) {
+    this->command_(esphome::st7567_base::ST7567_PAGE_ADDR + page);  // Set Page
+    this->command_(esphome::st7567_base::ST7567_COL_ADDR_H);        // Set MSB Column address
+    this->command_(esphome::st7567_base::ST7567_COL_ADDR_L);        // Set LSB Column address
 
     this->start_data_();
-    this->write_array(&this->buffer_[y * this->get_width_internal()], this->get_width_internal());
+    this->write_array(&this->buffer_[page * this->device_config_.memory_width], this->device_config_.memory_width);
     this->end_data_();
   }
 }

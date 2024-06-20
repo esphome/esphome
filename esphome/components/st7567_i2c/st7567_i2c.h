@@ -13,8 +13,8 @@ class I2CST7567 : public st7567_base::ST7567, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
-  void command(uint8_t value) override;
-  void write_display_data() override;
+  void command_(uint8_t value) override;
+  void write_display_data_() override;
 
   enum ErrorCode { NONE = 0, COMMUNICATION_FAILED } error_code_{NONE};
 };
