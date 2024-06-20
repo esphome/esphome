@@ -9,4 +9,4 @@ sensor:
       name: Temperature
     humidity:
       name: Humidity
-    update_interval: 30s
+    update_interval: 15s

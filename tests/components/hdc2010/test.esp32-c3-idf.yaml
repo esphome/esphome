@@ -1,10 +1,10 @@
 i2c:
-  - id: i2c_hdc1080
+  - id: i2c_hdc2010
     scl: 5
     sda: 4
 
 sensor:
-  - platform: hdc1080
+  - platform: hdc2010
     temperature:
       name: Temperature
     humidity:
