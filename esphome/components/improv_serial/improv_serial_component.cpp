@@ -109,6 +109,7 @@ void ImprovSerialComponent::write_data_(std::vector<uint8_t> &data) {
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3)
     case logger::UART_SELECTION_USB_SERIAL_JTAG:
       usb_serial_jtag_write_bytes((char *) data.data(), data.size(), 20 / portTICK_PERIOD_MS);
+      usb_serial_jtag_ll_txfifo_flush();  // fixes for issue in IDF 4.4.7
       break;
 #endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
     default:
@@ -155,9 +156,13 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
     urls.push_back(this->get_formatted_next_url_());
   }
 #ifdef USE_WEBSERVER
-  auto ip = wifi::global_wifi_component->wifi_sta_ip();
-  std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-  urls.push_back(webserver_url);
+  for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
+    if (ip.is_ip4()) {
+      std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
+      urls.push_back(webserver_url);
+      break;
+    }
+  }
 #endif
   std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
   return data;
@@ -192,7 +197,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);
-      wifi::global_wifi_component->start_scanning();
+      wifi::global_wifi_component->start_connecting(sta, false);
       this->set_state_(improv::STATE_PROVISIONING);
       ESP_LOGD(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());

@@ -119,4 +119,5 @@ def to_code(config):
     cg.add_library("tonia/HeatpumpIR", "1.0.25")
 
     if CORE.is_esp8266 or CORE.is_esp32:
-        cg.add_library("X-Ryl669/IRremoteESP8266", "2.8.6")
+        cg.add_library("crankyoldgit/IRremoteESP8266", "2.8.4")
+#        cg.add_library("X-Ryl669/IRremoteESP8266", "2.8.6")

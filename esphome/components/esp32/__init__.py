@@ -32,6 +32,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     __version__,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, HexInt, TimePeriod
 import esphome.config_validation as cv
@@ -95,16 +96,16 @@ def get_board(core_obj=None):
 def get_download_types(storage_json):
     return [
         {
-            "title": "Modern format",
+            "title": "Factory format (Previously Modern)",
             "description": "For use with ESPHome Web and other tools.",
-            "file": "firmware-factory.bin",
-            "download": f"{storage_json.name}-factory.bin",
+            "file": "firmware.factory.bin",
+            "download": f"{storage_json.name}.factory.bin",
         },
         {
-            "title": "Legacy format",
-            "description": "For use with ESPHome Flasher.",
-            "file": "firmware.bin",
-            "download": f"{storage_json.name}.bin",
+            "title": "OTA format (Previously Legacy)",
+            "description": "For OTA updating a device.",
+            "file": "firmware.ota.bin",
+            "download": f"{storage_json.name}.ota.bin",
         },
     ]
 
@@ -226,7 +227,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 6)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 7)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
@@ -316,17 +317,26 @@ def _parse_platform_version(value):
 
 
 def _detect_variant(value):
-    if CONF_VARIANT not in value:
-        board = value[CONF_BOARD]
-        if board not in BOARDS:
+    board = value[CONF_BOARD]
+    if board in BOARDS:
+        variant = BOARDS[board][KEY_VARIANT]
+        if CONF_VARIANT in value and variant != value[CONF_VARIANT]:
             raise cv.Invalid(
-                "This board is unknown, please set the variant manually",
+                f"Option '{CONF_VARIANT}' does not match selected board.",
+                path=[CONF_VARIANT],
+            )
+        value = value.copy()
+        value[CONF_VARIANT] = variant
+    else:
+        if CONF_VARIANT not in value:
+            raise cv.Invalid(
+                "This board is unknown, if you are sure you want to compile with this board selection, "
+                f"override with option '{CONF_VARIANT}'",
                 path=[CONF_BOARD],
             )
-
-        value = value.copy()
-        value[CONF_VARIANT] = BOARDS[board][KEY_VARIANT]
-
+        _LOGGER.warning(
+            "This board is unknown. Make sure the chosen chip component is correct.",
+        )
     return value
 
 
@@ -355,8 +365,6 @@ def final_validate(config):
 
     return config
 
-
-CONF_PLATFORM_VERSION = "platform_version"
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(

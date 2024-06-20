@@ -46,7 +46,7 @@ template<typename... Ts> class BeeperOffAction : public Action<Ts...> {
 template<typename... Ts> class VerticalAirflowAction : public Action<Ts...> {
  public:
   VerticalAirflowAction(HonClimate *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(AirflowVerticalDirection, direction)
+  TEMPLATABLE_VALUE(hon_protocol::VerticalSwingMode, direction)
   void play(Ts... x) { this->parent_->set_vertical_airflow(this->direction_.value(x...)); }
 
  protected:
@@ -56,7 +56,7 @@ template<typename... Ts> class VerticalAirflowAction : public Action<Ts...> {
 template<typename... Ts> class HorizontalAirflowAction : public Action<Ts...> {
  public:
   HorizontalAirflowAction(HonClimate *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(AirflowHorizontalDirection, direction)
+  TEMPLATABLE_VALUE(hon_protocol::HorizontalSwingMode, direction)
   void play(Ts... x) { this->parent_->set_horizontal_airflow(this->direction_.value(x...)); }
 
  protected:

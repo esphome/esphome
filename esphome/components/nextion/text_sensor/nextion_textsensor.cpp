@@ -16,13 +16,13 @@ void NextionTextSensor::process_text(const std::string &variable_name, const std
 }
 
 void NextionTextSensor::update() {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
   this->nextion_->add_to_get_queue(this);
 }
 
 void NextionTextSensor::set_state(const std::string &state, bool publish, bool send_to_nextion) {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
 
   if (send_to_nextion) {

@@ -14,6 +14,8 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt.component";
 
+void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
+
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
@@ -47,13 +49,13 @@ std::string MQTTComponent::get_command_topic_() const {
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish(topic, payload, 0, this->retain_);
+  return global_mqtt_client->publish(topic, payload, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish_json(topic, f, 0, this->retain_);
+  return global_mqtt_client->publish_json(topic, f, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::send_discovery_() {
@@ -61,7 +63,7 @@ bool MQTTComponent::send_discovery_() {
 
   if (discovery_info.clean) {
     ESP_LOGV(TAG, "'%s': Cleaning discovery...", this->friendly_name().c_str());
-    return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, 0, true);
+    return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
   }
 
   ESP_LOGV(TAG, "'%s': Sending discovery...", this->friendly_name().c_str());
@@ -155,8 +157,10 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
         device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
       },
-      0, discovery_info.retain);
+      this->qos_, discovery_info.retain);
 }
+
+uint8_t MQTTComponent::get_qos() const { return this->qos_; }
 
 bool MQTTComponent::get_retain() const { return this->retain_; }
 
