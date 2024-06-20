@@ -1,15 +1,14 @@
 wifi:
-  ssid: MySSID
-  password: password1
+  ssid: "MySSID1"
+  password: "password1"
 
 time:
   - platform: sntp
 
 wireguard:
-  id: vpn
   address: 172.16.34.100
   netmask: 255.255.255.0
-  # NEVER use the following keys for your vpn, they are now public!
+  # NEVER use the following keys for your VPN -- they are now public!
   private_key: wPBMxtNYH3mChicrbpsRpZIasIdPq3yZuthn23FbGG8=
   peer_public_key: Hs2JfikvYU03/Kv3YoAs1hrUIPPTEkpsZKSPUljE9yc=
   peer_preshared_key: 20fjM5GRnSolGPC5SRj9ljgIUyQfruv0B0bvLl3Yt60=

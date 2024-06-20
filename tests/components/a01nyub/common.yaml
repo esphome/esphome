@@ -1,9 +1,7 @@
 uart:
   - id: uart_a01nyub
-    tx_pin:
-      number: 4
-    rx_pin:
-      number: 5
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
     baud_rate: 9600
 
 sensor:

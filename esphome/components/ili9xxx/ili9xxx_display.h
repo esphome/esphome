@@ -109,7 +109,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   virtual void set_madctl();
   void display_();
-  void init_lcd_(const uint8_t *addr);
+  virtual void init_lcd(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
   void reset_();
 
@@ -269,6 +269,7 @@ class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
 class ILI9XXXGC9A01A : public ILI9XXXDisplay {
  public:
   ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240, true) {}
+  void init_lcd(const uint8_t *addr) override;
 };
 
 //-----------   ILI9XXX_24_TFT display --------------
