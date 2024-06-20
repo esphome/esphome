@@ -26,20 +26,7 @@ network:
 
 web_server:
   port: 80
-  version: 3
-  sorting_groups:
-    - id: sorting_group_1
-      name: "Group 1 Diplayed Last"
-      sorting_weight: 40
-    - id: sorting_group_2
-      name: "Group 2 Displayed Third"
-      sorting_weight: 30
-    - id: sorting_group_3
-      name: "Group 3 Displayed Second"
-      sorting_weight: 20
-    - id: sorting_group_4
-      name: "Group 4 Displayed First"
-      sorting_weight: 10
+  version: 2
 
 i2c:
   sda:
@@ -73,9 +60,6 @@ sensor:
   - platform: apds9960
     type: proximity
     name: APDS9960 Proximity
-    web_server:
-      sorting_group: sorting_group_1
-      sorting_weight: -100
   - platform: vl53l0x
     name: VL53L0x Distance
     address: 0x29
@@ -554,10 +538,6 @@ cover:
   - platform: endstop
     name: Endstop Cover
     id: endstop_cover
-    web_server:
-      sorting_group: sorting_group_4
-      sorting_weight: 100
-
     stop_action:
       - switch.turn_on: gpio_switch1
     open_endstop: my_binary_sensor
@@ -711,8 +691,6 @@ light:
     name: Icicle Lights
     pin_a: out
     pin_b: out2
-    web_server:
-      sorting_group: sorting_group_3
 
 servo:
   id: my_servo
@@ -753,9 +731,6 @@ button:
     id: output_button
     output: out
     duration: 100ms
-    web_server:
-      sorting_group: sorting_group_2
-      sorting_weight: -100
   - platform: wake_on_lan
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1
