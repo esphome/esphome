@@ -426,11 +426,7 @@ def _final_validate(config):
             "No logger component found, logging for Haier protocol is disabled"
         )
         cg.add_build_flag("-DHAIER_LOG_LEVEL=0")
-    if (
-        (CONF_WIFI_SIGNAL in config)
-        and (config[CONF_WIFI_SIGNAL])
-        and CONF_WIFI not in full_config
-    ):
+    if config.get(CONF_WIFI_SIGNAL) and CONF_WIFI not in full_config:
         raise cv.Invalid(
             f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration"
         )
