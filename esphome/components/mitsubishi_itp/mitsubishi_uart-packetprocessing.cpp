@@ -121,11 +121,14 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
   switch (mode) {
     case climate::CLIMATE_MODE_COOL:
     case climate::CLIMATE_MODE_DRY:
-      this->last_cool_setpoint_ = target_temperature;
+      this->mhk_state_.cool_setpoint_ = target_temperature;
       break;
     case climate::CLIMATE_MODE_HEAT:
-      this->last_heat_setpoint_ = target_temperature;
+      this->mhk_state_.heat_setpoint_ = target_temperature;
       break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      this->mhk_state_.cool_setpoint_ = target_temperature + 2;
+      this->mhk_state_.heat_setpoint_ = target_temperature - 2;
     default:
       break;
   }
@@ -425,8 +428,8 @@ void MitsubishiUART::process_packet(const ThermostatStateUploadPacket &packet) {
 
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
-  if (packet.get_flags() & 0x08) this->last_heat_setpoint_ = packet.get_heat_setpoint();
-  if (packet.get_flags() & 0x10) this->last_cool_setpoint_ = packet.get_cool_setpoint();
+  if (packet.get_flags() & 0x08) this->mhk_state_.heat_setpoint_ = packet.get_heat_setpoint();
+  if (packet.get_flags() & 0x10) this->mhk_state_.cool_setpoint_ = packet.get_cool_setpoint();
 
   ts_bridge_->send_packet(SetResponsePacket());
 }
@@ -457,8 +460,8 @@ void MitsubishiUART::handle_thermostat_state_download_request(const GetRequestPa
 
   auto response = ThermostatStateDownloadResponsePacket();
 
-  response.set_heat_setpoint(this->last_heat_setpoint_);
-  response.set_cool_setpoint(this->last_cool_setpoint_);
+  response.set_heat_setpoint(this->mhk_state_.heat_setpoint_);
+  response.set_cool_setpoint(this->mhk_state_.cool_setpoint_);
 
   if (this->time_source_ != nullptr) {
     response.set_timestamp(this->time_source_->now());

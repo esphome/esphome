@@ -83,18 +83,19 @@ void MitsubishiUART::control(const climate::ClimateCall &call) {
     switch (mode) {
       case climate::CLIMATE_MODE_COOL:
       case climate::CLIMATE_MODE_DRY:
-        this->last_cool_setpoint_ = target_temperature;
+        this->mhk_state_.cool_setpoint_ = target_temperature;
         break;
       case climate::CLIMATE_MODE_HEAT:
-        this->last_heat_setpoint_ = target_temperature;
+        this->mhk_state_.heat_setpoint_ = target_temperature;
         break;
       case climate::CLIMATE_MODE_HEAT_COOL:
         if (this->get_traits().get_supports_two_point_target_temperature()) {
-          this->last_heat_setpoint_ = target_temperature_low;
-          this->last_cool_setpoint_ = target_temperature_high;
+          this->mhk_state_.cool_setpoint_ = target_temperature_low;
+          this->mhk_state_.heat_setpoint_ = target_temperature_high;
         } else {
-          // this->last_heat_setpoint_ = target_temperature;
-          // this->last_cool_setpoint_ = target_temperature;
+          // HACK: This is not accurate, but it's good enough for testing.
+          this->mhk_state_.cool_setpoint_ = target_temperature + 2;
+          this->mhk_state_.heat_setpoint_ = target_temperature - 2;
         }
       default:
         break;

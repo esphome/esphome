@@ -8,6 +8,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
+#include "muart_mhk.h"
 #include "muart_packet.h"
 #include "muart_bridge.h"
 #include <map>
@@ -212,11 +213,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // used to track whether to support/handle the enhanced MHK protocol packets
   bool enhanced_mhk_support_ = false;
 
-  // used to track heat/cool setpoints for parity sync with MHK units.
-  // necessary to not clobber the union of setpoints, since ESPHome doesnt gracefully handle simultaneous cool and
-  // heat setpoints being set.
-  float last_cool_setpoint_ = NAN;
-  float last_heat_setpoint_ = NAN;
+  MHKState mhk_state_;
 };
 
 struct MUARTPreferences {
