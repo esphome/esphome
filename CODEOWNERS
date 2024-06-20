@@ -161,6 +161,7 @@ esphome/components/haier/text_sensor/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
+esphome/components/hdc2010/* @optimusprimespace @ssieb
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
@@ -454,4 +455,3 @@ esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zio_ultrasonic/* @kahrendt
-esphome/components/hdc2010/* @optimusprimespace @ssieb
