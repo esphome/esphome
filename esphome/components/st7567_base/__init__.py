@@ -38,7 +38,7 @@ ST7567_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
         ),
         cv.Optional(CONF_MODEL, default="ST7567_128x64"): cv.enum(MODELS),
         cv.Optional(CONF_CONTRAST, default=35): cv.int_range(min=0, max=63),
-        cv.Optional(CONF_BRIGHTNESS, default=5): cv.int_range(min=0, max=7),
+        cv.Optional(CONF_BRIGHTNESS, default=3): cv.int_range(min=0, max=7),
     }
 ).extend(cv.polling_component_schema("1s"))
 

@@ -44,12 +44,6 @@ void SPIST7567::end_command_() { this->disable(); }
 void SPIST7567::end_data_() { this->disable(); }
 
 void HOT SPIST7567::write_display_data_() {
-  uint8_t off_x = this->get_visible_area_offset_x_();
-  uint8_t off_y = this->get_visible_area_offset_y_();
-  ESP_LOGD(TAG, "write_display_data_ off_x=%d off_y=%d", off_x, off_y);
-
-  // this->command_set_start_line_();
-
   for (uint8_t page = 0; page < this->device_config_.memory_height / 8; page++) {
     this->command_(esphome::st7567_base::ST7567_PAGE_ADDR + page);  // Set Page
     this->command_(esphome::st7567_base::ST7567_COL_ADDR_H);        // Set MSB Column address

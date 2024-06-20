@@ -32,28 +32,19 @@ void I2CST7567::command_(uint8_t value) { this->write_byte(0x00, value); }
 
 void HOT I2CST7567::write_display_data_() {
   static const size_t MAX_BLOCK_SIZE = 64;
-
-  uint8_t max_y = this->device_config_.memory_height;
   uint8_t max_x = this->device_config_.memory_width;
-  uint8_t vis_w = this->device_config_.visible_width;
-  uint8_t off_x = this->get_visible_area_offset_x_();
-
   size_t block_size = MAX_BLOCK_SIZE;
-  if (vis_w < MAX_BLOCK_SIZE) {
-    block_size = vis_w;
+  if (max_x < MAX_BLOCK_SIZE) {
+    block_size = max_x;
   }
-  // offset y - implemented in HW by selecting which line shown first
-  // offset x - by drawing pixel with the offset
-  this->command_set_start_line_();
+  for (uint8_t page = 0; page < this->device_config_.memory_height / 8; page++) {
+    this->command_(esphome::st7567_base::ST7567_PAGE_ADDR + page);  // Set Page
+    this->command_(esphome::st7567_base::ST7567_COL_ADDR_H);        // Set MSB Column address
+    this->command_(esphome::st7567_base::ST7567_COL_ADDR_L);        // Set LSB Column address
 
-  for (uint8_t y = 0; y < max_y / 8; y++) {
-    this->command_(esphome::st7567_base::ST7567_PAGE_ADDR + y);       // Set Page
-    this->command_(esphome::st7567_base::ST7567_COL_ADDR_H);          // Set MSB Column address
-    this->command_(esphome::st7567_base::ST7567_COL_ADDR_L + off_x);  // Set LSB Column address
-
-    for (uint8_t x = 0; x < vis_w; x += block_size) {
-      this->write_register(esphome::st7567_base::ST7567_SET_START_LINE, &buffer_[y * max_x + x],
-                           vis_w - x > block_size ? block_size : vis_w - x, true);
+    for (uint8_t x = 0; x < max_x; x += block_size) {
+      this->write_register(esphome::st7567_base::ST7567_SET_START_LINE, &buffer_[page * max_x + x],
+                           max_x - x > block_size ? block_size : max_x - x, true);
     }
   }
 }
