@@ -165,8 +165,8 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGD(TAG, "BLE Client connected");
       this->add_client_(param->connect.conn_id, (void *) this);
       this->connected_clients_++;
-      for (auto *component : this->service_components_) {
-        component->on_client_connect();
+      for (auto &pair : this->services_) {
+        pair.second->emit_client_connect(param->connect.conn_id);
       }
       break;
     }
@@ -175,8 +175,8 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       if (this->remove_client_(param->disconnect.conn_id))
         this->connected_clients_--;
       this->parent_->advertising_start();
-      for (auto *component : this->service_components_) {
-        component->on_client_disconnect();
+      for (auto &pair : this->services_) {
+        pair.second->emit_client_disconnect(param->disconnect.conn_id);
       }
       break;
     }

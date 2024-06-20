@@ -76,6 +76,7 @@ void ESP32ImprovComponent::loop() {
     // Setup the service
     ESP_LOGD(TAG, "Creating Improv service");
     this->service_ = global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
+    this->service_->on_client_disconnect([this]() { this->set_error_(improv::ERROR_NONE); });
     this->setup_characteristics();
   }
 
@@ -329,8 +330,6 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
 }
-
-void ESP32ImprovComponent::on_client_disconnect() { this->set_error_(improv::ERROR_NONE); };
 
 ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

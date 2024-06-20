@@ -294,6 +294,29 @@ esp32_ble:
 esp32_ble_server:
   manufacturer: ESPHome
   model: Test5
+  services:
+    - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc42d
+      advertise: true
+      characteristics:
+        - uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
+          name: "Test Characteristic"
+          properties:
+            - READ
+            - WRITE
+            - NOTIFY
+          permissions:
+            - READ
+            - WRITE
+          value: "Hello World"
+          on_write:
+            then:
+              - logger.log: "Characteristic written"
+          on_read:
+            then:
+              - logger.log: "Characteristic read"
+          on_notify:
+            then:
+              - logger.log: "Characteristic notified"
 
 esp32_improv:
   authorizer: io0_button

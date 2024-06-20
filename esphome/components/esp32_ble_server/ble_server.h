@@ -25,14 +25,6 @@ namespace esp32_ble_server {
 
 using namespace esp32_ble;
 
-class BLEServiceComponent {
- public:
-  virtual void on_client_connect(){};
-  virtual void on_client_disconnect(){};
-  virtual void start();
-  virtual void stop();
-};
-
 class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;
@@ -64,8 +56,6 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   void ble_before_disabled_event_handler() override;
 
-  void register_service_component(BLEServiceComponent *component) { this->service_components_.push_back(component); }
-
  protected:
   static std::string get_service_key(ESPBTUUID uuid, uint8_t inst_id);
   bool create_device_characteristics_();
@@ -84,8 +74,6 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   std::unordered_map<uint16_t, void *> clients_;
   std::unordered_map<std::string, BLEService *> services_;
   BLEService *device_information_service_;
-
-  std::vector<BLEServiceComponent *> service_components_;
 
   enum State : uint8_t {
     INIT = 0x00,

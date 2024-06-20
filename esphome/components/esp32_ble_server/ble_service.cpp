@@ -86,6 +86,13 @@ bool BLEService::do_create_characteristics_() {
   return true;
 }
 
+void BLEService::enqueue_start() {
+  if (this->init_state_ == CREATED)
+    this->start();
+  else
+    this->should_start_ = true;
+}
+
 void BLEService::start() {
   if (this->do_create_characteristics_())
     return;

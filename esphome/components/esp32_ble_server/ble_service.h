@@ -42,6 +42,7 @@ class BLEService {
   void do_delete();
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
+  void enqueue_start();
   void start();
   void stop();
 
@@ -51,6 +52,10 @@ class BLEService {
   bool is_running() { return this->running_state_ == RUNNING; }
   bool is_starting() { return this->running_state_ == STARTING; }
   bool is_deleted() { return this->init_state_ == DELETED; }
+  void on_client_connect(const std::function<void(const uint16_t)> &&func) { this->on_client_connect_ = func; }
+  void on_client_disconnect(const std::function<void(const uint16_t)> &&func) { this->on_client_disconnect_ = func; }
+  void emit_client_connect(const uint16_t conn_id) { this->on_client_connect_(conn_id); }
+  void emit_client_disconnect(const uint16_t conn_id) { this->on_client_disconnect_(conn_id); }
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
@@ -63,6 +68,8 @@ class BLEService {
   uint8_t inst_id_;
   bool advertise_{false};
   bool should_start_{false};
+  std::function<void(const uint16_t)> on_client_connect_;
+  std::function<void(const uint16_t)> on_client_disconnect_;
 
   bool do_create_characteristics_();
   void stop_();
