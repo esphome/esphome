@@ -46,6 +46,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   BLEService *get_service(ESPBTUUID uuid, uint8_t inst_id = 0);
+  void enqueue_start_service(BLEService *service) { this->services_to_start_.push_back(service); }
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
   uint32_t get_connected_client_count() { return this->connected_clients_; }
@@ -73,6 +74,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   uint32_t connected_clients_{0};
   std::unordered_map<uint16_t, void *> clients_;
   std::unordered_map<std::string, BLEService *> services_;
+  std::vector<BLEService *> services_to_start_;
   BLEService *device_information_service_;
 
   enum State : uint8_t {

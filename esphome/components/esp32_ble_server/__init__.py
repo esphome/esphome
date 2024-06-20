@@ -186,6 +186,7 @@ async def to_code(config):
                 desc_var = cg.new_Pvariable(descriptor[CONF_ID], parse_uuid(descriptor[CONF_UUID]), max_length)
                 if CONF_VALUE in descriptor:
                     cg.add(desc_var.set_value(parse_value(descriptor[CONF_VALUE])))
+        cg.add(var.enqueue_start_service(service_var))
     cg.add_define("USE_ESP32_BLE_SERVER")
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

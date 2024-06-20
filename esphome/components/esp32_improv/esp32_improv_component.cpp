@@ -88,15 +88,15 @@ void ESP32ImprovComponent::loop() {
     case improv::STATE_STOPPED:
       this->set_status_indicator_state_(false);
 
-      if (this->service_->is_created() && this->should_start_ && this->setup_complete_) {
-        if (this->service_->is_running()) {
+      if (this->should_start_ && this->setup_complete_) {
+        if (this->service_->is_created()) {
+          this->service_->start();
+        } else if (this->service_->is_running()) {
           esp32_ble::global_ble->advertising_start();
 
           this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           this->set_error_(improv::ERROR_NONE);
           ESP_LOGD(TAG, "Service started!");
-        } else {
-          this->service_->start();
         }
       }
       break;

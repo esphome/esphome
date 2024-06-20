@@ -42,20 +42,18 @@ class BLEService {
   void do_delete();
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-  void enqueue_start();
   void start();
   void stop();
 
-  bool is_created();
   bool is_failed();
-
-  bool is_running() { return this->running_state_ == RUNNING; }
-  bool is_starting() { return this->running_state_ == STARTING; }
-  bool is_deleted() { return this->init_state_ == DELETED; }
+  bool is_created() { return this->state_ == CREATED; }
+  bool is_running() { return this->state_ == RUNNING; }
+  bool is_starting() { return this->state_ == STARTING; }
+  bool is_deleted() { return this->state_ == DELETED; }
   void on_client_connect(const std::function<void(const uint16_t)> &&func) { this->on_client_connect_ = func; }
   void on_client_disconnect(const std::function<void(const uint16_t)> &&func) { this->on_client_disconnect_ = func; }
-  void emit_client_connect(const uint16_t conn_id) { this->on_client_connect_(conn_id); }
-  void emit_client_disconnect(const uint16_t conn_id) { this->on_client_disconnect_(conn_id); }
+  void emit_client_connect(const uint16_t conn_id) { if (this->on_client_connect_ && this->is_running()) this->on_client_connect_(conn_id); }
+  void emit_client_disconnect(const uint16_t conn_id) { if (this->on_client_disconnect_ && this->is_running()) this->on_client_disconnect_(conn_id); }
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
@@ -74,22 +72,18 @@ class BLEService {
   bool do_create_characteristics_();
   void stop_();
 
-  enum InitState : uint8_t {
+  enum State : uint8_t {
     FAILED = 0x00,
     INIT,
     CREATING,
-    CREATING_DEPENDENTS,
     CREATED,
-    DELETING,
-    DELETED,
-  } init_state_{INIT};
-
-  enum RunningState : uint8_t {
     STARTING,
     RUNNING,
     STOPPING,
     STOPPED,
-  } running_state_{STOPPED};
+    DELETING,
+    DELETED,
+  } state_{INIT};
 };
 
 }  // namespace esp32_ble_server

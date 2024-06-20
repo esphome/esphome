@@ -38,9 +38,25 @@ void BLEServer::loop() {
     return;
   }
   switch (this->state_) {
-    case RUNNING:
-      return;
-
+    case RUNNING: {
+      if (this->services_to_start_.empty()) break;
+      uint16_t index_to_remove = 0;
+      // Iterate over the services to start
+      for (unsigned i = 0; i < this->services_to_start_.size(); i++) {
+        BLEService *service = this->services_to_start_[i];
+        if (service->is_created()) {
+          service->start();
+        } else {
+          index_to_remove = i + 1;
+        }
+      }
+      // Remove the services that have been started
+      if (index_to_remove > 0) {
+        this->services_to_start_.erase(this->services_to_start_.begin(),
+                                       this->services_to_start_.begin() + index_to_remove - 1);
+      }
+      break;
+    }
     case INIT: {
       esp_err_t err = esp_ble_gatts_app_register(0);
       if (err != ESP_OK) {
@@ -66,14 +82,11 @@ void BLEServer::loop() {
       break;
     }
     case STARTING_SERVICE: {
-      if (!this->device_information_service_->is_created()) {
-        break;
-      }
       if (this->device_information_service_->is_running()) {
         this->state_ = RUNNING;
         this->restart_advertising_();
         ESP_LOGD(TAG, "BLE server setup successfully");
-      } else if (!this->device_information_service_->is_starting()) {
+      } else if (this->device_information_service_->is_created()) {
         this->device_information_service_->start();
       }
       break;
