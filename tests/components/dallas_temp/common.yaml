@@ -1,0 +1,11 @@
+one_wire:
+  - platform: gpio
+    pin: 4
+
+sensor:
+  - platform: dallas_temp
+    address: 0x1C0000031EDD2A28
+    name: Dallas Temperature
+    resolution: 9
+  - platform: dallas_temp
+    name: Dallas Temperature
