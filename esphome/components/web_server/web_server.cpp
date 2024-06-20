@@ -1618,6 +1618,9 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
       root["release_url"] = obj->update_info.release_url;
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
