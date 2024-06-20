@@ -183,7 +183,6 @@ BASE_CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SUPPORTED_SWING_MODES,
                 default=[
-                    "OFF",
                     "VERTICAL",
                     "HORIZONTAL",
                     "BOTH",
@@ -211,7 +210,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=list(["BOOST", "COMFORT"]),  # No AWAY by default
+                        default=["BOOST", "COMFORT"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS, upper=True)
                     ),
@@ -231,7 +230,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.int_range(min=PROTOCOL_CONTROL_PACKET_SIZE, max=50),
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=list(["BOOST", "ECO", "SLEEP"]),  # No AWAY by default
+                        default=["BOOST", "ECO", "SLEEP"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS, upper=True)
                     ),
