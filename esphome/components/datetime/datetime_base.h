@@ -5,6 +5,8 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/time.h"
 
+#include "esphome/components/time/real_time_clock.h"
+
 namespace esphome {
 namespace datetime {
 
@@ -17,8 +19,13 @@ class DateTimeBase : public EntityBase {
 
   void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 
+  void set_rtc(time::RealTimeClock *rtc) { this->rtc_ = rtc; }
+  time::RealTimeClock *get_rtc() const { return this->rtc_; }
+
  protected:
   CallbackManager<void()> state_callback_;
+
+  time::RealTimeClock *rtc_;
 
   bool has_state_{false};
 };

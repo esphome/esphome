@@ -84,6 +84,16 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
     esp_time.hour = hour;
     esp_time.minute = minute;
     esp_time.second = second;
+  } else if (sscanf(time_to_parse.c_str(), "%04hu-%02hhu-%02hhu %02hhu:%02hhu %n", &year, &month, &day,  // NOLINT
+                    &hour,                                                                               // NOLINT
+                    &minute, &num) == 5 &&                                                               // NOLINT
+             num == time_to_parse.size()) {
+    esp_time.year = year;
+    esp_time.month = month;
+    esp_time.day_of_month = day;
+    esp_time.hour = hour;
+    esp_time.minute = minute;
+    esp_time.second = 0;
   } else if (sscanf(time_to_parse.c_str(), "%02hhu:%02hhu:%02hhu %n", &hour, &minute, &second, &num) == 3 &&  // NOLINT
              num == time_to_parse.size()) {
     esp_time.hour = hour;
@@ -176,6 +186,15 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   res *= 60;
   res += this->second;
   this->timestamp = res;
+}
+
+void ESPTime::recalc_timestamp_local(bool use_day_of_year) {
+  this->recalc_timestamp_utc(use_day_of_year);
+  this->timestamp -= ESPTime::timezone_offset();
+  ESPTime temp = ESPTime::from_epoch_local(this->timestamp);
+  if (temp.is_dst) {
+    this->timestamp -= 3600;
+  }
 }
 
 int32_t ESPTime::timezone_offset() {

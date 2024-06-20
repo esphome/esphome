@@ -1,6 +1,0 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-network:
-  enable_ipv6: true

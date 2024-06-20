@@ -48,7 +48,10 @@ WaveshareEPaper2P9InBV3 = waveshare_epaper_ns.class_(
 WaveshareEPaper2P9InV2R2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P9InV2R2", WaveshareEPaper
 )
-GDEY029T94 = waveshare_epaper_ns.class_("GDEY029T94", WaveshareEPaper)
+GDEW029T5 = waveshare_epaper_ns.class_("GDEW029T5", WaveshareEPaper)
+WaveshareEPaper2P9InDKE = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P9InDKE", WaveshareEPaper
+)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
     "WaveshareEPaper4P2In", WaveshareEPaper
 )
@@ -91,6 +94,9 @@ WaveshareEPaper2P13InV2 = waveshare_epaper_ns.class_(
 WaveshareEPaper2P13InV3 = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P13InV3", WaveshareEPaper
 )
+WaveshareEPaper13P3InK = waveshare_epaper_ns.class_(
+    "WaveshareEPaper13P3InK", WaveshareEPaper
+)
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
@@ -107,7 +113,7 @@ MODELS = {
     "2.13in-ttgo-b74": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B74),
     "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
-    "gdey029t94": ("c", GDEY029T94),
+    "gdew029t5": ("c", GDEW029T5),
     "2.70in": ("b", WaveshareEPaper2P7In),
     "2.70in-b": ("b", WaveshareEPaper2P7InB),
     "2.70in-bv2": ("b", WaveshareEPaper2P7InBV2),
@@ -115,6 +121,7 @@ MODELS = {
     "2.90in-b": ("b", WaveshareEPaper2P9InB),
     "2.90in-bv3": ("b", WaveshareEPaper2P9InBV3),
     "2.90inv2-r2": ("c", WaveshareEPaper2P9InV2R2),
+    "2.90in-dke": ("c", WaveshareEPaper2P9InDKE),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "5.83in": ("b", WaveshareEPaper5P8In),
@@ -129,6 +136,7 @@ MODELS = {
     "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
     "2.13inv3": ("c", WaveshareEPaper2P13InV3),
     "1.54in-m5coreink-m09": ("c", GDEW0154M09),
+    "13.3in-k": ("b", WaveshareEPaper13P3InK),
 }
 
 RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")

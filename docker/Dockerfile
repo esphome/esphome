@@ -81,7 +81,8 @@ RUN \
     fi; \
     pip3 install \
     --break-system-packages --no-cache-dir \
-    platformio==6.1.13 \
+    # Keep platformio version in sync with requirements.txt
+    platformio==6.1.15 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -100,6 +101,9 @@ RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "a
     --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini --libraries
 
+# Avoid unsafe git error when container user and file config volume permissions don't match
+RUN git config --system --add safe.directory '*'
+
 
 # ======================= docker-type image =======================
 FROM base AS docker
@@ -110,7 +114,7 @@ RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
   fi; \
   pip3 install \
-  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+  --break-system-packages --no-cache-dir -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -160,7 +164,7 @@ RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
         export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
   fi; \
   pip3 install \
-  --break-system-packages --no-cache-dir --no-use-pep517 -e /esphome
+  --break-system-packages --no-cache-dir -e /esphome
 
 # Labels
 LABEL \

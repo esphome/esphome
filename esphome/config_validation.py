@@ -267,6 +267,10 @@ class Required(vol.Required):
         super().__init__(key, msg=msg)
 
 
+class FinalExternalInvalid(Invalid):
+    """Represents an invalid value in the final validation phase where the path should not be prepended."""
+
+
 def check_not_templatable(value):
     if isinstance(value, Lambda):
         raise Invalid("This option is not templatable!")
@@ -304,7 +308,7 @@ def string(value):
     """Validate that a configuration value is a string. If not, automatically converts to a string.
 
     Note that this can be lossy, for example the input value 60.00 (float) will be turned into
-    "60.0" (string). For values where this could be a problem `string_string` has to be used.
+    "60.0" (string). For values where this could be a problem `string_strict` has to be used.
     """
     check_not_templatable(value)
     if isinstance(value, (dict, list)):
@@ -821,57 +825,50 @@ positive_not_null_time_period = All(
 
 
 def time_of_day(value):
-    return date_time(allowed_date=False, allowed_time=True)(value)
+    return date_time(date=False, time=True)(value)
 
 
-def date_time(allowed_date: bool = True, allowed_time: bool = True):
+def date_time(date: bool, time: bool):
 
     pattern_str = r"^"  # Start of string
-    if allowed_date:
+    if date:
+        pattern_str += r"\d{4}-\d{1,2}-\d{1,2}"
+        if time:
+            pattern_str += r" "
+    if time:
         pattern_str += (
-            r"("  # 1. Optional Date group
-            r"\d{4}-\d{1,2}-\d{1,2}"  # Date
-            r"(?:\s(?=.+))?"  # Space after date only if time is following
-            r")?"  # End optional Date group
-        )
-    if allowed_time:
-        pattern_str += (
-            r"("  # 2. Optional Time group
-            r"(\d{1,2}:\d{2})"  # 3. Hour/Minute
-            r"(:\d{2})?"  # 4. Seconds
-            r"("  # 5. Optional AM/PM group
-            r"(\s)?"  # 6. Optional Space
+            r"\d{1,2}:\d{2}"  # Hour/Minute
+            r"(:\d{2})?"  # 1. Seconds
+            r"("  # 2. Optional AM/PM group
+            r"(\s)?"  # 3. Optional Space
             r"(?:AM|PM|am|pm)"  # AM/PM string matching
             r")?"  # End optional AM/PM group
-            r")?"  # End optional Time group
         )
     pattern_str += r"$"  # End of string
 
     pattern = re.compile(pattern_str)
 
     exc_message = ""
-    if allowed_date:
+    if date:
         exc_message += "date"
-        if allowed_time:
-            exc_message += "/"
-    if allowed_time:
+    if time:
         exc_message += "time"
 
     schema = Schema({})
-    if allowed_date:
+    if date:
         schema = schema.extend(
             {
-                Optional(CONF_YEAR): int_range(min=1970, max=3000),
-                Optional(CONF_MONTH): int_range(min=1, max=12),
-                Optional(CONF_DAY): int_range(min=1, max=31),
+                Required(CONF_YEAR): int_range(min=1970, max=3000),
+                Required(CONF_MONTH): int_range(min=1, max=12),
+                Required(CONF_DAY): int_range(min=1, max=31),
             }
         )
-    if allowed_time:
+    if time:
         schema = schema.extend(
             {
-                Optional(CONF_HOUR): int_range(min=0, max=23),
-                Optional(CONF_MINUTE): int_range(min=0, max=59),
-                Optional(CONF_SECOND): int_range(min=0, max=59),
+                Required(CONF_HOUR): int_range(min=0, max=23),
+                Required(CONF_MINUTE): int_range(min=0, max=59),
+                Required(CONF_SECOND): int_range(min=0, max=59),
             }
         )
 
@@ -885,21 +882,21 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
             # pylint: disable=raise-missing-from
             raise Invalid(f"Invalid {exc_message}: {value}")
 
-        if allowed_date:
-            has_date = match[1] is not None
-        if allowed_time:
-            has_time = match[2] is not None
-            has_seconds = match[3] is not None
-            has_ampm = match[4] is not None
-            has_ampm_space = match[5] is not None
+        if time:
+            has_seconds = match[1] is not None
+            has_ampm = match[2] is not None
+            has_ampm_space = match[3] is not None
 
         format = ""
-        if allowed_date and has_date:
+        if date:
             format += "%Y-%m-%d"
-            if allowed_time and has_time:
+            if time:
                 format += " "
-        if allowed_time and has_time:
-            format += "%H:%M"
+        if time:
+            if has_ampm:
+                format += "%I:%M"
+            else:
+                format += "%H:%M"
             if has_seconds:
                 format += ":%S"
             if has_ampm_space:
@@ -914,12 +911,12 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
             raise Invalid(f"Invalid {exc_message}: {err}")
 
         return_value = {}
-        if allowed_date and has_date:
+        if date:
             return_value[CONF_YEAR] = date_obj.year
             return_value[CONF_MONTH] = date_obj.month
             return_value[CONF_DAY] = date_obj.day
 
-        if allowed_time and has_time:
+        if time:
             return_value[CONF_HOUR] = date_obj.hour
             return_value[CONF_MINUTE] = date_obj.minute
             return_value[CONF_SECOND] = date_obj.second if has_seconds else 0
@@ -1590,6 +1587,10 @@ def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
     default_schema_option = kwargs.pop("default_type", None)
+    enum_mapping = kwargs.pop("enum", None)
+    if enum_mapping is not None:
+        assert isinstance(enum_mapping, dict)
+        assert set(enum_mapping.keys()) == set(schemas.keys())
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
@@ -1600,6 +1601,9 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
+        if enum_mapping is not None:
+            key_v = add_class_to_obj(key_v, core.EnumValue)
+            key_v.enum_value = enum_mapping[key_v]
         value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
@@ -1945,13 +1949,13 @@ def url(value):
     except ValueError as e:
         raise Invalid("Not a valid URL") from e
 
-    if not parsed.scheme or not parsed.netloc:
-        raise Invalid("Expected a URL scheme and host")
-    return parsed.geturl()
+    if parsed.scheme and parsed.netloc or parsed.scheme == "file":
+        return parsed.geturl()
+    raise Invalid("Expected a file scheme or a URL scheme with host")
 
 
 def git_ref(value):
-    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+    if re.match(r"[a-zA-Z0-9_./-]+", value) is None:
         raise Invalid("Not a valid git ref")
     return value
 
@@ -2117,6 +2121,7 @@ GIT_SCHEMA = Schema(
         Optional(CONF_REF): git_ref,
         Optional(CONF_USERNAME): string,
         Optional(CONF_PASSWORD): string,
+        Optional(CONF_PATH): string,
     }
 )
 LOCAL_SCHEMA = Schema(
