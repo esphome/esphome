@@ -121,4 +121,8 @@ def to_code(config):
     if CORE.is_esp8266 or CORE.is_esp32:
         cg.add_library("crankyoldgit/IRremoteESP8266", "2.8.4")
     elif CORE.is_libretiny:
-        cg.add_library("https://github.com/X-Ryl669/IRremoteESP8266.git#2.8.4")
+        cg.add_library(
+            name="IRremoteESP8266",
+            repository="https://github.com/X-Ryl669/IRremoteESP8266",
+            version="2.8.4",
+        )
