@@ -28,6 +28,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_GREEYAN, []() { return new GreeYANHeatpumpIR(); }},                            // NOLINT
     {PROTOCOL_GREEYAC, []() { return new GreeYACHeatpumpIR(); }},                            // NOLINT
     {PROTOCOL_GREEYT, []() { return new GreeYTHeatpumpIR(); }},                              // NOLINT
+    {PROTOCOL_GREEYAP, []() { return new GreeYAPHeatpumpIR(); }},                            // NOLINT
     {PROTOCOL_HISENSE_AUD, []() { return new HisenseHeatpumpIR(); }},                        // NOLINT
     {PROTOCOL_HITACHI, []() { return new HitachiHeatpumpIR(); }},                            // NOLINT
     {PROTOCOL_HYUNDAI, []() { return new HyundaiHeatpumpIR(); }},                            // NOLINT
@@ -44,6 +45,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_MITSUBISHI_MSC, []() { return new MitsubishiMSCHeatpumpIR(); }},               // NOLINT
     {PROTOCOL_MITSUBISHI_MSY, []() { return new MitsubishiMSYHeatpumpIR(); }},               // NOLINT
     {PROTOCOL_MITSUBISHI_SEZ, []() { return new MitsubishiSEZKDXXHeatpumpIR(); }},           // NOLINT
+    {PROTOCOL_NIBE, []() { return new NibeHeatpumpIR(); }},                                  // NOLINT
     {PROTOCOL_PANASONIC_CKP, []() { return new PanasonicCKPHeatpumpIR(); }},                 // NOLINT
     {PROTOCOL_PANASONIC_DKE, []() { return new PanasonicDKEHeatpumpIR(); }},                 // NOLINT
     {PROTOCOL_PANASONIC_JKE, []() { return new PanasonicJKEHeatpumpIR(); }},                 // NOLINT
