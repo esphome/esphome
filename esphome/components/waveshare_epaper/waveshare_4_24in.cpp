@@ -10,13 +10,13 @@ static const char *const TAG = "waveshare_epaper_4.26in";
 
 WaveshareEPaper4P26In::WaveshareEPaper4P26In() : WaveshareEPaper() { reset_duration_ = 20; }
 
-void WaveshareEPaper4P26In::init_display_async_(bool fast_update, const std::function<void()> f) {
+void WaveshareEPaper4P26In::init_display_async_(bool fast_update, const std::function<void()> &&f) {
   // Reset the display
   this->reset_();
-  wait_until_idle_async_([this, fast_update, f] {
+  wait_until_idle_async_([this, fast_update, f(std::move(f))] {
     this->command(0x12);  // SWRESET
 
-    wait_until_idle_async_([this, fast_update, f] {
+    wait_until_idle_async_([this, fast_update, f(std::move(f))] {
       // Use the internal temperature sensor
       this->command(0x18);
       this->data(0x80);
@@ -66,7 +66,7 @@ void WaveshareEPaper4P26In::init_display_async_(bool fast_update, const std::fun
       this->data(0x00);
 
       if (fast_update) {
-        this->wait_until_idle_async_([this, f] {
+        this->wait_until_idle_async_([this, f(std::move(f))] {
           this->command(0x1A);
           this->data(0x5A);
 
