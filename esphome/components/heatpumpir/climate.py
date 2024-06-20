@@ -123,6 +123,6 @@ def to_code(config):
     elif CORE.is_libretiny:
         cg.add_library(
             name="IRremoteESP8266",
-            repository="https://github.com/X-Ryl669/IRremoteESP8266#726b219a692b3aaf7aa8c41f9d2cf48f05231dc8",
-            version="2.8.4"
+            repository="https://github.com/X-Ryl669/IRremoteESP8266",
+            version="2.8.6"
         )
