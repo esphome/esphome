@@ -339,8 +339,8 @@ async def to_code(config):
     if CONF_TIME_SOURCE in config:
         rtc_component = await cg.get_variable(config[CONF_TIME_SOURCE])
         cg.add(getattr(muart_component, "set_time_source")(rtc_component))
-    elif CONF_UART_THERMOSTAT in config:
-        raise cv.RequiredFieldInvalid(f"{CONF_TIME_SOURCE} is required if {CONF_TS_UART} is set.")
+    elif CONF_UART_THERMOSTAT in config and not config.get(CONF_ENABLE_KUMO_EMULATION):
+        raise cv.RequiredFieldInvalid(f"{CONF_TIME_SOURCE} is required if {CONF_ENABLE_KUMO_EMULATION} is set.")
 
     # Traits
     traits = muart_component.config_traits()
