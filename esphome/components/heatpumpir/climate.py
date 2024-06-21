@@ -124,5 +124,5 @@ def to_code(config):
         cg.add_library(
             name="IRremoteESP8266",
             repository="https://github.com/X-Ryl669/IRremoteESP8266",
-            version="2.8.6"
+            version="2.8.6",
         )
