@@ -17,8 +17,10 @@ void GPIOOneWireBus::setup() {
 }
 
 void GPIOOneWireBus::loop() {
-  if (this->devices_.empty() && (this->retries_++ < 5))
+  if (this->devices_.empty() && (this->retries_ < 5)) {
+    this->retries_++;
     this->search();
+  }
 }
 
 bool GPIOOneWireBus::can_proceed() { return (!this->devices_.empty() || (this->retries_ >= 5)); }
