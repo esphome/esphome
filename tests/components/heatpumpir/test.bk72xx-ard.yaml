@@ -23,4 +23,4 @@ climate:
     vertical_default: up
     name: HeatpumpIR Climate
     min_temperature: 18
-    max_temperature: 30    
+    max_temperature: 30
