@@ -104,7 +104,6 @@ void HOT WaveshareEPaper4P26In::display() {
   this->is_busy_ = true;
 
   bool full_update = this->at_update_ == 0;
-  bool prev_full_update = this->at_update_ == 1;
 
   if (this->full_update_every_ >= 1) {
     this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
