@@ -5,8 +5,10 @@
 # pylint: disable=E0602
 Import("env")  # noqa
 
-env.Replace(
-  AS="ccache %s" % env["AS"],
-  CC="ccache %s" % env["CC"],
-  CXX="ccache %s" % env["CXX"],
-)
+ccache = env.WhereIs("ccache")
+if ccache is not None:
+    env.Replace(
+      AS="%s %s" % (ccache, env["AS"]),
+      CC="%s %s" % (ccache, env["CC"]),
+      CXX="%s %s" % (ccache, env["CXX"]),
+    )
