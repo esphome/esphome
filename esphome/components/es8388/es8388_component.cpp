@@ -13,10 +13,6 @@ static const char *const TAG = "es8388";
 #define ES8388_CLK_MODE_MASTER 1
 
 void ES8388Component::setup() {
-  // PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO0_U, FUNC_GPIO0_CLK_OUT1);
-  // PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO0_U, 1);
-  // WRITE_PERI_REG(PIN_CTRL, READ_PERI_REG(PIN_CTRL) & 0xFFFFFFF0);
-
   switch (this->preset_) {
     case ES8388Preset::RASPIAUDIO_MUSE_LUXE:
       this->setup_raspiaudio_muse_luxe();
@@ -53,16 +49,16 @@ void ES8388Component::dump_config() {
 void ES8388Component::setup_raspiaudio_muse_luxe() {
   bool error = false;
 
+  // reset
+  error = error || not this->write_byte(0, 0x80);
+  error = error || not this->write_byte(0, 0x00);
   // mute
   error = error || not this->write_byte(0x19, 0x04);
-
   // powerup
-  error = error || not this->write_byte(0x01, 0x50);  // LPVrefBuf - low power
-  error = error || not this->write_byte(0x02, 0x00);  // power up DAC/ADC without resetting DMS, DEM, filters & serial
-
-  // set CLK mode to slave
+  error = error || not this->write_byte(0x01, 0x50);
+  error = error || not this->write_byte(0x02, 0x00);
+  // worker mode
   error = error || not this->write_byte(0x08, 0x00);
-
   // DAC powerdown
   error = error || not this->write_byte(0x04, 0xC0);
   // vmidsel/500k ADC/DAC idem
@@ -85,25 +81,29 @@ void ES8388Component::setup_raspiaudio_muse_luxe() {
   error = error || not this->write_byte(0x1B, 0x00);
   error = error || not this->write_byte(0x1A, 0x00);
 
+  // mono (L+R)/2
+  error = error || not this->write_byte(29, 0x20);
   // ADC poweroff
-  error = error || not this->write_byte(0x03, 0xFF);
-  // ADC amp 24dB
-  error = error || not this->write_byte(0x09, 0x88);
-  // LINPUT1/RINPUT1
-  error = error || not this->write_byte(0x0A, 0x00);
-  // ADC mono left
-  error = error || not this->write_byte(0x0B, 0x02);
-  // i2S 16b
-  error = error || not this->write_byte(0x0C, 0x0C);
-  // MCLK 256
-  error = error || not this->write_byte(0x0D, 0x02);
-  // ADC Volume
-  error = error || not this->write_byte(0x10, 0x00);
-  error = error || not this->write_byte(0x11, 0x00);
-  // ALC OFF
-  error = error || not this->write_byte(0x03, 0x09);
-  error = error || not this->write_byte(0x2B, 0x80);
+  error = error || not this->write_byte(3, 0xFF);
+  // ADC micboost 21 dB
+  error = error || not this->write_byte(9, 0x77);
 
+  // LINPUT1/RINPUT1
+  error = error || not this->write_byte(10, 0x00);
+  // i2S 16b
+  error = error || not this->write_byte(12, 0x0C);
+  // MCLK 256
+  error = error || not this->write_byte(13, 0x02);
+  // ADC high pass filter
+  error = error || not this->write_byte(14, 0x30);
+  // ADC attenuation 0 dB
+  error = error || not this->write_byte(16, 0x00);
+  error = error || not this->write_byte(17, 0x00);
+
+  // noise gate -76.5dB
+  error = error || not this->write_byte(22, 0x03);
+  // ADC power
+  error = error || not this->write_byte(3, 0x00);
   error = error || not this->write_byte(0x02, 0xF0);
   delay(1);
   error = error || not this->write_byte(0x02, 0x00);
