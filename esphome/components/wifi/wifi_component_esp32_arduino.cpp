@@ -694,15 +694,15 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.netmask = network::IPAddress(255, 255, 255, 0);
   }
 
-  err = esp_netif_dhcpc_stop(s_ap_netif);
+  err = esp_netif_dhcps_stop(s_ap_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGV(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_netif_dhcps_stop failed: %s", esp_err_to_name(err));
     return false;
   }
 
   err = esp_netif_set_ip_info(s_ap_netif, &info);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_set_ip_info failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_set_ip_info failed! %d", err);
     return false;
   }
 
@@ -712,20 +712,20 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   start_address += 99;
   lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
-  start_address += 100;
+  start_address += 10;
   lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_dhcps_option failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_option failed! %d", err);
     return false;
   }
 
   err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_dhcps_start failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_start failed! %d", err);
     return false;
   }
 

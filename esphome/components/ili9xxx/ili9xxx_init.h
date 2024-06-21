@@ -370,6 +370,57 @@ static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
   0x00                  // End of list
 };
 
+static const uint8_t PROGMEM INITCMD_ST7735[] = {
+    ILI9XXX_SWRESET, 0,         // Soft reset, then delay 10ms
+    ILI9XXX_DELAY, 10,
+    ILI9XXX_SLPOUT  , 0,                // Exit Sleep, delay
+    ILI9XXX_DELAY, 10,
+    ILI9XXX_PIXFMT  , 1, 0x05,
+    ILI9XXX_FRMCTR1, 3, //  4: Frame rate control, 3 args + delay:
+    0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+    ILI9XXX_FRMCTR2, 3,              //  4: Framerate ctrl - idle mode, 3 args:
+    0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+    ILI9XXX_FRMCTR3, 6,              //  5: Framerate - partial mode, 6 args:
+    0x01, 0x2C, 0x2D,             //     Dot inversion mode
+    0x01, 0x2C, 0x2D,             //     Line inversion mode
+
+    ILI9XXX_INVCTR, 1,              //  7: Display inversion control, 1 arg:
+    0x7,                          //     Line inversion
+    ILI9XXX_PWCTR1,  3,              //  7: Power control, 3 args, no delay:
+    0xA2,
+    0x02,                         //     -4.6V
+    0x84,                         //     AUTO mode
+    ILI9XXX_PWCTR2,  1,              //  8: Power control, 1 arg, no delay:
+    0xC5,                         //     VGH25=2.4C VGSEL=-10 VGH=3 * AVDD
+    ILI9XXX_PWCTR3,  2,              //  9: Power control, 2 args, no delay:
+    0x0A,                         //     Opamp current small
+    0x00,                         //     Boost frequency
+    ILI9XXX_PWCTR4,  2,              // 10: Power control, 2 args, no delay:
+    0x8A,                         //     BCLK/2,
+    0x2A,                         //     opamp current small & medium low
+    ILI9XXX_PWCTR5,  2,              // 11: Power control, 2 args, no delay:
+    0x8A, 0xEE,
+
+    ILI9XXX_VMCTR1, 1, // 11: Power control, 2 args + delay:
+    0x0E,
+    ILI9XXX_GMCTRP1, 16,              // 13: Gamma Adjustments (pos. polarity), 16 args + delay:
+    0x02, 0x1c, 0x07, 0x12,       //     (Not entirely necessary, but provides
+    0x37, 0x32, 0x29, 0x2d,       //      accurate colors)
+    0x29, 0x25, 0x2B, 0x39,
+    0x00, 0x01, 0x03, 0x10,
+    ILI9XXX_GMCTRN1, 16, // 14: Gamma Adjustments (neg. polarity), 16 args + delay:
+    0x03, 0x1d, 0x07, 0x06,       //     (Not entirely necessary, but provides
+    0x2E, 0x2C, 0x29, 0x2D,       //      accurate colors)
+    0x2E, 0x2E, 0x37, 0x3F,
+    0x00, 0x00, 0x02, 0x10,
+    ILI9XXX_MADCTL  , 1, 0x00,             // Memory Access Control, BGR
+    ILI9XXX_NORON  , 0,
+    ILI9XXX_DELAY, 10,
+    ILI9XXX_DISPON  , 0,                // Display on
+    ILI9XXX_DELAY, 10,
+    00,   // endo of list
+};
+
 // clang-format on
 }  // namespace ili9xxx
 }  // namespace esphome
