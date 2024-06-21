@@ -7,19 +7,120 @@
 namespace esphome {
 namespace es8388 {
 
+static const char *const TAG = "es8388";
+
 #define ES8388_CLK_MODE_SLAVE 0
 #define ES8388_CLK_MODE_MASTER 1
 
 void ES8388Component::setup() {
-  int zerooo = 0;
-  int val = 2 / zerooo;
-  ESP_LOGW("ES8388", "Writing I2C registers");
-
   // PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO0_U, FUNC_GPIO0_CLK_OUT1);
   // PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO0_U, 1);
   // WRITE_PERI_REG(PIN_CTRL, READ_PERI_REG(PIN_CTRL) & 0xFFFFFFF0);
 
-  this->setup_raspiaudio_radio();
+  switch (this->preset_) {
+    case ES8388Preset::RASPIAUDIO_MUSE_LUXE:
+      this->setup_raspiaudio_muse_luxe();
+      break;
+
+    case ES8388Preset::RASPIAUDIO_RADIO:
+      this->setup_raspiaudio_radio();
+      break;
+
+    default:
+      if (!this->init_instructions_.empty()) {
+        for (std::array<uint8_t, 2> instruction : this->init_instructions_) {
+          if (this->write_byte(instruction[0], instruction[1]))
+            ESP_LOGW(TAG, "Error writing I2C instructions to ES8388: %#04x, %#04x", instruction[0], instruction[1]);
+        }
+      }
+      break;
+  }
+}
+
+void ES8388Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "ES8388:");
+  if (this->preset_) {
+    ESP_LOGCONFIG(TAG, "  Preset loaded: %#04x", this->preset_);
+  } else {
+    if (!this->init_instructions_.empty()) {
+      ESP_LOGCONFIG(TAG, "  %d initialization instructions found", this->init_instructions_.size());
+    } else {
+      ESP_LOGCONFIG(TAG, "  No initialization instructions found");
+    }
+  }
+}
+
+void ES8388Component::setup_raspiaudio_muse_luxe() {
+  bool error = false;
+
+  // mute
+  error = error || not this->write_byte(0x19, 0x04);
+
+  // powerup
+  error = error || not this->write_byte(0x01, 0x50);  // LPVrefBuf - low power
+  error = error || not this->write_byte(0x02, 0x00);  // power up DAC/ADC without resetting DMS, DEM, filters & serial
+
+  // set CLK mode to slave
+  error = error || not this->write_byte(0x08, 0x00);
+
+  // DAC powerdown
+  error = error || not this->write_byte(0x04, 0xC0);
+  // vmidsel/500k ADC/DAC idem
+  error = error || not this->write_byte(0x00, 0x12);
+
+  // i2s 16 bits
+  error = error || not this->write_byte(0x17, 0x18);
+  // sample freq 256
+  error = error || not this->write_byte(0x18, 0x02);
+  // LIN2/RIN2 for mixer
+  error = error || not this->write_byte(0x26, 0x00);
+  // left DAC to left mixer
+  error = error || not this->write_byte(0x27, 0x90);
+  // right DAC to right mixer
+  error = error || not this->write_byte(0x2A, 0x90);
+  // DACLRC ADCLRC idem
+  error = error || not this->write_byte(0x2B, 0x80);
+  error = error || not this->write_byte(0x2D, 0x00);
+  // DAC volume max
+  error = error || not this->write_byte(0x1B, 0x00);
+  error = error || not this->write_byte(0x1A, 0x00);
+
+  // ADC poweroff
+  error = error || not this->write_byte(0x03, 0xFF);
+  // ADC amp 24dB
+  error = error || not this->write_byte(0x09, 0x88);
+  // LINPUT1/RINPUT1
+  error = error || not this->write_byte(0x0A, 0x00);
+  // ADC mono left
+  error = error || not this->write_byte(0x0B, 0x02);
+  // i2S 16b
+  error = error || not this->write_byte(0x0C, 0x0C);
+  // MCLK 256
+  error = error || not this->write_byte(0x0D, 0x02);
+  // ADC Volume
+  error = error || not this->write_byte(0x10, 0x00);
+  error = error || not this->write_byte(0x11, 0x00);
+  // ALC OFF
+  error = error || not this->write_byte(0x03, 0x09);
+  error = error || not this->write_byte(0x2B, 0x80);
+
+  error = error || not this->write_byte(0x02, 0xF0);
+  delay(1);
+  error = error || not this->write_byte(0x02, 0x00);
+  // DAC power-up LOUT1/ROUT1 enabled
+  error = error || not this->write_byte(0x04, 0x30);
+  error = error || not this->write_byte(0x03, 0x00);
+  // DAC volume max
+  error = error || not this->write_byte(0x2E, 0x1C);
+  error = error || not this->write_byte(0x2F, 0x1C);
+  // unmute
+  error = error || not this->write_byte(0x19, 0x00);
+
+  if (error) {
+    ESP_LOGE(TAG, "Error writing I2C registers for preset Raspiaudio Muse Luxe");
+  } else {
+    ESP_LOGD(TAG, "I2C registers written successfully for preset Raspiaudio Muse Luxe");
+  }
 }
 
 void ES8388Component::setup_raspiaudio_radio() {
@@ -119,74 +220,31 @@ void ES8388Component::setup_raspiaudio_radio() {
   error = error || not this->write_byte(49, 33);
 
   if (error) {
-    ESP_LOGE("ES8388", "Error writing I2C registers!");
+    ESP_LOGE(TAG, "Error writing I2C registers for preset Raspiaudio Radio");
   } else {
-    ESP_LOGW("ES8388", "I2C registers written successfully");
+    ESP_LOGD(TAG, "I2C registers written successfully for preset Raspiaudio Radio");
   }
 }
 
-void ES8388Component::setup_raspiaudio_muse_luxe() {
-  // mute
-  this->mute();
+void ES8388Component::register_macro(std::string name, Instructions instructions) {
+  Macro macro;
+  macro.name = name;
+  macro.instructions = instructions;
+  this->macros_[name] = macro;
+}
 
-  // powerup
-  this->powerup();
-  this->clock_mode(ES8388_CLK_MODE_SLAVE);
+void ES8388Component::execute_macro(std::string name) {
+  if (this->macros_.count(name) == 0) {
+    ESP_LOGE(TAG, "Unable to execute macro `%s`: not found", name);
+    return;
+  }
 
-  bool error = false;
+  ESP_LOGD(TAG, "Calling ES8388 macro `%s` with %d I2C instructions", name, this->macros_[name].instructions.size());
 
-  // DAC powerdown
-  this->powerdown_dac();
-  // vmidsel/500k ADC/DAC idem
-  error = error || not this->write_byte(0x00, 0x12);
-
-  // i2s 16 bits
-  error = error || not this->write_byte(0x17, 0x18);
-  // sample freq 256
-  error = error || not this->write_byte(0x18, 0x02);
-  // LIN2/RIN2 for mixer
-  error = error || not this->write_byte(0x26, 0x00);
-  // left DAC to left mixer
-  error = error || not this->write_byte(0x27, 0x90);
-  // right DAC to right mixer
-  error = error || not this->write_byte(0x2A, 0x90);
-  // DACLRC ADCLRC idem
-  error = error || not this->write_byte(0x2B, 0x80);
-  error = error || not this->write_byte(0x2D, 0x00);
-  // DAC volume max
-  error = error || not this->write_byte(0x1B, 0x00);
-  error = error || not this->write_byte(0x1A, 0x00);
-
-  // ADC poweroff
-  error = error || not this->write_byte(0x03, 0xFF);
-  // ADC amp 24dB
-  error = error || not this->write_byte(0x09, 0x88);
-  // LINPUT1/RINPUT1
-  error = error || not this->write_byte(0x0A, 0x00);
-  // ADC mono left
-  error = error || not this->write_byte(0x0B, 0x02);
-  // i2S 16b
-  error = error || not this->write_byte(0x0C, 0x0C);
-  // MCLK 256
-  error = error || not this->write_byte(0x0D, 0x02);
-  // ADC Volume
-  error = error || not this->write_byte(0x10, 0x00);
-  error = error || not this->write_byte(0x11, 0x00);
-  // ALC OFF
-  error = error || not this->write_byte(0x03, 0x09);
-  error = error || not this->write_byte(0x2B, 0x80);
-
-  error = error || not this->write_byte(0x02, 0xF0);
-  delay(1);
-  error = error || not this->write_byte(0x02, 0x00);
-  // DAC power-up LOUT1/ROUT1 enabled
-  error = error || not this->write_byte(0x04, 0x30);
-  error = error || not this->write_byte(0x03, 0x00);
-  // DAC volume max
-  error = error || not this->write_byte(0x2E, 0x1C);
-  error = error || not this->write_byte(0x2F, 0x1C);
-  // unmute
-  error = error || not this->write_byte(0x19, 0x00);
+  for (std::array<uint8_t, 2> instruction : this->macros_[name].instructions) {
+    if (this->write_byte(instruction[0], instruction[1]))
+      ESP_LOGW(TAG, "Error writing I2C instructions to ES8388: %#04x, %#04x", instruction[0], instruction[1]);
+  }
 }
 
 void ES8388Component::powerup_dac() { this->write_byte(0x04, 0x3B); }
