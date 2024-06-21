@@ -1,2 +1,0 @@
-CODEOWNERS = ["@optimusprimespace"]
-CODEOWNERS = ["@ssieb"]
