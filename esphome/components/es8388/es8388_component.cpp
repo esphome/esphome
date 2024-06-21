@@ -239,7 +239,8 @@ void ES8388Component::execute_macro(std::string name) {
     return;
   }
 
-  ESP_LOGD(TAG, "Calling ES8388 macro `%s` with %d I2C instructions", name, this->macros_[name].instructions.size());
+  ESP_LOGD(TAG, "Calling ES8388 macro `%s` with %d I2C instructions", name.c_str(),
+           this->macros_[name].instructions.size());
 
   for (std::array<uint8_t, 2> instruction : this->macros_[name].instructions) {
     if (this->write_byte(instruction[0], instruction[1]))
