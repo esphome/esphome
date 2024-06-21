@@ -30,18 +30,6 @@ class ES8388Component : public Component, public i2c::I2CDevice {
   void register_macro(std::string name, Instructions instructions);
   void execute_macro(std::string name);
 
-  void powerup_dac();
-  // void powerup_adc();
-  void powerup();
-
-  void powerdown_dac();
-  void powerdown_adc();
-  void powerdown();
-
-  void clock_mode(uint8_t mode);
-
-  void mute();
-
  protected:
   void setup_raspiaudio_radio();
   void setup_raspiaudio_muse_luxe();

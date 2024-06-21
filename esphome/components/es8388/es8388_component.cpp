@@ -248,30 +248,5 @@ void ES8388Component::execute_macro(std::string name) {
   }
 }
 
-void ES8388Component::powerup_dac() { this->write_byte(0x04, 0x3B); }
-// void ES8388Component::powerup_adc() {}
-void ES8388Component::powerup() {
-  this->write_byte(0x01, 0x50);  // LPVrefBuf - low power
-  this->write_byte(0x02, 0x00);  // power up DAC/ADC without resetting DMS, DEM, filters & serial
-}
-
-void ES8388Component::powerdown_dac() { this->write_byte(0x04, 0xC0); }
-void ES8388Component::powerdown_adc() {}
-void ES8388Component::powerdown() {
-  this->powerdown_dac();
-  this->powerdown_adc();
-}
-
-void ES8388Component::clock_mode(uint8_t mode) {
-  if (mode == ES8388_CLK_MODE_SLAVE) {
-    this->write_byte(0x08, 0x00);
-  } else {
-    this->write_byte(0x08, 0x80);
-    // TODO multipliers
-  }
-}
-
-void ES8388Component::mute() { this->write_byte(0x19, 0x04); }
-
 }  // namespace es8388
 }  // namespace esphome
