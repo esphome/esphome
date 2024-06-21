@@ -169,7 +169,7 @@ void WaveshareEPaperBase::wait_until_idle_async_(const std::function<void()> &&f
     return f();
   }
 
-  this->set_timeout(20, [this, f(std::move(f))] { this->wait_until_idle_async_(std::move(f)); });
+  this->set_timeout(20, [this, f] { this->wait_until_idle_async_(std::move(f)); });
 }
 
 void WaveshareEPaperBase::update() {
