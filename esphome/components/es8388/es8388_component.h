@@ -52,19 +52,11 @@ class ES8388Component : public Component, public i2c::I2CDevice {
 
 template<typename... Ts> class ES8388MacroAction : public Action<Ts...>, public Parented<ES8388Component> {
  public:
-  //   TEMPLATABLE_VALUE(int8_t, hw_frontend_reset)
   TEMPLATABLE_VALUE(std::string, macro_id)
-  //   TEMPLATABLE_VALUE(int, sensing_distance)
-  //   TEMPLATABLE_VALUE(int, poweron_selfcheck_time)
-  //   TEMPLATABLE_VALUE(int, power_consumption)
-  //   TEMPLATABLE_VALUE(int, protect_time)
-  //   TEMPLATABLE_VALUE(int, trigger_base)
-  //   TEMPLATABLE_VALUE(int, trigger_keep)
-  //   TEMPLATABLE_VALUE(int, stage_gain)
 
   void play(Ts... x) {
     if (this->macro_id_.has_value()) {
-      std::string macro_id = this->macro_.value(x...);
+      std::string macro_id = this->macro_id_.value(x...);
       this->parent_->execute_macro(macro_id);
     }
   }

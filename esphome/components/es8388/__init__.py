@@ -78,5 +78,5 @@ async def execute_macro_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ES8388_ID])
 
-    cg.add(var.set_id(config[CONF_ID]))
+    cg.add(var.set_macro_id(config[CONF_ID]))
     return var
