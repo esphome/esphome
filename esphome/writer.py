@@ -142,6 +142,9 @@ def get_ini_content():
     # Sort to avoid changing build flags order
     CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
+    CORE.add_platformio_option("board_build.cmake_extra_args", "-DCCACHE_ENABLE=ON")
+    CORE.add_platformio_option("extra_scripts", ["post:use_ccache.py"])
+
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 
@@ -290,6 +293,10 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
+
+    dir = os.path.dirname(__file__)
+    use_ccache_file = os.path.join(dir, "use_ccache.py.script")
+    copy_file_if_changed(use_ccache_file, CORE.relative_build_path("use_ccache.py"))
 
     if CORE.is_esp32:
         from esphome.components.esp32 import copy_files
