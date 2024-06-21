@@ -79,10 +79,11 @@ uart:
     sequence:
       - lambda: UARTDebug::log_hex(direction, bytes, ':');
 
+safe_mode:
+
 ota:
-  safe_mode: true
-  port: 3286
-  num_attempts: 15
+  - platform: esphome
+    port: 3286
 
 logger:
   level: DEBUG
