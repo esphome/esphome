@@ -4,11 +4,13 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_FIRMWARE,
+    ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -41,6 +43,9 @@ UPDATE_SCHEMA = (
             cv.Optional(CONF_ON_UPDATE_AVAILABLE): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(
+                CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
+            ): cv.entity_category,
         }
     )
 )
