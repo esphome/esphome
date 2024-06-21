@@ -110,7 +110,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     return nullptr;
   }
 
-  ESP_LOGV(TAG, "HTTP Request body written: %" PRId32, body_len);
+  ESP_LOGV(TAG, "HTTP Request body written: %d", body_len);
 
   container->content_length = esp_http_client_fetch_headers(client);
   if (esp_http_client_is_chunked_response(client)) {
@@ -122,7 +122,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   const auto status_code = esp_http_client_get_status_code(client);
   container->status_code = status_code;
 
-  ESP_LOGD(TAG, "Status %" PRId32, status_code);
+  ESP_LOGD(TAG, "Status %d", status_code);
 
   if (status_code < 200 || status_code >= 300) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), status_code);
@@ -160,7 +160,7 @@ void HttpContainerIDF::end() {
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
 
-  ESP_LOGV(TAG, "HTTP Request ended: %" PRId32, this->status_code);
+  ESP_LOGV(TAG, "HTTP Request ended: %d", this->status_code);
 }
 
 }  // namespace http_request
