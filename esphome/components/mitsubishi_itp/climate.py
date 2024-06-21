@@ -74,7 +74,9 @@ CONF_TEMPERATURE_SOURCES = (
 )
 
 CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
-CONF_ENHANCED_MHK_SUPPORT = "enhanced_mhk"  # EXPERIMENTAL. Will be set to default eventually.
+CONF_ENHANCED_MHK_SUPPORT = (
+    "enhanced_mhk"  # EXPERIMENTAL. Will be set to default eventually.
+)
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -172,14 +174,14 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
                 state_class=STATE_CLASS_MEASUREMENT,
                 accuracy_decimals=0,
             ),
-            sensor.register_sensor
+            sensor.register_sensor,
         ),
         CONF_THERMOSTAT_BATTERY: (
             "Thermostat Battery",
             text_sensor.text_sensor_schema(
                 icon="mdi:battery",
             ),
-            text_sensor.register_text_sensor
+            text_sensor.register_text_sensor,
         ),
         "compressor_frequency": (
             "Compressor Frequency",
@@ -340,7 +342,9 @@ async def to_code(config):
         rtc_component = await cg.get_variable(config[CONF_TIME_SOURCE])
         cg.add(getattr(muart_component, "set_time_source")(rtc_component))
     elif CONF_UART_THERMOSTAT in config and config.get(CONF_ENHANCED_MHK_SUPPORT):
-        raise cv.RequiredFieldInvalid(f"{CONF_TIME_SOURCE} is required if {CONF_ENHANCED_MHK_SUPPORT} is set.")
+        raise cv.RequiredFieldInvalid(
+            f"{CONF_TIME_SOURCE} is required if {CONF_ENHANCED_MHK_SUPPORT} is set."
+        )
 
     # Traits
     traits = muart_component.config_traits()
@@ -362,8 +366,14 @@ async def to_code(config):
         registration_function,
     ) in SENSORS.items():
         # Only add the thermostat temp if we have a TS_UART
-        if ((CONF_UART_THERMOSTAT not in config) and
-                (sensor_designator in [CONF_THERMOSTAT_TEMPERATURE, CONF_THERMOSTAT_HUMIDITY, CONF_THERMOSTAT_BATTERY])):
+        if (CONF_UART_THERMOSTAT not in config) and (
+            sensor_designator
+            in [
+                CONF_THERMOSTAT_TEMPERATURE,
+                CONF_THERMOSTAT_HUMIDITY,
+                CONF_THERMOSTAT_BATTERY,
+            ]
+        ):
             continue
 
         sensor_conf = config[CONF_SENSORS][sensor_designator]
@@ -424,4 +434,6 @@ async def to_code(config):
         cg.add(getattr(muart_component, "set_active_mode")(not dam_conf))
 
     if enhanced_mhk_protocol := config.get(CONF_ENHANCED_MHK_SUPPORT):
-        cg.add(getattr(muart_component, "set_enhanced_mhk_support")(enhanced_mhk_protocol))
+        cg.add(
+            getattr(muart_component, "set_enhanced_mhk_support")(enhanced_mhk_protocol)
+        )
