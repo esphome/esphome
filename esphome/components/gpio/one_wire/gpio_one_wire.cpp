@@ -9,6 +9,10 @@ static const char *const TAG = "gpio.one_wire";
 
 void GPIOOneWireBus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up 1-wire bus...");
+  this->t_pin_->setup();
+  // clear bus with 480µs high, otherwise initial reset in search might fail
+  this->t_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  delayMicroseconds(480);
   this->search();
 }
 
@@ -21,6 +25,7 @@ bool GPIOOneWireBus::can_proceed() { return (!this->devices_.empty() || (this->r
 
 void GPIOOneWireBus::dump_config() {
   ESP_LOGCONFIG(TAG, "GPIO 1-wire bus:");
+  ESP_LOGCONFIG(TAG, "  %d retries required", this->retries_);
   LOG_PIN("  Pin: ", this->t_pin_);
   this->dump_devices_(TAG);
 }
