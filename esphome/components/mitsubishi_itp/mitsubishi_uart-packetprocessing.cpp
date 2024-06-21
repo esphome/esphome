@@ -388,9 +388,11 @@ void MitsubishiUART::process_packet(const RemoteTemperatureSetRequestPacket &pac
 
 void MitsubishiUART::process_packet(const ThermostatSensorStatusPacket &packet) {
   if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
     route_packet_(packet);
     return;
-  };
+  }
 
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
@@ -411,20 +413,23 @@ void MitsubishiUART::process_packet(const ThermostatSensorStatusPacket &packet) 
 
 void MitsubishiUART::process_packet(const ThermostatHelloPacket &packet) {
   if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
     route_packet_(packet);
     return;
-  };
+  }
 
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
-
   ts_bridge_->send_packet(SetResponsePacket());
 }
 
 void MitsubishiUART::process_packet(const ThermostatStateUploadPacket &packet) {
   if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
     route_packet_(packet);
     return;
-  };
+  }
 
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
@@ -436,9 +441,11 @@ void MitsubishiUART::process_packet(const ThermostatStateUploadPacket &packet) {
 
 void MitsubishiUART::process_packet(const ThermostatAASetRequestPacket &packet) {
   if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
     route_packet_(packet);
     return;
-  };
+  }
 
   ESP_LOGV(TAG, "Processing inbound ThermostatAASetRequestPacket: %s", packet.to_string().c_str());
 
