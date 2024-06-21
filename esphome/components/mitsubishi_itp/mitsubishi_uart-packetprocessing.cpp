@@ -25,7 +25,7 @@ void MitsubishiUART::process_packet(const Packet &packet) {
 void MitsubishiUART::process_packet(const ConnectRequestPacket &packet) {
   // Nothing to be done for these except forward them along from thermostat to heat pump.
   // This method defined so that these packets are not "unhandled"
-  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+  ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
   route_packet_(packet);
 };
 void MitsubishiUART::process_packet(const ConnectResponsePacket &packet) {
@@ -39,7 +39,7 @@ void MitsubishiUART::process_packet(const ConnectResponsePacket &packet) {
 void MitsubishiUART::process_packet(const CapabilitiesRequestPacket &packet) {
   // Nothing to be done for these except forward them along from thermostat to heat pump.
   // This method defined so that these packets are not "unhandled"
-  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+  ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
   route_packet_(packet);
 };
 void MitsubishiUART::process_packet(const CapabilitiesResponsePacket &packet) {
@@ -356,7 +356,7 @@ void MitsubishiUART::process_packet(const ErrorStateGetResponsePacket &packet) {
 }
 
 void MitsubishiUART::process_packet(const SettingsSetRequestPacket &packet) {
-  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+  ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
 
   // forward this packet as-is; we're just intercepting to log.
   route_packet_(packet);
@@ -447,7 +447,7 @@ void MitsubishiUART::process_packet(const ThermostatAASetRequestPacket &packet) 
     return;
   }
 
-  ESP_LOGV(TAG, "Processing inbound ThermostatAASetRequestPacket: %s", packet.to_string().c_str());
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
   ts_bridge_->send_packet(SetResponsePacket());
 }
