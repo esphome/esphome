@@ -42,7 +42,6 @@ AUTO_LOAD = [
 ]
 DEPENDENCIES = [
     "uart",
-    "time",
     "climate",
     "sensor",
     "binary_sensor",
