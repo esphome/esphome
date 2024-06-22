@@ -102,9 +102,7 @@ class CapabilitiesRequestPacket : public Packet {
   using Packet::Packet;
 
  private:
-  CapabilitiesRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) {
-    pkt_.set_payload_byte(0, 0xc9);
-  }
+  CapabilitiesRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) { pkt_.set_payload_byte(0, 0xc9); }
 };
 
 class CapabilitiesResponsePacket : public Packet {
@@ -158,9 +156,7 @@ class IdentifyCDRequestPacket : public Packet {
   using Packet::Packet;
 
  private:
-  IdentifyCDRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) {
-    pkt_.set_payload_byte(0, 0xCD);
-  }
+  IdentifyCDRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) { pkt_.set_payload_byte(0, 0xCD); }
 };
 
 class IdentifyCDResponsePacket : public Packet {
@@ -363,7 +359,9 @@ class SettingsSetRequestPacket : public Packet {
   ModeByte get_mode() const { return (ModeByte) pkt_.get_payload_byte(PLINDEX_MODE); }
   FanByte get_fan() const { return (FanByte) pkt_.get_payload_byte(PLINDEX_FAN); }
   VaneByte get_vane() const { return (VaneByte) pkt_.get_payload_byte(PLINDEX_VANE); }
-  HorizontalVaneByte get_horizontal_vane() const { return (HorizontalVaneByte) (pkt_.get_payload_byte(PLINDEX_HORIZONTAL_VANE) & 0x7F); }
+  HorizontalVaneByte get_horizontal_vane() const {
+    return (HorizontalVaneByte) (pkt_.get_payload_byte(PLINDEX_HORIZONTAL_VANE) & 0x7F);
+  }
   bool get_horizontal_vane_msb() const { return pkt_.get_payload_byte(PLINDEX_HORIZONTAL_VANE) & 0x80; }
 
   float get_target_temp() const;
@@ -442,7 +440,9 @@ class ThermostatSensorStatusPacket : public Packet {
   }
 
   uint8_t get_indoor_humidity_percent() const { return pkt_.get_payload_byte(5); }
-  ThermostatBatteryState get_thermostat_battery_state() const { return (ThermostatBatteryState) pkt_.get_payload_byte(6); }
+  ThermostatBatteryState get_thermostat_battery_state() const {
+    return (ThermostatBatteryState) pkt_.get_payload_byte(6);
+  }
   uint8_t get_sensor_flags() const { return pkt_.get_payload_byte(7); }
 
   std::string to_string() const override;
@@ -486,7 +486,7 @@ class ThermostatStateUploadPacket : public Packet {
     pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::THERMOSTAT_STATE_UPLOAD));
   }
 
-  int32_t get_thermostat_timestamp(ESPTime* outTimestamp) const;
+  int32_t get_thermostat_timestamp(ESPTime *outTimestamp) const;
   uint8_t get_auto_mode() const;
   float get_heat_setpoint() const;
   float get_cool_setpoint() const;
@@ -509,8 +509,8 @@ class ThermostatStateDownloadResponsePacket : public Packet {
 
   ThermostatStateDownloadResponsePacket &set_timestamp(ESPTime ts);
   ThermostatStateDownloadResponsePacket &set_auto_mode(bool is_auto);
-  ThermostatStateDownloadResponsePacket &set_heat_setpoint(float highTemp);
-  ThermostatStateDownloadResponsePacket &set_cool_setpoint(float lowTemp);
+  ThermostatStateDownloadResponsePacket &set_heat_setpoint(float high_temp);
+  ThermostatStateDownloadResponsePacket &set_cool_setpoint(float low_temp);
 };
 
 class ThermostatAASetRequestPacket : public Packet {

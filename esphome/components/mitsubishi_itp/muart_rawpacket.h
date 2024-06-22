@@ -100,7 +100,9 @@ class RawPacket {
   uint8_t get_payload_byte(const uint8_t payload_byte_index) const {
     return packet_bytes_[PACKET_HEADER_SIZE + payload_byte_index];
   };
-  const uint8_t *get_payload_bytes(size_t startIndex = 0) const { return &packet_bytes_[PACKET_HEADER_SIZE + startIndex]; }
+  const uint8_t *get_payload_bytes(size_t startIndex = 0) const {
+    return &packet_bytes_[PACKET_HEADER_SIZE + startIndex];
+  }
 
  private:
   static const int PLINDEX_COMMAND = 0;

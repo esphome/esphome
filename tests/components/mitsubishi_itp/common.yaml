@@ -1,3 +1,14 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    timezone: America/Los_Angeles
+
 sensor:
   - platform: template
     id: fake_temp
@@ -25,6 +36,7 @@ climate:
   - platform: mitsubishi_itp
     uart_heatpump: hp_uart
     uart_thermostat: tstat_uart
+    time_source: homeassistant_time
     update_interval: 12s
     temperature_sources:
       - fake_temp
