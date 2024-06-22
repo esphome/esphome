@@ -25,31 +25,6 @@ esphome:
     then:
       - lambda: >-
           ESP_LOGV("main", "ON LOOP!");
-      - http_request.get:
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          verify_ssl: false
-      - http_request.post:
-          url: https://esphome.io
-          verify_ssl: false
-          json:
-            key: !lambda |-
-              return id(${textname}_text).state;
-            greeting: Hello World
-      - http_request.send:
-          method: PUT
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          body: Some data
-          verify_ssl: false
-          on_response:
-            then:
-              - logger.log:
-                  format: "Response status: %d"
-                  args:
-                    - status_code
   build_path: build/test1
 
 packages:
@@ -83,10 +58,6 @@ network:
 
 mdns:
   disabled: false
-
-http_request:
-  useragent: esphome/device
-  timeout: 10s
 
 mqtt:
   broker: "192.168.178.84"
@@ -343,11 +314,6 @@ as5600:
   hysteresis: lsb1
   slow_filter: 8x
   fast_filter: lsb6
-
-dallas:
-  pin:
-    allow_other_uses: true
-    number: GPIO23
 
 as3935_spi:
   cs_pin:
@@ -743,13 +709,6 @@ sensor:
     update_interval: 15s
     iir_filter: 16x
     i2c_id: i2c_bus
-  - platform: dallas
-    address: 0x1C0000031EDD2A28
-    name: Living Room Temperature
-    resolution: 9
-  - platform: dallas
-    index: 1
-    name: Living Room Temperature 2
   - platform: dht
     pin:
       allow_other_uses: true
