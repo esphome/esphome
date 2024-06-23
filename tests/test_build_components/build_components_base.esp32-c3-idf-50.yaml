@@ -1,12 +1,13 @@
 esphome:
-  name: componenttestrp2040
+  name: componenttestesp32c3idf50
   friendly_name: $component_name
 
-rp2040:
-  board: rpipicow
+esp32:
+  board: lolin_c3_mini
   framework:
-    # Waiting for https://github.com/platformio/platform-raspberrypi/pull/36
-    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+    type: esp-idf
+    version: 5.0.2
+    platform_version: 6.3.2
 
 logger:
   level: VERY_VERBOSE

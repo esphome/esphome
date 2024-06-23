@@ -58,17 +58,21 @@ def merge_config(full_old, full_new):
             ids = {
                 v_id: i
                 for i, v in enumerate(res)
-                if (v_id := v.get(CONF_ID)) and isinstance(v_id, str)
+                if isinstance(v, dict)
+                and (v_id := v.get(CONF_ID))
+                and isinstance(v_id, str)
             }
             extend_ids = {
                 v_id.value: i
                 for i, v in enumerate(res)
-                if (v_id := v.get(CONF_ID)) and isinstance(v_id, Extend)
+                if isinstance(v, dict)
+                and (v_id := v.get(CONF_ID))
+                and isinstance(v_id, Extend)
             }
 
             ids_to_delete = []
             for v in new:
-                if new_id := v.get(CONF_ID):
+                if isinstance(v, dict) and (new_id := v.get(CONF_ID)):
                     if isinstance(new_id, Extend):
                         new_id = new_id.value
                         if new_id in ids:
