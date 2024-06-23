@@ -77,7 +77,7 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     float rel = this->relative_brightness_.value(x...);
     float cur;
     this->parent_->remote_values.as_brightness(&cur);
-    float new_brightness = clamp(cur + rel, min_brightness, max_brightness);
+    float new_brightness = clamp(cur + rel, min_brightness_, max_brightness_);
     call.set_state(new_brightness != 0.0f);
     call.set_brightness(new_brightness);
 
@@ -86,14 +86,14 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
   }
 
   void set_min_max_brightness(float min, float max) {
-    this->min_brightness = min;
-    this->max_brightness = max;
+    this->min_brightness_ = min;
+    this->max_brightness_ = max;
   }
 
  protected:
   LightState *parent_;
-  float min_brightness{0.0};
-  float max_brightness{1.0};
+  float min_brightness_{0.0};
+  float max_brightness_{1.0};
 };
 
 template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
