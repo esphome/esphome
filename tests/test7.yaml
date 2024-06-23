@@ -1,7 +1,7 @@
 # Tests for ESP32-C3 boards which use toolchain-riscv32-esp
 ---
 wifi:
-  ssid: 'ssid'
+  ssid: "ssid"
 
 network:
   enable_ipv6: true
@@ -12,30 +12,11 @@ esp32:
     type: arduino
 
 esphome:
-  name: 'on-response-test'
-  on_boot:
-    then:
-      - http_request.send:
-          method: PUT
-          url: https://esphome.io
-          headers:
-            Content-Type: application/json
-          body: Some data
-          verify_ssl: false
-          on_response:
-            then:
-              - logger.log:
-                  format: "Response status: %d"
-                  args:
-                    - status_code
+  name: test7
 
 logger:
 
 debug:
-
-http_request:
-  useragent: esphome/tagreader
-  timeout: 10s
 
 sensor:
   - platform: adc
