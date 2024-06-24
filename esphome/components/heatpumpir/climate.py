@@ -71,7 +71,7 @@ PROTOCOLS = {
     "samsung_aqv12msan": Protocol.PROTOCOL_SAMSUNG_AQV12MSAN,
     # "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     "zhjg01": Protocol.PROTOCOL_ZHJG01,
-    #"r51m": Protocol.PROTOCOL_R51M,
+    # "r51m": Protocol.PROTOCOL_R51M,
 }
 
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
