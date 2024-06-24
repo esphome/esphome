@@ -63,14 +63,14 @@ PROTOCOLS = {
     "toshiba": Protocol.PROTOCOL_TOSHIBA,
     "zhlt01": Protocol.PROTOCOL_ZHLT01,
     "nibe": Protocol.PROTOCOL_NIBE,
-    # "airway": Protocol.PROTOCOL_AIRWAY,
-    # "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
-    # "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
     "carrier_qlima_1": Protocol.PROTOCOL_QLIMA_1,
     "carrier_qlima_2": Protocol.PROTOCOL_QLIMA_2,
     "samsung_aqv12msan": Protocol.PROTOCOL_SAMSUNG_AQV12MSAN,
-    # "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     "zhjg01": Protocol.PROTOCOL_ZHJG01,
+    # "airway": Protocol.PROTOCOL_AIRWAY,
+    # "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
+    # "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
+    # "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     # "r51m": Protocol.PROTOCOL_R51M,
 }
 
