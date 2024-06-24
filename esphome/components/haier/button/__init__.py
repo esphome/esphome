@@ -21,7 +21,7 @@ ICON_SPRAY_BOTTLE = "mdi:spray-bottle"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_HAIER_ID): cv.use_id(HonClimate),
+        cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
         cv.Optional(CONF_SELF_CLEANING): button.button_schema(
             SelfCleaningButton,
             icon=ICON_SPRAY_BOTTLE,
