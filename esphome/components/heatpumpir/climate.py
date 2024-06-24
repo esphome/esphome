@@ -51,7 +51,6 @@ PROTOCOLS = {
     "mitsubishi_msc": Protocol.PROTOCOL_MITSUBISHI_MSC,
     "mitsubishi_msy": Protocol.PROTOCOL_MITSUBISHI_MSY,
     "mitsubishi_sez": Protocol.PROTOCOL_MITSUBISHI_SEZ,
-    "nibe": Protocol.PROTOCOL_NIBE,
     "panasonic_ckp": Protocol.PROTOCOL_PANASONIC_CKP,
     "panasonic_dke": Protocol.PROTOCOL_PANASONIC_DKE,
     "panasonic_jke": Protocol.PROTOCOL_PANASONIC_JKE,
@@ -63,6 +62,15 @@ PROTOCOLS = {
     "toshiba_daiseikai": Protocol.PROTOCOL_TOSHIBA_DAISEIKAI,
     "toshiba": Protocol.PROTOCOL_TOSHIBA,
     "zhlt01": Protocol.PROTOCOL_ZHLT01,
+    "nibe": Protocol.PROTOCOL_NIBE,
+    "airway": Protocol.PROTOCOL_AIRWAY,
+    "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
+    "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
+    "qlima_1": Protocol.PROTOCOL_QLIMA_1,
+    "qlima_2": Protocol.PROTOCOL_QLIMA_2,
+    "samsung_aqv12msan": Protocol.PROTOCOL_SAMSUNG_AQV12MSAN,
+    "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
+    "zhjg01": Protocol.PROTOCOL_ZHJG01,
 }
 
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
