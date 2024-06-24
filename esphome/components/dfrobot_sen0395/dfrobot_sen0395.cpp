@@ -84,6 +84,7 @@ uint8_t DfrobotSen0395Component::find_prompt_() {
 uint8_t DfrobotSen0395Component::send_cmd_(const char *cmd, uint32_t duration) {
   // The interval between two commands must be larger than the specified duration (in ms).
   if (millis() - ts_last_cmd_sent_ > duration) {
+    ESP_LOGV(TAG, "Command: %s", cmd);
     this->write_str(cmd);
     ts_last_cmd_sent_ = millis();
     return 1;  // Command sent
