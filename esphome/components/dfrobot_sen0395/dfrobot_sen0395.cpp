@@ -101,6 +101,26 @@ void DfrobotSen0395Component::set_detected_(bool detected) {
 #endif
 }
 
+void DfrobotSen0395Component::set_detected_target_distance_(int target, float value) {
+#ifdef USE_SENSOR
+  if (is_valid_target_(target)) {
+    if (detected_targets_distance_sensors_[target - 1]) {
+      detected_targets_distance_sensors_[target - 1]->publish_state(value);
+    }
+  }
+#endif
+}
+
+void DfrobotSen0395Component::set_detected_target_snr_(int target, float value) {
+#ifdef USE_SENSOR
+  if (is_valid_target_(target)) {
+    if (detected_targets_snr_sensors_[target - 1]) {
+      detected_targets_snr_sensors_[target - 1]->publish_state(value);
+    }
+  }
+#endif
+}
+
 int8_t CircularCommandQueue::enqueue(std::unique_ptr<Command> cmd) {
   if (this->is_full()) {
     ESP_LOGE(TAG, "Command queue is full");

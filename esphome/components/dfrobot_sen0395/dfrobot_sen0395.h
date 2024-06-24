@@ -139,6 +139,9 @@ class DfrobotSen0395Component : public uart::UARTDevice, public Component {
 
   void set_detected_(bool detected);
 
+  void set_detected_target_distance_(int target, float value);
+  void set_detected_target_snr_(int target, float value);
+
   bool is_valid_target_(int target) { return target >= 1 && target <= TARGET_COUNT; }
 
   friend class Command;
