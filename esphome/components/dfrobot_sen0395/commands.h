@@ -125,11 +125,14 @@ class LedModeCommand : public Command {
 class UartOutputCommand : public Command {
  public:
   UartOutputCommand(bool active) : active_(active) {
-    if (active) {
-      cmd_ = "setUartOutput 1 1";
-    } else {
-      cmd_ = "setUartOutput 1 0";
-    }
+    cmd_ = std::string("setUartOutput 1 ") + std::to_string((int) active);
+  };
+  UartOutputCommand(int type, bool active) : active_(active) {
+    cmd_ = std::string("setUartOutput ") + std::to_string(type) + " " + std::to_string((int) active);
+  };
+  UartOutputCommand(int type, bool active, bool auto_update, int interval) : active_(active) {
+    cmd_ = std::string("setUartOutput ") + std::to_string(type) + " " + std::to_string((int) active) + " " +
+           std::to_string((int) auto_update) + " " + std::to_string(interval);
   };
   uint8_t on_message(std::string &message) override;
 
