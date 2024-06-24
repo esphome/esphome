@@ -53,7 +53,7 @@ bool OpenTherm::initialize() {
 
 #ifdef ESP32
   return init_esp32_timer_();
-#elif 
+#elif
   return true;
 #endif
 }

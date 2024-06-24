@@ -221,7 +221,6 @@ void OpenthermHub::setup() {
   this->add_repeating_message(MessageId::STATUS);
 
   this->current_message_iterator_ = this->initial_messages_.begin();
-  
   initialized_ = true;
 }
 
@@ -233,7 +232,7 @@ void OpenthermHub::loop() {
 
   auto cur_time = millis();
   auto const cur_mode = opentherm_->get_mode();
-  switch (cur_mode) { 
+  switch (cur_mode) {
     case OperationMode::WRITE:
     case OperationMode::READ:
     case OperationMode::LISTEN:
@@ -243,9 +242,8 @@ void OpenthermHub::loop() {
                  "components that might slow the loop down.",
                  cur_time - last_conversation_start_);
         stop_opentherm_();
-        break;        
+        break;
       }
-      
       last_mode_ = cur_mode;
       break;
     case OperationMode::ERROR_PROTOCOL:
@@ -265,7 +263,6 @@ void OpenthermHub::loop() {
         ESP_LOGV(OT_TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
         break;
       }
-      
       start_conversation_();
       break;
     case OperationMode::SENT:
@@ -291,7 +288,6 @@ void OpenthermHub::start_conversation_() {
   ESP_LOGD(OT_TAG, "Sending request with id %d (%s)", request.id,
            opentherm_->message_id_to_str((MessageId) request.id));
   ESP_LOGD(OT_TAG, "%s", opentherm_->debug_data(request).c_str());
-  
   // Send the request
   last_conversation_start_ = millis();
   opentherm_->send(request);
@@ -329,7 +325,9 @@ void OpenthermHub::handle_protocol_read_error_() {
 }
 
 void OpenthermHub::handle_timeout_error() {
-  
+  ESP_LOGW(OT_TAG, "Receive response timed out at a protocol level");
+  stop_opentherm_();
+  return;
 }
 
 #define ID(x) x
