@@ -26,6 +26,13 @@ COLOR_MODES = {
     "RGB_COLD_WARM_WHITE": ColorMode.RGB_COLD_WARM_WHITE,
 }
 
+# Limit modes
+LimitMode = light_ns.enum("LimitMode", is_class=True)
+LIMIT_MODES = {
+    "CLAMP": LimitMode.CLAMP,
+    "DO_NOTHING": LimitMode.DO_NOTHING,
+}
+
 # Actions
 ToggleAction = light_ns.class_("ToggleAction", automation.Action)
 LightControlAction = light_ns.class_("LightControlAction", automation.Action)

@@ -7,6 +7,8 @@
 namespace esphome {
 namespace light {
 
+enum LimitMode { CLAMP, DO_NOTHING };
+
 template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(LightState *state) : state_(state) {}
@@ -78,6 +80,9 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     float cur;
     this->parent_->remote_values.as_brightness(&cur);
     float new_brightness = clamp(cur + rel, min_brightness_, max_brightness_);
+    if ((limit_mode_ == LimitMode::DO_NOTHING) && ((cur < min_brightness_) || (cur > max_brightness_))) {
+      return;
+    }
     call.set_state(new_brightness != 0.0f);
     call.set_brightness(new_brightness);
 
@@ -90,10 +95,13 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     this->max_brightness_ = max;
   }
 
+  void set_limit_mode(LimitMode limit_mode) { this->limit_mode_ = limit_mode; }
+
  protected:
   LightState *parent_;
   float min_brightness_{0.0};
   float max_brightness_{1.0};
+  LimitMode limit_mode_{LimitMode::CLAMP};
 };
 
 template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
