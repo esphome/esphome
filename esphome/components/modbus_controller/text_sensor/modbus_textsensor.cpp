@@ -30,7 +30,8 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
       // Anything else no encoding
       case RawEncoding::NONE:
       default:
-        output << (char) b;
+        if (b != 0)
+          output << (char) b;
         break;
     }
     items_left--;
