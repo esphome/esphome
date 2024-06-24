@@ -223,7 +223,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     case TuyaCommandType::DATAPOINT_DELIVER:
       break;
-    case TuyaCommandType::DATAPOINT_REPORT:
+    case TuyaCommandType::DATAPOINT_REPORT_ASYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
         this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
@@ -231,6 +231,9 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       this->handle_datapoints_(buffer, len);
       break;
+    case TuyaCommandType::DATAPOINT_REPORT_SYNC:
+      this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
+      this->handle_datapoints_(buffer, len);
     case TuyaCommandType::DATAPOINT_QUERY:
       break;
     case TuyaCommandType::WIFI_TEST:
@@ -423,7 +426,7 @@ void Tuya::send_raw_command_(TuyaCommand command) {
       break;
     case TuyaCommandType::DATAPOINT_DELIVER:
     case TuyaCommandType::DATAPOINT_QUERY:
-      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
+      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT_ASYNC;
       break;
     default:
       break;
