@@ -54,6 +54,7 @@ climate:
 
 sensor:
   - platform: haier
+    haier_id: haier_ac
     outdoor_temperature:
       name: Haier outdoor temperature
     humidity:
@@ -79,6 +80,7 @@ sensor:
 
 binary_sensor:
   - platform: haier
+    haier_id: haier_ac
     compressor_status:
       name: Haier Outdoor Compressor Status
     defrost_status:
@@ -94,6 +96,7 @@ binary_sensor:
 
 button:
   - platform: haier
+    haier_id: haier_ac
     self_cleaning:
       name: Haier start self cleaning
     steri_cleaning:
@@ -101,6 +104,7 @@ button:
 
 text_sensor:
   - platform: haier
+    haier_id: haier_ac
     appliance_name:
       name: Haier appliance name
     cleaning_status:

@@ -752,6 +752,7 @@ sensor:
       name: Kuntze temperature
 
   - platform: haier
+    haier_id: haier_climate
     compressor_current:
       name: Haier AC compressor current
     compressor_frequency:
@@ -842,6 +843,7 @@ binary_sensor:
       number: 3
 
   - platform: haier
+    haier_id: haier_climate
     compressor_status:
       name: Haier AC compressor status
     defrost_status:
