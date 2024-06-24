@@ -16,7 +16,7 @@
 
 #include "commands.h"
 
-#define TARGET_COUNT 9
+static const uint8_t TARGET_COUNT = 9;
 
 namespace esphome {
 namespace dfrobot_sen0395 {

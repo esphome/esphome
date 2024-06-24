@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.sensor import (
-    validate_unit_of_measurement,
     validate_device_class,
+    validate_unit_of_measurement,
 )
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -13,11 +13,12 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
 )
+
 from . import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component
 
 DEPENDENCIES = ["dfrobot_sen0395"]
 
-CONF_TARGET_NUMBER = "target"
+CONF_TARGET = "target"
 
 _SENSOR_SCHEMA = (
     sensor.sensor_schema(
@@ -28,7 +29,7 @@ _SENSOR_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_DFROBOT_SEN0395_ID): cv.use_id(DfrobotSen0395Component),
-            cv.Required(CONF_TARGET_NUMBER): cv.int_range(min=1, max=9),
+            cv.Required(CONF_TARGET): cv.int_range(min=1, max=9),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -57,13 +58,7 @@ async def to_code(config):
 
     if config[CONF_TYPE] == "distance":
         cg.add(
-            parent.set_detected_target_distance_sensor(
-                config[CONF_TARGET_NUMBER], binary_sens
-            )
+            parent.set_detected_target_distance_sensor(config[CONF_TARGET], binary_sens)
         )
     elif config[CONF_TYPE] == "SNR":
-        cg.add(
-            parent.set_detected_target_snr_sensor(
-                config[CONF_TARGET_NUMBER], binary_sens
-            )
-        )
+        cg.add(parent.set_detected_target_snr_sensor(config[CONF_TARGET], binary_sens))
