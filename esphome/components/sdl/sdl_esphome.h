@@ -1,10 +1,11 @@
 #pragma once
 
 #ifdef USE_HOST
+#include "esphome/components/display/display.h"
+#include "esphome/components/key_provider/key_provider.h"
+#include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include "esphome/components/display/display.h"
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
 
@@ -13,7 +14,7 @@ namespace sdl {
 
 constexpr static const char *const TAG = "sdl";
 
-class Sdl : public display::Display {
+class Sdl : public display::Display, public key_provider::KeyProvider {
  public:
   display::DisplayType get_display_type() override { return display::DISPLAY_TYPE_COLOR; }
   void update() override;

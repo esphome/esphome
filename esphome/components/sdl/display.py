@@ -2,7 +2,7 @@ import subprocess
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import display
+from esphome.components import display, key_provider
 from esphome.const import (
     CONF_ID,
     CONF_DIMENSIONS,
@@ -12,8 +12,10 @@ from esphome.const import (
     PLATFORM_HOST,
 )
 
+AUTO_LOAD = ["key_provider"]
+
 sdl_ns = cg.esphome_ns.namespace("sdl")
-Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component)
+Sdl = sdl_ns.class_("Sdl", display.Display, key_provider.KeyProvider)
 
 
 CONF_SDL_OPTIONS = "sdl_options"

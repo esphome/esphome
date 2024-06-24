@@ -84,6 +84,10 @@ void Sdl::loop() {
         }
         break;
 
+      case SDL_KEYUP:
+        this->send_key_(e.key.keysym.sym);
+        break;
+
       default:
         ESP_LOGV(TAG, "Event %d", e.type);
         break;
