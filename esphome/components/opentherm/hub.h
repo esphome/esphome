@@ -106,15 +106,24 @@ class OpenthermHub : public Component {
   // and boiler parameters (like the setpoint).
   std::unordered_set<MessageId> repeating_messages_;
   // Indicates if we are still working on the initial requests or not
-  bool initializing_ = true;
+  bool sending_initial_ = true;
   // Index for the current request in one of the _requests sets.
   std::unordered_set<MessageId>::const_iterator current_message_iterator_;
 
   uint32_t last_conversation_start_ = 0;
   uint32_t last_conversation_end_ = 0;
+  OperationMode last_mode_ = IDLE;
+  OpenthermData last_request_;
+  bool initialized_ = false;
 
   // Create OpenTherm messages based on the message id
   OpenthermData build_request_(MessageId request_id);
+  void handle_protocol_write_error_();
+  void handle_protocol_read_error_();
+  void handle_timeout_error();
+  void stop_opentherm_();
+  void start_conversation_();
+  void read_response_();
 
   template<typename F> bool spin_wait_(uint32_t timeout, F func) {
     auto start_time = millis();
