@@ -7,6 +7,7 @@ from esphome.components.sensor import (
 )
 from esphome.const import (
     CONF_DEVICE_CLASS,
+    CONF_TARGET,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     DEVICE_CLASS_DISTANCE,
@@ -17,8 +18,6 @@ from esphome.const import (
 from . import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component
 
 DEPENDENCIES = ["dfrobot_sen0395"]
-
-CONF_TARGET = "target"
 
 _SENSOR_SCHEMA = (
     sensor.sensor_schema(
