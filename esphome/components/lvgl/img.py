@@ -14,6 +14,7 @@ from .defines import (
 )
 from .lv_validation import size, angle, zoom, lv_bool, requires_component
 from .types import lv_img_t
+from .helpers import add_lv_use
 from .widget import Widget, WidgetType
 
 IMG_SCHEMA = {
@@ -38,6 +39,7 @@ class ImgType(WidgetType):
         return lv_img_t
 
     async def to_code(self, w: Widget, config):
+        add_lv_use("label")
         init = []
         if src := config.get(CONF_SRC):
             init.extend(w.set_property(CONF_SRC, f"lv_img_from({src})"))

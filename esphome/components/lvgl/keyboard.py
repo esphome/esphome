@@ -2,6 +2,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_MODE
 from .defines import CONF_KEYBOARD, KEYBOARD_MODES, CONF_TEXTAREA
 from .types import lv_textarea_t, lv_keyboard_t
+from .helpers import add_lv_use
 from .widget import get_widget, Widget, WidgetType
 
 KEYBOARD_SCHEMA = {
@@ -23,6 +24,8 @@ class KeyboardType(WidgetType):
 
     async def to_code(self, w: Widget, config: dict):
         init = []
+        add_lv_use("textarea")
+        add_lv_use("btnmatrix")
         init.extend(w.set_property(CONF_MODE, config))
         if ta := config.get(CONF_TEXTAREA):
             ta = await get_widget(ta)

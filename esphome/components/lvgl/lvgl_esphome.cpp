@@ -15,7 +15,7 @@ size_t lv_millis(void) { return esphome::millis(); }
 void *lv_custom_mem_alloc(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {
-    esphome::esph_log_e(TAG, "Failed to allocate %u bytes", size);
+    esphome::esph_log_e(TAG, "Failed to allocate %zu bytes", size);
   }
   return ptr;
 }
@@ -32,7 +32,7 @@ void *lv_custom_mem_alloc(size_t size) {
     ptr = heap_caps_malloc(size, cap_bits);
   }
   if (ptr == nullptr) {
-    esphome::esph_log_e(TAG, "Failed to allocate %u bytes", size);
+    esphome::esph_log_e(TAG, "Failed to allocate %zu bytes", size);
     return nullptr;
   }
 #ifdef ESPHOME_LOG_HAS_VERBOSE
@@ -52,7 +52,7 @@ void lv_custom_mem_free(void *ptr) {
 
 void *lv_custom_mem_realloc(void *ptr, size_t size) {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  esphome::esph_log_v(TAG, "realloc %p: %u", ptr, size);
+  esphome::esph_log_v(TAG, "realloc %p: %zu", ptr, size);
 #endif
   return heap_caps_realloc(ptr, size, cap_bits);
 }
