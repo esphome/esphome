@@ -23,9 +23,13 @@ void FyrturMotorComponent::setup() { get_status(); }
 
 void FyrturMotorComponent::update() { get_status(); }
 
-// void FyrturMotorComponent::loop(void) {
-//   // probably not needed
-// }
+void FyrturMotorComponent::loop(void) {
+  // while (this->available() > 0) {
+  //   if (this->read_byte(&data)) {
+  //     this->process_rx_(data);
+  //   }
+  // }
+}
 
 float FyrturMotorComponent::get_setup_priority() const { return setup_priority::DATA; }
 

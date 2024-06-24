@@ -22,6 +22,7 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#include "esphome/components/cover/cover.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -33,7 +34,7 @@ namespace fyrtur_motor {
 
 typedef enum RollingDirection { FORWARD, REVERSE } RollingDirection_t;
 
-class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
+class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice, public cover::Cover {
  public:
   FyrturMotorComponent() = default;
 
@@ -98,7 +99,7 @@ class FyrturMotorComponent : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   // void dump_config() override;
   void update() override;
-  // void loop() override;
+  void loop() override;
   float get_setup_priority() const override;
 
 #ifdef USE_SWITCH
