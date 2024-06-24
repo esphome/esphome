@@ -69,7 +69,7 @@ uint8_t ReadStateCommand::execute(DfrobotSen0395Component *parent) {
     std::vector<std::string> params;
     size_t pos = 0;
     std::string token;
-    while ((pos = message.find(",")) != std::string::npos) {
+    while ((pos = message.find(',')) != std::string::npos) {
       token = message.substr(0, pos);
       params.push_back(token);
       message.erase(0, pos + 1);
@@ -87,10 +87,10 @@ uint8_t ReadStateCommand::execute(DfrobotSen0395Component *parent) {
       this->parent_->set_active(true);
       return 1;  // Command done
     } else if (params.size() == 8 && params[0] == "$JYRPO") {
-      const auto target_count = std::atoi(params[1].c_str());
-      const auto target = std::atoi(params[2].c_str());
-      const auto dist = std::atof(params[3].c_str());
-      const auto snr = std::atof(params[5].c_str());
+      const auto target_count = strtol(params[1].c_str(), nullptr, 10);
+      const auto target = strtol(params[2].c_str(), nullptr, 10);
+      const auto dist = strtof(params[3].c_str(), nullptr);
+      const auto snr = strtof(params[5].c_str(), nullptr);
       this->parent_->set_detected_target_distance_(target, dist);
       this->parent_->set_detected_target_snr_(target, snr);
 
