@@ -12,7 +12,6 @@ namespace esphome {
 namespace heatpumpir {
 
 // Simple enum to represent protocols.
-// Some protocols commented out because they are only missing from the library's HeatpumpIRFactory.h
 enum Protocol {
   PROTOCOL_AUX,
   PROTOCOL_BALLU,
@@ -62,11 +61,6 @@ enum Protocol {
   PROTOCOL_QLIMA_2,
   PROTOCOL_SAMSUNG_AQV12MSAN,
   PROTOCOL_ZHJG01,
-  // PROTOCOL_AIRWAY,
-  // PROTOCOL_BGH_AUD,
-  // PROTOCOL_PANASONIC_ALTDKE,
-  // PROTOCOL_VAILLANTVAI8,
-  // PROTOCOL_R51M,
 };
 
 // Simple enum to represent horizontal directios
