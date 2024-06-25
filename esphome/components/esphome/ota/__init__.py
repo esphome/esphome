@@ -1,10 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code, OTAComponent
 from esphome.const import (
+    CONF_ESPHOME,
     CONF_ID,
     CONF_NUM_ATTEMPTS,
+    CONF_OTA,
     CONF_PASSWORD,
+    CONF_PLATFORM,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
@@ -19,6 +23,19 @@ DEPENDENCIES = ["network"]
 
 esphome = cg.esphome_ns.namespace("esphome")
 ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
+
+
+def ota_esphome_final_validate(config):
+    fconf = fv.full_config.get()[CONF_OTA]
+    used_ports = []
+    for ota_conf in fconf:
+        if ota_conf.get(CONF_PLATFORM) == CONF_ESPHOME:
+            if (plat_port := ota_conf.get(CONF_PORT)) not in used_ports:
+                used_ports.append(plat_port)
+            else:
+                raise cv.Invalid(
+                    f"Only one instance of the {CONF_ESPHOME} {CONF_OTA} {CONF_PLATFORM} is allowed per port. Note that this error may result from OTA specified in packages"
+                )
 
 
 CONFIG_SCHEMA = (
@@ -49,6 +66,8 @@ CONFIG_SCHEMA = (
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
+
+FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
 @coroutine_with_priority(52.0)
