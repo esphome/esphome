@@ -120,7 +120,7 @@ class OpenthermHub : public Component {
   OpenthermData build_request_(MessageId request_id);
   void handle_protocol_write_error_();
   void handle_protocol_read_error_();
-  void handle_timeout_error();
+  void handle_timeout_error_();
   void stop_opentherm_();
   void start_conversation_();
   void read_response_();

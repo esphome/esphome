@@ -247,15 +247,16 @@ void OpenthermHub::loop() {
       last_mode_ = cur_mode;
       break;
     case OperationMode::ERROR_PROTOCOL:
-      if (last_mode_ == OperationMode::WRITE)
+      if (last_mode_ == OperationMode::WRITE) {
         handle_protocol_write_error_();
-      else if (last_mode_ == OperationMode::READ)
+      } else if (last_mode_ == OperationMode::READ) {
         handle_protocol_read_error_();
+}
 
       stop_opentherm_();
       break;
     case OperationMode::ERROR_TIMEOUT:
-      handle_timeout_error();
+      handle_timeout_error_();
       stop_opentherm_();
       break;
     case OperationMode::IDLE:
@@ -324,10 +325,9 @@ void OpenthermHub::handle_protocol_read_error_() {
   ESP_LOGW(OT_TAG, "Protocol error occured while receiving response: %s", opentherm_->debug_error(error).c_str());
 }
 
-void OpenthermHub::handle_timeout_error() {
+void OpenthermHub::handle_timeout_error_() {
   ESP_LOGW(OT_TAG, "Receive response timed out at a protocol level");
   stop_opentherm_();
-  return;
 }
 
 #define ID(x) x
