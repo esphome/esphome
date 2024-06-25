@@ -3,70 +3,80 @@ from __future__ import annotations
 import hmac
 import os
 from pathlib import Path
+from typing import Any
 
-from esphome import util
 from esphome.core import CORE
 from esphome.helpers import get_bool_env
-from esphome.storage_json import ext_storage_path
 
-from .entries import DashboardEntry
-from .util import password_hash
+from .util.password import password_hash
 
 
 class DashboardSettings:
     """Settings for the dashboard."""
 
-    def __init__(self):
-        self.config_dir = ""
-        self.password_hash = ""
-        self.username = ""
-        self.using_password = False
-        self.on_ha_addon = False
-        self.cookie_secret = None
-        self.absolute_config_dir = None
-        self._entry_cache: dict[
-            str, tuple[tuple[int, int, float, int], DashboardEntry]
-        ] = {}
+    __slots__ = (
+        "config_dir",
+        "password_hash",
+        "username",
+        "using_password",
+        "on_ha_addon",
+        "cookie_secret",
+        "absolute_config_dir",
+        "verbose",
+    )
 
-    def parse_args(self, args):
+    def __init__(self) -> None:
+        """Initialize the dashboard settings."""
+        self.config_dir: str = ""
+        self.password_hash: str = ""
+        self.username: str = ""
+        self.using_password: bool = False
+        self.on_ha_addon: bool = False
+        self.cookie_secret: str | None = None
+        self.absolute_config_dir: Path | None = None
+        self.verbose: bool = False
+
+    def parse_args(self, args: Any) -> None:
+        """Parse the arguments."""
         self.on_ha_addon: bool = args.ha_addon
-        password: str = args.password or os.getenv("PASSWORD", "")
+        password = args.password or os.getenv("PASSWORD") or ""
         if not self.on_ha_addon:
-            self.username: str = args.username or os.getenv("USERNAME", "")
+            self.username = args.username or os.getenv("USERNAME") or ""
             self.using_password = bool(password)
         if self.using_password:
             self.password_hash = password_hash(password)
-        self.config_dir: str = args.configuration
-        self.absolute_config_dir: Path = Path(self.config_dir).resolve()
+        self.config_dir = args.configuration
+        self.absolute_config_dir = Path(self.config_dir).resolve()
+        self.verbose = args.verbose
         CORE.config_path = os.path.join(self.config_dir, ".")
 
     @property
-    def relative_url(self):
-        return os.getenv("ESPHOME_DASHBOARD_RELATIVE_URL", "/")
+    def relative_url(self) -> str:
+        return os.getenv("ESPHOME_DASHBOARD_RELATIVE_URL") or "/"
 
     @property
     def status_use_ping(self):
         return get_bool_env("ESPHOME_DASHBOARD_USE_PING")
 
     @property
-    def status_use_mqtt(self):
+    def status_use_mqtt(self) -> bool:
         return get_bool_env("ESPHOME_DASHBOARD_USE_MQTT")
 
     @property
-    def using_ha_addon_auth(self):
+    def using_ha_addon_auth(self) -> bool:
         if not self.on_ha_addon:
             return False
         return not get_bool_env("DISABLE_HA_AUTHENTICATION")
 
     @property
-    def using_auth(self):
+    def using_auth(self) -> bool:
         return self.using_password or self.using_ha_addon_auth
 
     @property
-    def streamer_mode(self):
+    def streamer_mode(self) -> bool:
         return get_bool_env("ESPHOME_STREAMER_MODE")
 
-    def check_password(self, username, password):
+    def check_password(self, username: str, password: str) -> bool:
         if not self.using_auth:
             return True
         if username != self.username:
@@ -75,72 +85,9 @@ class DashboardSettings:
         # Compare password in constant running time (to prevent timing attacks)
         return hmac.compare_digest(self.password_hash, password_hash(password))
 
-    def rel_path(self, *args):
+    def rel_path(self, *args: Any) -> str:
+        """Return a path relative to the ESPHome config folder."""
         joined_path = os.path.join(self.config_dir, *args)
         # Raises ValueError if not relative to ESPHome config folder
         Path(joined_path).resolve().relative_to(self.absolute_config_dir)
         return joined_path
-
-    def list_yaml_files(self) -> list[str]:
-        return util.list_yaml_files([self.config_dir])
-
-    def entries(self) -> list[DashboardEntry]:
-        """Fetch all dashboard entries, thread-safe."""
-        path_to_cache_key: dict[str, tuple[int, int, float, int]] = {}
-        #
-        # The cache key is (inode, device, mtime, size)
-        # which allows us to avoid locking since it ensures
-        # every iteration of this call will always return the newest
-        # items from disk at the cost of a stat() call on each
-        # file which is much faster than reading the file
-        # for the cache hit case which is the common case.
-        #
-        # Because there is no lock the cache may
-        # get built more than once but that's fine as its still
-        # thread-safe and results in orders of magnitude less
-        # reads from disk than if we did not cache at all and
-        # does not have a lock contention issue.
-        #
-        for file in self.list_yaml_files():
-            try:
-                # Prefer the json storage path if it exists
-                stat = os.stat(ext_storage_path(os.path.basename(file)))
-            except OSError:
-                try:
-                    # Fallback to the yaml file if the storage
-                    # file does not exist or could not be generated
-                    stat = os.stat(file)
-                except OSError:
-                    # File was deleted, ignore
-                    continue
-            path_to_cache_key[file] = (
-                stat.st_ino,
-                stat.st_dev,
-                stat.st_mtime,
-                stat.st_size,
-            )
-
-        entry_cache = self._entry_cache
-
-        # Remove entries that no longer exist
-        removed: list[str] = []
-        for file in entry_cache:
-            if file not in path_to_cache_key:
-                removed.append(file)
-
-        for file in removed:
-            entry_cache.pop(file)
-
-        dashboard_entries: list[DashboardEntry] = []
-        for file, cache_key in path_to_cache_key.items():
-            if cached_entry := entry_cache.get(file):
-                entry_key, dashboard_entry = cached_entry
-                if entry_key == cache_key:
-                    dashboard_entries.append(dashboard_entry)
-                    continue
-
-            dashboard_entry = DashboardEntry(file)
-            dashboard_entries.append(dashboard_entry)
-            entry_cache[file] = (cache_key, dashboard_entry)
-
-        return dashboard_entries

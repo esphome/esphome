@@ -1,6 +1,10 @@
 import json
 import logging
-from os.path import dirname, isfile, join
+from os.path import (
+    dirname,
+    isfile,
+    join,
+)
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -55,15 +59,25 @@ def _detect_variant(value):
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board = value[CONF_BOARD]
     # read board-default family if not specified
-    if CONF_FAMILY not in value:
-        if board not in component.boards:
+    if board not in component.boards:
+        if CONF_FAMILY not in value:
             raise cv.Invalid(
-                "This board is unknown, please set the family manually. "
-                "Also, make sure the chosen chip component is correct.",
+                "This board is unknown, if you are sure you want to compile with this board selection, "
+                f"override with option '{CONF_FAMILY}'",
                 path=[CONF_BOARD],
             )
+        _LOGGER.warning(
+            "This board is unknown. Make sure the chosen chip component is correct.",
+        )
+    else:
+        family = component.boards[board][KEY_FAMILY]
+        if CONF_FAMILY in value and family != value[CONF_FAMILY]:
+            raise cv.Invalid(
+                f"Option '{CONF_FAMILY}' does not match selected board.",
+                path=[CONF_FAMILY],
+            )
         value = value.copy()
-        value[CONF_FAMILY] = component.boards[board][KEY_FAMILY]
+        value[CONF_FAMILY] = family
     # read component name matching this family
     value[CONF_COMPONENT_ID] = FAMILY_COMPONENT[value[CONF_FAMILY]]
     # make sure the chosen component matches the family
@@ -71,11 +85,6 @@ def _detect_variant(value):
         raise cv.Invalid(
             f"The chosen family doesn't belong to '{component.name}' component. The correct component is '{value[CONF_COMPONENT_ID]}'",
             path=[CONF_FAMILY],
-        )
-    # warn anyway if the board wasn't found
-    if board not in component.boards:
-        _LOGGER.warning(
-            "This board is unknown. Make sure the chosen chip component is correct.",
         )
     return value
 
@@ -170,7 +179,7 @@ def _notify_old_style(config):
 ARDUINO_VERSIONS = {
     "dev": (cv.Version(0, 0, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 4, 1), None),
+    "recommended": (cv.Version(1, 5, 1), None),
 }
 
 
@@ -309,7 +318,7 @@ async def component_to_code(config):
         lt_options["LT_UART_SILENT_ENABLED"] = 0
         lt_options["LT_UART_SILENT_ALL"] = 0
     # set default UART port
-    if uart_port := framework.get(CONF_UART_PORT, None) is not None:
+    if (uart_port := framework.get(CONF_UART_PORT, None)) is not None:
         lt_options["LT_UART_DEFAULT_PORT"] = uart_port
     # add custom options
     lt_options.update(framework[CONF_OPTIONS])

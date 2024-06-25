@@ -118,7 +118,7 @@ class LambdaLightEffect : public LightEffect {
   void start() override { this->initial_run_ = true; }
   void apply() override {
     const uint32_t now = millis();
-    if (now - this->last_run_ >= this->update_interval_) {
+    if (now - this->last_run_ >= this->update_interval_ || this->initial_run_) {
       this->last_run_ = now;
       this->f_(this->initial_run_);
       this->initial_run_ = false;
@@ -150,6 +150,7 @@ class AutomationLightEffect : public LightEffect {
 struct StrobeLightEffectColor {
   LightColorValues color;
   uint32_t duration;
+  uint32_t transition_length;
 };
 
 class StrobeLightEffect : public LightEffect {
@@ -174,7 +175,7 @@ class StrobeLightEffect : public LightEffect {
     }
     call.set_publish(false);
     call.set_save(false);
-    call.set_transition_length_if_supported(0);
+    call.set_transition_length_if_supported(this->colors_[this->at_color_].transition_length);
     call.perform();
     this->last_switch_ = now;
   }

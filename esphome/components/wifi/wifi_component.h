@@ -19,6 +19,10 @@
 #include <WiFi.h>
 #endif
 
+#if defined(USE_ESP_IDF) && defined(USE_WIFI_WPA2_EAP)
+#include <esp_wpa2.h>
+#endif
+
 #ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
@@ -46,6 +50,11 @@ namespace wifi {
 struct SavedWifiSettings {
   char ssid[33];
   char password[65];
+} PACKED;  // NOLINT
+
+struct SavedWifiFastConnectSettings {
+  uint8_t bssid[6];
+  uint8_t channel;
 } PACKED;  // NOLINT
 
 enum WiFiComponentState {
@@ -97,6 +106,10 @@ struct EAPAuth {
   // used for EAP-TLS
   const char *client_cert;
   const char *client_key;
+// used for EAP-TTLS
+#ifdef USE_ESP_IDF
+  esp_eap_ttls_phase2_types ttls_phase_2;
+#endif
 };
 #endif  // USE_WIFI_WPA2_EAP
 
@@ -194,6 +207,7 @@ class WiFiComponent : public Component {
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
+#ifdef USE_WIFI_AP
   /** Setup an Access Point that should be created if no connection to a station can be made.
    *
    * This can also be used without set_sta(). Then the AP will always be active.
@@ -203,6 +217,7 @@ class WiFiComponent : public Component {
    */
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
+#endif  // USE_WIFI_AP
 
   void enable();
   void disable();
@@ -251,7 +266,7 @@ class WiFiComponent : public Component {
 #endif
 
   network::IPAddress get_dns_address(int num);
-  network::IPAddress get_ip_address();
+  network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
@@ -286,7 +301,7 @@ class WiFiComponent : public Component {
     });
   }
 
-  network::IPAddress wifi_sta_ip();
+  network::IPAddresses wifi_sta_ip_addresses();
   std::string wifi_ssid();
   bssid_t wifi_bssid();
 
@@ -299,7 +314,11 @@ class WiFiComponent : public Component {
 
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
+
+#ifdef USE_WIFI_AP
   void setup_ap_config_();
+#endif  // USE_WIFI_AP
+
   void print_connect_params_();
 
   void wifi_loop_();
@@ -313,8 +332,12 @@ class WiFiComponent : public Component {
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_();
   bool wifi_scan_start_(bool passive);
+
+#ifdef USE_WIFI_AP
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
+#endif  // USE_WIFI_AP
+
   bool wifi_disconnect_();
   int32_t wifi_channel_();
   network::IPAddress wifi_subnet_mask_();
@@ -323,6 +346,9 @@ class WiFiComponent : public Component {
 
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
+
+  void load_fast_connect_settings_();
+  void save_fast_connect_settings_();
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -353,6 +379,7 @@ class WiFiComponent : public Component {
   std::vector<WiFiSTAPriority> sta_priorities_;
   WiFiAP selected_ap_;
   bool fast_connect_{false};
+  bool retry_hidden_{false};
 
   bool has_ap_{false};
   WiFiAP ap_;
@@ -371,12 +398,17 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   bool passive_scan_{false};
   ESPPreferenceObject pref_;
+  ESPPreferenceObject fast_connect_pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};
   bool rrm_{false};
 #endif
   bool enable_on_boot_;
+  bool got_ipv4_address_{false};
+#if USE_NETWORK_IPV6
+  uint8_t num_ipv6_addresses_{0};
+#endif /* USE_NETWORK_IPV6 */
 
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};
