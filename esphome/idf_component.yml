@@ -1,4 +1,7 @@
 dependencies:
+  esp-adf:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.6
   esp-tflite-micro:
     git: https://github.com/espressif/esp-tflite-micro.git
     version: v1.3.1
