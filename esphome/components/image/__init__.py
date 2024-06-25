@@ -6,7 +6,6 @@ import hashlib
 import io
 from pathlib import Path
 import re
-import requests
 from magic import Magic
 
 from esphome import core
@@ -15,7 +14,6 @@ from esphome import external_files
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
-    __version__,
     CONF_DITHER,
     CONF_FILE,
     CONF_ICON,
@@ -75,31 +73,6 @@ def compute_local_image_path(value: dict) -> Path:
     return base_dir / key
 
 
-def download_content(url: str, path: Path) -> None:
-    if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.debug("Remote file has not changed %s", url)
-        return
-
-    _LOGGER.debug(
-        "Remote file has changed, downloading from %s to %s",
-        url,
-        path,
-    )
-
-    try:
-        req = requests.get(
-            url,
-            timeout=IMAGE_DOWNLOAD_TIMEOUT,
-            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
-        )
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download from {url}: {e}")
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
-
-
 def download_mdi(value):
     validate_cairosvg_installed(value)
 
@@ -108,7 +81,7 @@ def download_mdi(value):
 
     url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
 
-    download_content(url, path)
+    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
 
     return value
 
@@ -117,7 +90,7 @@ def download_image(value):
     url = value[CONF_URL]
     path = compute_local_image_path(value)
 
-    download_content(url, path)
+    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
 
     return value
 
