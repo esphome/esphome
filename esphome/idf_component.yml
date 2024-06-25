@@ -11,6 +11,10 @@ dependencies:
     git: https://github.com/espressif/esp-adf.git
     version: v2.5
     path: components/audio_recorder
+  esp-adf_audio_sal:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_sal
   esp-adf_audio_stream:
     git: https://github.com/espressif/esp-adf.git
     version: v2.5
