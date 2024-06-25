@@ -1,7 +1,15 @@
 dependencies:
-  esp-adf:
+  esp-adf_esp-adf-libs:
     git: https://github.com/espressif/esp-adf.git
-    version: v2.6
+    version: v2.5
+    path: components/esp-adf-libs
+  esp-adf_esp-sr:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/esp-sr
+  esp-dsp:
+    git: https://github.com/espressif/esp-dsp.git
+    version: v1.2.0
   esp-tflite-micro:
     git: https://github.com/espressif/esp-tflite-micro.git
     version: v1.3.1
