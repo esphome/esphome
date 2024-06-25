@@ -149,6 +149,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
         }
         response_body.reserve(read_index);
         response_body.assign((char *) buf, read_index);
+        allocator.deallocate(buf, max_length);
       }
     }
 
