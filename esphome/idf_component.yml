@@ -1,12 +1,20 @@
 dependencies:
-  esp-adf_esp-adf-libs:
+  esp-adf_audio_hal:
     git: https://github.com/espressif/esp-adf.git
     version: v2.5
-    path: components/esp-adf-libs
-  esp-adf_esp-sr:
+    path: components/audio_hal
+  esp-adf_audio_pipeline:
     git: https://github.com/espressif/esp-adf.git
     version: v2.5
-    path: components/esp-sr
+    path: components/audio_pipeline
+  esp-adf_audio_recorder:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_recorder
+  esp-adf_audio_stream:
+    git: https://github.com/espressif/esp-adf.git
+    version: v2.5
+    path: components/audio_stream
   esp-dsp:
     git: https://github.com/espressif/esp-dsp.git
     version: v1.2.0
