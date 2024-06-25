@@ -38,7 +38,7 @@ from esphome.const import (
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent, is_ip_address
+from esphome.helpers import indent, is_ip_address, get_bool_env
 from esphome.util import (
     run_external_command,
     run_external_process,
@@ -1015,6 +1015,9 @@ def parse_args(argv):
 def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
+
+    if get_bool_env("ESPHOME_VERBOSE"):
+        args.verbose = True
 
     setup_log(
         args.verbose,
