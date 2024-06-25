@@ -39,15 +39,11 @@ AUTO_LOAD = [
     "binary_sensor",
     "button",
     "text_sensor",
+    "time",
 ]
 DEPENDENCIES = [
     "uart",
     "climate",
-    "sensor",
-    "binary_sensor",
-    "button",
-    "text_sensor",
-    "select",
 ]
 
 CONF_UART_HEATPUMP = "uart_heatpump"
