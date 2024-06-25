@@ -146,11 +146,11 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
       process_raw_packet_<ConnectResponsePacket>(pkt, false);
       break;
 
-    case PacketType::EXTENDED_CONNECT_REQUEST:
-      process_raw_packet_<ExtendedConnectRequestPacket>(pkt, true);
+    case PacketType::IDENTIFY_REQUEST:
+      process_raw_packet_<CapabilitiesRequestPacket>(pkt, true);
       break;
-    case PacketType::EXTENDED_CONNECT_RESPONSE:
-      process_raw_packet_<ExtendedConnectResponsePacket>(pkt, false);
+    case PacketType::IDENTIFY_RESPONSE:
+      process_raw_packet_<CapabilitiesResponsePacket>(pkt, false);
       break;
 
     case PacketType::GET_REQUEST:
@@ -173,8 +173,8 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case GetCommand::STATUS:
           process_raw_packet_<StatusGetResponsePacket>(pkt, false);
           break;
-        case GetCommand::A_9:
-          process_raw_packet_<A9GetRequestPacket>(pkt, false);
+        case GetCommand::THERMOSTAT_STATE_DOWNLOAD:
+          process_raw_packet_<ThermostatStateDownloadResponsePacket>(pkt, false);
           break;
         default:
           process_raw_packet_<Packet>(pkt, false);
@@ -188,8 +188,17 @@ void MUARTBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case SetCommand::SETTINGS:
           process_raw_packet_<SettingsSetRequestPacket>(pkt, true);
           break;
+        case SetCommand::THERMOSTAT_SENSOR_STATUS:
+          process_raw_packet_<ThermostatSensorStatusPacket>(pkt, true);
+          break;
         case SetCommand::THERMOSTAT_HELLO:
-          process_raw_packet_<ThermostatHelloRequestPacket>(pkt, false);
+          process_raw_packet_<ThermostatHelloPacket>(pkt, false);
+          break;
+        case SetCommand::THERMOSTAT_STATE_UPLOAD:
+          process_raw_packet_<ThermostatStateUploadPacket>(pkt, true);
+          break;
+        case SetCommand::THERMOSTAT_SET_AA:
+          process_raw_packet_<ThermostatAASetRequestPacket>(pkt, true);
           break;
         default:
           process_raw_packet_<Packet>(pkt, true);

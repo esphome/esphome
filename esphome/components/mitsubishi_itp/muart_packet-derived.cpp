@@ -1,6 +1,7 @@
 #include "muart_packet.h"
 #include "muart_utils.h"
 #include "mitsubishi_uart.h"
+#include "esphome/core/datatypes.h"
 
 namespace esphome {
 namespace mitsubishi_itp {
@@ -9,9 +10,9 @@ namespace mitsubishi_itp {
 
 std::string ConnectRequestPacket::to_string() const { return ("Connect Request: " + Packet::to_string()); }
 std::string ConnectResponsePacket::to_string() const { return ("Connect Response: " + Packet::to_string()); }
-std::string ExtendedConnectResponsePacket::to_string() const {
+std::string CapabilitiesResponsePacket::to_string() const {
   return (
-      "Extended Connect Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+      "Identify Base Capabilities Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
       "\n HeatDisabled:" + (is_heat_disabled() ? "Yes" : "No") + " SupportsVane:" + (supports_vane() ? "Yes" : "No") +
       " SupportsVaneSwing:" + (supports_vane_swing() ? "Yes" : "No")
 
@@ -28,6 +29,7 @@ std::string ExtendedConnectResponsePacket::to_string() const {
       "/" + std::to_string(get_max_heating_setpoint()) + " AutoSetpoint:" + std::to_string(get_min_auto_setpoint()) +
       "/" + std::to_string(get_max_auto_setpoint()) + " FanSpeeds:" + std::to_string(get_supported_fan_speeds()));
 }
+std::string IdentifyCDResponsePacket::to_string() const { return "Identify CD Response: " + Packet::to_string(); }
 std::string CurrentTempGetResponsePacket::to_string() const {
   return ("Current Temp Response: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
           "\n Temp:" + std::to_string(get_current_temp()) +
@@ -65,9 +67,69 @@ std::string RemoteTemperatureSetRequestPacket::to_string() const {
           "\n Temp:" + std::to_string(get_remote_temperature()));
 }
 
-std::string ThermostatHelloRequestPacket::to_string() const {
+std::string ThermostatSensorStatusPacket::to_string() const {
+  return ("Thermostat Sensor Status: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+          "\n Indoor RH: " + std::to_string(get_indoor_humidity_percent()) + "%" +
+          "  MHK Battery: " + THERMOSTAT_BATTERY_STATE_NAMES[get_thermostat_battery_state()] + "(" +
+          std::to_string(get_thermostat_battery_state()) + ")" +
+          "  Sensor Flags: " + std::to_string(get_sensor_flags()));
+}
+
+std::string ThermostatHelloPacket::to_string() const {
   return ("Thermostat Hello: " + Packet::to_string() + CONSOLE_COLOR_PURPLE + "\n Model: " + get_thermostat_model() +
           " Serial: " + get_thermostat_serial() + " Version: " + get_thermostat_version_string());
+}
+
+std::string ThermostatStateUploadPacket::to_string() const {
+  uint8_t flags = get_flags();
+
+  std::string result =
+      "Thermostat Sync " + Packet::to_string() + CONSOLE_COLOR_PURPLE + "\n Flags: " + format_hex(flags) + " =>";
+
+  if (flags & TSSF_TIMESTAMP) {
+    ESPTime timestamp{};
+    get_thermostat_timestamp(&timestamp);
+
+    result += " TS Time: " + timestamp.strftime("%Y-%m-%d %H:%M:%S");
+  }
+
+  if (flags & TSSF_AUTO_MODE)
+    result += " AutoMode: " + std::to_string(get_auto_mode());
+  if (flags & TSSF_HEAT_SETPOINT)
+    result += " HeatSetpoint: " + std::to_string(get_heat_setpoint());
+  if (flags & TSSF_COOL_SETPOINT)
+    result += " CoolSetpoint: " + std::to_string(get_cool_setpoint());
+
+  return result;
+}
+
+std::string GetRequestPacket::to_string() const {
+  return ("Get Request: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+          "\n CommandID: " + format_hex((uint8_t) get_requested_command()));
+}
+
+std::string SettingsSetRequestPacket::to_string() const {
+  uint8_t flags = get_flags();
+  uint8_t flags2 = get_flags_2();
+
+  std::string result = "Settings Set Request: " + Packet::to_string() + CONSOLE_COLOR_PURPLE +
+                       "\n Flags: " + format_hex(flags2) + format_hex(flags) + " =>";
+
+  if (flags & SettingFlag::SF_POWER)
+    result += " Power: " + std::to_string(get_power());
+  if (flags & SettingFlag::SF_MODE)
+    result += " Mode: " + std::to_string(get_mode());
+  if (flags & SettingFlag::SF_TARGET_TEMPERATURE)
+    result += " TargetTemp: " + std::to_string(get_target_temp());
+  if (flags & SettingFlag::SF_FAN)
+    result += " Fan: " + std::to_string(get_fan());
+  if (flags & SettingFlag::SF_VANE)
+    result += " Vane: " + std::to_string(get_vane());
+
+  if (flags2 & SettingFlag2::SF2_HORIZONTAL_VANE)
+    result += " HVane: " + std::to_string(get_horizontal_vane()) + (get_horizontal_vane_msb() ? " (MSB Set)" : "");
+
+  return result;
 }
 
 // TODO: Are there function implementations for packets in the .h file? (Yes)  Should they be here?
@@ -76,7 +138,7 @@ std::string ThermostatHelloRequestPacket::to_string() const {
 
 void SettingsSetRequestPacket::add_settings_flag_(const SettingFlag flag_to_add) { add_flag(flag_to_add); }
 
-void SettingsSetRequestPacket::add_settings_flag2_(const SettingFlaG2 flag2_to_add) { add_flag2(flag2_to_add); }
+void SettingsSetRequestPacket::add_settings_flag2_(const SettingFlag2 flag2_to_add) { add_flag2(flag2_to_add); }
 
 SettingsSetRequestPacket &SettingsSetRequestPacket::set_power(const bool is_on) {
   pkt_.set_payload_byte(PLINDEX_POWER, is_on ? 0x01 : 0x00);
@@ -90,23 +152,23 @@ SettingsSetRequestPacket &SettingsSetRequestPacket::set_mode(const ModeByte mode
   return *this;
 }
 
-SettingsSetRequestPacket &SettingsSetRequestPacket::set_target_temperature(const float temperature_degress_c) {
-  if (temperature_degress_c < 63.5 && temperature_degress_c > -64.0) {
-    pkt_.set_payload_byte(PLINDEX_TARGET_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degress_c));
+SettingsSetRequestPacket &SettingsSetRequestPacket::set_target_temperature(const float temperature_degrees_c) {
+  if (temperature_degrees_c < 63.5 && temperature_degrees_c > -64.0) {
+    pkt_.set_payload_byte(PLINDEX_TARGET_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degrees_c));
     pkt_.set_payload_byte(PLINDEX_TARGET_TEMPERATURE_CODE,
-                          MUARTUtils::deg_c_to_legacy_target_temp(temperature_degress_c));
+                          MUARTUtils::deg_c_to_legacy_target_temp(temperature_degrees_c));
 
     // TODO: while spawning a warning here is fine, we should (a) only actually send that warning if the system can't
     //       support this setpoint, and (b) clamp the setpoint to the known-acceptable values.
     // The utility class will already clamp this for us, so we only need to worry about the warning.
-    if (temperature_degress_c < 16 || temperature_degress_c > 31.5) {
+    if (temperature_degrees_c < 16 || temperature_degrees_c > 31.5) {
       ESP_LOGW(PTAG, "Target temp %f is out of range for the legacy temp scale. This may be a problem on older units.",
-               temperature_degress_c);
+               temperature_degrees_c);
     }
 
     add_settings_flag_(SF_TARGET_TEMPERATURE);
   } else {
-    ESP_LOGW(PTAG, "Target temp %f is outside valid range - target temperature not set!", temperature_degress_c);
+    ESP_LOGW(PTAG, "Target temp %f is outside valid range - target temperature not set!", temperature_degrees_c);
   }
 
   return *this;
@@ -127,6 +189,17 @@ SettingsSetRequestPacket &SettingsSetRequestPacket::set_horizontal_vane(const Ho
   pkt_.set_payload_byte(PLINDEX_HORIZONTAL_VANE, horizontal_vane);
   add_settings_flag2_(SF2_HORIZONTAL_VANE);
   return *this;
+}
+
+float SettingsSetRequestPacket::get_target_temp() const {
+  uint8_t enhanced_raw_temp = pkt_.get_payload_byte(PLINDEX_TARGET_TEMPERATURE);
+
+  if (enhanced_raw_temp == 0x00) {
+    uint8_t legacy_raw_temp = pkt_.get_payload_byte(PLINDEX_TARGET_TEMPERATURE_CODE);
+    return MUARTUtils::legacy_target_temp_to_deg_c(legacy_raw_temp);
+  }
+
+  return MUARTUtils::temp_scale_a_to_deg_c(enhanced_raw_temp);
 }
 
 // SettingsGetResponsePacket functions
@@ -163,14 +236,14 @@ float RemoteTemperatureSetRequestPacket::get_remote_temperature() const {
 }
 
 RemoteTemperatureSetRequestPacket &RemoteTemperatureSetRequestPacket::set_remote_temperature(
-    float temperature_degress_c) {
-  if (temperature_degress_c < 63.5 && temperature_degress_c > -64.0) {
-    pkt_.set_payload_byte(PLINDEX_REMOTE_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degress_c));
+    float temperature_degrees_c) {
+  if (temperature_degrees_c < 63.5 && temperature_degrees_c > -64.0) {
+    pkt_.set_payload_byte(PLINDEX_REMOTE_TEMPERATURE, MUARTUtils::deg_c_to_temp_scale_a(temperature_degrees_c));
     pkt_.set_payload_byte(PLINDEX_LEGACY_REMOTE_TEMPERATURE,
-                          MUARTUtils::deg_c_to_legacy_room_temp(temperature_degress_c));
+                          MUARTUtils::deg_c_to_legacy_room_temp(temperature_degrees_c));
     set_flags(0x01);  // Set flags to say we're providing the temperature
   } else {
-    ESP_LOGW(PTAG, "Remote temp %f is outside valid range.", temperature_degress_c);
+    ESP_LOGW(PTAG, "Remote temp %f is outside valid range.", temperature_degrees_c);
   }
   return *this;
 }
@@ -179,7 +252,7 @@ RemoteTemperatureSetRequestPacket &RemoteTemperatureSetRequestPacket::use_intern
   return *this;
 }
 
-// SettingsSetRunStatisPacket functions
+// SettingsSetRunStatusPacket functions
 SetRunStatePacket &SetRunStatePacket::set_filter_reset(bool do_reset) {
   pkt_.set_payload_byte(PLINDEX_FILTER_RESET, do_reset ? 1 : 0);
   set_flags(0x01);
@@ -206,20 +279,80 @@ float CurrentTempGetResponsePacket::get_outdoor_temp() const {
   return enhanced_raw_temp == 0 ? NAN : MUARTUtils::temp_scale_a_to_deg_c(enhanced_raw_temp);
 }
 
-// ThermostatHelloRequestPacket functions
-std::string ThermostatHelloRequestPacket::get_thermostat_model() const {
-  return MUARTUtils::decode_n_bit_string((pkt_.get_bytes() + 1), 3, 6);
+// ThermostatHelloPacket functions
+std::string ThermostatHelloPacket::get_thermostat_model() const {
+  return MUARTUtils::decode_n_bit_string((pkt_.get_payload_bytes(1)), 4, 6);
 }
 
-std::string ThermostatHelloRequestPacket::get_thermostat_serial() const {
-  return MUARTUtils::decode_n_bit_string((pkt_.get_bytes() + 4), 8, 6);
+std::string ThermostatHelloPacket::get_thermostat_serial() const {
+  return MUARTUtils::decode_n_bit_string((pkt_.get_payload_bytes(4)), 12, 6);
 }
 
-std::string ThermostatHelloRequestPacket::get_thermostat_version_string() const {
+std::string ThermostatHelloPacket::get_thermostat_version_string() const {
   char buf[16];
   sprintf(buf, "%02d.%02d.%02d", pkt_.get_payload_byte(13), pkt_.get_payload_byte(14), pkt_.get_payload_byte(15));
 
   return buf;
+}
+
+// ThermostatStateUploadPacket functions
+time_t ThermostatStateUploadPacket::get_thermostat_timestamp(esphome::ESPTime *out_timestamp) const {
+  int32_be_t magic;
+  std::memcpy(&magic, pkt_.get_payload_bytes(PLINDEX_THERMOSTAT_TIMESTAMP), 4);
+
+  out_timestamp->second = magic & 63;
+  out_timestamp->minute = (magic >> 6) & 63;
+  out_timestamp->hour = (magic >> 12) & 31;
+  out_timestamp->day_of_month = (magic >> 17) & 31;
+  out_timestamp->month = (magic >> 22) & 15;
+  out_timestamp->year = (magic >> 26) + 2017;
+
+  out_timestamp->recalc_timestamp_local();
+  return out_timestamp->timestamp;
+}
+
+uint8_t ThermostatStateUploadPacket::get_auto_mode() const { return pkt_.get_payload_byte(PLINDEX_AUTO_MODE); }
+
+float ThermostatStateUploadPacket::get_heat_setpoint() const {
+  uint8_t enhanced_raw_temp = pkt_.get_payload_byte(PLINDEX_HEAT_SETPOINT);
+  return MUARTUtils::temp_scale_a_to_deg_c(enhanced_raw_temp);
+}
+
+float ThermostatStateUploadPacket::get_cool_setpoint() const {
+  uint8_t enhanced_raw_temp = pkt_.get_payload_byte(PLINDEX_COOL_SETPOINT);
+  return MUARTUtils::temp_scale_a_to_deg_c(enhanced_raw_temp);
+}
+
+// ThermostatStateDownloadResponsePacket functions
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_timestamp(esphome::ESPTime ts) {
+  int32_t encoded_timestamp = ((ts.year - 2017) << 26) | (ts.month << 22) | (ts.day_of_month << 17) | (ts.hour << 12) |
+                              (ts.minute << 6) | (ts.second);
+
+  int32_t swapped_timestamp = byteswap(encoded_timestamp);
+
+  pkt_.set_payload_bytes(PLINDEX_ADAPTER_TIMESTAMP, &swapped_timestamp, 4);
+  pkt_.set_payload_byte(10, 0x07);  // ???
+
+  return *this;
+}
+
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_auto_mode(bool is_auto) {
+  pkt_.set_payload_byte(PLINDEX_AUTO_MODE, is_auto ? 0x01 : 0x00);
+  return *this;
+}
+
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_heat_setpoint(float high_temp) {
+  uint8_t temp_a = high_temp != NAN ? MUARTUtils::deg_c_to_temp_scale_a(high_temp) : 0x00;
+
+  pkt_.set_payload_byte(PLINDEX_HEAT_SETPOINT, temp_a);
+  return *this;
+}
+
+ThermostatStateDownloadResponsePacket &ThermostatStateDownloadResponsePacket::set_cool_setpoint(float low_temp) {
+  uint8_t temp_a = low_temp != NAN ? MUARTUtils::deg_c_to_temp_scale_a(low_temp) : 0x00;
+
+  pkt_.set_payload_byte(PLINDEX_COOL_SETPOINT, temp_a);
+  return *this;
 }
 
 // ErrorStateGetResponsePacket functions
@@ -238,8 +371,8 @@ std::string ErrorStateGetResponsePacket::get_short_code() const {
   return {upper_alphabet[(error_code & 0xE0) >> 5], lower_alphabet[low_bits]};
 }
 
-// ExtendedConnectResponsePacket functions
-uint8_t ExtendedConnectResponsePacket::get_supported_fan_speeds() const {
+// CapabilitiesResponsePacket functions
+uint8_t CapabilitiesResponsePacket::get_supported_fan_speeds() const {
   uint8_t raw_value = ((pkt_.get_payload_byte(7) & 0x10) >> 2) + ((pkt_.get_payload_byte(8) & 0x08) >> 2) +
                       ((pkt_.get_payload_byte(9) & 0x02) >> 1);
 
@@ -259,7 +392,7 @@ uint8_t ExtendedConnectResponsePacket::get_supported_fan_speeds() const {
   }
 }
 
-climate::ClimateTraits ExtendedConnectResponsePacket::as_traits() const {
+climate::ClimateTraits CapabilitiesResponsePacket::as_traits() const {
   auto ct = climate::ClimateTraits();
 
   // always enabled

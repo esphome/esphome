@@ -78,6 +78,28 @@ void MitsubishiUART::control(const climate::ClimateCall &call) {
   if (call.get_target_temperature().has_value()) {
     target_temperature = call.get_target_temperature().value();
     set_request_packet.set_target_temperature(call.get_target_temperature().value());
+
+    // update our MHK tracking setpoints accordingly
+    switch (mode) {
+      case climate::CLIMATE_MODE_COOL:
+      case climate::CLIMATE_MODE_DRY:
+        this->mhk_state_.cool_setpoint_ = target_temperature;
+        break;
+      case climate::CLIMATE_MODE_HEAT:
+        this->mhk_state_.heat_setpoint_ = target_temperature;
+        break;
+      case climate::CLIMATE_MODE_HEAT_COOL:
+        if (this->get_traits().get_supports_two_point_target_temperature()) {
+          this->mhk_state_.cool_setpoint_ = target_temperature_low;
+          this->mhk_state_.heat_setpoint_ = target_temperature_high;
+        } else {
+          // HACK: This is not accurate, but it's good enough for testing.
+          this->mhk_state_.cool_setpoint_ = target_temperature + 2;
+          this->mhk_state_.heat_setpoint_ = target_temperature - 2;
+        }
+      default:
+        break;
+    }
   }
 
   // TODO:
@@ -89,10 +111,10 @@ void MitsubishiUART::control(const climate::ClimateCall &call) {
   // Queue the packet to be sent first (so any subsequent update packets come *after* our changes)
   hp_bridge_.send_packet(set_request_packet);
 
-  // Publish state and any sensor changes (shouldn't be any a a result of this function, but
+  // Publish state and any sensor changes (shouldn't be any a result of this function, but
   // since they lazy-publish, no harm in trying)
   do_publish_();
-};
+}
 
 }  // namespace mitsubishi_itp
 }  // namespace esphome

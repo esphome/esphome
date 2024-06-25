@@ -20,29 +20,29 @@ void MitsubishiUART::process_packet(const Packet &packet) {
   ESP_LOGI(TAG, "Generic unhandled packet type %x received.", packet.get_packet_type());
   ESP_LOGD(TAG, "%s", packet.to_string().c_str());
   route_packet_(packet);
-};
+}
 
 void MitsubishiUART::process_packet(const ConnectRequestPacket &packet) {
   // Nothing to be done for these except forward them along from thermostat to heat pump.
   // This method defined so that these packets are not "unhandled"
-  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+  ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
   route_packet_(packet);
-};
+}
 void MitsubishiUART::process_packet(const ConnectResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
   // Not sure if there's any needed content in this response, so assume we're connected.
   hp_connected_ = true;
   ESP_LOGI(TAG, "Heatpump connected.");
-};
+}
 
-void MitsubishiUART::process_packet(const ExtendedConnectRequestPacket &packet) {
+void MitsubishiUART::process_packet(const CapabilitiesRequestPacket &packet) {
   // Nothing to be done for these except forward them along from thermostat to heat pump.
   // This method defined so that these packets are not "unhandled"
-  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+  ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
   route_packet_(packet);
-};
-void MitsubishiUART::process_packet(const ExtendedConnectResponsePacket &packet) {
+}
+void MitsubishiUART::process_packet(const CapabilitiesResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
   // Not sure if there's any needed content in this response, so assume we're connected.
@@ -50,14 +50,21 @@ void MitsubishiUART::process_packet(const ExtendedConnectResponsePacket &packet)
   hp_connected_ = true;
   capabilities_cache_ = packet;
   ESP_LOGI(TAG, "Received heat pump identification packet.");
-};
+}
 
 void MitsubishiUART::process_packet(const GetRequestPacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
-  route_packet_(packet);
-  // These are just requests for information from the thermostat.  For now, nothing to be done
-  // except route them.  In the future, we could use this to inject information for the thermostat
-  // or use a cached value.
+
+  switch (packet.get_requested_command()) {
+    case GetCommand::THERMOSTAT_STATE_DOWNLOAD:
+      this->handle_thermostat_state_download_request(packet);
+      break;
+    case GetCommand::THERMOSTAT_GET_AB:
+      this->handle_thermostat_ab_get_request(packet);
+      break;
+    default:
+      route_packet_(packet);
+  }
 }
 
 void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
@@ -110,6 +117,21 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
   const float old_target_temperature = target_temperature;
   target_temperature = packet.get_target_temp();
   publish_on_update_ |= (old_target_temperature != target_temperature);
+
+  switch (mode) {
+    case climate::CLIMATE_MODE_COOL:
+    case climate::CLIMATE_MODE_DRY:
+      this->mhk_state_.cool_setpoint_ = target_temperature;
+      break;
+    case climate::CLIMATE_MODE_HEAT:
+      this->mhk_state_.heat_setpoint_ = target_temperature;
+      break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      this->mhk_state_.cool_setpoint_ = target_temperature + 2;
+      this->mhk_state_.heat_setpoint_ = target_temperature - 2;
+    default:
+      break;
+  }
 
   // Fan
   static bool fan_changed = false;
@@ -195,7 +217,7 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
       ESP_LOGW(TAG, "Vane in unknown horizontal position %x", packet.get_horizontal_vane());
   }
   publish_on_update_ |= (old_horizontal_vane_position != horizontal_vane_position_select_->state);
-};
+}
 
 void MitsubishiUART::process_packet(const CurrentTempGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
@@ -211,7 +233,7 @@ void MitsubishiUART::process_packet(const CurrentTempGetResponsePacket &packet) 
     outdoor_temperature_sensor_->raw_state = packet.get_outdoor_temp();
     publish_on_update_ |= (old_outdoor_temperature != outdoor_temperature_sensor_->raw_state);
   }
-};
+}
 
 void MitsubishiUART::process_packet(const StatusGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
@@ -270,7 +292,7 @@ void MitsubishiUART::process_packet(const StatusGetResponsePacket &packet) {
 
     publish_on_update_ |= (old_compressor_frequency != compressor_frequency_sensor_->raw_state);
   }
-};
+}
 void MitsubishiUART::process_packet(const RunStateGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
@@ -333,6 +355,13 @@ void MitsubishiUART::process_packet(const ErrorStateGetResponsePacket &packet) {
   publish_on_update_ |= (old_error_code != error_code_sensor_->raw_state);
 }
 
+void MitsubishiUART::process_packet(const SettingsSetRequestPacket &packet) {
+  ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
+  // forward this packet as-is; we're just intercepting to log.
+  route_packet_(packet);
+}
+
 void MitsubishiUART::process_packet(const RemoteTemperatureSetRequestPacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
 
@@ -355,11 +384,114 @@ void MitsubishiUART::process_packet(const RemoteTemperatureSetRequestPacket &pac
 
     publish_on_update_ |= (old_thermostat_temp != thermostat_temperature_sensor_->raw_state);
   }
-};
+}
+
+void MitsubishiUART::process_packet(const ThermostatSensorStatusPacket &packet) {
+  if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
+    route_packet_(packet);
+    return;
+  }
+
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
+
+  if (thermostat_humidity_sensor_ && packet.get_flags() & 0x04) {
+    const float old_humidity = thermostat_humidity_sensor_->raw_state;
+    thermostat_humidity_sensor_->raw_state = packet.get_indoor_humidity_percent();
+    publish_on_update_ |= (old_humidity != thermostat_humidity_sensor_->raw_state);
+  }
+
+  if (thermostat_battery_sensor_ && packet.get_flags() & 0x08) {
+    const auto old_battery = thermostat_battery_sensor_->raw_state;
+    thermostat_battery_sensor_->raw_state = THERMOSTAT_BATTERY_STATE_NAMES[packet.get_thermostat_battery_state()];
+    publish_on_update_ |= (old_battery != thermostat_battery_sensor_->raw_state);
+  }
+
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
+void MitsubishiUART::process_packet(const ThermostatHelloPacket &packet) {
+  if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
+    route_packet_(packet);
+    return;
+  }
+
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
+void MitsubishiUART::process_packet(const ThermostatStateUploadPacket &packet) {
+  if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
+    route_packet_(packet);
+    return;
+  }
+
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
+
+  if (packet.get_flags() & 0x08)
+    this->mhk_state_.heat_setpoint_ = packet.get_heat_setpoint();
+  if (packet.get_flags() & 0x10)
+    this->mhk_state_.cool_setpoint_ = packet.get_cool_setpoint();
+
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
+void MitsubishiUART::process_packet(const ThermostatAASetRequestPacket &packet) {
+  if (!enhanced_mhk_support_) {
+    ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
+
+    route_packet_(packet);
+    return;
+  }
+
+  ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
+
+  ts_bridge_->send_packet(SetResponsePacket());
+}
+
 void MitsubishiUART::process_packet(const SetResponsePacket &packet) {
   ESP_LOGV(TAG, "Got Set Response packet, success = %s (code = %x)", packet.is_successful() ? "true" : "false",
            packet.get_result_code());
   route_packet_(packet);
+}
+
+// Process incoming data requests from an MHK probing for/running in enhanced mode
+void MitsubishiUART::handle_thermostat_state_download_request(const GetRequestPacket &packet) {
+  if (!enhanced_mhk_support_) {
+    route_packet_(packet);
+    return;
+  }
+
+  auto response = ThermostatStateDownloadResponsePacket();
+
+  response.set_auto_mode((mode == climate::CLIMATE_MODE_HEAT_COOL || mode == climate::CLIMATE_MODE_AUTO));
+  response.set_heat_setpoint(this->mhk_state_.heat_setpoint_);
+  response.set_cool_setpoint(this->mhk_state_.cool_setpoint_);
+
+  if (this->time_source_ != nullptr) {
+    response.set_timestamp(this->time_source_->now());
+  } else {
+    ESP_LOGW(TAG, "No time source specified. Cannot provide accurate time!");
+    response.set_timestamp(ESPTime::from_epoch_utc(1704067200));  // 2024-01-01 00:00:00Z
+  }
+
+  ts_bridge_->send_packet(response);
+}
+
+void MitsubishiUART::handle_thermostat_ab_get_request(const GetRequestPacket &packet) {
+  if (!enhanced_mhk_support_) {
+    route_packet_(packet);
+    return;
+  }
+
+  auto response = ThermostatABGetResponsePacket();
+
+  ts_bridge_->send_packet(response);
 }
 
 }  // namespace mitsubishi_itp

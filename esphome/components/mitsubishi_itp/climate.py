@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import (
     climate,
     uart,
+    time,
     sensor,
     binary_sensor,
     button,
@@ -19,11 +20,13 @@ from esphome.const import (
     CONF_SUPPORTED_MODES,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_HUMIDITY,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_NONE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_HERTZ,
+    UNIT_PERCENT,
 )
 from esphome.core import coroutine
 
@@ -36,21 +39,20 @@ AUTO_LOAD = [
     "binary_sensor",
     "button",
     "text_sensor",
+    "time",
 ]
 DEPENDENCIES = [
     "uart",
     "climate",
-    "sensor",
-    "binary_sensor",
-    "button",
-    "text_sensor",
-    "select",
 ]
 
 CONF_UART_HEATPUMP = "uart_heatpump"
 CONF_UART_THERMOSTAT = "uart_thermostat"
+CONF_TIME_SOURCE = "time_source"
 
 CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
+CONF_THERMOSTAT_HUMIDITY = "thermostat_humidity"
+CONF_THERMOSTAT_BATTERY = "thermostat_battery"
 CONF_ERROR_CODE = "error_code"
 CONF_ISEE_STATUS = "isee_status"
 
@@ -67,6 +69,9 @@ CONF_TEMPERATURE_SOURCES = (
 )
 
 CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
+CONF_ENHANCED_MHK_SUPPORT = (
+    "enhanced_mhk"  # EXPERIMENTAL. Will be set to default eventually.
+)
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -104,6 +109,7 @@ BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
         cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
         cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
         cv.Optional(CONF_UART_THERMOSTAT): cv.use_id(uart.UARTComponent),
+        cv.Optional(CONF_TIME_SOURCE): cv.use_id(time.RealTimeClock),
         # Overwrite name from ENTITY_BASE_SCHEMA with "Climate" as default
         cv.Optional(CONF_NAME, default="Climate"): cv.Any(
             cv.All(
@@ -127,6 +133,7 @@ BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
             cv.use_id(sensor.Sensor)
         ),
         cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
+        cv.Optional(CONF_ENHANCED_MHK_SUPPORT, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
@@ -153,6 +160,23 @@ SENSORS = dict[str, tuple[str, cv.Schema, callable]](
                 icon="mdi:sun-thermometer-outline",
             ),
             sensor.register_sensor,
+        ),
+        CONF_THERMOSTAT_HUMIDITY: (
+            "Thermostat Humidity",
+            sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                device_class=DEVICE_CLASS_HUMIDITY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=0,
+            ),
+            sensor.register_sensor,
+        ),
+        CONF_THERMOSTAT_BATTERY: (
+            "Thermostat Battery",
+            text_sensor.text_sensor_schema(
+                icon="mdi:battery",
+            ),
+            text_sensor.register_text_sensor,
         ),
         "compressor_frequency": (
             "Compressor Frequency",
@@ -336,8 +360,16 @@ async def to_code(config):
         # Add sensor as source
         SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2].append("Thermostat")
 
-    # Traits
+    # If RTC defined
+    if CONF_TIME_SOURCE in config:
+        rtc_component = await cg.get_variable(config[CONF_TIME_SOURCE])
+        cg.add(getattr(muart_component, "set_time_source")(rtc_component))
+    elif CONF_UART_THERMOSTAT in config and config.get(CONF_ENHANCED_MHK_SUPPORT):
+        raise cv.RequiredFieldInvalid(
+            f"{CONF_TIME_SOURCE} is required if {CONF_ENHANCED_MHK_SUPPORT} is set."
+        )
 
+    # Traits
     traits = muart_component.config_traits()
 
     if CONF_SUPPORTED_MODES in config:
@@ -357,8 +389,13 @@ async def to_code(config):
         registration_function,
     ) in SENSORS.items():
         # Only add the thermostat temp if we have a TS_UART
-        if (sensor_designator == CONF_THERMOSTAT_TEMPERATURE) and (
-            CONF_UART_THERMOSTAT not in config
+        if (CONF_UART_THERMOSTAT not in config) and (
+            sensor_designator
+            in [
+                CONF_THERMOSTAT_TEMPERATURE,
+                CONF_THERMOSTAT_HUMIDITY,
+                CONF_THERMOSTAT_BATTERY,
+            ]
         ):
             continue
 
@@ -418,3 +455,8 @@ async def to_code(config):
     # Debug Settings
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
         cg.add(getattr(muart_component, "set_active_mode")(not dam_conf))
+
+    if enhanced_mhk_protocol := config.get(CONF_ENHANCED_MHK_SUPPORT):
+        cg.add(
+            getattr(muart_component, "set_enhanced_mhk_support")(enhanced_mhk_protocol)
+        )

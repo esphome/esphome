@@ -5,6 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "muart_rawpacket.h"
 #include "muart_utils.h"
+#include "esphome/core/time.h"
 #include <sstream>
 
 namespace esphome {
@@ -26,7 +27,7 @@ class Packet {
   Packet(RawPacket &&pkt) : pkt_(pkt){};  // TODO: Confirm this needs std::move if call to constructor ALSO has move
   Packet();                               // For optional<> construction
 
-  // Returns a (more) human readable string of the packet
+  // Returns a (more) human-readable string of the packet
   virtual std::string to_string() const;
 
   // Is a response packet expected when this packet is sent.  Defaults to true since
@@ -40,7 +41,9 @@ class Packet {
   bool is_checksum_valid() const { return pkt_.is_checksum_valid(); };
 
   // Returns flags (ONLY APPLICABLE FOR SOME COMMANDS)
+  // TODO: Probably combine these a bit?
   uint8_t get_flags() const { return pkt_.get_payload_byte(PLINDEX_FLAGS); }
+  uint8_t get_flags_2() const { return pkt_.get_payload_byte(PLINDEX_FLAGS2); }
   // Sets flags (ONLY APPLICABLE FOR SOME COMMANDS)
   void set_flags(uint8_t flag_value);
   // Adds a flag (ONLY APPLICABLE FOR SOME COMMANDS)
@@ -88,23 +91,21 @@ class ConnectResponsePacket : public Packet {
 };
 
 ////
-// Extended Connect
+// Identify packets
 ////
-class ExtendedConnectRequestPacket : public Packet {
+class CapabilitiesRequestPacket : public Packet {
  public:
-  static ExtendedConnectRequestPacket &instance() {
-    static ExtendedConnectRequestPacket instance;
+  static CapabilitiesRequestPacket &instance() {
+    static CapabilitiesRequestPacket instance;
     return instance;
   }
   using Packet::Packet;
 
  private:
-  ExtendedConnectRequestPacket() : Packet(RawPacket(PacketType::EXTENDED_CONNECT_REQUEST, 1)) {
-    pkt_.set_payload_byte(0, 0xc9);
-  }
+  CapabilitiesRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) { pkt_.set_payload_byte(0, 0xc9); }
 };
 
-class ExtendedConnectResponsePacket : public Packet {
+class CapabilitiesResponsePacket : public Packet {
   using Packet::Packet;
 
  public:
@@ -146,6 +147,25 @@ class ExtendedConnectResponsePacket : public Packet {
   std::string to_string() const override;
 };
 
+class IdentifyCDRequestPacket : public Packet {
+ public:
+  static IdentifyCDRequestPacket &instance() {
+    static IdentifyCDRequestPacket instance;
+    return instance;
+  }
+  using Packet::Packet;
+
+ private:
+  IdentifyCDRequestPacket() : Packet(RawPacket(PacketType::IDENTIFY_REQUEST, 1)) { pkt_.set_payload_byte(0, 0xCD); }
+};
+
+class IdentifyCDResponsePacket : public Packet {
+  using Packet::Packet;
+
+ public:
+  std::string to_string() const override;
+};
+
 ////
 // Get
 ////
@@ -172,6 +192,10 @@ class GetRequestPacket : public Packet {
     return instance;
   }
   using Packet::Packet;
+
+  GetCommand get_requested_command() const { return (GetCommand) pkt_.get_payload_byte(0); }
+
+  std::string to_string() const override;
 
  private:
   GetRequestPacket(GetCommand get_command) : Packet(RawPacket(PacketType::GET_REQUEST, 1)) {
@@ -283,7 +307,7 @@ class SettingsSetRequestPacket : public Packet {
     SF_VANE = 0x10
   };
 
-  enum SettingFlaG2 : uint8_t {
+  enum SettingFlag2 : uint8_t {
     SF2_HORIZONTAL_VANE = 0x01,
   };
 
@@ -331,16 +355,29 @@ class SettingsSetRequestPacket : public Packet {
   }
   using Packet::Packet;
 
+  uint8_t get_power() const { return pkt_.get_payload_byte(PLINDEX_POWER); }
+  ModeByte get_mode() const { return (ModeByte) pkt_.get_payload_byte(PLINDEX_MODE); }
+  FanByte get_fan() const { return (FanByte) pkt_.get_payload_byte(PLINDEX_FAN); }
+  VaneByte get_vane() const { return (VaneByte) pkt_.get_payload_byte(PLINDEX_VANE); }
+  HorizontalVaneByte get_horizontal_vane() const {
+    return (HorizontalVaneByte) (pkt_.get_payload_byte(PLINDEX_HORIZONTAL_VANE) & 0x7F);
+  }
+  bool get_horizontal_vane_msb() const { return pkt_.get_payload_byte(PLINDEX_HORIZONTAL_VANE) & 0x80; }
+
+  float get_target_temp() const;
+
   SettingsSetRequestPacket &set_power(bool is_on);
   SettingsSetRequestPacket &set_mode(ModeByte mode);
-  SettingsSetRequestPacket &set_target_temperature(float temperature_degress_c);
+  SettingsSetRequestPacket &set_target_temperature(float temperature_degrees_c);
   SettingsSetRequestPacket &set_fan(FanByte fan);
   SettingsSetRequestPacket &set_vane(VaneByte vane);
   SettingsSetRequestPacket &set_horizontal_vane(HorizontalVaneByte horizontal_vane);
 
+  std::string to_string() const override;
+
  private:
   void add_settings_flag_(SettingFlag flag_to_add);
-  void add_settings_flag2_(SettingFlaG2 flag2_to_add);
+  void add_settings_flag2_(SettingFlag2 flag2_to_add);
 };
 
 class RemoteTemperatureSetRequestPacket : public Packet {
@@ -355,7 +392,7 @@ class RemoteTemperatureSetRequestPacket : public Packet {
 
   float get_remote_temperature() const;
 
-  RemoteTemperatureSetRequestPacket &set_remote_temperature(float temperature_degress_c);
+  RemoteTemperatureSetRequestPacket &set_remote_temperature(float temperature_degrees_c);
   RemoteTemperatureSetRequestPacket &use_internal_temperature();
 
   std::string to_string() const override;
@@ -386,12 +423,37 @@ class SetRunStatePacket : public Packet {
   SetRunStatePacket &set_filter_reset(bool do_reset);
 };
 
-// Sent by MHK2 but with no response; defined to allow setResponseExpected(false)
-class ThermostatHelloRequestPacket : public Packet {
+class ThermostatSensorStatusPacket : public Packet {
   using Packet::Packet;
 
  public:
-  ThermostatHelloRequestPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 4)) {
+  enum ThermostatBatteryState : uint8_t {
+    THERMOSTAT_BATTERY_OK = 0x00,
+    THERMOSTAT_BATTERY_LOW = 0x01,
+    THERMOSTAT_BATTERY_CRITICAL = 0x02,
+    THERMOSTAT_BATTERY_REPLACE = 0x03,
+    THERMOSTAT_BATTERY_UNKNOWN = 0x04,
+  };
+
+  ThermostatSensorStatusPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 16)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::THERMOSTAT_SENSOR_STATUS));
+  }
+
+  uint8_t get_indoor_humidity_percent() const { return pkt_.get_payload_byte(5); }
+  ThermostatBatteryState get_thermostat_battery_state() const {
+    return (ThermostatBatteryState) pkt_.get_payload_byte(6);
+  }
+  uint8_t get_sensor_flags() const { return pkt_.get_payload_byte(7); }
+
+  std::string to_string() const override;
+};
+
+// Sent by MHK2 but with no response; defined to allow setResponseExpected(false)
+class ThermostatHelloPacket : public Packet {
+  using Packet::Packet;
+
+ public:
+  ThermostatHelloPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 16)) {
     pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::THERMOSTAT_HELLO));
   }
 
@@ -402,13 +464,71 @@ class ThermostatHelloRequestPacket : public Packet {
   std::string to_string() const override;
 };
 
-// Sent by MHK2 but with no response; defined to allow setResponseExpected(false)
-class A9GetRequestPacket : public Packet {
+class ThermostatStateUploadPacket : public Packet {
+  // Packet 0x41 - AG 0xA8
+
+  static const uint8_t PLINDEX_THERMOSTAT_TIMESTAMP = 2;
+  static const uint8_t PLINDEX_AUTO_MODE = 7;
+  static const uint8_t PLINDEX_HEAT_SETPOINT = 8;
+  static const uint8_t PLINDEX_COOL_SETPOINT = 9;
+
+  enum TSStateSyncFlags : uint8_t {
+    TSSF_TIMESTAMP = 0x01,
+    TSSF_AUTO_MODE = 0x04,
+    TSSF_HEAT_SETPOINT = 0x08,
+    TSSF_COOL_SETPOINT = 0x10,
+  };
+
   using Packet::Packet;
 
  public:
-  A9GetRequestPacket() : Packet(RawPacket(PacketType::GET_REQUEST, 10)) {
-    pkt_.set_payload_byte(0, static_cast<uint8_t>(GetCommand::A_9));
+  ThermostatStateUploadPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 16)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::THERMOSTAT_STATE_UPLOAD));
+  }
+
+  time_t get_thermostat_timestamp(esphome::ESPTime *out_timestamp) const;
+  uint8_t get_auto_mode() const;
+  float get_heat_setpoint() const;
+  float get_cool_setpoint() const;
+
+  std::string to_string() const override;
+};
+
+class ThermostatStateDownloadResponsePacket : public Packet {
+  static const uint8_t PLINDEX_ADAPTER_TIMESTAMP = 1;
+  static const uint8_t PLINDEX_AUTO_MODE = 6;
+  static const uint8_t PLINDEX_HEAT_SETPOINT = 7;
+  static const uint8_t PLINDEX_COOL_SETPOINT = 8;
+
+  using Packet::Packet;
+
+ public:
+  ThermostatStateDownloadResponsePacket() : Packet(RawPacket(PacketType::GET_RESPONSE, 16)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(GetCommand::THERMOSTAT_STATE_DOWNLOAD));
+  }
+
+  ThermostatStateDownloadResponsePacket &set_timestamp(ESPTime ts);
+  ThermostatStateDownloadResponsePacket &set_auto_mode(bool is_auto);
+  ThermostatStateDownloadResponsePacket &set_heat_setpoint(float high_temp);
+  ThermostatStateDownloadResponsePacket &set_cool_setpoint(float low_temp);
+};
+
+class ThermostatAASetRequestPacket : public Packet {
+  using Packet::Packet;
+
+ public:
+  ThermostatAASetRequestPacket() : Packet(RawPacket(PacketType::SET_REQUEST, 16)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::THERMOSTAT_SET_AA));
+  }
+};
+
+class ThermostatABGetResponsePacket : public Packet {
+  using Packet::Packet;
+
+ public:
+  ThermostatABGetResponsePacket() : Packet(RawPacket(PacketType::GET_RESPONSE, 16)) {
+    pkt_.set_payload_byte(0, static_cast<uint8_t>(GetCommand::THERMOSTAT_GET_AB));
+    pkt_.set_payload_byte(1, 1);
   }
 };
 
@@ -417,16 +537,26 @@ class PacketProcessor {
   virtual void process_packet(const Packet &packet){};
   virtual void process_packet(const ConnectRequestPacket &packet){};
   virtual void process_packet(const ConnectResponsePacket &packet){};
-  virtual void process_packet(const ExtendedConnectRequestPacket &packet){};
-  virtual void process_packet(const ExtendedConnectResponsePacket &packet){};
+  virtual void process_packet(const CapabilitiesRequestPacket &packet){};
+  virtual void process_packet(const CapabilitiesResponsePacket &packet){};
   virtual void process_packet(const GetRequestPacket &packet){};
   virtual void process_packet(const SettingsGetResponsePacket &packet){};
   virtual void process_packet(const CurrentTempGetResponsePacket &packet){};
   virtual void process_packet(const StatusGetResponsePacket &packet){};
   virtual void process_packet(const RunStateGetResponsePacket &packet){};
   virtual void process_packet(const ErrorStateGetResponsePacket &packet){};
+  virtual void process_packet(const SettingsSetRequestPacket &packet){};
   virtual void process_packet(const RemoteTemperatureSetRequestPacket &packet){};
+  virtual void process_packet(const ThermostatSensorStatusPacket &packet){};
+  virtual void process_packet(const ThermostatHelloPacket &packet){};
+  virtual void process_packet(const ThermostatStateUploadPacket &packet){};
+  virtual void process_packet(const ThermostatStateDownloadResponsePacket &packet){};
+  virtual void process_packet(const ThermostatAASetRequestPacket &packet){};
+  virtual void process_packet(const ThermostatABGetResponsePacket &packet){};
   virtual void process_packet(const SetResponsePacket &packet){};
+
+  virtual void handle_thermostat_state_download_request(const GetRequestPacket &packet){};
+  virtual void handle_thermostat_ab_get_request(const GetRequestPacket &packet){};
 };
 
 }  // namespace mitsubishi_itp

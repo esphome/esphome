@@ -37,7 +37,7 @@ RawPacket::RawPacket() {
   // TODO: Is this okay?
 }
 
-uint8_t RawPacket::calculate_checksum_() const {
+uint8_t RawPacket::calculate_checksum_() const {  // NOLINT(readability-identifier-naming)
   uint8_t sum = 0;
   for (int i = 0; i < checksum_index_; i++) {
     sum += packet_bytes_[i];
@@ -56,6 +56,12 @@ bool RawPacket::is_checksum_valid() const { return packet_bytes_[checksum_index_
 // Sets a payload byte and automatically updates the packet checksum
 RawPacket &RawPacket::set_payload_byte(const uint8_t payload_byte_index, const uint8_t value) {
   packet_bytes_[PACKET_HEADER_SIZE + payload_byte_index] = value;
+  update_checksum_();
+  return *this;
+}
+
+RawPacket &RawPacket::set_payload_bytes(const uint8_t begin_index, const void *value, const size_t size) {
+  memcpy(&packet_bytes_[PACKET_HEADER_SIZE + begin_index], value, size);
   update_checksum_();
   return *this;
 }
