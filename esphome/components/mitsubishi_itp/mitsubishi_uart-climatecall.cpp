@@ -111,10 +111,10 @@ void MitsubishiUART::control(const climate::ClimateCall &call) {
   // Queue the packet to be sent first (so any subsequent update packets come *after* our changes)
   hp_bridge_.send_packet(set_request_packet);
 
-  // Publish state and any sensor changes (shouldn't be any a a result of this function, but
+  // Publish state and any sensor changes (shouldn't be any a result of this function, but
   // since they lazy-publish, no harm in trying)
   do_publish_();
-};
+}
 
 }  // namespace mitsubishi_itp
 }  // namespace esphome

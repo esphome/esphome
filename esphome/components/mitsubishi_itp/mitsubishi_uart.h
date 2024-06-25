@@ -105,7 +105,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   void set_active_mode(const bool active) { active_mode_ = active; };
 
   // Turns on or off Kumo emulation mode
-  void set_enhanced_mhk_support(const bool mode) { enhanced_mhk_support_ = mode; }
+  void set_enhanced_mhk_support(const bool supports) { enhanced_mhk_support_ = supports; }
 
   void set_time_source(time::RealTimeClock *rtc) { time_source_ = rtc; }
 

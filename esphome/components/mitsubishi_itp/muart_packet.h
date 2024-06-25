@@ -486,7 +486,7 @@ class ThermostatStateUploadPacket : public Packet {
     pkt_.set_payload_byte(0, static_cast<uint8_t>(SetCommand::THERMOSTAT_STATE_UPLOAD));
   }
 
-  int32_t get_thermostat_timestamp(ESPTime *outTimestamp) const;
+  time_t get_thermostat_timestamp(esphome::ESPTime *out_timestamp) const;
   uint8_t get_auto_mode() const;
   float get_heat_setpoint() const;
   float get_cool_setpoint() const;

@@ -296,19 +296,19 @@ std::string ThermostatHelloPacket::get_thermostat_version_string() const {
 }
 
 // ThermostatStateUploadPacket functions
-int32_t ThermostatStateUploadPacket::get_thermostat_timestamp(esphome::ESPTime *outTimestamp) const {
+time_t ThermostatStateUploadPacket::get_thermostat_timestamp(esphome::ESPTime *out_timestamp) const {
   int32_be_t magic;
   std::memcpy(&magic, pkt_.get_payload_bytes(PLINDEX_THERMOSTAT_TIMESTAMP), 4);
 
-  outTimestamp->second = magic & 63;
-  outTimestamp->minute = (magic >> 6) & 63;
-  outTimestamp->hour = (magic >> 12) & 31;
-  outTimestamp->day_of_month = (magic >> 17) & 31;
-  outTimestamp->month = (magic >> 22) & 15;
-  outTimestamp->year = (magic >> 26) + 2017;
+  out_timestamp->second = magic & 63;
+  out_timestamp->minute = (magic >> 6) & 63;
+  out_timestamp->hour = (magic >> 12) & 31;
+  out_timestamp->day_of_month = (magic >> 17) & 31;
+  out_timestamp->month = (magic >> 22) & 15;
+  out_timestamp->year = (magic >> 26) + 2017;
 
-  outTimestamp->recalc_timestamp_local();
-  return outTimestamp->timestamp;
+  out_timestamp->recalc_timestamp_local();
+  return out_timestamp->timestamp;
 }
 
 uint8_t ThermostatStateUploadPacket::get_auto_mode() const { return pkt_.get_payload_byte(PLINDEX_AUTO_MODE); }

@@ -207,8 +207,7 @@ void MitsubishiUART::do_publish_() {
     ESP_LOGI(TAG, "Outdoor temp differs, do publish");
     outdoor_temperature_sensor_->publish_state(outdoor_temperature_sensor_->raw_state);
   }
-  if (thermostat_humidity_sensor_ &&
-      (thermostat_humidity_sensor_->raw_state != thermostat_humidity_sensor_->state)) {
+  if (thermostat_humidity_sensor_ && (thermostat_humidity_sensor_->raw_state != thermostat_humidity_sensor_->state)) {
     ESP_LOGI(TAG, "Thermostat humidity differs, do publish");
     thermostat_humidity_sensor_->publish_state(thermostat_humidity_sensor_->raw_state);
   }
