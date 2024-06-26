@@ -1,14 +1,14 @@
 esphome:
-  name: componenttestesp32s3idf50
+  name: componenttestesp32s2idf51
   friendly_name: $component_name
 
 esp32:
-  board: esp32s3box
-  variant: ESP32S3
+  board: esp32-s2-saola-1
+  variant: ESP32S2
   framework:
     type: esp-idf
-    version: 5.0.2
-    platform_version: 6.3.2
+    version: 5.1.2
+    platform_version: 6.6.0
 
 logger:
   level: VERY_VERBOSE
