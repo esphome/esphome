@@ -172,6 +172,7 @@ esphome/components/honeywellabp2_i2c/* @jpfaff
 esphome/components/host/* @clydebarrow @esphome/core
 esphome/components/host/time/* @clydebarrow
 esphome/components/hrxl_maxsonar_wr/* @netmikey
+esphome/components/ht16k33/* @tylerwowen
 esphome/components/hte501/* @Stock-M
 esphome/components/http_request/ota/* @oarcher
 esphome/components/http_request/update/* @jesserockz
