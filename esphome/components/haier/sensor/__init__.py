@@ -137,16 +137,16 @@ SENSOR_TYPES = {
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_HAIER_ID): cv.use_id(HonClimate),
+        cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
     }
-).extend({cv.Optional(type): schema for type, schema in SENSOR_TYPES.items()})
+).extend({cv.Optional(type_): schema for type_, schema in SENSOR_TYPES.items()})
 
 
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_HAIER_ID])
 
-    for type, _ in SENSOR_TYPES.items():
-        if conf := config.get(type):
+    for type_ in SENSOR_TYPES:
+        if conf := config.get(type_):
             sens = await sensor.new_sensor(conf)
-            sensor_type = getattr(SensorTypeEnum, type.upper())
+            sensor_type = getattr(SensorTypeEnum, type_.upper())
             cg.add(paren.set_sub_sensor(sensor_type, sens))
