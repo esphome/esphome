@@ -134,9 +134,16 @@ class RemoteRMTChannel {
 };
 #endif
 
+class RemoteTransmitterListener {
+ public:
+  virtual void on_transmit() = 0;
+  virtual void on_complete() = 0;
+};
+
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
   RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
+  void register_listener(RemoteTransmitterListener *listener) { this->listeners_.push_back(listener); }
   class TransmitCall {
    public:
     explicit TransmitCall(RemoteTransmitterBase *parent) : parent_(parent) {}
@@ -168,9 +175,12 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   void send_(uint32_t send_times, uint32_t send_wait);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
   void send_single_() { this->send_(1, 0); }
+  void call_listeners_transmit_();
+  void call_listeners_complete_();
 
   /// Use same vector for all transmits, avoids many allocations
   RemoteTransmitData temp_;
+  std::vector<RemoteTransmitterListener *> listeners_;
 };
 
 class RemoteReceiverListener {

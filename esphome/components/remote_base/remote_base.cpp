@@ -164,5 +164,15 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
 #endif
   this->send_internal(send_times, send_wait);
 }
+
+void RemoteTransmitterBase::call_listeners_transmit_() {
+  for (auto *listener : this->listeners_)
+    listener->on_transmit();
+}
+
+void RemoteTransmitterBase::call_listeners_complete_() {
+  for (auto *listener : this->listeners_)
+    listener->on_complete();
+}
 }  // namespace remote_base
 }  // namespace esphome
