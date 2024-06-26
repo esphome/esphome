@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_VISUAL,
 )
-from esphome.core import CORE
 
 CODEOWNERS = ["@rob-deutsch"]
 
