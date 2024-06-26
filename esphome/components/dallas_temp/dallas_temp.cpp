@@ -145,7 +145,7 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 float DallasTemperatureSensor::get_temp_c_() {
   int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
-    return (temp / 2) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25;
+    return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25;
   }
   switch (this->resolution_) {
     case 9:
