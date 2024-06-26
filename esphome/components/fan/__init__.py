@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_ON_PRESET_SET,
     CONF_TRIGGER_ID,
     CONF_DIRECTION,
+    CONF_PRESET_MODE,
     CONF_RESTORE_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -289,6 +290,7 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_DIRECTION): cv.templatable(
                 cv.enum(FAN_DIRECTION_ENUM, upper=True)
             ),
+            cv.Optional(CONF_PRESET_MODE): cv.templatable(cv.string),
         }
     ),
 )
@@ -304,6 +306,9 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
     if (direction := config.get(CONF_DIRECTION)) is not None:
         template_ = await cg.templatable(direction, args, FanDirection)
         cg.add(var.set_direction(template_))
+    if CONF_PRESET_MODE in config:
+        template_ = await cg.templatable(config[CONF_PRESET_MODE], args, cg.std_string)
+        cg.add(var.set_preset_mode(template_))
     return var
 
 
