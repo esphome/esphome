@@ -27,11 +27,14 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
         sprintf(buffer, index != this->offset ? ",%d" : "%d", b);
         output << buffer;
         break;
+      case RawEncoding::ASCII:
+        if (b == 0)
+          break;
+      // FALLTHROUGH
       // Anything else no encoding
       case RawEncoding::NONE:
       default:
-        if (b != 0)
-          output << (char) b;
+        output << (char) b;
         break;
     }
     items_left--;
