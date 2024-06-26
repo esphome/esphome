@@ -16,7 +16,7 @@ void GPSTime::from_tiny_gps_(TinyGPSPlus &tiny_gps) {
   if (tiny_gps.date.year() < 2019)
     return;
 
-  time::ESPTime val{};
+  ESPTime val{};
   val.year = tiny_gps.date.year();
   val.month = tiny_gps.date.month();
   val.day_of_month = tiny_gps.date.day();

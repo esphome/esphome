@@ -81,8 +81,8 @@ class BMP280Component : public PollingComponent, public i2c::I2CDevice {
   BMP280Oversampling temperature_oversampling_{BMP280_OVERSAMPLING_16X};
   BMP280Oversampling pressure_oversampling_{BMP280_OVERSAMPLING_16X};
   BMP280IIRFilter iir_filter_{BMP280_IIR_FILTER_OFF};
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,

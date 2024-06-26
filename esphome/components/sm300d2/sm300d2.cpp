@@ -42,7 +42,7 @@ void SM300D2Sensor::update() {
 
   this->status_clear_warning();
 
-  ESP_LOGW(TAG, "Successfully read SM300D2 data");
+  ESP_LOGD(TAG, "Successfully read SM300D2 data");
 
   const uint16_t co2 = (response[2] * 256) + response[3];
   const uint16_t formaldehyde = (response[4] * 256) + response[5];

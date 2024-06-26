@@ -61,6 +61,7 @@ VALUE_POSITION_TYPE = {
     "BELOW": ValuePositionType.VALUE_POSITION_TYPE_BELOW,
 }
 
+CONF_CONTINUOUS = "continuous"
 
 GRAPH_TRACE_SCHEMA = cv.Schema(
     {
@@ -70,6 +71,7 @@ GRAPH_TRACE_SCHEMA = cv.Schema(
         cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
         cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
         cv.Optional(CONF_COLOR): cv.use_id(color.ColorStruct),
+        cv.Optional(CONF_CONTINUOUS): cv.boolean,
     }
 )
 
@@ -118,7 +120,7 @@ def _relocate_fields_to_subfolder(config, subfolder, subschema):
     fields = [k.schema for k in subschema.schema.keys()]
     fields.remove(CONF_ID)
     if subfolder in config:
-        # Ensure no ambigious fields in base of config
+        # Ensure no ambiguous fields in base of config
         for f in fields:
             if f in config:
                 raise cv.Invalid(
@@ -186,6 +188,8 @@ async def to_code(config):
         if CONF_COLOR in trace:
             c = await cg.get_variable(trace[CONF_COLOR])
             cg.add(tr.set_line_color(c))
+        if CONF_CONTINUOUS in trace:
+            cg.add(tr.set_continuous(trace[CONF_CONTINUOUS]))
         cg.add(var.add_trace(tr))
     # Add legend
     if CONF_LEGEND in config:

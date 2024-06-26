@@ -6,11 +6,21 @@ namespace template_ {
 
 static const char *const TAG = "template.binary_sensor";
 
-void TemplateBinarySensor::loop() {
-  if (!this->f_.has_value())
+void TemplateBinarySensor::setup() {
+  if (!this->publish_initial_state_)
     return;
 
-  auto s = (*this->f_)();
+  if (this->f_ != nullptr) {
+    this->publish_initial_state(this->f_().value_or(false));
+  } else {
+    this->publish_initial_state(false);
+  }
+}
+void TemplateBinarySensor::loop() {
+  if (this->f_ == nullptr)
+    return;
+
+  auto s = this->f_();
   if (s.has_value()) {
     this->publish_state(*s);
   }

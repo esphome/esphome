@@ -4,6 +4,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 
+#include <cinttypes>
+#include <vector>
+
 namespace esphome {
 namespace canbus {
 
@@ -17,9 +20,13 @@ enum Error : uint8_t {
 };
 
 enum CanSpeed : uint8_t {
+  CAN_1KBPS,
   CAN_5KBPS,
   CAN_10KBPS,
+  CAN_12K5BPS,
+  CAN_16KBPS,
   CAN_20KBPS,
+  CAN_25KBPS,
   CAN_31K25BPS,
   CAN_33KBPS,
   CAN_40KBPS,
@@ -32,6 +39,7 @@ enum CanSpeed : uint8_t {
   CAN_200KBPS,
   CAN_250KBPS,
   CAN_500KBPS,
+  CAN_800KBPS,
   CAN_1000KBPS
 };
 
@@ -126,13 +134,18 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
   std::vector<uint8_t> data_static_{};
 };
 
-class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t>, public Component {
+class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t, bool>, public Component {
   friend class Canbus;
 
  public:
   explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
                          const bool use_extended_id)
       : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id){};
+
+  void set_remote_transmission_request(bool remote_transmission_request) {
+    this->remote_transmission_request_ = remote_transmission_request;
+  }
+
   void setup() override { this->parent_->add_trigger(this); }
 
  protected:
@@ -140,6 +153,7 @@ class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t>, public Com
   uint32_t can_id_;
   uint32_t can_id_mask_;
   bool use_extended_id_;
+  optional<bool> remote_transmission_request_{};
 };
 
 }  // namespace canbus

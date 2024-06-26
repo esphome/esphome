@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_PIN
 
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["ble_client"]
-AUTO_LOAD = ["am43", "sensor"]
+AUTO_LOAD = ["am43"]
 
 CONF_INVERT_POSITION = "invert_position"
 
@@ -27,10 +27,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_pin(config[CONF_PIN]))
     cg.add(var.set_invert_position(config[CONF_INVERT_POSITION]))
-    yield cg.register_component(var, config)
-    yield cover.register_cover(var, config)
-    yield ble_client.register_ble_node(var, config)
+    await cg.register_component(var, config)
+    await cover.register_cover(var, config)
+    await ble_client.register_ble_node(var, config)

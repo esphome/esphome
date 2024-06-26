@@ -41,7 +41,6 @@
  *  O                         FF FF FF FF FF FF FF FF    - Not used
  *  M                                                 6C - CRC over bytes 2 to F (Addition)
 \*********************************************************************************************/
-#include <cmath>
 #include "sonoff_d1.h"
 
 namespace esphome {
@@ -72,8 +71,9 @@ void SonoffD1Output::skip_command_() {
   }
 
   // Warn about unexpected bytes in the protocol with UART dimmer
-  if (garbage)
+  if (garbage) {
     ESP_LOGW(TAG, "[%04d] Skip %d bytes from the dimmer", this->write_count_, garbage);
+  }
 }
 
 // This assumes some data is already available
@@ -128,7 +128,8 @@ bool SonoffD1Output::read_ack_(const uint8_t *cmd, const size_t len) {
   // Expected acknowledgement from rf chip
   uint8_t ref_buffer[7] = {0xAA, 0x55, cmd[2], cmd[3], 0x00, 0x00, 0x00};
   uint8_t buffer[sizeof(ref_buffer)] = {0};
-  uint32_t pos = 0, buf_len = sizeof(ref_buffer);
+  uint32_t pos = 0;
+  size_t buf_len = sizeof(ref_buffer);
 
   // Update the reference checksum
   this->populate_checksum_(ref_buffer, sizeof(ref_buffer));
@@ -162,7 +163,7 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
     return false;
   }
   if ((cmd[5] + 7 /*mandatory header + suffix length*/) != len) {
-    ESP_LOGW(TAG, "[%04d] Payload length field does not match packet lenght (%d, expected %d)", this->write_count_,
+    ESP_LOGW(TAG, "[%04d] Payload length field does not match packet length (%d, expected %d)", this->write_count_,
              cmd[5], len - 7);
     return false;
   }
@@ -263,7 +264,7 @@ void SonoffD1Output::write_state(light::LightState *state) {
   state->current_values_as_brightness(&brightness);
 
   // Convert ESPHome's brightness (0-1) to the device's internal brightness (0-100)
-  const uint8_t calculated_brightness = std::round(brightness * 100);
+  const uint8_t calculated_brightness = (uint8_t) roundf(brightness * 100);
 
   if (calculated_brightness == 0) {
     // if(binary) ESP_LOGD(TAG, "current_values_as_binary() returns true for zero brightness");

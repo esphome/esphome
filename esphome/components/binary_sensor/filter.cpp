@@ -26,22 +26,20 @@ void Filter::input(bool value, bool is_initial) {
   }
 }
 
-DelayedOnOffFilter::DelayedOnOffFilter(uint32_t delay) : delay_(delay) {}
 optional<bool> DelayedOnOffFilter::new_value(bool value, bool is_initial) {
   if (value) {
-    this->set_timeout("ON_OFF", this->delay_, [this, is_initial]() { this->output(true, is_initial); });
+    this->set_timeout("ON_OFF", this->on_delay_.value(), [this, is_initial]() { this->output(true, is_initial); });
   } else {
-    this->set_timeout("ON_OFF", this->delay_, [this, is_initial]() { this->output(false, is_initial); });
+    this->set_timeout("ON_OFF", this->off_delay_.value(), [this, is_initial]() { this->output(false, is_initial); });
   }
   return {};
 }
 
 float DelayedOnOffFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-DelayedOnFilter::DelayedOnFilter(uint32_t delay) : delay_(delay) {}
 optional<bool> DelayedOnFilter::new_value(bool value, bool is_initial) {
   if (value) {
-    this->set_timeout("ON", this->delay_, [this, is_initial]() { this->output(true, is_initial); });
+    this->set_timeout("ON", this->delay_.value(), [this, is_initial]() { this->output(true, is_initial); });
     return {};
   } else {
     this->cancel_timeout("ON");
@@ -51,10 +49,9 @@ optional<bool> DelayedOnFilter::new_value(bool value, bool is_initial) {
 
 float DelayedOnFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-DelayedOffFilter::DelayedOffFilter(uint32_t delay) : delay_(delay) {}
 optional<bool> DelayedOffFilter::new_value(bool value, bool is_initial) {
   if (!value) {
-    this->set_timeout("OFF", this->delay_, [this, is_initial]() { this->output(false, is_initial); });
+    this->set_timeout("OFF", this->delay_.value(), [this, is_initial]() { this->output(false, is_initial); });
     return {};
   } else {
     this->cancel_timeout("OFF");
@@ -114,14 +111,22 @@ LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move
 
 optional<bool> LambdaFilter::new_value(bool value, bool is_initial) { return this->f_(value); }
 
-optional<bool> UniqueFilter::new_value(bool value, bool is_initial) {
-  if (this->last_value_.has_value() && *this->last_value_ == value) {
+optional<bool> SettleFilter::new_value(bool value, bool is_initial) {
+  if (!this->steady_) {
+    this->set_timeout("SETTLE", this->delay_.value(), [this, value, is_initial]() {
+      this->steady_ = true;
+      this->output(value, is_initial);
+    });
     return {};
   } else {
-    this->last_value_ = value;
+    this->steady_ = false;
+    this->output(value, is_initial);
+    this->set_timeout("SETTLE", this->delay_.value(), [this]() { this->steady_ = true; });
     return value;
   }
 }
+
+float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace binary_sensor
 

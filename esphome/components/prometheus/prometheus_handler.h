@@ -1,10 +1,12 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#include <map>
+#include <utility>
 
 #include "esphome/components/web_server_base/web_server_base.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/component.h"
+#include "esphome/core/controller.h"
+#include "esphome/core/entity_base.h"
 
 namespace esphome {
 namespace prometheus {
@@ -12,6 +14,27 @@ namespace prometheus {
 class PrometheusHandler : public AsyncWebHandler, public Component {
  public:
   PrometheusHandler(web_server_base::WebServerBase *base) : base_(base) {}
+
+  /** Determine whether internal components should be exported as metrics.
+   * Defaults to false.
+   *
+   * @param include_internal Whether internal components should be exported.
+   */
+  void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
+
+  /** Add the value for an entity's "id" label.
+   *
+   * @param obj The entity for which to set the "id" label
+   * @param value The value for the "id" label
+   */
+  void add_label_id(EntityBase *obj, const std::string &value) { relabel_map_id_.insert({obj, value}); }
+
+  /** Add the value for an entity's "name" label.
+   *
+   * @param obj The entity for which to set the "name" label
+   * @param value The value for the "name" label
+   */
+  void add_label_name(EntityBase *obj, const std::string &value) { relabel_map_name_.insert({obj, value}); }
 
   bool canHandle(AsyncWebServerRequest *request) override {
     if (request->method() == HTTP_GET) {
@@ -34,6 +57,9 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   }
 
  protected:
+  std::string relabel_id_(EntityBase *obj);
+  std::string relabel_name_(EntityBase *obj);
+
 #ifdef USE_SENSOR
   /// Return the type for prometheus
   void sensor_type_(AsyncResponseStream *stream);
@@ -84,9 +110,10 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 #endif
 
   web_server_base::WebServerBase *base_;
+  bool include_internal_{false};
+  std::map<EntityBase *, std::string> relabel_map_id_;
+  std::map<EntityBase *, std::string> relabel_map_name_;
 };
 
 }  // namespace prometheus
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

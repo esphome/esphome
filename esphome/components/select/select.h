@@ -1,10 +1,10 @@
 #pragma once
 
-#include <set>
-#include <utility>
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "select_call.h"
+#include "select_traits.h"
 
 namespace esphome {
 namespace select {
@@ -17,32 +17,12 @@ namespace select {
     } \
   }
 
-class Select;
-
-class SelectCall {
- public:
-  explicit SelectCall(Select *parent) : parent_(parent) {}
-  void perform();
-
-  SelectCall &set_option(const std::string &option) {
-    option_ = option;
-    return *this;
-  }
-  const optional<std::string> &get_option() const { return option_; }
-
- protected:
-  Select *const parent_;
-  optional<std::string> option_;
-};
-
-class SelectTraits {
- public:
-  void set_options(std::vector<std::string> options) { this->options_ = std::move(options); }
-  std::vector<std::string> get_options() const { return this->options_; }
-
- protected:
-  std::vector<std::string> options_;
-};
+#define SUB_SELECT(name) \
+ protected: \
+  select::Select *name##_select_{nullptr}; \
+\
+ public: \
+  void set_##name##_select(select::Select *select) { this->name##_select_ = select; }
 
 /** Base-class for all selects.
  *
@@ -51,18 +31,35 @@ class SelectTraits {
 class Select : public EntityBase {
  public:
   std::string state;
+  SelectTraits traits;
 
   void publish_state(const std::string &state);
 
-  SelectCall make_call() { return SelectCall(this); }
-  void set(const std::string &value) { make_call().set_option(value).perform(); }
-
-  void add_on_state_callback(std::function<void(std::string)> &&callback);
-
-  SelectTraits traits;
-
-  /// Return whether this select has gotten a full state yet.
+  /// Return whether this select component has gotten a full state yet.
   bool has_state() const { return has_state_; }
+
+  /// Instantiate a SelectCall object to modify this select component's state.
+  SelectCall make_call() { return SelectCall(this); }
+
+  /// Return whether this select component contains the provided option.
+  bool has_option(const std::string &option) const;
+
+  /// Return whether this select component contains the provided index offset.
+  bool has_index(size_t index) const;
+
+  /// Return the number of options in this select component.
+  size_t size() const;
+
+  /// Find the (optional) index offset of the provided option value.
+  optional<size_t> index_of(const std::string &option) const;
+
+  /// Return the (optional) index offset of the currently active option.
+  optional<size_t> active_index() const;
+
+  /// Return the (optional) option value at the provided index offset.
+  optional<std::string> at(size_t index) const;
+
+  void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
 
  protected:
   friend class SelectCall;
@@ -75,9 +72,7 @@ class Select : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  uint32_t hash_base() override;
-
-  CallbackManager<void(std::string)> state_callback_;
+  CallbackManager<void(std::string, size_t)> state_callback_;
   bool has_state_{false};
 };
 

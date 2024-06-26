@@ -15,6 +15,10 @@ void MCP23016::setup() {
     return;
   }
 
+  // Read current output register state
+  this->read_reg_(MCP23016_OLAT0, &this->olat_0_);
+  this->read_reg_(MCP23016_OLAT1, &this->olat_1_);
+
   // all pins input
   this->write_reg_(MCP23016_IODIR0, 0xFF);
   this->write_reg_(MCP23016_IODIR1, 0xFF);

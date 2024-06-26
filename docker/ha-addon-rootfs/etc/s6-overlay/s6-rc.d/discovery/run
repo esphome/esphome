@@ -1,0 +1,32 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Home Assistant Add-on: ESPHome
+# Sends discovery information to Home Assistant.
+# ==============================================================================
+declare config
+declare port
+
+# We only disable it when disabled explicitly
+if bashio::config.false 'home_assistant_dashboard_integration';
+then
+    bashio::log.info "Home Assistant discovery is disabled for this add-on."
+    bashio::exit.ok
+fi
+
+port=$(bashio::addon.ingress_port)
+
+# Wait for NGINX to become available
+bashio::net.wait_for "${port}" "127.0.0.1" 300
+
+config=$(\
+    bashio::var.json \
+        host "127.0.0.1" \
+        port "^${port}" \
+)
+
+if bashio::discovery "esphome" "${config}" > /dev/null; then
+    bashio::log.info "Successfully send discovery information to Home Assistant."
+else
+    bashio::log.error "Discovery message to Home Assistant failed!"
+fi

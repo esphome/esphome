@@ -14,6 +14,16 @@ void PIDClimate::setup() {
     this->update_pid_();
   });
   this->current_temperature = this->sensor_->state;
+
+  // register for humidity values and get initial state
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->add_on_state_callback([this](float state) {
+      this->current_humidity = state;
+      this->publish_state();
+    });
+    this->current_humidity = this->humidity_sensor_->state;
+  }
+
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -47,6 +57,9 @@ climate::ClimateTraits PIDClimate::traits() {
   traits.set_supports_current_temperature(true);
   traits.set_supports_two_point_target_temperature(false);
 
+  if (this->humidity_sensor_ != nullptr)
+    traits.set_supports_current_humidity(true);
+
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
   if (supports_cool_())
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
@@ -61,7 +74,17 @@ climate::ClimateTraits PIDClimate::traits() {
 void PIDClimate::dump_config() {
   LOG_CLIMATE("", "PID Climate", this);
   ESP_LOGCONFIG(TAG, "  Control Parameters:");
-  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f", controller_.kp, controller_.ki, controller_.kd);
+  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f, output samples: %d", controller_.kp_, controller_.ki_,
+                controller_.kd_, controller_.output_samples_);
+
+  if (controller_.threshold_low_ == 0 && controller_.threshold_high_ == 0) {
+    ESP_LOGCONFIG(TAG, "  Deadband disabled.");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Deadband Parameters:");
+    ESP_LOGCONFIG(TAG, "    threshold: %0.5f to %0.5f, multipliers(kp: %.5f, ki: %.5f, kd: %.5f), output samples: %d",
+                  controller_.threshold_low_, controller_.threshold_high_, controller_.kp_multiplier_,
+                  controller_.ki_multiplier_, controller_.kd_multiplier_, controller_.deadband_output_samples_);
+  }
 
   if (this->autotuner_ != nullptr) {
     this->autotuner_->dump_config();
@@ -114,15 +137,12 @@ void PIDClimate::update_pid_() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished()) {
       auto res = this->autotuner_->update(this->target_temperature, this->current_temperature);
       if (res.result_params.has_value()) {
-        this->controller_.kp = res.result_params->kp;
-        this->controller_.ki = res.result_params->ki;
-        this->controller_.kd = res.result_params->kd;
+        this->controller_.kp_ = res.result_params->kp;
+        this->controller_.ki_ = res.result_params->ki;
+        this->controller_.kd_ = res.result_params->kd;
         // keep autotuner instance so that subsequent dump_configs will print the long result message.
       } else {
         value = res.output;
-        if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
-          ESP_LOGW(TAG, "For PID autotuner you need to set AUTO (also called heat/cool) mode!");
-        }
       }
     }
   }
@@ -141,10 +161,24 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;
   float max_value = this->supports_heat_() ? 1.0f : 0.0f;
   this->autotuner_->config(min_value, max_value);
+  this->autotuner_->set_autotuner_id(this->get_object_id());
+
+  ESP_LOGI(TAG,
+           "%s: Autotune has started. This can take a long time depending on the "
+           "responsiveness of your system. Your system "
+           "output will be altered to deliberately oscillate above and below the setpoint multiple times. "
+           "Until your sensor provides a reading, the autotuner may display \'nan\'",
+           this->get_object_id().c_str());
+
   this->set_interval("autotune-progress", 10000, [this]() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
       this->autotuner_->dump_config();
   });
+
+  if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
+    ESP_LOGW(TAG, "%s: !!! For PID autotuner you need to set AUTO (also called heat/cool) mode!",
+             this->get_object_id().c_str());
+  }
 }
 
 void PIDClimate::reset_integral_term() { this->controller_.reset_accumulated_integral(); }

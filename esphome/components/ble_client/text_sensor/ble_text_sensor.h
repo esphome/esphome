@@ -35,7 +35,6 @@ class BLETextSensor : public text_sensor::TextSensor, public PollingComponent, p
   uint16_t handle;
 
  protected:
-  uint32_t hash_base() override;
   bool notify_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;

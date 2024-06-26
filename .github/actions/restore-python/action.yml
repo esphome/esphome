@@ -1,0 +1,47 @@
+name: Restore Python
+inputs:
+  python-version:
+    description: Python version to restore
+    required: true
+    type: string
+  cache-key:
+    description: Cache key to use
+    required: true
+    type: string
+outputs:
+  python-version:
+    description: Python version restored
+    value: ${{ steps.python.outputs.python-version }}
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python ${{ inputs.python-version }}
+      id: python
+      uses: actions/setup-python@v5.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Restore Python virtual environment
+      id: cache-venv
+      uses: actions/cache/restore@v4.0.2
+      with:
+        path: venv
+        # yamllint disable-line rule:line-length
+        key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ inputs.cache-key }}
+    - name: Create Python virtual environment
+      if: steps.cache-venv.outputs.cache-hit != 'true' && runner.os != 'Windows'
+      shell: bash
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        python --version
+        pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+        pip install -e .
+    - name: Create Python virtual environment
+      if: steps.cache-venv.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      shell: bash
+      run: |
+        python -m venv venv
+        ./venv/Scripts/activate
+        python --version
+        pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+        pip install -e .

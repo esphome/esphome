@@ -7,8 +7,7 @@
 namespace esphome {
 namespace pcd8544 {
 
-class PCD8544 : public PollingComponent,
-                public display::DisplayBuffer,
+class PCD8544 : public display::DisplayBuffer,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                       spi::DATA_RATE_8MHZ> {
  public:
@@ -51,6 +50,8 @@ class PCD8544 : public PollingComponent,
     this->setup_pins_();
     this->initialize();
   }
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;

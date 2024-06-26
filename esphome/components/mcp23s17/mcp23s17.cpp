@@ -23,6 +23,17 @@ void MCP23S17::setup() {
   this->transfer_byte(0b00011000);  // Enable HAEN pins for addressing
   this->disable();
 
+  this->enable();
+  cmd = 0b01001000;
+  this->transfer_byte(cmd);
+  this->transfer_byte(mcp23x17_base::MCP23X17_IOCONA);
+  this->transfer_byte(0b00011000);  // Enable HAEN pins for addressing
+  this->disable();
+
+  // Read current output register state
+  this->read_reg(mcp23x17_base::MCP23X17_OLATA, &this->olat_a_);
+  this->read_reg(mcp23x17_base::MCP23X17_OLATB, &this->olat_b_);
+
   if (this->open_drain_ints_) {
     // enable open-drain interrupt pins, 3.3V-safe
     this->write_reg(mcp23x17_base::MCP23X17_IOCONA, 0x04);

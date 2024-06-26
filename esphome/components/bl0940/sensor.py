@@ -4,7 +4,9 @@ from esphome.components import sensor, uart
 from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
+    CONF_EXTERNAL_TEMPERATURE,
     CONF_ID,
+    CONF_INTERNAL_TEMPERATURE,
     CONF_POWER,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
@@ -18,12 +20,11 @@ from esphome.const import (
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
+    STATE_CLASS_TOTAL_INCREASING,
 )
 
 DEPENDENCIES = ["uart"]
 
-CONF_INTERNAL_TEMPERATURE = "internal_temperature"
-CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 bl0940_ns = cg.esphome_ns.namespace("bl0940")
 BL0940 = bl0940_ns.class_("BL0940", cg.PollingComponent, uart.UARTDevice)
@@ -54,6 +55,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
@@ -79,27 +81,21 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
+    if voltage_config := config.get(CONF_VOLTAGE):
+        sens = await sensor.new_sensor(voltage_config)
         cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
+    if current_config := config.get(CONF_CURRENT):
+        sens = await sensor.new_sensor(current_config)
         cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
+    if power_config := config.get(CONF_POWER):
+        sens = await sensor.new_sensor(power_config)
         cg.add(var.set_power_sensor(sens))
-    if CONF_ENERGY in config:
-        conf = config[CONF_ENERGY]
-        sens = await sensor.new_sensor(conf)
+    if energy_config := config.get(CONF_ENERGY):
+        sens = await sensor.new_sensor(energy_config)
         cg.add(var.set_energy_sensor(sens))
-    if CONF_INTERNAL_TEMPERATURE in config:
-        conf = config[CONF_INTERNAL_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
+    if internal_temperature_config := config.get(CONF_INTERNAL_TEMPERATURE):
+        sens = await sensor.new_sensor(internal_temperature_config)
         cg.add(var.set_internal_temperature_sensor(sens))
-    if CONF_EXTERNAL_TEMPERATURE in config:
-        conf = config[CONF_EXTERNAL_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
+    if external_temperature_config := config.get(CONF_EXTERNAL_TEMPERATURE):
+        sens = await sensor.new_sensor(external_temperature_config)
         cg.add(var.set_external_temperature_sensor(sens))

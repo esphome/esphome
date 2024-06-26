@@ -7,10 +7,7 @@ namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller";
 
-void ModbusController::setup() {
-  // Modbus::setup();
-  this->create_register_ranges_();
-}
+void ModbusController::setup() { this->create_register_ranges_(); }
 
 /*
  To work with the existing modbus class and avoid polling for responses a command queue is used.
@@ -26,6 +23,17 @@ bool ModbusController::send_next_command_() {
 
     // remove from queue if command was sent too often
     if (command->send_countdown < 1) {
+      if (!this->module_offline_) {
+        ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
+
+        if (this->offline_skip_updates_ > 0) {
+          // Update skip_updates_counter to stop flooding channel with timeouts
+          for (auto &r : this->register_ranges_) {
+            r.skip_updates_counter = this->offline_skip_updates_;
+          }
+        }
+      }
+      this->module_offline_ = true;
       ESP_LOGD(
           TAG,
           "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
@@ -49,6 +57,18 @@ bool ModbusController::send_next_command_() {
 void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
+    if (this->module_offline_) {
+      ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
+
+      if (this->offline_skip_updates_ > 0) {
+        // Restore skip_updates_counter to restore commands updates
+        for (auto &r : this->register_ranges_) {
+          r.skip_updates_counter = 0;
+        }
+      }
+    }
+    this->module_offline_ = false;
+
     // Move the commandItem to the response queue
     current_command->payload = data;
     this->incoming_queue_.push(std::move(current_command));
@@ -70,13 +90,59 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
     ESP_LOGE(TAG,
-             "Modbus error - last command: function code=0x%X  register adddress = 0x%X  "
+             "Modbus error - last command: function code=0x%X  register address = 0x%X  "
              "registers count=%d "
              "payload size=%zu",
              function_code, current_command->register_address, current_command->register_count,
              current_command->payload.size());
     command_queue_.pop_front();
   }
+}
+
+void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
+                                                uint16_t number_of_registers) {
+  ESP_LOGD(TAG,
+           "Received read holding/input registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
+           "0x%X.",
+           this->address_, function_code, start_address, number_of_registers);
+
+  std::vector<uint16_t> sixteen_bit_response;
+  for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
+    bool found = false;
+    for (auto *server_register : this->server_registers_) {
+      if (server_register->address == current_address) {
+        float value = server_register->read_lambda();
+
+        ESP_LOGD(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %0.1f.",
+                 server_register->address, static_cast<uint8_t>(server_register->value_type),
+                 server_register->register_count, value);
+        std::vector<uint16_t> payload = float_to_payload(value, server_register->value_type);
+        sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
+        current_address += server_register->register_count;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      ESP_LOGW(TAG, "Could not match any register to address %02X. Sending exception response.", current_address);
+      std::vector<uint8_t> error_response;
+      error_response.push_back(this->address_);
+      error_response.push_back(0x81);
+      error_response.push_back(0x02);
+      this->send_raw(error_response);
+      return;
+    }
+  }
+
+  std::vector<uint8_t> response;
+  for (auto v : sixteen_bit_response) {
+    auto decoded_value = decode_value(v);
+    response.push_back(decoded_value[0]);
+    response.push_back(decoded_value[1]);
+  }
+
+  this->send(function_code, start_address, number_of_registers, response.size(), response.data());
 }
 
 SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
@@ -105,11 +171,10 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // check if this commmand is already qeued.
+  // check if this command is already qeued.
   // not very effective but the queue is never really large
   for (auto &item : command_queue_) {
-    if (item->register_address == command.register_address && item->register_count == command.register_count &&
-        item->register_type == command.register_type && item->function_code == command.function_code) {
+    if (item->is_equal(command)) {
       ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
                static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
       // update the payload of the queued command
@@ -168,7 +233,7 @@ void ModbusController::update() {
 // walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
   register_ranges_.clear();
-  if (sensorset_.empty()) {
+  if (this->parent_->role == modbus::ModbusRole::CLIENT && sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
     return 0;
   }
@@ -237,7 +302,7 @@ size_t ModbusController::create_register_ranges_() {
       }
     }
 
-    if (curr->start_address == r.start_address) {
+    if (curr->start_address == r.start_address && curr->register_type == r.register_type) {
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
       if (curr->skip_updates != 0) {
@@ -287,6 +352,11 @@ void ModbusController::dump_config() {
     ESP_LOGCONFIG(TAG, "  Range type=%zu start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
                   it.start_address, it.register_count, it.skip_updates);
   }
+  ESP_LOGCONFIG(TAG, "server registers");
+  for (auto &r : server_registers_) {
+    ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%zu register_count=%u", r->address,
+                  static_cast<uint8_t>(r->value_type), r->register_count);
+  }
 #endif
 }
 
@@ -299,7 +369,7 @@ void ModbusController::loop() {
     incoming_queue_.pop();
 
   } else {
-    // all messages processed send pending commmands
+    // all messages processed send pending commands
     send_next_command_();
   }
 }
@@ -489,6 +559,15 @@ bool ModbusCommandItem::send() {
   return true;
 }
 
+bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
+  // for custom commands we have to check for identical payloads, since
+  // address/count/type fields will be set to zero
+  return this->function_code == ModbusFunctionCode::CUSTOM
+             ? this->payload == other.payload
+             : other.register_address == this->register_address && other.register_count == this->register_count &&
+                   other.register_type == this->register_type && other.function_code == this->function_code;
+}
+
 void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
   switch (value_type) {
     case SensorValueType::U_WORD:
@@ -498,12 +577,12 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
     case SensorValueType::FP32:
-    case SensorValueType::FP32_R:
       data.push_back((value & 0xFFFF0000) >> 16);
       data.push_back(value & 0xFFFF);
       break;
     case SensorValueType::U_DWORD_R:
     case SensorValueType::S_DWORD_R:
+    case SensorValueType::FP32_R:
       data.push_back(value & 0xFFFF);
       data.push_back((value & 0xFFFF0000) >> 16);
       break;
@@ -563,24 +642,16 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
           static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
     } break;
     case SensorValueType::U_QWORD:
-      // Ignore bitmask for U_QWORD
-      value = get_data<uint64_t>(data, offset);
-      break;
     case SensorValueType::S_QWORD:
-      // Ignore bitmask for S_QWORD
-      value = get_data<int64_t>(data, offset);
+      // Ignore bitmask for QWORD
+      value = get_data<uint64_t>(data, offset);
       break;
     case SensorValueType::U_QWORD_R:
-      // Ignore bitmask for U_QWORD
-      value = get_data<uint64_t>(data, offset);
-      value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
-              static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
-              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
-      break;
-    case SensorValueType::S_QWORD_R:
-      // Ignore bitmask for S_QWORD
-      value = get_data<int64_t>(data, offset);
-      break;
+    case SensorValueType::S_QWORD_R: {
+      // Ignore bitmask for QWORD
+      uint64_t tmp = get_data<uint64_t>(data, offset);
+      value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
+    } break;
     case SensorValueType::RAW:
     default:
       break;

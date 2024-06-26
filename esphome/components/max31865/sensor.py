@@ -11,6 +11,9 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 
+CODEOWNERS = ["@DAVe3283"]
+DEPENDENCIES = ["spi"]
+
 max31865_ns = cg.esphome_ns.namespace("max31865")
 MAX31865Sensor = max31865_ns.class_(
     "MAX31865Sensor", sensor.Sensor, cg.PollingComponent, spi.SPIDevice

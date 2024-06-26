@@ -8,9 +8,25 @@ namespace ltr390 {
 
 static const char *const TAG = "ltr390";
 
+static const uint8_t LTR390_WAKEUP_TIME = 10;
+static const uint8_t LTR390_SETTLE_TIME = 5;
+
+static const uint8_t LTR390_MAIN_CTRL = 0x00;
+static const uint8_t LTR390_MEAS_RATE = 0x04;
+static const uint8_t LTR390_GAIN = 0x05;
+static const uint8_t LTR390_PART_ID = 0x06;
+static const uint8_t LTR390_MAIN_STATUS = 0x07;
+
 static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
 static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
+
+// Request fastest measurement rate - will be slowed by device if conversion rate is slower.
+static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
 static const uint32_t MODEADDRESSES[2] = {0x0D, 0x10};
+
+static const float SENSITIVITY_MAX = 2300;
+static const float INTG_MAX = RESOLUTIONVALUE[0] * 100;
+static const int GAIN_MAX = GAINVALUES[4];
 
 uint32_t little_endian_bytes_to_int(const uint8_t *buffer, uint8_t num_bytes) {
   uint32_t value = 0;
@@ -58,7 +74,7 @@ void LTR390Component::read_als_() {
   uint32_t als = *val;
 
   if (this->light_sensor_ != nullptr) {
-    float lux = (0.6 * als) / (GAINVALUES[this->gain_] * RESOLUTIONVALUE[this->res_]) * this->wfac_;
+    float lux = ((0.6 * als) / (GAINVALUES[this->gain_] * RESOLUTIONVALUE[this->res_])) * this->wfac_;
     this->light_sensor_->publish_state(lux);
   }
 
@@ -74,7 +90,7 @@ void LTR390Component::read_uvs_() {
   uint32_t uv = *val;
 
   if (this->uvi_sensor_ != nullptr) {
-    this->uvi_sensor_->publish_state(uv / LTR390_SENSITIVITY * this->wfac_);
+    this->uvi_sensor_->publish_state((uv / this->sensitivity_) * this->wfac_);
   }
 
   if (this->uv_sensor_ != nullptr) {
@@ -88,21 +104,27 @@ void LTR390Component::read_mode_(int mode_index) {
 
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
   ctrl[LTR390_CTRL_MODE] = mode;
+  ctrl[LTR390_CTRL_EN] = true;
   this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
 
   // After the sensor integration time do the following
-  this->set_timeout(((uint32_t) RESOLUTIONVALUE[this->res_]) * 100, [this, mode_index]() {
-    // Read from the sensor
-    std::get<1>(this->mode_funcs_[mode_index])();
+  this->set_timeout(((uint32_t) RESOLUTIONVALUE[this->res_]) * 100 + LTR390_WAKEUP_TIME + LTR390_SETTLE_TIME,
+                    [this, mode_index]() {
+                      // Read from the sensor
+                      std::get<1>(this->mode_funcs_[mode_index])();
 
-    // If there are more modes to read then begin the next
-    // otherwise stop
-    if (mode_index + 1 < (int) this->mode_funcs_.size()) {
-      this->read_mode_(mode_index + 1);
-    } else {
-      this->reading_ = false;
-    }
-  });
+                      // If there are more modes to read then begin the next
+                      // otherwise stop
+                      if (mode_index + 1 < (int) this->mode_funcs_.size()) {
+                        this->read_mode_(mode_index + 1);
+                      } else {
+                        // put sensor in standby
+                        std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
+                        ctrl[LTR390_CTRL_EN] = false;
+                        this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
+                        this->reading_ = false;
+                      }
+                    });
 }
 
 void LTR390Component::setup() {
@@ -132,12 +154,13 @@ void LTR390Component::setup() {
   // Set gain
   this->reg(LTR390_GAIN) = gain_;
 
-  // Set resolution
-  uint8_t res = this->reg(LTR390_MEAS_RATE).get();
-  // resolution is in bits 5-7
-  res &= ~0b01110000;
-  res |= res << 4;
-  this->reg(LTR390_MEAS_RATE) = res;
+  // Set resolution and measurement rate
+  this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_];
+
+  // Set sensitivity by linearly scaling against known value in the datasheet
+  float gain_scale = GAINVALUES[this->gain_] / GAIN_MAX;
+  float intg_scale = (RESOLUTIONVALUE[this->res_] * 100) / INTG_MAX;
+  this->sensitivity_ = SENSITIVITY_MAX * gain_scale * intg_scale;
 
   // Set sensor read state
   this->reading_ = false;

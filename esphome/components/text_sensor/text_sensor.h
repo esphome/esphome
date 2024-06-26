@@ -5,12 +5,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 namespace text_sensor {
 
 #define LOG_TEXT_SENSOR(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
+    } \
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
@@ -19,11 +24,15 @@ namespace text_sensor {
     } \
   }
 
-class TextSensor : public EntityBase {
- public:
-  explicit TextSensor();
-  explicit TextSensor(const std::string &name);
+#define SUB_TEXT_SENSOR(name) \
+ protected: \
+  text_sensor::TextSensor *name##_text_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_text_sensor(text_sensor::TextSensor *text_sensor) { this->name##_text_sensor_ = text_sensor; }
 
+class TextSensor : public EntityBase, public EntityBase_DeviceClass {
+ public:
   /// Getter-syntax for .state.
   std::string get_state() const;
   /// Getter-syntax for .raw_state
@@ -52,6 +61,10 @@ class TextSensor : public EntityBase {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
+  /** Override this method to set the unique ID of this sensor.
+   *
+   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
+   */
   virtual std::string unique_id();
 
   bool has_state();
@@ -59,8 +72,6 @@ class TextSensor : public EntityBase {
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
-  uint32_t hash_base() override;
-
   CallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
 

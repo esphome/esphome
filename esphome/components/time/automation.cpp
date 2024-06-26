@@ -1,11 +1,15 @@
 #include "automation.h"
+
 #include "esphome/core/log.h"
+
 #include <cinttypes>
 
 namespace esphome {
 namespace time {
 
 static const char *const TAG = "automation";
+static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
+                                             // there has been a drastic time synchronization
 
 void CronTrigger::add_second(uint8_t second) { this->seconds_[second] = true; }
 void CronTrigger::add_minute(uint8_t minute) { this->minutes_[minute] = true; }
@@ -23,11 +27,16 @@ void CronTrigger::loop() {
     return;
 
   if (this->last_check_.has_value()) {
-    if (*this->last_check_ > time && this->last_check_->timestamp - time.timestamp > 900) {
+    if (*this->last_check_ > time && this->last_check_->timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
       // We went back in time (a lot), probably caused by time synchronization
       ESP_LOGW(TAG, "Time has jumped back!");
     } else if (*this->last_check_ >= time) {
       // already handled this one
+      return;
+    } else if (time > *this->last_check_ && time.timestamp - this->last_check_->timestamp > MAX_TIMESTAMP_DRIFT) {
+      // We went ahead in time (a lot), probably caused by time synchronization
+      ESP_LOGW(TAG, "Time has jumped ahead!");
+      this->last_check_ = time;
       return;
     }
 

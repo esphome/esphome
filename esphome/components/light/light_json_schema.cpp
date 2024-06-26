@@ -121,7 +121,7 @@ void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonO
       call.set_cold_white(float(color["c"]) / 255.0f);
     }
     if (color.containsKey("w")) {
-      // the HA scheme is ambigious here, the same key is used for white channel in RGBW and warm
+      // the HA scheme is ambiguous here, the same key is used for white channel in RGBW and warm
       // white channel in RGBWW.
       if (color.containsKey("c")) {
         call.set_warm_white(float(color["w"]) / 255.0f);

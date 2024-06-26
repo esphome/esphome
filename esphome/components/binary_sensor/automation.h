@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cinttypes>
 #include <utility>
+#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
@@ -102,6 +104,8 @@ class MultiClickTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
+
+  void cancel();
 
  protected:
   void on_state_(bool state);

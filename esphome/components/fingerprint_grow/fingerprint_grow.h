@@ -6,10 +6,19 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
 
+#include <vector>
+
 namespace esphome {
 namespace fingerprint_grow {
 
 static const uint16_t START_CODE = 0xEF01;
+
+static const uint16_t ENROLLMENT_SLOT_UNUSED = 0xFFFF;
+
+// The datasheet says a max wake up time of of 200ms.
+static const uint8_t WAIT_FOR_WAKE_UP_MS = 200;
+
+static const uint32_t DEFAULT_IDLE_PERIOD_TO_SLEEP_MS = 5000;
 
 enum GrowPacketType {
   COMMAND = 0x01,
@@ -59,6 +68,7 @@ enum GrowResponse {
   INVALID_IMAGE = 0x15,
   FLASH_ERR = 0x18,
   INVALID_REG = 0x1A,
+  HANDSHAKE_SIGN = 0x55,
   BAD_PACKET = 0xFE,
   TIMEOUT = 0xFF,
 };
@@ -89,14 +99,16 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void dump_config() override;
 
   void set_address(uint32_t address) {
-    this->address_[0] = (uint8_t)(address >> 24);
-    this->address_[1] = (uint8_t)(address >> 16);
-    this->address_[2] = (uint8_t)(address >> 8);
-    this->address_[3] = (uint8_t)(address & 0xFF);
+    this->address_[0] = (uint8_t) (address >> 24);
+    this->address_[1] = (uint8_t) (address >> 16);
+    this->address_[2] = (uint8_t) (address >> 8);
+    this->address_[3] = (uint8_t) (address & 0xFF);
   }
   void set_sensing_pin(GPIOPin *sensing_pin) { this->sensing_pin_ = sensing_pin; }
+  void set_sensor_power_pin(GPIOPin *sensor_power_pin) { this->sensor_power_pin_ = sensor_power_pin; }
   void set_password(uint32_t password) { this->password_ = password; }
-  void set_new_password(uint32_t new_password) { this->new_password_ = &new_password; }
+  void set_new_password(uint32_t new_password) { this->new_password_ = new_password; }
+  void set_idle_period_to_sleep_ms(uint32_t period_ms) { this->idle_period_to_sleep_ms_ = period_ms; }
   void set_fingerprint_count_sensor(sensor::Sensor *fingerprint_count_sensor) {
     this->fingerprint_count_sensor_ = fingerprint_count_sensor;
   }
@@ -114,11 +126,20 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
     this->enrolling_binary_sensor_ = enrolling_binary_sensor;
   }
+  void add_on_finger_scan_start_callback(std::function<void()> callback) {
+    this->finger_scan_start_callback_.add(std::move(callback));
+  }
   void add_on_finger_scan_matched_callback(std::function<void(uint16_t, uint16_t)> callback) {
     this->finger_scan_matched_callback_.add(std::move(callback));
   }
   void add_on_finger_scan_unmatched_callback(std::function<void()> callback) {
     this->finger_scan_unmatched_callback_.add(std::move(callback));
+  }
+  void add_on_finger_scan_misplaced_callback(std::function<void()> callback) {
+    this->finger_scan_misplaced_callback_.add(std::move(callback));
+  }
+  void add_on_finger_scan_invalid_callback(std::function<void()> callback) {
+    this->finger_scan_invalid_callback_.add(std::move(callback));
   }
   void add_on_enrollment_scan_callback(std::function<void(uint8_t, uint16_t)> callback) {
     this->enrollment_scan_callback_.add(std::move(callback));
@@ -147,20 +168,30 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool set_password_();
   bool get_parameters_();
   void get_fingerprint_count_();
+  uint8_t transfer_(std::vector<uint8_t> *p_data_buffer);
   uint8_t send_command_();
+  void sensor_wakeup_();
+  void sensor_sleep_();
 
   std::vector<uint8_t> data_ = {};
   uint8_t address_[4] = {0xFF, 0xFF, 0xFF, 0xFF};
   uint16_t capacity_ = 64;
   uint32_t password_ = 0x0;
-  uint32_t *new_password_{nullptr};
+  uint32_t new_password_ = -1;
   GPIOPin *sensing_pin_{nullptr};
+  GPIOPin *sensor_power_pin_{nullptr};
   uint8_t enrollment_image_ = 0;
-  uint16_t enrollment_slot_ = 0;
+  uint16_t enrollment_slot_ = ENROLLMENT_SLOT_UNUSED;
   uint8_t enrollment_buffers_ = 5;
   bool waiting_removal_ = false;
+  bool has_sensing_pin_ = false;
+  bool has_power_pin_ = false;
+  bool is_sensor_awake_ = false;
+  uint32_t last_transfer_ms_ = 0;
   uint32_t last_aura_led_control_ = 0;
   uint16_t last_aura_led_duration_ = 0;
+  uint16_t system_identifier_code_ = 0;
+  uint32_t idle_period_to_sleep_ms_ = UINT32_MAX;
   sensor::Sensor *fingerprint_count_sensor_{nullptr};
   sensor::Sensor *status_sensor_{nullptr};
   sensor::Sensor *capacity_sensor_{nullptr};
@@ -168,11 +199,21 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   sensor::Sensor *last_finger_id_sensor_{nullptr};
   sensor::Sensor *last_confidence_sensor_{nullptr};
   binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
+  CallbackManager<void()> finger_scan_invalid_callback_;
+  CallbackManager<void()> finger_scan_start_callback_;
   CallbackManager<void(uint16_t, uint16_t)> finger_scan_matched_callback_;
   CallbackManager<void()> finger_scan_unmatched_callback_;
+  CallbackManager<void()> finger_scan_misplaced_callback_;
   CallbackManager<void(uint8_t, uint16_t)> enrollment_scan_callback_;
   CallbackManager<void(uint16_t)> enrollment_done_callback_;
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
+};
+
+class FingerScanStartTrigger : public Trigger<> {
+ public:
+  explicit FingerScanStartTrigger(FingerprintGrowComponent *parent) {
+    parent->add_on_finger_scan_start_callback([this]() { this->trigger(); });
+  }
 };
 
 class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
@@ -187,6 +228,20 @@ class FingerScanUnmatchedTrigger : public Trigger<> {
  public:
   explicit FingerScanUnmatchedTrigger(FingerprintGrowComponent *parent) {
     parent->add_on_finger_scan_unmatched_callback([this]() { this->trigger(); });
+  }
+};
+
+class FingerScanMisplacedTrigger : public Trigger<> {
+ public:
+  explicit FingerScanMisplacedTrigger(FingerprintGrowComponent *parent) {
+    parent->add_on_finger_scan_misplaced_callback([this]() { this->trigger(); });
+  }
+};
+
+class FingerScanInvalidTrigger : public Trigger<> {
+ public:
+  explicit FingerScanInvalidTrigger(FingerprintGrowComponent *parent) {
+    parent->add_on_finger_scan_invalid_callback([this]() { this->trigger(); });
   }
 };
 

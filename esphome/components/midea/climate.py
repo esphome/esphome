@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_CUSTOM_PRESETS,
     CONF_ID,
     CONF_NUM_ATTEMPTS,
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_PERIOD,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
@@ -35,9 +36,8 @@ from esphome.components.climate import (
 )
 
 CODEOWNERS = ["@dudanov"]
-DEPENDENCIES = ["climate", "uart", "wifi"]
+DEPENDENCIES = ["climate", "uart"]
 AUTO_LOAD = ["sensor"]
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
@@ -113,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PERIOD, default="1s"): cv.time_period,
             cv.Optional(CONF_TIMEOUT, default="2s"): cv.time_period,
             cv.Optional(CONF_NUM_ATTEMPTS, default=3): cv.int_range(min=1, max=5),
-            cv.Optional(CONF_TRANSMITTER_ID): cv.use_id(
+            cv.OnlyWith(CONF_TRANSMITTER_ID, "remote_transmitter"): cv.use_id(
                 remote_transmitter.RemoteTransmitterComponent
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
@@ -163,6 +163,7 @@ BeeperOnAction = midea_ac_ns.class_("BeeperOnAction", automation.Action)
 BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
 PowerOnAction = midea_ac_ns.class_("PowerOnAction", automation.Action)
 PowerOffAction = midea_ac_ns.class_("PowerOffAction", automation.Action)
+PowerToggleAction = midea_ac_ns.class_("PowerToggleAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -249,6 +250,16 @@ async def power_off_to_code(var, config, args):
     pass
 
 
+# Power Toggle action
+@register_action(
+    "power_toggle",
+    PowerToggleAction,
+    cv.Schema({}),
+)
+async def power_inv_to_code(var, config, args):
+    pass
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -282,4 +293,4 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    cg.add_library("dudanov/MideaUART", "1.1.8")
+    cg.add_library("dudanov/MideaUART", "1.1.9")

@@ -1,5 +1,6 @@
 #include "rf_bridge.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome {
@@ -49,11 +50,14 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       data.high = (raw[6] << 8) | raw[7];
       data.code = (raw[8] << 16) | (raw[9] << 8) | raw[10];
 
-      if (action == RF_CODE_LEARN_OK)
+      if (action == RF_CODE_LEARN_OK) {
         ESP_LOGD(TAG, "Learning success");
+      }
 
-      ESP_LOGI(TAG, "Received RFBridge Code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low,
-               data.high, data.code);
+      ESP_LOGI(TAG,
+               "Received RFBridge Code: sync=0x%04" PRIX16 " low=0x%04" PRIX16 " high=0x%04" PRIX16
+               " code=0x%06" PRIX32,
+               data.sync, data.low, data.high, data.code);
       this->data_callback_.call(data);
       break;
     }
@@ -143,8 +147,8 @@ void RFBridgeComponent::loop() {
 }
 
 void RFBridgeComponent::send_code(RFBridgeData data) {
-  ESP_LOGD(TAG, "Sending code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low, data.high,
-           data.code);
+  ESP_LOGD(TAG, "Sending code: sync=0x%04" PRIX16 " low=0x%04" PRIX16 " high=0x%04" PRIX16 " code=0x%06" PRIX32,
+           data.sync, data.low, data.high, data.code);
   this->write(RF_CODE_START);
   this->write(RF_CODE_RFOUT);
   this->write((data.sync >> 8) & 0xFF);

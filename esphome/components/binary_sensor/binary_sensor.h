@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 
 namespace binary_sensor {
@@ -17,13 +19,22 @@ namespace binary_sensor {
     } \
   }
 
+#define SUB_BINARY_SENSOR(name) \
+ protected: \
+  binary_sensor::BinarySensor *name##_binary_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_binary_sensor(binary_sensor::BinarySensor *binary_sensor) { \
+    this->name##_binary_sensor_ = binary_sensor; \
+  }
+
 /** Base class for all binary_sensor-type classes.
  *
  * This class includes a callback that components such as MQTT can subscribe to for state changes.
  * The sub classes should notify the front-end of new states via the publish_state() method which
  * handles inverted inputs for you.
  */
-class BinarySensor : public EntityBase {
+class BinarySensor : public EntityBase, public EntityBase_DeviceClass {
  public:
   explicit BinarySensor();
 
@@ -49,14 +60,10 @@ class BinarySensor : public EntityBase {
   /// The current reported state of the binary sensor.
   bool state;
 
-  /// Manually set the Home Assistant device class (see binary_sensor::device_class)
-  void set_device_class(const std::string &device_class);
-
-  /// Get the device class for this binary sensor, using the manual override if specified.
-  std::string get_device_class();
-
   void add_filter(Filter *filter);
   void add_filters(const std::vector<Filter *> &filters);
+
+  void set_publish_initial_state(bool publish_initial_state) { this->publish_initial_state_ = publish_initial_state; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -67,21 +74,11 @@ class BinarySensor : public EntityBase {
 
   virtual bool is_status_binary_sensor() const;
 
-  // ========== OVERRIDE METHODS ==========
-  // (You'll only need this when creating your own custom binary sensor)
-  /** Override this to set the default device class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string device_class();
-
  protected:
-  uint32_t hash_base() override;
-
   CallbackManager<void(bool)> state_callback_{};
-  optional<std::string> device_class_{};  ///< Stores the override of the device class
   Filter *filter_list_{nullptr};
   bool has_state_{false};
+  bool publish_initial_state_{false};
   Deduplicator<bool> publish_dedup_;
 };
 

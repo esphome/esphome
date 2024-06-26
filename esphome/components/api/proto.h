@@ -4,6 +4,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
+#include <vector>
+
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
 #define HAS_PROTO_MESSAGE_DUMP
 #endif
@@ -70,7 +72,7 @@ class ProtoVarInt {
     }
   }
   void encode(std::vector<uint8_t> &out) {
-    uint32_t val = this->value_;
+    uint64_t val = this->value_;
     if (val <= 0x7F) {
       out.push_back(val);
       return;
@@ -158,8 +160,7 @@ class ProtoWriteBuffer {
     this->encode_field_raw(field_id, 2);
     this->encode_varint_raw(len);
     auto *data = reinterpret_cast<const uint8_t *>(string);
-    for (size_t i = 0; i < len; i++)
-      this->write(data[i]);
+    this->buffer_->insert(this->buffer_->end(), data, data + len);
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
     this->encode_string(field_id, value.data(), value.size());

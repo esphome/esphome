@@ -2,7 +2,7 @@ import difflib
 import itertools
 
 import voluptuous as vol
-from esphome.jsonschema import jschema_extended
+from esphome.schema_extractors import schema_extractor_extended
 
 
 class ExtraKeysInvalid(vol.Invalid):
@@ -64,7 +64,7 @@ class _Schema(vol.Schema):
 
         # Recursively compile schema
         _compiled_schema = {}
-        for skey, svalue in vol.iteritems(schema):
+        for skey, svalue in schema.items():
             new_key = self._compile(skey)
             new_value = self._compile(svalue)
             _compiled_schema[skey] = (new_key, new_value)
@@ -203,8 +203,12 @@ class _Schema(vol.Schema):
         self._extra_schemas.append(validator)
         return self
 
-    @jschema_extended
-    # pylint: disable=signature-differs
+    def prepend_extra(self, validator):
+        validator = _Schema(validator)
+        self._extra_schemas.insert(0, validator)
+        return self
+
+    @schema_extractor_extended
     def extend(self, *schemas, **kwargs):
         extra = kwargs.pop("extra", None)
         if kwargs:

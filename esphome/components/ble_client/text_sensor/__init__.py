@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor, ble_client, esp32_ble_tracker
 from esphome.const import (
+    CONF_CHARACTERISTIC_UUID,
     CONF_ID,
     CONF_TRIGGER_ID,
     CONF_SERVICE_UUID,
@@ -11,7 +12,6 @@ from .. import ble_client_ns
 
 DEPENDENCIES = ["ble_client"]
 
-CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
 CONF_NOTIFY = "notify"
@@ -88,27 +88,13 @@ async def to_code(config):
         )
         cg.add(var.set_char_uuid128(uuid128))
 
-    if CONF_DESCRIPTOR_UUID in config:
-        if len(config[CONF_DESCRIPTOR_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
-            cg.add(
-                var.set_descr_uuid16(
-                    esp32_ble_tracker.as_hex(config[CONF_DESCRIPTOR_UUID])
-                )
-            )
-        elif len(config[CONF_DESCRIPTOR_UUID]) == len(
-            esp32_ble_tracker.bt_uuid32_format
-        ):
-            cg.add(
-                var.set_descr_uuid32(
-                    esp32_ble_tracker.as_hex(config[CONF_DESCRIPTOR_UUID])
-                )
-            )
-        elif len(config[CONF_DESCRIPTOR_UUID]) == len(
-            esp32_ble_tracker.bt_uuid128_format
-        ):
-            uuid128 = esp32_ble_tracker.as_reversed_hex_array(
-                config[CONF_DESCRIPTOR_UUID]
-            )
+    if descriptor_uuid := config:
+        if len(descriptor_uuid) == len(esp32_ble_tracker.bt_uuid16_format):
+            cg.add(var.set_descr_uuid16(esp32_ble_tracker.as_hex(descriptor_uuid)))
+        elif len(descriptor_uuid) == len(esp32_ble_tracker.bt_uuid32_format):
+            cg.add(var.set_descr_uuid32(esp32_ble_tracker.as_hex(descriptor_uuid)))
+        elif len(descriptor_uuid) == len(esp32_ble_tracker.bt_uuid128_format):
+            uuid128 = esp32_ble_tracker.as_reversed_hex_array(descriptor_uuid)
             cg.add(var.set_descr_uuid128(uuid128))
 
     await cg.register_component(var, config)

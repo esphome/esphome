@@ -16,13 +16,6 @@ namespace fan {
     (obj)->dump_traits_(TAG, prefix); \
   }
 
-/// Simple enum to represent the speed of a fan. - DEPRECATED - Will be deleted soon
-enum ESPDEPRECATED("FanSpeed is deprecated.", "2021.9") FanSpeed {
-  FAN_SPEED_LOW = 0,     ///< The fan is running on low speed.
-  FAN_SPEED_MEDIUM = 1,  ///< The fan is running on medium speed.
-  FAN_SPEED_HIGH = 2     ///< The fan is running on high/full speed.
-};
-
 /// Simple enum to represent the direction of a fan.
 enum class FanDirection { FORWARD = 0, REVERSE = 1 };
 
@@ -79,6 +72,11 @@ class FanCall {
     return *this;
   }
   optional<FanDirection> get_direction() const { return this->direction_; }
+  FanCall &set_preset_mode(const std::string &preset_mode) {
+    this->preset_mode_ = preset_mode;
+    return *this;
+  }
+  std::string get_preset_mode() const { return this->preset_mode_; }
 
   void perform();
 
@@ -90,6 +88,7 @@ class FanCall {
   optional<bool> oscillating_;
   optional<int> speed_;
   optional<FanDirection> direction_{};
+  std::string preset_mode_{};
 };
 
 struct FanRestoreState {
@@ -97,6 +96,7 @@ struct FanRestoreState {
   int speed;
   bool oscillating;
   FanDirection direction;
+  uint8_t preset_mode;
 
   /// Convert this struct to a fan call that can be performed.
   FanCall to_call(Fan &fan);
@@ -106,10 +106,6 @@ struct FanRestoreState {
 
 class Fan : public EntityBase {
  public:
-  Fan();
-  /// Construct the fan with name.
-  explicit Fan(const std::string &name);
-
   /// The current on/off state of the fan.
   bool state{false};
   /// The current oscillation state of the fan.
@@ -118,6 +114,8 @@ class Fan : public EntityBase {
   int speed{0};
   /// The current direction of the fan
   FanDirection direction{FanDirection::FORWARD};
+  // The current preset mode of the fan
+  std::string preset_mode{};
 
   FanCall turn_on();
   FanCall turn_off();
@@ -143,7 +141,6 @@ class Fan : public EntityBase {
   void save_state_();
 
   void dump_traits_(const char *tag, const char *prefix);
-  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

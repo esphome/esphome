@@ -1,7 +1,7 @@
 import pytest
 
 from hypothesis import given
-from hypothesis.provisional import ip_addresses
+from hypothesis.strategies import ip_addresses
 
 from esphome import helpers
 
@@ -108,6 +108,10 @@ def test_is_ip_address__valid(value):
         ("FOO", None, False, False),
         ("FOO", None, True, True),
         ("FOO", "", False, False),
+        ("FOO", "False", False, False),
+        ("FOO", "True", False, True),
+        ("FOO", "FALSE", True, False),
+        ("FOO", "fAlSe", True, False),
         ("FOO", "Yes", False, True),
         ("FOO", "123", False, True),
     ),
@@ -227,5 +231,40 @@ def test_file_compare(fixture_path, file1, file2, expected):
     path2 = fixture_path / "helpers" / file2
 
     actual = helpers.file_compare(path1, path2)
+
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    (
+        ("foo", "foo"),
+        ("foo bar", "foo_bar"),
+        ("foo Bar", "foo_bar"),
+        ("foo BAR", "foo_bar"),
+        ("foo.bar", "foo.bar"),
+        ("fooBAR", "foobar"),
+        ("Foo-bar_EEK", "foo-bar_eek"),
+        ("  foo", "__foo"),
+    ),
+)
+def test_snake_case(text, expected):
+    actual = helpers.snake_case(text)
+
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    (
+        ("foo_bar", "foo_bar"),
+        ('!"§$%&/()=?foo_bar', "___________foo_bar"),
+        ('foo_!"§$%&/()=?bar', "foo____________bar"),
+        ('foo_bar!"§$%&/()=?', "foo_bar___________"),
+        ('foo-bar!"§$%&/()=?', "foo-bar___________"),
+    ),
+)
+def test_sanitize(text, expected):
+    actual = helpers.sanitize(text)
 
     assert actual == expected

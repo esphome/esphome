@@ -11,8 +11,7 @@ class ST7920;
 
 using st7920_writer_t = std::function<void(ST7920 &)>;
 
-class ST7920 : public PollingComponent,
-               public display::DisplayBuffer,
+class ST7920 : public display::DisplayBuffer,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                      spi::DATA_RATE_200KHZ> {
  public:
@@ -28,6 +27,8 @@ class ST7920 : public PollingComponent,
   void update() override;
   void fill(Color color) override;
   void write_display_data();
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;

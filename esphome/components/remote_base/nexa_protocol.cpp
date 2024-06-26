@@ -106,7 +106,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   SHHHH HHHH HHHH HHHH HHHH HHHH HHGO EE BB DDDD 0 P
 
   S = Sync bit.
-  H = The first 26 bits are transmitter unique codes, and it is this code that the reciever "learns" to recognize.
+  H = The first 26 bits are transmitter unique codes, and it is this code that the receiver "learns" to recognize.
   G = Group code, set to one for the whole group.
   O = On/Off bit. Set to 1 for on, 0 for off.
   E = Unit to be turned on or off. The code is inverted, i.e. '11' equals 1, '00' equals 4.
@@ -232,7 +232,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
 }
 
 void NexaProtocol::dump(const NexaData &data) {
-  ESP_LOGD(TAG, "Received NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group,
+  ESP_LOGI(TAG, "Received NEXA: device=0x%04" PRIX32 " group=%d state=%d channel=%d level=%d", data.device, data.group,
            data.state, data.channel, data.level);
 }
 

@@ -14,6 +14,9 @@ void MCP23008::setup() {
     return;
   }
 
+  // Read current output register state
+  this->read_reg(mcp23x08_base::MCP23X08_OLAT, &this->olat_);
+
   if (this->open_drain_ints_) {
     // enable open-drain interrupt pins, 3.3V-safe
     this->write_reg(mcp23x08_base::MCP23X08_IOCON, 0x04);

@@ -8,7 +8,6 @@ namespace light {
 
 static const char *const TAG = "light";
 
-LightState::LightState(const std::string &name, LightOutput *output) : EntityBase(name), output_(output) {}
 LightState::LightState(LightOutput *output) : output_(output) {}
 
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
@@ -121,6 +120,7 @@ void LightState::loop() {
   // Apply transformer (if any)
   if (this->transformer_ != nullptr) {
     auto values = this->transformer_->apply();
+    this->is_transformer_active_ = true;
     if (values.has_value()) {
       this->current_values = *values;
       this->output_->update_state(this);
@@ -132,6 +132,7 @@ void LightState::loop() {
       this->current_values = this->transformer_->get_target_values();
 
       this->transformer_->stop();
+      this->is_transformer_active_ = false;
       this->transformer_ = nullptr;
       this->target_state_reached_callback_.call();
     }
@@ -145,7 +146,6 @@ void LightState::loop() {
 }
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
-uint32_t LightState::hash_base() { return 1114400283; }
 
 void LightState::publish_state() { this->remote_values_callback_.call(); }
 
@@ -216,6 +216,8 @@ void LightState::current_values_as_ct(float *color_temperature, float *white_bri
                              this->gamma_correct_);
 }
 
+bool LightState::is_transformer_active() { return this->is_transformer_active_; }
+
 void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();
   if (effect_index == 0)
@@ -265,6 +267,7 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
 }
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
+  this->is_transformer_active_ = false;
   this->transformer_ = nullptr;
   this->current_values = target;
   if (set_remote_values) {
@@ -277,7 +280,15 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
 void LightState::save_remote_values_() {
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
-  saved.state = this->remote_values.is_on();
+  switch (this->restore_mode_) {
+    case LIGHT_RESTORE_AND_OFF:
+    case LIGHT_RESTORE_AND_ON:
+      saved.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
+      break;
+    default:
+      saved.state = this->remote_values.is_on();
+      break;
+  }
   saved.brightness = this->remote_values.get_brightness();
   saved.color_brightness = this->remote_values.get_color_brightness();
   saved.red = this->remote_values.get_red();

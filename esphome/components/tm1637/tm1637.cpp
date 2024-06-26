@@ -168,7 +168,7 @@ uint8_t TM1637Display::get_keys() {
     //    Bit | 7  6  5  4  3  2  1  0
     //  ------+------------------------
     //     To | 0  0  0  0  K2 S2 S1 S0
-    key_code = (uint8_t)((key_code & 0x80) >> 7 | (key_code & 0x40) >> 5 | (key_code & 0x20) >> 3 | (key_code & 0x08));
+    key_code = (uint8_t) ((key_code & 0x80) >> 7 | (key_code & 0x40) >> 5 | (key_code & 0x20) >> 3 | (key_code & 0x08));
   }
   return key_code;
 }
@@ -225,7 +225,7 @@ void TM1637Display::display() {
 
   // Write display CTRL CMND + brightness
   this->start_();
-  this->send_byte_(TM1637_CMD_CTRL + ((this->intensity_ & 0x7) | 0x08));
+  this->send_byte_(TM1637_CMD_CTRL + ((this->intensity_ & 0x7) | (this->on_ ? 0x08 : 0x00)));
   this->stop_();
 }
 bool TM1637Display::send_byte_(uint8_t b) {
@@ -300,6 +300,7 @@ uint8_t TM1637Display::read_byte_() {
 uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   // ESP_LOGV(TAG, "Print at %d: %s", start_pos, str);
   uint8_t pos = start_pos;
+  bool use_dot = false;
   for (; *str != '\0'; str++) {
     uint8_t data = TM1637_UNKNOWN_CHAR;
     if (*str >= ' ' && *str <= '~')
@@ -312,14 +313,14 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
     // XABCDEFG, but TM1637 is // XGFEDCBA
     if (this->inverted_) {
       // XABCDEFG > XGCBAFED
-      data = ((data & 0x80) ? 0x80 : 0) |  // no move X
-             ((data & 0x40) ? 0x8 : 0) |   // A
-             ((data & 0x20) ? 0x10 : 0) |  // B
-             ((data & 0x10) ? 0x20 : 0) |  // C
-             ((data & 0x8) ? 0x1 : 0) |    // D
-             ((data & 0x4) ? 0x2 : 0) |    // E
-             ((data & 0x2) ? 0x4 : 0) |    // F
-             ((data & 0x1) ? 0x40 : 0);    // G
+      data = ((data & 0x80) || use_dot ? 0x80 : 0) |  // no move X
+             ((data & 0x40) ? 0x8 : 0) |              // A
+             ((data & 0x20) ? 0x10 : 0) |             // B
+             ((data & 0x10) ? 0x20 : 0) |             // C
+             ((data & 0x8) ? 0x1 : 0) |               // D
+             ((data & 0x4) ? 0x2 : 0) |               // E
+             ((data & 0x2) ? 0x4 : 0) |               // F
+             ((data & 0x1) ? 0x40 : 0);               // G
     } else {
       // XABCDEFG > XGFEDCBA
       data = ((data & 0x80) ? 0x80 : 0) |  // no move X
@@ -331,18 +332,18 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
              ((data & 0x2) ? 0x20 : 0) |   // F
              ((data & 0x1) ? 0x40 : 0);    // G
     }
-    if (*str == '.') {
-      if (pos != start_pos)
-        pos--;
-      this->buffer_[pos] |= 0b10000000;
+    use_dot = *str == '.';
+    if (use_dot) {
+      if ((!this->inverted_) && (pos != start_pos)) {
+        this->buffer_[pos - 1] |= 0b10000000;
+      }
     } else {
       if (pos >= 6) {
         ESP_LOGE(TAG, "String is too long for the display!");
         break;
       }
-      this->buffer_[pos] = data;
+      this->buffer_[pos++] = data;
     }
-    pos++;
   }
   return pos - start_pos;
 }
@@ -368,16 +369,14 @@ uint8_t TM1637Display::printf(const char *format, ...) {
   return 0;
 }
 
-#ifdef USE_TIME
-uint8_t TM1637Display::strftime(uint8_t pos, const char *format, time::ESPTime time) {
+uint8_t TM1637Display::strftime(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     return this->print(pos, buffer);
   return 0;
 }
-uint8_t TM1637Display::strftime(const char *format, time::ESPTime time) { return this->strftime(0, format, time); }
-#endif
+uint8_t TM1637Display::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
 
 }  // namespace tm1637
 }  // namespace esphome

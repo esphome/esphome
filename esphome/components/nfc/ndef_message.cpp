@@ -1,4 +1,5 @@
 #include "ndef_message.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace nfc {
@@ -32,7 +33,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
       id_length = data[index++];
     }
 
-    ESP_LOGVV(TAG, "Lengths: type=%d, payload=%d, id=%d", type_length, payload_length, id_length);
+    ESP_LOGVV(TAG, "Lengths: type=%d, payload=%" PRIu32 ", id=%d", type_length, payload_length, id_length);
 
     std::string type_str(data.begin() + index, data.begin() + index + type_length);
 
@@ -42,6 +43,11 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
     if (il) {
       id_str = std::string(data.begin() + index, data.begin() + index + id_length);
       index += id_length;
+    }
+
+    if ((data.begin() + index > data.end()) || (data.begin() + index + payload_length > data.end())) {
+      ESP_LOGE(TAG, "Corrupt record encountered; NdefMessage constructor aborting");
+      break;
     }
 
     std::vector<uint8_t> payload_data(data.begin() + index, data.begin() + index + payload_length);

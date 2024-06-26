@@ -13,6 +13,8 @@
 #include <dsmr/parser.h>
 #include <dsmr/fields.h>
 
+#include <vector>
+
 namespace esphome {
 namespace dsmr {
 

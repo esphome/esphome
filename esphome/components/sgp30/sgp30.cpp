@@ -73,9 +73,10 @@ void SGP30Component::setup() {
     return;
   }
 
-  // Hash with compilation time
+  // Hash with compilation time and serial number
   // This ensures the baseline storage is cleared after OTA
-  uint32_t hash = fnv1_hash(App.get_compilation_time());
+  // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
+  uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(this->serial_number_));
   this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
   if (this->pref_.load(&this->baselines_storage_)) {
@@ -181,9 +182,18 @@ void SGP30Component::send_env_data_() {
     ESP_LOGD(TAG, "External compensation data received: Temperature %0.2f°C", temperature);
   }
 
-  float absolute_humidity =
-      216.7f * (((humidity / 100) * 6.112f * std::exp((17.62f * temperature) / (243.12f + temperature))) /
-                (273.15f + temperature));
+  float absolute_humidity;
+  if (temperature < 0) {
+    absolute_humidity =
+        216.67f *
+        ((humidity * 0.061121f * std::exp((23.036f - temperature / 333.7f) * (temperature / (279.82f + temperature)))) /
+         (273.15f + temperature));
+  } else {
+    absolute_humidity =
+        216.67f *
+        ((humidity * 0.061121f * std::exp((18.678f - temperature / 234.5f) * (temperature / (257.14f + temperature)))) /
+         (273.15f + temperature));
+  }
   uint8_t humidity_full = uint8_t(std::floor(absolute_humidity));
   uint8_t humidity_dec = uint8_t(std::floor((absolute_humidity - std::floor(absolute_humidity)) * 256));
   ESP_LOGD(TAG, "Calculated Absolute humidity: %0.3f g/m³ (0x%04X)", absolute_humidity,
@@ -246,7 +256,7 @@ void SGP30Component::dump_config() {
     } else {
       ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
     }
-    ESP_LOGCONFIG(TAG, "  Warm up time: %us", this->required_warm_up_time_);
+    ESP_LOGCONFIG(TAG, "  Warm up time: %" PRIu32 "s", this->required_warm_up_time_);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "eCO2 sensor", this->eco2_sensor_);

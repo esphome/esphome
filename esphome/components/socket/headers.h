@@ -15,19 +15,28 @@
 /* Address families.  */
 #define AF_UNSPEC 0
 #define AF_INET 2
-#define AF_INET6 10
 #define PF_INET AF_INET
-#define PF_INET6 AF_INET6
 #define PF_UNSPEC AF_UNSPEC
+
 #define IPPROTO_IP 0
 #define IPPROTO_TCP 6
+
+#if LWIP_IPV6
+#define AF_INET6 10
+#define PF_INET6 AF_INET6
+
 #define IPPROTO_IPV6 41
 #define IPPROTO_ICMPV6 58
+#endif
 
 #define TCP_NODELAY 0x01
 
 #define F_GETFL 3
 #define F_SETFL 4
+
+#ifdef O_NONBLOCK
+#undef O_NONBLOCK
+#endif
 #define O_NONBLOCK 1
 
 #define SHUT_RD 0
@@ -58,6 +67,7 @@ struct sockaddr_in {
   char sin_zero[SIN_ZERO_LEN];
 };
 
+#if LWIP_IPV6
 // NOLINTNEXTLINE(readability-identifier-naming)
 struct sockaddr_in6 {
   uint8_t sin6_len;          /* length of this structure    */
@@ -67,6 +77,7 @@ struct sockaddr_in6 {
   struct in6_addr sin6_addr; /* IPv6 address                */
   uint32_t sin6_scope_id;    /* Set of interfaces for scope */
 };
+#endif
 
 // NOLINTNEXTLINE(readability-identifier-naming)
 struct sockaddr {
@@ -91,7 +102,7 @@ struct iovec {
   size_t iov_len;
 };
 
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_RP2040)
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
 #undef INADDR_ANY
@@ -109,6 +120,35 @@ struct iovec {
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP
 
+#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
+
+// standard lwIP's compatibility macros will interfere
+// with Socket class function names - disable the macros
+// and use real function names instead
+#undef LWIP_COMPAT_SOCKETS
+#define LWIP_COMPAT_SOCKETS 0
+
+#include "lwip/sockets.h"
+#include <sys/types.h>
+
+#ifdef USE_ARDUINO
+// arduino-esp32 declares a global var called INADDR_NONE which is replaced
+// by the define
+#ifdef INADDR_NONE
+#undef INADDR_NONE
+#endif
+// not defined for ESP32
+using socklen_t = uint32_t;
+
+#define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
+#define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
+#else  // !USE_ESP32
+#define ESPHOME_INADDR_ANY INADDR_ANY
+#define ESPHOME_INADDR_NONE INADDR_NONE
+#endif
+
+#endif  // USE_SOCKET_IMPL_LWIP_SOCKETS
+
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
 #include <cstdint>
@@ -118,6 +158,13 @@ struct iovec {
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+
+#ifdef USE_HOST
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#endif  // USE_HOST
 
 #ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced

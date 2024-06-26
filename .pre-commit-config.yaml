@@ -1,16 +1,17 @@
+---
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
-  - repo: https://github.com/ambv/black
-    rev: 22.3.0
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.4.2
     hooks:
-    - id: black
-      args:
-        - --safe
-        - --quiet
-      files: ^((esphome|script|tests)/.+)?[^/]+\.py$
-  - repo: https://gitlab.com/pycqa/flake8
-    rev: 4.0.1
+      - id: black
+        args:
+          - --safe
+          - --quiet
+        files: ^((esphome|script|tests)/.+)?[^/]+\.py$
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
     hooks:
       - id: flake8
         additional_dependencies:
@@ -26,7 +27,23 @@ repos:
           - --branch=release
           - --branch=beta
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.31.1
+    rev: v3.15.2
     hooks:
       - id: pyupgrade
-        args: [--py38-plus]
+        args: [--py39-plus]
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v13.0.1
+    hooks:
+      - id: clang-format
+        types_or: [c, c++]
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: script/run-in-env.sh pylint
+        language: script
+        types: [python]

@@ -1,3 +1,4 @@
+---
 esphome:
   name: test
   platform: ESP8266

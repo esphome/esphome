@@ -19,22 +19,22 @@ class CD74HC4067Component : public Component {
   void activate_pin(uint8_t pin);
 
   /// set the pin connected to multiplexer control pin 0
-  void set_pin_s0(InternalGPIOPin *pin) { this->pin_s0_ = pin; }
+  void set_pin_s0(GPIOPin *pin) { this->pin_s0_ = pin; }
   /// set the pin connected to multiplexer control pin 1
-  void set_pin_s1(InternalGPIOPin *pin) { this->pin_s1_ = pin; }
+  void set_pin_s1(GPIOPin *pin) { this->pin_s1_ = pin; }
   /// set the pin connected to multiplexer control pin 2
-  void set_pin_s2(InternalGPIOPin *pin) { this->pin_s2_ = pin; }
+  void set_pin_s2(GPIOPin *pin) { this->pin_s2_ = pin; }
   /// set the pin connected to multiplexer control pin 3
-  void set_pin_s3(InternalGPIOPin *pin) { this->pin_s3_ = pin; }
+  void set_pin_s3(GPIOPin *pin) { this->pin_s3_ = pin; }
 
   /// set the delay needed after an input switch
   void set_switch_delay(uint32_t switch_delay) { this->switch_delay_ = switch_delay; }
 
  private:
-  InternalGPIOPin *pin_s0_;
-  InternalGPIOPin *pin_s1_;
-  InternalGPIOPin *pin_s2_;
-  InternalGPIOPin *pin_s3_;
+  GPIOPin *pin_s0_;
+  GPIOPin *pin_s1_;
+  GPIOPin *pin_s2_;
+  GPIOPin *pin_s3_;
   /// the currently active pin
   uint8_t active_pin_;
   uint32_t switch_delay_;

@@ -103,7 +103,6 @@ class LockCall {
 class Lock : public EntityBase {
  public:
   explicit Lock();
-  explicit Lock(const std::string &name);
 
   /** Make a lock device control call, this is used to control the lock device, see the LockCall description
    * for more info.
@@ -166,8 +165,6 @@ class Lock : public EntityBase {
    * @param call The LockCall instance encoding all attribute changes.
    */
   virtual void control(const LockCall &call) = 0;
-
-  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
   Deduplicator<LockState> publish_dedup_;

@@ -6,6 +6,9 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_PHASE_A,
+    CONF_PHASE_B,
+    CONF_PHASE_C,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -20,10 +23,6 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
-
-CONF_PHASE_A = "phase_a"
-CONF_PHASE_B = "phase_b"
-CONF_PHASE_C = "phase_c"
 
 CONF_ENERGY_PRODUCTION_DAY = "energy_production_day"
 CONF_TOTAL_ENERGY_PRODUCTION = "total_energy_production"
@@ -52,7 +51,7 @@ GrowattSolar = growatt_solar_ns.class_(
 PHASE_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
+        accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
     ),
     CONF_CURRENT: sensor.sensor_schema(
@@ -71,7 +70,7 @@ PHASE_SENSORS = {
 PV_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
+        accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
     ),
     CONF_CURRENT: sensor.sensor_schema(
@@ -135,13 +134,13 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=2,
+                accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_TOTAL_ENERGY_PRODUCTION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=0,
+                accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),

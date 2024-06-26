@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP8266
+
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/light/light_output.h"
@@ -115,3 +117,5 @@ class ShellyDimmer : public PollingComponent, public light::LightOutput, public 
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
+
+#endif  // USE_ESP8266

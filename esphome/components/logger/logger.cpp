@@ -1,15 +1,9 @@
 #include "logger.h"
+#include <cinttypes>
 
-#ifdef USE_ESP_IDF
-#include "freertos/FreeRTOS.h"
-#include <driver/uart.h>
-#endif
-
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
-#include <esp_log.h>
-#endif
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace logger {
@@ -45,7 +39,23 @@ void Logger::write_header_(int level, const char *tag, int line) {
 
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
-  this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+#else
+  void *current_task = nullptr;
+#endif
+  if (current_task == main_task_) {
+    this->printf_to_buffer_("%s[%s][%s:%03u]: ", color, letter, tag, line);
+  } else {
+    const char *thread_name = "";
+#if defined(USE_ESP32)
+    thread_name = pcTaskGetName(current_task);
+#elif defined(USE_LIBRETINY)
+    thread_name = pcTaskGetTaskName(current_task);
+#endif
+    this->printf_to_buffer_("%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
+                            ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
+  }
 }
 
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
@@ -102,6 +112,7 @@ int HOT Logger::level_for(const char *tag) {
   }
   return ESPHOME_LOG_LEVEL;
 }
+
 void HOT Logger::log_message_(int level, const char *tag, int offset) {
   // remove trailing newline
   if (this->tx_buffer_[this->tx_buffer_at_ - 1] == '\n') {
@@ -111,14 +122,9 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->set_null_terminator_();
 
   const char *msg = this->tx_buffer_ + offset;
+
   if (this->baud_rate_ > 0) {
-#ifdef USE_ARDUINO
-    this->hw_serial_->println(msg);
-#endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
-    uart_write_bytes(uart_num_, msg, strlen(msg));
-    uart_write_bytes(uart_num_, "\n", 1);
-#endif
+    this->write_msg_(msg);
   }
 
 #ifdef USE_ESP32
@@ -134,106 +140,55 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->log_callback_.call(level, tag, msg);
 }
 
-Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
-    : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), uart_(uart) {
+Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  this->main_task_ = xTaskGetCurrentTaskHandle();
+#endif
 }
 
-void Logger::pre_setup() {
-  if (this->baud_rate_ > 0) {
+#ifdef USE_LOGGER_USB_CDC
+void Logger::loop() {
 #ifdef USE_ARDUINO
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-#ifdef USE_ESP8266
-      case UART_SELECTION_UART0_SWAP:
-#endif
-        this->hw_serial_ = &Serial;
-        break;
-      case UART_SELECTION_UART1:
-        this->hw_serial_ = &Serial1;
-        break;
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
-      case UART_SELECTION_UART2:
-        this->hw_serial_ = &Serial2;
-        break;
-#endif
-    }
-#endif  // USE_ARDUINO
-#ifdef USE_ESP_IDF
-    uart_num_ = UART_NUM_0;
-    switch (uart_) {
-      case UART_SELECTION_UART0:
-        uart_num_ = UART_NUM_0;
-        break;
-      case UART_SELECTION_UART1:
-        uart_num_ = UART_NUM_1;
-        break;
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
-      case UART_SELECTION_UART2:
-        uart_num_ = UART_NUM_2;
-        break;
-#endif
-    }
-    uart_config_t uart_config{};
-    uart_config.baud_rate = (int) baud_rate_;
-    uart_config.data_bits = UART_DATA_8_BITS;
-    uart_config.parity = UART_PARITY_DISABLE;
-    uart_config.stop_bits = UART_STOP_BITS_1;
-    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-    uart_param_config(uart_num_, &uart_config);
-    const int uart_buffer_size = tx_buffer_size_;
-    // Install UART driver using an event queue here
-    uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
-#endif
-
-#ifdef USE_ARDUINO
-    this->hw_serial_->begin(this->baud_rate_);
-#ifdef USE_ESP8266
-    if (this->uart_ == UART_SELECTION_UART0_SWAP) {
-      this->hw_serial_->swap();
-    }
-    this->hw_serial_->setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-#endif
-#endif  // USE_ARDUINO
+  if (this->uart_ != UART_SELECTION_USB_CDC) {
+    return;
   }
-#ifdef USE_ESP8266
-  else {
-    uart_set_debug(UART_NO);
+  static bool opened = false;
+  if (opened == Serial) {
+    return;
   }
-#endif
-
-  global_logger = this;
-#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
-  esp_log_set_vprintf(esp_idf_log_vprintf_);
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    esp_log_level_set("*", ESP_LOG_VERBOSE);
+  if (false == opened) {
+    App.schedule_dump_config();
   }
+  opened = !opened;
 #endif
-
-  ESP_LOGI(TAG, "Log initialized");
 }
+#endif
+
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
 }
+
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 UARTSelection Logger::get_uart() const { return this->uart_; }
+#endif
+
 void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
-#ifdef USE_ESP32
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
-#endif
-#ifdef USE_ESP8266
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
-#endif
+
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
-  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %u", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
+#ifndef USE_HOST
+  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Hardware UART: %s", get_uart_selection_());
+#endif
+
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
   }

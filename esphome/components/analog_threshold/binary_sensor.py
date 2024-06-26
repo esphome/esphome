@@ -15,18 +15,24 @@ AnalogThresholdBinarySensor = analog_threshold_ns.class_(
 CONF_UPPER = "upper"
 CONF_LOWER = "lower"
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(AnalogThresholdBinarySensor),
-        cv.Required(CONF_SENSOR_ID): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_THRESHOLD): cv.Any(
-            cv.float_,
-            cv.Schema(
-                {cv.Required(CONF_UPPER): cv.float_, cv.Required(CONF_LOWER): cv.float_}
+CONFIG_SCHEMA = (
+    binary_sensor.binary_sensor_schema(AnalogThresholdBinarySensor)
+    .extend(
+        {
+            cv.Required(CONF_SENSOR_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_THRESHOLD): cv.Any(
+                cv.float_,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_UPPER): cv.float_,
+                        cv.Required(CONF_LOWER): cv.float_,
+                    }
+                ),
             ),
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

@@ -4,6 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace hx711 {
 

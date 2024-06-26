@@ -1,0 +1,35 @@
+# Tests for bk7xx boards using LibreTiny
+---
+wifi:
+  ssid: "ssid"
+
+bk72xx:
+  board: cb2s
+
+esphome:
+  name: bk72xx-test
+
+logger:
+
+ota:
+  - platform: esphome
+
+captive_portal:
+
+binary_sensor:
+  - platform: gpio
+    name: Home Button
+    pin: GPIO24
+
+sensor:
+  - platform: adc
+    id: adc_sensor
+    name: ADC
+    pin: GPIO23
+    update_interval: 1s
+
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant

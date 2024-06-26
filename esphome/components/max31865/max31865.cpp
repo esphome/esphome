@@ -2,6 +2,7 @@
 
 #include "esphome/core/log.h"
 #include <cmath>
+#include <cinttypes>
 
 namespace esphome {
 namespace max31865 {
@@ -45,14 +46,15 @@ void MAX31865Sensor::update() {
     config = this->read_register_(CONFIGURATION_REG);
     fault_detect_time = micros() - start_time;
     if ((fault_detect_time >= 6000) && (config & 0b00001100)) {
-      ESP_LOGE(TAG, "Fault detection incomplete (0x%02X) after %uμs (datasheet spec is 600μs max)! Aborting read.",
+      ESP_LOGE(TAG,
+               "Fault detection incomplete (0x%02X) after %" PRIu32 "μs (datasheet spec is 600μs max)! Aborting read.",
                config, fault_detect_time);
       this->publish_state(NAN);
       this->status_set_error();
       return;
     }
   } while (config & 0b00001100);
-  ESP_LOGV(TAG, "Fault detection completed in %uμs.", fault_detect_time);
+  ESP_LOGV(TAG, "Fault detection completed in %" PRIu32 "μs.", fault_detect_time);
 
   // Start 1-shot conversion
   this->write_config_(0b11100000, 0b10100000);
@@ -93,6 +95,14 @@ void MAX31865Sensor::read_data_() {
   // Read temperature, disable V_BIAS (save power)
   const uint16_t rtd_resistance_register = this->read_register_16_(RTD_RESISTANCE_MSB_REG);
   this->write_config_(0b11000000, 0b00000000);
+
+  // Check for bad connection
+  if (rtd_resistance_register == 0b0000000000000000 || rtd_resistance_register == 0b1111111111111111) {
+    ESP_LOGE(TAG, "SPI bus read all 0 or all 1 (0x%04X), check MAX31865 wiring & power.", rtd_resistance_register);
+    this->publish_state(NAN);
+    this->status_set_error();
+    return;
+  }
 
   // Check faults
   const uint8_t faults = this->read_register_(FAULT_STATUS_REG);

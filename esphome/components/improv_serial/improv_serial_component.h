@@ -1,17 +1,27 @@
 #pragma once
 
+#include "esphome/components/improv_base/improv_base.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include <improv.h>
+#include <vector>
 
 #ifdef USE_ARDUINO
 #include <HardwareSerial.h>
 #endif
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32H2)
+#include <driver/usb_serial_jtag.h>
+#include <hal/usb_serial_jtag_ll.h>
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#include <esp_private/usb_console.h>
+#endif
 #endif
 
 namespace esphome {
@@ -24,9 +34,10 @@ enum ImprovSerialType : uint8_t {
   TYPE_RPC_RESPONSE = 0x04
 };
 
+static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-class ImprovSerialComponent : public Component {
+class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;
   void loop() override;
@@ -46,12 +57,11 @@ class ImprovSerialComponent : public Component {
   std::vector<uint8_t> build_rpc_settings_response_(improv::Command command);
   std::vector<uint8_t> build_version_info_();
 
-  int available_();
-  uint8_t read_byte_();
+  optional<uint8_t> read_byte_();
   void write_data_(std::vector<uint8_t> &data);
 
 #ifdef USE_ARDUINO
-  HardwareSerial *hw_serial_{nullptr};
+  Stream *hw_serial_{nullptr};
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t uart_num_;

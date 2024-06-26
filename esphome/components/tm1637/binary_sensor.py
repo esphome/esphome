@@ -9,9 +9,8 @@ tm1637_ns = cg.esphome_ns.namespace("tm1637")
 TM1637Display = tm1637_ns.class_("TM1637Display", cg.PollingComponent)
 TM1637Key = tm1637_ns.class_("TM1637Key", binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(TM1637Key).extend(
     {
-        cv.GenerateID(): cv.declare_id(TM1637Key),
         cv.GenerateID(CONF_TM1637_ID): cv.use_id(TM1637Display),
         cv.Required(CONF_KEY): cv.int_range(min=0, max=15),
     }

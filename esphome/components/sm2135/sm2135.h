@@ -1,19 +1,45 @@
 #pragma once
 
+#include <vector>
+#include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/output/float_output.h"
-#include <vector>
 
 namespace esphome {
 namespace sm2135 {
+
+enum SM2135Current : uint8_t {
+  SM2135_CURRENT_10MA = 0x00,
+  SM2135_CURRENT_15MA = 0x01,
+  SM2135_CURRENT_20MA = 0x02,
+  SM2135_CURRENT_25MA = 0x03,
+  SM2135_CURRENT_30MA = 0x04,
+  SM2135_CURRENT_35MA = 0x05,
+  SM2135_CURRENT_40MA = 0x06,
+  SM2135_CURRENT_45MA = 0x07,  // Max value for RGB
+  SM2135_CURRENT_50MA = 0x08,
+  SM2135_CURRENT_55MA = 0x09,
+  SM2135_CURRENT_60MA = 0x0A,
+};
 
 class SM2135 : public Component {
  public:
   class Channel;
 
-  void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
-  void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
+  void set_data_pin(GPIOPin *data_pin) { this->data_pin_ = data_pin; }
+  void set_clock_pin(GPIOPin *clock_pin) { this->clock_pin_ = clock_pin; }
+
+  void set_rgb_current(SM2135Current rgb_current) {
+    this->rgb_current_ = rgb_current;
+    this->current_mask_ = (this->rgb_current_ << 4) | this->cw_current_;
+  }
+
+  void set_cw_current(SM2135Current cw_current) {
+    this->cw_current_ = cw_current;
+    this->current_mask_ = (this->rgb_current_ << 4) | this->cw_current_;
+  }
+
+  void set_separate_modes(bool separate_modes) { this->separate_modes_ = separate_modes; }
 
   void setup() override;
 
@@ -40,40 +66,21 @@ class SM2135 : public Component {
   };
 
  protected:
-  void set_channel_value_(uint8_t channel, uint8_t value) {
-    if (this->pwm_amounts_[channel] != value) {
-      this->update_ = true;
-      this->update_channel_ = channel;
-    }
-    this->pwm_amounts_[channel] = value;
-  }
-  void write_bit_(bool value) {
-    this->clock_pin_->digital_write(false);
-    this->data_pin_->digital_write(value);
-    this->clock_pin_->digital_write(true);
-  }
+  void set_channel_value_(uint8_t channel, uint8_t value);
+  void sm2135_set_low_(GPIOPin *pin);
+  void sm2135_set_high_(GPIOPin *pin);
 
-  void write_byte_(uint8_t data) {
-    for (uint8_t mask = 0x80; mask; mask >>= 1) {
-      this->write_bit_(data & mask);
-    }
-    this->clock_pin_->digital_write(false);
-    this->data_pin_->digital_write(true);
-    this->clock_pin_->digital_write(true);
-  }
-
-  void write_buffer_(uint8_t *buffer, uint8_t size) {
-    this->data_pin_->digital_write(false);
-    for (uint32_t i = 0; i < size; i++) {
-      this->write_byte_(buffer[i]);
-    }
-    this->clock_pin_->digital_write(false);
-    this->clock_pin_->digital_write(true);
-    this->data_pin_->digital_write(true);
-  }
+  void sm2135_start_();
+  void sm2135_stop_();
+  void write_byte_(uint8_t data);
+  void write_buffer_(uint8_t *buffer, uint8_t size);
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
+  uint8_t current_mask_;
+  SM2135Current rgb_current_;
+  SM2135Current cw_current_;
+  bool separate_modes_;
   uint8_t update_channel_;
   std::vector<uint8_t> pwm_amounts_;
   bool update_{true};

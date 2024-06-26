@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
+    CONF_OE_PIN,
     CONF_PAGES,
     CONF_WAKEUP_PIN,
 )
@@ -29,7 +30,6 @@ CONF_GREYSCALE = "greyscale"
 CONF_GMOD_PIN = "gmod_pin"
 CONF_GPIO0_ENABLE_PIN = "gpio0_enable_pin"
 CONF_LE_PIN = "le_pin"
-CONF_OE_PIN = "oe_pin"
 CONF_PARTIAL_UPDATING = "partial_updating"
 CONF_POWERUP_PIN = "powerup_pin"
 CONF_SPH_PIN = "sph_pin"
@@ -39,7 +39,11 @@ CONF_VCOM_PIN = "vcom_pin"
 
 inkplate6_ns = cg.esphome_ns.namespace("inkplate6")
 Inkplate6 = inkplate6_ns.class_(
-    "Inkplate6", cg.PollingComponent, i2c.I2CDevice, display.DisplayBuffer
+    "Inkplate6",
+    cg.PollingComponent,
+    i2c.I2CDevice,
+    display.Display,
+    display.DisplayBuffer,
 )
 
 InkplateModel = inkplate6_ns.enum("InkplateModel")
@@ -48,6 +52,7 @@ MODELS = {
     "inkplate_6": InkplateModel.INKPLATE_6,
     "inkplate_10": InkplateModel.INKPLATE_10,
     "inkplate_6_plus": InkplateModel.INKPLATE_6_PLUS,
+    "inkplate_6_v2": InkplateModel.INKPLATE_6_V2,
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -109,13 +114,12 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    await cg.register_component(var, config)
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
 

@@ -4,6 +4,7 @@ from esphome.components.light.types import AddressableLightEffect
 from esphome.components.light.effects import register_addressable_effect
 from esphome.const import CONF_ID, CONF_NAME, CONF_METHOD, CONF_CHANNELS
 
+AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
 
 e131_ns = cg.esphome_ns.namespace("e131")
@@ -23,16 +24,11 @@ CHANNELS = {
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
 
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(E131Component),
-            cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(
-                *METHODS, upper=True
-            ),
-        }
-    ),
-    cv.only_with_arduino,
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(E131Component),
+        cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
+    }
 )
 
 

@@ -6,6 +6,7 @@ from esphome.const import CONF_ID
 AUTO_LOAD = ["pn532"]
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 DEPENDENCIES = ["i2c"]
+MULTI_CONF = True
 
 pn532_i2c_ns = cg.esphome_ns.namespace("pn532_i2c")
 PN532I2C = pn532_i2c_ns.class_("PN532I2C", pn532.PN532, i2c.I2CDevice)

@@ -7,6 +7,7 @@ from collections import defaultdict
 from esphome.helpers import write_file_if_changed
 from esphome.config import get_component, get_platform
 from esphome.core import CORE
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -27,7 +28,7 @@ BASE = """
 # the integration's code owner is automatically notified.
 
 # Core Code
-setup.py @esphome/core
+pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
@@ -38,6 +39,7 @@ parts = [BASE]
 
 # Fake some directory so that get_component works
 CORE.config_path = str(root)
+CORE.data[KEY_CORE] = {KEY_TARGET_FRAMEWORK: None}
 
 codeowners = defaultdict(list)
 

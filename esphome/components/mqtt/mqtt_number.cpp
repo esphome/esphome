@@ -55,6 +55,8 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
       root[MQTT_MODE] = "slider";
       break;
   }
+  if (!this->number_->traits.get_device_class().empty())
+    root[MQTT_DEVICE_CLASS] = this->number_->traits.get_device_class();
 
   config.command_topic = true;
 }

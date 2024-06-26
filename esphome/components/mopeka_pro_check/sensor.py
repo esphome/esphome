@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
     UNIT_CELSIUS,
+    UNIT_MILLIMETER,
     STATE_CLASS_MEASUREMENT,
     CONF_BATTERY_LEVEL,
     DEVICE_CLASS_BATTERY,
@@ -24,8 +25,6 @@ CONF_CUSTOM_DISTANCE_EMPTY = "custom_distance_empty"
 ICON_PROPANE_TANK = "mdi:propane-tank"
 
 TANK_TYPE_CUSTOM = "CUSTOM"
-
-UNIT_MILLIMETER = "mm"
 
 
 def small_distance(value):
@@ -44,6 +43,9 @@ CONF_SUPPORTED_TANKS_MAP = {
     "20LB_V": (38, 254),  # empty/full readings for 20lb US tank
     "30LB_V": (38, 381),
     "40LB_V": (38, 508),
+    "EUROPE_6KG": (38, 336),
+    "EUROPE_11KG": (38, 366),
+    "EUROPE_14KG": (38, 467),
 }
 
 CODEOWNERS = ["@spbrogan"]

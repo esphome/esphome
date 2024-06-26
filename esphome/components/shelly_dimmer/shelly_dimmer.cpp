@@ -1,6 +1,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
+#ifdef USE_ESP8266
+
 #include "shelly_dimmer.h"
 #ifdef USE_SHD_FIRMWARE_DATA
 #include "stm32flash.h"
@@ -49,7 +51,7 @@ constexpr float POWER_SCALING_FACTOR = 880373;
 constexpr float VOLTAGE_SCALING_FACTOR = 347800;
 constexpr float CURRENT_SCALING_FACTOR = 1448;
 
-// Esentially std::size() for pre c++17
+// Essentially std::size() for pre c++17
 template<typename T, size_t N> constexpr size_t size(const T (&/*unused*/)[N]) noexcept { return N; }
 
 }  // Anonymous namespace
@@ -158,11 +160,8 @@ bool ShellyDimmer::upgrade_firmware_() {
   ESP_LOGW(TAG, "Starting STM32 firmware upgrade");
   this->reset_dfu_boot_();
 
-  // Could be constexpr in c++17
-  static const auto CLOSE = [](stm32_t *stm32) { stm32_close(stm32); };
-
   // Cleanup with RAII
-  std::unique_ptr<stm32_t, decltype(CLOSE)> stm32{stm32_init(this, STREAM_SERIAL, 1), CLOSE};
+  auto stm32 = stm32_init(this, STREAM_SERIAL, 1);
 
   if (!stm32) {
     ESP_LOGW(TAG, "Failed to initialize STM32");
@@ -170,7 +169,7 @@ bool ShellyDimmer::upgrade_firmware_() {
   }
 
   // Erase STM32 flash.
-  if (stm32_erase_memory(stm32.get(), 0, STM32_MASS_ERASE) != STM32_ERR_OK) {
+  if (stm32_erase_memory(stm32, 0, STM32_MASS_ERASE) != STM32_ERR_OK) {
     ESP_LOGW(TAG, "Failed to erase STM32 flash memory");
     return false;
   }
@@ -196,7 +195,7 @@ bool ShellyDimmer::upgrade_firmware_() {
     std::memcpy(buffer, p, BUFFER_SIZE);
     p += BUFFER_SIZE;
 
-    if (stm32_write_memory(stm32.get(), addr, buffer, len) != STM32_ERR_OK) {
+    if (stm32_write_memory(stm32, addr, buffer, len) != STM32_ERR_OK) {
       ESP_LOGW(TAG, "Failed to write to STM32 flash memory");
       return false;
     }
@@ -524,3 +523,5 @@ void ShellyDimmer::reset_dfu_boot_() {
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
+
+#endif  // USE_ESP8266

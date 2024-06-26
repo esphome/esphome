@@ -14,8 +14,6 @@ static const char *const TAG = "ble_text_sensor";
 
 static const std::string EMPTY = "";
 
-uint32_t BLETextSensor::hash_base() { return 193967603UL; }
-
 void BLETextSensor::loop() {}
 
 void BLETextSensor::dump_config() {
@@ -38,8 +36,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       break;
     }
-    case ESP_GATTC_DISCONNECT_EVT: {
-      ESP_LOGW(TAG, "[%s] Disconnected!", this->get_name().c_str());
+    case ESP_GATTC_CLOSE_EVT: {
       this->status_set_warning();
       this->publish_state(EMPTY);
       break;
@@ -68,8 +65,8 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->handle = descr->handle;
       }
       if (this->notify_) {
-        auto status =
-            esp_ble_gattc_register_for_notify(this->parent()->gattc_if, this->parent()->remote_bda, chr->handle);
+        auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(),
+                                                        this->parent()->get_remote_bda(), chr->handle);
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
@@ -79,20 +76,18 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent()->conn_id)
-        break;
-      if (param->read.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
-        break;
-      }
       if (param->read.handle == this->handle) {
+        if (param->read.status != ESP_GATT_OK) {
+          ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
+          break;
+        }
         this->status_clear_warning();
         this->publish_state(this->parse_data(param->read.value, param->read.value_len));
       }
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.conn_id != this->parent()->conn_id || param->notify.handle != this->handle)
+      if (param->notify.handle != this->handle)
         break;
       ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);
@@ -100,7 +95,8 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::ESTABLISHED;
+      if (param->reg_for_notify.status == ESP_GATT_OK && param->reg_for_notify.handle == this->handle)
+        this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
     default:
@@ -123,8 +119,8 @@ void BLETextSensor::update() {
     return;
   }
 
-  auto status =
-      esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->handle, ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->handle,
+                                        ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     this->status_set_warning();
     this->publish_state(EMPTY);

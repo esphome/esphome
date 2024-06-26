@@ -32,8 +32,7 @@ enum ST7735Model {
   ST7735_INITR_18REDTAB = INITR_18REDTAB
 };
 
-class ST7735 : public PollingComponent,
-               public display::DisplayBuffer,
+class ST7735 : public display::DisplayBuffer,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                      spi::DATA_RATE_8MHZ> {
  public:
@@ -52,6 +51,8 @@ class ST7735 : public PollingComponent,
   void set_reset_pin(GPIOPin *value) { this->reset_pin_ = value; }
   void set_dc_pin(GPIOPin *value) { dc_pin_ = value; }
   size_t get_buffer_length();
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
   void sendcommand_(uint8_t cmd, const uint8_t *data_bytes, uint8_t num_data_bytes);

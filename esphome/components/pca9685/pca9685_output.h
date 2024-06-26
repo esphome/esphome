@@ -37,8 +37,7 @@ class PCA9685Channel : public output::FloatOutput {
 /// PCA9685 float output component.
 class PCA9685Output : public Component, public i2c::I2CDevice {
  public:
-  PCA9685Output(float frequency, uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE)
-      : frequency_(frequency), mode_(mode) {}
+  PCA9685Output(uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE) : mode_(mode) {}
 
   void register_channel(PCA9685Channel *channel);
 
@@ -46,6 +45,8 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
+  void set_extclk(bool extclk) { this->extclk_ = extclk; }
+  void set_frequency(float frequency) { this->frequency_ = frequency; }
 
  protected:
   friend PCA9685Channel;
@@ -58,6 +59,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
 
   float frequency_;
   uint8_t mode_;
+  bool extclk_ = false;
 
   uint8_t min_channel_{0xFF};
   uint8_t max_channel_{0x00};

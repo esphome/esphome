@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include "light_call.h"
 #include "light_state.h"
 #include "esphome/core/log.h"
@@ -283,7 +284,7 @@ LightColorValues LightCall::validate_() {
 
   // validate effect index
   if (this->has_effect_() && *this->effect_ > this->parent_->effects_.size()) {
-    ESP_LOGW(TAG, "'%s' - Invalid effect index %u!", name, *this->effect_);
+    ESP_LOGW(TAG, "'%s' - Invalid effect index %" PRIu32 "!", name, *this->effect_);
     this->effect_.reset();
   }
 
@@ -336,9 +337,12 @@ LightColorValues LightCall::validate_() {
 void LightCall::transform_parameters_() {
   auto traits = this->parent_->get_traits();
 
-  // Allow CWWW modes to be set with a white value and/or color temperature. This is used by HA,
-  // which doesn't support CWWW modes (yet?), and for compatibility with the pre-colormode model,
-  // as CWWW and RGBWW lights used to represent their values as white + color temperature.
+  // Allow CWWW modes to be set with a white value and/or color temperature.
+  // This is used in three cases in HA:
+  // - CW/WW lights, which set the "brightness" and "color_temperature"
+  // - RGBWW lights with color_interlock=true, which also sets "brightness" and
+  //   "color_temperature" (without color_interlock, CW/WW are set directly)
+  // - Legacy Home Assistant (pre-colormode), which sets "white" and "color_temperature"
   if (((this->white_.has_value() && *this->white_ > 0.0f) || this->color_temperature_.has_value()) &&  //
       (*this->color_mode_ & ColorCapability::COLD_WARM_WHITE) &&                                       //
       !(*this->color_mode_ & ColorCapability::WHITE) &&                                                //
@@ -346,21 +350,17 @@ void LightCall::transform_parameters_() {
       traits.get_min_mireds() > 0.0f && traits.get_max_mireds() > 0.0f) {
     ESP_LOGD(TAG, "'%s' - Setting cold/warm white channels using white/color temperature values.",
              this->parent_->get_name().c_str());
-    auto current_values = this->parent_->remote_values;
     if (this->color_temperature_.has_value()) {
-      const float white =
-          this->white_.value_or(fmaxf(current_values.get_cold_white(), current_values.get_warm_white()));
       const float color_temp = clamp(*this->color_temperature_, traits.get_min_mireds(), traits.get_max_mireds());
       const float ww_fraction =
           (color_temp - traits.get_min_mireds()) / (traits.get_max_mireds() - traits.get_min_mireds());
       const float cw_fraction = 1.0f - ww_fraction;
       const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-      this->cold_white_ = white * gamma_uncorrect(cw_fraction / max_cw_ww, this->parent_->get_gamma_correct());
-      this->warm_white_ = white * gamma_uncorrect(ww_fraction / max_cw_ww, this->parent_->get_gamma_correct());
-    } else {
-      const float max_cw_ww = std::max(current_values.get_warm_white(), current_values.get_cold_white());
-      this->cold_white_ = *this->white_ * current_values.get_cold_white() / max_cw_ww;
-      this->warm_white_ = *this->white_ * current_values.get_warm_white() / max_cw_ww;
+      this->cold_white_ = gamma_uncorrect(cw_fraction / max_cw_ww, this->parent_->get_gamma_correct());
+      this->warm_white_ = gamma_uncorrect(ww_fraction / max_cw_ww, this->parent_->get_gamma_correct());
+    }
+    if (this->white_.has_value()) {
+      this->brightness_ = *this->white_;
     }
   }
 }

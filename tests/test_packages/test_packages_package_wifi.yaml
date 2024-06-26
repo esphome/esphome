@@ -1,4 +1,5 @@
+---
 wifi:
   networks:
-  - ssid: 'WiFiFromPackage'
-    password: 'password1'
+    - ssid: "WiFiFromPackage"
+      password: "password1"

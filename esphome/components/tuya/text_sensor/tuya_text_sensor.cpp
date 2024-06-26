@@ -1,5 +1,5 @@
-#include "esphome/core/log.h"
 #include "tuya_text_sensor.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tuya {
@@ -19,8 +19,14 @@ void TuyaTextSensor::setup() {
         this->publish_state(data);
         break;
       }
+      case TuyaDatapointType::ENUM: {
+        std::string data = to_string(datapoint.value_enum);
+        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, data.c_str());
+        this->publish_state(data);
+        break;
+      }
       default:
-        ESP_LOGW(TAG, "Unsupported data type for tuya text sensor %u: %#02hhX", datapoint.id, datapoint.type);
+        ESP_LOGW(TAG, "Unsupported data type for tuya text sensor %u: %#02hhX", datapoint.id, (uint8_t) datapoint.type);
         break;
     }
   });

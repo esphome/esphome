@@ -7,6 +7,14 @@ namespace bedjet {
 
 static const char *const TAG = "bedjet";
 
+/// Converts a BedJet fan step to a speed percentage, in the range of 5% to 100%.
+inline static uint8_t bedjet_fan_step_to_speed(const uint8_t fan) {
+  //  0 =  5%
+  // 19 = 100%
+  return 5 * fan + 5;
+}
+inline static uint8_t bedjet_fan_speed_to_index(const uint8_t speed) { return speed / 5 - 1; }
+
 enum BedjetMode : uint8_t {
   /// BedJet is Off
   MODE_STANDBY = 0,
@@ -22,6 +30,22 @@ enum BedjetMode : uint8_t {
   MODE_DRY = 5,
   /// BedJet is in "wait" mode, a step during a biorhythm program
   MODE_WAIT = 6,
+};
+
+/** Optional heating strategies to use for climate::CLIMATE_MODE_HEAT. */
+enum BedjetHeatMode {
+  /// HVACMode.HEAT is handled using BTN_HEAT (default)
+  HEAT_MODE_HEAT,
+  /// HVACMode.HEAT is handled using BTN_EXTHT
+  HEAT_MODE_EXTENDED,
+};
+
+// Which temperature to use as the climate entity's current temperature reading
+enum BedjetTemperatureSource {
+  // Use the temperature of the air the BedJet is putting out
+  TEMPERATURE_SOURCE_OUTLET,
+  // Use the ambient temperature of the room the BedJet is in
+  TEMPERATURE_SOURCE_AMBIENT
 };
 
 enum BedjetButton : uint8_t {
@@ -54,24 +78,29 @@ enum BedjetButton : uint8_t {
   MAGIC_CONNTEST = 0x42,
   /// Request a firmware update. This will also restart the Bedjet.
   MAGIC_UPDATE = 0x43,
+  /// Acknowledge notification handled. See BedjetNotify
+  MAGIC_NOTIFY_ACK = 0x52,
 };
 
 enum BedjetCommand : uint8_t {
   CMD_BUTTON = 0x1,
+  CMD_SET_RUNTIME = 0x2,
   CMD_SET_TEMP = 0x3,
   CMD_STATUS = 0x6,
   CMD_SET_FAN = 0x7,
-  CMD_SET_TIME = 0x8,
+  CMD_SET_CLOCK = 0x8,
 };
 
 #define BEDJET_FAN_STEP_NAMES_ \
   { \
-    "  5%", " 10%", " 15%", " 20%", " 25%", " 30%", " 35%", " 40%", " 45%", " 50%", " 55%", " 60%", " 65%", " 70%", \
-        " 75%", " 80%", " 85%", " 90%", " 95%", "100%" \
+    "5%", "10%", "15%", "20%", "25%", "30%", "35%", "40%", "45%", "50%", "55%", "60%", "65%", "70%", "75%", "80%", \
+        "85%", "90%", "95%", "100%" \
   }
 
-static const char *const BEDJET_FAN_STEP_NAMES[20] = BEDJET_FAN_STEP_NAMES_;
-static const std::string BEDJET_FAN_STEP_NAME_STRINGS[20] = BEDJET_FAN_STEP_NAMES_;
+static const uint8_t BEDJET_FAN_SPEED_COUNT = 20;
+
+static const char *const BEDJET_FAN_STEP_NAMES[BEDJET_FAN_SPEED_COUNT] = BEDJET_FAN_STEP_NAMES_;
+static const std::string BEDJET_FAN_STEP_NAME_STRINGS[BEDJET_FAN_SPEED_COUNT] = BEDJET_FAN_STEP_NAMES_;
 static const std::set<std::string> BEDJET_FAN_STEP_NAMES_SET BEDJET_FAN_STEP_NAMES_;
 
 }  // namespace bedjet

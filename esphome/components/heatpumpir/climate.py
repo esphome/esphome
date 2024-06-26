@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_VISUAL,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@rob-deutsch"]
 
@@ -32,6 +33,8 @@ PROTOCOLS = {
     "greeya": Protocol.PROTOCOL_GREEYAA,
     "greeyan": Protocol.PROTOCOL_GREEYAN,
     "greeyac": Protocol.PROTOCOL_GREEYAC,
+    "greeyt": Protocol.PROTOCOL_GREEYT,
+    "greeyap": Protocol.PROTOCOL_GREEYAP,
     "hisense_aud": Protocol.PROTOCOL_HISENSE_AUD,
     "hitachi": Protocol.PROTOCOL_HITACHI,
     "hyundai": Protocol.PROTOCOL_HYUNDAI,
@@ -58,6 +61,12 @@ PROTOCOLS = {
     "sharp": Protocol.PROTOCOL_SHARP,
     "toshiba_daiseikai": Protocol.PROTOCOL_TOSHIBA_DAISEIKAI,
     "toshiba": Protocol.PROTOCOL_TOSHIBA,
+    "zhlt01": Protocol.PROTOCOL_ZHLT01,
+    "nibe": Protocol.PROTOCOL_NIBE,
+    "carrier_qlima_1": Protocol.PROTOCOL_QLIMA_1,
+    "carrier_qlima_2": Protocol.PROTOCOL_QLIMA_2,
+    "samsung_aqv12msan": Protocol.PROTOCOL_SAMSUNG_AQV12MSAN,
+    "zhjg01": Protocol.PROTOCOL_ZHJG01,
 }
 
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
@@ -113,4 +122,7 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.20")
+    cg.add_library("tonia/HeatpumpIR", "1.0.26")
+
+    if CORE.is_esp8266 or CORE.is_esp32:
+        cg.add_library("crankyoldgit/IRremoteESP8266", "2.8.6")

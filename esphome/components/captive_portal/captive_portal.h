@@ -1,9 +1,9 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include <memory>
+#ifdef USE_ARDUINO
 #include <DNSServer.h>
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -18,18 +18,22 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;
   void dump_config() override;
+#ifdef USE_ARDUINO
   void loop() override {
     if (this->dns_server_ != nullptr)
       this->dns_server_->processNextRequest();
   }
+#endif
   float get_setup_priority() const override;
   void start();
   bool is_active() const { return this->active_; }
   void end() {
     this->active_ = false;
     this->base_->deinit();
+#ifdef USE_ARDUINO
     this->dns_server_->stop();
     this->dns_server_ = nullptr;
+#endif
   }
 
   bool canHandle(AsyncWebServerRequest *request) override {
@@ -39,17 +43,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
     if (request->method() == HTTP_GET) {
       if (request->url() == "/")
         return true;
-      if (request->url() == "/stylesheet.css")
-        return true;
-      if (request->url() == "/wifi-strength-1.svg")
-        return true;
-      if (request->url() == "/wifi-strength-2.svg")
-        return true;
-      if (request->url() == "/wifi-strength-3.svg")
-        return true;
-      if (request->url() == "/wifi-strength-4.svg")
-        return true;
-      if (request->url() == "/lock.svg")
+      if (request->url() == "/config.json")
         return true;
       if (request->url() == "/wifisave")
         return true;
@@ -68,12 +62,12 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   web_server_base::WebServerBase *base_;
   bool initialized_{false};
   bool active_{false};
+#ifdef USE_ARDUINO
   std::unique_ptr<DNSServer> dns_server_{nullptr};
+#endif
 };
 
 extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace captive_portal
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

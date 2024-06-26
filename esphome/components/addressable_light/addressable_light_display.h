@@ -5,10 +5,12 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/light/addressable_light.h"
 
+#include <vector>
+
 namespace esphome {
 namespace addressable_light {
 
-class AddressableLightDisplay : public display::DisplayBuffer, public PollingComponent {
+class AddressableLightDisplay : public display::DisplayBuffer {
  public:
   light::AddressableLight *get_light() const { return this->light_; }
 
@@ -39,6 +41,8 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
   void set_pixel_mapper(std::function<int(int, int)> &&pixel_mapper_f) { this->pixel_mapper_f_ = pixel_mapper_f; }
   void setup() override;
   void display();
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
   int get_width_internal() override;

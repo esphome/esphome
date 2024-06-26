@@ -1,2 +1,3 @@
+---
 sensor:
   - <<: !include ./test_uptime_sensor.yaml

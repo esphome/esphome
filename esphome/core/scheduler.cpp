@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
+#include <cinttypes>
 
 namespace esphome {
 
@@ -13,8 +14,13 @@ static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
 
+// A note on locking: the `lock_` lock protects the `items_` and `to_add_` containers. It must be taken when writing to
+// them (i.e. when adding/removing items, but not when changing items). As items are only deleted from the loop task,
+// iterating over them from the loop task is fine; but iterating from any other context requires the lock to be held to
+// avoid the main thread modifying the list while it is being accessed.
+
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
-                                std::function<void()> &&func) {
+                                std::function<void()> func) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -23,7 +29,7 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   if (timeout == SCHEDULER_DONT_RUN)
     return;
 
-  ESP_LOGVV(TAG, "set_timeout(name='%s', timeout=%u)", name.c_str(), timeout);
+  ESP_LOGVV(TAG, "set_timeout(name='%s', timeout=%" PRIu32 ")", name.c_str(), timeout);
 
   auto item = make_unique<SchedulerItem>();
   item->component = component;
@@ -32,7 +38,7 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   item->timeout = timeout;
   item->last_execution = now;
   item->last_execution_major = this->millis_major_;
-  item->void_callback = std::move(func);
+  item->callback = std::move(func);
   item->remove = false;
   this->push_(std::move(item));
 }
@@ -40,7 +46,7 @@ bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name
   return this->cancel_item_(component, name, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
-                                 std::function<void()> &&func) {
+                                 std::function<void()> func) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -54,7 +60,7 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   if (interval != 0)
     offset = (random_uint32() % interval) / 2;
 
-  ESP_LOGVV(TAG, "set_interval(name='%s', interval=%u, offset=%u)", name.c_str(), interval, offset);
+  ESP_LOGVV(TAG, "set_interval(name='%s', interval=%" PRIu32 ", offset=%" PRIu32 ")", name.c_str(), interval, offset);
 
   auto item = make_unique<SchedulerItem>();
   item->component = component;
@@ -65,7 +71,7 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   item->last_execution_major = this->millis_major_;
   if (item->last_execution > now)
     item->last_execution_major--;
-  item->void_callback = std::move(func);
+  item->callback = std::move(func);
   item->remove = false;
   this->push_(std::move(item));
 }
@@ -73,37 +79,59 @@ bool HOT Scheduler::cancel_interval(Component *component, const std::string &nam
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
 
-void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
-                              uint8_t max_attempts, std::function<RetryResult()> &&func,
-                              float backoff_increase_factor) {
-  const uint32_t now = this->millis_();
+struct RetryArgs {
+  std::function<RetryResult(uint8_t)> func;
+  uint8_t retry_countdown;
+  uint32_t current_interval;
+  Component *component;
+  std::string name;
+  float backoff_increase_factor;
+  Scheduler *scheduler;
+};
 
+static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
+  RetryResult const retry_result = args->func(--args->retry_countdown);
+  if (retry_result == RetryResult::DONE || args->retry_countdown <= 0)
+    return;
+  // second execution of `func` happens after `initial_wait_time`
+  args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
+  // backoff_increase_factor applied to third & later executions
+  args->current_interval *= args->backoff_increase_factor;
+}
+
+void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
+                              uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
+                              float backoff_increase_factor) {
   if (!name.empty())
     this->cancel_retry(component, name);
 
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
-  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u,max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
-            initial_wait_time, max_attempts, backoff_increase_factor);
+  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%" PRIu32 ", max_attempts=%u, backoff_factor=%0.1f)",
+            name.c_str(), initial_wait_time, max_attempts, backoff_increase_factor);
 
-  auto item = make_unique<SchedulerItem>();
-  item->component = component;
-  item->name = name;
-  item->type = SchedulerItem::RETRY;
-  item->interval = initial_wait_time;
-  item->retry_countdown = max_attempts;
-  item->backoff_multiplier = backoff_increase_factor;
-  item->last_execution = now - initial_wait_time;
-  item->last_execution_major = this->millis_major_;
-  if (item->last_execution > now)
-    item->last_execution_major--;
-  item->retry_callback = std::move(func);
-  item->remove = false;
-  this->push_(std::move(item));
+  if (backoff_increase_factor < 0.0001) {
+    ESP_LOGE(TAG,
+             "set_retry(name='%s'): backoff_factor cannot be close to zero nor negative (%0.1f). Using 1.0 instead",
+             name.c_str(), backoff_increase_factor);
+    backoff_increase_factor = 1;
+  }
+
+  auto args = std::make_shared<RetryArgs>();
+  args->func = std::move(func);
+  args->retry_countdown = max_attempts;
+  args->current_interval = initial_wait_time;
+  args->component = component;
+  args->name = "retry$" + name;
+  args->backoff_increase_factor = backoff_increase_factor;
+  args->scheduler = this;
+
+  // First execution of `func` immediately
+  this->set_timeout(component, args->name, 0, [args]() { retry_handler(args); });
 }
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
-  return this->cancel_item_(component, name, SchedulerItem::RETRY);
+  return this->cancel_timeout(component, "retry$" + name);
 }
 
 optional<uint32_t> HOT Scheduler::next_schedule_in() {
@@ -126,43 +154,54 @@ void HOT Scheduler::call() {
   if (now - last_print > 2000) {
     last_print = now;
     std::vector<std::unique_ptr<SchedulerItem>> old_items;
-    ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
+    ESP_LOGVV(TAG, "Items: count=%u, now=%" PRIu32, this->items_.size(), now);
     while (!this->empty_()) {
+      this->lock_.lock();
       auto item = std::move(this->items_[0]);
-      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", item->get_type_str(),
-                item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
-                item->next_execution(), item->next_execution_major());
-
       this->pop_raw_();
+      this->lock_.unlock();
+
+      ESP_LOGVV(TAG, "  %s '%s' interval=%" PRIu32 " last_execution=%" PRIu32 " (%u) next=%" PRIu32 " (%u)",
+                item->get_type_str(), item->name.c_str(), item->interval, item->last_execution,
+                item->last_execution_major, item->next_execution(), item->next_execution_major());
+
       old_items.push_back(std::move(item));
     }
     ESP_LOGVV(TAG, "\n");
-    this->items_ = std::move(old_items);
+
+    {
+      LockGuard guard{this->lock_};
+      this->items_ = std::move(old_items);
+    }
   }
 #endif  // ESPHOME_DEBUG_SCHEDULER
 
   auto to_remove_was = to_remove_;
-  auto items_was = items_.size();
+  auto items_was = this->items_.size();
   // If we have too many items to remove
   if (to_remove_ > MAX_LOGICALLY_DELETED_ITEMS) {
     std::vector<std::unique_ptr<SchedulerItem>> valid_items;
     while (!this->empty_()) {
+      LockGuard guard{this->lock_};
       auto item = std::move(this->items_[0]);
       this->pop_raw_();
       valid_items.push_back(std::move(item));
     }
-    this->items_ = std::move(valid_items);
+
+    {
+      LockGuard guard{this->lock_};
+      this->items_ = std::move(valid_items);
+    }
 
     // The following should not happen unless I'm missing something
     if (to_remove_ != 0) {
-      ESP_LOGW(TAG, "to_remove_ was %u now: %u items where %zu now %zu. Please report this", to_remove_was, to_remove_,
-               items_was, items_.size());
+      ESP_LOGW(TAG, "to_remove_ was %" PRIu32 " now: %" PRIu32 " items where %zu now %zu. Please report this",
+               to_remove_was, to_remove_, items_was, items_.size());
       to_remove_ = 0;
     }
   }
 
   while (!this->empty_()) {
-    RetryResult retry_result = RETRY;
     // use scoping to indicate visibility of `item` variable
     {
       // Don't copy-by value yet
@@ -177,13 +216,14 @@ void HOT Scheduler::call() {
 
       // Don't run on failed components
       if (item->component != nullptr && item->component->is_failed()) {
+        LockGuard guard{this->lock_};
         this->pop_raw_();
         continue;
       }
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-      ESP_LOGVV(TAG, "Running %s '%s' with interval=%u last_execution=%u (now=%u)", item->get_type_str(),
-                item->name.c_str(), item->interval, item->last_execution, now);
+      ESP_LOGVV(TAG, "Running %s '%s' with interval=%" PRIu32 " last_execution=%" PRIu32 " (now=%" PRIu32 ")",
+                item->get_type_str(), item->name.c_str(), item->interval, item->last_execution, now);
 #endif
 
       // Warning: During callback(), a lot of stuff can happen, including:
@@ -191,15 +231,13 @@ void HOT Scheduler::call() {
       //  - timeouts/intervals get cancelled
       {
         WarnIfComponentBlockingGuard guard{item->component};
-        if (item->type == SchedulerItem::RETRY) {
-          retry_result = item->retry_callback();
-        } else {
-          item->void_callback();
-        }
+        item->callback();
       }
     }
 
     {
+      this->lock_.lock();
+
       // new scope, item from before might have been moved in the vector
       auto item = std::move(this->items_[0]);
 
@@ -207,22 +245,21 @@ void HOT Scheduler::call() {
       // during the function call and know if we were cancelled.
       this->pop_raw_();
 
+      this->lock_.unlock();
+
       if (item->remove) {
         // We were removed/cancelled in the function call, stop
         to_remove_--;
         continue;
       }
 
-      if (item->type == SchedulerItem::INTERVAL ||
-          (item->type == SchedulerItem::RETRY && (--item->retry_countdown > 0 && retry_result != RetryResult::DONE))) {
+      if (item->type == SchedulerItem::INTERVAL) {
         if (item->interval != 0) {
           const uint32_t before = item->last_execution;
           const uint32_t amount = (now - item->last_execution) / item->interval;
           item->last_execution += amount * item->interval;
           if (item->last_execution < before)
             item->last_execution_major++;
-          if (item->type == SchedulerItem::RETRY)
-            item->interval *= item->backoff_multiplier;
         }
         this->push_(std::move(item));
       }
@@ -232,6 +269,7 @@ void HOT Scheduler::call() {
   this->process_to_add();
 }
 void HOT Scheduler::process_to_add() {
+  LockGuard guard{this->lock_};
   for (auto &it : this->to_add_) {
     if (it->remove) {
       continue;
@@ -249,15 +287,24 @@ void HOT Scheduler::cleanup_() {
       return;
 
     to_remove_--;
-    this->pop_raw_();
+
+    {
+      LockGuard guard{this->lock_};
+      this->pop_raw_();
+    }
   }
 }
 void HOT Scheduler::pop_raw_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->items_.pop_back();
 }
-void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) { this->to_add_.push_back(std::move(item)); }
+void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) {
+  LockGuard guard{this->lock_};
+  this->to_add_.push_back(std::move(item));
+}
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
+  // obtain lock because this function iterates and can be called from non-loop task context
+  LockGuard guard{this->lock_};
   bool ret = false;
   for (auto &it : this->items_) {
     if (it->component == component && it->name == name && it->type == type && !it->remove) {

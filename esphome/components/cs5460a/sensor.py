@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ID,
     CONF_POWER,
     CONF_VOLTAGE,
+    CONF_VOLTAGE_GAIN,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -33,7 +34,6 @@ CONF_SAMPLES = "samples"
 CONF_PHASE_OFFSET = "phase_offset"
 CONF_PGA_GAIN = "pga_gain"
 CONF_CURRENT_GAIN = "current_gain"
-CONF_VOLTAGE_GAIN = "voltage_gain"
 CONF_CURRENT_HPF = "current_hpf"
 CONF_VOLTAGE_HPF = "voltage_hpf"
 CONF_PULSE_ENERGY = "pulse_energy"
@@ -113,17 +113,14 @@ async def to_code(config):
     cg.add(var.set_hpf_enable(config[CONF_CURRENT_HPF], config[CONF_VOLTAGE_HPF]))
     cg.add(var.set_pulse_energy_wh(config[CONF_PULSE_ENERGY]))
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
+    if voltage_config := config.get(CONF_VOLTAGE):
+        sens = await sensor.new_sensor(voltage_config)
         cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
+    if current_config := config.get(CONF_CURRENT):
+        sens = await sensor.new_sensor(current_config)
         cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
+    if power_config := config.get(CONF_POWER):
+        sens = await sensor.new_sensor(power_config)
         cg.add(var.set_power_sensor(sens))
 
 

@@ -10,27 +10,7 @@ float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; 
 void GPIOSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GPIO Switch '%s'...", this->name_.c_str());
 
-  bool initial_state = false;
-  switch (this->restore_mode_) {
-    case GPIO_SWITCH_RESTORE_DEFAULT_OFF:
-      initial_state = this->get_initial_state().value_or(false);
-      break;
-    case GPIO_SWITCH_RESTORE_DEFAULT_ON:
-      initial_state = this->get_initial_state().value_or(true);
-      break;
-    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_OFF:
-      initial_state = !this->get_initial_state().value_or(true);
-      break;
-    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_ON:
-      initial_state = !this->get_initial_state().value_or(false);
-      break;
-    case GPIO_SWITCH_ALWAYS_OFF:
-      initial_state = false;
-      break;
-    case GPIO_SWITCH_ALWAYS_ON:
-      initial_state = true;
-      break;
-  }
+  bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
   // write state before setup
   if (initial_state) {
@@ -49,28 +29,6 @@ void GPIOSwitch::setup() {
 void GPIOSwitch::dump_config() {
   LOG_SWITCH("", "GPIO Switch", this);
   LOG_PIN("  Pin: ", this->pin_);
-  const LogString *restore_mode = LOG_STR("");
-  switch (this->restore_mode_) {
-    case GPIO_SWITCH_RESTORE_DEFAULT_OFF:
-      restore_mode = LOG_STR("Restore (Defaults to OFF)");
-      break;
-    case GPIO_SWITCH_RESTORE_DEFAULT_ON:
-      restore_mode = LOG_STR("Restore (Defaults to ON)");
-      break;
-    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_ON:
-      restore_mode = LOG_STR("Restore inverted (Defaults to ON)");
-      break;
-    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_OFF:
-      restore_mode = LOG_STR("Restore inverted (Defaults to OFF)");
-      break;
-    case GPIO_SWITCH_ALWAYS_OFF:
-      restore_mode = LOG_STR("Always OFF");
-      break;
-    case GPIO_SWITCH_ALWAYS_ON:
-      restore_mode = LOG_STR("Always ON");
-      break;
-  }
-  ESP_LOGCONFIG(TAG, "  Restore Mode: %s", LOG_STR_ARG(restore_mode));
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
     for (auto *lock : this->interlock_) {
@@ -111,7 +69,6 @@ void GPIOSwitch::write_state(bool state) {
   this->pin_->digital_write(state);
   this->publish_state(state);
 }
-void GPIOSwitch::set_restore_mode(GPIOSwitchRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 void GPIOSwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
 
 }  // namespace gpio

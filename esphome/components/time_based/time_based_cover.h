@@ -21,7 +21,9 @@ class TimeBasedCover : public cover::Cover, public Component {
   void set_close_duration(uint32_t close_duration) { this->close_duration_ = close_duration; }
   cover::CoverTraits get_traits() override;
   void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
+  void set_manual_control(bool value) { this->manual_control_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
+  cover::CoverOperation get_last_operation() const { return this->last_operation_; }
 
  protected:
   void control(const cover::CoverCall &call) override;
@@ -44,6 +46,7 @@ class TimeBasedCover : public cover::Cover, public Component {
   uint32_t last_publish_time_{0};
   float target_position_{0};
   bool has_built_in_endstop_{false};
+  bool manual_control_{false};
   bool assumed_state_{false};
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };

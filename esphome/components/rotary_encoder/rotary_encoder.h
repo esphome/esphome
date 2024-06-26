@@ -34,6 +34,7 @@ struct RotaryEncoderSensorStore {
   int32_t max_value{INT32_MAX};
   int32_t last_read{0};
   uint8_t state{0};
+  bool first_read{true};
 
   std::array<int8_t, 8> rotation_events{};
   bool rotation_events_overflow{false};
@@ -91,6 +92,8 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
     this->on_anticlockwise_callback_.add(std::move(callback));
   }
 
+  void register_listener(std::function<void(uint32_t)> listener) { this->listeners_.add(std::move(listener)); }
+
  protected:
   InternalGPIOPin *pin_a_;
   InternalGPIOPin *pin_b_;
@@ -101,8 +104,9 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
 
   RotaryEncoderSensorStore store_{};
 
-  CallbackManager<void()> on_clockwise_callback_;
-  CallbackManager<void()> on_anticlockwise_callback_;
+  CallbackManager<void()> on_clockwise_callback_{};
+  CallbackManager<void()> on_anticlockwise_callback_{};
+  CallbackManager<void(int32_t)> listeners_{};
 };
 
 template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...> {

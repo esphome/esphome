@@ -1,8 +1,9 @@
+---
 name: Lock
 
 on:
   schedule:
-    - cron: '30 0 * * *'
+    - cron: "30 0 * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,7 +17,7 @@ jobs:
   lock:
     runs-on: ubuntu-latest
     steps:
-      - uses: dessant/lock-threads@v3
+      - uses: dessant/lock-threads@v5.0.1
         with:
           pr-inactive-days: "1"
           pr-lock-reason: ""

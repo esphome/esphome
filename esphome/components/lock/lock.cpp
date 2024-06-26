@@ -24,8 +24,7 @@ const char *lock_state_to_string(LockState state) {
   }
 }
 
-Lock::Lock(const std::string &name) : EntityBase(name), state(LOCK_STATE_NONE) {}
-Lock::Lock() : Lock("") {}
+Lock::Lock() : state(LOCK_STATE_NONE) {}
 LockCall Lock::make_call() { return LockCall(this); }
 
 void Lock::lock() {
@@ -57,7 +56,6 @@ void Lock::publish_state(LockState state) {
 }
 
 void Lock::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
-uint32_t Lock::hash_base() { return 856245656UL; }
 
 void LockCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());

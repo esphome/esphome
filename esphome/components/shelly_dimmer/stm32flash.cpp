@@ -117,7 +117,7 @@ namespace shelly_dimmer {
 
 namespace {
 
-int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
+int flash_addr_to_page_ceil(const stm32_unique_ptr &stm, uint32_t addr) {
   if (!(addr >= stm->dev->fl_start && addr <= stm->dev->fl_end))
     return 0;
 
@@ -135,7 +135,7 @@ int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
   return addr ? page + 1 : page;
 }
 
-stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
+stm32_err_t stm32_get_ack_timeout(const stm32_unique_ptr &stm, uint32_t timeout) {
   auto *stream = stm->stream;
   uint8_t rxbyte;
 
@@ -168,9 +168,9 @@ stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
   } while (true);
 }
 
-stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm, 0); }
+stm32_err_t stm32_get_ack(const stm32_unique_ptr &stm) { return stm32_get_ack_timeout(stm, 0); }
 
-stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, const uint32_t timeout) {
+stm32_err_t stm32_send_command_timeout(const stm32_unique_ptr &stm, const uint8_t cmd, const uint32_t timeout) {
   auto *const stream = stm->stream;
 
   static constexpr auto BUFFER_SIZE = 2;
@@ -194,12 +194,12 @@ stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, co
   return STM32_ERR_UNKNOWN;
 }
 
-stm32_err_t stm32_send_command(const stm32_t *stm, const uint8_t cmd) {
+stm32_err_t stm32_send_command(const stm32_unique_ptr &stm, const uint8_t cmd) {
   return stm32_send_command_timeout(stm, cmd, 0);
 }
 
 /* if we have lost sync, send a wrong command and expect a NACK */
-stm32_err_t stm32_resync(const stm32_t *stm) {
+stm32_err_t stm32_resync(const stm32_unique_ptr &stm) {
   auto *const stream = stm->stream;
   uint32_t t0 = millis();
   auto t1 = t0;
@@ -238,7 +238,7 @@ stm32_err_t stm32_resync(const stm32_t *stm) {
  *
  * len is value of the first byte in the frame.
  */
-stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, const uint8_t cmd, uint8_t *const data, unsigned int len) {
+stm32_err_t stm32_guess_len_cmd(const stm32_unique_ptr &stm, const uint8_t cmd, uint8_t *const data, unsigned int len) {
   auto *const stream = stm->stream;
 
   if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
@@ -286,7 +286,7 @@ stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, const uint8_t cmd, uint8_t *
  * This function sends the init sequence and, in case of timeout, recovers
  * the interface.
  */
-stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
+stm32_err_t stm32_send_init_seq(const stm32_unique_ptr &stm) {
   auto *const stream = stm->stream;
 
   stream->write_array(&STM32_CMD_INIT, 1);
@@ -320,7 +320,7 @@ stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
   return STM32_ERR_UNKNOWN;
 }
 
-stm32_err_t stm32_mass_erase(const stm32_t *stm) {
+stm32_err_t stm32_mass_erase(const stm32_unique_ptr &stm) {
   auto *const stream = stm->stream;
 
   if (stm32_send_command(stm, stm->cmd->er) != STM32_ERR_OK) {
@@ -364,7 +364,7 @@ template<typename T> std::unique_ptr<T[], void (*)(T *memory)> malloc_array_raii
                                                  DELETOR};
 }
 
-stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const uint32_t pages) {
+stm32_err_t stm32_pages_erase(const stm32_unique_ptr &stm, const uint32_t spage, const uint32_t pages) {
   auto *const stream = stm->stream;
   uint8_t cs = 0;
   int i = 0;
@@ -474,6 +474,18 @@ template<size_t N> void populate_buffer_with_address(uint8_t (&buffer)[N], uint3
   buffer[4] = static_cast<uint8_t>(buffer[0] ^ buffer[1] ^ buffer[2] ^ buffer[3]);
 }
 
+template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
+  static const auto CLOSE = [](stm32_t *stm32) {
+    if (stm32) {
+      free(stm32->cmd);  // NOLINT
+    }
+    free(stm32);  // NOLINT
+  };
+
+  // Cleanup with RAII
+  return std::unique_ptr<stm32_t, decltype(CLOSE)>{ptr, CLOSE};
+}
+
 }  // Anonymous namespace
 
 }  // namespace shelly_dimmer
@@ -485,48 +497,44 @@ namespace shelly_dimmer {
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
-stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char init) {
+stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char init) {
   uint8_t buf[257];
 
-  // Could be constexpr in c++17
-  static const auto CLOSE = [](stm32_t *stm32) { stm32_close(stm32); };
-
-  // Cleanup with RAII
-  std::unique_ptr<stm32_t, decltype(CLOSE)> stm{static_cast<stm32_t *>(calloc(sizeof(stm32_t), 1)),  // NOLINT
-                                                CLOSE};
+  auto stm = make_stm32_with_deletor(static_cast<stm32_t *>(calloc(sizeof(stm32_t), 1)));  // NOLINT
 
   if (!stm) {
-    return nullptr;
+    return make_stm32_with_deletor(nullptr);
   }
   stm->stream = stream;
   stm->flags = flags;
 
   stm->cmd = static_cast<stm32_cmd_t *>(malloc(sizeof(stm32_cmd_t)));  // NOLINT
   if (!stm->cmd) {
-    return nullptr;
+    return make_stm32_with_deletor(nullptr);
   }
   memset(stm->cmd, STM32_CMD_ERR, sizeof(stm32_cmd_t));
 
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init) {
-    if (stm32_send_init_seq(stm.get()) != STM32_ERR_OK)
-      return nullptr;  // NOLINT
+    if (stm32_send_init_seq(stm) != STM32_ERR_OK)
+      return make_stm32_with_deletor(nullptr);
   }
 
   /* get the version and read protection status  */
-  if (stm32_send_command(stm.get(), STM32_CMD_GVR) != STM32_ERR_OK) {
-    return nullptr;  // NOLINT
+  if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
+    return make_stm32_with_deletor(nullptr);
   }
 
   /* From AN, only UART bootloader returns 3 bytes */
   {
     const auto len = (stm->flags & STREAM_OPT_GVR_ETX) ? 3 : 1;
     if (!stream->read_array(buf, len))
-      return nullptr;  // NOLINT
+      return make_stm32_with_deletor(nullptr);
+
     stm->version = buf[0];
     stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
     stm->option2 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[2] : 0;
-    if (stm32_get_ack(stm.get()) != STM32_ERR_OK) {
-      return nullptr;
+    if (stm32_get_ack(stm) != STM32_ERR_OK) {
+      return make_stm32_with_deletor(nullptr);
     }
   }
 
@@ -544,8 +552,8 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
       return STM32_CMD_GET_LENGTH;
     })();
 
-    if (stm32_guess_len_cmd(stm.get(), STM32_CMD_GET, buf, len) != STM32_ERR_OK)
-      return nullptr;
+    if (stm32_guess_len_cmd(stm, STM32_CMD_GET, buf, len) != STM32_ERR_OK)
+      return make_stm32_with_deletor(nullptr);
   }
 
   const auto stop = buf[0] + 1;
@@ -605,25 +613,26 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
         }
     }
   }
-  if (new_cmds)
+  if (new_cmds) {
     ESP_LOGD(TAG, ")");
-  if (stm32_get_ack(stm.get()) != STM32_ERR_OK) {
-    return nullptr;
+  }
+  if (stm32_get_ack(stm) != STM32_ERR_OK) {
+    return make_stm32_with_deletor(nullptr);
   }
 
   if (stm->cmd->get == STM32_CMD_ERR || stm->cmd->gvr == STM32_CMD_ERR || stm->cmd->gid == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: bootloader did not returned correct information from GET command");
-    return nullptr;
+    return make_stm32_with_deletor(nullptr);
   }
 
   /* get the device ID */
-  if (stm32_guess_len_cmd(stm.get(), stm->cmd->gid, buf, 1) != STM32_ERR_OK) {
-    return nullptr;
+  if (stm32_guess_len_cmd(stm, stm->cmd->gid, buf, 1) != STM32_ERR_OK) {
+    return make_stm32_with_deletor(nullptr);
   }
   const auto returned = buf[0] + 1;
   if (returned < 2) {
     ESP_LOGD(TAG, "Only %d bytes sent in the PID, unknown/unsupported device", returned);
-    return nullptr;
+    return make_stm32_with_deletor(nullptr);
   }
   stm->pid = (buf[1] << 8) | buf[2];
   if (returned > 2) {
@@ -631,8 +640,8 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
     for (auto i = 2; i <= returned; i++)
       ESP_LOGD(TAG, " %02x", buf[i]);
   }
-  if (stm32_get_ack(stm.get()) != STM32_ERR_OK) {
-    return nullptr;
+  if (stm32_get_ack(stm) != STM32_ERR_OK) {
+    return make_stm32_with_deletor(nullptr);
   }
 
   stm->dev = DEVICES;
@@ -641,21 +650,14 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
 
   if (!stm->dev->id) {
     ESP_LOGD(TAG, "Unknown/unsupported device (Device ID: 0x%03x)", stm->pid);
-    return nullptr;
+    return make_stm32_with_deletor(nullptr);
   }
 
-  // TODO: Would be much better if the unique_ptr was returned from this function
-  // Release ownership of unique_ptr
-  return stm.release();  // NOLINT
+  return stm;
 }
 
-void stm32_close(stm32_t *stm) {
-  if (stm)
-    free(stm->cmd);  // NOLINT
-  free(stm);         // NOLINT
-}
-
-stm32_err_t stm32_read_memory(const stm32_t *stm, const uint32_t address, uint8_t *data, const unsigned int len) {
+stm32_err_t stm32_read_memory(const stm32_unique_ptr &stm, const uint32_t address, uint8_t *data,
+                              const unsigned int len) {
   auto *const stream = stm->stream;
 
   if (!len)
@@ -693,7 +695,8 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, const uint32_t address, uint8_
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t *data, const unsigned int len) {
+stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address, const uint8_t *data,
+                               const unsigned int len) {
   auto *const stream = stm->stream;
 
   if (!len)
@@ -753,7 +756,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_wunprot_memory(const stm32_t *stm) {
+stm32_err_t stm32_wunprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->uw == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: WRITE UNPROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -766,7 +769,7 @@ stm32_err_t stm32_wunprot_memory(const stm32_t *stm) {
                                  []() { ESP_LOGD(TAG, "Error: Failed to WRITE UNPROTECT"); });
 }
 
-stm32_err_t stm32_wprot_memory(const stm32_t *stm) {
+stm32_err_t stm32_wprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->wp == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: WRITE PROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -779,7 +782,7 @@ stm32_err_t stm32_wprot_memory(const stm32_t *stm) {
                                  []() { ESP_LOGD(TAG, "Error: Failed to WRITE PROTECT"); });
 }
 
-stm32_err_t stm32_runprot_memory(const stm32_t *stm) {
+stm32_err_t stm32_runprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->ur == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: READOUT UNPROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -792,7 +795,7 @@ stm32_err_t stm32_runprot_memory(const stm32_t *stm) {
                                  []() { ESP_LOGD(TAG, "Error: Failed to READOUT UNPROTECT"); });
 }
 
-stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
+stm32_err_t stm32_readprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->rp == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: READOUT PROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -805,7 +808,7 @@ stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
                                  []() { ESP_LOGD(TAG, "Error: Failed to READOUT PROTECT"); });
 }
 
-stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t pages) {
+stm32_err_t stm32_erase_memory(const stm32_unique_ptr &stm, uint32_t spage, uint32_t pages) {
   if (!pages || spage > STM32_MAX_PAGES || ((pages != STM32_MASS_ERASE) && ((spage + pages) > STM32_MAX_PAGES)))
     return STM32_ERR_OK;
 
@@ -847,7 +850,7 @@ stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t page
   return STM32_ERR_OK;
 }
 
-static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_address, const uint8_t *code,
+static stm32_err_t stm32_run_raw_code(const stm32_unique_ptr &stm, uint32_t target_address, const uint8_t *code,
                                       uint32_t code_size) {
   static constexpr uint32_t BUFFER_SIZE = 256;
 
@@ -893,7 +896,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
   return stm32_go(stm, target_address);
 }
 
-stm32_err_t stm32_go(const stm32_t *stm, const uint32_t address) {
+stm32_err_t stm32_go(const stm32_unique_ptr &stm, const uint32_t address) {
   auto *const stream = stm->stream;
 
   if (stm->cmd->go == STM32_CMD_ERR) {
@@ -916,7 +919,7 @@ stm32_err_t stm32_go(const stm32_t *stm, const uint32_t address) {
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_reset_device(const stm32_t *stm) {
+stm32_err_t stm32_reset_device(const stm32_unique_ptr &stm) {
   const auto target_address = stm->dev->ram_start;
 
   if (stm->dev->flags & F_OBLL) {
@@ -927,7 +930,8 @@ stm32_err_t stm32_reset_device(const stm32_t *stm) {
   }
 }
 
-stm32_err_t stm32_crc_memory(const stm32_t *stm, const uint32_t address, const uint32_t length, uint32_t *const crc) {
+stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, const uint32_t address, const uint32_t length,
+                             uint32_t *const crc) {
   static constexpr auto BUFFER_SIZE = 5;
   auto *const stream = stm->stream;
 
@@ -1022,7 +1026,7 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
   return crc;
 }
 
-stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address, uint32_t length, uint32_t *crc) {
+stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uint32_t length, uint32_t *crc) {
   static constexpr uint32_t CRC_INIT_VALUE = 0xFFFFFFFF;
   static constexpr uint32_t BUFFER_SIZE = 256;
 
@@ -1058,4 +1062,5 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address, uint32_t len
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
-#endif
+
+#endif  // USE_SHD_FIRMWARE_DATA

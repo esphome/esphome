@@ -1,20 +1,22 @@
-import re
 from pathlib import Path
-from esphome.core import EsphomeError
-from esphome.config_helpers import merge_config
 
+import esphome.config_validation as cv
 from esphome import git, yaml_util
+from esphome.config_helpers import merge_config
 from esphome.const import (
+    CONF_ESPHOME,
     CONF_FILE,
     CONF_FILES,
+    CONF_MIN_VERSION,
     CONF_PACKAGES,
+    CONF_PASSWORD,
     CONF_REF,
     CONF_REFRESH,
     CONF_URL,
     CONF_USERNAME,
-    CONF_PASSWORD,
 )
-import esphome.config_validation as cv
+from esphome.const import __version__ as ESPHOME_VERSION
+from esphome.core import EsphomeError
 
 DOMAIN = CONF_PACKAGES
 
@@ -52,23 +54,15 @@ def validate_source_shorthand(value):
     if not isinstance(value, str):
         raise cv.Invalid("Shorthand only for strings")
 
-    m = re.match(
-        r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)/([a-zA-Z0-9\-_.\./]+)(?:@([a-zA-Z0-9\-_.\./]+))?",
-        value,
-    )
-    if m is None:
-        raise cv.Invalid(
-            "Source is not a file system path or in expected github://username/name/[sub-folder/]file-path.yml[@branch-or-tag] format!"
-        )
+    git_file = git.GitFile.from_shorthand(value)
 
     conf = {
-        CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
-        CONF_FILE: m.group(3),
+        CONF_URL: git_file.git_url,
+        CONF_FILE: git_file.filename,
     }
-    if m.group(4):
-        conf[CONF_REF] = m.group(4)
+    if git_file.ref:
+        conf[CONF_REF] = git_file.ref
 
-    # print(conf)
     return BASE_SCHEMA(conf)
 
 
@@ -104,7 +98,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _process_base_package(config: dict) -> dict:
-    repo_dir = git.clone_or_update(
+    repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
         refresh=config[CONF_REFRESH],
@@ -112,21 +106,56 @@ def _process_base_package(config: dict) -> dict:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
-    files: str = config[CONF_FILES]
+    files: list[str] = config[CONF_FILES]
 
-    packages = {}
-    for file in files:
-        yaml_file: Path = repo_dir / file
+    def get_packages(files) -> dict:
+        packages = {}
+        for file in files:
+            yaml_file: Path = repo_dir / file
 
-        if not yaml_file.is_file():
-            raise cv.Invalid(f"{file} does not exist in repository", path=[CONF_FILES])
+            if not yaml_file.is_file():
+                raise cv.Invalid(
+                    f"{file} does not exist in repository", path=[CONF_FILES]
+                )
 
+            try:
+                new_yaml = yaml_util.load_yaml(yaml_file)
+                if (
+                    CONF_ESPHOME in new_yaml
+                    and CONF_MIN_VERSION in new_yaml[CONF_ESPHOME]
+                ):
+                    min_version = new_yaml[CONF_ESPHOME][CONF_MIN_VERSION]
+                    if cv.Version.parse(min_version) > cv.Version.parse(
+                        ESPHOME_VERSION
+                    ):
+                        raise cv.Invalid(
+                            f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
+                        )
+
+                packages[file] = new_yaml
+            except EsphomeError as e:
+                raise cv.Invalid(
+                    f"{file} is not a valid YAML file. Please check the file contents.\n{e}"
+                ) from e
+        return packages
+
+    packages = None
+    error = ""
+
+    try:
+        packages = get_packages(files)
+    except cv.Invalid as e:
+        error = e
         try:
-            packages[file] = yaml_util.load_yaml(yaml_file)
-        except EsphomeError as e:
-            raise cv.Invalid(
-                f"{file} is not a valid YAML file. Please check the file contents."
-            ) from e
+            if revert is not None:
+                revert()
+                packages = get_packages(files)
+        except cv.Invalid as er:
+            error = er
+
+    if packages is None:
+        raise cv.Invalid(f"Failed to load packages. {error}")
+
     return {"packages": packages}
 
 
@@ -141,7 +170,7 @@ def do_packages_pass(config: dict):
                 f"Packages must be a key to value mapping, got {type(packages)} instead"
             )
 
-        for package_name, package_config in packages.items():
+        for package_name, package_config in reversed(packages.items()):
             with cv.prepend_path(package_name):
                 recursive_package = package_config
                 if CONF_URL in package_config:

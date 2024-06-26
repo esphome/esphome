@@ -1,4 +1,5 @@
 #include "bmp280.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -11,8 +12,11 @@ static const uint8_t BMP280_REGISTER_CONTROL = 0xF4;
 static const uint8_t BMP280_REGISTER_CONFIG = 0xF5;
 static const uint8_t BMP280_REGISTER_PRESSUREDATA = 0xF7;
 static const uint8_t BMP280_REGISTER_TEMPDATA = 0xFA;
+static const uint8_t BMP280_REGISTER_RESET = 0xE0;
 
 static const uint8_t BMP280_MODE_FORCED = 0b01;
+static const uint8_t BMP280_SOFT_RESET = 0xB6;
+static const uint8_t BMP280_STATUS_IM_UPDATE = 0b01;
 
 inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
 
@@ -62,6 +66,28 @@ void BMP280Component::setup() {
   }
   if (chip_id != 0x58) {
     this->error_code_ = WRONG_CHIP_ID;
+    this->mark_failed();
+    return;
+  }
+
+  // Send a soft reset.
+  if (!this->write_byte(BMP280_REGISTER_RESET, BMP280_SOFT_RESET)) {
+    this->mark_failed();
+    return;
+  }
+  // Wait until the NVM data has finished loading.
+  uint8_t status;
+  uint8_t retry = 5;
+  do {
+    delay(2);
+    if (!this->read_byte(BMP280_REGISTER_STATUS, &status)) {
+      ESP_LOGW(TAG, "Error reading status register.");
+      this->mark_failed();
+      return;
+    }
+  } while ((status & BMP280_STATUS_IM_UPDATE) && (--retry));
+  if (status & BMP280_STATUS_IM_UPDATE) {
+    ESP_LOGW(TAG, "Timeout loading NVM.");
     this->mark_failed();
     return;
   }
@@ -174,8 +200,8 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
   int32_t var2 = (((((adc >> 4) - t1) * ((adc >> 4) - t1)) >> 12) * t3) >> 14;
   *t_fine = var1 + var2;
 
-  float temperature = (*t_fine * 5 + 128) >> 8;
-  return temperature / 100.0f;
+  float temperature = (*t_fine * 5 + 128);
+  return temperature / 25600.0f;
 }
 
 float BMP280Component::read_pressure_(int32_t t_fine) {

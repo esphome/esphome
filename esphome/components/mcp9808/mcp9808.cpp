@@ -54,16 +54,16 @@ void MCP9808Sensor::update() {
   }
 
   float temp = NAN;
-  uint8_t msb = (uint8_t)((raw_temp & 0xff00) >> 8);
+  uint8_t msb = (uint8_t) ((raw_temp & 0xff00) >> 8);
   uint8_t lsb = raw_temp & 0x00ff;
 
   msb = msb & MCP9808_AMBIENT_CLEAR_FLAGS;
 
   if ((msb & MCP9808_AMBIENT_TEMP_NEGATIVE) == MCP9808_AMBIENT_TEMP_NEGATIVE) {
     msb = msb & MCP9808_AMBIENT_CLEAR_SIGN;
-    temp = (256 - ((uint16_t)(msb) *16 + lsb / 16.0f)) * -1;
+    temp = (256 - ((uint16_t) (msb) *16 + lsb / 16.0f)) * -1;
   } else {
-    temp = (uint16_t)(msb) *16 + lsb / 16.0f;
+    temp = (uint16_t) (msb) *16 + lsb / 16.0f;
   }
 
   if (std::isnan(temp)) {

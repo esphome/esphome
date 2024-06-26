@@ -37,7 +37,6 @@ time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
 SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
-ESPTime = time_ns.struct("ESPTime")
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 
@@ -50,7 +49,7 @@ def _load_tzdata(iana_key: str) -> Optional[bytes]:
     package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
-        return resources.read_binary(package, resource)
+        return (resources.files(package) / resource).read_bytes()
     except (FileNotFoundError, ModuleNotFoundError):
         return None
 
@@ -126,10 +125,10 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
             )
         begin, end = data
         begin_n = _parse_cron_int(
-            begin, special_mapping, "Number for time range must be integer, " "got {}"
+            begin, special_mapping, "Number for time range must be integer, got {}"
         )
         end_n = _parse_cron_int(
-            end, special_mapping, "Number for time range must be integer, " "got {}"
+            end, special_mapping, "Number for time range must be integer, got {}"
         )
         if end_n < begin_n:
             return set(range(end_n, max_value + 1)) | set(range(min_value, begin_n + 1))
@@ -139,7 +138,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         _parse_cron_int(
             part,
             special_mapping,
-            "Number for time expression must be an " "integer, got {}",
+            "Number for time expression must be an integer, got {}",
         )
     }
 

@@ -7,6 +7,7 @@ namespace pzemdc {
 static const char *const TAG = "pzemdc";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
+static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
 void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
@@ -37,6 +38,9 @@ void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint32_t raw_power = pzem_get_32bit(4);
   float power = raw_power / 10.0f;  // max 429496729.5 W
 
+  uint32_t raw_energy = pzem_get_32bit(8);
+  float energy = raw_energy / 1000.0f;  // max 4294967.295 kWh
+
   ESP_LOGD(TAG, "PZEM DC: V=%.1f V, I=%.3f A, P=%.1f W", voltage, current, power);
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
@@ -44,6 +48,8 @@ void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->current_sensor_->publish_state(current);
   if (this->power_sensor_ != nullptr)
     this->power_sensor_->publish_state(power);
+  if (this->energy_sensor_ != nullptr)
+    this->energy_sensor_->publish_state(energy);
 }
 
 void PZEMDC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, 8); }
@@ -53,6 +59,14 @@ void PZEMDC::dump_config() {
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
+  LOG_SENSOR("", "Energy", this->energy_sensor_);
+}
+
+void PZEMDC::reset_energy() {
+  std::vector<uint8_t> cmd;
+  cmd.push_back(this->address_);
+  cmd.push_back(PZEM_CMD_RESET_ENERGY);
+  this->send_raw(cmd);
 }
 
 }  // namespace pzemdc
