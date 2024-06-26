@@ -126,5 +126,5 @@ def to_code(config):
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
-    cg.add_library("tonia/HeatpumpIR", "1.0.27")
 
+    cg.add_library("tonia/HeatpumpIR", "1.0.27")
