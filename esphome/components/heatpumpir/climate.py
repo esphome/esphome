@@ -67,6 +67,11 @@ PROTOCOLS = {
     "carrier_qlima_2": Protocol.PROTOCOL_QLIMA_2,
     "samsung_aqv12msan": Protocol.PROTOCOL_SAMSUNG_AQV12MSAN,
     "zhjg01": Protocol.PROTOCOL_ZHJG01,
+    "airway": Protocol.PROTOCOL_AIRWAY,
+    "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
+    "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
+    "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
+    "r51m": Protocol.PROTOCOL_R51M,
 }
 
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
@@ -121,8 +126,5 @@ def to_code(config):
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
+    cg.add_library("tonia/HeatpumpIR", "1.0.27")
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.26")
-
-    if CORE.is_esp8266 or CORE.is_esp32:
-        cg.add_library("crankyoldgit/IRremoteESP8266", "2.8.6")
