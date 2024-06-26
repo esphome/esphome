@@ -32,7 +32,7 @@ dependencies:
     version: v1.2.0
   esp-sr:
     git: https://github.com/espressif/esp-sr.git
-    verison: 36ec4242d08f68b38f39cfc80b6057bc9d6c0269 # Submodule references in esp-adf
+    version: 36ec4242d08f68b38f39cfc80b6057bc9d6c0269 # Submodule references in esp-adf
   #### END ESP-ADF ####
   esp-tflite-micro:
     git: https://github.com/espressif/esp-tflite-micro.git
