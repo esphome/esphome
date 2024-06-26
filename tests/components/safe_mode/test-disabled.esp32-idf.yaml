@@ -1,1 +1,6 @@
-<<: !include common-disabled.yaml
+wifi:
+  ssid: MySSID
+  password: password1
+
+safe_mode:
+  disabled: true
