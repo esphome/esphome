@@ -224,13 +224,16 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_DELIVER:
       break;
     case TuyaCommandType::DATAPOINT_REPORT_ASYNC:
-    case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
         this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
         this->initialized_callback_.call();
       }
+      break;
+    case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       this->handle_datapoints_(buffer, len);
+      this->send_command_(
+        TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_ACK, .payload = std::vector<uint8_t>{0x01}});
       break;
     case TuyaCommandType::DATAPOINT_QUERY:
       break;
