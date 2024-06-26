@@ -28,7 +28,7 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
         output << buffer;
         break;
       case RawEncoding::ASCII:
-        if (b == 0)
+        if (b < 0x20 || b > 0x7E)
           break;
       // FALLTHROUGH
       // Anything else no encoding
