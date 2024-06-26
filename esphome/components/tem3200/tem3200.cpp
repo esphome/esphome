@@ -22,9 +22,6 @@ void TEM3200Component::setup() {
   uint16_t raw_temperature(0);
   uint16_t raw_pressure(0);
 
-  // startup device delay
-  delay(10);
-
   i2c::ErrorCode err = this->read_(status, raw_temperature, raw_pressure);
   if (err != i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "    I2C Communication Failed...");
