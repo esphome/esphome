@@ -1,5 +1,6 @@
-#include "mdns_component.h"
 #include "esphome/core/defines.h"
+#ifdef USE_MDNS
+#include "mdns_component.h"
 #include "esphome/core/version.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -125,3 +126,4 @@ void MDNSComponent::dump_config() {
 
 }  // namespace mdns
 }  // namespace esphome
+#endif

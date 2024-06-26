@@ -15,7 +15,7 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   std::ostringstream output;
   uint8_t items_left = this->response_bytes;
   uint8_t index = this->offset;
-  char buffer[4];
+  char buffer[5];
   while ((items_left > 0) && index < data.size()) {
     uint8_t b = data[index];
     switch (this->encode_) {
