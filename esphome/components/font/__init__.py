@@ -17,7 +17,6 @@ from esphome.helpers import (
     cpp_string_escape,
 )
 from esphome.const import (
-    __version__,
     CONF_FAMILY,
     CONF_FILE,
     CONF_GLYPHS,
@@ -185,31 +184,6 @@ def get_font_path(value, type) -> Path:
     return None
 
 
-def download_content(url: str, path: Path) -> None:
-    if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.debug("Remote file has not changed %s", url)
-        return
-
-    _LOGGER.debug(
-        "Remote file has changed, downloading from %s to %s",
-        url,
-        path,
-    )
-
-    try:
-        req = requests.get(
-            url,
-            timeout=external_files.NETWORK_TIMEOUT,
-            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
-        )
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download from {url}: {e}")
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
-
-
 def download_gfont(value):
     name = (
         f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
@@ -236,7 +210,7 @@ def download_gfont(value):
     ttf_url = match.group(1)
     _LOGGER.debug("download_gfont: ttf_url=%s", ttf_url)
 
-    download_content(ttf_url, path)
+    external_files.download_content(ttf_url, path)
     return value
 
 
@@ -244,7 +218,7 @@ def download_web_font(value):
     url = value[CONF_URL]
     path = get_font_path(value, TYPE_WEB)
 
-    download_content(url, path)
+    external_files.download_content(url, path)
     _LOGGER.debug("download_web_font: path=%s", path)
     return value
 
