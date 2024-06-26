@@ -33,25 +33,25 @@ void HDC2010Component::setup() {
   }
 
   // Set measurement mode to temperature and humidity
-  uint8_t configContents;
-  read_register(MEASUREMENT_CONFIG, &configContents, 1);
-  configContents = (configContents & 0xF9);  // Always set to TEMP_AND_HUMID mode
-  this->write_bytes(MEASUREMENT_CONFIG, &configContents, 1);
+  uint8_t config_contents;
+  read_register(MEASUREMENT_CONFIG, &config_contents, 1);
+  config_contents = (config_contents & 0xF9);  // Always set to TEMP_AND_HUMID mode
+  this->write_bytes(MEASUREMENT_CONFIG, &config_contents, 1);
 
   // Set rate to manual
-  read_register(CONFIG, &configContents, 1);
-  configContents &= 0x8F;
-  this->write_bytes(CONFIG, &configContents, 1);
+  read_register(CONFIG, &config_contents, 1);
+  config_contents &= 0x8F;
+  this->write_bytes(CONFIG, &config_contents, 1);
 
   // Set temperature resolution to 14bit
-  read_register(CONFIG, &configContents, 1);
-  configContents &= 0x3F;
-  this->write_bytes(CONFIG, &configContents, 1);
+  read_register(CONFIG, &config_contents, 1);
+  config_contents &= 0x3F;
+  this->write_bytes(CONFIG, &config_contents, 1);
 
   // Set humidity resolution to 14bit
-  read_register(CONFIG, &configContents, 1);
-  configContents &= 0xCF;
-  this->write_bytes(CONFIG, &configContents, 1);
+  read_register(CONFIG, &config_contents, 1);
+  config_contents &= 0xCF;
+  this->write_bytes(CONFIG, &config_contents, 1);
 
   delayMicroseconds(5000);  // wait for 5ms
 }
@@ -69,15 +69,15 @@ void HDC2010Component::dump_config() {
 
 void HDC2010Component::update() {
   // Trigger measurement
-  uint8_t configContents;
-  read_register(CONFIG, &configContents, 1);
-  configContents |= 0x01;
-  this->write_bytes(MEASUREMENT_CONFIG, &configContents, 1);
+  uint8_t config_contents;
+  read_register(CONFIG, &config_contents, 1);
+  config_contents |= 0x01;
+  this->write_bytes(MEASUREMENT_CONFIG, &config_contents, 1);
 
   delayMicroseconds(1000);  // 1ms delay after triggering the sample
 
-  float temp = readTemp();
-  float humidity = readHumidity();
+  float temp = read_temp();
+  float humidity = read_humidity();
 
   this->temperature_->publish_state(temp);
   this->humidity_->publish_state(humidity);
@@ -86,7 +86,7 @@ void HDC2010Component::update() {
   this->status_clear_warning();
 }
 
-float HDC2010Component::readTemp() {
+float HDC2010Component::read_temp() {
   uint8_t byte[2];
   uint16_t temp;
 
@@ -97,7 +97,7 @@ float HDC2010Component::readTemp() {
   return (float) temp * 0.0025177f - 40.0f;
 }
 
-float HDC2010Component::readHumidity() {
+float HDC2010Component::read_humidity() {
   uint8_t byte[2];
   uint16_t humidity;
 

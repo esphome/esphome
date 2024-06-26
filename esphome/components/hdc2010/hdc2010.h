@@ -18,9 +18,9 @@ class HDC2010Component : public PollingComponent, public i2c::I2CDevice {
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
 
-  float readTemp();
+  float read_temp();
 
-  float readHumidity();
+  float read_humidity();
 
   float get_setup_priority() const override;
 
