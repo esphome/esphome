@@ -34,6 +34,19 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
   return topic_prefix + "/" + this->component_type() + "/" + this->get_default_object_id_() + "/" + suffix;
 }
 
+const std::string &MQTTComponent::get_payload_for_bool_(bool state) const {
+  if (state) {
+    if (this->has_custom_true_payload_) {
+      return this->custom_true_payload_;
+    }
+  } else {
+    if (this->has_custom_false_payload_) {
+      return this->custom_false_payload_;
+    }
+  }
+  return global_mqtt_client->get_payload_for_bool(state);
+}
+
 std::string MQTTComponent::get_state_topic_() const {
   if (this->has_custom_state_topic_)
     return this->custom_state_topic_.str();
@@ -184,6 +197,14 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
+void MQTTComponent::set_custom_true_payload(const std::string &payload) {
+  this->custom_true_payload_ = payload;
+  this->has_custom_true_payload_ = true;
+}
+void MQTTComponent::set_custom_false_payload(const std::string &payload) {
+  this->custom_false_payload_ = payload;
+  this->has_custom_false_payload_ = true;
+}
 void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
   this->custom_state_topic_ = StringRef(custom_state_topic);
   this->has_custom_state_topic_ = true;

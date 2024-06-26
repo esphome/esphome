@@ -31,7 +31,9 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
+    CONF_PAYLOAD_FALSE,
     CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_PAYLOAD_TRUE,
     CONF_PORT,
     CONF_QOS,
     CONF_REBOOT_TIMEOUT,
@@ -251,6 +253,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
                 cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
             ),
+            cv.Optional(CONF_PAYLOAD_TRUE, default="ON"): cv.string,
+            cv.Optional(CONF_PAYLOAD_FALSE, default="OFF"): cv.string,
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -389,6 +393,9 @@ async def to_code(config):
             cg.add(var.add_ssl_fingerprint(arr))
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 
+    cg.add(var.set_payload_true(config[CONF_PAYLOAD_TRUE]))
+    cg.add(var.set_payload_false(config[CONF_PAYLOAD_FALSE]))
+
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
@@ -508,6 +515,10 @@ async def register_mqtt_component(var, config):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
         cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+    if CONF_PAYLOAD_TRUE in config:
+        cg.add(var.set_custom_true_payload(config[CONF_PAYLOAD_TRUE]))
+    if CONF_PAYLOAD_FALSE in config:
+        cg.add(var.set_custom_false_payload(config[CONF_PAYLOAD_FALSE]))
     if CONF_COMMAND_TOPIC in config:
         cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
     if CONF_COMMAND_RETAIN in config:

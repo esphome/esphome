@@ -92,6 +92,10 @@ class MQTTComponent : public Component {
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual std::string component_type() const = 0;
 
+  /// Set a custom payload to represent true and/or false
+  void set_custom_true_payload(const std::string &payload);
+  void set_custom_false_payload(const std::string &payload);
+
   /// Set a custom state topic. Set to "" for default behavior.
   void set_custom_state_topic(const char *custom_state_topic);
   /// Set a custom command topic. Set to "" for default behavior.
@@ -177,6 +181,9 @@ class MQTTComponent : public Component {
   /// Get whether the underlying Entity is disabled by default
   virtual bool is_disabled_by_default() const;
 
+  /// Get payload for particular state to be sent MQTT
+  const std::string &get_payload_for_bool_(bool state) const;
+
   /// Get the MQTT topic that new states will be shared to.
   std::string get_state_topic_() const;
 
@@ -192,6 +199,12 @@ class MQTTComponent : public Component {
   // (In most use cases you won't need these)
   /// Generate the Home Assistant MQTT discovery object id by automatically transforming the friendly name.
   std::string get_default_object_id_() const;
+
+  std::string custom_true_payload_{};
+  std::string custom_false_payload_{};
+
+  bool has_custom_true_payload_{false};
+  bool has_custom_false_payload_{false};
 
   StringRef custom_state_topic_{};
   StringRef custom_command_topic_{};

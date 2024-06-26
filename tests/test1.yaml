@@ -70,6 +70,8 @@ mqtt:
   discovery_retain: false
   discovery_prefix: discovery
   discovery_unique_id_generator: legacy
+  payload_true: "1"
+  payload_false: "0"
   topic_prefix: helloworld
   log_topic:
     topic: helloworld/hi
@@ -1783,6 +1785,8 @@ binary_sensor:
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: false
+    payload_true: "1"
+    payload_false: "0"
   - platform: gpio
     name: "MCP23S17 Pin #1"
     pin:
@@ -1793,6 +1797,7 @@ binary_sensor:
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: false
+    payload_true: "1"
   - platform: gpio
     name: "MCP23S17 Pin #1 with interrupt"
     pin:
@@ -1804,6 +1809,7 @@ binary_sensor:
       mode: INPUT_PULLUP
       inverted: false
       interrupt: FALLING
+    payload_false: "0"
   - platform: gpio
     pin:
       allow_other_uses: true
@@ -2727,6 +2733,8 @@ switch:
       number: 0
       mode: OUTPUT
       inverted: false
+    payload_true: "1"
+    payload_false: "0"
   - platform: gpio
     name: "MCP23S17 Pin #0"
     pin:
@@ -3055,6 +3063,8 @@ fan:
     name: Living Room Fan 1
     oscillation_output: gpio_19
     direction_output: gpio_26
+    payload_true: "1"
+    payload_false: "0"
   - platform: speed
     id: fan_speed
     icon: mdi:weather-windy

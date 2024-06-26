@@ -49,7 +49,7 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
   if (this->binary_sensor_->is_status_binary_sensor())
     return true;
 
-  const char *state_s = state ? "ON" : "OFF";
+  const char *state_s = this->get_payload_for_bool_(state).c_str();
   return this->publish(this->get_state_topic_(), state_s);
 }
 
