@@ -55,6 +55,7 @@ PROTOCOL_HON = "HON"
 PROTOCOL_SMARTAIR2 = "SMARTAIR2"
 
 haier_ns = cg.esphome_ns.namespace("haier")
+hon_protocol_ns = haier_ns.namespace("hon_protocol")
 HaierClimateBase = haier_ns.class_(
     "HaierClimateBase", uart.UARTDevice, climate.Climate, cg.Component
 )
@@ -63,7 +64,7 @@ Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 
 CONF_HAIER_ID = "haier_id"
 
-AirflowVerticalDirection = haier_ns.enum("AirflowVerticalDirection", True)
+AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
     "HEALTH_UP": AirflowVerticalDirection.HEALTH_UP,
     "MAX_UP": AirflowVerticalDirection.MAX_UP,
@@ -73,7 +74,7 @@ AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
     "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
 }
 
-AirflowHorizontalDirection = haier_ns.enum("AirflowHorizontalDirection", True)
+AirflowHorizontalDirection = hon_protocol_ns.enum("HorizontalSwingMode", True)
 AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
     "MAX_LEFT": AirflowHorizontalDirection.MAX_LEFT,
     "LEFT": AirflowHorizontalDirection.LEFT,
@@ -182,7 +183,6 @@ BASE_CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SUPPORTED_SWING_MODES,
                 default=[
-                    "OFF",
                     "VERTICAL",
                     "HORIZONTAL",
                     "BOTH",
@@ -210,7 +210,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=list(["BOOST", "COMFORT"]),  # No AWAY by default
+                        default=["BOOST", "COMFORT"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS, upper=True)
                     ),
@@ -230,7 +230,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.int_range(min=PROTOCOL_CONTROL_PACKET_SIZE, max=50),
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=list(["BOOST", "ECO", "SLEEP"]),  # No AWAY by default
+                        default=["BOOST", "ECO", "SLEEP"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS, upper=True)
                     ),
@@ -426,11 +426,7 @@ def _final_validate(config):
             "No logger component found, logging for Haier protocol is disabled"
         )
         cg.add_build_flag("-DHAIER_LOG_LEVEL=0")
-    if (
-        (CONF_WIFI_SIGNAL in config)
-        and (config[CONF_WIFI_SIGNAL])
-        and CONF_WIFI not in full_config
-    ):
+    if config.get(CONF_WIFI_SIGNAL) and CONF_WIFI not in full_config:
         raise cv.Invalid(
             f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration"
         )
@@ -483,4 +479,4 @@ async def to_code(config):
             trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
         )
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.25")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.28")

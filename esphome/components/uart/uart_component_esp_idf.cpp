@@ -69,7 +69,7 @@ void IDFUARTComponent::setup() {
     this->mark_failed();
     return;
   }
-  this->uart_num_ = next_uart_num++;
+  this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
   ESP_LOGCONFIG(TAG, "Setting up UART %u...", this->uart_num_);
 
   this->lock_ = xSemaphoreCreateMutex();
