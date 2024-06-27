@@ -1,10 +1,10 @@
 remote_transmitter:
-  pin: 5
+  pin: P26
   carrier_duty_percent: 50%
 
 climate:
   - platform: heatpumpir
-    protocol: greeyt
+    protocol: daikin
     horizontal_default: left
     vertical_default: up
     name: HeatpumpIR Climate
