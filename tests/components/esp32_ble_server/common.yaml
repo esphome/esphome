@@ -15,8 +15,12 @@ esp32_ble_server:
     - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc42d
       advertise: false
       characteristics:
-        - id: test_write_characteristic
-          uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12d
+        - id: test_change_characteristic
+          uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc11d
+          properties:
+            - read
+          value: "Initial"
+        - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12d
           properties:
             - read
             - write
@@ -25,5 +29,5 @@ esp32_ble_server:
               - lambda: |-
                   ESP_LOGD("BLE", "Received: %s", x.c_str());
               - ble_server.characteristic_set_value:
-                  id: test_write_characteristic
-                  value: x
+                  id: test_change_characteristic
+                  value: !lambda 'return "Echo " + x + "";'

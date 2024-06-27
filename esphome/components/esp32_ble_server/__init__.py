@@ -199,8 +199,11 @@ async def to_code(config):
 
 @automation.register_action("ble_server.characteristic_set_value", BLECharacteristicSetValueAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(BLECharacteristic),
-    cv.Required(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA, 
+    cv.Required(CONF_VALUE): cv.templatable(cv.string),
 }))
-async def ble_enable_to_code(config, action_id, template_arg, args):
-    char_var = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, char_var)
+async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)
+    cg.add(var.set_value(template_))
+    return var

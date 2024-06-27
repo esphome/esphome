@@ -32,11 +32,12 @@ class BLEServerAutomationInterface {
   
   template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
   public:
-    BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : characteristic_(characteristic) {}
-    void play(Ts... x) override { this->characteristic_->set_value(x...); }
+    BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
+    TEMPLATABLE_VALUE(std::string, value)
+    void play(Ts... x) override {this->parent_->set_value(this->value_.value(x...)); }
 
   protected:
-    BLECharacteristic *characteristic_;
+    BLECharacteristic *parent_;
   };
 };
 
