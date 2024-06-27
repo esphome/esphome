@@ -294,30 +294,6 @@ esp32_ble:
 esp32_ble_server:
   manufacturer: ESPHome
   model: Test5
-  services:
-    - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc42d
-      num_handles: 14
-      advertise: false
-      characteristics:
-        - uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
-          properties:
-            - read
-          value: [0, 1, 2]
-    - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc42d
-      advertise: false
-      characteristics:
-        - id: test_write_characteristic
-          uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12d
-          properties:
-            - read
-            - write
-          on_write:
-            then:
-              - lambda: |-
-                  ESP_LOGD("BLE", "Received: %s", x.c_str());
-              - ble_server.characteristic_set_value:
-                  id: test_write_characteristic
-                  value: x
 
 esp32_improv:
   authorizer: io0_button
