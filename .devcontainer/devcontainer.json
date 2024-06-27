@@ -1,7 +1,9 @@
 {
   "name": "ESPHome Dev",
   "image": "ghcr.io/esphome/esphome-lint:dev",
-  "postCreateCommand": ["script/devcontainer-post-create"],
+  "postCreateCommand": [
+    "script/devcontainer-post-create"
+  ],
   "containerEnv": {
     "DEVCONTAINER": "1",
     "PIP_BREAK_SYSTEM_PACKAGES": "1",
@@ -38,8 +40,9 @@
       "settings": {
         "python.languageServer": "Pylance",
         "python.pythonPath": "/usr/bin/python3",
-        "python.linting.pylintEnabled": true,
-        "python.linting.enabled": true,
+        // "python.linting.pylintEnabled": true,
+        // "python.linting.enabled": true,
+        "pylint.enabled": true,
         "python.formatting.provider": "black",
         "editor.formatOnPaste": false,
         "editor.formatOnSave": true,
