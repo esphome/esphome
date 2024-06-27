@@ -60,6 +60,9 @@ class QspiAmoLed : public display::DisplayBuffer,
   void set_model(Model model) { this->model_ = model; }
   void update() override;
   void setup() override;
+  void horizontal_line(int x, int y, int width, Color color) override;
+  void vertical_line(int x, int y, int height, Color color) override;
+  void filled_rectangle(int x1, int y1, int width, int height, Color color) override;
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
 

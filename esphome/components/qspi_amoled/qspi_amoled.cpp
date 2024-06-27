@@ -5,6 +5,24 @@
 namespace esphome {
 namespace qspi_amoled {
 
+// Note: inline function took up to 40% longer in benchmarks
+#define set_buffer_pixel_raw(x, y, new_color) \
+  do { \
+    uint32_t pos = ((y) * this->width_) + (x); \
+    if (((uint16_t *) this->buffer_)[pos] != (new_color)) { \
+      ((uint16_t *) this->buffer_)[pos] = (new_color); \
+      /* low and high watermark may speed up drawing from buffer */ \
+      if ((x) < this->x_low_) \
+        this->x_low_ = (x); \
+      if ((y) < this->y_low_) \
+        this->y_low_ = (y); \
+      if ((x) > this->x_high_) \
+        this->x_high_ = (x); \
+      if ((y) > this->y_high_) \
+        this->y_high_ = (y); \
+    } \
+  } while (0)
+
 void QspiAmoLed::setup() {
   esph_log_config(TAG, "Setting up QSPI_AMOLED");
   this->spi_setup();
@@ -53,6 +71,62 @@ void QspiAmoLed::update() {
   this->y_high_ = 0;
 }
 
+void QspiAmoLed::horizontal_line(int x, int y, int width, Color color) {
+  this->filled_rectangle(x, y, width, 1, color);
+}
+
+void QspiAmoLed::vertical_line(int x, int y, int height, Color color) {
+  this->filled_rectangle(x, y, 1, height, color);
+}
+
+void QspiAmoLed::filled_rectangle(int x1, int y1, int width, int height, Color color) {
+  if (this->buffer_ == nullptr) {
+    this->init_internal_(this->width_ * this->height_ * 2);
+  }
+  if (this->is_failed()) {
+    return;
+  }
+
+  // Apply clipping rectangle
+  display::Rect internal = display::Rect(x1, y1, width, height);
+  if (this->get_clipping().is_set()) {
+    internal.shrink(this->get_clipping());
+  }
+
+  // Translate to internal coordinates according to rotation
+  switch (this->rotation_) {
+    case display::DISPLAY_ROTATION_90_DEGREES:
+      internal =
+          display::Rect(this->get_width_internal() - internal.y - internal.h, internal.x, internal.h, internal.w);
+      break;
+    case display::DISPLAY_ROTATION_180_DEGREES:
+      internal = display::Rect(this->get_width_internal() - internal.x - internal.w,
+                               this->get_height_internal() - internal.y - internal.h, internal.w, internal.h);
+      break;
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      internal =
+          display::Rect(internal.y, this->get_height_internal() - internal.x - internal.w, internal.h, internal.w);
+      break;
+    default:
+      break;
+  }
+
+  // Make sure we're within (internal) screen bounds
+  internal.shrink(display::Rect(0, 0, this->get_width_internal(), this->get_height_internal()));
+
+  uint16_t new_color =
+      convert_big_endian(display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB));
+
+  int x2 = internal.x2();
+  int y2 = internal.y2();
+
+  for (int y = internal.y; y < y2; y++) {
+    for (int x = internal.x; x < x2; x++) {
+      set_buffer_pixel_raw(x, y, new_color);
+    }
+  }
+}
+
 void QspiAmoLed::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
@@ -61,33 +135,10 @@ void QspiAmoLed::draw_absolute_pixel_internal(int x, int y, Color color) {
     this->init_internal_(this->width_ * this->height_ * 2);
   if (this->is_failed())
     return;
-  uint32_t pos = (y * this->width_) + x;
-  uint16_t new_color;
-  bool updated = false;
-  pos = pos * 2;
-  new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-  if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
-    this->buffer_[pos] = (uint8_t) (new_color >> 8);
-    updated = true;
-  }
-  pos = pos + 1;
-  new_color = new_color & 0xFF;
 
-  if (this->buffer_[pos] != new_color) {
-    this->buffer_[pos] = new_color;
-    updated = true;
-  }
-  if (updated) {
-    // low and high watermark may speed up drawing from buffer
-    if (x < this->x_low_)
-      this->x_low_ = x;
-    if (y < this->y_low_)
-      this->y_low_ = y;
-    if (x > this->x_high_)
-      this->x_high_ = x;
-    if (y > this->y_high_)
-      this->y_high_ = y;
-  }
+  uint16_t new_color =
+      convert_big_endian(display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB));
+  set_buffer_pixel_raw(x, y, new_color);
 }
 
 void QspiAmoLed::reset_params_(bool ready) {
