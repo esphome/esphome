@@ -5385,10 +5385,6 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       return true;
     }
     case 12: {
-      this->has_mrm = value.as_bool();
-      return true;
-    }
-    case 14: {
       this->has_group_members = value.as_bool();
       return true;
     }
@@ -5407,10 +5403,6 @@ bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDeli
       return true;
     }
     case 13: {
-      this->mrm = value.as_string();
-      return true;
-    }
-    case 15: {
       this->group_members = value.as_string();
       return true;
     }
@@ -5444,8 +5436,6 @@ void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(9, this->announcement);
   buffer.encode_bool(10, this->has_enqueue);
   buffer.encode_string(11, this->enqueue);
-  buffer.encode_bool(12, this->has_mrm);
-  buffer.encode_string(13, this->mrm);
   buffer.encode_bool(12, this->has_group_members);
   buffer.encode_string(13, this->group_members);
 }
@@ -5498,14 +5488,6 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
 
   out.append("  enqueue: ");
   out.append("'").append(this->enqueue).append("'");
-  out.append("\n");
-  
-  out.append("  has_mrm: ");
-  out.append(YESNO(this->has_mrm));
-  out.append("\n");
-
-  out.append("  mrm: ");
-  out.append("'").append(this->mrm).append("'");
   out.append("\n");
   
   out.append("  has_group_members: ");

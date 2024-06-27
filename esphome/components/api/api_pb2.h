@@ -1338,8 +1338,6 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   bool announcement{false};
   bool has_enqueue{false};
   std::string enqueue{"play"};
-  bool has_mrm{false};
-  std::string mrm{""};
   bool has_group_members{false};
   std::string group_members{};
   void encode(ProtoWriteBuffer buffer) const override;

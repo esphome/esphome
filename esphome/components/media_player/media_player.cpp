@@ -147,9 +147,6 @@ void MediaPlayerCall::perform() {
   if (this->announcement_.has_value()) {
     ESP_LOGD(TAG, " Announcement: %s", this->announcement_.value() ? "yes" : "no");
   }
-  if (this->mrm_.has_value()) {
-    ESP_LOGD(TAG, "  MRM: %s", media_player_mrm_to_string(this->mrm_.value()));
-  }
   if (this->group_members_.has_value()) {
     ESP_LOGD(TAG, "  group_members: %s", this->group_members_.value().c_str());
   }
@@ -242,24 +239,6 @@ MediaPlayerCall &MediaPlayerCall::set_volume(float volume) {
 
 MediaPlayerCall &MediaPlayerCall::set_announcement(bool announce) {
   this->announcement_ = announce;
-  return *this;
-}
-
-MediaPlayerCall &MediaPlayerCall::set_mrm(MediaPlayerMRM mrm) {
-  this->mrm_ = mrm;
-  return *this;
-}
-
-MediaPlayerCall &MediaPlayerCall::set_mrm(const std::string &mrm) {
-  if (str_equals_case_insensitive(mrm, "ADD")) {
-    this->set_mrm(MEDIA_PLAYER_MRM_OFF);
-  } else if (str_equals_case_insensitive(mrm, "FOLLOWER")) {
-    this->set_mrm(MEDIA_PLAYER_MRM_FOLLOWER);
-  } else if (str_equals_case_insensitive(mrm, "LEADER")) {
-    this->set_mrm(MEDIA_PLAYER_MRM_LEADER);
-  } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized mrm %s", this->parent_->get_name().c_str(), mrm.c_str());
-  }
   return *this;
 }
 

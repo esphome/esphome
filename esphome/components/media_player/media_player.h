@@ -106,8 +106,6 @@ class MediaPlayerCall {
 
   MediaPlayerCall &set_volume(float volume);
   MediaPlayerCall &set_announcement(bool announce);
-  MediaPlayerCall &set_mrm(MediaPlayerMRM mrm);
-  MediaPlayerCall &set_mrm(const std::string &mrm);
   MediaPlayerCall &set_group_members(const std::string &group_members);
 
   void perform();
@@ -117,7 +115,6 @@ class MediaPlayerCall {
   const optional<MediaPlayerEnqueue> &get_enqueue() const { return enqueue_; }
   const optional<float> &get_volume() const { return volume_; }
   const optional<bool> &get_announcement() const { return announcement_; }
-  const optional<MediaPlayerMRM> &get_mrm() const { return mrm_; }
   const optional<std::string> &get_group_members() const { return group_members_; }
 
  protected:
@@ -128,7 +125,6 @@ class MediaPlayerCall {
   optional<MediaPlayerEnqueue> enqueue_;
   optional<float> volume_;
   optional<bool> announcement_;
-  optional<MediaPlayerMRM> mrm_;
   optional<std::string> group_members_{};
 };
 
@@ -136,7 +132,7 @@ class MediaPlayer : public EntityBase {
  public:
   MediaPlayerState state{MEDIA_PLAYER_STATE_OFF};
 
-  float volume{1.0f};
+  float volume{0.0f};
 
   MediaPlayerCall make_call() { return MediaPlayerCall(this); }
 
