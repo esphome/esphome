@@ -266,17 +266,28 @@ class Display : public PollingComponent {
   void line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color = COLOR_ON);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  virtual void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
+  virtual void horizontal_line(int x, int y, int width, Color color);
+
+  // Convenience overload with default color
+  void horizontal_line(int x, int y, int width) { this->vertical_line(x, y, width, COLOR_ON); }
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  virtual void vertical_line(int x, int y, int height, Color color = COLOR_ON);
+  virtual void vertical_line(int x, int y, int height, Color color);
+
+  // Convenience overload with default color
+  void vertical_line(int x, int y, int height) { this->vertical_line(x, y, height, COLOR_ON); }
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
   void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color);
+
+  /// Convenience overload with default color
+  void filled_rectangle(int x1, int y1, int width, int height) {
+    this->filled_rectangle(x1, y1, width, height, COLOR_ON);
+  }
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
   void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
