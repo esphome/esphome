@@ -1,5 +1,3 @@
-#ifdef USE_ARDUINO
-
 #include "list_entities.h"
 #include "esphome/core/application.h"
 
@@ -31,5 +29,3 @@ optional<std::string> StatesIterator::next() {
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

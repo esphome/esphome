@@ -1,4 +1,5 @@
 #include "list_entities.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
