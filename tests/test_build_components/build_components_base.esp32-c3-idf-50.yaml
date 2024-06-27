@@ -1,13 +1,13 @@
 esphome:
-  name: componenttestesp32idf51
+  name: componenttestesp32c3idf50
   friendly_name: $component_name
 
 esp32:
-  board: nodemcu-32s
+  board: lolin_c3_mini
   framework:
     type: esp-idf
-    version: 5.1.2
-    platform_version: 6.6.0
+    version: 5.0.2
+    platform_version: 6.3.2
 
 logger:
   level: VERY_VERBOSE
