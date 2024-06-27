@@ -65,13 +65,10 @@ class QspiAmoLed : public display::DisplayBuffer,
 
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_enable_pin(GPIOPin *enable_pin) { this->enable_pin_ = enable_pin; }
-  void set_width(uint16_t width) { this->width_ = width; }
   void set_dimensions(uint16_t width, uint16_t height) {
     this->width_ = width;
     this->height_ = height;
   }
-  int get_width() override { return this->width_; }
-  int get_height() override { return this->height_; }
   void set_invert_colors(bool invert_colors) {
     this->invert_colors_ = invert_colors;
     this->reset_params_();

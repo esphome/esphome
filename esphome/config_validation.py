@@ -1949,13 +1949,13 @@ def url(value):
     except ValueError as e:
         raise Invalid("Not a valid URL") from e
 
-    if not parsed.scheme or not parsed.netloc:
-        raise Invalid("Expected a URL scheme and host")
-    return parsed.geturl()
+    if parsed.scheme and parsed.netloc or parsed.scheme == "file":
+        return parsed.geturl()
+    raise Invalid("Expected a file scheme or a URL scheme with host")
 
 
 def git_ref(value):
-    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+    if re.match(r"[a-zA-Z0-9_./-]+", value) is None:
         raise Invalid("Not a valid git ref")
     return value
 
