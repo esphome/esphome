@@ -1,1 +1,7 @@
-<<: !include common.yaml
+remote_transmitter:
+  pin: 4
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: mhi_zj
+    name: "MHI ZJ"
