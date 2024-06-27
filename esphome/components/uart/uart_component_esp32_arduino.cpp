@@ -113,7 +113,7 @@ void ESP32ArduinoUARTComponent::setup() {
 #endif  // USE_LOGGER_USB_SERIAL_JTAG
 
     if (logger_uses_hardware_uart && logger::global_logger->get_baud_rate() > 0 &&
-        logger::global_logger->get_uart_num() == next_uart_num) {
+        logger::global_logger->get_uart() == next_uart_num) {
       next_uart_num++;
     }
 #endif  // USE_LOGGER
