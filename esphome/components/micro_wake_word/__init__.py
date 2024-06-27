@@ -109,6 +109,7 @@ KEY_WEBSITE = "website"
 KEY_VERSION = "version"
 KEY_MICRO = "micro"
 KEY_MINIMUM_ESPHOME_VERSION = "minimum_esphome_version"
+CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
 
 MANIFEST_SCHEMA_V1 = cv.Schema(
@@ -141,6 +142,7 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
         cv.Optional(KEY_WEBSITE): cv.url,
         cv.Required(KEY_MICRO): cv.Schema(
             {
+                cv.Required(CONF_FEATURE_STEP_SIZE): cv.int_range(min=0, max=30),
                 cv.Required(CONF_TENSOR_ARENA_SIZE): cv.int_,
                 cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
                 cv.Required(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
@@ -395,8 +397,7 @@ async def to_code(config):
             on_wake_word_detection_config,
         )
 
-    manifest_version_1 = False
-    manifest_version_2 = False
+    features_step_size = None
 
     if vad_model := config.get(CONF_VAD_MODEL):
         cg.add_define("USE_MWW_VAD")
@@ -421,11 +422,6 @@ async def to_code(config):
 
         manifest, data = _load_model_data(file)
 
-        if manifest["version"] == 1:
-            manifest_version_1 = True
-        else:
-            manifest_version_2 = True
-
         rhs = [HexInt(x) for x in data]
         prog_arr = cg.progmem_array(vad_model[CONF_RAW_DATA_ID], rhs)
 
@@ -441,15 +437,23 @@ async def to_code(config):
             upper_threshold = vad_model[CONF_THRESHOLD][CONF_UPPER]
             lower_threshold = vad_model[CONF_THRESHOLD][CONF_LOWER]
 
+        arena_size = manifest[KEY_MICRO].get(
+            CONF_TENSOR_ARENA_SIZE, 22000
+        )  # Original V1 manifest model require 22000 bytes
+
         cg.add(
             var.add_vad_model(
                 prog_arr,
                 upper_threshold,
                 lower_threshold,
                 sliding_window_average_size,
-                22000,  # Tensor arena size for VAD model
+                arena_size,  # Tensor arena size for VAD model
             )
         )
+
+        features_step_size = manifest[KEY_MICRO].get(
+            CONF_FEATURE_STEP_SIZE, 20
+        )  # V1 manifest models used a 20 ms step
 
     for model_parameters in config[CONF_MODELS]:
         model_config = model_parameters.get(CONF_MODEL)
@@ -473,11 +477,6 @@ async def to_code(config):
 
         manifest, data = _load_model_data(file)
 
-        if manifest["version"] == 1:
-            manifest_version_1 = True
-        else:
-            manifest_version_2 = True
-
         rhs = [HexInt(x) for x in data]
         prog_arr = cg.progmem_array(model_parameters[CONF_RAW_DATA_ID], rhs)
 
@@ -491,7 +490,7 @@ async def to_code(config):
 
         arena_size = manifest[KEY_MICRO].get(
             CONF_TENSOR_ARENA_SIZE, 45672
-        )  # Original Inception-based V1 models need 45672 bytes
+        )  # Original Inception-based V1 manifest models require 45672 bytes
 
         cg.add(
             var.add_wake_word_model(
@@ -503,13 +502,17 @@ async def to_code(config):
             )
         )
 
-    if manifest_version_1:
-        cg.add_define("MWW_SLIDE_20MS")
+        model_step_size = manifest[KEY_MICRO].get(
+            CONF_FEATURE_STEP_SIZE, 20
+        )  # V1 manifest models used a 20 ms step
 
-    if manifest_version_1 and manifest_version_2:
-        raise cv.Invalid("Cannot load models with different manifest versions.")
+        if features_step_size is None:
+            features_step_size = model_step_size
+        elif features_step_size != model_step_size:
+            raise cv.Invalid("Cannot load models with differet features step sizes.")
 
-    cg.add_library("esp32-microspeech", "0.0.1")
+    cg.add(var.set_features_step_size(features_step_size))
+    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.0.0")
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})

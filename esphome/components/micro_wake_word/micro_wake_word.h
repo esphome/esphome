@@ -52,6 +52,8 @@ class MicroWakeWord : public Component {
 
   bool is_running() const { return this->state_ != State::IDLE; }
 
+  void set_features_step_size(uint8_t step_size) { this->features_step_size_ = step_size; }
+
   void set_microphone(microphone::Microphone *microphone) { this->microphone_ = microphone; }
 
   Trigger<std::string> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
@@ -88,6 +90,8 @@ class MicroWakeWord : public Component {
   // feature slices before accepting a positive detection
   int16_t ignore_windows_{-MIN_SLICES_BEFORE_DETECTION};
 
+  uint8_t features_step_size_;
+
   // Stores audio read from the microphone before being added to the ring buffer.
   int16_t *input_buffer_{nullptr};
   // Stores audio to be fed into the audio frontend for generating features.
@@ -97,6 +101,8 @@ class MicroWakeWord : public Component {
   std::string detected_wake_word_{""};
 
   void set_state_(State state);
+
+  bool is_enough_();
 
   /** Reads audio from microphone into the ring buffer
    *
@@ -151,6 +157,8 @@ class MicroWakeWord : public Component {
 
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
   bool register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver);
+
+  inline uint16_t new_samples_to_get_() { return (this->features_step_size_ * (AUDIO_SAMPLE_FREQUENCY / 1000)); }
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<MicroWakeWord> {

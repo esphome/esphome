@@ -30,13 +30,9 @@ namespace micro_wake_word {
 static const char *const TAG = "micro_wake_word";
 
 static const size_t SAMPLE_RATE_HZ = 16000;  // 16 kHz
-static const size_t BUFFER_LENGTH = 100;     // 0.1 seconds
+static const size_t BUFFER_LENGTH = 64;      // 0.064 seconds
 static const size_t BUFFER_SIZE = SAMPLE_RATE_HZ / 1000 * BUFFER_LENGTH;
-#ifdef MWW_SLIDE_20MS
-static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
-#else
-static const size_t INPUT_BUFFER_SIZE = 16 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
-#endif
+static const size_t INPUT_BUFFER_SIZE = 16 * SAMPLE_RATE_HZ / 1000;  // 16ms * 16kHz / 1000ms
 
 float MicroWakeWord::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
@@ -80,7 +76,7 @@ void MicroWakeWord::setup() {
   ESP_LOGCONFIG(TAG, "Micro Wake Word initialized");
 
   this->frontend_config_.window.size_ms = FEATURE_DURATION_MS;
-  this->frontend_config_.window.step_size_ms = FEATURE_STRIDE_MS;
+  this->frontend_config_.window.step_size_ms = this->features_step_size_;
   this->frontend_config_.filterbank.num_channels = PREPROCESSOR_FEATURE_SIZE;
   this->frontend_config_.filterbank.lower_band_limit = 125.0;
   this->frontend_config_.filterbank.upper_band_limit = 7500.0;
@@ -127,7 +123,9 @@ void MicroWakeWord::loop() {
       }
       break;
     case State::DETECTING_WAKE_WORD:
-      this->read_microphone_();
+      while (!this->is_enough_()) {
+        this->read_microphone_();
+      }
       this->update_model_probabilities_();
       if (this->detect_wake_words_()) {
         ESP_LOGD(TAG, "Wake Word '%s' Detected", (this->detected_wake_word_).c_str());
@@ -238,7 +236,7 @@ bool MicroWakeWord::allocate_buffers_() {
   }
 
   if (this->preprocessor_audio_buffer_ == nullptr) {
-    this->preprocessor_audio_buffer_ = audio_samples_allocator.allocate(NEW_SAMPLES_TO_GET);
+    this->preprocessor_audio_buffer_ = audio_samples_allocator.allocate(this->new_samples_to_get_());
     if (this->preprocessor_audio_buffer_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate the audio preprocessor's buffer.");
       return false;
@@ -260,7 +258,7 @@ void MicroWakeWord::deallocate_buffers_() {
   ExternalRAMAllocator<int16_t> audio_samples_allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
   audio_samples_allocator.deallocate(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t));
   this->input_buffer_ = nullptr;
-  audio_samples_allocator.deallocate(this->preprocessor_audio_buffer_, NEW_SAMPLES_TO_GET);
+  audio_samples_allocator.deallocate(this->preprocessor_audio_buffer_, this->new_samples_to_get_());
   this->preprocessor_audio_buffer_ = nullptr;
 }
 
@@ -365,27 +363,32 @@ bool MicroWakeWord::detect_wake_words_() {
   return false;
 }
 
+bool MicroWakeWord::is_enough_() {
+  return this->ring_buffer_->available() >=
+         (this->features_step_size_ * (AUDIO_SAMPLE_FREQUENCY / 1000)) * sizeof(int16_t);
+}
+
 bool MicroWakeWord::generate_features_for_window_(int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
   // Ensure we have enough new audio samples in the ring buffer for a full window
-  if (this->ring_buffer_->available() < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
+  if (!this->is_enough_()) {
     return false;
   }
 
   size_t bytes_read = this->ring_buffer_->read((void *) (this->preprocessor_audio_buffer_),
-                                               NEW_SAMPLES_TO_GET * sizeof(int16_t), pdMS_TO_TICKS(200));
+                                               this->new_samples_to_get_() * sizeof(int16_t), pdMS_TO_TICKS(200));
 
   if (bytes_read == 0) {
     ESP_LOGE(TAG, "Could not read data from Ring Buffer");
-  } else if (bytes_read < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
+  } else if (bytes_read < this->new_samples_to_get_() * sizeof(int16_t)) {
     ESP_LOGD(TAG, "Partial Read of Data by Model");
     ESP_LOGD(TAG, "Could only read %d bytes when required %d bytes ", bytes_read,
-             (int) (NEW_SAMPLES_TO_GET * sizeof(int16_t)));
+             (int) (this->new_samples_to_get_() * sizeof(int16_t)));
     return false;
   }
 
   size_t num_samples_read;
   struct FrontendOutput frontend_output = FrontendProcessSamples(
-      &this->frontend_state_, this->preprocessor_audio_buffer_, NEW_SAMPLES_TO_GET, &num_samples_read);
+      &this->frontend_state_, this->preprocessor_audio_buffer_, this->new_samples_to_get_(), &num_samples_read);
 
   for (size_t i = 0; i < frontend_output.size; ++i) {
     // These scaling values are set to match the TFLite audio frontend int8 output.
