@@ -7,6 +7,7 @@
 #include "esphome/components/esp32_ble/ble_advertising.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/components/esp32_ble/queue.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -24,6 +25,21 @@ namespace esphome {
 namespace esp32_ble_server {
 
 using namespace esp32_ble;
+
+class BLEServerAutomationInterface {
+ public:
+  static Trigger<std::string> *create_on_write_trigger(BLECharacteristic *characteristic);
+  
+  template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
+  public:
+    BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : characteristic_(characteristic) {}
+    void play(Ts... x) override { this->characteristic_->set_value(x...); }
+
+  protected:
+    BLECharacteristic *characteristic_;
+  };
+};
+
 
 class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
  public:

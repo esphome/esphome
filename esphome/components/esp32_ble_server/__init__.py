@@ -1,6 +1,7 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MODEL
+from esphome.const import CONF_ID, CONF_MODEL, CONF_UUID, CONF_SERVICES, CONF_VALUE, CONF_MAX_LENGTH, CONF_ON_CLIENT_CONNECTED, CONF_ON_CLIENT_DISCONNECTED
 from esphome.components import esp32_ble
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -12,15 +13,12 @@ DEPENDENCIES = ["esp32"]
 
 CONF_MANUFACTURER = "manufacturer"
 CONF_MANUFACTURER_DATA = "manufacturer_data"
-CONF_SERVICES = "services"
-CONF_UUID = "uuid"
 CONF_ADVERTISE = "advertise"
 CONF_NUM_HANDLES = "num_handles"
+CONF_ON_WRITE = "on_write"
 CONF_CHARACTERISTICS = "characteristics"
 CONF_PROPERTIES = "properties"
-CONF_VALUE = "value"
 CONF_DESCRIPTORS = "descriptors"
-CONF_MAX_LENGTH = "max_length"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 ESPBTUUID_ns = cg.esphome_ns.namespace("esp32_ble").namespace("ESPBTUUID")
@@ -31,9 +29,11 @@ BLEServer = esp32_ble_server_ns.class_(
     esp32_ble.GATTsEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
+BLEServerAutomationInterface = esp32_ble_server_ns.namespace("BLEServerAutomationInterface")
 BLEDescriptor = esp32_ble_server_ns.class_("BLEDescriptor")
 BLECharacteristic = esp32_ble_server_ns.class_("BLECharacteristic")
 BLEService = esp32_ble_server_ns.class_("BLEService")
+BLECharacteristicSetValueAction = BLEServerAutomationInterface.class_("BLECharacteristicSetValueAction", automation.Action)
 
 
 def validate_uuid(value):
@@ -85,6 +85,7 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
         cv.Required(CONF_PROPERTIES): PROPERTIES_SCHEMA,
         cv.Optional(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
         cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(SERVICE_CHARACTERISTIC_DESCRIPTOR_SCHEMA),
+        cv.Optional(CONF_ON_WRITE): automation.validate_automation({cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True),
     }
 )
 
@@ -141,9 +142,9 @@ def parse_value(value):
 
 def calculate_num_handles(service_config):
     total = 1
-    for characteristic in service_config[CONF_CHARACTERISTICS]:
-        total += 2 # One for the characteristic itself and one for the value
-        for _ in characteristic[CONF_DESCRIPTORS]:
+    for char_conf in service_config[CONF_CHARACTERISTICS]:
+        total += 2 # One for the char_conf itself and one for the value
+        for _ in char_conf[CONF_DESCRIPTORS]:
             total += 1
     return total
 
@@ -171,22 +172,35 @@ async def to_code(config):
             service_config[CONF_ADVERTISE],
             num_handles,
         ))
-        for characteristic in service_config[CONF_CHARACTERISTICS]:
-            char_var = cg.Pvariable(characteristic[CONF_ID], service_var.create_characteristic(
-                parse_uuid(characteristic[CONF_UUID]),
-                parse_properties(characteristic[CONF_PROPERTIES])
+        for char_conf in service_config[CONF_CHARACTERISTICS]:
+            char_var = cg.Pvariable(char_conf[CONF_ID], service_var.create_characteristic(
+                parse_uuid(char_conf[CONF_UUID]),
+                parse_properties(char_conf[CONF_PROPERTIES])
             ))
-            if CONF_VALUE in characteristic:
-                cg.add(char_var.set_value(parse_value(characteristic[CONF_VALUE])))
-            for descriptor in characteristic[CONF_DESCRIPTORS]:
-                max_length = descriptor[CONF_MAX_LENGTH]
+            if CONF_ON_WRITE in char_conf:
+                on_write_conf = char_conf[CONF_ON_WRITE]
+                if "WRITE" not in char_conf[CONF_PROPERTIES]:
+                    raise cv.Invalid("on_write requires the WRITE property")
+                await automation.build_automation(BLEServerAutomationInterface.create_on_write_trigger(char_var), [(cg.std_string, "x")], on_write_conf)
+            if CONF_VALUE in char_conf:
+                cg.add(char_var.set_value(parse_value(char_conf[CONF_VALUE])))
+            for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
+                max_length = descriptor_conf[CONF_MAX_LENGTH]
                 # If max_length is 0, calculate the optimal length based on the value
                 if max_length == 0:
-                    max_length = len(parse_value(descriptor[CONF_VALUE]))
-                desc_var = cg.new_Pvariable(descriptor[CONF_ID], parse_uuid(descriptor[CONF_UUID]), max_length)
-                if CONF_VALUE in descriptor:
-                    cg.add(desc_var.set_value(parse_value(descriptor[CONF_VALUE])))
+                    max_length = len(parse_value(descriptor_conf[CONF_VALUE]))
+                desc_var = cg.new_Pvariable(descriptor_conf[CONF_ID], parse_uuid(descriptor_conf[CONF_UUID]), max_length)
+                if CONF_VALUE in descriptor_conf:
+                    cg.add(desc_var.set_value(parse_value(descriptor_conf[CONF_VALUE])))
         cg.add(var.enqueue_start_service(service_var))
     cg.add_define("USE_ESP32_BLE_SERVER")
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+
+@automation.register_action("ble_server.characteristic_set_value", BLECharacteristicSetValueAction, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(BLECharacteristic),
+    cv.Required(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA, 
+}))
+async def ble_enable_to_code(config, action_id, template_arg, args):
+    char_var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, char_var)
