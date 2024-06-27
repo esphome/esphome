@@ -491,7 +491,7 @@ async def to_code(config):
 
         arena_size = manifest[KEY_MICRO].get(
             CONF_TENSOR_ARENA_SIZE, 45672
-        )  # Original Inception-based models need 45672 bytes
+        )  # Original Inception-based V1 models need 45672 bytes
 
         cg.add(
             var.add_wake_word_model(
@@ -508,6 +508,8 @@ async def to_code(config):
 
     if manifest_version_1 and manifest_version_2:
         raise cv.Invalid("Cannot load models with different manifest versions.")
+
+    cg.add_library("esp32-microspeech", "0.0.1")
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})

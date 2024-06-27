@@ -15,7 +15,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include "audio_preprocessor_int8_model_data.h"
+#include <frontend.h>
+#include <frontend_util.h>
 
 #include <tensorflow/lite/core/c/common.h>
 #include <tensorflow/lite/micro/micro_interpreter.h>
@@ -76,12 +77,23 @@ void MicroWakeWord::setup() {
     return;
   }
 
-  if (!this->register_preprocessor_ops_(this->preprocessor_op_resolver_)) {
-    this->mark_failed();
-    return;
-  }
-
   ESP_LOGCONFIG(TAG, "Micro Wake Word initialized");
+
+  this->frontend_config_.window.size_ms = FEATURE_DURATION_MS;
+  this->frontend_config_.window.step_size_ms = FEATURE_STRIDE_MS;
+  this->frontend_config_.filterbank.num_channels = PREPROCESSOR_FEATURE_SIZE;
+  this->frontend_config_.filterbank.lower_band_limit = 125.0;
+  this->frontend_config_.filterbank.upper_band_limit = 7500.0;
+  this->frontend_config_.noise_reduction.smoothing_bits = 10;
+  this->frontend_config_.noise_reduction.even_smoothing = 0.025;
+  this->frontend_config_.noise_reduction.odd_smoothing = 0.06;
+  this->frontend_config_.noise_reduction.min_signal_remaining = 0.05;
+  this->frontend_config_.pcan_gain_control.enable_pcan = 1;
+  this->frontend_config_.pcan_gain_control.strength = 0.95;
+  this->frontend_config_.pcan_gain_control.offset = 80.0;
+  this->frontend_config_.pcan_gain_control.gain_bits = 21;
+  this->frontend_config_.log_scale.enable_log = 1;
+  this->frontend_config_.log_scale.scale_shift = 6;
 }
 
 void MicroWakeWord::add_wake_word_model(const uint8_t *model_start, float probability_cutoff,
@@ -226,7 +238,7 @@ bool MicroWakeWord::allocate_buffers_() {
   }
 
   if (this->preprocessor_audio_buffer_ == nullptr) {
-    this->preprocessor_audio_buffer_ = audio_samples_allocator.allocate(SAMPLE_DURATION_COUNT);
+    this->preprocessor_audio_buffer_ = audio_samples_allocator.allocate(NEW_SAMPLES_TO_GET);
     if (this->preprocessor_audio_buffer_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate the audio preprocessor's buffer.");
       return false;
@@ -246,31 +258,18 @@ bool MicroWakeWord::allocate_buffers_() {
 
 void MicroWakeWord::deallocate_buffers_() {
   ExternalRAMAllocator<int16_t> audio_samples_allocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
-  audio_samples_allocator.deallocate(this->input_buffer_, PREPROCESSOR_ARENA_SIZE);
+  audio_samples_allocator.deallocate(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t));
   this->input_buffer_ = nullptr;
-  audio_samples_allocator.deallocate(this->preprocessor_audio_buffer_, PREPROCESSOR_ARENA_SIZE);
+  audio_samples_allocator.deallocate(this->preprocessor_audio_buffer_, NEW_SAMPLES_TO_GET);
   this->preprocessor_audio_buffer_ = nullptr;
 }
 
 bool MicroWakeWord::load_models_() {
   // Setup preprocesor feature generator
-  if (this->preprocessor_tensor_arena_ == nullptr) {
-    ExternalRAMAllocator<uint8_t> arena_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-    this->preprocessor_tensor_arena_ = arena_allocator.allocate(PREPROCESSOR_ARENA_SIZE);
-    if (this->preprocessor_tensor_arena_ == nullptr) {
-      ESP_LOGE(TAG, "Could not allocate the audio preprocessor model's tensor arena.");
-      return false;
-    }
-  }
-  if (this->preprocessor_interpreter_ == nullptr) {
-    this->preprocessor_interpreter_ = new tflite::MicroInterpreter(
-        tflite::GetModel(G_AUDIO_PREPROCESSOR_INT8_TFLITE), this->preprocessor_op_resolver_,
-        this->preprocessor_tensor_arena_, PREPROCESSOR_ARENA_SIZE);
-
-    if (this->preprocessor_interpreter_->AllocateTensors() != kTfLiteOk) {
-      ESP_LOGE(TAG, "Failed to allocate tensors for the audio preprocessor");
-      return false;
-    }
+  if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_, AUDIO_SAMPLE_FREQUENCY)) {
+    ESP_LOGD(TAG, "Failed to populate frontend state");
+    FrontendFreeStateContents(&this->frontend_state_);
+    return false;
   }
 
   // Setup streaming models
@@ -291,13 +290,7 @@ bool MicroWakeWord::load_models_() {
 }
 
 void MicroWakeWord::unload_models_() {
-  delete (this->preprocessor_interpreter_);
-  this->preprocessor_interpreter_ = nullptr;
-
-  ExternalRAMAllocator<uint8_t> arena_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-
-  arena_allocator.deallocate(this->preprocessor_tensor_arena_, PREPROCESSOR_ARENA_SIZE);
-  this->preprocessor_tensor_arena_ = nullptr;
+  FrontendFreeStateContents(&this->frontend_state_);
 
   for (auto &model : this->wake_word_models_) {
     model.unload_model();
@@ -308,15 +301,20 @@ void MicroWakeWord::unload_models_() {
 }
 
 void MicroWakeWord::update_model_probabilities_() {
-  if (!this->stride_audio_samples_()) {
-    return;
-  }
+  static uint32_t count = 0;
+  static uint32_t start_time = millis();
 
   int8_t audio_features[PREPROCESSOR_FEATURE_SIZE];
+
+  static uint32_t preprocessor_running_total = 0;
+  uint32_t preprocessor_start = millis();
 
   if (!this->generate_features_for_window_(audio_features)) {
     return;
   }
+  ++count;
+
+  preprocessor_running_total += millis() - preprocessor_start;
 
   // Increase the counter since the last positive detection
   this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
@@ -328,6 +326,15 @@ void MicroWakeWord::update_model_probabilities_() {
 #ifdef USE_MWW_VAD
   this->vad_model_->perform_streaming_inference(audio_features);
 #endif
+
+  if (count >= 500) {
+    ESP_LOGD(TAG, "average time to process a sample is %.2f ms", (static_cast<float>(millis() - start_time) / count));
+    ESP_LOGD(TAG, "average preprocessor time to process a sample is %.2f ms",
+             (static_cast<float>(preprocessor_running_total) / count));
+    count = 0;
+    start_time = millis();
+    preprocessor_running_total = 0;
+  }
 }
 
 bool MicroWakeWord::detect_wake_words_() {
@@ -358,19 +365,13 @@ bool MicroWakeWord::detect_wake_words_() {
   return false;
 }
 
-bool MicroWakeWord::stride_audio_samples_() {
+bool MicroWakeWord::generate_features_for_window_(int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
   // Ensure we have enough new audio samples in the ring buffer for a full window
   if (this->ring_buffer_->available() < NEW_SAMPLES_TO_GET * sizeof(int16_t)) {
     return false;
   }
 
-  // Copy the old audio samples from the end of the audio buffer to the start of the audio buffer
-  std::memmove((void *) (this->preprocessor_audio_buffer_),
-               (void *) (this->preprocessor_audio_buffer_ + NEW_SAMPLES_TO_GET),
-               HISTORY_SAMPLES_TO_KEEP * sizeof(int16_t));
-
-  // Copy new audio samples from the ring buffer to the end of the audio buffer
-  size_t bytes_read = this->ring_buffer_->read((void *) (this->preprocessor_audio_buffer_ + HISTORY_SAMPLES_TO_KEEP),
+  size_t bytes_read = this->ring_buffer_->read((void *) (this->preprocessor_audio_buffer_),
                                                NEW_SAMPLES_TO_GET * sizeof(int16_t), pdMS_TO_TICKS(200));
 
   if (bytes_read == 0) {
@@ -382,19 +383,37 @@ bool MicroWakeWord::stride_audio_samples_() {
     return false;
   }
 
-  return true;
-}
+  size_t num_samples_read;
+  struct FrontendOutput frontend_output = FrontendProcessSamples(
+      &this->frontend_state_, this->preprocessor_audio_buffer_, NEW_SAMPLES_TO_GET, &num_samples_read);
 
-bool MicroWakeWord::generate_features_for_window_(int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
-  TfLiteTensor *input = this->preprocessor_interpreter_->input(0);
-  TfLiteTensor *output = this->preprocessor_interpreter_->output(0);
-  std::copy_n(this->preprocessor_audio_buffer_, SAMPLE_DURATION_COUNT, tflite::GetTensorData<int16_t>(input));
-
-  if (this->preprocessor_interpreter_->Invoke() != kTfLiteOk) {
-    ESP_LOGE(TAG, "Failed to preprocess audio for local wake word.");
-    return false;
+  for (size_t i = 0; i < frontend_output.size; ++i) {
+    // These scaling values are set to match the TFLite audio frontend int8 output.
+    // The feature pipeline outputs 16-bit signed integers in roughly a 0 to 670
+    // range. In training, these are then arbitrarily divided by 25.6 to get
+    // float values in the rough range of 0.0 to 26.0. This scaling is performed
+    // for historical reasons, to match up with the output of other feature
+    // generators.
+    // The process is then further complicated when we quantize the model. This
+    // means we have to scale the 0.0 to 26.0 real values to the -128 to 127
+    // signed integer numbers.
+    // All this means that to get matching values from our integer feature
+    // output into the tensor input, we have to perform:
+    // input = (((feature / 25.6) / 26.0) * 256) - 128
+    // To simplify this and perform it in 32-bit integer math, we rearrange to:
+    // input = (feature * 256) / (25.6 * 26.0) - 128
+    int32_t value_scale = 256;
+    int32_t value_div = (int32_t) ((25.6f * 26.0f) + 0.5f);
+    int32_t value = ((frontend_output.values[i] * value_scale) + (value_div / 2)) / value_div;
+    value -= 128;
+    if (value < -128) {
+      value = -128;
+    }
+    if (value > 127) {
+      value = 127;
+    }
+    features[i] = value;
   }
-  std::memcpy(features, tflite::GetTensorData<int8_t>(output), PREPROCESSOR_FEATURE_SIZE * sizeof(int8_t));
 
   return true;
 }
@@ -409,47 +428,6 @@ void MicroWakeWord::reset_states_() {
 #ifdef USE_MWW_VAD
   this->vad_model_->reset_probabilities();
 #endif
-}
-
-bool MicroWakeWord::register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> &op_resolver) {
-  if (op_resolver.AddReshape() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddCast() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddStridedSlice() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddConcatenation() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddMul() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddAdd() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddDiv() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddMinimum() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddMaximum() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddWindow() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddFftAutoScale() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddRfft() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddEnergy() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddFilterBank() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddFilterBankSquareRoot() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddFilterBankSpectralSubtraction() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddPCAN() != kTfLiteOk)
-    return false;
-  if (op_resolver.AddFilterBankLog() != kTfLiteOk)
-    return false;
-
-  return true;
 }
 
 bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver) {

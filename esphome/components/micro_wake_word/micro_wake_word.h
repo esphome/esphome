@@ -19,6 +19,8 @@
 
 #include "esphome/components/microphone/microphone.h"
 
+#include <frontend_util.h>
+
 #include <tensorflow/lite/core/c/common.h>
 #include <tensorflow/lite/micro/micro_interpreter.h>
 #include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
@@ -77,19 +79,18 @@ class MicroWakeWord : public Component {
 #endif
 
   tflite::MicroMutableOpResolver<20> streaming_op_resolver_;
-  tflite::MicroMutableOpResolver<18> preprocessor_op_resolver_;
 
-  tflite::MicroInterpreter *preprocessor_interpreter_{nullptr};
+  // Audio frontend handles generating spectrogram features
+  struct FrontendConfig frontend_config_;
+  struct FrontendState frontend_state_;
 
   // When the wake word detection first starts, we ignore this many audio
   // feature slices before accepting a positive detection
   int16_t ignore_windows_{-MIN_SLICES_BEFORE_DETECTION};
 
-  uint8_t *preprocessor_tensor_arena_{nullptr};
-
   // Stores audio read from the microphone before being added to the ring buffer.
   int16_t *input_buffer_{nullptr};
-  // Stores audio fed into feature generator preprocessor. Also used for striding samples in each window.
+  // Stores audio to be fed into the audio frontend for generating features.
   int16_t *preprocessor_audio_buffer_{nullptr};
 
   bool detected_{false};
@@ -113,11 +114,12 @@ class MicroWakeWord : public Component {
   /// @brief Frees memory allocated for input_buffer_ and preprocessor_audio_buffer_
   void deallocate_buffers_();
 
-  /// @brief Loads streaming models
+  /// @brief Loads streaming models and prepares the feature generation frontend
   /// @return True if successful, false otherwise
   bool load_models_();
 
-  /// @brief Deletes each model's TFLite interpreters and frees tensor arena memory
+  /// @brief Deletes each model's TFLite interpreters and frees tensor arena memory. Frees memory used by the feature
+  /// generation frontend.
   void unload_models_();
 
   /** Performs inference with each configured model
@@ -135,20 +137,10 @@ class MicroWakeWord : public Component {
    */
   bool detect_wake_words_();
 
-  /** Reads in new audio data from ring buffer to create the next sample window
-   *
-   * Moves the last 10 ms of audio from the previous window to the start of the new window.
-   * The next 20 ms of audio is copied from the ring buffer and inserted into the new window.
-   * The new window's audio samples are stored in preprocessor_audio_buffer_.
-   * Adapted from the TFLite micro speech example.
-   * @return True if successful, false otherwise
-   */
-  bool stride_audio_samples_();
-
   /** Generates features for a window of audio samples
    *
-   * Feeds the strided audio samples in preprocessor_audio_buffer_ into the preprocessor.
-   * Adapted from TFLite micro speech example.
+   * Reads samples from the ring buffer and feeds them into the preprocessor frontend.
+   * Adapted from TFLite microspeech frontend.
    * @param features int8_t array to store the audio features
    * @return True if successful, false otherwise.
    */
@@ -156,9 +148,6 @@ class MicroWakeWord : public Component {
 
   /// @brief Resets the ring buffer, ignore_windows_, and sliding window probabilities
   void reset_states_();
-
-  /// @brief Returns true if successfully registered the preprocessor's TensorFlow operations
-  bool register_preprocessor_ops_(tflite::MicroMutableOpResolver<18> &op_resolver);
 
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
   bool register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver);
