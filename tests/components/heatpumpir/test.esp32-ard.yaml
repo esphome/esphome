@@ -1,5 +1,5 @@
 remote_transmitter:
-  pin: 6
+  pin: 4
   carrier_duty_percent: 50%
 
 climate:

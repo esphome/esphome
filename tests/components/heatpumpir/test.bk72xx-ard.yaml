@@ -1,5 +1,5 @@
 remote_transmitter:
-  pin: P26
+  pin: 6
   carrier_duty_percent: 50%
 
 climate:
