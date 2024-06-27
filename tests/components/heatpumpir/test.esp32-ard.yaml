@@ -4,7 +4,7 @@ remote_transmitter:
 
 climate:
   - platform: heatpumpir
-    protocol: mitsubishi_heavy_zm
+    protocol: panasonic_altdke
     horizontal_default: left
     vertical_default: up
     name: HeatpumpIR Climate on ESP32 arduino
