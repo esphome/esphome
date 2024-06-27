@@ -5,8 +5,8 @@ remote_transmitter:
 climate:
   - platform: heatpumpir
     protocol: daikin
-    horizontal_default: left
-    vertical_default: up
-    name: HeatpumpIR Climate
+    horizontal_default: mleft
+    vertical_default: mup
+    name: HeatpumpIR Climate on BK72xx
     min_temperature: 18
     max_temperature: 30

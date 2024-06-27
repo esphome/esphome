@@ -4,9 +4,9 @@ remote_transmitter:
 
 climate:
   - platform: heatpumpir
-    protocol: mitsubishi_heavy_zm
-    horizontal_default: left
-    vertical_default: up
-    name: HeatpumpIR Climate on ESP32 arduino
+    protocol: panasonic_altdke
+    horizontal_default: right
+    vertical_default: down
+    name: HeatpumpIR Climate on RPI2040
     min_temperature: 18
     max_temperature: 30
