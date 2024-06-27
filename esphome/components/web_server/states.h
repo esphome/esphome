@@ -21,6 +21,8 @@ class StatesIterator : public ListEntitiesIterator {
  protected:
   // WebServer *web_server_;
   optional<std::string> str_;
+  
+  bool has_connected_client() override;
   bool process(const std::string &s) override;
 };
 
