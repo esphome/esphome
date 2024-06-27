@@ -9,7 +9,7 @@ namespace esphome {
 namespace web_server {
 
 StatesIterator::StatesIterator(WebServer *web_server) : ListEntitiesIterator::ListEntitiesIterator(web_server) {}
-  
+
 bool StatesIterator::has_connected_client() { return true; }
 
 bool StatesIterator::process(const std::string &s) {

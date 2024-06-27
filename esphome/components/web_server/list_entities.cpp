@@ -14,8 +14,7 @@ ListEntitiesIterator::ListEntitiesIterator(WebServer *web_server) : web_server_(
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
   if (!this->has_connected_client())
     return true;
-  return this->process(
-      this->web_server_->binary_sensor_json(binary_sensor, binary_sensor->state, DETAIL_ALL));
+  return this->process(this->web_server_->binary_sensor_json(binary_sensor, binary_sensor->state, DETAIL_ALL));
 }
 #endif
 #ifdef USE_COVER
@@ -64,8 +63,7 @@ bool ListEntitiesIterator::on_button(button::Button *button) {
 bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
   if (!this->has_connected_client())
     return true;
-  return this->process(
-      this->web_server_->text_sensor_json(text_sensor, text_sensor->state, DETAIL_ALL));
+  return this->process(this->web_server_->text_sensor_json(text_sensor, text_sensor->state, DETAIL_ALL));
 }
 #endif
 #ifdef USE_LOCK
@@ -144,8 +142,8 @@ bool ListEntitiesIterator::on_select(select::Select *select) {
 bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   if (!this->has_connected_client())
     return true;
-  return this->process(
-      this->web_server_->alarm_control_panel_json(a_alarm_control_panel, a_alarm_control_panel->get_state(), DETAIL_ALL));
+  return this->process(this->web_server_->alarm_control_panel_json(a_alarm_control_panel,
+                                                                   a_alarm_control_panel->get_state(), DETAIL_ALL));
 }
 #endif
 
@@ -154,7 +152,7 @@ bool ListEntitiesIterator::on_event(event::Event *event) {
   // Null event type, since we are just iterating over entities
   const std::string null_event_type = "";
   if (!this->has_connected_client())
-    return true;  
+    return true;
   return this->process(this->web_server_->event_json(event, null_event_type, DETAIL_ALL));
 }
 #endif
