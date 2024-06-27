@@ -43,6 +43,29 @@ def ota_esphome_final_validate(config):
             ) not in merged_ota_esphome_configs_by_port:
                 merged_ota_esphome_configs_by_port[conf_port] = ota_conf
             else:
+                if merged_ota_esphome_configs_by_port[conf_port][
+                    CONF_VERSION
+                ] != ota_conf.get(CONF_VERSION):
+                    raise cv.Invalid(
+                        f"Found multiple configurations but {CONF_VERSION} is inconsistent"
+                    )
+                if (
+                    merged_ota_esphome_configs_by_port[conf_port][CONF_ID].is_manual
+                    and ota_conf.get(CONF_ID).is_manual
+                ):
+                    raise cv.Invalid(
+                        f"Found multiple configurations but {CONF_ID} is inconsistent"
+                    )
+                if (
+                    CONF_PASSWORD in merged_ota_esphome_configs_by_port[conf_port]
+                    and CONF_PASSWORD in ota_conf
+                    and merged_ota_esphome_configs_by_port[conf_port][CONF_PASSWORD]
+                    != ota_conf.get(CONF_PASSWORD)
+                ):
+                    raise cv.Invalid(
+                        f"Found multiple configurations but {CONF_PASSWORD} is inconsistent"
+                    )
+
                 ports_with_merged_configs.append(conf_port)
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(
                     merged_ota_esphome_configs_by_port[conf_port], ota_conf
