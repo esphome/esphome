@@ -124,10 +124,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     ESP_LOGE(TAG, "Empty data");
     return;
   }
+  this->call_listeners_transmit_();
   for (uint32_t i = 0; i < send_times; i++) {
-    this->call_listeners_transmit_();
     esp_err_t error = rmt_write_items(this->channel_, this->rmt_temp_.data(), this->rmt_temp_.size(), true);
-    this->call_listeners_complete_();
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "rmt_write_items failed: %s", esp_err_to_name(error));
       this->status_set_warning();
@@ -137,6 +136,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
+  this->call_listeners_complete_();
 }
 
 }  // namespace remote_transmitter

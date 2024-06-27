@@ -76,8 +76,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   this->target_time_ = 0;
+  this->call_listeners_transmit_();
   for (uint32_t i = 0; i < send_times; i++) {
-    this->call_listeners_transmit_();
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {
         const auto length = uint32_t(item);
@@ -90,11 +90,11 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     }
     this->await_target_time_();  // wait for duration of last pulse
     this->pin_->digital_write(false);
-    this->call_listeners_complete_();
 
     if (i + 1 < send_times)
       this->target_time_ += send_wait;
   }
+  this->call_listeners_complete_();
 }
 
 }  // namespace remote_transmitter
