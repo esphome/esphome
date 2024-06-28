@@ -26,11 +26,17 @@ using std::bitset;
 using std::stringstream;
 using std::to_string;
 
+#ifdef ESP8266
+OpenTherm *OpenTherm::instance_ = nullptr;
+#endif
+
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
+#ifdef ESP32
       timer_group_(TIMER_GROUP_0),
       timer_idx_(TIMER_0),
+#endif
       mode_(OperationMode::IDLE),
       error_type_(ProtocolErrorType::NO_ERROR),
       capture_(0),
@@ -298,7 +304,7 @@ bool OpenTherm::init_esp32_timer_() {
   return true;
 }
 
-void IRAM_ATTR OpenTherm::start_timer_(uint64_t alarm_value) {
+void IRAM_ATTR OpenTherm::start_esp32_timer_(uint64_t alarm_value) {
   esp_err_t result;
 
   result = timer_set_alarm_value(timer_group_, timer_idx_, alarm_value);
@@ -319,13 +325,13 @@ void IRAM_ATTR OpenTherm::start_timer_(uint64_t alarm_value) {
 // 5 kHz timer_
 void IRAM_ATTR OpenTherm::start_read_timer_() {
   InterruptLock const lock;
-  start_timer_(200);
+  start_esp32_timer_(200);
 }
 
 // 2 kHz timer_
 void IRAM_ATTR OpenTherm::start_write_timer_() {
   InterruptLock const lock;
-  start_timer_(500);
+  start_esp32_timer_(500);
 }
 
 void IRAM_ATTR OpenTherm::stop_timer_() {

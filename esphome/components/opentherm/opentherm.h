@@ -317,11 +317,12 @@ class OpenTherm {
 
 #ifdef ESP32
   bool init_esp32_timer_();
+  void start_esp32_timer_(uint64_t alarm_value);
 #endif
+  
   void stop_timer_();
 
   void read_();  // data detected start reading
-  void start_timer_(uint64_t alarm_value);
   void start_read_timer_();   // reading timer_ to sample at 1/5 of manchester code bit length (at 5kHz)
   void start_write_timer_();  // writing timer_ to send manchester code (at 2kHz)
   bool check_parity_(uint32_t val);
