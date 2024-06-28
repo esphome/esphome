@@ -1,4 +1,5 @@
-#ifdef USE_LIBRETINY
+#include "esphome/core/defines.h"
+#if defined(USE_LIBRETINY) && defined(USE_MDNS)
 
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"

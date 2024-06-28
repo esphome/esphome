@@ -115,12 +115,15 @@ void LEDCOutput::write_state(float state) {
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
-
 #ifdef USE_ARDUINO
   ESP_LOGV(TAG, "Setting duty: %u on channel %u", duty, this->channel_);
   ledcWrite(this->channel_, duty);
 #endif
 #ifdef USE_ESP_IDF
+  // ensure that 100% on is not 99.975% on
+  if ((duty == max_duty) && (max_duty != 1)) {
+    duty = max_duty + 1;
+  }
   auto speed_mode = get_speed_mode(channel_);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
