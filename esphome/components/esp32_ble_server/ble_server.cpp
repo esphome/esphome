@@ -63,7 +63,7 @@ void BLEServer::loop() {
         // Remove the services that have been started
         if (index_to_remove > 0) {
           this->services_to_start_.erase(this->services_to_start_.begin(),
-                                        this->services_to_start_.begin() + index_to_remove - 1);
+                                         this->services_to_start_.begin() + index_to_remove - 1);
         }
       }
       break;
@@ -86,7 +86,7 @@ void BLEServer::loop() {
         }
         if (this->device_information_service_ == nullptr) {
           this->device_information_service_ =
-            this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID), false, 7);
+              this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID), false, 7);
           this->create_device_characteristics_();
         }
         this->state_ = STARTING_SERVICE;
@@ -152,7 +152,7 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
     return nullptr;
   }
   BLEService *service =
-    new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+      new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.emplace(BLEServer::get_service_key(uuid, inst_id), service);
   if (this->parent_->is_active() && this->registered_) {
     service->do_create(this);

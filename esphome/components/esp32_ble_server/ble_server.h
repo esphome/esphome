@@ -31,13 +31,13 @@ class BLEServerAutomationInterface {
   static Trigger<std::string> *create_on_write_trigger(BLECharacteristic *characteristic);
 
   template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
-    public:
-      BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-      TEMPLATABLE_VALUE(std::string, value)
-      void play(Ts... x) override { this->parent_->set_value(this->value_.value(x...)); }
+  public:
+    BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
+    TEMPLATABLE_VALUE(std::string, value)
+    void play(Ts... x) override { this->parent_->set_value(this->value_.value(x...)); }
 
-    protected:
-      BLECharacteristic *parent_;
+  protected:
+    BLECharacteristic *parent_;
   };
 };
 

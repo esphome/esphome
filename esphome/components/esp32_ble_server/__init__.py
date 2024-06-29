@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_UUID,
     CONF_SERVICES,
     CONF_VALUE,
-    CONF_MAX_LENGTH
+    CONF_MAX_LENGTH,
 )
 from esphome.components import esp32_ble
 from esphome.core import CORE
@@ -65,7 +65,7 @@ PROPERTIES_SCHEMA = cv.All(
             upper=True,
         )
     ),
-    cv.Length(min=1)
+    cv.Length(min=1),
 )
 
 UUID_SCHEMA = cv.Any(cv.All(cv.string, validate_uuid), cv.hex_uint32_t)
@@ -164,7 +164,7 @@ def parse_value(value):
 def calculate_num_handles(service_config):
     total = 1
     for char_conf in service_config[CONF_CHARACTERISTICS]:
-        total += 2 # One for the char_conf itself and one for the value
+        total += 2  # One for the char_conf itself and one for the value
         for _ in char_conf[CONF_DESCRIPTORS]:
             total += 1
     return total
@@ -202,7 +202,7 @@ async def to_code(config):
                 char_conf[CONF_ID],
                 service_var.create_characteristic(
                     parse_uuid(char_conf[CONF_UUID]),
-                    parse_properties(char_conf[CONF_PROPERTIES])
+                    parse_properties(char_conf[CONF_PROPERTIES]),
                 ),
             )
             if CONF_ON_WRITE in char_conf:
@@ -232,6 +232,7 @@ async def to_code(config):
     cg.add_define("USE_ESP32_BLE_SERVER")
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+
 
 @automation.register_action(
     "ble_server.characteristic_set_value",
