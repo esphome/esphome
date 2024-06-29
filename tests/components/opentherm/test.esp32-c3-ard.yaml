@@ -1,6 +1,6 @@
 opentherm:
-  in_pin: 20
-  out_pin: 19
+  in_pin: 1
+  out_pin: 2
 
 number:
   # Boiler config
