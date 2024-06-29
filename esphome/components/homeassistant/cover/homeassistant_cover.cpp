@@ -17,9 +17,9 @@ void HomeassistantCover::setup() {
   // state
   api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, optional<std::string>(""), [this](const std::string &state) {
-        if (state.compare(OPENING) == 0) {
+        if (state == OPENING) {
           this->current_operation = COVER_OPERATION_OPENING;
-        } else if (state.compare(CLOSING) == 0) {
+        } else if (state == CLOSING) {
           this->current_operation = COVER_OPERATION_CLOSING;
         } else {
           this->current_operation = COVER_OPERATION_IDLE;
@@ -72,7 +72,7 @@ void HomeassistantCover::control(const CoverCall &call) {
   api::HomeassistantServiceResponse resp;
   api::HomeassistantServiceMap entity_id_kv;
   entity_id_kv.key = "entity_id";
-  entity_id_kv.value = this->entity_id_.c_str();
+  entity_id_kv.value = this->entity_id_;
   resp.data.push_back(entity_id_kv);
 
   if (call.get_stop()) {
