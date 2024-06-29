@@ -17,16 +17,12 @@ CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
 
 esp32_improv_ns = cg.esphome_ns.namespace("esp32_improv")
-BLEServiceComponent = cg.esphome_ns.namespace("esp32_ble_server").class_("BLEServiceComponent")
-ESP32ImprovComponent = esp32_improv_ns.class_(
-    "ESP32ImprovComponent", cg.Component, BLEServiceComponent
-)
+ESP32ImprovComponent = esp32_improv_ns.class_("ESP32ImprovComponent", cg.Component)
 
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32ImprovComponent),
-        cv.GenerateID(CONF_BLE_SERVER_ID): cv.use_id(esp32_ble_server.BLEServer),
         cv.Required(CONF_AUTHORIZER): cv.Any(
             cv.none, cv.use_id(binary_sensor.BinarySensor)
         ),
@@ -47,9 +43,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    ble_server = await cg.get_variable(config[CONF_BLE_SERVER_ID])
-    cg.add(ble_server.register_service_component(var))
 
     cg.add_define("USE_IMPROV")
     cg.add_library("esphome/Improv", "1.2.3")
