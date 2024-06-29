@@ -52,8 +52,8 @@ class BLEService {
   bool is_deleted() { return this->state_ == DELETED; }
   void on_client_connect(const std::function<void(const uint16_t)> &&func) { this->on_client_connect_ = func; }
   void on_client_disconnect(const std::function<void(const uint16_t)> &&func) { this->on_client_disconnect_ = func; }
-  void emit_client_connect(const uint16_t conn_id);
-  void emit_client_disconnect(const uint16_t conn_id);
+  void emit_client_connect(uint16_t conn_id);
+  void emit_client_disconnect(uint16_t conn_id);
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
