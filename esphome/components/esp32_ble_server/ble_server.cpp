@@ -48,21 +48,23 @@ void BLEServer::loop() {
   }
   switch (this->state_) {
     case RUNNING: {
-      if (this->services_to_start_.empty()) break;
-      uint16_t index_to_remove = 0;
-      // Iterate over the services to start
-      for (unsigned i = 0; i < this->services_to_start_.size(); i++) {
-        BLEService *service = this->services_to_start_[i];
-        if (service->is_created()) {
-          service->start();
-        } else {
-          index_to_remove = i + 1;
+      // Start all services that are pending to start
+      if (!this->services_to_start_.empty()) {
+        uint16_t index_to_remove = 0;
+        // Iterate over the services to start
+        for (unsigned i = 0; i < this->services_to_start_.size(); i++) {
+          BLEService *service = this->services_to_start_[i];
+          if (service->is_created()) {
+            service->start();
+          } else {
+            index_to_remove = i + 1;
+          }
         }
-      }
-      // Remove the services that have been started
-      if (index_to_remove > 0) {
-        this->services_to_start_.erase(this->services_to_start_.begin(),
-                                       this->services_to_start_.begin() + index_to_remove - 1);
+        // Remove the services that have been started
+        if (index_to_remove > 0) {
+          this->services_to_start_.erase(this->services_to_start_.begin(),
+                                        this->services_to_start_.begin() + index_to_remove - 1);
+        }
       }
       break;
     }
@@ -83,7 +85,8 @@ void BLEServer::loop() {
           pair.second->do_create(this);
         }
         if (this->device_information_service_ == nullptr) {
-          this->device_information_service_ = this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID), false, 7);
+          this->device_information_service_ =
+            this->create_service(ESPBTUUID::from_uint16(DEVICE_INFORMATION_SERVICE_UUID), false, 7);
           this->create_device_characteristics_();
         }
         this->state_ = STARTING_SERVICE;
@@ -148,7 +151,8 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
     ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", uuid.to_string().c_str());
     return nullptr;
   }
-  BLEService *service = new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+  BLEService *service =
+    new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.emplace(BLEServer::get_service_key(uuid, inst_id), service);
   if (this->parent_->is_active() && this->registered_) {
     service->do_create(this);

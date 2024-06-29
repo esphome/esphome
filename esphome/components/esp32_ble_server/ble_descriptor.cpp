@@ -38,12 +38,8 @@ void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   this->state_ = CREATING;
 }
 
-void BLEDescriptor::set_value(std::vector<uint8_t> value) {
-  this->set_value(value.data(), value.size());
-}
-void BLEDescriptor::set_value(const std::string &value) {
-  this->set_value((uint8_t *) value.data(), value.length());
-}
+void BLEDescriptor::set_value(std::vector<uint8_t> value) { this->set_value(value.data(), value.size()); }
+void BLEDescriptor::set_value(const std::string &value) { this->set_value((uint8_t *) value.data(), value.length()); }
 void BLEDescriptor::set_value(uint8_t &data) {
   uint8_t temp[1];
   temp[0] = data;
