@@ -269,7 +269,7 @@ class Display : public PollingComponent {
   virtual void horizontal_line(int x, int y, int width, Color color);
 
   // Convenience overload with default color
-  void horizontal_line(int x, int y, int width) { this->vertical_line(x, y, width, COLOR_ON); }
+  void horizontal_line(int x, int y, int width) { this->horizontal_line(x, y, width, COLOR_ON); }
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
   virtual void vertical_line(int x, int y, int height, Color color);
