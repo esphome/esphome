@@ -41,7 +41,6 @@ class BLEServerAutomationInterface {
   };
 };
 
-
 class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;
