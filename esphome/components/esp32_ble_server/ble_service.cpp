@@ -60,12 +60,12 @@ void BLEService::do_create(BLEServer *server) {
 
 void BLEService::emit_client_connect(const uint16_t conn_id) {
   if (this->on_client_connect_ && this->is_running())
-  this->on_client_connect_(conn_id);
+    this->on_client_connect_(conn_id);
 }
 
 void BLEService::emit_client_disconnect(const uint16_t conn_id) {
   if (this->on_client_disconnect_ && this->is_running())
-  this->on_client_disconnect_(conn_id);
+    this->on_client_disconnect_(conn_id);
 }
 
 void BLEService::do_delete() {
