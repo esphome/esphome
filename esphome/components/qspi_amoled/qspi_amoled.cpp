@@ -125,6 +125,8 @@ void QspiAmoLed::filled_rectangle(int x1, int y1, int width, int height, Color c
       set_buffer_pixel_raw(x, y, new_color);
     }
   }
+
+  App.feed_wdt();
 }
 
 void QspiAmoLed::draw_absolute_pixel_internal(int x, int y, Color color) {
