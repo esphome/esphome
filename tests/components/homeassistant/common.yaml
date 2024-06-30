@@ -32,6 +32,11 @@ wifi:
 
 api:
 
+switch:
+  - platform: homeassistant
+    entity_id: switch.my_cool_switch
+    id: my_cool_switch
+
 binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
