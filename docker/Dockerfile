@@ -39,23 +39,27 @@ RUN \
         python3-cffi=1.15.1-5 \
         libcairo2=1.16.0-7 \
         libmagic1=1:5.44-3 \
-        patch=2.7.6-7; \
-    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        apt-get install -y --no-install-recommends \
-          build-essential=12.9 \
-          python3-dev=3.11.2-1+b1 \
-          zlib1g-dev=1:1.2.13.dfsg-1 \
-          libjpeg-dev=1:2.1.5-2 \
-          libfreetype-dev=2.12.1+dfsg-5+deb12u3 \
-          libssl-dev=3.0.13-1~deb12u1 \
-          libffi-dev=3.4.4-1 \
-          libopenjp2-7=2.5.0-2 \
-          libtiff6=4.5.0-6+deb12u1 \
-          cargo=0.66.0+ds1-1 \
-          pkg-config=1.8.1-1 \
-          gcc-arm-linux-gnueabihf=4:12.2.0-3; \
-    fi; \
-    rm -rf \
+        patch=2.7.6-7 \
+    && ( \
+        ( \
+            [ "$TARGETARCH$TARGETVARIANT" = "armv7" ] && \
+                apt-get install -y --no-install-recommends \
+                build-essential=12.9 \
+                python3-dev=3.11.2-1+b1 \
+                zlib1g-dev=1:1.2.13.dfsg-1 \
+                libjpeg-dev=1:2.1.5-2 \
+                libfreetype-dev=2.12.1+dfsg-5+deb12u3 \
+                libssl-dev=3.0.13-1~deb12u1 \
+                libffi-dev=3.4.4-1 \
+                libopenjp2-7=2.5.0-2 \
+                libtiff6=4.5.0-6+deb12u1 \
+                cargo=0.66.0+ds1-1 \
+                pkg-config=1.8.1-1 \
+                gcc-arm-linux-gnueabihf=4:12.2.0-3 \
+        ) \
+        || [ "$TARGETARCH$TARGETVARIANT" != "armv7" ] \
+    ) \
+    && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
