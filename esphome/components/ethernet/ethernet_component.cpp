@@ -132,8 +132,7 @@ void EthernetComponent::setup() {
   esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
   esp32_emac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
 
-  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
-
+  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
 #else
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
@@ -141,9 +140,7 @@ void EthernetComponent::setup() {
   mac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
-
 #endif
-
 #endif
 
   switch (this->type_) {
