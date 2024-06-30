@@ -429,6 +429,18 @@ enum ParseOnOffState {
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
 
+/// Return values for parse_on_off().
+enum ParseCoverState {
+  PARSE_COVER_UNKNOWN = 0,
+  PARSE_COVER_UNAVAILABLE,
+  PARSE_COVER_OPENING,
+  PARSE_COVER_OPEN,
+  PARSE_COVER_CLOSING,
+  PARSE_COVER_CLOSED,
+};
+/// Parse a string that contains the state of a HA cover.
+ParseCoverState parse_cover(const char *str);
+
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 

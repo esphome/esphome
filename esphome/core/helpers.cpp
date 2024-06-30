@@ -409,6 +409,21 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
+ParseCoverState parse_cover(const char *str) {
+  if (strcasecmp(str, "opening") == 0)
+    return PARSE_COVER_OPENING;
+  if (strcasecmp(str, "closing") == 0)
+    return PARSE_COVER_CLOSING;
+  if (strcasecmp(str, "open") == 0)
+    return PARSE_COVER_OPEN;
+  if (strcasecmp(str, "closed") == 0)
+    return PARSE_COVER_CLOSED;
+  if (strcasecmp(str, "unavailable") == 0)
+    return PARSE_COVER_UNAVAILABLE;
+
+  return PARSE_COVER_UNKNOWN;
+}
+
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   if (accuracy_decimals < 0) {
     auto multiplier = powf(10.0f, accuracy_decimals);
