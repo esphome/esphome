@@ -190,8 +190,8 @@ RUN \
         clang-format-13=1:13.0.1-11+b2 \
         clang-tidy-14=1:14.0.6-12 \
         patch=2.7.6-7 \
-        software-properties-common=0.99.30-4 \
-        nano=7.2-1 \
+        software-properties-common=0.99.30-4.1~deb12u1 \
+        nano=7.2-1+deb12u1 \
         build-essential=12.9 \
         python3-dev=3.11.2-1+b1 \
     && rm -rf \
