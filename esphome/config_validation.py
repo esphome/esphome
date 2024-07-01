@@ -29,9 +29,13 @@ from esphome.const import (
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_RETAIN,
+    CONF_QOS,
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_TOPIC,
+    CONF_YEAR,
+    CONF_MONTH,
+    CONF_DAY,
     CONF_HOUR,
     CONF_MINUTE,
     CONF_SECOND,
@@ -57,6 +61,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
     CORE,
@@ -262,6 +267,10 @@ class Required(vol.Required):
         super().__init__(key, msg=msg)
 
 
+class FinalExternalInvalid(Invalid):
+    """Represents an invalid value in the final validation phase where the path should not be prepended."""
+
+
 def check_not_templatable(value):
     if isinstance(value, Lambda):
         raise Invalid("This option is not templatable!")
@@ -299,7 +308,7 @@ def string(value):
     """Validate that a configuration value is a string. If not, automatically converts to a string.
 
     Note that this can be lossy, for example the input value 60.00 (float) will be turned into
-    "60.0" (string). For values where this could be a problem `string_string` has to be used.
+    "60.0" (string). For values where this could be a problem `string_strict` has to be used.
     """
     check_not_templatable(value)
     if isinstance(value, (dict, list)):
@@ -816,21 +825,105 @@ positive_not_null_time_period = All(
 
 
 def time_of_day(value):
-    value = string(value)
-    try:
-        date = datetime.strptime(value, "%H:%M:%S")
-    except ValueError as err:
-        try:
-            date = datetime.strptime(value, "%H:%M:%S %p")
-        except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid(f"Invalid time of day: {err}")
+    return date_time(date=False, time=True)(value)
 
-    return {
-        CONF_HOUR: date.hour,
-        CONF_MINUTE: date.minute,
-        CONF_SECOND: date.second,
-    }
+
+def date_time(date: bool, time: bool):
+
+    pattern_str = r"^"  # Start of string
+    if date:
+        pattern_str += r"\d{4}-\d{1,2}-\d{1,2}"
+        if time:
+            pattern_str += r" "
+    if time:
+        pattern_str += (
+            r"\d{1,2}:\d{2}"  # Hour/Minute
+            r"(:\d{2})?"  # 1. Seconds
+            r"("  # 2. Optional AM/PM group
+            r"(\s)?"  # 3. Optional Space
+            r"(?:AM|PM|am|pm)"  # AM/PM string matching
+            r")?"  # End optional AM/PM group
+        )
+    pattern_str += r"$"  # End of string
+
+    pattern = re.compile(pattern_str)
+
+    exc_message = ""
+    if date:
+        exc_message += "date"
+    if time:
+        exc_message += "time"
+
+    schema = Schema({})
+    if date:
+        schema = schema.extend(
+            {
+                Required(CONF_YEAR): int_range(min=1970, max=3000),
+                Required(CONF_MONTH): int_range(min=1, max=12),
+                Required(CONF_DAY): int_range(min=1, max=31),
+            }
+        )
+    if time:
+        schema = schema.extend(
+            {
+                Required(CONF_HOUR): int_range(min=0, max=23),
+                Required(CONF_MINUTE): int_range(min=0, max=59),
+                Required(CONF_SECOND): int_range(min=0, max=59),
+            }
+        )
+
+    def validator(value):
+        if isinstance(value, dict):
+            return schema(value)
+        value = string(value)
+
+        match = pattern.match(value)
+        if match is None:
+            # pylint: disable=raise-missing-from
+            raise Invalid(f"Invalid {exc_message}: {value}")
+
+        if time:
+            has_seconds = match[1] is not None
+            has_ampm = match[2] is not None
+            has_ampm_space = match[3] is not None
+
+        format = ""
+        if date:
+            format += "%Y-%m-%d"
+            if time:
+                format += " "
+        if time:
+            if has_ampm:
+                format += "%I:%M"
+            else:
+                format += "%H:%M"
+            if has_seconds:
+                format += ":%S"
+            if has_ampm_space:
+                format += " "
+            if has_ampm:
+                format += "%p"
+
+        try:
+            date_obj = datetime.strptime(value, format)
+        except ValueError as err:
+            # pylint: disable=raise-missing-from
+            raise Invalid(f"Invalid {exc_message}: {err}")
+
+        return_value = {}
+        if date:
+            return_value[CONF_YEAR] = date_obj.year
+            return_value[CONF_MONTH] = date_obj.month
+            return_value[CONF_DAY] = date_obj.day
+
+        if time:
+            return_value[CONF_HOUR] = date_obj.hour
+            return_value[CONF_MINUTE] = date_obj.minute
+            return_value[CONF_SECOND] = date_obj.second if has_seconds else 0
+
+        return schema(return_value)
+
+    return validator
 
 
 def mac_address(value):
@@ -1494,6 +1587,10 @@ def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
     default_schema_option = kwargs.pop("default_type", None)
+    enum_mapping = kwargs.pop("enum", None)
+    if enum_mapping is not None:
+        assert isinstance(enum_mapping, dict)
+        assert set(enum_mapping.keys()) == set(schemas.keys())
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
@@ -1504,6 +1601,9 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
+        if enum_mapping is not None:
+            key_v = add_class_to_obj(key_v, core.EnumValue)
+            key_v.enum_value = enum_mapping[key_v]
         value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
@@ -1518,6 +1618,13 @@ class GenerateID(Optional):
         super().__init__(key, default=lambda: None)
 
 
+def _get_priority_default(*args):
+    for arg in args:
+        if arg is not vol.UNDEFINED:
+            return arg
+    return vol.UNDEFINED
+
+
 class SplitDefault(Optional):
     """Mark this key to have a split default for ESP8266/ESP32."""
 
@@ -1528,6 +1635,15 @@ class SplitDefault(Optional):
         esp32=vol.UNDEFINED,
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
+        esp32_s2=vol.UNDEFINED,
+        esp32_s2_arduino=vol.UNDEFINED,
+        esp32_s2_idf=vol.UNDEFINED,
+        esp32_s3=vol.UNDEFINED,
+        esp32_s3_arduino=vol.UNDEFINED,
+        esp32_s3_idf=vol.UNDEFINED,
+        esp32_c3=vol.UNDEFINED,
+        esp32_c3_arduino=vol.UNDEFINED,
+        esp32_c3_idf=vol.UNDEFINED,
         rp2040=vol.UNDEFINED,
         bk72xx=vol.UNDEFINED,
         rtl87xx=vol.UNDEFINED,
@@ -1536,10 +1652,28 @@ class SplitDefault(Optional):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
         self._esp32_arduino_default = vol.default_factory(
-            esp32_arduino if esp32 is vol.UNDEFINED else esp32
+            _get_priority_default(esp32_arduino, esp32)
         )
         self._esp32_idf_default = vol.default_factory(
-            esp32_idf if esp32 is vol.UNDEFINED else esp32
+            _get_priority_default(esp32_idf, esp32)
+        )
+        self._esp32_s2_arduino_default = vol.default_factory(
+            _get_priority_default(esp32_s2_arduino, esp32_s2, esp32_arduino, esp32)
+        )
+        self._esp32_s2_idf_default = vol.default_factory(
+            _get_priority_default(esp32_s2_idf, esp32_s2, esp32_idf, esp32)
+        )
+        self._esp32_s3_arduino_default = vol.default_factory(
+            _get_priority_default(esp32_s3_arduino, esp32_s3, esp32_arduino, esp32)
+        )
+        self._esp32_s3_idf_default = vol.default_factory(
+            _get_priority_default(esp32_s3_idf, esp32_s3, esp32_idf, esp32)
+        )
+        self._esp32_c3_arduino_default = vol.default_factory(
+            _get_priority_default(esp32_c3_arduino, esp32_c3, esp32_arduino, esp32)
+        )
+        self._esp32_c3_idf_default = vol.default_factory(
+            _get_priority_default(esp32_c3_idf, esp32_c3, esp32_idf, esp32)
         )
         self._rp2040_default = vol.default_factory(rp2040)
         self._bk72xx_default = vol.default_factory(bk72xx)
@@ -1550,10 +1684,35 @@ class SplitDefault(Optional):
     def default(self):
         if CORE.is_esp8266:
             return self._esp8266_default
-        if CORE.is_esp32 and CORE.using_arduino:
-            return self._esp32_arduino_default
-        if CORE.is_esp32 and CORE.using_esp_idf:
-            return self._esp32_idf_default
+        if CORE.is_esp32:
+            from esphome.components.esp32 import get_esp32_variant
+            from esphome.components.esp32.const import (
+                VARIANT_ESP32S2,
+                VARIANT_ESP32S3,
+                VARIANT_ESP32C3,
+            )
+
+            variant = get_esp32_variant()
+            if variant == VARIANT_ESP32S2:
+                if CORE.using_arduino:
+                    return self._esp32_s2_arduino_default
+                if CORE.using_esp_idf:
+                    return self._esp32_s2_idf_default
+            elif variant == VARIANT_ESP32S3:
+                if CORE.using_arduino:
+                    return self._esp32_s3_arduino_default
+                if CORE.using_esp_idf:
+                    return self._esp32_s3_idf_default
+            elif variant == VARIANT_ESP32C3:
+                if CORE.using_arduino:
+                    return self._esp32_c3_arduino_default
+                if CORE.using_esp_idf:
+                    return self._esp32_c3_idf_default
+            else:
+                if CORE.using_arduino:
+                    return self._esp32_arduino_default
+                if CORE.using_esp_idf:
+                    return self._esp32_idf_default
         if CORE.is_rp2040:
             return self._rp2040_default
         if CORE.is_bk72xx:
@@ -1719,6 +1878,7 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
 
 MQTT_COMPONENT_SCHEMA = Schema(
     {
+        Optional(CONF_QOS): All(requires_component("mqtt"), int_range(min=0, max=2)),
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
@@ -1789,13 +1949,13 @@ def url(value):
     except ValueError as e:
         raise Invalid("Not a valid URL") from e
 
-    if not parsed.scheme or not parsed.netloc:
-        raise Invalid("Expected a URL scheme and host")
-    return parsed.geturl()
+    if parsed.scheme and parsed.netloc or parsed.scheme == "file":
+        return parsed.geturl()
+    raise Invalid("Expected a file scheme or a URL scheme with host")
 
 
 def git_ref(value):
-    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+    if re.match(r"[a-zA-Z0-9_./-]+", value) is None:
         raise Invalid("Not a valid git ref")
     return value
 
@@ -1834,6 +1994,16 @@ def version_number(value):
         return str(Version.parse(value))
     except ValueError as e:
         raise Invalid("Not a valid version number") from e
+
+
+def validate_esphome_version(value: str):
+    min_version = Version.parse(value)
+    current_version = Version.parse(ESPHOME_VERSION)
+    if current_version < min_version:
+        raise Invalid(
+            f"Your ESPHome version is too old. Please update to at least {min_version}"
+        )
+    return value
 
 
 def platformio_version_constraint(value):
@@ -1945,15 +2115,20 @@ def suppress_invalid():
         pass
 
 
-GIT_SCHEMA = {
-    Required(CONF_URL): url,
-    Optional(CONF_REF): git_ref,
-    Optional(CONF_USERNAME): string,
-    Optional(CONF_PASSWORD): string,
-}
-LOCAL_SCHEMA = {
-    Required(CONF_PATH): directory,
-}
+GIT_SCHEMA = Schema(
+    {
+        Required(CONF_URL): url,
+        Optional(CONF_REF): git_ref,
+        Optional(CONF_USERNAME): string,
+        Optional(CONF_PASSWORD): string,
+        Optional(CONF_PATH): string,
+    }
+)
+LOCAL_SCHEMA = Schema(
+    {
+        Required(CONF_PATH): directory,
+    }
+)
 
 
 def validate_source_shorthand(value):
@@ -1994,8 +2169,8 @@ SOURCE_SCHEMA = Any(
     validate_source_shorthand,
     typed_schema(
         {
-            TYPE_GIT: Schema(GIT_SCHEMA),
-            TYPE_LOCAL: Schema(LOCAL_SCHEMA),
+            TYPE_GIT: GIT_SCHEMA,
+            TYPE_LOCAL: LOCAL_SCHEMA,
         }
     ),
 )

@@ -1,0 +1,7 @@
+display:
+  - platform: tm1637
+    clk_pin: 5
+    dio_pin: 4
+    intensity: 3
+    lambda: |-
+      it.print("1234");

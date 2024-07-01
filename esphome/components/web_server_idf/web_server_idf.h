@@ -3,11 +3,11 @@
 
 #include <esp_http_server.h>
 
-#include <string>
 #include <functional>
-#include <vector>
 #include <map>
 #include <set>
+#include <string>
+#include <vector>
 
 namespace esphome {
 namespace web_server_idf {
@@ -90,11 +90,10 @@ class AsyncWebServerResponseProgmem : public AsyncWebServerResponse {
 
  protected:
   const uint8_t *data_;
-  const size_t size_;
+  size_t size_;
 };
 
 class AsyncWebServerRequest {
-  // FIXME friend class AsyncWebServerResponse;
   friend class AsyncWebServer;
 
  public:
@@ -117,7 +116,7 @@ class AsyncWebServerRequest {
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
     auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
-    this->init_response_(res, 200, content_type);
+    this->init_response_(res, code, content_type);
     return res;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -164,7 +163,9 @@ class AsyncWebServerRequest {
   httpd_req_t *req_;
   AsyncWebServerResponse *rsp_{};
   std::map<std::string, AsyncWebParameter *> params_;
+  std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
+  AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
   void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
 };
 
@@ -191,6 +192,8 @@ class AsyncWebServer {
   uint16_t port_{};
   httpd_handle_t server_{};
   static esp_err_t request_handler(httpd_req_t *r);
+  static esp_err_t request_post_handler(httpd_req_t *r);
+  esp_err_t request_handler_(AsyncWebServerRequest *request) const;
   std::vector<AsyncWebHandler *> handlers_;
   std::function<void(AsyncWebServerRequest *request)> on_not_found_{};
 };
@@ -247,6 +250,8 @@ class AsyncEventSource : public AsyncWebHandler {
   void onConnect(connect_handler_t cb) { this->on_connect_ = std::move(cb); }
 
   void send(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+
+  size_t count() const { return this->sessions_.size(); }
 
  protected:
   std::string url_;

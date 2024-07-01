@@ -1,0 +1,37 @@
+esphome:
+  on_boot:
+    then:
+      - tag.set_clean_mode: nfcc_pn7160
+      - tag.set_format_mode: nfcc_pn7160
+      - tag.set_read_mode: nfcc_pn7160
+      - tag.set_write_message:
+          message: https://www.home-assistant.io/tag/pulse
+          include_android_app_record: false
+      - tag.set_write_mode: nfcc_pn7160
+      - tag.set_emulation_message:
+          message: https://www.home-assistant.io/tag/pulse
+          include_android_app_record: false
+      - tag.emulation_off: nfcc_pn7160
+      - tag.emulation_on: nfcc_pn7160
+      - tag.polling_off: nfcc_pn7160
+      - tag.polling_on: nfcc_pn7160
+
+spi:
+  - id: spi_pn7160
+    clk_pin: 6
+    mosi_pin: 7
+    miso_pin: 5
+
+pn7160_spi:
+  id: nfcc_pn7160
+  cs_pin: 4
+  irq_pin: 2
+  ven_pin: 3
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+  on_tag:
+    - logger.log: "Tag"
+  on_tag_removed:
+    - logger.log: "Tag removed"
+  on_emulated_tag_scan:
+    - logger.log: "Tag emulated"

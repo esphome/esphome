@@ -1,0 +1,18 @@
+cd74hc4067:
+  pin_s0: 12
+  pin_s1: 13
+  pin_s2: 14
+  pin_s3: 15
+
+sensor:
+  - platform: adc
+    id: esp_adc_sensor
+    pin: 39
+  - platform: cd74hc4067
+    id: cd74hc4067_adc_0
+    number: 0
+    sensor: esp_adc_sensor
+  - platform: cd74hc4067
+    id: cd74hc4067_adc_1
+    number: 1
+    sensor: esp_adc_sensor

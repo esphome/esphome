@@ -32,6 +32,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     __version__,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, HexInt, TimePeriod
 import esphome.config_validation as cv
@@ -95,16 +96,16 @@ def get_board(core_obj=None):
 def get_download_types(storage_json):
     return [
         {
-            "title": "Modern format",
+            "title": "Factory format (Previously Modern)",
             "description": "For use with ESPHome Web and other tools.",
-            "file": "firmware-factory.bin",
-            "download": f"{storage_json.name}-factory.bin",
+            "file": "firmware.factory.bin",
+            "download": f"{storage_json.name}.factory.bin",
         },
         {
-            "title": "Legacy format",
-            "description": "For use with ESPHome Flasher.",
-            "file": "firmware.bin",
-            "download": f"{storage_json.name}.bin",
+            "title": "OTA format (Previously Legacy)",
+            "description": "For OTA updating a device.",
+            "file": "firmware.ota.bin",
+            "download": f"{storage_json.name}.ota.bin",
         },
     ]
 
@@ -226,7 +227,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 5)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 7)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
@@ -271,8 +272,8 @@ def _arduino_check_versions(value):
 def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 1, 0), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(5, 1, 0), None),
+        "dev": (cv.Version(5, 1, 2), "https://github.com/espressif/esp-idf.git"),
+        "latest": (cv.Version(5, 1, 2), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
@@ -316,17 +317,26 @@ def _parse_platform_version(value):
 
 
 def _detect_variant(value):
-    if CONF_VARIANT not in value:
-        board = value[CONF_BOARD]
-        if board not in BOARDS:
+    board = value[CONF_BOARD]
+    if board in BOARDS:
+        variant = BOARDS[board][KEY_VARIANT]
+        if CONF_VARIANT in value and variant != value[CONF_VARIANT]:
             raise cv.Invalid(
-                "This board is unknown, please set the variant manually",
+                f"Option '{CONF_VARIANT}' does not match selected board.",
+                path=[CONF_VARIANT],
+            )
+        value = value.copy()
+        value[CONF_VARIANT] = variant
+    else:
+        if CONF_VARIANT not in value:
+            raise cv.Invalid(
+                "This board is unknown, if you are sure you want to compile with this board selection, "
+                f"override with option '{CONF_VARIANT}'",
                 path=[CONF_BOARD],
             )
-
-        value = value.copy()
-        value[CONF_VARIANT] = BOARDS[board][KEY_VARIANT]
-
+        _LOGGER.warning(
+            "This board is unknown. Make sure the chosen chip component is correct.",
+        )
     return value
 
 
@@ -355,8 +365,6 @@ def final_validate(config):
 
     return config
 
-
-CONF_PLATFORM_VERSION = "platform_version"
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
@@ -462,7 +470,7 @@ async def to_code(config):
 
     add_extra_script(
         "post",
-        "post_build2.py",
+        "post_build.py",
         os.path.join(os.path.dirname(__file__), "post_build.py.script"),
     )
 
@@ -497,10 +505,11 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
 
+        cg.add_platformio_option("board_build.partitions", "partitions.csv")
         if CONF_PARTITIONS in config:
-            cg.add_platformio_option("board_build.partitions", config[CONF_PARTITIONS])
-        else:
-            cg.add_platformio_option("board_build.partitions", "partitions.csv")
+            add_extra_build_file(
+                "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
+            )
 
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
@@ -639,20 +648,22 @@ def _write_sdkconfig():
 # Called by writer.py
 def copy_files():
     if CORE.using_arduino:
-        write_file_if_changed(
-            CORE.relative_build_path("partitions.csv"),
-            get_arduino_partition_csv(
-                CORE.platformio_options.get("board_upload.flash_size")
-            ),
-        )
+        if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+            write_file_if_changed(
+                CORE.relative_build_path("partitions.csv"),
+                get_arduino_partition_csv(
+                    CORE.platformio_options.get("board_upload.flash_size")
+                ),
+            )
     if CORE.using_esp_idf:
         _write_sdkconfig()
-        write_file_if_changed(
-            CORE.relative_build_path("partitions.csv"),
-            get_idf_partition_csv(
-                CORE.platformio_options.get("board_upload.flash_size")
-            ),
-        )
+        if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+            write_file_if_changed(
+                CORE.relative_build_path("partitions.csv"),
+                get_idf_partition_csv(
+                    CORE.platformio_options.get("board_upload.flash_size")
+                ),
+            )
         # IDF build scripts look for version string to put in the build.
         # However, if the build path does not have an initialized git repo,
         # and no version.txt file exists, the CMake script fails for some setups.

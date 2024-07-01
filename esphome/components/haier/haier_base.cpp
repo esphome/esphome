@@ -25,13 +25,14 @@ const char *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
       "SENDING_INIT_1",
       "SENDING_INIT_2",
       "SENDING_FIRST_STATUS_REQUEST",
-      "SENDING_ALARM_STATUS_REQUEST",
+      "SENDING_FIRST_ALARM_STATUS_REQUEST",
       "IDLE",
       "SENDING_STATUS_REQUEST",
       "SENDING_UPDATE_SIGNAL_REQUEST",
       "SENDING_SIGNAL_LEVEL",
       "SENDING_CONTROL",
       "SENDING_ACTION_COMMAND",
+      "SENDING_ALARM_STATUS_REQUEST",
       "UNKNOWN"  // Should be the last!
   };
   static_assert(
@@ -233,6 +234,7 @@ void HaierClimateBase::setup() {
   this->haier_protocol_.set_default_timeout_handler(
       std::bind(&esphome::haier::HaierClimateBase::timeout_default_handler_, this, std::placeholders::_1));
   this->set_handlers();
+  this->initialization();
 }
 
 void HaierClimateBase::dump_config() {
@@ -325,7 +327,7 @@ ClimateTraits HaierClimateBase::traits() { return traits_; }
 
 void HaierClimateBase::control(const ClimateCall &call) {
   ESP_LOGD("Control", "Control call");
-  if (this->protocol_phase_ < ProtocolPhases::IDLE) {
+  if (!this->valid_connection()) {
     ESP_LOGW(TAG, "Can't send control packet, first poll answer not received");
     return;  // cancel the control, we cant do it without a poll answer.
   }

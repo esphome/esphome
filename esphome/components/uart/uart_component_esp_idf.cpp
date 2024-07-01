@@ -60,16 +60,36 @@ uart_config_t IDFUARTComponent::get_config_() {
 
 void IDFUARTComponent::setup() {
   static uint8_t next_uart_num = 0;
+
 #ifdef USE_LOGGER
-  if (logger::global_logger->get_uart_num() == next_uart_num)
+  bool logger_uses_hardware_uart = true;
+
+#ifdef USE_LOGGER_USB_CDC
+  if (logger::global_logger->get_uart() == logger::UART_SELECTION_USB_CDC) {
+    // this is not a hardware UART, ignore it
+    logger_uses_hardware_uart = false;
+  }
+#endif  // USE_LOGGER_USB_CDC
+
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
+  if (logger::global_logger->get_uart() == logger::UART_SELECTION_USB_SERIAL_JTAG) {
+    // this is not a hardware UART, ignore it
+    logger_uses_hardware_uart = false;
+  }
+#endif  // USE_LOGGER_USB_SERIAL_JTAG
+
+  if (logger_uses_hardware_uart && logger::global_logger->get_baud_rate() > 0 &&
+      logger::global_logger->get_uart_num() == next_uart_num) {
     next_uart_num++;
-#endif
+  }
+#endif  // USE_LOGGER
+
   if (next_uart_num >= UART_NUM_MAX) {
     ESP_LOGW(TAG, "Maximum number of UART components created already.");
     this->mark_failed();
     return;
   }
-  this->uart_num_ = next_uart_num++;
+  this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
   ESP_LOGCONFIG(TAG, "Setting up UART %u...", this->uart_num_);
 
   this->lock_ = xSemaphoreCreateMutex();
@@ -122,9 +142,21 @@ void IDFUARTComponent::setup() {
   xSemaphoreGive(this->lock_);
 }
 
+void IDFUARTComponent::load_settings(bool dump_config) {
+  uart_config_t uart_config = this->get_config_();
+  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  } else if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
+    this->dump_config();
+  }
+}
+
 void IDFUARTComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART Bus:");
-  ESP_LOGCONFIG(TAG, "  Number: %u", this->uart_num_);
+  ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
   if (this->rx_pin_ != nullptr) {
