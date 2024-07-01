@@ -32,6 +32,4 @@ bool mqtt_is_connected() {
   return false;
 }
 
-bool remote_is_connected() { return api_is_connected() || mqtt_is_connected(); }
-
 }  // namespace esphome

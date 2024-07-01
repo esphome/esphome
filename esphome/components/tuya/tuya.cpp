@@ -2,7 +2,6 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
 
 namespace esphome {
 namespace tuya {
@@ -484,15 +483,14 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
 }
 
 void Tuya::set_status_pin_() {
-  bool is_network_ready = network::is_connected() && remote_is_connected();
-  this->status_pin_->digital_write(is_network_ready);
+  this->status_pin_->digital_write(true);
 }
 
 uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = NET_STATUS_WIFI_CONNECTED;
 
   // Protocol version 3 also supports specifying when connected to "the cloud"
-  if (this->protocol_version_ >= 0x03 && remote_is_connected()) {
+  if (this->protocol_version_ >= 0x03) {
     status = NET_STATUS_CLOUD_CONNECTED;
   }
 
