@@ -123,7 +123,7 @@ const uint8_t ASCII_TO_SEG[FONT_SIZE] PROGMEM = {
 
 
 void Display::setup(std::vector<uint8_t>& seg_to_out_map, std::vector<uint8_t>& pos_to_out_map) {
-  this->restore_update_interval_ = 0;
+  this->default_update_interval_ = this->max6921_->get_update_interval();
   this->seg_to_out_map_ = seg_to_out_map;
   this->pos_to_out_map_ = pos_to_out_map;
   this->num_digits_ = pos_to_out_map.size();
@@ -279,6 +279,30 @@ void Display::clear(int pos) {
 }
 
 /**
+ * @brief Sets the display update interval.
+ *
+ * @param interval_ms update interval in ms (optional, default=restore)
+ */
+void Display::set_update_interval(uint32_t interval_ms) {
+  ESP_LOGD(TAG, "Change polling interval: %" PRIu32 "ms", interval_ms);
+  this->max6921_->stop_poller();
+  this->max6921_->set_update_interval(interval_ms);
+  this->max6921_->start_poller();
+}
+
+/**
+ * @brief Restores the configured display update interval.
+ */
+void Display::restore_update_interval(void) {
+  if (this->max6921_->get_update_interval() != this->default_update_interval_) {
+    ESP_LOGD(TAG, "Restore polling interval: %" PRIu32 "ms", this->default_update_interval_);
+    this->max6921_->stop_poller();
+    this->max6921_->set_update_interval(this->default_update_interval_);
+    this->max6921_->start_poller();
+  }
+}
+
+/**
  * @brief Updates the display.
  */
 void Display::update(void) {
@@ -306,11 +330,7 @@ void Display::update(void) {
     }
     if (this->disp_text_.effect == TEXT_EFFECT_NONE) {                          // effect finished?
       this->duration_ms = 0;
-      if (this->restore_update_interval_) {                                     // yes, polling interval changed?
-        ESP_LOGD(TAG, "Restore polling interval: %" PRIu32 "ms", this->restore_update_interval_);
-        this->max6921_->set_update_interval(this->restore_update_interval_);
-        this->restore_update_interval_ = 0;
-      }
+      restore_update_interval();
       set_mode(DISP_MODE_PRINT);                                                // switch back to "it" interface
     }
   }
@@ -396,9 +416,7 @@ int Display::set_text(const std::string& text, uint8_t start_pos, const std::str
   // set text effect...
   this->disp_text_.set_text_effect(effect, cycle_num);
   if ((this->disp_text_.effect != TEXT_EFFECT_NONE) && (interval > 0)) {
-    ESP_LOGD(TAG, "Change polling interval: %" PRIu32 "ms", interval);
-    this->restore_update_interval_ = this->max6921_->get_update_interval();
-    this->max6921_->set_update_interval(interval);
+    set_update_interval(interval);
   }
 
   // update display mode...
