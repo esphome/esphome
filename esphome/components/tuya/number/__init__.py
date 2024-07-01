@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_MULTIPLY,
     CONF_STEP,
+    CONF_VALUE
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya, TuyaDatapointType
 
@@ -16,7 +17,6 @@ CODEOWNERS = ["@frankiboy1"]
 
 CONF_DATAPOINT_HIDDEN = "datapoint_hidden"
 CONF_INIT = "init"
-CONF_VALUE = "value"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 
 TuyaNumber = tuya_ns.class_("TuyaNumber", number.Number, cg.Component)
@@ -51,13 +51,7 @@ CONFIG_SCHEMA = cv.All(
                             DATAPOINT_TYPES, lower=True
                         ),
                         cv.Optional(CONF_INIT): cv.All(
-                            cv.Schema(
-                                {
-                                    cv.Required(
-                                        CONF_VALUE
-                                    ): cv.float_
-                                }
-                            )
+                            cv.Schema({cv.Required(CONF_VALUE): cv.float_})
                         ),
                     }
                 )
@@ -88,8 +82,4 @@ async def to_code(config):
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
         cg.add(var.set_datapoint_type(hidden_config[CONF_DATAPOINT_TYPE]))
         if hidden_init_config := hidden_config.get(CONF_INIT):
-            cg.add(
-                var.set_datapoint_restore_value(
-                    hidden_init_config[CONF_VALUE]
-                )
-            )
+            cg.add(var.set_datapoint_restore_value(hidden_init_config[CONF_VALUE]))
