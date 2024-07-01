@@ -101,8 +101,8 @@ class Display : public DisplayBrightness,
   bool isPointSegOnly(char c);
   void restore_update_interval(void);
   void setup(std::vector<uint8_t>& seg_to_out_map, std::vector<uint8_t>& pos_to_out_map);
-  void set_demo_mode(demo_mode_t mode, uint8_t cycle_num);
-  void set_demo_mode(const std::string& mode, uint8_t cycle_num);
+  void set_demo_mode(demo_mode_t mode, uint32_t interval, uint8_t cycle_num);
+  void set_demo_mode(const std::string& mode, uint32_t interval, uint8_t cycle_num);
   int set_text(const char *text, uint8_t start_pos);
   int set_text(const std::string& text, uint8_t start_pos, const std::string& align,
                uint32_t duration, const std::string& effect, uint32_t interval, uint8_t cycle_num);

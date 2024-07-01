@@ -66,6 +66,7 @@ template<typename... Ts> class SetDemoModeAction : public Action<Ts...> {
   explicit SetDemoModeAction(MAX6921Component *max9621) : max9621_(max9621) {}
 
   TEMPLATABLE_VALUE(std::string, mode)
+  TEMPLATABLE_VALUE(uint32_t, demo_update_interval)
   TEMPLATABLE_VALUE(uint8_t, demo_cycle_num)
 
   // overlay to cover string inputs
@@ -81,8 +82,11 @@ template<typename... Ts> class SetDemoModeAction : public Action<Ts...> {
   // }
 
   void play(Ts... x) override {
+    auto update_interval = this->demo_update_interval_.value(x...);
     auto cycle_num = this->demo_cycle_num_.value(x...);
-    this->max9621_->display_->set_demo_mode(this->mode_.value(x...), cycle_num);
+    this->max9621_->display_->set_demo_mode(this->mode_.value(x...),
+                                            update_interval,
+                                            cycle_num);
   }
 
  protected:

@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_POSITION,
     CONF_EFFECT,
     CONF_DURATION,
+    CONF_UPDATE_INTERVAL,
 )
 
 
@@ -45,7 +46,6 @@ CONF_POS_12_PIN = "pos_12_pin"
 CONF_TEXT = "text"
 CONF_ALIGN = "align"
 CONF_CYCLE_NUM = "cycle_num"
-CONF_EFFECT_UPDATE_INTERVAL = "effect_update_interval"
 
 
 max6921_ns = cg.esphome_ns.namespace("max6921")
@@ -209,14 +209,13 @@ async def max6921_set_brightness_to_code(config, action_id, template_arg, args):
 
 
 def validate_action_set_text(value):
-    duration = value[CONF_DURATION]
-    cycle_num = value.get(CONF_CYCLE_NUM)
-    if isinstance(cycle_num, cv.Lambda):
-        cycle_num = 1
-    if duration.total_milliseconds > 0 and cycle_num > 0:
-        raise cv.Invalid(
-            f"Only one of following config value must be set: {CONF_CYCLE_NUM}, {CONF_DURATION}"
-        )
+    # duration = value.get(CONF_DURATION)
+    # cycle_num = value.get(CONF_CYCLE_NUM)
+    # if not isinstance(duration, cv.Lambda) and not isinstance(cycle_num, cv.Lambda):
+    #     if duration.total_milliseconds > 0 and cycle_num > 0:
+    #         raise cv.Invalid(
+    #             f"Only one of following config value must be set: {CONF_CYCLE_NUM}, {CONF_DURATION}"
+    #         )
     return value
 
 
@@ -236,9 +235,9 @@ ACTION_SET_TEXT_SCHEMA = cv.All(
                         cv.positive_time_period_milliseconds
                     ),
                     cv.Optional(CONF_EFFECT, default="none"): cv.templatable(cv.string),
-                    cv.Optional(
-                        CONF_EFFECT_UPDATE_INTERVAL, default="150ms"
-                    ): cv.templatable(cv.positive_time_period_milliseconds),
+                    cv.Optional(CONF_UPDATE_INTERVAL, default="150ms"): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
                     cv.Optional(CONF_CYCLE_NUM, default=0): cv.templatable(cv.uint8_t),
                 }
             )
@@ -266,10 +265,8 @@ async def max6921_set_text_to_code(config, action_id, template_arg, args):
     if CONF_EFFECT in config:
         template_ = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
         cg.add(var.set_text_effect(template_))
-    if CONF_EFFECT_UPDATE_INTERVAL in config:
-        template_ = await cg.templatable(
-            config[CONF_EFFECT_UPDATE_INTERVAL], args, cg.uint32
-        )
+    if CONF_UPDATE_INTERVAL in config:
+        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, cg.uint32)
         cg.add(var.set_text_effect_update_interval(template_))
     if CONF_CYCLE_NUM in config:
         template_ = await cg.templatable(config[CONF_CYCLE_NUM], args, cg.uint8)
@@ -284,6 +281,9 @@ ACTION_SET_DEMO_MODE_SCHEMA = cv.All(
                 {
                     # cv.Required(CONF_MODE): cv.templatable(cv.enum(DEMO_MODES, lower=True)),
                     cv.Required(CONF_MODE): cv.templatable(cv.string),
+                    cv.Optional(CONF_UPDATE_INTERVAL, default="150ms"): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
                     cv.Optional(CONF_CYCLE_NUM, default=0): cv.templatable(cv.uint8_t),
                 }
             )
@@ -301,6 +301,9 @@ async def max6921_set_demo_mode_to_code(config, action_id, template_arg, args):
     # template_ = await cg.templatable(config[CONF_MODE], args, DemoMode)
     template_ = await cg.templatable(config[CONF_MODE], args, cg.std_string)
     cg.add(var.set_mode(template_))
+    if CONF_UPDATE_INTERVAL in config:
+        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, cg.uint32)
+        cg.add(var.set_demo_update_interval(template_))
     if CONF_CYCLE_NUM in config:
         template_ = await cg.templatable(config[CONF_CYCLE_NUM], args, cg.uint8)
         cg.add(var.set_demo_cycle_num(template_))

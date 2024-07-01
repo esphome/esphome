@@ -345,12 +345,11 @@ void Display::update(void) {
   }
 }
 
-void Display::set_demo_mode(demo_mode_t mode, uint8_t cycle_num) {
+void Display::set_demo_mode(demo_mode_t mode, uint32_t interval, uint8_t cycle_num) {
   uint text_idx, font_idx;
 
-  ESP_LOGD(TAG, "Set demo mode: mode=%i, cycle_num=%u", mode, cycle_num);
-  // this->display.demo_mode_cycle_num = cycle_num;
-  // this->display.demo_mode = mode;
+  ESP_LOGD(TAG, "Set demo mode: mode=%i, update-interval=%" PRIu32 "ms, cycle_num=%u",
+           mode, interval, cycle_num);
 
   switch (mode) {
     case DEMO_MODE_SCROLL_FONT:
@@ -373,14 +372,16 @@ void Display::set_demo_mode(demo_mode_t mode, uint8_t cycle_num) {
       set_mode(DISP_MODE_PRINT);
       break;
   }
+  if ((mode != DEMO_MODE_OFF) && (interval > 0))
+    set_update_interval(interval);
   clear();
 }
 
-void Display::set_demo_mode(const std::string& mode, uint8_t cycle_num) {
+void Display::set_demo_mode(const std::string& mode, uint32_t interval, uint8_t cycle_num) {
   if (str_equals_case_insensitive(mode, "off")) {
-    this->set_demo_mode(DEMO_MODE_OFF, cycle_num);
+    this->set_demo_mode(DEMO_MODE_OFF, interval, cycle_num);
   } else if (str_equals_case_insensitive(mode, "scroll_font")) {
-    this->set_demo_mode(DEMO_MODE_SCROLL_FONT, cycle_num);
+    this->set_demo_mode(DEMO_MODE_SCROLL_FONT, interval, cycle_num);
   } else {
     ESP_LOGW(TAG, "Invalid demo mode: %s", mode.c_str());
   }
@@ -402,8 +403,8 @@ void Display::set_demo_mode(const std::string& mode, uint8_t cycle_num) {
 int Display::set_text(const std::string& text, uint8_t start_pos, const std::string& align,
                       uint32_t duration, const std::string& effect, uint32_t interval,
                       uint8_t cycle_num) {
-  ESP_LOGD(TAG, "Set text (given):  text=%s, start-pos=%u, align=%s, duration=%" PRIu32 ", "\
-           "effect=%s, effect-update-interval=%" PRIu32 ", cycles=%u",
+  ESP_LOGD(TAG, "Set text (given):  text=%s, start-pos=%u, align=%s, duration=%" PRIu32 "ms, "\
+           "effect=%s, effect-update-interval=%" PRIu32 "ms, cycles=%u",
            text.c_str(), start_pos, align.c_str(), duration, effect.c_str(),
            interval, cycle_num);
 
