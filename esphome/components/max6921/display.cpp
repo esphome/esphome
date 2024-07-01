@@ -305,6 +305,7 @@ void Display::update(void) {
         break;
     }
     if (this->disp_text_.effect == TEXT_EFFECT_NONE) {                          // effect finished?
+      this->duration_ms = 0;
       if (this->restore_update_interval_) {                                     // yes, polling interval changed?
         ESP_LOGD(TAG, "Restore polling interval: %" PRIu32 "ms", this->restore_update_interval_);
         this->max6921_->set_update_interval(this->restore_update_interval_);
@@ -318,6 +319,7 @@ void Display::update(void) {
   if (this->duration_ms > 0) {
     if ((millis() - this->duration_ms_start_) >= this->duration_ms) {
       ESP_LOGD(TAG, "Effect duration of %" PRIu32 "ms expired", this->duration_ms);
+      this->disp_text_.set_text_effect(TEXT_EFFECT_NONE);
       set_mode(DISP_MODE_PRINT);
     }
   }
