@@ -202,7 +202,7 @@ def maybe_empty_debug(value):
 
 
 def validate_port(value):
-    if not re.match(r"^\/dev\/(?:(?:tty(?:S|USB|ACM)|pts\/)\d+)$", value):
+    if not re.match(r"^\/dev\/(?:tty|cu|(?:pts\/)).+$", value):
         raise cv.Invalid("Port must be a valid Linux device path")
     return value
 
