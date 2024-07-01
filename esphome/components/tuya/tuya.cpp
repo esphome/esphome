@@ -482,9 +482,7 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
   send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{}});
 }
 
-void Tuya::set_status_pin_() {
-  this->status_pin_->digital_write(true);
-}
+void Tuya::set_status_pin_() { this->status_pin_->digital_write(true); }
 
 uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = NET_STATUS_WIFI_CONNECTED;
