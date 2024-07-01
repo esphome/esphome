@@ -320,6 +320,10 @@ void Display::update(void) {
   // handle text effects...
   if (this->disp_text_.effect != TEXT_EFFECT_NONE) {                            // any effect enabled?
     switch (this->disp_text_.effect) {
+      case TEXT_EFFECT_BLINK:
+        update_out_buf_();
+        this->disp_text_.blink();
+        break;
       case TEXT_EFFECT_SCROLL_LEFT:
         update_out_buf_();
         this->disp_text_.scroll_left();
@@ -604,8 +608,8 @@ void DisplayText::init_text_effect_(void) {
       this->visible_idx = 0;
       this->visible_len = 1;
       break;
-    case TEXT_EFFECT_NONE:
     case TEXT_EFFECT_BLINK:
+    case TEXT_EFFECT_NONE:
     default:
       // Don't change display start position!
       this->visible_idx = 0;
@@ -672,6 +676,8 @@ void DisplayText::set_text_effect(text_effect_t effect, uint8_t cycle_num)
   if (effect != this->effect) {
     this->effect = effect;
     this->cycle_num = cycle_num;
+    if (effect == TEXT_EFFECT_BLINK)
+      this->effect_change_count_ = -1;
     init_text_effect_();
     ESP_LOGD(TAG, "Set effect: text=%s, effect=%i, cycles=%u, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u",
              this->text, this->effect, this->cycle_num, this->start_pos,
@@ -707,22 +713,42 @@ void DisplayText::set_text_effect(const std::string& effect, uint8_t cycle_num)
 }
 
 /**
- * @brief Updates the mode "scroll left".
+ * @brief Updates the mode "blink". The display buffer must be updated before.
+ */
+void DisplayText::blink(void) {
+  ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u", __func__,
+           this->start_pos, this->visible_idx, this->visible_len);
+
+  // update effect mode...
+  if (++this->effect_change_count_ >= 2) {                                      // one on/off phase complete?
+    this->effect_change_count_ = 0;
+    if (this->cycle_num > 0) {
+      ESP_LOGD(TAG, "Blink cycle finished (%u left)", this->cycle_num-1);
+      if (--this->cycle_num == 0) {
+        this->effect = TEXT_EFFECT_NONE;
+        ESP_LOGD(TAG, "Blink finished");
+        return;
+      }
+    }
+  }
+
+  // update visible text...
+  if (this->visible_len > 0) {                                                  // "on" phase?
+    this->visible_len = 0;                                                      // yes -> switch to "off" phase
+  } else {
+    init_text_effect_();                                                        // no -> switch to "on" phase
+  }
+
+  ESP_LOGV(TAG, "%s(): EXIT:  start-idx=%u, text-idx=%u, text-len=%u", __func__,
+           this->start_pos, this->visible_idx, this->visible_len);
+}
+
+/**
+ * @brief Updates the mode "scroll left". The display buffer must be updated before.
  */
 void DisplayText::scroll_left(void) {
   ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u", __func__,
            this->start_pos, this->visible_idx, this->visible_len);
-
-  // update visible text...
-  if (this->start_pos > 0) {                                                    // left display side not reached (scroll in from right side)?
-    --this->start_pos;                                                          // decrement display start position
-    if (this->visible_len < strlen(this->text))
-      ++this->visible_len;                                                      // increment visible text length
-  } else {
-    ++this->visible_idx;                                                        // increment visible start index
-    if ((this->visible_idx + this->visible_len) > strlen(this->text))           // visible part reached at end of text?
-      --this->visible_len;                                                      // decrement visible text length (scroll out to left side)
-  }
 
   // update effect mode...
   if (this->visible_len == 0) {
@@ -735,6 +761,17 @@ void DisplayText::scroll_left(void) {
         return;
       }
     }
+  }
+
+  // update visible text...
+  if (this->start_pos > 0) {                                                    // left display side not reached (scroll in from right side)?
+    --this->start_pos;                                                          // decrement display start position
+    if (this->visible_len < strlen(this->text))
+      ++this->visible_len;                                                      // increment visible text length
+  } else {
+    ++this->visible_idx;                                                        // increment visible start index
+    if ((this->visible_idx + this->visible_len) > strlen(this->text))           // visible part reached at end of text?
+      --this->visible_len;                                                      // decrement visible text length (scroll out to left side)
   }
 
   ESP_LOGV(TAG, "%s(): EXIT:  start-idx=%u, text-idx=%u, text-len=%u", __func__,

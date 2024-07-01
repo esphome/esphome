@@ -79,6 +79,7 @@ class DisplayText
   text_effect_t effect;
   uint8_t cycle_num;
   DisplayText();
+  void blink(void);
   void scroll_left(void);
   int set_text(uint start_pos, uint max_pos, const std::string& text);
   void set_text_align(text_align_t align);
@@ -87,6 +88,7 @@ class DisplayText
   void set_text_effect(const std::string& effect, uint8_t cycle_num=0);
 
  protected:
+  int effect_change_count_;
   void init_text_align_(void);
   void init_text_effect_(void);
 };
