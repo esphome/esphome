@@ -22,11 +22,8 @@ void UptimeTimestampSensor::setup() {
       return;  // No need to update the timestamp if the time is not valid
 
     time_t timestamp = now.timestamp;
-    ESP_LOGD(TAG, "Sync timestamp: %lu", timestamp);
     uint32_t seconds = ms / 1000;
-    ESP_LOGD(TAG, "Uptime is: %ds", seconds);
     timestamp -= seconds;
-    ESP_LOGD(TAG, "Uptime timestamp is: %lu", timestamp);
     this->publish_state(timestamp);
   });
 }
