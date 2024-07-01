@@ -15,16 +15,14 @@ void TuyaNumber::setup() {
       ESP_LOGV(TAG, "MCU reported number %u is: %u", datapoint.id, datapoint.value_enum);
       this->publish_state(datapoint.value_enum);
     }
-    if ((this->type_) && (this->type_ != datapoint.type))
-    {
-       ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", datapoint.type, this->type_);
+    if ((this->type_) && (this->type_ != datapoint.type)) {
+      ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", datapoint.type, this->type_);
     }
     this->type_ = datapoint.type;
   });
 
-  this->parent_->add_on_initialized_callback([this]{
-    if ((this->value_to_restore_) && (this->type_))
-    {
+  this->parent_->add_on_initialized_callback([this] {
+    if ((this->value_to_restore_) && (this->type_)) {
       this->control(*this->value_to_restore_);
     }
   });
@@ -44,17 +42,13 @@ void TuyaNumber::control(float value) {
 void TuyaNumber::dump_config() {
   LOG_NUMBER("", "Tuya Number", this);
   ESP_LOGCONFIG(TAG, "  Number has datapoint ID %u", this->number_id_);
-  if (this->type_)
-  {
+  if (this->type_) {
     ESP_LOGCONFIG(TAG, "  Datapoint type is %d", *this->type_);
-  }
-  else
-  {
+  } else {
     ESP_LOGCONFIG(TAG, "  Datapoint type is unknown");
   }
 
-  if (this->value_to_restore_)
-  {
+  if (this->value_to_restore_) {
     ESP_LOGCONFIG(TAG, "  Value to restore is %f", *this->value_to_restore_);
   }
 }
