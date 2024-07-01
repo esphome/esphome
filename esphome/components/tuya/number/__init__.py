@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
                                 {
                                     cv.Required(
                                         CONF_DATAPOINT_HIDDEN_INIT_VALUE
-                                        ): cv.float_
+                                    ): cv.float_
                                 }
                             )
                         ),
@@ -88,4 +88,8 @@ async def to_code(config):
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
         cg.add(var.set_datapoint_type(hidden_config[CONF_DATAPOINT_TYPE]))
         if hidden_init_config := hidden_config.get(CONF_DATAPOINT_HIDDEN_INIT):
-            cg.add(var.set_datapoint_restore_value(hidden_init_config[CONF_DATAPOINT_HIDDEN_INIT_VALUE]))
+            cg.add(
+                var.set_datapoint_restore_value(
+                    hidden_init_config[CONF_DATAPOINT_HIDDEN_INIT_VALUE]
+                )
+            )
