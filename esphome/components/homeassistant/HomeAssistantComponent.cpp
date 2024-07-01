@@ -18,8 +18,8 @@ bool HomeAssistantComponent::can_update_from_api() {
 
 void HomeAssistantComponent::ignore_api_updates_with_seconds(int seconds) {
   ESP_LOGD(TAG, "ignore_api_updates_with_seconds: %s %d", get_entity_id().c_str(), seconds);
-  uint32_t delayTime = seconds * 1000000;
-  ignore_update_until_ = micros() + delayTime;
+  uint32_t delay_time = seconds * 1000000;
+  ignore_update_until_ = micros() + delay_time;
 }
 }  // namespace homeassistant
 }  // namespace esphome
