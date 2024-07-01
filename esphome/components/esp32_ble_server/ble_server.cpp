@@ -18,7 +18,7 @@ namespace esphome {
 namespace esp32_ble_server {
 
 Trigger<std::string> *BLEServerAutomationInterface::create_on_write_trigger(BLECharacteristic *characteristic) {
-  Trigger<std::string> *on_write_trigger = new Trigger<std::string>();
+  Trigger<std::string> *on_write_trigger = new Trigger<std::string>();  // NOLINT(cppcoreguidelines-owning-memory)
   characteristic->on_write([on_write_trigger](const std::vector<uint8_t> &data) {
     std::string value(data.begin(), data.end());
     on_write_trigger->trigger(value);
@@ -151,8 +151,8 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
     ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", uuid.to_string().c_str());
     return nullptr;
   }
-  BLEService *service =
-      new BLEService(uuid, num_handles, inst_id, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+  BLEService *service =  // NOLINT(cppcoreguidelines-owning-memory)
+      new BLEService(uuid, num_handles, inst_id, advertise);
   this->services_.emplace(BLEServer::get_service_key(uuid, inst_id), service);
   if (this->parent_->is_active() && this->registered_) {
     service->do_create(this);
