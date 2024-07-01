@@ -15,8 +15,8 @@ DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@frankiboy1"]
 
 CONF_DATAPOINT_HIDDEN = "datapoint_hidden"
-CONF_DATAPOINT_HIDDEN_INIT = "init"
-CONF_DATAPOINT_HIDDEN_INIT_VALUE = "value"
+CONF_INIT = "init"
+CONF_VALUE = "value"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 
 TuyaNumber = tuya_ns.class_("TuyaNumber", number.Number, cg.Component)
@@ -50,11 +50,11 @@ CONFIG_SCHEMA = cv.All(
                         cv.Required(CONF_DATAPOINT_TYPE): cv.enum(
                             DATAPOINT_TYPES, lower=True
                         ),
-                        cv.Optional(CONF_DATAPOINT_HIDDEN_INIT): cv.All(
+                        cv.Optional(CONF_INIT): cv.All(
                             cv.Schema(
                                 {
                                     cv.Required(
-                                        CONF_DATAPOINT_HIDDEN_INIT_VALUE
+                                        CONF_VALUE
                                     ): cv.float_
                                 }
                             )
@@ -87,9 +87,9 @@ async def to_code(config):
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
         cg.add(var.set_datapoint_type(hidden_config[CONF_DATAPOINT_TYPE]))
-        if hidden_init_config := hidden_config.get(CONF_DATAPOINT_HIDDEN_INIT):
+        if hidden_init_config := hidden_config.get(CONF_INIT):
             cg.add(
                 var.set_datapoint_restore_value(
-                    hidden_init_config[CONF_DATAPOINT_HIDDEN_INIT_VALUE]
+                    hidden_init_config[CONF_VALUE]
                 )
             )
