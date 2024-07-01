@@ -27,6 +27,7 @@ DATAPOINT_TYPES = {
     "enum": TuyaDatapointType.ENUM,
 }
 
+
 def validate_min_max(config):
     if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
         raise cv.Invalid("max_value must be greater than min_value")
@@ -44,15 +45,23 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_STEP): cv.positive_float,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
             cv.Optional(CONF_DATAPOINT_HIDDEN): cv.All(
-                cv.Schema({
-                    cv.Required(CONF_DATAPOINT_TYPE): cv.enum(DATAPOINT_TYPES, lower=True),
-                    cv.Optional(CONF_DATAPOINT_HIDDEN_INIT): cv.All(
-                        cv.Schema({
-                            cv.Required(CONF_DATAPOINT_HIDDEN_INIT_VALUE): cv.float_
-                        })
-                    )
-                })
-            )
+                cv.Schema(
+                    {
+                        cv.Required(CONF_DATAPOINT_TYPE): cv.enum(
+                            DATAPOINT_TYPES, lower=True
+                        ),
+                        cv.Optional(CONF_DATAPOINT_HIDDEN_INIT): cv.All(
+                            cv.Schema(
+                                {
+                                    cv.Required(
+                                        CONF_DATAPOINT_HIDDEN_INIT_VALUE
+                                        ): cv.float_
+                                }
+                            )
+                        ),
+                    }
+                )
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
