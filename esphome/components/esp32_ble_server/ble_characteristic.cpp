@@ -84,10 +84,10 @@ void BLECharacteristic::set_value(bool &data) {
   this->set_value(temp, 1);
 }
 
-void BLECharacteristic::notify(bool notification) {
-  if (!notification) {
-    ESP_LOGW(TAG, "notification=false is not yet supported");
-    // TODO: Handle when notification=false
+void BLECharacteristic::notify(bool require_ack) {
+  if (require_ack) {
+    ESP_LOGW(TAG, "require_ack=true is not yet supported (i.e. INDICATE is not yet supported)");
+    // TODO: Handle when require_ack=true
   }
   if (this->service_->get_server()->get_connected_client_count() == 0)
     return;

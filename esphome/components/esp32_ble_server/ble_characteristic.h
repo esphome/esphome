@@ -45,7 +45,8 @@ class BLECharacteristic {
   void set_write_property(bool value);
   void set_write_no_response_property(bool value);
 
-  void notify(bool notification = true);
+  void indicate() { this->notify(true); }
+  void notify(bool require_ack = false);
 
   void do_create(BLEService *service);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
