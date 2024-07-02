@@ -12,9 +12,8 @@ microphone:
 micro_wake_word:
   on_wake_word_detected:
     - logger.log: "Wake word detected"
-  vad:
   models:
     - model: hey_jarvis
       probability_cutoff: 0.7
     - model: okay_nabu
-      sliding_window_average_size: 5
+      sliding_window_size: 5
