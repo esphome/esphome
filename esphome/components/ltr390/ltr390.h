@@ -51,7 +51,8 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
 
   void set_als_gain_value(LTR390GAIN gain) { this->gain_als_ = gain; }
   void set_uv_gain_value(LTR390GAIN gain) { this->gain_uv_ = gain; }
-  void set_res_value(LTR390RESOLUTION res) { this->res_ = res; }
+  void set_als_res_value(LTR390RESOLUTION res) { this->res_als_ = res; }
+  void set_uv_res_value(LTR390RESOLUTION res) { this->res_uv_ = res; }
   void set_wfac_value(float wfac) { this->wfac_ = wfac; }
 
   void set_light_sensor(sensor::Sensor *light_sensor) { this->light_sensor_ = light_sensor; }
@@ -70,11 +71,12 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
   bool reading_;
 
   // a list of modes and corresponding read functions
-  std::vector<std::tuple<LTR390MODE, LTR390GAIN, std::function<void()>>> mode_gain_funcs_;
+  std::vector<std::tuple<LTR390MODE, std::function<void()>>> mode_funcs_;
 
   LTR390GAIN gain_als_;
   LTR390GAIN gain_uv_;
-  LTR390RESOLUTION res_;
+  LTR390RESOLUTION res_als_;
+  LTR390RESOLUTION res_uv_;
   float sensitivity_uv_;
   float wfac_;
 

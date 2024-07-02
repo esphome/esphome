@@ -85,7 +85,15 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
             ),
-            cv.Optional(CONF_RESOLUTION, default=20): cv.enum(RES_OPTIONS),
+            cv.Optional(CONF_RESOLUTION, default=20): cv.Any(
+                cv.enum(RES_OPTIONS),
+                cv.Schema(
+                    {
+                        cv.Required(CONF_AMBIENT_LIGHT): cv.enum(RES_OPTIONS),
+                        cv.Required(CONF_UV): cv.enum(RES_OPTIONS),
+                    }
+                ),
+            ),
             cv.Optional(CONF_WINDOW_CORRECTION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
@@ -109,7 +117,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_res_value(config[CONF_RESOLUTION]))
     cg.add(var.set_wfac_value(config[CONF_WINDOW_CORRECTION_FACTOR]))
 
     for key, funcName in TYPES.items():
@@ -124,3 +131,11 @@ async def to_code(config):
     else:
         cg.add(var.set_als_gain_value(gain_value))
         cg.add(var.set_uv_gain_value(gain_value))
+
+    res_value = config[CONF_RESOLUTION]
+    if isinstance(res_value, dict):
+        cg.add(var.set_als_res_value(res_value[CONF_AMBIENT_LIGHT]))
+        cg.add(var.set_uv_res_value(res_value[CONF_UV]))
+    else:
+        cg.add(var.set_als_res_value(res_value))
+        cg.add(var.set_uv_res_value(res_value))
