@@ -93,7 +93,7 @@ std::string to_string(long double value) { return str_snprintf("%Lf", 32, value)
 // Mathematics
 
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
-uint8_t crc8(uint8_t *data, uint8_t len) {
+uint8_t crc8(const uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
   while ((len--) != 0u) {
