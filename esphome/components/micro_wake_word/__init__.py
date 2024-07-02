@@ -333,7 +333,7 @@ VAD_MODEL_SCHEMA = MODEL_SCHEMA.extend(
         {
             cv.Optional(
                 CONF_MODEL,
-                default="https://github.com/kahrendt/microWakeWord/releases/download/v2_models/vad.json",
+                default="vad",
             ): MODEL_SOURCE_SCHEMA,
         }
     )

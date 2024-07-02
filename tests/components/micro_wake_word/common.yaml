@@ -12,6 +12,7 @@ microphone:
 micro_wake_word:
   on_wake_word_detected:
     - logger.log: "Wake word detected"
+  vad:
   models:
     - model: hey_jarvis
       probability_cutoff: 0.7
