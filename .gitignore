@@ -130,3 +130,10 @@ sdkconfig.*
 !sdkconfig.defaults
 
 .tests/
+/.vs/ESPHome_fork/v16/Browse.VC.db
+/.vs/ESPHome_fork/v16/Browse.VC.db-shm
+/.vs/ESPHome_fork/v16/Browse.VC.db-wal
+/.vs/ESPHome_fork/v16/Browse.VC.opendb
+/.vs/ProjectSettings.json
+/.vs/slnx.sqlite
+/.vs/VSWorkspaceState.json
