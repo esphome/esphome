@@ -10,12 +10,9 @@
 namespace esphome {
 namespace esp32_ble {
 
-static const char *const TAG = "esp32_ble";
+static const char *const TAG = "esp32_ble.advertising";
 
-static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
-    .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = {0x4C, 0x00}, .beacon_type = {0x02, 0x15}};
-
-BLEAdvertising::BLEAdvertising() {
+BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;
   this->advertising_data_.include_txpower = true;
@@ -67,7 +64,7 @@ void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
   }
 }
 
-void BLEAdvertising::start() {
+esp_err_t BLEAdvertising::services_advertisement_() {
   int num_services = this->advertising_uuids_.size();
   if (num_services == 0) {
     this->advertising_data_.service_uuid_len = 0;
@@ -90,8 +87,8 @@ void BLEAdvertising::start() {
   this->advertising_data_.include_txpower = !this->scan_response_;
   err = esp_ble_gap_config_adv_data(&this->advertising_data_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Advertising): %d", err);
-    return;
+    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Advertising): %s", esp_err_to_name(err));
+    return err;
   }
 
   if (this->scan_response_) {
@@ -104,8 +101,8 @@ void BLEAdvertising::start() {
     this->scan_response_data_.flag = 0;
     err = esp_ble_gap_config_adv_data(&this->scan_response_data_);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Scan response): %d", err);
-      return;
+      ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Scan response): %s", esp_err_to_name(err));
+      return err;
     }
   }
 
@@ -116,8 +113,18 @@ void BLEAdvertising::start() {
 
   err = esp_ble_gap_start_advertising(&this->advertising_params_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_start_advertising failed: %d", err);
-    return;
+    ESP_LOGE(TAG, "esp_ble_gap_start_advertising failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  return ESP_OK;
+}
+
+void BLEAdvertising::start() {
+  if (this->current_adv_index_ == -1) {
+    this->services_advertisement_();
+  } else {
+    this->raw_advertisements_callbacks_[this->current_adv_index_](true);
   }
 }
 
@@ -127,23 +134,29 @@ void BLEAdvertising::stop() {
     ESP_LOGE(TAG, "esp_ble_gap_stop_advertising failed: %d", err);
     return;
   }
+  if (this->current_adv_index_ != -1) {
+    this->raw_advertisements_callbacks_[this->current_adv_index_](false);
+  }
 }
 
-void BLEAdvertising::set_ibeacon_data(std::array<uint8_t, 16> uuid, uint16_t major, uint16_t minor,
-                                      int8_t measured_power) {
-  esp_ble_ibeacon_t ibeacon_adv_data;
-  memcpy(&ibeacon_adv_data.ibeacon_head, &IBEACON_COMMON_HEAD, sizeof(esp_ble_ibeacon_head_t));
-  memcpy(&ibeacon_adv_data.ibeacon_vendor.proximity_uuid, uuid.data(),
-         sizeof(ibeacon_adv_data.ibeacon_vendor.proximity_uuid));
-  ibeacon_adv_data.ibeacon_vendor.minor = minor;
-  ibeacon_adv_data.ibeacon_vendor.major = major;
-  ibeacon_adv_data.ibeacon_vendor.measured_power = measured_power;
-
-  esp_err_t err = esp_ble_gap_config_adv_data_raw((uint8_t *) &ibeacon_adv_data, sizeof(ibeacon_adv_data));
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data_raw failed: %d", err);
+void BLEAdvertising::loop() {
+  if (this->raw_advertisements_callbacks_.empty()) {
     return;
   }
+  const uint32_t now = millis();
+  if (now - this->last_advertisement_time_ > this->advertising_cycle_time_) {
+    this->stop();
+    this->current_adv_index_ += 1;
+    if (this->current_adv_index_ >= this->raw_advertisements_callbacks_.size()) {
+      this->current_adv_index_ = -1;
+    }
+    this->start();
+    this->last_advertisement_time_ = now;
+  }
+}
+
+void BLEAdvertising::register_raw_advertisement_callback(std::function<void(bool)> &&callback) {
+  this->raw_advertisements_callbacks_.push_back(std::move(callback));
 }
 
 }  // namespace esp32_ble

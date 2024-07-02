@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
                 min=-128, max=0
             ),
             cv.Optional(CONF_TX_POWER, default="3dBm"): cv.All(
-                cv.decibel, cv.one_of(-12, -9, -6, -3, 0, 3, 6, 9, int=True)
+                cv.decibel, cv.enum(esp32_ble.TX_POWER_LEVELS, int=True)
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
