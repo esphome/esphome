@@ -100,10 +100,9 @@ void MicroWakeWord::add_wake_word_model(const uint8_t *model_start, float probab
 }
 
 #ifdef USE_MWW_VAD
-void MicroWakeWord::add_vad_model(const uint8_t *model_start, float upper_threshold, float lower_threshold,
-                                  size_t sliding_window_size, size_t tensor_arena_size) {
-  this->vad_model_ =
-      new VADModel(model_start, upper_threshold, lower_threshold, sliding_window_size, tensor_arena_size);
+void MicroWakeWord::add_vad_model(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size,
+                                  size_t tensor_arena_size) {
+  this->vad_model_ = new VADModel(model_start, probability_cutoff, sliding_window_size, tensor_arena_size);
 }
 #endif
 
@@ -123,7 +122,7 @@ void MicroWakeWord::loop() {
       }
       break;
     case State::DETECTING_WAKE_WORD:
-      while (!this->is_enough_()) {
+      while (!this->has_enough_samples_()) {
         this->read_microphone_();
       }
       this->update_model_probabilities_();
@@ -363,14 +362,14 @@ bool MicroWakeWord::detect_wake_words_() {
   return false;
 }
 
-bool MicroWakeWord::is_enough_() {
+bool MicroWakeWord::has_enough_samples_() {
   return this->ring_buffer_->available() >=
          (this->features_step_size_ * (AUDIO_SAMPLE_FREQUENCY / 1000)) * sizeof(int16_t);
 }
 
 bool MicroWakeWord::generate_features_for_window_(int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
   // Ensure we have enough new audio samples in the ring buffer for a full window
-  if (!this->is_enough_()) {
+  if (!this->has_enough_samples_()) {
     return false;
   }
 

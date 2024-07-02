@@ -42,6 +42,7 @@ class StreamingModel {
  protected:
   uint8_t current_stride_step_{0};
 
+  float probability_cutoff_;
   size_t sliding_window_size_;
   size_t last_n_index_{0};
   size_t tensor_arena_size_;
@@ -61,28 +62,28 @@ class WakeWordModel : public StreamingModel {
                 const std::string &wake_word, size_t tensor_arena_size);
 
   void log_model_config() override;
+
+  /// @brief Checks for the wake word by comparing the mean probability in the sliding window with the probability
+  /// cutoff
+  /// @return True if wake word is detected, false otherwise
   bool determine_detected() override;
 
   std::string get_wake_word() { return this->wake_word_; }
 
  protected:
-  float probability_cutoff_;
   std::string wake_word_;
 };
 
 class VADModel : public StreamingModel {
  public:
-  VADModel(const uint8_t *model_start, float upper_threshold, float lower_threshold, size_t sliding_window_size,
-           size_t tensor_arena_size);
+  VADModel(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size, size_t tensor_arena_size);
 
   void log_model_config() override;
-  bool determine_detected() override;
 
- protected:
-  uint8_t clear_countdown_{10};
-  bool vad_state_{false};
-  float upper_threshold_;
-  float lower_threshold_;
+  /// @brief Checks for voice activity by comparing the max probability in the sliding window with the probability
+  /// cutoff
+  /// @return True if voice activity is detected, false otherwise
+  bool determine_detected() override;
 };
 
 }  // namespace micro_wake_word

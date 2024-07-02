@@ -27,8 +27,7 @@ void WakeWordModel::log_model_config() {
 
 void VADModel::log_model_config() {
   ESP_LOGCONFIG(TAG, "  - VAD Model");
-  ESP_LOGCONFIG(TAG, "    Upper threshold: %.3f", this->upper_threshold_);
-  ESP_LOGCONFIG(TAG, "    Lower threshold: %.3f", this->lower_threshold_);
+  ESP_LOGCONFIG(TAG, "    Probability cutoff: %.3f", this->probability_cutoff_);
   ESP_LOGCONFIG(TAG, "    Sliding window size: %d", this->sliding_window_size_);
 }
 
@@ -68,6 +67,7 @@ bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver)
     }
 
     // Verify input tensor matches expected values
+    // Dimension 3 will represent the first layer stride, so skip it may vary
     TfLiteTensor *input = this->interpreter_->input(0);
     if ((input->dims->size != 3) || (input->dims->data[0] != 1) ||
         (input->dims->data[2] != PREPROCESSOR_FEATURE_SIZE)) {
@@ -90,6 +90,8 @@ bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver)
       ESP_LOGE(TAG, "Streaming model tensor output is not uint8.");
       return false;
     }
+
+    ESP_LOGD(TAG, "Used Arena Bytes: %d", this->interpreter_->arena_used_bytes());
   }
 
   return true;
@@ -156,11 +158,10 @@ WakeWordModel::WakeWordModel(const uint8_t *model_start, float probability_cutof
   this->tensor_arena_size_ = tensor_arena_size;
 };
 
-VADModel::VADModel(const uint8_t *model_start, float upper_threshold, float lower_threshold, size_t sliding_window_size,
+VADModel::VADModel(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size,
                    size_t tensor_arena_size) {
   this->model_start_ = model_start;
-  this->upper_threshold_ = upper_threshold;
-  this->lower_threshold_ = lower_threshold;
+  this->probability_cutoff_ = probability_cutoff;
   this->sliding_window_size_ = sliding_window_size;
   this->recent_streaming_probabilities_.resize(sliding_window_size, 0);
   this->tensor_arena_size_ = tensor_arena_size;
@@ -185,29 +186,12 @@ bool WakeWordModel::determine_detected() {
 }
 
 bool VADModel::determine_detected() {
-  int32_t sum = 0;
+  uint8_t max = 0;
   for (auto &prob : this->recent_streaming_probabilities_) {
-    sum += prob;
+    max = std::max(prob, max);
   }
 
-  float sliding_window_average = static_cast<float>(sum) / static_cast<float>(255 * this->sliding_window_size_);
-
-  if (sliding_window_average > this->upper_threshold_) {
-    this->vad_state_ = true;
-    this->clear_countdown_ = 10;
-
-    return true;
-  } else if ((this->vad_state_) && (sliding_window_average > this->lower_threshold_)) {
-    return true;
-  } else {
-    if (this->clear_countdown_ > 0) {
-      --this->clear_countdown_;
-      return true;
-    }
-  }
-
-  this->vad_state_ = false;
-  return false;
+  return max > this->probability_cutoff_;
 }
 
 }  // namespace micro_wake_word

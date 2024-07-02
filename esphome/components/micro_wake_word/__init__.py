@@ -30,7 +30,6 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_RAW_DATA_ID,
-    CONF_THRESHOLD,
     TYPE_GIT,
     TYPE_LOCAL,
 )
@@ -42,13 +41,15 @@ CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
 DOMAIN = "micro_wake_word"
 
+
+CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_MODELS = "models"
+CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_AVERAGE_SIZE = "sliding_window_average_size"
-CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
-CONF_VAD_MODEL = "vad_model"
-CONF_UPPER = "upper"
-CONF_LOWER = "lower"
+CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
+CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
+CONF_VAD = "vad"
 
 TYPE_HTTP = "http"
 
@@ -103,14 +104,13 @@ GIT_SCHEMA = cv.All(
     _process_git_source,
 )
 
-KEY_WAKE_WORD = "wake_word"
+
 KEY_AUTHOR = "author"
-KEY_WEBSITE = "website"
-KEY_VERSION = "version"
 KEY_MICRO = "micro"
 KEY_MINIMUM_ESPHOME_VERSION = "minimum_esphome_version"
-CONF_FEATURE_STEP_SIZE = "feature_step_size"
-CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
+KEY_VERSION = "version"
+KEY_WAKE_WORD = "wake_word"
+KEY_WEBSITE = "website"
 
 MANIFEST_SCHEMA_V1 = cv.Schema(
     {
@@ -145,13 +145,10 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
                 cv.Required(CONF_FEATURE_STEP_SIZE): cv.int_range(min=0, max=30),
                 cv.Required(CONF_TENSOR_ARENA_SIZE): cv.int_,
                 cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
-                cv.Required(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
-                cv.Optional(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
+                cv.Required(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
+                cv.Required(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
                     cv.version_number, cv.validate_esphome_version
                 ),
-                # cv.Required(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
-                #     cv.version_number, cv.validate_esphome_version
-                # ),
             }
         ),
     }
@@ -165,6 +162,24 @@ def _compute_local_file_path(config: dict) -> Path:
     key = h.hexdigest()[:8]
     base_dir = external_files.compute_local_file_dir(DOMAIN)
     return base_dir / key
+
+
+def _convert_manifest_v1_to_v2(v1_manifest):
+    v2_manifest = v1_manifest.copy()
+
+    v2_manifest[KEY_VERSION] = 2
+    v2_manifest[KEY_MICRO][CONF_SLIDING_WINDOW_SIZE] = v1_manifest[KEY_MICRO][
+        CONF_SLIDING_WINDOW_AVERAGE_SIZE
+    ]
+    del v2_manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE]
+    v2_manifest[KEY_MICRO][
+        CONF_TENSOR_ARENA_SIZE
+    ] = 45672  # Original Inception-based V1 manifest models require a minimum of 45672 bytes
+    v2_manifest[KEY_MICRO][
+        CONF_FEATURE_STEP_SIZE
+    ] = 20  # Original Inception-based V1 manifest models use a 20 ms feature step size
+
+    return v2_manifest
 
 
 def _download_file(url: str, path: Path) -> bytes:
@@ -305,29 +320,33 @@ MODEL_SOURCE_SCHEMA = cv.Any(
 
 MODEL_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
+        cv.Optional(CONF_MODEL): MODEL_SOURCE_SCHEMA,
         cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
-        cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+        cv.Optional(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     }
 )
 
-VAD_MODEL_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
-        cv.Optional(CONF_THRESHOLD, default=0.5): cv.Any(
-            cv.percentage,
-            cv.Schema(
-                {
-                    cv.Required(CONF_UPPER): cv.percentage,
-                    cv.Required(CONF_LOWER): cv.percentage,
-                }
-            ),
-        ),
-        cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
-        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-    }
+# Provide a default VAD model that could be overridden
+VAD_MODEL_SCHEMA = MODEL_SCHEMA.extend(
+    cv.Schema(
+        {
+            cv.Optional(
+                CONF_MODEL,
+                default="/Users/kahrendt/Documents/Hobbies/Programming/Git-Repositories/microWakeWord/notebooks/trained_models/new_vad7/tflite_stream_state_internal_quant/vad_model.json",
+            ): MODEL_SOURCE_SCHEMA,
+        }
+    )
 )
+
+
+def _maybe_empty_vad_schema(value):
+    # Idea borrowed from uart/__init__.py's ``maybe_empty_debug`` function. Accessed 2 July 2024.
+    # Loads a default VAD model without any parameters overridden.
+    if value is None:
+        value = {}
+    return VAD_MODEL_SCHEMA(value)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -338,7 +357,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_VAD_MODEL): VAD_MODEL_SCHEMA,
+            cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_esp_idf,
@@ -370,6 +389,9 @@ def _load_model_data(manifest_path: Path):
     with open(model_path, "rb") as f:
         model = f.read()
 
+    if manifest_version == 1:
+        manifest = _convert_manifest_v1_to_v2(manifest)
+
     return manifest, model
 
 
@@ -399,61 +421,11 @@ async def to_code(config):
 
     features_step_size = None
 
-    if vad_model := config.get(CONF_VAD_MODEL):
+    if vad_model := config.get(CONF_VAD):
         cg.add_define("USE_MWW_VAD")
-        model_config = vad_model.get(CONF_MODEL)
-        data = []
-        if model_config[CONF_TYPE] == TYPE_GIT:
-            # compute path to model file
-            key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
-            base_dir = Path(CORE.data_dir) / DOMAIN
-            h = hashlib.new("sha256")
-            h.update(key.encode())
-            file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
 
-        elif model_config[CONF_TYPE] == TYPE_LOCAL:
-            file = Path(model_config[CONF_PATH])
-
-        elif model_config[CONF_TYPE] == TYPE_HTTP:
-            file = _compute_local_file_path(model_config) / "manifest.json"
-
-        else:
-            raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
-
-        manifest, data = _load_model_data(file)
-
-        rhs = [HexInt(x) for x in data]
-        prog_arr = cg.progmem_array(vad_model[CONF_RAW_DATA_ID], rhs)
-
-        sliding_window_average_size = vad_model.get(
-            CONF_SLIDING_WINDOW_AVERAGE_SIZE,
-            manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
-        )
-
-        if isinstance(vad_model[CONF_THRESHOLD], float):
-            upper_threshold = vad_model[CONF_THRESHOLD]
-            lower_threshold = vad_model[CONF_THRESHOLD]
-        else:
-            upper_threshold = vad_model[CONF_THRESHOLD][CONF_UPPER]
-            lower_threshold = vad_model[CONF_THRESHOLD][CONF_LOWER]
-
-        arena_size = manifest[KEY_MICRO].get(
-            CONF_TENSOR_ARENA_SIZE, 22000
-        )  # Original V1 manifest model require 22000 bytes
-
-        cg.add(
-            var.add_vad_model(
-                prog_arr,
-                upper_threshold,
-                lower_threshold,
-                sliding_window_average_size,
-                arena_size,  # Tensor arena size for VAD model
-            )
-        )
-
-        features_step_size = manifest[KEY_MICRO].get(
-            CONF_FEATURE_STEP_SIZE, 20
-        )  # V1 manifest models used a 20 ms step
+        # Use the general model loading code for the VAD codegen
+        config[CONF_MODELS].append(vad_model)
 
     for model_parameters in config[CONF_MODELS]:
         model_config = model_parameters.get(CONF_MODEL)
@@ -483,28 +455,32 @@ async def to_code(config):
         probability_cutoff = model_parameters.get(
             CONF_PROBABILITY_CUTOFF, manifest[KEY_MICRO][CONF_PROBABILITY_CUTOFF]
         )
-        sliding_window_average_size = model_parameters.get(
-            CONF_SLIDING_WINDOW_AVERAGE_SIZE,
-            manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
+        sliding_window_size = model_parameters.get(
+            CONF_SLIDING_WINDOW_SIZE,
+            manifest[KEY_MICRO][CONF_SLIDING_WINDOW_SIZE],
         )
 
-        arena_size = manifest[KEY_MICRO].get(
-            CONF_TENSOR_ARENA_SIZE, 45672
-        )  # Original Inception-based V1 manifest models require 45672 bytes
-
-        cg.add(
-            var.add_wake_word_model(
-                prog_arr,
-                probability_cutoff,
-                sliding_window_average_size,
-                manifest[KEY_WAKE_WORD],
-                arena_size,
+        if manifest[KEY_WAKE_WORD] == "vad":
+            cg.add(
+                var.add_vad_model(
+                    prog_arr,
+                    probability_cutoff,
+                    sliding_window_size,
+                    manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE],
+                )
             )
-        )
+        else:
+            cg.add(
+                var.add_wake_word_model(
+                    prog_arr,
+                    probability_cutoff,
+                    sliding_window_size,
+                    manifest[KEY_WAKE_WORD],
+                    manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE],
+                )
+            )
 
-        model_step_size = manifest[KEY_MICRO].get(
-            CONF_FEATURE_STEP_SIZE, 20
-        )  # V1 manifest models used a 20 ms step
+        model_step_size = manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]
 
         if features_step_size is None:
             features_step_size = model_step_size

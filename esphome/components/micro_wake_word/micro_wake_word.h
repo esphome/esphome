@@ -62,8 +62,8 @@ class MicroWakeWord : public Component {
                            const std::string &wake_word, size_t tensor_arena_size);
 
 #ifdef USE_MWW_VAD
-  void add_vad_model(const uint8_t *model_start, float upper_threshold, float lower_threshold,
-                     size_t sliding_window_size, size_t tensor_arena_size);
+  void add_vad_model(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size,
+                     size_t tensor_arena_size);
 #endif
 
  protected:
@@ -102,7 +102,9 @@ class MicroWakeWord : public Component {
 
   void set_state_(State state);
 
-  bool is_enough_();
+  /// @brief Tests if there are enough samples in the ring buffer to generate new features.
+  /// @return True if enough samples, false otherwise.
+  bool has_enough_samples_();
 
   /** Reads audio from microphone into the ring buffer
    *
