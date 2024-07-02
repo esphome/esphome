@@ -10,7 +10,9 @@
 #include <freertos/task.h>
 #include <nvs_flash.h>
 #include <cstring>
+
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ARDUINO
 #include <esp32-hal-bt.h>
@@ -20,8 +22,6 @@ namespace esphome {
 namespace esp32_ble_beacon {
 
 static const char *const TAG = "esp32_ble_beacon";
-
-#define ENDIAN_CHANGE_U16(x) ((((x) & 0xFF00) >> 8) + (((x) & 0xFF) << 8))
 
 static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
     .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = {0x4C, 0x00}, .beacon_type = {0x02, 0x15}};
@@ -71,8 +71,8 @@ void ESP32BLEBeacon::on_advertise_() {
   memcpy(&ibeacon_adv_data.ibeacon_head, &IBEACON_COMMON_HEAD, sizeof(esp_ble_ibeacon_head_t));
   memcpy(&ibeacon_adv_data.ibeacon_vendor.proximity_uuid, this->uuid_.data(),
          sizeof(ibeacon_adv_data.ibeacon_vendor.proximity_uuid));
-  ibeacon_adv_data.ibeacon_vendor.minor = ENDIAN_CHANGE_U16(this->minor_);
-  ibeacon_adv_data.ibeacon_vendor.major = ENDIAN_CHANGE_U16(this->major_);
+  ibeacon_adv_data.ibeacon_vendor.minor = byteswap(this->minor_);
+  ibeacon_adv_data.ibeacon_vendor.major = byteswap(this->major_);
   ibeacon_adv_data.ibeacon_vendor.measured_power = static_cast<uint8_t>(this->measured_power_);
 
   ESP_LOGD(TAG, "Setting BLE TX power");
