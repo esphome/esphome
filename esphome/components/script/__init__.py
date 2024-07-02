@@ -88,7 +88,7 @@ def validate_parameter_name(value):
     raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
 
 
-ALLOWED_PARAM_TYPE_CHARSET = set("abcdefghijklmnopqrstuvwxyz0123456789_:*&[]")
+ALLOWED_PARAM_TYPE_CHARSET = set("abcdefghijklmnopqrstuvwxyz0123456789_:*&[]<>")
 
 
 def validate_parameter_type(value):
