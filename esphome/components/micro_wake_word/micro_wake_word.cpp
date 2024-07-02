@@ -298,20 +298,11 @@ void MicroWakeWord::unload_models_() {
 }
 
 void MicroWakeWord::update_model_probabilities_() {
-  static uint32_t count = 0;
-  static uint32_t start_time = millis();
-
   int8_t audio_features[PREPROCESSOR_FEATURE_SIZE];
-
-  static uint32_t preprocessor_running_total = 0;
-  uint32_t preprocessor_start = millis();
 
   if (!this->generate_features_for_window_(audio_features)) {
     return;
   }
-  ++count;
-
-  preprocessor_running_total += millis() - preprocessor_start;
 
   // Increase the counter since the last positive detection
   this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
@@ -323,15 +314,6 @@ void MicroWakeWord::update_model_probabilities_() {
 #ifdef USE_MWW_VAD
   this->vad_model_->perform_streaming_inference(audio_features);
 #endif
-
-  if (count >= 500) {
-    ESP_LOGD(TAG, "average time to process a sample is %.2f ms", (static_cast<float>(millis() - start_time) / count));
-    ESP_LOGD(TAG, "average preprocessor time to process a sample is %.2f ms",
-             (static_cast<float>(preprocessor_running_total) / count));
-    count = 0;
-    start_time = millis();
-    preprocessor_running_total = 0;
-  }
 }
 
 bool MicroWakeWord::detect_wake_words_() {

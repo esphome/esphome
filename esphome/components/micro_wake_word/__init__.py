@@ -333,7 +333,7 @@ VAD_MODEL_SCHEMA = MODEL_SCHEMA.extend(
         {
             cv.Optional(
                 CONF_MODEL,
-                default="/Users/kahrendt/Documents/Hobbies/Programming/Git-Repositories/microWakeWord/notebooks/trained_models/new_vad7/tflite_stream_state_internal_quant/vad_model.json",
+                default="https://github.com/kahrendt/microWakeWord/releases/download/v2_models/vad.json",
             ): MODEL_SOURCE_SCHEMA,
         }
     )

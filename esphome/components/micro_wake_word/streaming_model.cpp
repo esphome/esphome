@@ -90,8 +90,6 @@ bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver)
       ESP_LOGE(TAG, "Streaming model tensor output is not uint8.");
       return false;
     }
-
-    ESP_LOGD(TAG, "Used Arena Bytes: %d", this->interpreter_->arena_used_bytes());
   }
 
   return true;
