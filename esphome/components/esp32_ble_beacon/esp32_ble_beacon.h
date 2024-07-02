@@ -11,7 +11,7 @@
 namespace esphome {
 namespace esp32_ble_beacon {
 
-struct esp_ble_ibeacon_head_t {
+using esp_ble_ibeacon_head_t = struct {
   uint8_t flags[3];
   uint8_t length;
   uint8_t type;
@@ -19,14 +19,14 @@ struct esp_ble_ibeacon_head_t {
   uint8_t beacon_type[2];
 } __attribute__((packed));
 
-struct esp_ble_ibeacon_vendor_t {
+using esp_ble_ibeacon_vendor_t = struct {
   uint8_t proximity_uuid[16];
   uint16_t major;
   uint16_t minor;
   uint8_t measured_power;
 } __attribute__((packed));
 
-struct esp_ble_ibeacon_t {
+using esp_ble_ibeacon_t = struct {
   esp_ble_ibeacon_head_t ibeacon_head;
   esp_ble_ibeacon_vendor_t ibeacon_vendor;
 } __attribute__((packed));
