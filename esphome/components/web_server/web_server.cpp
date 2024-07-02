@@ -401,7 +401,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #endif
 
 void WebServer::handle_states_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/json");
+  AsyncResponseStream *stream = request->beginResponseStream("application/json");
   StatesIterator states_it = StatesIterator(this);
   states_it.begin();
   optional<std::string> s;
