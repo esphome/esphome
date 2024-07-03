@@ -12,6 +12,7 @@ void HomeassistantSensor::setup() {
       this->entity_id_, this->attribute_, [this](const std::string &state) {
         if (this->handle_state(state.c_str())) {
           ESP_LOGD(TAG, "'%s': Got entity state %s", this->entity_id_.c_str(), state.c_str());
+          this->publish_state(NAN);
           return;
         }
         auto val = parse_number<float>(state);
