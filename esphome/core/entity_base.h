@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 #include "string_ref.h"
+#include "helpers.h"
 
 namespace esphome {
 
