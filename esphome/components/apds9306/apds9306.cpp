@@ -2,8 +2,8 @@
 // https://www.mouser.ca/datasheet/2/678/AVGO_S_A0002854364_1-2574547.pdf
 
 #include "apds9306.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace apds9306 {
@@ -87,11 +87,11 @@ void APDS9306::setup() {
   // Set to active mode
   APDS9306_WRITE_BYTE(APDS9306_MAIN_CTRL, 0x02);
 
-  ESP_LOGCONFIG(TAG, "setup complete");
+  ESP_LOGCONFIG(TAG, "APDS9306 setup complete");
 }
 
 void APDS9306::dump_config() {
-  LOG_SENSOR("", "apds9306", this);
+  LOG_SENSOR("", "APDS9306", this);
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
@@ -108,9 +108,9 @@ void APDS9306::dump_config() {
     }
   }
 
-  ESP_LOGCONFIG(TAG, "  Gain: %f", gain_val_[gain_]);
-  ESP_LOGCONFIG(TAG, "  Measurement rate: %f", measurement_time_[measurement_rate_]);
-  ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", bit_width_val_[bit_width_]);
+  ESP_LOGCONFIG(TAG, "  Gain: %u", AMBIENT_LIGHT_GAIN_VALUES[this->gain_]);
+  ESP_LOGCONFIG(TAG, "  Measurement rate: %u", MEASUREMENT_RATE_VALUES[this->measurement_rate_]);
+  ESP_LOGCONFIG(TAG, "  Measurement Resolution/Bit width: %d", MEASUREMENT_BIT_WIDTH_VALUES[this->bit_width_]);
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -140,7 +140,8 @@ void APDS9306::update() {
 
   uint32_t light_level = 0x00 | encode_uint24(als_data[2], als_data[1], als_data[0]);
 
-  float lux = (light_level / this->gain_val_[gain_]) * (100.0f / this->measurement_time_[measurement_rate_]);
+  float lux = (light_level / AMBIENT_LIGHT_GAIN_VALUES[this->gain_]) *
+              (100.0f / MEASUREMENT_RATE_VALUES[this->measurement_rate_]);
 
   ESP_LOGD(TAG, "Got illuminance=%.1flx from", lux);
   this->publish_state(lux);

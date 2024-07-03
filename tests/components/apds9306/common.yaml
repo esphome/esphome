@@ -8,5 +8,5 @@ sensor:
     name: "APDS9306 Light Level"
     gain: 3
     bit_width: 16
-    measurement_rate: 2000
+    measurement_rate: 2000ms
     update_interval: 60s

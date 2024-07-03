@@ -18,37 +18,47 @@ CONF_APDS9306_ID = "apds9306_id"
 CONF_BIT_WIDTH = "bit_width"
 CONF_MEASUREMENT_RATE = "measurement_rate"
 
+apds9306_ns = cg.esphome_ns.namespace("apds9306")
+APDS9306 = apds9306_ns.class_(
+    "APDS9306", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
+)
+
+MeasurementBitWidth = apds9306_ns.enum("MeasurementBitWidth")
+MeasurementRate = apds9306_ns.enum("MeasurementRate")
+AmbientLightGain = apds9306_ns.enum("AmbientLightGain")
+
 MEASUREMENT_BIT_WIDTHS = {
-    20: 0,
-    19: 1,
-    18: 2,
-    17: 3,
-    16: 4,
-    13: 5,
+    20: MeasurementBitWidth.MEASUREMENT_BIT_WIDTH_20,
+    19: MeasurementBitWidth.MEASUREMENT_BIT_WIDTH_19,
+    18: MeasurementBitWidth.MEASUREMENT_BIT_WIDTH_18,
+    17: MeasurementBitWidth.MEASUREMENT_BIT_WIDTH_17,
+    16: MeasurementBitWidth.MEASUREMENT_BIT_WIDTH_16,
+    13: MeasurementBitWidth.MEASUREMENT_BIT_WIDTH_13,
 }
 
 MEASUREMENT_RATES = {
-    25: 0,
-    50: 1,
-    100: 2,
-    200: 3,
-    500: 4,
-    1000: 5,
-    2000: 6,
+    25: MeasurementRate.MEASUREMENT_RATE_25,
+    50: MeasurementRate.MEASUREMENT_RATE_50,
+    100: MeasurementRate.MEASUREMENT_RATE_100,
+    200: MeasurementRate.MEASUREMENT_RATE_200,
+    500: MeasurementRate.MEASUREMENT_RATE_500,
+    1000: MeasurementRate.MEASUREMENT_RATE_1000,
+    2000: MeasurementRate.MEASUREMENT_RATE_2000,
 }
 
 AMBIENT_LIGHT_GAINS = {
-    1: 0,
-    3: 1,
-    6: 2,
-    9: 3,
-    18: 4,
+    1: AmbientLightGain.AMBIENT_LIGHT_GAIN_1,
+    3: AmbientLightGain.AMBIENT_LIGHT_GAIN_3,
+    6: AmbientLightGain.AMBIENT_LIGHT_GAIN_6,
+    9: AmbientLightGain.AMBIENT_LIGHT_GAIN_9,
+    18: AmbientLightGain.AMBIENT_LIGHT_GAIN_18,
 }
 
-apds9306_nds = cg.esphome_ns.namespace("apds9306")
-APDS9306 = apds9306_nds.class_(
-    "APDS9306", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
-)
+
+def _validate_measurement_rate(value):
+    value = cv.positive_time_period_milliseconds(value)
+    return cv.enum(MEASUREMENT_RATES, int=True)(value.total_milliseconds)
+
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -65,9 +75,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BIT_WIDTH, default="18"): cv.enum(
                 MEASUREMENT_BIT_WIDTHS, int=True
             ),
-            cv.Optional(CONF_MEASUREMENT_RATE, default="100"): cv.enum(
-                MEASUREMENT_RATES, int=True
-            ),
+            cv.Optional(
+                CONF_MEASUREMENT_RATE, default="100ms"
+            ): _validate_measurement_rate,
         }
     )
     .extend(cv.polling_component_schema("60s"))
