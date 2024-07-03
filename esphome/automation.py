@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
     CONF_TIME,
+    CONF_ON_UNAVAILABLE,
+    CONF_ON_UNKNOWN,
     CONF_UPDATE_INTERVAL,
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -207,12 +209,47 @@ async def for_condition_to_code(config, condition_id, template_arg, args):
     return var
 
 
+EntityBaseStateCondition = cg.esphome_ns.class_("EntityBaseStateCondition", Condition)
+EntityBaseStateTriggerUnavailable = cg.esphome_ns.class_(
+    "EntityBaseStateTriggerUnavailable", Trigger.template()
+)
+EntityBaseStateTriggerUnknown = cg.esphome_ns.class_(
+    "EntityBaseStateTriggerUnknown", Trigger.template()
+)
+
 ENTITY_STATE_CONDITION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(cg.esphome_ns.class_("EntityBase_State")),
     }
 )
-EntityBaseStateCondition = cg.esphome_ns.class_("EntityBaseStateCondition", Condition)
+
+ENTITY_STATE_TRIGGER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ON_UNAVAILABLE): validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    EntityBaseStateTriggerUnavailable
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_UNKNOWN): validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    EntityBaseStateTriggerUnknown
+                ),
+            }
+        ),
+    }
+)
+
+
+async def setup_entity_state_trigger(var, config):
+    for conf in config.get(CONF_ON_UNAVAILABLE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_UNKNOWN, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await build_automation(trigger, [], conf)
 
 
 @register_condition(

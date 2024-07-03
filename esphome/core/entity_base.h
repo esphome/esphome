@@ -107,8 +107,11 @@ class EntityBase_State {
   // assume that the new state is ENTITY_AVAILABLE
   bool handle_state(const char *input);
 
+  void add_on_state_callback(std::function<void()> &&f);
+
  protected:
   EntityStateType entity_state_{ENTITY_UNAVAILABLE};  ///< generic entity state
+  CallbackManager<void()> state_callback_{};
 };
 
 }  // namespace esphome

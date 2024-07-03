@@ -26,4 +26,26 @@ template<typename... Ts> class EntityBaseStateCondition : public Condition<Ts...
   bool unavailable_;
 };
 
+class EntityBaseStateTriggerUnavailable : public Trigger<> {
+ public:
+  EntityBaseStateTriggerUnavailable(EntityBase_State *parent) {
+    parent->add_on_state_callback([this, parent]() {
+      if (parent->is_unavailable()) {
+        this->trigger();
+      }
+    });
+  }
+};
+
+class EntityBaseStateTriggerUnknown : public Trigger<> {
+ public:
+  EntityBaseStateTriggerUnknown(EntityBase_State *parent) {
+    parent->add_on_state_callback([this, parent]() {
+      if (parent->is_unknown()) {
+        this->trigger();
+      }
+    });
+  }
+};
+
 }  // namespace esphome
