@@ -20,15 +20,15 @@ namespace esphome {
 namespace micro_wake_word {
 
 void WakeWordModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "  - Wake Word: %s", this->wake_word_.c_str());
-  ESP_LOGCONFIG(TAG, "    Probability cutoff: %.3f", this->probability_cutoff_);
-  ESP_LOGCONFIG(TAG, "    Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG, "    - Wake Word: %s", this->wake_word_.c_str());
+  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.3f", this->probability_cutoff_);
+  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
 }
 
 void VADModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "  - VAD Model");
-  ESP_LOGCONFIG(TAG, "    Probability cutoff: %.3f", this->probability_cutoff_);
-  ESP_LOGCONFIG(TAG, "    Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG, "    - VAD Model");
+  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.3f", this->probability_cutoff_);
+  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
 }
 
 bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver) {
