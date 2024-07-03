@@ -1,14 +1,6 @@
 #include "micro_wake_word.h"
 #include "streaming_model.h"
 
-/**
- * This is a workaround until we can figure out a way to get
- * the tflite-micro idf component code available in CI
- *
- * */
-//
-#ifndef CLANG_TIDY
-
 #ifdef USE_ESP_IDF
 
 #include "esphome/core/hal.h"
@@ -464,5 +456,3 @@ bool MicroWakeWord::register_streaming_ops_(tflite::MicroMutableOpResolver<20> &
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF
-
-#endif  // CLANG_TIDY

@@ -1,13 +1,5 @@
 #pragma once
 
-/**
- * This is a workaround until we can figure out a way to get
- * the tflite-micro idf component code available in CI
- *
- * */
-//
-#ifndef CLANG_TIDY
-
 #ifdef USE_ESP_IDF
 
 #include "preprocessor_settings.h"
@@ -182,5 +174,3 @@ template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, pub
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF
-
-#endif  // CLANG_TIDY

@@ -1,13 +1,5 @@
 #pragma once
 
-/**
- * This is a workaround until we can figure out a way to get
- * the tflite-micro idf component code available in CI
- *
- * */
-//
-#ifndef CLANG_TIDY
-
 #ifdef USE_ESP_IDF
 
 #include "preprocessor_settings.h"
@@ -68,7 +60,7 @@ class WakeWordModel : public StreamingModel {
   /// @return True if wake word is detected, false otherwise
   bool determine_detected() override;
 
-  std::string get_wake_word() { return this->wake_word_; }
+  const std::string &get_wake_word() const { return this->wake_word_; }
 
  protected:
   std::string wake_word_;
@@ -89,5 +81,4 @@ class VADModel : public StreamingModel {
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif
 #endif

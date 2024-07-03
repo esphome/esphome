@@ -1,11 +1,3 @@
-/**
- * This is a workaround until we can figure out a way to get
- * the tflite-micro idf component code available in CI
- *
- * */
-//
-#ifndef CLANG_TIDY
-
 #ifdef USE_ESP_IDF
 
 #include "streaming_model.h"
@@ -195,5 +187,4 @@ bool VADModel::determine_detected() {
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif
 #endif
