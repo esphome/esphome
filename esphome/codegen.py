@@ -75,6 +75,7 @@ from esphome.cpp_types import (  # noqa
     esphome_ns,
     App,
     EntityBase,
+    EntityBase_State,
     Component,
     ComponentPtr,
     PollingComponent,

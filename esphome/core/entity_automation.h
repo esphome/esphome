@@ -7,14 +7,13 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
-#include "homeassistant_cover.h"
+#include "esphome/core/entity_base.h"
 
 namespace esphome {
-namespace homeassistant {
 
-template<typename... Ts> class CoverCondition : public Condition<Ts...> {
+template<typename... Ts> class EntityBaseStateCondition : public Condition<Ts...> {
  public:
-  CoverCondition(HomeassistantCover *parent, bool unavailable) : parent_(parent), unavailable_(unavailable) {}
+  EntityBaseStateCondition(EntityBase_State *parent, bool unavailable) : parent_(parent), unavailable_(unavailable) {}
   bool check(Ts... x) override {
     if (this->unavailable_) {
       return this->parent_->is_unavailable();
@@ -23,9 +22,8 @@ template<typename... Ts> class CoverCondition : public Condition<Ts...> {
   }
 
  protected:
-  HomeassistantCover *parent_;
+  EntityBase_State *parent_;
   bool unavailable_;
 };
 
-}  // namespace homeassistant
 }  // namespace esphome

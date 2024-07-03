@@ -12,29 +12,22 @@ static const std::string CURRENT_POSITION = "current_position";
 using namespace esphome::cover;
 
 void HomeassistantCover::setup() {
-  this->is_unknown_ = true;
-  this->is_unavailable_ = true;
-
   // state
   api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, optional<std::string>(""), [this](const std::string &state) {
+        if (this->handle_state(state.c_str())) {
+          ESP_LOGD(TAG, "'%s': Got entity state %s", this->entity_id_.c_str(), state.c_str());
+          this->publish_state();
+          return;
+        }
+
         auto val = parse_cover(state.c_str());
-
-        this->is_unknown_ = false;
-        this->is_unavailable_ = false;
-
         if (val == PARSE_COVER_OPENING) {
           this->current_operation = COVER_OPERATION_OPENING;
         } else if (val == PARSE_COVER_CLOSING) {
           this->current_operation = COVER_OPERATION_CLOSING;
         } else {
           this->current_operation = COVER_OPERATION_IDLE;
-          if (val == PARSE_COVER_UNKNOWN) {
-            this->is_unknown_ = true;
-          } else if (val == PARSE_COVER_UNAVAILABLE) {
-            this->is_unknown_ = true;
-            this->is_unavailable_ = true;
-          }
         }
 
         ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), state.c_str());
@@ -82,6 +75,10 @@ void HomeassistantCover::control(const CoverCall &call) {
     ESP_LOGE(TAG, "API Server not connected");
     return;
   }
+  if (this->is_unavailable()) {
+    ESP_LOGE(TAG, "Entity has state unavailable");
+    return;
+  }
   api::HomeassistantServiceResponse resp;
   api::HomeassistantServiceMap entity_id_kv;
   entity_id_kv.key = "entity_id";
@@ -104,9 +101,6 @@ void HomeassistantCover::control(const CoverCall &call) {
 
   api::global_api_server->send_homeassistant_service_call(resp);
 }
-
-bool HomeassistantCover::is_unavailable() { return this->is_unavailable_; }
-bool HomeassistantCover::is_unknown() { return this->is_unknown_; }
 
 }  // namespace homeassistant
 }  // namespace esphome

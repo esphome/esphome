@@ -207,6 +207,30 @@ async def for_condition_to_code(config, condition_id, template_arg, args):
     return var
 
 
+ENTITY_STATE_CONDITION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(cg.esphome_ns.class_("EntityBase_State")),
+    }
+)
+EntityBaseStateCondition = cg.esphome_ns.class_("EntityBaseStateCondition", Condition)
+
+
+@register_condition(
+    "entity.is_unavailable", EntityBaseStateCondition, ENTITY_STATE_CONDITION_SCHEMA
+)
+async def entity_is_unavailable_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren, True)
+
+
+@register_condition(
+    "entity.is_unknown", EntityBaseStateCondition, ENTITY_STATE_CONDITION_SCHEMA
+)
+async def entity_is_unknown_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren, False)
+
+
 @register_action(
     "delay", DelayAction, cv.templatable(cv.positive_time_period_milliseconds)
 )

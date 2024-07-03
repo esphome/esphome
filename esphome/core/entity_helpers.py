@@ -1,5 +1,4 @@
 import esphome.final_validate as fv
-
 from esphome.const import CONF_ID
 
 
