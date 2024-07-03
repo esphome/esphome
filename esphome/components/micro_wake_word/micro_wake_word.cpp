@@ -88,8 +88,8 @@ void MicroWakeWord::setup() {
 void MicroWakeWord::add_wake_word_model(const uint8_t *model_start, float probability_cutoff,
                                         size_t sliding_window_average_size, const std::string &wake_word,
                                         size_t tensor_arena_size) {
-  this->wake_word_models_.push_back(
-      WakeWordModel(model_start, probability_cutoff, sliding_window_average_size, wake_word, tensor_arena_size));
+  this->wake_word_models_.emplace_back(model_start, probability_cutoff, sliding_window_average_size, wake_word,
+                                       tensor_arena_size);
 }
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
