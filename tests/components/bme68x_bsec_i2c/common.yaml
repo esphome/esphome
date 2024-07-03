@@ -3,11 +3,16 @@ i2c:
     scl: ${scl_pin}
     sda: ${sda_pin}
 
-bme68x_bsec:
-  address: 0x77
+bme68x_bsec_i2c:
+  address: 0x76
+  model: bme688
+  algorithm_output: classification
+  operating_age: 28d
+  sample_rate: LP
+  voltage: 3.3V
 
 sensor:
-  - platform: bme68x_bsec
+  - platform: bme68x_bsec_i2c
     temperature:
       name: BME68X Temperature
     pressure:
@@ -24,6 +29,6 @@ sensor:
       name: BME68X Breath eVOC
 
 text_sensor:
-  - platform: bme68x_bsec
+  - platform: bme68x_bsec_i2c
     iaq_accuracy:
       name: BME68X Accuracy
