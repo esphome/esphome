@@ -8,6 +8,7 @@ namespace homeassistant {
 static const char *const TAG = "homeassistant.cover";
 
 static const std::string CURRENT_POSITION = "current_position";
+static const std::string CURRENT_TILT_POSITION = "current_tilt_position";
 
 using namespace esphome::cover;
 
@@ -50,6 +51,22 @@ void HomeassistantCover::setup() {
         this->publish_state();
         return;
       });
+
+  // current_tilt_position
+  api::global_api_server->subscribe_home_assistant_state(
+      this->entity_id_, CURRENT_TILT_POSITION, [this](const std::string &state) {
+        auto val = parse_number<float>(state);
+        if (!val.has_value()) {
+          ESP_LOGW(TAG, "'%s': Can't convert '%s' to number!", this->entity_id_.c_str(), state.c_str());
+          this->tilt = NAN;
+          return;
+        }
+
+        ESP_LOGD(TAG, "'%s': Got tilt %.2f%%", this->entity_id_.c_str(), *val);
+        this->tilt = (*val) / 100;
+        this->publish_state();
+        return;
+      });
 }
 void HomeassistantCover::dump_config() {
   LOG_COVER("", "Homeassistant Cover", this);
@@ -61,7 +78,8 @@ cover::CoverTraits HomeassistantCover::get_traits() {
   auto traits = CoverTraits();
   traits.set_supports_stop(true);
   traits.set_supports_position(true);
-  traits.set_supports_tilt(false);
+  traits.set_supports_toggle(true);
+  traits.set_supports_tilt(true);
   traits.set_is_assumed_state(false);
   return traits;
 }
@@ -87,12 +105,21 @@ void HomeassistantCover::control(const CoverCall &call) {
 
   if (call.get_stop()) {
     resp.service = "cover.stop_cover";
+  } else if (call.get_toggle()) {
+    resp.service = "cover.toggle";
   } else if (call.get_position().has_value()) {
     auto pos = *call.get_position();
     resp.service = "cover.set_cover_position";
     api::HomeassistantServiceMap position_kv;
     position_kv.key = "position";
     position_kv.value = to_string(uint8_t(pos * 100));
+    resp.data.push_back(position_kv);
+  } else if (call.get_tilt().has_value()) {
+    auto tilt = *call.get_tilt();
+    resp.service = "cover.set_cover_tilt_position";
+    api::HomeassistantServiceMap position_kv;
+    position_kv.key = "tilt_position";
+    position_kv.value = to_string(uint8_t(tilt * 100));
     resp.data.push_back(position_kv);
   } else {
     ESP_LOGW(TAG, "control called with unknown action");
