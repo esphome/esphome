@@ -48,7 +48,7 @@ class StreamingModel {
   tflite::MicroAllocator *ma_{nullptr};
 };
 
-class WakeWordModel : public StreamingModel {
+class WakeWordModel final : public StreamingModel {
  public:
   WakeWordModel(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_average_size,
                 const std::string &wake_word, size_t tensor_arena_size);
@@ -66,7 +66,7 @@ class WakeWordModel : public StreamingModel {
   std::string wake_word_;
 };
 
-class VADModel : public StreamingModel {
+class VADModel final : public StreamingModel {
  public:
   VADModel(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size, size_t tensor_arena_size);
 
