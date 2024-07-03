@@ -61,7 +61,7 @@ class MicroWakeWord : public Component {
   void add_wake_word_model(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_average_size,
                            const std::string &wake_word, size_t tensor_arena_size);
 
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   void add_vad_model(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size,
                      size_t tensor_arena_size);
 #endif
@@ -76,7 +76,7 @@ class MicroWakeWord : public Component {
 
   std::vector<WakeWordModel> wake_word_models_;
 
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   VADModel *vad_model_;
 #endif
 

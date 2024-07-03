@@ -40,6 +40,7 @@
 #define USE_LOGGER
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
+#define USE_MICRO_WAKE_WORD_VAD
 #define USE_MQTT
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER

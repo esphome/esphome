@@ -156,15 +156,6 @@ WakeWordModel::WakeWordModel(const uint8_t *model_start, float probability_cutof
   this->tensor_arena_size_ = tensor_arena_size;
 };
 
-VADModel::VADModel(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size,
-                   size_t tensor_arena_size) {
-  this->model_start_ = model_start;
-  this->probability_cutoff_ = probability_cutoff;
-  this->sliding_window_size_ = sliding_window_size;
-  this->recent_streaming_probabilities_.resize(sliding_window_size, 0);
-  this->tensor_arena_size_ = tensor_arena_size;
-};
-
 bool WakeWordModel::determine_detected() {
   int32_t sum = 0;
   for (auto &prob : this->recent_streaming_probabilities_) {
@@ -182,6 +173,15 @@ bool WakeWordModel::determine_detected() {
   }
   return false;
 }
+
+VADModel::VADModel(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size,
+                   size_t tensor_arena_size) {
+  this->model_start_ = model_start;
+  this->probability_cutoff_ = probability_cutoff;
+  this->sliding_window_size_ = sliding_window_size;
+  this->recent_streaming_probabilities_.resize(sliding_window_size, 0);
+  this->tensor_arena_size_ = tensor_arena_size;
+};
 
 bool VADModel::determine_detected() {
   uint8_t max = 0;

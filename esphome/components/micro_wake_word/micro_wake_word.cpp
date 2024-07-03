@@ -60,7 +60,7 @@ void MicroWakeWord::dump_config() {
   for (auto &model : this->wake_word_models_) {
     model.log_model_config();
   }
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   this->vad_model_->log_model_config();
 #endif
 }
@@ -99,7 +99,7 @@ void MicroWakeWord::add_wake_word_model(const uint8_t *model_start, float probab
       WakeWordModel(model_start, probability_cutoff, sliding_window_average_size, wake_word, tensor_arena_size));
 }
 
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
 void MicroWakeWord::add_vad_model(const uint8_t *model_start, float probability_cutoff, size_t sliding_window_size,
                                   size_t tensor_arena_size) {
   this->vad_model_ = new VADModel(model_start, probability_cutoff, sliding_window_size, tensor_arena_size);
@@ -276,7 +276,7 @@ bool MicroWakeWord::load_models_() {
       return false;
     }
   }
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   if (!this->vad_model_->load_model(this->streaming_op_resolver_)) {
     ESP_LOGE(TAG, "Failed to initialize VAD model.");
     return false;
@@ -292,7 +292,7 @@ void MicroWakeWord::unload_models_() {
   for (auto &model : this->wake_word_models_) {
     model.unload_model();
   }
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   this->vad_model_->unload_model();
 #endif
 }
@@ -311,7 +311,7 @@ void MicroWakeWord::update_model_probabilities_() {
     // Perform inference
     model.perform_streaming_inference(audio_features);
   }
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   this->vad_model_->perform_streaming_inference(audio_features);
 #endif
 }
@@ -322,18 +322,18 @@ bool MicroWakeWord::detect_wake_words_() {
     return false;
   }
 
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   bool vad_state = this->vad_model_->determine_detected();
 #endif
 
   for (auto &model : this->wake_word_models_) {
     if (model.determine_detected()) {
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
       if (vad_state) {
 #endif
         this->detected_wake_word_ = model.get_wake_word();
         return true;
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
       } else {
         ESP_LOGD(TAG, "Wake word model predicts %s, but VAD model doesn't.", model.get_wake_word().c_str());
       }
@@ -409,7 +409,7 @@ void MicroWakeWord::reset_states_() {
   for (auto &model : this->wake_word_models_) {
     model.reset_probabilities();
   }
-#ifdef USE_MWW_VAD
+#ifdef USE_MICRO_WAKE_WORD_VAD
   this->vad_model_->reset_probabilities();
 #endif
 }

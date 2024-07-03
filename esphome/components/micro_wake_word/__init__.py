@@ -458,7 +458,7 @@ async def to_code(config):
         )
 
     if vad_model := config.get(CONF_VAD):
-        cg.add_define("USE_MWW_VAD")
+        cg.add_define("USE_MICRO_WAKE_WORD_VAD")
 
         # Use the general model loading code for the VAD codegen
         config[CONF_MODELS].append(vad_model)
