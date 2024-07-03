@@ -202,19 +202,8 @@ def _download_file(url: str, path: Path) -> bytes:
     return req.content
 
 
-def _process_http_source(config):
-    url = config[CONF_URL]
-    path = _compute_local_file_path(config)
-
-    json_path = path / "manifest.json"
-
-    json_contents = _download_file(url, json_path)
-
-    manifest_data = json.loads(json_contents)
-    if not isinstance(manifest_data, dict):
-        raise cv.Invalid("Manifest file must contain a JSON object")
-
-    if manifest_version := manifest_data["version"]:
+def _validate_manifest_version(manifest_data):
+    if manifest_version := manifest_data.get(KEY_VERSION):
         if manifest_version == 1:
             try:
                 MANIFEST_SCHEMA_V1(manifest_data)
@@ -229,6 +218,21 @@ def _process_http_source(config):
             raise cv.Invalid("Invalid manifest version")
     else:
         raise cv.Invalid("Invalid manifest file, missing 'version' key.")
+
+
+def _process_http_source(config):
+    url = config[CONF_URL]
+    path = _compute_local_file_path(config)
+
+    json_path = path / "manifest.json"
+
+    json_contents = _download_file(url, json_path)
+
+    manifest_data = json.loads(json_contents)
+    if not isinstance(manifest_data, dict):
+        raise cv.Invalid("Manifest file must contain a JSON object")
+
+    _validate_manifest_version(manifest_data)
 
     model = manifest_data[CONF_MODEL]
     model_url = urljoin(url, model)
@@ -358,6 +362,15 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
+            cv.Optional(CONF_MODEL): cv.invalid(
+                f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
+            ),
+            cv.Optional(CONF_PROBABILITY_CUTOFF): cv.invalid(
+                f"The {CONF_PROBABILITY_CUTOFF} parameter has moved to be a list element under the {CONF_MODELS} parameter."
+            ),
+            cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.invalid(
+                f"The {CONF_SLIDING_WINDOW_AVERAGE_SIZE} parameter has been renamed to {CONF_SLIDING_WINDOW_SIZE} and moved to be a list element under the {CONF_MODELS} parameter."
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_esp_idf,
@@ -368,31 +381,56 @@ def _load_model_data(manifest_path: Path):
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
-    if manifest_version := manifest["version"]:
-        if manifest_version == 1:
-            try:
-                MANIFEST_SCHEMA_V1(manifest)
-            except cv.Invalid as e:
-                raise cv.Invalid(f"Invalid manifest file: {e}") from e
-        elif manifest_version == 2:
-            try:
-                MANIFEST_SCHEMA_V2(manifest)
-            except cv.Invalid as e:
-                raise cv.Invalid(f"Invalid manifest file: {e}") from e
-        else:
-            raise cv.Invalid("Invalid manifest version")
-    else:
-        raise cv.Invalid("Invalid manifest file, missing 'version' key.")
+    _validate_manifest_version(manifest)
 
     model_path = manifest_path.parent / manifest[CONF_MODEL]
 
     with open(model_path, "rb") as f:
         model = f.read()
 
-    if manifest_version == 1:
+    if manifest.get(KEY_VERSION) == 1:
         manifest = _convert_manifest_v1_to_v2(manifest)
 
     return manifest, model
+
+
+def _model_config_to_manifest_data(model_config):
+    if model_config[CONF_TYPE] == TYPE_GIT:
+        # compute path to model file
+        key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
+        base_dir = Path(CORE.data_dir) / DOMAIN
+        h = hashlib.new("sha256")
+        h.update(key.encode())
+        file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
+
+    elif model_config[CONF_TYPE] == TYPE_LOCAL:
+        file = Path(model_config[CONF_PATH])
+
+    elif model_config[CONF_TYPE] == TYPE_HTTP:
+        file = _compute_local_file_path(model_config) / "manifest.json"
+
+    else:
+        raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
+
+    return _load_model_data(file)
+
+
+def _feature_step_size_validate(config):
+    features_step_size = None
+
+    for model_parameters in config[CONF_MODELS]:
+        model_config = model_parameters.get(CONF_MODEL)
+        manifest, _ = _model_config_to_manifest_data(model_config)
+
+        model_step_size = manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]
+
+        if features_step_size is None:
+            features_step_size = model_step_size
+        elif features_step_size != model_step_size:
+            raise cv.Invalid("Cannot load models with different features step sizes.")
+
+
+FINAL_VALIDATE_SCHEMA = _feature_step_size_validate
 
 
 async def to_code(config):
@@ -419,8 +457,6 @@ async def to_code(config):
             on_wake_word_detection_config,
         )
 
-    features_step_size = None
-
     if vad_model := config.get(CONF_VAD):
         cg.add_define("USE_MWW_VAD")
 
@@ -430,24 +466,7 @@ async def to_code(config):
     for model_parameters in config[CONF_MODELS]:
         model_config = model_parameters.get(CONF_MODEL)
         data = []
-        if model_config[CONF_TYPE] == TYPE_GIT:
-            # compute path to model file
-            key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
-            base_dir = Path(CORE.data_dir) / DOMAIN
-            h = hashlib.new("sha256")
-            h.update(key.encode())
-            file: Path = base_dir / h.hexdigest()[:8] / model_config[CONF_FILE]
-
-        elif model_config[CONF_TYPE] == TYPE_LOCAL:
-            file = Path(model_config[CONF_PATH])
-
-        elif model_config[CONF_TYPE] == TYPE_HTTP:
-            file = _compute_local_file_path(model_config) / "manifest.json"
-
-        else:
-            raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
-
-        manifest, data = _load_model_data(file)
+        manifest, data = _model_config_to_manifest_data(model_config)
 
         rhs = [HexInt(x) for x in data]
         prog_arr = cg.progmem_array(model_parameters[CONF_RAW_DATA_ID], rhs)
@@ -480,14 +499,7 @@ async def to_code(config):
                 )
             )
 
-        model_step_size = manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]
-
-        if features_step_size is None:
-            features_step_size = model_step_size
-        elif features_step_size != model_step_size:
-            raise cv.Invalid("Cannot load models with differet features step sizes.")
-
-    cg.add(var.set_features_step_size(features_step_size))
+    cg.add(var.set_features_step_size(manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]))
     cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.0.0")
 
 
