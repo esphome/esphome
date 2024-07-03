@@ -21,48 +21,48 @@ CODEOWNERS = ["@neffs"]
 
 AUTO_LOAD = ["sensor", "text_sensor"]
 DEPENDENCIES = ["i2c"]
-DOMAIN = "bme68x_bsec"
+DOMAIN = "bme68x_bsec_i2c"
 
 BSEC2_LIBRARY_VERSION = "v1.7.2502"
 
 CONF_ALGORITHM_OUTPUT = "algorithm_output"
-CONF_BME68X_BSEC_ID = "bme68x_bsec_id"
+CONF_BME68X_BSEC_I2C_ID = "bme68x_bsec_i2c_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_OPERATING_AGE = "operating_age"
 CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 _LOGGER = logging.getLogger(__name__)
 
-bme68x_bsec_ns = cg.esphome_ns.namespace("bme68x_bsec")
+bme68x_bsec_i2c_ns = cg.esphome_ns.namespace("bme68x_bsec_i2c")
 
 MODEL_OPTIONS = ["bme680", "bme688"]
 
-AlgorithmOutput = bme68x_bsec_ns.enum("AlgorithmOutput")
+AlgorithmOutput = bme68x_bsec_i2c_ns.enum("AlgorithmOutput")
 ALGORITHM_OUTPUT_OPTIONS = {
     "classification": AlgorithmOutput.ALGORITHM_OUTPUT_CLASSIFICATION,
     "regression": AlgorithmOutput.ALGORITHM_OUTPUT_REGRESSION,
 }
 
-OperatingAge = bme68x_bsec_ns.enum("OperatingAge")
+OperatingAge = bme68x_bsec_i2c_ns.enum("OperatingAge")
 OPERATING_AGE_OPTIONS = {
     "4d": OperatingAge.OPERATING_AGE_4D,
     "28d": OperatingAge.OPERATING_AGE_28D,
 }
 
-SampleRate = bme68x_bsec_ns.enum("SampleRate")
+SampleRate = bme68x_bsec_i2c_ns.enum("SampleRate")
 SAMPLE_RATE_OPTIONS = {
     "LP": SampleRate.SAMPLE_RATE_LP,
     "ULP": SampleRate.SAMPLE_RATE_ULP,
 }
 
-Voltage = bme68x_bsec_ns.enum("Voltage")
+Voltage = bme68x_bsec_i2c_ns.enum("Voltage")
 VOLTAGE_OPTIONS = {
     "1.8V": Voltage.VOLTAGE_1_8V,
     "3.3V": Voltage.VOLTAGE_3_3V,
 }
 
-BME68xBSECComponent = bme68x_bsec_ns.class_(
-    "BME68XBSECComponent", cg.Component, i2c.I2CDevice
+BME68xBSECI2CComponent = bme68x_bsec_i2c_ns.class_(
+    "BME68xBSECI2CComponent", cg.Component, i2c.I2CDevice
 )
 
 ALGORITHM_OUTPUT_FILE_NAME = {
@@ -102,7 +102,7 @@ def validate_bme68x(config):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(BME68xBSECComponent),
+            cv.GenerateID(): cv.declare_id(BME68xBSECI2CComponent),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
             cv.Required(CONF_MODEL): cv.one_of(*MODEL_OPTIONS, lower=True),
             cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(

@@ -15,7 +15,7 @@
 #endif
 
 namespace esphome {
-namespace bme68x_bsec {
+namespace bme68x_bsec_i2c {
 #ifdef USE_BSEC2
 
 enum AlgorithmOutput {
@@ -40,7 +40,7 @@ enum Voltage {
   VOLTAGE_3_3V,
 };
 
-class BME68XBSECComponent : public Component, public i2c::I2CDevice {
+class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -75,7 +75,7 @@ class BME68XBSECComponent : public Component, public i2c::I2CDevice {
   void set_co2_equivalent_sensor(sensor::Sensor *sensor) { this->co2_equivalent_sensor_ = sensor; }
   void set_breath_voc_equivalent_sensor(sensor::Sensor *sensor) { this->breath_voc_equivalent_sensor_ = sensor; }
 
-  static BME68XBSECComponent *instance;
+  static BME68xBSECI2CComponent *instance;
   static int8_t read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr);
   static int8_t write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len, void *intfPtr);
   static void delay_us(uint32_t period, void *intfPtr);
@@ -145,5 +145,5 @@ class BME68XBSECComponent : public Component, public i2c::I2CDevice {
   sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
-}  // namespace bme68x_bsec
+}  // namespace bme68x_bsec_i2c
 }  // namespace esphome

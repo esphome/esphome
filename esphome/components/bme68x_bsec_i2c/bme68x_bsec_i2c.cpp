@@ -1,10 +1,10 @@
-#include "bme68x_bsec.h"
+#include "bme68x_bsec_i2c.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <string>
 
 namespace esphome {
-namespace bme68x_bsec {
+namespace bme68x_bsec_i2c {
 #ifdef USE_BSEC2
 
 #define BME68X_BSEC_ALGORITHM_OUTPUT_LOG(a) (a == ALGORITHM_OUTPUT_CLASSIFICATION ? "Classification" : "Regression")
@@ -16,11 +16,11 @@ static const char *const TAG = "bme68x_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-BME68XBSECComponent *BME68XBSECComponent::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+BME68xBSECI2CComponent *BME68xBSECI2CComponent::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void BME68XBSECComponent::setup() {
+void BME68xBSECI2CComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME68X via BSEC...");
-  BME68XBSECComponent::instance = this;
+  BME68xBSECI2CComponent::instance = this;
 
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
@@ -29,9 +29,9 @@ void BME68XBSECComponent::setup() {
   }
 
   this->bme68x_.intf = BME68X_I2C_INTF;
-  this->bme68x_.read = BME68XBSECComponent::read_bytes_wrapper;
-  this->bme68x_.write = BME68XBSECComponent::write_bytes_wrapper;
-  this->bme68x_.delay_us = BME68XBSECComponent::delay_us;
+  this->bme68x_.read = BME68xBSECI2CComponent::read_bytes_wrapper;
+  this->bme68x_.write = BME68xBSECI2CComponent::write_bytes_wrapper;
+  this->bme68x_.delay_us = BME68xBSECI2CComponent::delay_us;
   this->bme68x_.amb_temp = 25;
 
   this->bme68x_status_ = bme68x_init(&this->bme68x_);
@@ -56,7 +56,7 @@ void BME68XBSECComponent::setup() {
   this->load_state_();
 }
 
-void BME68XBSECComponent::dump_config() {
+void BME68xBSECI2CComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "BME68X via BSEC:");
 
   bsec_version_t version;
@@ -96,9 +96,9 @@ void BME68XBSECComponent::dump_config() {
   LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor_);
 }
 
-float BME68XBSECComponent::get_setup_priority() const { return setup_priority::DATA; }
+float BME68xBSECI2CComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void BME68XBSECComponent::loop() {
+void BME68xBSECI2CComponent::loop() {
   this->run_();
 
   if (this->bsec_status_ < BSEC_OK || this->bme68x_status_ < BME68X_OK) {
@@ -120,7 +120,7 @@ void BME68XBSECComponent::loop() {
   }
 }
 
-void BME68XBSECComponent::set_config_(const uint8_t *config, uint32_t len) {
+void BME68xBSECI2CComponent::set_config_(const uint8_t *config, uint32_t len) {
   if (len > BSEC_MAX_PROPERTY_BLOB_SIZE) {
     ESP_LOGE(TAG, "Configuration is larger than BSEC_MAX_PROPERTY_BLOB_SIZE");
     this->mark_failed();
@@ -130,14 +130,14 @@ void BME68XBSECComponent::set_config_(const uint8_t *config, uint32_t len) {
   this->bsec_status_ = bsec_set_configuration_m(&this->bsec_instance_, config, len, work_buffer, sizeof(work_buffer));
 }
 
-float BME68XBSECComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
+float BME68xBSECI2CComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
   if (sample_rate == SAMPLE_RATE_DEFAULT) {
     sample_rate = this->sample_rate_;
   }
   return sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
 }
 
-void BME68XBSECComponent::update_subscription_() {
+void BME68xBSECI2CComponent::update_subscription_() {
   bsec_sensor_configuration_t virtual_sensors[BSEC_NUMBER_OUTPUTS];
   int num_virtual_sensors = 0;
 
@@ -195,7 +195,7 @@ void BME68XBSECComponent::update_subscription_() {
                                                   sensor_settings, &num_sensor_settings);
 }
 
-void BME68XBSECComponent::run_() {
+void BME68xBSECI2CComponent::run_() {
   int64_t curr_time_ns = this->get_time_ns_();
   if (curr_time_ns < this->next_call_ns_) {
     return;
@@ -274,7 +274,7 @@ void BME68XBSECComponent::run_() {
   }
 }
 
-void BME68XBSECComponent::read_(int64_t trigger_time_ns) {
+void BME68xBSECI2CComponent::read_(int64_t trigger_time_ns) {
   ESP_LOGV(TAG, "Reading data");
 
   if (bsec_settings.trigger_measurement) {
@@ -379,7 +379,7 @@ void BME68XBSECComponent::read_(int64_t trigger_time_ns) {
   }
 }
 
-void BME68XBSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
+void BME68xBSECI2CComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
   ESP_LOGV(TAG, "Publishing sensor states");
   uint8_t accuracy = 0xff;
   for (uint8_t i = 0; i < num_outputs; i++) {
@@ -433,7 +433,7 @@ void BME68XBSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
   }
 }
 
-int64_t BME68XBSECComponent::get_time_ns_() {
+int64_t BME68xBSECI2CComponent::get_time_ns_() {
   int64_t time_ms = millis();
   if (this->last_time_ms_ > time_ms) {
     this->millis_overflow_counter_++;
@@ -443,34 +443,35 @@ int64_t BME68XBSECComponent::get_time_ns_() {
   return (time_ms + ((int64_t) this->millis_overflow_counter_ << 32)) * INT64_C(1000000);
 }
 
-void BME68XBSECComponent::publish_sensor_(sensor::Sensor *sensor, float value, bool change_only) {
+void BME68xBSECI2CComponent::publish_sensor_(sensor::Sensor *sensor, float value, bool change_only) {
   if (!sensor || (change_only && sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
 }
 
-void BME68XBSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
+void BME68xBSECI2CComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
   if (!sensor || (sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
 }
 
-int8_t BME68XBSECComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
-  return BME68XBSECComponent::instance->read_bytes(a_register, data, len) ? 0 : -1;
+int8_t BME68xBSECI2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
+  return BME68xBSECI2CComponent::instance->read_bytes(a_register, data, len) ? 0 : -1;
 }
 
-int8_t BME68XBSECComponent::write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len, void *intfPtr) {
-  return BME68XBSECComponent::instance->write_bytes(a_register, data, len) ? 0 : -1;
+int8_t BME68xBSECI2CComponent::write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len,
+                                                   void *intfPtr) {
+  return BME68xBSECI2CComponent::instance->write_bytes(a_register, data, len) ? 0 : -1;
 }
 
-void BME68XBSECComponent::delay_us(uint32_t period, void *intfPtr) {
+void BME68xBSECI2CComponent::delay_us(uint32_t period, void *intfPtr) {
   ESP_LOGV(TAG, "Delaying for %uus", period);
   delayMicroseconds(period);
 }
 
-void BME68XBSECComponent::load_state_() {
+void BME68xBSECI2CComponent::load_state_() {
   uint32_t hash = fnv1_hash("bme68x_bsec_state_" + to_string(this->address_));
   this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
@@ -487,7 +488,7 @@ void BME68XBSECComponent::load_state_() {
   }
 }
 
-void BME68XBSECComponent::save_state_(uint8_t accuracy) {
+void BME68xBSECI2CComponent::save_state_(uint8_t accuracy) {
   if (accuracy < 3 || (millis() - this->last_state_save_ms_ < this->state_save_interval_ms_)) {
     return;
   }
@@ -514,5 +515,5 @@ void BME68XBSECComponent::save_state_(uint8_t accuracy) {
   ESP_LOGI(TAG, "Saved state");
 }
 #endif
-}  // namespace bme68x_bsec
+}  // namespace bme68x_bsec_i2c
 }  // namespace esphome

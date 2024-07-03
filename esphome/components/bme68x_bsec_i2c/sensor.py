@@ -23,12 +23,12 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from . import (
-    BME68xBSECComponent,
-    CONF_BME68X_BSEC_ID,
+    BME68xBSECI2CComponent,
+    CONF_BME68X_BSEC_I2C_ID,
     SAMPLE_RATE_OPTIONS,
 )
 
-DEPENDENCIES = ["bme68x_bsec"]
+DEPENDENCIES = ["bme68x_bsec_i2c"]
 
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
 CONF_CO2_EQUIVALENT = "co2_equivalent"
@@ -52,7 +52,7 @@ TYPES = [
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_BME68X_BSEC_ID): cv.use_id(BME68xBSECComponent),
+        cv.GenerateID(CONF_BME68X_BSEC_I2C_ID): cv.use_id(BME68xBSECI2CComponent),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
             icon=ICON_THERMOMETER,
@@ -129,6 +129,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[CONF_BME68X_BSEC_ID])
+    hub = await cg.get_variable(config[CONF_BME68X_BSEC_I2C_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)
