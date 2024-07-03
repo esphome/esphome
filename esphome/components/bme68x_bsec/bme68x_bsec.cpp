@@ -6,11 +6,13 @@
 namespace esphome {
 namespace bme68x_bsec {
 #ifdef USE_BSEC2
-static const char *const TAG = "bme68x_bsec.sensor";
 
-#ifdef BME68X_BSEC_CONFIGURATION
-static const uint8_t bsec_configuration[] = BME68X_BSEC_CONFIGURATION;
-#endif
+#define BME68X_BSEC_ALGORITHM_OUTPUT_LOG(a) (a == ALGORITHM_OUTPUT_CLASSIFICATION ? "Classification" : "Regression")
+#define BME68X_BSEC_OPERATING_AGE_LOG(o) (o == OPERATING_AGE_4D ? "4 days" : "28 days")
+#define BME68X_BSEC_SAMPLE_RATE_LOG(r) (r == SAMPLE_RATE_DEFAULT ? "Default" : (r == SAMPLE_RATE_ULP ? "ULP" : "LP"))
+#define BME68X_BSEC_VOLTAGE_LOG(v) (v == VOLTAGE_3_3V ? "3.3V" : "1.8V")
+
+static const char *const TAG = "bme68x_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
@@ -37,14 +39,13 @@ void BME68XBSECComponent::setup() {
     this->mark_failed();
     return;
   }
-#ifdef BME68X_BSEC_CONFIGURATION
-  this->set_config_(bsec_configuration, sizeof(bsec_configuration));
-  if (this->bsec_status_ != BSEC_OK) {
-    this->mark_failed();
-    return;
+  if (this->bsec_configuration_ != nullptr && this->bsec_configuration_length_) {
+    this->set_config_(this->bsec_configuration_, this->bsec_configuration_length_);
+    if (this->bsec_status_ != BSEC_OK) {
+      this->mark_failed();
+      return;
+    }
   }
-
-#endif
 
   this->update_subscription_();
   if (this->bsec_status_ != BSEC_OK) {
@@ -53,6 +54,70 @@ void BME68XBSECComponent::setup() {
   }
 
   this->load_state_();
+}
+
+void BME68XBSECComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "BME68X via BSEC:");
+
+  bsec_version_t version;
+  bsec_get_version_m(&this->bsec_instance_, &version);
+  ESP_LOGCONFIG(TAG, "  BSEC version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix,
+                version.minor_bugfix);
+
+  if (this->bsec_configuration_ != nullptr && this->bsec_configuration_length_)
+    ESP_LOGCONFIG(TAG, "  BSEC configuration blob size: %" PRIu32, this->bsec_configuration_length_);
+
+  LOG_I2C_DEVICE(this);
+
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Communication failed (BSEC status: %d, BME68X status: %d)", this->bsec_status_,
+             this->bme68x_status_);
+  }
+
+  if (this->algorithm_output_ != ALGORITHM_OUTPUT_IAQ)
+    ESP_LOGCONFIG(TAG, "  Algorithm output: %s", BME68X_BSEC_ALGORITHM_OUTPUT_LOG(this->algorithm_output_));
+  ESP_LOGCONFIG(TAG, "  Operating age: %s", BME68X_BSEC_OPERATING_AGE_LOG(this->operating_age_));
+  ESP_LOGCONFIG(TAG, "  Sample rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->sample_rate_));
+  ESP_LOGCONFIG(TAG, "  Voltage: %s", BME68X_BSEC_VOLTAGE_LOG(this->voltage_));
+  ESP_LOGCONFIG(TAG, "  State save interval: %ims", this->state_save_interval_ms_);
+  ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f", this->temperature_offset_);
+
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->temperature_sample_rate_));
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->pressure_sample_rate_));
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->humidity_sample_rate_));
+  LOG_SENSOR("  ", "Gas resistance", this->gas_resistance_sensor_);
+  LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
+  LOG_SENSOR("  ", "Numeric IAQ accuracy", this->iaq_accuracy_sensor_);
+  LOG_TEXT_SENSOR("  ", "IAQ accuracy", this->iaq_accuracy_text_sensor_);
+  LOG_SENSOR("  ", "CO2 equivalent", this->co2_equivalent_sensor_);
+  LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor_);
+}
+
+float BME68XBSECComponent::get_setup_priority() const { return setup_priority::DATA; }
+
+void BME68XBSECComponent::loop() {
+  this->run_();
+
+  if (this->bsec_status_ < BSEC_OK || this->bme68x_status_ < BME68X_OK) {
+    this->status_set_error();
+  } else {
+    this->status_clear_error();
+  }
+  if (this->bsec_status_ > BSEC_OK || this->bme68x_status_ > BME68X_OK) {
+    this->status_set_warning();
+  } else {
+    this->status_clear_warning();
+  }
+  // Process a single action from the queue. These are primarily sensor state publishes
+  // that in totality take too long to send in a single call.
+  if (this->queue_.size()) {
+    auto action = std::move(this->queue_.front());
+    this->queue_.pop();
+    action();
+  }
 }
 
 void BME68XBSECComponent::set_config_(const uint8_t *config, uint32_t len) {
@@ -128,63 +193,6 @@ void BME68XBSECComponent::update_subscription_() {
   uint8_t num_sensor_settings = BSEC_MAX_PHYSICAL_SENSOR;
   this->bsec_status_ = bsec_update_subscription_m(&this->bsec_instance_, virtual_sensors, num_virtual_sensors,
                                                   sensor_settings, &num_sensor_settings);
-}
-
-void BME68XBSECComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "BME68X via BSEC:");
-
-  bsec_version_t version;
-  bsec_get_version_m(&this->bsec_instance_, &version);
-  ESP_LOGCONFIG(TAG, "  BSEC Version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix,
-                version.minor_bugfix);
-
-  LOG_I2C_DEVICE(this);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication failed (BSEC Status: %d, BME68X Status: %d)", this->bsec_status_,
-             this->bme68x_status_);
-  }
-
-  ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->sample_rate_));
-  ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_ms_);
-
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->temperature_sample_rate_));
-  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->pressure_sample_rate_));
-  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME68X_BSEC_SAMPLE_RATE_LOG(this->humidity_sample_rate_));
-  LOG_SENSOR("  ", "Gas Resistance", this->gas_resistance_sensor_);
-  LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
-  LOG_SENSOR("  ", "Numeric IAQ Accuracy", this->iaq_accuracy_sensor_);
-  LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
-  LOG_SENSOR("  ", "CO2 Equivalent", this->co2_equivalent_sensor_);
-  LOG_SENSOR("  ", "Breath VOC Equivalent", this->breath_voc_equivalent_sensor_);
-}
-
-float BME68XBSECComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-void BME68XBSECComponent::loop() {
-  this->run_();
-
-  if (this->bsec_status_ < BSEC_OK || this->bme68x_status_ < BME68X_OK) {
-    this->status_set_error();
-  } else {
-    this->status_clear_error();
-  }
-  if (this->bsec_status_ > BSEC_OK || this->bme68x_status_ > BME68X_OK) {
-    this->status_set_warning();
-  } else {
-    this->status_clear_warning();
-  }
-  // Process a single action from the queue. These are primarily sensor state publishes
-  // that in totality take too long to send in a single call.
-  if (this->queue_.size()) {
-    auto action = std::move(this->queue_.front());
-    this->queue_.pop();
-    action();
-  }
 }
 
 void BME68XBSECComponent::run_() {
