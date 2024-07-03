@@ -69,7 +69,7 @@ class MicroWakeWord : public Component {
   std::vector<WakeWordModel> wake_word_models_;
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
-  VADModel *vad_model_;
+  std::unique_ptr<VADModel> vad_model_;
 #endif
 
   tflite::MicroMutableOpResolver<20> streaming_op_resolver_;

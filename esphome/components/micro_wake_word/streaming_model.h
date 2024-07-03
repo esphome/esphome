@@ -43,7 +43,7 @@ class StreamingModel {
   const uint8_t *model_start_;
   uint8_t *tensor_arena_{nullptr};
   uint8_t *var_arena_{nullptr};
-  tflite::MicroInterpreter *interpreter_{nullptr};
+  std::unique_ptr<tflite::MicroInterpreter> interpreter_;
   tflite::MicroResourceVariables *mrv_{nullptr};
   tflite::MicroAllocator *ma_{nullptr};
 };

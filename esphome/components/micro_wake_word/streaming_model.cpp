@@ -51,8 +51,8 @@ bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver)
   }
 
   if (this->interpreter_ == nullptr) {
-    this->interpreter_ = new tflite::MicroInterpreter(tflite::GetModel(this->model_start_), op_resolver,
-                                                      this->tensor_arena_, this->tensor_arena_size_, this->mrv_);
+    this->interpreter_ = make_unique<tflite::MicroInterpreter>(
+        tflite::GetModel(this->model_start_), op_resolver, this->tensor_arena_, this->tensor_arena_size_, this->mrv_);
     if (this->interpreter_->AllocateTensors() != kTfLiteOk) {
       ESP_LOGE(TAG, "Failed to allocate tensors for the streaming model");
       return false;
@@ -88,8 +88,7 @@ bool StreamingModel::load_model(tflite::MicroMutableOpResolver<20> &op_resolver)
 }
 
 void StreamingModel::unload_model() {
-  delete (this->interpreter_);
-  this->interpreter_ = nullptr;
+  this->interpreter_.reset();
 
   ExternalRAMAllocator<uint8_t> arena_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
 
