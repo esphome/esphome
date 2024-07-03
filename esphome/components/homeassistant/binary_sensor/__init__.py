@@ -10,7 +10,10 @@ from .. import (
 DEPENDENCIES = ["api"]
 
 HomeassistantBinarySensor = homeassistant_ns.class_(
-    "HomeassistantBinarySensor", binary_sensor.BinarySensor, cg.Component
+    "HomeassistantBinarySensor",
+    binary_sensor.BinarySensor,
+    cg.Component,
+    cg.EntityBase_State,
 )
 
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(HomeassistantBinarySensor).extend(

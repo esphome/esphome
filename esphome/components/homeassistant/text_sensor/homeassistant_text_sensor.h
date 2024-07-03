@@ -6,7 +6,7 @@
 namespace esphome {
 namespace homeassistant {
 
-class HomeassistantTextSensor : public text_sensor::TextSensor, public Component {
+class HomeassistantTextSensor : public text_sensor::TextSensor, public EntityBase_State, public Component {
  public:
   void set_entity_id(const std::string &entity_id) { entity_id_ = entity_id; }
   void set_attribute(const std::string &attribute) { attribute_ = attribute; }

@@ -10,7 +10,7 @@ from .. import (
 DEPENDENCIES = ["api"]
 
 HomeassistantSensor = homeassistant_ns.class_(
-    "HomeassistantSensor", sensor.Sensor, cg.Component
+    "HomeassistantSensor", sensor.Sensor, cg.Component, cg.EntityBase_State
 )
 
 CONFIG_SCHEMA = sensor.sensor_schema(HomeassistantSensor, accuracy_decimals=1).extend(
