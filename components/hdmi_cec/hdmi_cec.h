@@ -10,6 +10,8 @@
 namespace esphome {
 namespace hdmi_cec {
 
+std::string bytes_to_string(std::vector<uint8_t> bytes);
+
 enum class ReceiverState : uint8_t {
   Idle = 0,
   ReceivingByte = 2,
