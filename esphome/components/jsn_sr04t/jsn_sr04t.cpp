@@ -53,7 +53,7 @@ void Jsnsr04tComponent::check_buffer_() {
 void Jsnsr04tComponent::dump_config() {
   LOG_SENSOR("", "JST_SR04T Sensor", this);
   ESP_LOGCONFIG(TAG, "  checksum mode: %s",
-    this->ajsr04m_ ? "aj_sr04m (exclude start byte)" : "jsn_sr04t (include start byte)");
+                this->ajsr04m_ ? "aj_sr04m (exclude start byte)" : "jsn_sr04t (include start byte)");
   LOG_UPDATE_INTERVAL(this);
 }
 
