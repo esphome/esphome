@@ -173,14 +173,15 @@ haier_protocol::HandlerError HonClimate::status_handler_(haier_protocol::FrameTy
       if (!this->last_status_message_) {
         this->real_control_packet_size_ = sizeof(hon_protocol::HaierPacketControl) + this->extra_control_packet_bytes_;
         this->real_sensors_packet_size_ = sizeof(hon_protocol::HaierPacketSensors) + this->extra_sensors_packet_bytes_;
-        this->last_status_message_.reset(new uint8_t[this->real_control_packet_size_]);
+        this->last_status_message_.reset();
+        this->last_status_message_ = std::unique_ptr<uint8_t[]>(new uint8_t[this->real_control_packet_size_]);
       };
       if (data_size >= this->real_control_packet_size_ + 2) {
-        memcpy(this->last_status_message_.get(), data + 2 + this->status_message_header_size_, this->real_control_packet_size_);
-        this->status_message_callback_.call((const char*) data, data_size);
+        memcpy(this->last_status_message_.get(), data + 2 + this->status_message_header_size_,
+               this->real_control_packet_size_);
+        this->status_message_callback_.call((const char *) data, data_size);
       } else {
-        ESP_LOGW(TAG, "Status packet too small: %d (should be >= %d)", data_size,
-                 this->real_control_packet_size_);
+        ESP_LOGW(TAG, "Status packet too small: %d (should be >= %d)", data_size, this->real_control_packet_size_);
       }
       switch (this->protocol_phase_) {
         case ProtocolPhases::SENDING_FIRST_STATUS_REQUEST:
@@ -765,7 +766,8 @@ void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const std::stri
 #endif  // USE_TEXT_SENSOR
 
 haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
-  size_t expected_size = 2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
+  size_t expected_size =
+      2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
   if (size < expected_size) {
     ESP_LOGW(TAG, "Unexpected message size %d (expexted >= %d)", size, expected_size);
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
@@ -803,7 +805,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     hon_protocol::HaierPacketControl control;
     hon_protocol::HaierPacketSensors sensors;
   } packet;
-  memcpy(&packet.control, packet_buffer + 2 + this->status_message_header_size_, sizeof(hon_protocol::HaierPacketControl));
+  memcpy(&packet.control, packet_buffer + 2 + this->status_message_header_size_,
+         sizeof(hon_protocol::HaierPacketControl));
   memcpy(&packet.sensors, packet_buffer + 2 + this->status_message_header_size_ + this->real_control_packet_size_,
          sizeof(hon_protocol::HaierPacketSensors));
   if (packet.sensors.error_status != 0) {
@@ -1170,14 +1173,14 @@ void HonClimate::fill_control_messages_queue_() {
                                          (uint8_t) hon_protocol::DataParameters::SET_POINT,
                                      buffer, 2));
   }
-  // Vertical swing mode 
+  // Vertical swing mode
   if (climate_control.swing_mode.has_value()) {
-    uint8_t vertical_swing_buf[] =    {0x00, (uint8_t) hon_protocol::VerticalSwingMode::AUTO};
-    uint8_t horizontal_swing_buf[] =  {0x00, (uint8_t) hon_protocol::HorizontalSwingMode::AUTO};
+    uint8_t vertical_swing_buf[] = {0x00, (uint8_t) hon_protocol::VerticalSwingMode::AUTO};
+    uint8_t horizontal_swing_buf[] = {0x00, (uint8_t) hon_protocol::HorizontalSwingMode::AUTO};
     switch (climate_control.swing_mode.value()) {
       case CLIMATE_SWING_OFF:
         horizontal_swing_buf[1] = (uint8_t) this->settings_.last_horizontal_swing;
-        vertical_swing_buf[1] =   (uint8_t) this->settings_.last_vertiacal_swing;
+        vertical_swing_buf[1] = (uint8_t) this->settings_.last_vertiacal_swing;
         break;
       case CLIMATE_SWING_VERTICAL:
         horizontal_swing_buf[1] = (uint8_t) this->settings_.last_horizontal_swing;
@@ -1190,14 +1193,14 @@ void HonClimate::fill_control_messages_queue_() {
     }
     this->control_messages_queue_.push(
         haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
-                                      (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
-                                          (uint8_t) hon_protocol::DataParameters::HORIZONTAL_SWING_MODE,
-                                      horizontal_swing_buf, 2));
+                                     (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
+                                         (uint8_t) hon_protocol::DataParameters::HORIZONTAL_SWING_MODE,
+                                     horizontal_swing_buf, 2));
     this->control_messages_queue_.push(
         haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
-                                      (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
-                                          (uint8_t) hon_protocol::DataParameters::VERTICAL_SWING_MODE,
-                                      vertical_swing_buf, 2));
+                                     (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
+                                         (uint8_t) hon_protocol::DataParameters::VERTICAL_SWING_MODE,
+                                     vertical_swing_buf, 2));
   }
   // Fan mode
   if (climate_control.fan_mode.has_value()) {
@@ -1253,16 +1256,14 @@ bool HonClimate::prepare_pending_action() {
             haier_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcommandsControl::SET_GROUP_PARAMETERS,
             control_out_buffer, this->real_control_packet_size_);
         return true;
-      }
-      else if (this->control_method_ == HonControlMethod::SET_SINGLE_PARAMETER) {
-        this->action_request_.value().message = haier_protocol::HaierMessage(
-            haier_protocol::FrameType::CONTROL,
-            (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
-                (uint8_t) hon_protocol::DataParameters::SELF_CLEANING,
-            ONE_BUF, 2);
-            return true;
-      }
-      else {
+      } else if (this->control_method_ == HonControlMethod::SET_SINGLE_PARAMETER) {
+        this->action_request_.value().message =
+            haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
+                                         (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
+                                             (uint8_t) hon_protocol::DataParameters::SELF_CLEANING,
+                                         ONE_BUF, 2);
+        return true;
+      } else {
         this->action_request_.reset();
         return false;
       }

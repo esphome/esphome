@@ -186,7 +186,7 @@ void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &m
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
 }
 
-void HaierClimateBase::add_status_message_callback(std::function<void(const char*, size_t)> &&callback) {
+void HaierClimateBase::add_status_message_callback(std::function<void(const char *, size_t)> &&callback) {
   this->status_message_callback_.add(std::move(callback));
 }
 

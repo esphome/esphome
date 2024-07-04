@@ -140,6 +140,7 @@ StatusMessageTrigger = haier_ns.class_(
     automation.Trigger.template(cg.const_char_ptr, cg.size_t),
 )
 
+
 def validate_visual(config):
     if CONF_VISUAL in config:
         visual_config = config[CONF_VISUAL]
@@ -205,9 +206,7 @@ BASE_CONFIG_SCHEMA = (
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        StatusMessageTrigger
-                    ),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StatusMessageTrigger),
                 }
             ),
         }
@@ -246,10 +245,12 @@ CONFIG_SCHEMA = cv.All(
                         CONF_CONTROL_PACKET_SIZE, default=PROTOCOL_CONTROL_PACKET_SIZE
                     ): cv.int_range(min=PROTOCOL_CONTROL_PACKET_SIZE, max=50),
                     cv.Optional(
-                        CONF_SENSORS_PACKET_SIZE, default=PROTOCOL_DEFAULT_SENSORS_PACKET_SIZE
+                        CONF_SENSORS_PACKET_SIZE,
+                        default=PROTOCOL_DEFAULT_SENSORS_PACKET_SIZE,
                     ): cv.int_range(min=PROTOCOL_MIN_SENSORS_PACKET_SIZE, max=50),
                     cv.Optional(
-                        CONF_STATUS_MESSAGE_HEADER_SIZE, default=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE
+                        CONF_STATUS_MESSAGE_HEADER_SIZE,
+                        default=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE,
                     ): cv.int_range(min=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE),
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
@@ -515,6 +516,6 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
             trigger, [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")], conf
-        )        
+        )
     # https://github.com/paveldn/HaierProtocol
     cg.add_library("pavlodn/HaierProtocol", "0.9.31")
