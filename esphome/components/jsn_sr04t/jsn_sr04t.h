@@ -11,7 +11,7 @@ namespace jsn_sr04t {
 
 class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
-  // Nothing really public.
+  void set_ajsr04m(uint8_t ajsr04m) { this->ajsr04m_ = ajsr04m; }
 
   // ========== INTERNAL METHODS ==========
   void update() override;
@@ -20,6 +20,7 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
 
  protected:
   void check_buffer_();
+  bool ajsr04m_;
 
   std::vector<uint8_t> buffer_;
 };
