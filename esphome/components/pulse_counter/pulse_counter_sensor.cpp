@@ -252,7 +252,10 @@ void PulseCounterSensor::setup() {
     return;
   }
 #ifdef CONF_USE_TIME
-  this->time_id_->add_on_time_sync_callback([this]() { this->time_is_synchronized_ = true; this->update(); });
+  this->time_id_->add_on_time_sync_callback([this]() {
+    this->time_is_synchronized_ = true;
+    this->update();
+  });
   this->pref_ = global_preferences->make_preference<timestamp_t>(this->get_object_id_hash());
   this->pref_.load(&this->last_time_);
 #endif
@@ -285,13 +288,12 @@ void PulseCounterSensor::update() {
   timestamp_t now;
   timestamp_t interval;
 #ifdef CONF_USE_TIME
-  now = this->time_id_->timestamp_now();
   // Convert to ms to match units when not using a Time component.
-  interval = (now - this->last_time_) * 1000;
+  now = this->time_id_->timestamp_now() * 1000;
 #else
   now = millis();
-  interval = now - this->last_time_;
 #endif
+  interval = now - this->last_time_;
   if (this->last_time_ != 0) {
     float value = (60000.0f * raw) / float(interval);  // per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
@@ -304,9 +306,9 @@ void PulseCounterSensor::update() {
     this->total_sensor_->publish_state(current_total_);
   }
   this->last_time_ = now;
-  #ifdef CONF_USE_TIME
+#ifdef CONF_USE_TIME
   this->pref_.save(&this->last_time_);
-  #endif
+#endif
 }
 
 }  // namespace pulse_counter

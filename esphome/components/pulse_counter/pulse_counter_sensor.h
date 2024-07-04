@@ -30,11 +30,7 @@ using pulse_counter_t = int16_t;
 using pulse_counter_t = int32_t;
 #endif
 
-#ifdef CONF_USE_TIME
-using timestamp_t = time_t;
-#else
-using timestamp_t = int32_t;
-#endif
+using timestamp_t = int64_t;
 
 struct PulseCounterStorageBase {
   virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
