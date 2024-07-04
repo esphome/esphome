@@ -99,13 +99,12 @@ class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
   void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
 
   struct bme68x_dev bme68x_;
-  bsec_bme_settings_t bsec_settings;
+  bsec_bme_settings_t bsec_settings_;
   uint8_t bsec_instance_[BSEC_INSTANCE_SIZE];
 
-  struct bme68x_heatr_conf bme68x_heatr_conf;
-  /* operating mode of sensor */
-  uint8_t op_mode;
-  bool sleep_mode;
+  struct bme68x_heatr_conf bme68x_heatr_conf_;
+  uint8_t op_mode_;  // operating mode of sensor
+  bool sleep_mode_;
   bsec_library_return_t bsec_status_{BSEC_OK};
   int8_t bme68x_status_{BME68X_OK};
 
@@ -117,6 +116,7 @@ class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
 
   uint8_t const *bsec_configuration_{nullptr};
   uint32_t bsec_configuration_length_{0};
+  bool bsec_blob_configured_{false};
 
   ESPPreferenceObject bsec_state_;
   uint32_t state_save_interval_ms_{21600000};  // 6 hours - 4 times a day

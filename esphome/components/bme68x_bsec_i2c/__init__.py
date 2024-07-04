@@ -198,8 +198,6 @@ async def to_code(config):
 
     # Although this component does not use SPI, the BSEC library requires the SPI library
     cg.add_library("SPI", None)
-
-    cg.add_define("USE_BSEC2")
     cg.add_library(
         "BME68x Sensor library",
         "1.1.40407",
@@ -209,3 +207,5 @@ async def to_code(config):
         None,
         f"https://github.com/boschsensortec/Bosch-BSEC2-Library.git#{BSEC2_LIBRARY_VERSION}",
     )
+
+    cg.add_define("USE_BSEC2")
