@@ -34,5 +34,5 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    if CONF_ADDRESS in config:
+    if CONF_CHANGE_ADDRESS_TO in config:
         cg.add(var.change_i2c_address(config[CONF_CHANGE_ADDRESS_TO]))
