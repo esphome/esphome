@@ -1,12 +1,10 @@
 #include "pulse_counter_ulp_sensor.h"
 #include "esphome/core/log.h"
-#ifdef CONF_USE_ULP
 #include "esp32/ulp.h"
 #include "ulp_main.h"
 #include "soc/rtc_periph.h"
 #include "driver/rtc_io.h"
 #include <esp_sleep.h>
-#endif
 
 namespace esphome {
 namespace pulse_counter {
@@ -142,8 +140,6 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
 
 /* === ULP === */
 
-#ifdef CONF_USE_ULP
-
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
 
@@ -238,8 +234,6 @@ pulse_counter_t UlpPulseCounterStorage::read_raw_value() {
   ulp_edge_count = 0;
   return count;
 }
-
-#endif
 
 /* === END ULP ===*/
 
