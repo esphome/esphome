@@ -10,3 +10,10 @@ climate:
     name: HeatpumpIR Climate on ESP32 arduino
     min_temperature: 18
     max_temperature: 30
+  - platform: heatpumpir
+    protocol: greeyt
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
