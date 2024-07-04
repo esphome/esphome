@@ -1,4 +1,4 @@
-#include "pulse_counter_sensor.h"
+#include "pulse_counter_ulp_sensor.h"
 #include "esphome/core/log.h"
 #ifdef CONF_USE_ULP
 #include "esp32/ulp.h"
@@ -11,7 +11,7 @@
 namespace esphome {
 namespace pulse_counter {
 
-static const char *const TAG = "pulse_counter";
+static const char *const TAG = "pulse_counter_ulp";
 
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 

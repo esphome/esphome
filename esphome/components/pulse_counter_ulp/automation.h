@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/components/pulse_counter/pulse_counter_sensor.h"
+#include "esphome/components/pulse_counter_ulp/pulse_counter_ulp_sensor.h"
 
 namespace esphome {
 
