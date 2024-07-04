@@ -9,6 +9,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@Mafus1"]
 DEPENDENCIES = ["uart"]
+CONF_AJSR04M = 'ajsr04m_mode'
 
 jsn_sr04t_ns = cg.esphome_ns.namespace("jsn_sr04t")
 Jsnsr04tComponent = jsn_sr04t_ns.class_(
@@ -25,6 +26,11 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(
+        {
+            cv.Optional(CONF_AJSR04M, default=False): cv.boolean,
+        }
+    )
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
@@ -42,3 +48,5 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    cg.add(var.set_ajsr04m(config[CONF_AJSR04M]))
