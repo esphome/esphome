@@ -1,27 +1,29 @@
-#include "bme68x_bsec_i2c.h"
+#include "bme68x_bsec2_i2c.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <string>
 
 namespace esphome {
-namespace bme68x_bsec_i2c {
+namespace bme68x_bsec2_i2c {
 #ifdef USE_BSEC2
 
-#define BME68X_BSEC_I2C_ALGORITHM_OUTPUT_LOG(a) (a == ALGORITHM_OUTPUT_CLASSIFICATION ? "Classification" : "Regression")
-#define BME68X_BSEC_I2C_OPERATING_AGE_LOG(o) (o == OPERATING_AGE_4D ? "4 days" : "28 days")
-#define BME68X_BSEC_I2C_SAMPLE_RATE_LOG(r) \
+#define BME68X_BSEC2_I2C_ALGORITHM_OUTPUT_LOG(a) \
+  (a == ALGORITHM_OUTPUT_CLASSIFICATION ? "Classification" : "Regression")
+#define BME68X_BSEC2_I2C_OPERATING_AGE_LOG(o) (o == OPERATING_AGE_4D ? "4 days" : "28 days")
+#define BME68X_BSEC2_I2C_SAMPLE_RATE_LOG(r) \
   (r == SAMPLE_RATE_DEFAULT ? "Default" : (r == SAMPLE_RATE_ULP ? "ULP" : "LP"))
-#define BME68X_BSEC_I2C_VOLTAGE_LOG(v) (v == VOLTAGE_3_3V ? "3.3V" : "1.8V")
+#define BME68X_BSEC2_I2C_VOLTAGE_LOG(v) (v == VOLTAGE_3_3V ? "3.3V" : "1.8V")
 
-static const char *const TAG = "bme68x_bsec_i2c.sensor";
+static const char *const TAG = "bme68x_bsec2_i2c.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-BME68xBSECI2CComponent *BME68xBSECI2CComponent::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+BME68xBSEC2I2CComponent
+    *BME68xBSEC2I2CComponent::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void BME68xBSECI2CComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BME68X via BSEC...");
-  BME68xBSECI2CComponent::instance = this;
+void BME68xBSEC2I2CComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up BME68X via BSEC2...");
+  BME68xBSEC2I2CComponent::instance = this;
 
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
@@ -30,9 +32,9 @@ void BME68xBSECI2CComponent::setup() {
   }
 
   this->bme68x_.intf = BME68X_I2C_INTF;
-  this->bme68x_.read = BME68xBSECI2CComponent::read_bytes_wrapper;
-  this->bme68x_.write = BME68xBSECI2CComponent::write_bytes_wrapper;
-  this->bme68x_.delay_us = BME68xBSECI2CComponent::delay_us;
+  this->bme68x_.read = BME68xBSEC2I2CComponent::read_bytes_wrapper;
+  this->bme68x_.write = BME68xBSEC2I2CComponent::write_bytes_wrapper;
+  this->bme68x_.delay_us = BME68xBSEC2I2CComponent::delay_us;
   this->bme68x_.amb_temp = 25;
 
   this->bme68x_status_ = bme68x_init(&this->bme68x_);
@@ -40,8 +42,8 @@ void BME68xBSECI2CComponent::setup() {
     this->mark_failed();
     return;
   }
-  if (this->bsec_configuration_ != nullptr && this->bsec_configuration_length_) {
-    this->set_config_(this->bsec_configuration_, this->bsec_configuration_length_);
+  if (this->bsec2_configuration_ != nullptr && this->bsec2_configuration_length_) {
+    this->set_config_(this->bsec2_configuration_, this->bsec2_configuration_length_);
     if (this->bsec_status_ != BSEC_OK) {
       this->mark_failed();
       return;
@@ -57,42 +59,42 @@ void BME68xBSECI2CComponent::setup() {
   this->load_state_();
 }
 
-void BME68xBSECI2CComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "BME68X via BSEC:");
+void BME68xBSEC2I2CComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "BME68X via BSEC2:");
 
   LOG_I2C_DEVICE(this);
 
   bsec_version_t version;
   bsec_get_version_m(&this->bsec_instance_, &version);
-  ESP_LOGCONFIG(TAG, "  BSEC version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix,
+  ESP_LOGCONFIG(TAG, "  BSEC2 version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix,
                 version.minor_bugfix);
 
-  ESP_LOGCONFIG(TAG, "  BSEC configuration blob:");
-  ESP_LOGCONFIG(TAG, "    Configured: %s", YESNO(this->bsec_blob_configured_));
-  if (this->bsec_configuration_ != nullptr && this->bsec_configuration_length_) {
-    ESP_LOGCONFIG(TAG, "    Size: %" PRIu32, this->bsec_configuration_length_);
+  ESP_LOGCONFIG(TAG, "  BSEC2 configuration blob:");
+  ESP_LOGCONFIG(TAG, "    Configured: %s", YESNO(this->bsec2_blob_configured_));
+  if (this->bsec2_configuration_ != nullptr && this->bsec2_configuration_length_) {
+    ESP_LOGCONFIG(TAG, "    Size: %" PRIu32, this->bsec2_configuration_length_);
   }
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication failed (BSEC status: %d, BME68X status: %d)", this->bsec_status_,
+    ESP_LOGE(TAG, "Communication failed (BSEC2 status: %d, BME68X status: %d)", this->bsec_status_,
              this->bme68x_status_);
   }
 
   if (this->algorithm_output_ != ALGORITHM_OUTPUT_IAQ) {
-    ESP_LOGCONFIG(TAG, "  Algorithm output: %s", BME68X_BSEC_I2C_ALGORITHM_OUTPUT_LOG(this->algorithm_output_));
+    ESP_LOGCONFIG(TAG, "  Algorithm output: %s", BME68X_BSEC2_I2C_ALGORITHM_OUTPUT_LOG(this->algorithm_output_));
   }
-  ESP_LOGCONFIG(TAG, "  Operating age: %s", BME68X_BSEC_I2C_OPERATING_AGE_LOG(this->operating_age_));
-  ESP_LOGCONFIG(TAG, "  Sample rate: %s", BME68X_BSEC_I2C_SAMPLE_RATE_LOG(this->sample_rate_));
-  ESP_LOGCONFIG(TAG, "  Voltage: %s", BME68X_BSEC_I2C_VOLTAGE_LOG(this->voltage_));
+  ESP_LOGCONFIG(TAG, "  Operating age: %s", BME68X_BSEC2_I2C_OPERATING_AGE_LOG(this->operating_age_));
+  ESP_LOGCONFIG(TAG, "  Sample rate: %s", BME68X_BSEC2_I2C_SAMPLE_RATE_LOG(this->sample_rate_));
+  ESP_LOGCONFIG(TAG, "  Voltage: %s", BME68X_BSEC2_I2C_VOLTAGE_LOG(this->voltage_));
   ESP_LOGCONFIG(TAG, "  State save interval: %ims", this->state_save_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f", this->temperature_offset_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC_I2C_SAMPLE_RATE_LOG(this->temperature_sample_rate_));
+  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC2_I2C_SAMPLE_RATE_LOG(this->temperature_sample_rate_));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC_I2C_SAMPLE_RATE_LOG(this->pressure_sample_rate_));
+  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC2_I2C_SAMPLE_RATE_LOG(this->pressure_sample_rate_));
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC_I2C_SAMPLE_RATE_LOG(this->humidity_sample_rate_));
+  ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC2_I2C_SAMPLE_RATE_LOG(this->humidity_sample_rate_));
   LOG_SENSOR("  ", "Gas resistance", this->gas_resistance_sensor_);
   LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
   LOG_SENSOR("  ", "Numeric IAQ accuracy", this->iaq_accuracy_sensor_);
@@ -101,9 +103,9 @@ void BME68xBSECI2CComponent::dump_config() {
   LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor_);
 }
 
-float BME68xBSECI2CComponent::get_setup_priority() const { return setup_priority::DATA; }
+float BME68xBSEC2I2CComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void BME68xBSECI2CComponent::loop() {
+void BME68xBSEC2I2CComponent::loop() {
   this->run_();
 
   if (this->bsec_status_ < BSEC_OK || this->bme68x_status_ < BME68X_OK) {
@@ -125,7 +127,7 @@ void BME68xBSECI2CComponent::loop() {
   }
 }
 
-void BME68xBSECI2CComponent::set_config_(const uint8_t *config, uint32_t len) {
+void BME68xBSEC2I2CComponent::set_config_(const uint8_t *config, uint32_t len) {
   if (len > BSEC_MAX_PROPERTY_BLOB_SIZE) {
     ESP_LOGE(TAG, "Configuration is larger than BSEC_MAX_PROPERTY_BLOB_SIZE");
     this->mark_failed();
@@ -134,18 +136,18 @@ void BME68xBSECI2CComponent::set_config_(const uint8_t *config, uint32_t len) {
   uint8_t work_buffer[BSEC_MAX_PROPERTY_BLOB_SIZE];
   this->bsec_status_ = bsec_set_configuration_m(&this->bsec_instance_, config, len, work_buffer, sizeof(work_buffer));
   if (this->bsec_status_ == BSEC_OK) {
-    this->bsec_blob_configured_ = true;
+    this->bsec2_blob_configured_ = true;
   }
 }
 
-float BME68xBSECI2CComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
+float BME68xBSEC2I2CComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
   if (sample_rate == SAMPLE_RATE_DEFAULT) {
     sample_rate = this->sample_rate_;
   }
   return sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
 }
 
-void BME68xBSECI2CComponent::update_subscription_() {
+void BME68xBSEC2I2CComponent::update_subscription_() {
   bsec_sensor_configuration_t virtual_sensors[BSEC_NUMBER_OUTPUTS];
   int num_virtual_sensors = 0;
 
@@ -203,7 +205,7 @@ void BME68xBSECI2CComponent::update_subscription_() {
                                                   sensor_settings, &num_sensor_settings);
 }
 
-void BME68xBSECI2CComponent::run_() {
+void BME68xBSEC2I2CComponent::run_() {
   int64_t curr_time_ns = this->get_time_ns_();
   if (curr_time_ns < this->next_call_ns_) {
     return;
@@ -216,7 +218,7 @@ void BME68xBSECI2CComponent::run_() {
   struct bme68x_conf bme68x_conf;
   this->bsec_status_ = bsec_sensor_control_m(&this->bsec_instance_, curr_time_ns, &this->bsec_settings_);
   if (this->bsec_status_ < BSEC_OK) {
-    ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC error code %d)", this->bsec_status_);
+    ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC2 error code %d)", this->bsec_status_);
     return;
   }
   this->next_call_ns_ = this->bsec_settings_.next_call;
@@ -280,7 +282,7 @@ void BME68xBSECI2CComponent::run_() {
   }
 }
 
-void BME68xBSECI2CComponent::read_(int64_t trigger_time_ns) {
+void BME68xBSEC2I2CComponent::read_(int64_t trigger_time_ns) {
   ESP_LOGV(TAG, "Reading data");
 
   if (this->bsec_settings_.trigger_measurement) {
@@ -358,7 +360,7 @@ void BME68xBSECI2CComponent::read_(int64_t trigger_time_ns) {
     }
 
     if (num_inputs < 1) {
-      ESP_LOGD(TAG, "No signal inputs available for BSEC");
+      ESP_LOGD(TAG, "No signal inputs available for BSEC2");
       return;
     }
 
@@ -366,11 +368,11 @@ void BME68xBSECI2CComponent::read_(int64_t trigger_time_ns) {
     uint8_t num_outputs = BSEC_NUMBER_OUTPUTS;
     this->bsec_status_ = bsec_do_steps_m(&this->bsec_instance_, inputs, num_inputs, outputs, &num_outputs);
     if (this->bsec_status_ != BSEC_OK) {
-      ESP_LOGW(TAG, "BSEC failed to process signals (BSEC error code %d)", this->bsec_status_);
+      ESP_LOGW(TAG, "BSEC2 failed to process signals (BSEC2 error code %d)", this->bsec_status_);
       return;
     }
     if (num_outputs < 1) {
-      ESP_LOGD(TAG, "No signal outputs provided by BSEC");
+      ESP_LOGD(TAG, "No signal outputs provided by BSEC2");
       return;
     }
 
@@ -378,7 +380,7 @@ void BME68xBSECI2CComponent::read_(int64_t trigger_time_ns) {
   }
 }
 
-void BME68xBSECI2CComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
+void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
   ESP_LOGV(TAG, "Publishing sensor states");
   uint8_t accuracy = 0xff;
   for (uint8_t i = 0; i < num_outputs; i++) {
@@ -421,7 +423,7 @@ void BME68xBSECI2CComponent::publish_(const bsec_output_t *outputs, uint8_t num_
   }
 }
 
-int64_t BME68xBSECI2CComponent::get_time_ns_() {
+int64_t BME68xBSEC2I2CComponent::get_time_ns_() {
   int64_t time_ms = millis();
   if (this->last_time_ms_ > time_ms) {
     this->millis_overflow_counter_++;
@@ -431,35 +433,35 @@ int64_t BME68xBSECI2CComponent::get_time_ns_() {
   return (time_ms + ((int64_t) this->millis_overflow_counter_ << 32)) * INT64_C(1000000);
 }
 
-void BME68xBSECI2CComponent::publish_sensor_(sensor::Sensor *sensor, float value, bool change_only) {
+void BME68xBSEC2I2CComponent::publish_sensor_(sensor::Sensor *sensor, float value, bool change_only) {
   if (!sensor || (change_only && sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
 }
 
-void BME68xBSECI2CComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
+void BME68xBSEC2I2CComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
   if (!sensor || (sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
 }
 
-int8_t BME68xBSECI2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
-  return BME68xBSECI2CComponent::instance->read_bytes(a_register, data, len) ? 0 : -1;
+int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
+  return BME68xBSEC2I2CComponent::instance->read_bytes(a_register, data, len) ? 0 : -1;
 }
 
-int8_t BME68xBSECI2CComponent::write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len,
-                                                   void *intfPtr) {
-  return BME68xBSECI2CComponent::instance->write_bytes(a_register, data, len) ? 0 : -1;
+int8_t BME68xBSEC2I2CComponent::write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len,
+                                                    void *intfPtr) {
+  return BME68xBSEC2I2CComponent::instance->write_bytes(a_register, data, len) ? 0 : -1;
 }
 
-void BME68xBSECI2CComponent::delay_us(uint32_t period, void *intfPtr) {
+void BME68xBSEC2I2CComponent::delay_us(uint32_t period, void *intfPtr) {
   ESP_LOGV(TAG, "Delaying for %" PRIu32 "us", period);
   delayMicroseconds(period);
 }
 
-void BME68xBSECI2CComponent::load_state_() {
+void BME68xBSEC2I2CComponent::load_state_() {
   uint32_t hash = fnv1_hash("bme68x_bsec_state_" + to_string(this->address_));
   this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
@@ -470,13 +472,13 @@ void BME68xBSECI2CComponent::load_state_() {
     this->bsec_status_ =
         bsec_set_state_m(&this->bsec_instance_, state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, sizeof(work_buffer));
     if (this->bsec_status_ != BSEC_OK) {
-      ESP_LOGW(TAG, "Failed to load state (BSEC error code %d)", this->bsec_status_);
+      ESP_LOGW(TAG, "Failed to load state (BSEC2 error code %d)", this->bsec_status_);
     }
     ESP_LOGI(TAG, "Loaded state");
   }
 }
 
-void BME68xBSECI2CComponent::save_state_(uint8_t accuracy) {
+void BME68xBSEC2I2CComponent::save_state_(uint8_t accuracy) {
   if (accuracy < 3 || (millis() - this->last_state_save_ms_ < this->state_save_interval_ms_)) {
     return;
   }
@@ -490,7 +492,7 @@ void BME68xBSECI2CComponent::save_state_(uint8_t accuracy) {
   this->bsec_status_ = bsec_get_state_m(&this->bsec_instance_, 0, state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer,
                                         BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
   if (this->bsec_status_ != BSEC_OK) {
-    ESP_LOGW(TAG, "Failed fetch state for save (BSEC error code %d)", this->bsec_status_);
+    ESP_LOGW(TAG, "Failed fetch state for save (BSEC2 error code %d)", this->bsec_status_);
     return;
   }
 
@@ -503,5 +505,5 @@ void BME68xBSECI2CComponent::save_state_(uint8_t accuracy) {
   ESP_LOGI(TAG, "Saved state");
 }
 #endif
-}  // namespace bme68x_bsec_i2c
+}  // namespace bme68x_bsec2_i2c
 }  // namespace esphome

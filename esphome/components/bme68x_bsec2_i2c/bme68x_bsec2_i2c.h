@@ -15,7 +15,7 @@
 #endif
 
 namespace esphome {
-namespace bme68x_bsec_i2c {
+namespace bme68x_bsec2_i2c {
 #ifdef USE_BSEC2
 
 enum AlgorithmOutput {
@@ -40,7 +40,7 @@ enum Voltage {
   VOLTAGE_3_3V,
 };
 
-class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
+class BME68xBSEC2I2CComponent : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -57,9 +57,9 @@ class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
   void set_pressure_sample_rate(SampleRate sample_rate) { this->pressure_sample_rate_ = sample_rate; }
   void set_humidity_sample_rate(SampleRate sample_rate) { this->humidity_sample_rate_ = sample_rate; }
 
-  void set_bsec_configuration(const uint8_t *data, const uint32_t len) {
-    this->bsec_configuration_ = data;
-    this->bsec_configuration_length_ = len;
+  void set_bsec2_configuration(const uint8_t *data, const uint32_t len) {
+    this->bsec2_configuration_ = data;
+    this->bsec2_configuration_length_ = len;
   }
 
   void set_state_save_interval(uint32_t interval) { this->state_save_interval_ms_ = interval; }
@@ -75,7 +75,7 @@ class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
   void set_co2_equivalent_sensor(sensor::Sensor *sensor) { this->co2_equivalent_sensor_ = sensor; }
   void set_breath_voc_equivalent_sensor(sensor::Sensor *sensor) { this->breath_voc_equivalent_sensor_ = sensor; }
 
-  static BME68xBSECI2CComponent *instance;
+  static BME68xBSEC2I2CComponent *instance;
   static int8_t read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr);
   static int8_t write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len, void *intfPtr);
   static void delay_us(uint32_t period, void *intfPtr);
@@ -114,9 +114,9 @@ class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
 
   std::queue<std::function<void()>> queue_;
 
-  uint8_t const *bsec_configuration_{nullptr};
-  uint32_t bsec_configuration_length_{0};
-  bool bsec_blob_configured_{false};
+  uint8_t const *bsec2_configuration_{nullptr};
+  uint32_t bsec2_configuration_length_{0};
+  bool bsec2_blob_configured_{false};
 
   ESPPreferenceObject bsec_state_;
   uint32_t state_save_interval_ms_{21600000};  // 6 hours - 4 times a day
@@ -145,5 +145,5 @@ class BME68xBSECI2CComponent : public Component, public i2c::I2CDevice {
   sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
-}  // namespace bme68x_bsec_i2c
+}  // namespace bme68x_bsec2_i2c
 }  // namespace esphome

@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_RAW_DATA_ID,
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
-    CONF_VOLTAGE,
 )
 from esphome import external_files
 
@@ -21,48 +20,49 @@ CODEOWNERS = ["@neffs"]
 
 AUTO_LOAD = ["sensor", "text_sensor"]
 DEPENDENCIES = ["i2c"]
-DOMAIN = "bme68x_bsec_i2c"
+DOMAIN = "bme68x_bsec2_i2c"
 
 BSEC2_LIBRARY_VERSION = "v1.7.2502"
 
 CONF_ALGORITHM_OUTPUT = "algorithm_output"
-CONF_BME68X_BSEC_I2C_ID = "bme68x_bsec_i2c_id"
+CONF_BME68X_BSEC2_I2C_ID = "bme68x_bsec2_i2c_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_OPERATING_AGE = "operating_age"
 CONF_STATE_SAVE_INTERVAL = "state_save_interval"
+CONF_SUPPLY_VOLTAGE = "supply_voltage"
 
 _LOGGER = logging.getLogger(__name__)
 
-bme68x_bsec_i2c_ns = cg.esphome_ns.namespace("bme68x_bsec_i2c")
+bme68x_bsec2_i2c_ns = cg.esphome_ns.namespace("bme68x_bsec2_i2c")
 
 MODEL_OPTIONS = ["bme680", "bme688"]
 
-AlgorithmOutput = bme68x_bsec_i2c_ns.enum("AlgorithmOutput")
+AlgorithmOutput = bme68x_bsec2_i2c_ns.enum("AlgorithmOutput")
 ALGORITHM_OUTPUT_OPTIONS = {
     "classification": AlgorithmOutput.ALGORITHM_OUTPUT_CLASSIFICATION,
     "regression": AlgorithmOutput.ALGORITHM_OUTPUT_REGRESSION,
 }
 
-OperatingAge = bme68x_bsec_i2c_ns.enum("OperatingAge")
+OperatingAge = bme68x_bsec2_i2c_ns.enum("OperatingAge")
 OPERATING_AGE_OPTIONS = {
     "4d": OperatingAge.OPERATING_AGE_4D,
     "28d": OperatingAge.OPERATING_AGE_28D,
 }
 
-SampleRate = bme68x_bsec_i2c_ns.enum("SampleRate")
+SampleRate = bme68x_bsec2_i2c_ns.enum("SampleRate")
 SAMPLE_RATE_OPTIONS = {
     "LP": SampleRate.SAMPLE_RATE_LP,
     "ULP": SampleRate.SAMPLE_RATE_ULP,
 }
 
-Voltage = bme68x_bsec_i2c_ns.enum("Voltage")
+Voltage = bme68x_bsec2_i2c_ns.enum("Voltage")
 VOLTAGE_OPTIONS = {
     "1.8V": Voltage.VOLTAGE_1_8V,
     "3.3V": Voltage.VOLTAGE_3_3V,
 }
 
-BME68xBSECI2CComponent = bme68x_bsec_i2c_ns.class_(
-    "BME68xBSECI2CComponent", cg.Component, i2c.I2CDevice
+BME68xBSEC2I2CComponent = bme68x_bsec2_i2c_ns.class_(
+    "BME68xBSEC2I2CComponent", cg.Component, i2c.I2CDevice
 )
 
 ALGORITHM_OUTPUT_FILE_NAME = {
@@ -91,10 +91,10 @@ def validate_bme68x(config):
     if config[CONF_ALGORITHM_OUTPUT] == "regression" and (
         config[CONF_OPERATING_AGE] != "4d"
         or config[CONF_SAMPLE_RATE] != "ULP"
-        or config[CONF_VOLTAGE] != "1.8V"
+        or config[CONF_SUPPLY_VOLTAGE] != "1.8V"
     ):
         raise cv.Invalid(
-            f" To use '{CONF_ALGORITHM_OUTPUT}: regression', {CONF_OPERATING_AGE} must be '4d', {CONF_SAMPLE_RATE} must be 'ULP' and {CONF_VOLTAGE} must be '1.8V'"
+            f" To use '{CONF_ALGORITHM_OUTPUT}: regression', {CONF_OPERATING_AGE} must be '4d', {CONF_SAMPLE_RATE} must be 'ULP' and {CONF_SUPPLY_VOLTAGE} must be '1.8V'"
         )
     return config
 
@@ -102,7 +102,7 @@ def validate_bme68x(config):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(BME68xBSECI2CComponent),
+            cv.GenerateID(): cv.declare_id(BME68xBSEC2I2CComponent),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
             cv.Required(CONF_MODEL): cv.one_of(*MODEL_OPTIONS, lower=True),
             cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(
@@ -114,7 +114,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
                 SAMPLE_RATE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_VOLTAGE, default="3.3V"): cv.enum(
+            cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
                 VOLTAGE_OPTIONS, upper=True
             ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
@@ -132,7 +132,7 @@ def _compute_url(config: dict) -> str:
     model = config.get(CONF_MODEL)
     operating_age = config.get(CONF_OPERATING_AGE)
     sample_rate = SAMPLE_RATE_FILE_NAME[config.get(CONF_SAMPLE_RATE)]
-    volts = VOLTAGE_FILE_NAME[config.get(CONF_VOLTAGE)]
+    volts = VOLTAGE_FILE_NAME[config.get(CONF_SUPPLY_VOLTAGE)]
     algo = "iaq"
     filename = "bsec_iaq"
     if model == "bme688":
@@ -180,7 +180,7 @@ async def to_code(config):
         cg.add(var.set_algorithm_output(algo_output))
     cg.add(var.set_operating_age(config[CONF_OPERATING_AGE]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
-    cg.add(var.set_voltage(config[CONF_VOLTAGE]))
+    cg.add(var.set_voltage(config[CONF_SUPPLY_VOLTAGE]))
     cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
     cg.add(
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
@@ -190,13 +190,13 @@ async def to_code(config):
     path = _compute_local_file_path(url)
     bsec2_iaq_config = _download_file(url, path)
 
-    # Convert retrieved BSEC config to an array of ints
+    # Convert retrieved BSEC2 config to an array of ints
     rhs = [int(x) for x in bsec2_iaq_config.decode("utf-8").split(",")]
     # Create an array which will reside in program memory and configure the sensor instance to use it
     bsec2_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.add(var.set_bsec_configuration(bsec2_arr, len(rhs)))
+    cg.add(var.set_bsec2_configuration(bsec2_arr, len(rhs)))
 
-    # Although this component does not use SPI, the BSEC library requires the SPI library
+    # Although this component does not use SPI, the BSEC2 library requires the SPI library
     cg.add_library("SPI", None)
     cg.add_library(
         "BME68x Sensor library",
