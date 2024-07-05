@@ -7,7 +7,7 @@
 #include <esp_sleep.h>
 
 namespace esphome {
-namespace pulse_counter {
+namespace pulse_counter_ulp {
 
 static const char *const TAG = "pulse_counter_ulp";
 
@@ -98,8 +98,6 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
     return false;
   }
 
-  // TODO Support Filter
-
   return true;
 }
 
@@ -112,7 +110,7 @@ pulse_counter_t UlpPulseCounterStorage::read_raw_value() {
 
 /* === END ULP ===*/
 
-void PulseCounterSensor::setup() {
+void PulseCounterUlpSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
@@ -128,21 +126,20 @@ void PulseCounterSensor::setup() {
 #endif
 }
 
-void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
+void PulseCounterUlpSensor::set_total_pulses(uint32_t pulses) {
   this->current_total_ = pulses;
   this->total_sensor_->publish_state(pulses);
 }
 
-void PulseCounterSensor::dump_config() {
+void PulseCounterUlpSensor::dump_config() {
   LOG_SENSOR("", "Pulse Counter", this);
   LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  Rising Edge: %s", EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode]);
   ESP_LOGCONFIG(TAG, "  Falling Edge: %s", EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode]);
-  ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %" PRIu32 " µs", this->storage_.filter_us);
   LOG_UPDATE_INTERVAL(this);
 }
 
-void PulseCounterSensor::update() {
+void PulseCounterUlpSensor::update() {
 #ifdef CONF_USE_TIME
   // Can't clear the pulse count until we can report the rate, so there's
   // nothing to do until the time is synchronized
@@ -178,5 +175,5 @@ void PulseCounterSensor::update() {
 #endif
 }
 
-}  // namespace pulse_counter
+}  // namespace pulse_counter_ulp
 }  // namespace esphome

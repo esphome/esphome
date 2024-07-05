@@ -11,7 +11,7 @@
 #include <cinttypes>
 
 namespace esphome {
-namespace pulse_counter {
+namespace pulse_counter_ulp {
 
 enum PulseCounterCountMode {
   PULSE_COUNTER_DISABLE = 0,
@@ -22,30 +22,23 @@ enum PulseCounterCountMode {
 using pulse_counter_t = int32_t;
 using timestamp_t = int64_t;
 
-struct PulseCounterStorageBase {
-  virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
-  virtual pulse_counter_t read_raw_value() = 0;
+struct UlpPulseCounterStorage {
+  bool pulse_counter_setup(InternalGPIOPin *pin);
+  pulse_counter_t read_raw_value();
 
   InternalGPIOPin *pin;
   PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
   PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
-  uint32_t filter_us{0};
   pulse_counter_t last_value{0};
 };
 
-struct UlpPulseCounterStorage : public PulseCounterStorageBase {
-  bool pulse_counter_setup(InternalGPIOPin *pin) override;
-  pulse_counter_t read_raw_value() override;
-};
-
-class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
+class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
  public:
-  explicit PulseCounterSensor(PulseCounterStorageBase *storage) : storage_(*storage) {}
+  explicit PulseCounterUlpSensor() {}
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
   void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
-  void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { time_id_ = time_id; }
@@ -61,7 +54,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   InternalGPIOPin *pin_;
-  PulseCounterStorageBase &storage_;
+  UlpPulseCounterStorage storage_;
   timestamp_t last_time_{0};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_{nullptr};
@@ -73,5 +66,5 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
 #endif
 };
 
-}  // namespace pulse_counter
+}  // namespace pulse_counter_ulp
 }  // namespace esphome

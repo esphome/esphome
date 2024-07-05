@@ -23,10 +23,8 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-CONF_STORAGE_ID = "storage"
-
-pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
-PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
+pulse_counter_ulp_ns = cg.esphome_ns.namespace("pulse_counter_ulp")
+PulseCounterCountMode = pulse_counter_ulp_ns.enum("PulseCounterCountMode")
 COUNT_MODES = {
     "DISABLE": PulseCounterCountMode.PULSE_COUNTER_DISABLE,
     "INCREMENT": PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
@@ -35,11 +33,11 @@ COUNT_MODES = {
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
-PulseCounterSensor = pulse_counter_ns.class_(
-    "PulseCounterSensor", sensor.Sensor, cg.PollingComponent
+PulseCounterUlpSensor = pulse_counter_ulp_ns.class_(
+    "PulseCounterUlpSensor", sensor.Sensor, cg.PollingComponent
 )
 
-SetTotalPulsesAction = pulse_counter_ns.class_(
+SetTotalPulsesAction = pulse_counter_ulp_ns.class_(
     "SetTotalPulsesAction", automation.Action
 )
 
@@ -66,7 +64,7 @@ def validate_count_mode(value):
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        PulseCounterSensor,
+        PulseCounterUlpSensor,
         unit_of_measurement=UNIT_PULSES_PER_MINUTE,
         icon=ICON_PULSE,
         accuracy_decimals=2,
@@ -96,9 +94,6 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
-            cv.GenerateID(CONF_STORAGE_ID): cv.declare_id(
-                "pulse_counter::PulseCounterStorageBase"
-            ),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         },
     )
@@ -107,10 +102,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    storage = cg.Pvariable(
-        config[CONF_STORAGE_ID],
-        cg.RawExpression("new pulse_counter::UlpPulseCounterStorage()"),
-    )
     esp32.add_extra_build_file(
         "src/CMakeLists.txt",
         os.path.join(os.path.dirname(__file__), "CMakeLists.txt"),
@@ -123,7 +114,7 @@ async def to_code(config):
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_ENABLED", True)
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_TYPE_FSM", True)
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_RESERVE_MEM", 1024)
-    var = await sensor.new_sensor(config, storage)
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
@@ -147,7 +138,7 @@ async def to_code(config):
     SetTotalPulsesAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(PulseCounterSensor),
+            cv.Required(CONF_ID): cv.use_id(PulseCounterUlpSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
         }
     ),
