@@ -22,7 +22,6 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
   void set_request_parent(HttpRequestComponent *request_parent) { this->request_parent_ = request_parent; }
   void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
 
-
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
