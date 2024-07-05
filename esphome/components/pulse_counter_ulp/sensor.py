@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_COUNT_MODE,
     CONF_FALLING_EDGE,
     CONF_ID,
-    CONF_INTERNAL_FILTER,
     CONF_PIN,
     CONF_RISING_EDGE,
     CONF_NUMBER,
@@ -91,9 +90,6 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 validate_count_mode,
             ),
-            cv.Optional(
-                CONF_INTERNAL_FILTER, default="13us"
-            ): cv.positive_time_period_microseconds,
             cv.Optional(CONF_TOTAL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PULSES,
                 icon=ICON_PULSE,
@@ -135,7 +131,6 @@ async def to_code(config):
     count = config[CONF_COUNT_MODE]
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
-    cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
     if CONF_TIME_ID in config:
         cg.add_define("CONF_USE_TIME", True)
