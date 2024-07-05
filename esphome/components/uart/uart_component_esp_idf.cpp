@@ -106,6 +106,7 @@ void IDFUARTComponent::setup() {
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
@@ -120,7 +121,7 @@ void IDFUARTComponent::setup() {
     return;
   }
 
-  err = uart_set_pin(this->uart_num_, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+  err = uart_set_pin(this->uart_num_, tx, rx, flow_control, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
     this->mark_failed();
@@ -130,13 +131,23 @@ void IDFUARTComponent::setup() {
   err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
                             /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
                                block task until all data have been sent out.*/
-                            0,
+                            this->tx_buffer_size_,
                             /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
                             /* Flags used to allocate the interrupt. */ 0);
+
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
+  }
+
+  if (this->flow_control_pin_ != nullptr) {
+    err = uart_set_mode(this->uart_num_, UART_MODE_RS485_HALF_DUPLEX);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+      this->mark_failed();
+      return;
+    }
   }
 
   xSemaphoreGive(this->lock_);
@@ -159,6 +170,9 @@ void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
+  if (this->tx_pin_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  TX Buffer Size: %u", this->tx_buffer_size_);
+  }
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }

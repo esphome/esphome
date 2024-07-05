@@ -139,8 +139,15 @@ void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
     invert = true;
   if (rx_pin_ != nullptr && rx_pin_->is_inverted())
     invert = true;
+  this->hw_serial_->setTxBufferSize(this->tx_buffer_size_);
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
+#ifdef USE_UART_FLOW_CONTROL
+  if (this->flow_control_pin_ != nullptr) {
+    this->hw_serial_->setPins(-1, -1, -1, this->flow_control_pin_->get_pin());
+    this->hw_serial_->setMode(UART_MODE_RS485_HALF_DUPLEX);
+  }
+#endif
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->number_);
     this->dump_config();
@@ -151,6 +158,12 @@ void ESP32ArduinoUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %d:", this->number_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
+#ifdef USE_UART_FLOW_CONTROL
+  LOG_PIN("  Flow Control Pin: ", flow_control_pin_);
+#endif
+  if (this->tx_pin_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  TX Buffer Size: %u", this->tx_buffer_size_);
+  }
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
