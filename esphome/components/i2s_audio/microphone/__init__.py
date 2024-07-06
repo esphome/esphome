@@ -2,7 +2,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from esphome import pins
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_NUMBER
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_NUMBER, CONF_SAMPLE_RATE
 from esphome.components import microphone, esp32
 from esphome.components.adc import ESP32_VARIANT_ADC1_PIN_TO_CHANNEL, validate_adc_pin
 
@@ -20,7 +20,6 @@ DEPENDENCIES = ["i2s_audio"]
 CONF_ADC_PIN = "adc_pin"
 CONF_ADC_TYPE = "adc_type"
 CONF_PDM = "pdm"
-CONF_SAMPLE_RATE = "sample_rate"
 CONF_BITS_PER_SAMPLE = "bits_per_sample"
 CONF_USE_APLL = "use_apll"
 

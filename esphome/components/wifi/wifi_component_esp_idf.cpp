@@ -757,7 +757,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   if (s_sta_connected && this->got_ipv4_address_) {
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
       return WiFiSTAConnectStatus::CONNECTED;
     }
