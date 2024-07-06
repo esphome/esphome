@@ -5,11 +5,11 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
+    CONF_MODEL,
 )
 
 CODEOWNERS = ["@Mafus1"]
 DEPENDENCIES = ["uart"]
-CONF_MODEL = 'model'
 
 jsn_sr04t_ns = cg.esphome_ns.namespace("jsn_sr04t")
 Jsnsr04tComponent = jsn_sr04t_ns.class_(
@@ -33,9 +33,7 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(
         {
-            cv.Optional(CONF_MODEL, default="jsn_sr04t"): cv.enum(
-                MODEL, upper=False
-            ),
+            cv.Optional(CONF_MODEL, default="jsn_sr04t"): cv.enum(MODEL, upper=False),
         }
     )
 )
