@@ -869,7 +869,7 @@ void HOT WaveshareEPaper1P54InBV2::display(){
   this->initialize();
 
   // COMMAND DATA START TRANSMISSION 1 (BLACK)
-  this->command(24);
+  this->command(0x24);
   delay(2);
   for (uint32_t i = 0; i < buf_len_half; i++) {
     this->data(this->buffer_[i]);
