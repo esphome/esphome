@@ -9,12 +9,17 @@ from esphome.const import (
 
 CODEOWNERS = ["@Mafus1"]
 DEPENDENCIES = ["uart"]
-CONF_AJSR04M_MODE = "ajsr04m_mode"
+CONF_MODEL = 'model'
 
 jsn_sr04t_ns = cg.esphome_ns.namespace("jsn_sr04t")
 Jsnsr04tComponent = jsn_sr04t_ns.class_(
     "Jsnsr04tComponent", sensor.Sensor, cg.PollingComponent, uart.UARTDevice
 )
+Model = jsn_sr04t_ns.enum("Model")
+MODEL = {
+    "jsn_sr04t": Model.jsn_sr04t,
+    "aj_sr04m": Model.aj_sr04m,
+}
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -28,7 +33,9 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(
         {
-            cv.Optional(CONF_AJSR04M_MODE, default=False): cv.boolean,
+            cv.Optional(CONF_MODEL, default="jsn_sr04t"): cv.enum(
+                MODEL, upper=False
+            ),
         }
     )
 )
@@ -49,4 +56,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    cg.add(var.set_ajsr04m(config[CONF_AJSR04M_MODE]))
+    cg.add(var.set_model(config[CONF_MODEL]))
