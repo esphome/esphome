@@ -817,10 +817,10 @@ void WaveshareEPaper2P7InV2::dump_config() {
 //  - 
 
 void WaveshareEPaper1P54InBV2::initialize(){
-  ESP_LOGD(TAG, 'Reseting Display');
+  ESP_LOGD(TAG, "Reseting Display");
   this->reset_();
 
-  ESP_LOGD(TAG, 'Initializing Display');
+  ESP_LOGD(TAG, "Initializing Display");
   this->wait_until_idle_();
 
   this->command(0x12);
@@ -856,9 +856,9 @@ void WaveshareEPaper1P54InBV2::initialize(){
   this->data(0xC7);
   this->data(0x00);
 
-  ESP_LOGD(TAG, 'Waiting for idle');
+  ESP_LOGD(TAG, "Waiting for idle");
   this->wait_until_idle_();
-  ESP_LOGD(TAG, 'Waiting done');
+  ESP_LOGD(TAG, "Waiting done");
 
 }
 
