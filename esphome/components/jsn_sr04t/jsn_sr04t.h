@@ -10,8 +10,8 @@ namespace esphome {
 namespace jsn_sr04t {
 
 enum Model {
-  jsn_sr04t,
-  aj_sr04m,
+  JSN_SR04T,
+  AJ_SR04M,
 };
 
 class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
@@ -25,7 +25,7 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
 
  protected:
   void check_buffer_();
-  Model model_ = jsn_sr04t;
+  Model model_ = JSN_SR04T;
 
   std::vector<uint8_t> buffer_;
 };
