@@ -27,3 +27,7 @@ pyparsing >= 3.0
 
 # For autocompletion
 argcomplete>=2.0.0
+
+# for mcumgr
+rich==13.7.0
+smpclient==3.2.0

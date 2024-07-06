@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import time
+import asyncio
 from datetime import datetime
 
 import argcomplete
@@ -36,6 +37,7 @@ from esphome.const import (
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
     SECRETS_FILES,
+    PLATFORM_NRF52,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent, is_ip_address
@@ -47,6 +49,13 @@ from esphome.util import (
     get_serial_ports,
 )
 from esphome.log import color, setup_log, Fore
+from .zephyr_tools import (
+    logger_scan,
+    logger_connect,
+    smpmgr_scan,
+    smpmgr_upload,
+    is_mac_address,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,19 +95,59 @@ def choose_prompt(options, purpose: str = None):
 def choose_upload_log_host(
     default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
 ):
+    try:
+        mcuboot = CORE.config["nrf52"]["bootloader"] == "mcuboot"
+    except KeyError:
+        mcuboot = False
+    try:
+        ble_logger = CORE.config["zephyr_ble_nus"]["log"]
+    except KeyError:
+        ble_logger = False
+    ota = "ota" in CORE.config
     options = []
+    prefix = ""
+    if mcuboot and show_ota and ota:
+        prefix = "mcumgr "
     for port in get_serial_ports():
-        options.append((f"{port.path} ({port.description})", port.path))
+        options.append(
+            (f"{prefix}{port.path} ({port.description})", f"{prefix}{port.path}")
+        )
     if default == "SERIAL":
         return choose_prompt(options, purpose=purpose)
-    if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
-        options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if default == "OTA":
-            return CORE.address
+    if default == "PYOCD":
+        if not mcuboot:
+            raise EsphomeError("PYOCD for adafruit is not implemented")
+        options = [("pyocd", "PYOCD")]
+        return choose_prompt(options, purpose=purpose)
+    if not mcuboot:
+        if (show_ota and ota) or (show_api and "api" in CORE.config):
+            options.append((f"Over The Air ({CORE.address})", CORE.address))
+            if default == "OTA":
+                return CORE.address
+    elif show_ota and ota:
+        if default:
+            options.append((f"OTA over Bluetooth LE ({default})", f"mcumgr {default}"))
+            return choose_prompt(options, purpose=purpose)
+        ble_devices = asyncio.run(smpmgr_scan(CORE.config["esphome"]["name"]))
+        if len(ble_devices) == 0:
+            _LOGGER.warning("No OTA over Bluetooth LE service found!")
+        for device in ble_devices:
+            options.append(
+                (
+                    f"OTA over Bluetooth LE({device.address}) {device.name}",
+                    f"mcumgr {device.address}",
+                )
+            )
     if show_mqtt and CONF_MQTT in CORE.config:
         options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
+    if "logging" == purpose and ble_logger and default is None:
+        ble_device = asyncio.run(logger_scan(CORE.config["esphome"]["name"]))
+        if ble_device:
+            options.append((f"Bluetooth LE logger ({ble_device})", ble_device.address))
+        else:
+            _LOGGER.warning("No logger over Bluetooth LE service found!")
     if default is not None:
         return default
     if check_default is not None and check_default in [opt[1] for opt in options]:
@@ -111,6 +160,8 @@ def get_port_type(port):
         return "SERIAL"
     if port == "MQTT":
         return "MQTT"
+    if is_mac_address(port):
+        return "BLE"
     return "NETWORK"
 
 
@@ -289,10 +340,11 @@ def upload_using_esptool(config, port, file):
     return run_esptool(115200)
 
 
-def upload_using_platformio(config, port):
+def upload_using_platformio(config, port, upload_args=None):
     from esphome import platformio_api
 
-    upload_args = ["-t", "upload", "-t", "nobuild"]
+    if upload_args is None:
+        upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -329,7 +381,19 @@ def upload_program(config, args, host):
         if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
             return upload_using_platformio(config, host)
 
-        return 1  # Unknown target platform
+        if CORE.target_platform in (PLATFORM_NRF52):
+            return upload_using_platformio(config, host, ["-t", "upload"])
+
+        raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
+
+    if host == "PYOCD":
+        print(CORE)
+        return upload_using_platformio(config, host, ["-t", "flash_pyocd"])
+    if host.startswith("mcumgr"):
+        firmware = os.path.abspath(
+            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        )
+        return asyncio.run(smpmgr_upload(config, host.split(" ")[1], firmware))
 
     ota_conf = {}
     for ota_item in config.get(CONF_OTA, []):
@@ -388,6 +452,9 @@ def show_logs(config, args, port):
         return mqtt.show_logs(
             config, args.topic, args.username, args.password, args.client_id
         )
+
+    if get_port_type(port) == "BLE":
+        return asyncio.run(logger_connect(port))
 
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 
