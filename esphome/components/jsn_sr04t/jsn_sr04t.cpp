@@ -32,7 +32,7 @@ void Jsnsr04tComponent::loop() {
 
 void Jsnsr04tComponent::check_buffer_() {
   uint8_t checksum = 0;
-  switch(this->model_) {    
+  switch (this->model_) {
     case jsn_sr04t:
       checksum = this->buffer_[0] + this->buffer_[1] + this->buffer_[2];
       break;
