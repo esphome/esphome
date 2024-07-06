@@ -154,13 +154,15 @@ bool WaveshareEPaperBase::wait_until_idle_() {
   }
 
   const uint32_t start = millis();
-  while (boolt test = this->busy_pin_->digital_read()) {
+  boolt test = this->busy_pin_->digital_read()
+  while (test) {
     ESP_LOGD(TAG, "BUSY PIN is %d", test);
     if (millis() - start > this->idle_timeout_()) {
       ESP_LOGE(TAG, "Timeout while displaying image!");
       return false;
     }
     delay(1);
+    test = this->busy_pin_->digital_read()
   }
   return true;
 }
