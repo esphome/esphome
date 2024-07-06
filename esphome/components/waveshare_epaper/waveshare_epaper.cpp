@@ -872,7 +872,7 @@ void HOT WaveshareEPaper1P54InBV2::display(){
   this->command(0x24);
   delay(2);
   for (uint32_t i = 0; i < buf_len_half; i++) {
-    this->data(this->buffer_[i]);
+    this->data(~this->buffer_[i]);
   }
   delay(2);
 
@@ -880,7 +880,7 @@ void HOT WaveshareEPaper1P54InBV2::display(){
   this->command(0x26);
   delay(2);
   for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
-    this->data(this->buffer_[i]);
+    this->data(~this->buffer_[i]);
   }
   this->command(0x22);
   this->data(0xf7);
