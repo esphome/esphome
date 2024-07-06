@@ -31,9 +31,15 @@ void Jsnsr04tComponent::loop() {
 }
 
 void Jsnsr04tComponent::check_buffer_() {
-  uint8_t checksum = this->buffer_[1] + this->buffer_[2];
-  if (!ajsr04m_)
-    checksum += this->buffer_[0];
+  uint8_t checksum = 0;
+  switch(this->model_) {    
+    case jsn_sr04t:
+      checksum = this->buffer_[0] + this->buffer_[1] + this->buffer_[2];
+      break;
+    case aj_sr04m:
+      checksum = this->buffer_[1] + this->buffer_[2];
+      break;
+  }
 
   if (this->buffer_[3] == checksum) {
     uint16_t distance = encode_uint16(this->buffer_[1], this->buffer_[2]);
@@ -52,8 +58,16 @@ void Jsnsr04tComponent::check_buffer_() {
 
 void Jsnsr04tComponent::dump_config() {
   LOG_SENSOR("", "JST_SR04T Sensor", this);
-  ESP_LOGCONFIG(TAG, "  checksum mode: %s",
-                this->ajsr04m_ ? "aj_sr04m (exclude start byte)" : "jsn_sr04t (include start byte)");
+  switch (this->model_) {
+    case jsn_sr04t:
+      ESP_LOGCONFIG(TAG, "  sensor model: jsn_sr04t");
+      break;
+    case aj_sr04m:
+      ESP_LOGCONFIG(TAG, "  sensor model: aj_sr04m");
+      break;
+    default:
+      ESP_LOGE(TAG, "  sensor model undefined, set 'model' option in YAML");
+  }
   LOG_UPDATE_INTERVAL(this);
 }
 
