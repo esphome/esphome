@@ -9,9 +9,14 @@
 namespace esphome {
 namespace jsn_sr04t {
 
+enum Model {
+  jsn_sr04t,
+  aj_sr04m,
+};
+
 class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
-  void set_ajsr04m(uint8_t ajsr04m) { this->ajsr04m_ = ajsr04m; }
+  void set_model(Model model) { this->model_ = model; }
 
   // ========== INTERNAL METHODS ==========
   void update() override;
@@ -20,7 +25,7 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
 
  protected:
   void check_buffer_();
-  bool ajsr04m_;
+  Model model_ = jsn_sr04t;
 
   std::vector<uint8_t> buffer_;
 };
