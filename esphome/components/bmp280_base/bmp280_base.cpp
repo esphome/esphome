@@ -1,9 +1,9 @@
-#include "bmp280.h"
+#include "bmp280_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace bmp280 {
+namespace bmp280_base {
 
 static const char *const TAG = "bmp280.sensor";
 
@@ -122,7 +122,6 @@ void BMP280Component::setup() {
 }
 void BMP280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP280:");
-  LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
       ESP_LOGE(TAG, "Communication with BMP280 failed!");
@@ -262,5 +261,5 @@ uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bmp280
+}  // namespace bmp280_base
 }  // namespace esphome
