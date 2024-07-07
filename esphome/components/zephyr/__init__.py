@@ -21,7 +21,7 @@ from .const import (
     KEY_BOOTLOADER,
 )
 
-
+CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["preferences"]
 KEY_BOARD = "board"
 
