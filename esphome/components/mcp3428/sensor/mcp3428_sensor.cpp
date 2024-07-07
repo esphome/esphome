@@ -55,9 +55,9 @@ void MCP3428Sensor::update() {
 
 void MCP3428Sensor::dump_config() {
   LOG_SENSOR("  ", "MCP3426/7/8 Sensor", this);
-  ESP_LOGCONFIG(TAG, "    Multiplexer: %u", this->multiplexer_);
-  ESP_LOGCONFIG(TAG, "    Gain: %u", this->gain_);
-  ESP_LOGCONFIG(TAG, "    Resolution: %u", this->resolution_);
+  ESP_LOGCONFIG(TAG, "    Multiplexer: Channel %u", this->multiplexer_ + 1);
+  ESP_LOGCONFIG(TAG, "    Gain: %u", 0b0001 << this->gain_);
+  ESP_LOGCONFIG(TAG, "    Resolution: %u", 12 + 2 * this->resolution_);
 }
 
 }  // namespace mcp3428

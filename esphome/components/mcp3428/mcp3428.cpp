@@ -12,6 +12,7 @@ void MCP3428Component::setup() {
   uint8_t anwser[3];
   if (this->read(anwser, 3) != i2c::ErrorCode::NO_ERROR) {
     this->mark_failed();
+    ESP_LOGE(TAG, "Communication with MCP3426/7/8 failed while reading device register!");
     return;
   }
 
@@ -41,6 +42,7 @@ void MCP3428Component::setup() {
 
   if (this->write(&config, 1) != i2c::ErrorCode::NO_ERROR) {
     this->mark_failed();
+    ESP_LOGE(TAG, "Communication with MCP3426/7/8 failed while writing config!");
     return;
   }
   this->prev_config_ = config;
