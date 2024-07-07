@@ -122,7 +122,7 @@ bool MCP3428Component::poll_result(float &voltage) {
   }
   if ((anwser[2] & 0b10000000) == 0) {
     // ready flag is 0, valid measurement received
-    voltage = this->convert_anwser_to_voltage_(anwser);
+    voltage = this->convert_answer_to_voltage_(anwser);
     single_measurement_active_ = false;
     this->status_clear_warning();
     return true;
