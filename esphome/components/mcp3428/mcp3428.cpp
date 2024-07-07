@@ -9,8 +9,8 @@ static const char *const TAG = "mcp3426/7/8";
 
 void MCP3428Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MCP3426/7/8...");
-  uint8_t anwser[3];
-  if (this->read(anwser, 3) != i2c::ErrorCode::NO_ERROR) {
+  uint8_t answer[3];
+  if (this->read(answer, 3) != i2c::ErrorCode::NO_ERROR) {
     this->mark_failed();
     ESP_LOGE(TAG, "Communication with MCP3426/7/8 failed while reading device register!");
     return;
@@ -114,15 +114,15 @@ bool MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP34
 }
 
 bool MCP3428Component::poll_result(float &voltage) {
-  uint8_t anwser[3];
+  uint8_t answer[3];
   voltage = NAN;
-  if (this->read(anwser, 3) != i2c::ErrorCode::NO_ERROR) {
+  if (this->read(answer, 3) != i2c::ErrorCode::NO_ERROR) {
     this->status_set_warning("Communication error polling component");
     return false;
   }
-  if ((anwser[2] & 0b10000000) == 0) {
+  if ((answer[2] & 0b10000000) == 0) {
     // ready flag is 0, valid measurement received
-    voltage = this->convert_answer_to_voltage_(anwser);
+    voltage = this->convert_answer_to_voltage_(answer);
     single_measurement_active_ = false;
     this->status_clear_warning();
     return true;
@@ -160,8 +160,8 @@ float MCP3428Component::convert_answer_to_voltage_(uint8_t const *answer) {
       break;
   }
 
-  // convert code (first 2 bytes of cleaned up anwser) into voltage ticks
-  int16_t ticks = anwser[0] << 8 | anwser[1];
+  // convert code (first 2 bytes of cleaned up answer) into voltage ticks
+  int16_t ticks = answer[0] << 8 | answer[1];
   return tick_voltage * ticks;
 }
 
