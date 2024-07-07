@@ -46,7 +46,7 @@ void MCP3428Component::setup() {
     return;
   }
   this->prev_config_ = config;
-  single_measurement_active_ = false;
+  this->single_measurement_active_ = false;
 }
 
 void MCP3428Component::dump_config() {
