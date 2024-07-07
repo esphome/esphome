@@ -451,6 +451,7 @@ async def disp_update(disp, config: dict):
             f"lv_disp_set_bg_color({disp}, {await lv.lv_color.process(bg_color)})"
         )
     if bg_image := config.get(df.CONF_DISP_BG_IMAGE):
+        helpers.lvgl_components_required.add("image")
         init.append(f"lv_disp_set_bg_image({disp}, lv_img_from({bg_image}))")
     return init
 
