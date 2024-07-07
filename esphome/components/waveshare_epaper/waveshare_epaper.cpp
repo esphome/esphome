@@ -830,23 +830,23 @@ void WaveshareEPaper1P54InBV2::initialize() {
   this->data(0x00);
   this->data(0x01);
 
-  this->command(0x11);  //data entry mode
+  this->command(0x11);  // data entry mode
   this->data(0x01);
 
-  this->command(0x44);  //set Ram-X address start/end position
+  this->command(0x44);  // set Ram-X address start/end position
   this->data(0x00);
-  this->data(0x18);  //0x18-->(24+1)*8=200
+  this->data(0x18);  // 0x18-->(24+1)*8=200
 
-  this->command(0x45);  //set Ram-Y address start/end position
-  this->data(0xC7);  //0xC7-->(199+1)=200
+  this->command(0x45);  // set Ram-Y address start/end position
+  this->data(0xC7);  // 0xC7-->(199+1)=200
   this->data(0x00);
   this->data(0x00);
   this->data(0x00);
 
-  this->command(0x3C);  //BorderWavefrom
+  this->command(0x3C);  // BorderWavefrom
   this->data(0x05);
 
-  this->command(0x18);  //Read built-in temperature sensor
+  this->command(0x18);  // Read built-in temperature sensor
   this->data(0x80);
 
   this->command(0x4E);  // set RAM x address count to 0;
