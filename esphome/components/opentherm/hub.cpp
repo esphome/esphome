@@ -230,20 +230,20 @@ void OpenthermHub::loop() {
   if (!initialized_)
     return;
 
+  if (sync_mode_){
+    sync_loop_();
+    return;
+  }
+
   auto cur_time = millis();
   auto const cur_mode = opentherm_->get_mode();
   switch (cur_mode) {
     case OperationMode::WRITE:
     case OperationMode::READ:
     case OperationMode::LISTEN:
-      if (last_conversation_start_ > 0 && (cur_time - last_conversation_start_) > 1150) {
-        ESP_LOGW(OT_TAG,
-                 "%d ms elapsed since the start of the last convo, but 1150 ms are allowed at maximum. Look at other "
-                 "components that might slow the loop down.",
-                 cur_time - last_conversation_start_);
-        stop_opentherm_();
+      if (!check_timings_(cur_time)) {
         break;
-      }
+      }        
       last_mode_ = cur_mode;
       break;
     case OperationMode::ERROR_PROTOCOL:
@@ -251,7 +251,7 @@ void OpenthermHub::loop() {
         handle_protocol_write_error_();
       } else if (last_mode_ == OperationMode::READ) {
         handle_protocol_read_error_();
-}
+      }
 
       stop_opentherm_();
       break;
@@ -260,10 +260,9 @@ void OpenthermHub::loop() {
       stop_opentherm_();
       break;
     case OperationMode::IDLE:
-      if (last_conversation_end_ > 0 && (cur_time - last_conversation_end_) < 100) {
-        ESP_LOGV(OT_TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
+      if (should_skip_loop_(cur_time)) {
         break;
-      }
+      }        
       start_conversation_();
       break;
     case OperationMode::SENT:
@@ -274,6 +273,88 @@ void OpenthermHub::loop() {
       read_response_();
       break;
   }
+}
+
+void OpenthermHub::sync_loop_() {
+  if (!this->opentherm_->is_idle()) {
+    ESP_LOGE(OT_TAG, "OpenTherm is not idle at the start of the loop");
+    return;
+  }
+  
+  auto cur_time = millis();
+  
+  check_timings_(cur_time);
+  
+  if (should_skip_loop_(cur_time)) {
+    return;
+  }
+  
+  start_conversation_();
+  
+  if (!spin_wait_(1150, [&] { return opentherm_->is_active(); })) {
+    ESP_LOGE(OT_TAG, "Hub timeout triggered during send");
+    stop_opentherm_();
+    return;
+  }
+
+  if (opentherm_->is_error()) {
+    handle_protocol_write_error_();
+    stop_opentherm_();
+    return;
+  } else if (!opentherm_->is_sent()) {
+    ESP_LOGW(OT_TAG, "Unexpected state after sending request: %s",
+             opentherm_->operation_mode_to_str(opentherm_->get_mode()));
+    stop_opentherm_();
+    return;
+  }
+
+  // Listen for the response
+  opentherm_->listen();
+  if (!spin_wait_(1150, [&] { return opentherm_->is_active(); })) {
+    ESP_LOGE(OT_TAG, "Hub timeout triggered during receive");
+    opentherm_->stop();
+    last_conversation_end_ = millis();
+    return;
+  }
+
+  if (opentherm_->is_timeout()) {
+    handle_timeout_error_();
+    stop_opentherm_();
+    return;
+  } else if (opentherm_->is_protocol_error()) {
+    handle_protocol_read_error_();
+    stop_opentherm_();
+    return;
+  } else if (!opentherm_->has_message()) {
+    ESP_LOGW(OT_TAG, "Unexpected state after receiving response: %s",
+             opentherm_->operation_mode_to_str(opentherm_->get_mode()));
+    stop_opentherm_();
+    return;
+  }
+
+  read_response_();
+}
+
+bool OpenthermHub::check_timings_(uint32_t cur_time) {
+  if (last_conversation_start_ > 0 && (cur_time - last_conversation_start_) > 1150) {
+    ESP_LOGW(OT_TAG,
+             "%d ms elapsed since the start of the last convo, but 1150 ms are allowed at maximum. Look at other "
+             "components that might slow the loop down.",
+             cur_time - last_conversation_start_);
+    stop_opentherm_();
+    return false;
+  }
+  
+  return true;
+}
+
+bool OpenthermHub::should_skip_loop_(uint32_t cur_time) const {
+  if (last_conversation_end_ > 0 && (cur_time - last_conversation_end_) < 100) {
+    ESP_LOGV(OT_TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
+    return true;
+  }
+  
+  return false;
 }
 
 void OpenthermHub::start_conversation_() {
@@ -338,6 +419,7 @@ void OpenthermHub::dump_config() {
   ESP_LOGCONFIG(OT_TAG, "OpenTherm:");
   ESP_LOGCONFIG(OT_TAG, "  In: GPIO%d", this->in_pin_->get_pin());
   ESP_LOGCONFIG(OT_TAG, "  Out: GPIO%d", this->out_pin_->get_pin());
+  ESP_LOGCONFIG(OT_TAG, "  Sync mode: %d", this->sync_mode_);
   ESP_LOGCONFIG(OT_TAG, "  Sensors: %s", SHOW(OPENTHERM_SENSOR_LIST(ID, )));
   ESP_LOGCONFIG(OT_TAG, "  Binary sensors: %s", SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )));
   ESP_LOGCONFIG(OT_TAG, "  Switches: %s", SHOW(OPENTHERM_SWITCH_LIST(ID, )));
