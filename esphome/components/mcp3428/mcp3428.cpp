@@ -102,7 +102,6 @@ bool MCP3428Component::request_measurement(MCP3428Multiplexer multiplexer, MCP34
   } else {
     if (this->write(&config, 1) != i2c::ErrorCode::NO_ERROR) {
       this->status_set_warning("Error writing configuration to chip.");
-      timeout_wait = 1000;
       single_measurement_active_ = false;
       return false;
     }
