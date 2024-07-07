@@ -167,7 +167,7 @@ enum WaveshareEPaperTypeBModel {
 };
 
 class WaveshareEPaper1P54InBV2 : public WaveshareEPaperBWR {
-  public:
+ public:
   void initialize() override;
 
   void display() override;

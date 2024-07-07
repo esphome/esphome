@@ -154,7 +154,7 @@ bool WaveshareEPaperBase::wait_until_idle_() {
   }
 
   const uint32_t start = millis();
-  
+
   while (bool test = this->busy_pin_->digital_read()) {
     if (millis() - start > this->idle_timeout_()) {
       ESP_LOGE(TAG, "Timeout while displaying image!");
@@ -645,7 +645,7 @@ static const uint8_t LUT_BLACK_TO_BLACK_2_7[42] = {
 };
 
 void WaveshareEPaper2P7In::initialize() {
-  
+
   // command power setting
   this->command(0x01);
   this->data(0x03);  // VDS_EN, VDG_EN
@@ -817,7 +817,7 @@ void WaveshareEPaper2P7InV2::dump_config() {
 //  - https://files.waveshare.com/upload/9/9e/1.54inch-e-paper-b-v2-specification.pdf
 //  - https://www.waveshare.com/wiki/1.54inch_e-Paper_Module_(B)_Manual
 
-void WaveshareEPaper1P54InBV2::initialize(){
+void WaveshareEPaper1P54InBV2::initialize() {
   this->reset_();
 
   this->wait_until_idle_();
@@ -830,28 +830,28 @@ void WaveshareEPaper1P54InBV2::initialize(){
   this->data(0x00);
   this->data(0x01);
 
-  this->command(0x11); //data entry mode       
+  this->command(0x11);  //data entry mode
   this->data(0x01);
 
-  this->command(0x44); //set Ram-X address start/end position   
+  this->command(0x44);  //set Ram-X address start/end position
   this->data(0x00);
-  this->data(0x18);    //0x18-->(24+1)*8=200
+  this->data(0x18);  //0x18-->(24+1)*8=200
 
-  this->command(0x45); //set Ram-Y address start/end position          
-  this->data(0xC7);    //0xC7-->(199+1)=200
+  this->command(0x45);  //set Ram-Y address start/end position
+  this->data(0xC7);  //0xC7-->(199+1)=200
   this->data(0x00);
   this->data(0x00);
   this->data(0x00);
 
-  this->command(0x3C); //BorderWavefrom
+  this->command(0x3C);  //BorderWavefrom
   this->data(0x05);
 
-  this->command(0x18); //Read built-in temperature sensor
+  this->command(0x18);  //Read built-in temperature sensor
   this->data(0x80);
 
-  this->command(0x4E);   // set RAM x address count to 0;
+  this->command(0x4E);  // set RAM x address count to 0;
   this->data(0x00);
-  this->command(0x4F);   // set RAM y address count to 0X199;    
+  this->command(0x4F);  // set RAM y address count to 0X199;
   this->data(0xC7);
   this->data(0x00);
 
@@ -859,7 +859,7 @@ void WaveshareEPaper1P54InBV2::initialize(){
 
 }
 
-void HOT WaveshareEPaper1P54InBV2::display(){
+void HOT WaveshareEPaper1P54InBV2::display() {
   uint32_t buf_len_half = this->get_buffer_length_() >> 1;
   this->initialize();
 
@@ -894,8 +894,6 @@ void WaveshareEPaper1P54InBV2::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
-
-
 
 // ========================================================
 //                          2.7inch_e-paper_b
