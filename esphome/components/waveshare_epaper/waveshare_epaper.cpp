@@ -645,7 +645,6 @@ static const uint8_t LUT_BLACK_TO_BLACK_2_7[42] = {
 };
 
 void WaveshareEPaper2P7In::initialize() {
-
   // command power setting
   this->command(0x01);
   this->data(0x03);  // VDS_EN, VDG_EN
@@ -838,7 +837,7 @@ void WaveshareEPaper1P54InBV2::initialize() {
   this->data(0x18);  // 0x18-->(24+1)*8=200
 
   this->command(0x45);  // set Ram-Y address start/end position
-  this->data(0xC7);  // 0xC7-->(199+1)=200
+  this->data(0xC7);     // 0xC7-->(199+1)=200
   this->data(0x00);
   this->data(0x00);
   this->data(0x00);
@@ -856,7 +855,6 @@ void WaveshareEPaper1P54InBV2::initialize() {
   this->data(0x00);
 
   this->wait_until_idle_();
-
 }
 
 void HOT WaveshareEPaper1P54InBV2::display() {
