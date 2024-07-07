@@ -16,6 +16,8 @@ from esphome.components.binary_sensor import BinarySensor
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
+# following should be removed if conflicts are resolved (so we can have a wifi ap using modem)
+CONFLICTS_WITH = ["wifi", "captive_portal", "ethernet"]
 
 CONF_POWER_PIN = "power_pin"
 CONF_FLIGHT_PIN = "flight_pin"
