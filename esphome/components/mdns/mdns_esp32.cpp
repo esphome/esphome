@@ -1,4 +1,5 @@
-#ifdef USE_ESP32
+#include "esphome/core/defines.h"
+#if defined(USE_ESP32) && defined(USE_MDNS)
 
 #include <mdns.h>
 #include <cstring>
