@@ -192,7 +192,7 @@ class OpenTherm {
   /**
    * Setup pins.
    */
-  void initialize();
+  bool initialize();
 
   /**
    * Start listening for Opentherm data packet comming from line connected to given pin.

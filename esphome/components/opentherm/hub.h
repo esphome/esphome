@@ -106,15 +106,32 @@ class OpenthermHub : public Component {
   // and boiler parameters (like the setpoint).
   std::unordered_set<MessageId> repeating_messages_;
   // Indicates if we are still working on the initial requests or not
-  bool initializing_ = true;
+  bool sending_initial_ = true;
   // Index for the current request in one of the _requests sets.
   std::unordered_set<MessageId>::const_iterator current_message_iterator_;
 
   uint32_t last_conversation_start_ = 0;
   uint32_t last_conversation_end_ = 0;
+  OperationMode last_mode_ = IDLE;
+  OpenthermData last_request_;
+  bool initialized_ = false;
+
+  // Synchronous communication mode prevents other components from disabling interrupts while
+  // we are talking to the boiler. Enable if you experience random intermittent invalid response errors.
+  // Very likely to happen while using Dallas temperature sensors.
+  bool sync_mode_ = false;
 
   // Create OpenTherm messages based on the message id
   OpenthermData build_request_(MessageId request_id);
+  void handle_protocol_write_error_();
+  void handle_protocol_read_error_();
+  void handle_timeout_error_();
+  void stop_opentherm_();
+  void start_conversation_();
+  void read_response_();
+  bool check_timings_(uint32_t cur_time);
+  bool should_skip_loop_(uint32_t cur_time) const;
+  void sync_loop_();
 
   template<typename F> bool spin_wait_(uint32_t timeout, F func) {
     auto start_time = millis();
@@ -181,6 +198,7 @@ class OpenthermHub : public Component {
   void set_cooling_enable(bool value) { this->cooling_enable = value; }
   void set_otc_active(bool value) { this->otc_active = value; }
   void set_ch2_active(bool value) { this->ch2_active = value; }
+  void set_sync_mode(bool sync_mode) { this->sync_mode_ = sync_mode; }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 

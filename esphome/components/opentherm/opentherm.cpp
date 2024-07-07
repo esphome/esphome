@@ -49,7 +49,7 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
   isr_out_pin_ = out_pin->to_isr();
 }
 
-void OpenTherm::initialize() {
+bool OpenTherm::initialize() {
 #ifdef ESP8266
   instance_ = this;
 #endif
@@ -58,7 +58,9 @@ void OpenTherm::initialize() {
   out_pin_->digital_write(true);
 
 #ifdef ESP32
-  init_esp32_timer_();
+  return init_esp32_timer_();
+#elif
+  return true;
 #endif
 }
 
