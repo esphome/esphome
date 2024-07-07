@@ -65,8 +65,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await sensor.register_sensor(var, config)
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_MCP3428_ID])
 
