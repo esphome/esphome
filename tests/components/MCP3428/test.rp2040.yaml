@@ -4,7 +4,7 @@ i2c:
     sda: 4
 
 mcp3428:
-  address: 0b1101000
+  address: 0x68
 
 sensor:
   - platform: mcp3428
