@@ -102,11 +102,7 @@ void CoolixClimate::transmit_state() {
     }
   }
   ESP_LOGV(TAG, "Sending coolix code: 0x%06" PRIX32, remote_state);
-
-  auto transmit = this->transmitter_->transmit();
-  auto *data = transmit.get_data();
-  remote_base::CoolixProtocol().encode(data, remote_state);
-  transmit.perform();
+  this->transmit_<remote_base::CoolixProtocol>(remote_state);
 }
 
 bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteReceiveData data) {

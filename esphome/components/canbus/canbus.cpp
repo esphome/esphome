@@ -51,9 +51,9 @@ void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transm
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
   if (trigger->use_extended_id_) {
-    ESP_LOGVV(TAG, "add trigger for extended canid=0x%08x", trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for extended canid=0x%08" PRIx32, trigger->can_id_);
   } else {
-    ESP_LOGVV(TAG, "add trigger for std canid=0x%03x", trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for std canid=0x%03" PRIx32, trigger->can_id_);
   }
   this->triggers_.push_back(trigger);
 };

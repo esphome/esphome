@@ -2,13 +2,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ID,
     CONF_ON_LOCK,
     CONF_ON_UNLOCK,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -30,20 +31,24 @@ LockCondition = lock_ns.class_("LockCondition", Condition)
 LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template())
 LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
 
-LOCK_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTLockComponent),
-        cv.Optional(CONF_ON_LOCK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockLockTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_UNLOCK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockUnlockTrigger),
-            }
-        ),
-    }
+LOCK_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTLockComponent),
+            cv.Optional(CONF_ON_LOCK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockLockTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_UNLOCK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockUnlockTrigger),
+                }
+            ),
+        }
+    )
 )
 
 
@@ -57,9 +62,13 @@ async def setup_lock_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if mqtt_id := config.get(CONF_MQTT_ID):
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_lock(var, config):

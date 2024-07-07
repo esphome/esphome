@@ -13,7 +13,9 @@ void PVVXDisplay::dump_config() {
   ESP_LOGCONFIG(TAG, "  Service UUID          : %s", this->service_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Characteristic UUID   : %s", this->char_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Auto clear            : %s", YESNO(this->auto_clear_enabled_));
+#ifdef USE_TIME
   ESP_LOGCONFIG(TAG, "  Set time on connection: %s", YESNO(this->time_ != nullptr));
+#endif
   ESP_LOGCONFIG(TAG, "  Disconnect delay      : %" PRIu32 "ms", this->disconnect_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
 }
@@ -22,8 +24,10 @@ void PVVXDisplay::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                                       esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT:
-      ESP_LOGV(TAG, "[%s] Connected successfully!", this->parent_->address_str().c_str());
-      this->delayed_disconnect_();
+      if (param->open.status == ESP_GATT_OK) {
+        ESP_LOGV(TAG, "[%s] Connected successfully!", this->parent_->address_str().c_str());
+        this->delayed_disconnect_();
+      }
       break;
     case ESP_GATTC_DISCONNECT_EVT:
       ESP_LOGV(TAG, "[%s] Disconnected", this->parent_->address_str().c_str());

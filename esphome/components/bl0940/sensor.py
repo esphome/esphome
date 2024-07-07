@@ -4,7 +4,9 @@ from esphome.components import sensor, uart
 from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
+    CONF_EXTERNAL_TEMPERATURE,
     CONF_ID,
+    CONF_INTERNAL_TEMPERATURE,
     CONF_POWER,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
@@ -18,12 +20,11 @@ from esphome.const import (
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
+    STATE_CLASS_TOTAL_INCREASING,
 )
 
 DEPENDENCIES = ["uart"]
 
-CONF_INTERNAL_TEMPERATURE = "internal_temperature"
-CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 bl0940_ns = cg.esphome_ns.namespace("bl0940")
 BL0940 = bl0940_ns.class_("BL0940", cg.PollingComponent, uart.UARTDevice)
@@ -54,6 +55,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,

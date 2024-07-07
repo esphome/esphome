@@ -15,6 +15,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_RP2040,
+    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
 from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
@@ -46,10 +47,16 @@ def set_core_data(config):
 def get_download_types(storage_json):
     return [
         {
-            "title": "UF2 format",
+            "title": "UF2 factory format",
             "description": "For copying to RP2040 over USB.",
             "file": "firmware.uf2",
-            "download": f"{storage_json.name}.uf2",
+            "download": f"{storage_json.name}.factory.uf2",
+        },
+        {
+            "title": "OTA format",
+            "description": "For OTA updating a device.",
+            "file": "firmware.ota.bin",
+            "download": f"{storage_json.name}.ota.bin",
         },
     ]
 
@@ -74,12 +81,12 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 4, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 7, 2)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 9, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(1, 12, 0)
 
 
 def _arduino_check_versions(value):
@@ -125,8 +132,6 @@ def _parse_platform_version(value):
         return value
 
 
-CONF_PLATFORM_VERSION = "platform_version"
-
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -160,6 +165,8 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_RP2040")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")
+
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -226,4 +233,10 @@ def generate_pio_files() -> bool:
 
 # Called by writer.py
 def copy_files() -> bool:
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
+    )
     return generate_pio_files()

@@ -1,0 +1,9 @@
+i2c:
+  - id: i2c_sen21231
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: sen21231
+    id: sen21231_sensor1
+    name: Person Sensor

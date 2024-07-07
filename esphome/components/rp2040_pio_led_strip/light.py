@@ -5,6 +5,7 @@ from esphome.components import light, rp2040
 from esphome.const import (
     CONF_CHIPSET,
     CONF_ID,
+    CONF_IS_RGBW,
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
     CONF_PIN,
@@ -67,12 +68,15 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
 
     pio_sm_config c = rp2040_pio_led_strip_{id}_program_get_default_config(offset);
     sm_config_set_set_pins(&c, pin, 1);
-    sm_config_set_out_shift(&c, false, true, {32 if rgbw else 24});
+    sm_config_set_out_shift(&c, false, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    int cycles_per_bit = 69;
-    float div = 2.409;
-    sm_config_set_clkdiv(&c, div);
+    // target frequency is 57.5MHz
+    long clk = clock_get_hz(clk_sys);
+    long target_freq = 57500000;
+    int n = 2;
+    int f = round(((clk / target_freq) - n ) * 256);
+    sm_config_set_clkdiv_int_frac(&c, n, f);
 
 
     pio_sm_init(pio, sm, offset, &c);
@@ -85,8 +89,9 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
 .wrap_target
 awaiting_data:
     ; Wait for data in FIFO queue
+    ; out null, 24 ; discard the byte lane replication of the FIFO since we only need 8 bits (not needed????)
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
-    set y, {31 if rgbw else 23} ; set y to the number of bits to write counting 0, (23 if RGB, 31 if RGBW)
+    set y, 7 ; set y to the number of bits to write counting 0, (always 7 because we are doing one word at a time)
 
 mainloop:
     ; go through each bit in the shift register and jump to the appropriate label
@@ -94,7 +99,15 @@ mainloop:
 
     out x, 1
     jmp !x, writezero
-    jmp writeone
+
+writeone:
+    ; Write T1H and T1L bits to the output pin
+    set pins, 1 [{t1h}]
+{nops_t1h}
+    set pins, 0 [{t1l}]
+{nops_t1l}
+    jmp y--, mainloop
+    jmp awaiting_data
 
 writezero:
     ; Write T0H and T0L bits to the output pin
@@ -105,14 +118,7 @@ writezero:
     jmp y--, mainloop
     jmp awaiting_data
 
-writeone:
-    ; Write T1H and T1L bits to the output pin
-    set pins, 1 [{t1h}]
-{nops_t1h}
-    set pins, 0 [{t1l}]
-{nops_t1l}
-    jmp y--, mainloop
-    jmp awaiting_data
+
 
 .wrap"""
 
@@ -138,7 +144,15 @@ RP2040PIOLEDStripLightOutput = rp2040_pio_led_strip_ns.class_(
 
 RGBOrder = rp2040_pio_led_strip_ns.enum("RGBOrder")
 
-Chipsets = rp2040_pio_led_strip_ns.enum("Chipset")
+Chipset = rp2040_pio_led_strip_ns.enum("Chipset")
+
+CHIPSETS = {
+    "WS2812": Chipset.CHIPSET_WS2812,
+    "WS2812B": Chipset.CHIPSET_WS2812B,
+    "SK6812": Chipset.CHIPSET_SK6812,
+    "SM16703": Chipset.CHIPSET_SM16703,
+    "CUSTOM": Chipset.CHIPSET_CUSTOM,
+}
 
 
 @dataclass
@@ -158,14 +172,13 @@ RGB_ORDERS = {
     "BRG": RGBOrder.ORDER_BRG,
 }
 
-CHIPSETS = {
-    "WS2812": LEDStripTimings(20, 43, 41, 31),
-    "WS2812B": LEDStripTimings(23, 46, 46, 23),
-    "SK6812": LEDStripTimings(17, 52, 31, 31),
+CHIPSET_TIMINGS = {
+    "WS2812": LEDStripTimings(20, 40, 46, 34),
+    "WS2812B": LEDStripTimings(23, 49, 46, 26),
+    "SK6812": LEDStripTimings(17, 52, 34, 34),
     "SM16703": LEDStripTimings(17, 52, 52, 17),
 }
 
-CONF_IS_RGBW = "is_rgbw"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
@@ -192,7 +205,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
             cv.Required(CONF_PIO): cv.one_of(0, 1, int=True),
-            cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
+            cv.Optional(CONF_CHIPSET): cv.enum(CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
@@ -238,7 +251,8 @@ async def to_code(config):
 
     key = f"led_strip_{id}"
 
-    if CONF_CHIPSET in config:
+    if chipset := config.get(CONF_CHIPSET):
+        cg.add(var.set_chipset(chipset))
         _LOGGER.info("Generating PIO assembly code")
         rp2040.add_pio_file(
             __name__,
@@ -246,13 +260,14 @@ async def to_code(config):
             generate_assembly_code(
                 id,
                 config[CONF_IS_RGBW],
-                CHIPSETS[config[CONF_CHIPSET]].T0H,
-                CHIPSETS[config[CONF_CHIPSET]].T0L,
-                CHIPSETS[config[CONF_CHIPSET]].T1H,
-                CHIPSETS[config[CONF_CHIPSET]].T1L,
+                CHIPSET_TIMINGS[chipset].T0H,
+                CHIPSET_TIMINGS[chipset].T0L,
+                CHIPSET_TIMINGS[chipset].T1H,
+                CHIPSET_TIMINGS[chipset].T1L,
             ),
         )
     else:
+        cg.add(var.set_chipset(Chipset.CHIPSET_CUSTOM))
         _LOGGER.info("Generating custom PIO assembly code")
         rp2040.add_pio_file(
             __name__,

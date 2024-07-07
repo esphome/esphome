@@ -67,20 +67,7 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
   void dump(const MideaData &data) override;
 };
 
-class MideaBinarySensor : public RemoteReceiverBinarySensorBase {
- public:
-  bool matches(RemoteReceiveData src) override {
-    auto data = MideaProtocol().decode(src);
-    return data.has_value() && data.value() == this->data_;
-  }
-  void set_code(const std::vector<uint8_t> &code) { this->data_ = code; }
-
- protected:
-  MideaData data_;
-};
-
-using MideaTrigger = RemoteReceiverTrigger<MideaProtocol, MideaData>;
-using MideaDumper = RemoteReceiverDumper<MideaProtocol, MideaData>;
+DECLARE_REMOTE_PROTOCOL(Midea)
 
 template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
   TEMPLATABLE_VALUE(std::vector<uint8_t>, code)

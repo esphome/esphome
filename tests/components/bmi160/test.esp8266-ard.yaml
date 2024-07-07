@@ -1,0 +1,22 @@
+i2c:
+  - id: i2c_bmi160
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: bmi160
+    address: 0x68
+    acceleration_x:
+      name: BMI160 Accel X
+    acceleration_y:
+      name: BMI160 Accel Y
+    acceleration_z:
+      name: BMI160 Accel z
+    gyroscope_x:
+      name: BMI160 Gyro X
+    gyroscope_y:
+      name: BMI160 Gyro Y
+    gyroscope_z:
+      name: BMI160 Gyro z
+    temperature:
+      name: BMI160 Temperature

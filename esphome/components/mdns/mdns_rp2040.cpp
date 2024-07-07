@@ -1,4 +1,5 @@
-#ifdef USE_RP2040
+#include "esphome/core/defines.h"
+#if defined(USE_RP2040) && defined(USE_MDNS)
 
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
