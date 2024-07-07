@@ -131,7 +131,7 @@ bool MCP3428Component::poll_result(float &voltage) {
   }
 }
 
-float MCP3428Component::convert_anwser_to_voltage_(uint8_t const *anwser) {
+float MCP3428Component::convert_answer_to_voltage_(uint8_t const *answer) {
   uint8_t config_resolution = (this->prev_config_ >> 2) & 0b00000011;
   uint8_t config_gain = this->prev_config_ & 0b00000011;
 
