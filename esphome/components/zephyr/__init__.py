@@ -25,15 +25,12 @@ from .const import (
 AUTO_LOAD = ["preferences"]
 KEY_BOARD = "board"
 
-KEY_USER = "user"
-
 
 def zephyr_set_core_data(config):
     CORE.data[KEY_ZEPHYR] = {}
     CORE.data[KEY_ZEPHYR][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF] = {}
     CORE.data[KEY_ZEPHYR][KEY_OVERLAY] = ""
-    CORE.data[KEY_ZEPHYR][KEY_USER] = {}
     CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] = config[KEY_BOOTLOADER]
     CORE.data[KEY_ZEPHYR][KEY_EXTRA_BUILD_FILES] = {}
     return config
@@ -56,12 +53,6 @@ def zephyr_add_prj_conf(name: str, value: PrjConfValueType, required: bool = Tru
             CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = (value, required)
     else:
         CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][name] = (value, required)
-
-
-def zephyr_add_user(key, value):
-    if key not in CORE.data[KEY_ZEPHYR][KEY_USER]:
-        CORE.data[KEY_ZEPHYR][KEY_USER][key] = []
-    CORE.data[KEY_ZEPHYR][KEY_USER][key] += [value]
 
 
 def zephyr_add_overlay(content):
@@ -109,7 +100,6 @@ def zephyr_to_code(conf):
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
     zephyr_add_prj_conf("CONSOLE", False, False)
-    # TODO move to nrf52
     # use NFC pins as GPIO
     zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
 
@@ -163,37 +153,10 @@ def copy_files():
 
     write_file_if_changed(CORE.relative_build_path("zephyr/prj.conf"), prj_conf)
 
-    if CORE.data[KEY_ZEPHYR][KEY_USER]:
-        zephyr_add_overlay(
-            f"""
-/ {{
-    zephyr,user {{
-        {[f"{key} = {', '.join(value)};" for key, value in CORE.data[KEY_ZEPHYR][KEY_USER].items()][0]}
-}};
-}};"""
-        )
-
     write_file_if_changed(
         CORE.relative_build_path("zephyr/app.overlay"),
         CORE.data[KEY_ZEPHYR][KEY_OVERLAY],
     )
-
-    #     write_file_if_changed(
-    #         CORE.relative_build_path("zephyr/child_image/mcuboot.conf"),
-    #         """
-    # CONFIG_MCUBOOT_SERIAL=y
-    # CONFIG_BOOT_SERIAL_PIN_RESET=y
-    # CONFIG_UART_CONSOLE=n
-    # CONFIG_BOOT_SERIAL_ENTRANCE_GPIO=n
-    # CONFIG_BOOT_SERIAL_CDC_ACM=y
-    # CONFIG_UART_NRFX=n
-    # CONFIG_LOG=n
-    # CONFIG_ASSERT_VERBOSE=n
-    # CONFIG_BOOT_BANNER=n
-    # CONFIG_PRINTK=n
-    # CONFIG_CBPRINTF_LIBC_SUBSTS=n
-    # """,
-    #     )
 
     if CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         fake_board_manifest = """

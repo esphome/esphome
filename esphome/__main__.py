@@ -387,7 +387,6 @@ def upload_program(config, args, host):
         raise EsphomeError(f"Unknown target platform: {CORE.target_platform}")
 
     if host == "PYOCD":
-        print(CORE)
         return upload_using_platformio(config, host, ["-t", "flash_pyocd"])
     if host.startswith("mcumgr"):
         firmware = os.path.abspath(
