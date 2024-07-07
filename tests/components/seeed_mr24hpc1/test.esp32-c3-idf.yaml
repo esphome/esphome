@@ -1,0 +1,5 @@
+substitutions:
+  uart_tx_pin: GPIO5
+  uart_rx_pin: GPIO4
+
+<<: !include common.yaml

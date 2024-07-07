@@ -97,23 +97,32 @@ void SM2135::loop() {
   this->write_byte_(SM2135_ADDR_MC);
   this->write_byte_(current_mask_);
 
-  if (this->update_channel_ == 3 || this->update_channel_ == 4) {
-    // No color so must be Cold/Warm
+  if (this->separate_modes_) {
+    if (this->update_channel_ == 3 || this->update_channel_ == 4) {
+      // No color so must be Cold/Warm
 
-    this->write_byte_(SM2135_CW);
-    this->sm2135_stop_();
-    delay(1);
-    this->sm2135_start_();
-    this->write_byte_(SM2135_ADDR_C);
-    this->write_byte_(this->pwm_amounts_[4]);  // Warm
-    this->write_byte_(this->pwm_amounts_[3]);  // Cold
+      this->write_byte_(SM2135_CW);
+      this->sm2135_stop_();
+      delay(1);
+      this->sm2135_start_();
+      this->write_byte_(SM2135_ADDR_C);
+      this->write_byte_(this->pwm_amounts_[3]);
+      this->write_byte_(this->pwm_amounts_[4]);
+    } else {
+      // Color
+
+      this->write_byte_(SM2135_RGB);
+      this->write_byte_(this->pwm_amounts_[0]);
+      this->write_byte_(this->pwm_amounts_[1]);
+      this->write_byte_(this->pwm_amounts_[2]);
+    }
   } else {
-    // Color
-
     this->write_byte_(SM2135_RGB);
-    this->write_byte_(this->pwm_amounts_[1]);  // Green
-    this->write_byte_(this->pwm_amounts_[0]);  // Red
-    this->write_byte_(this->pwm_amounts_[2]);  // Blue
+    this->write_byte_(this->pwm_amounts_[0]);
+    this->write_byte_(this->pwm_amounts_[1]);
+    this->write_byte_(this->pwm_amounts_[2]);
+    this->write_byte_(this->pwm_amounts_[3]);
+    this->write_byte_(this->pwm_amounts_[4]);
   }
 
   this->sm2135_stop_();

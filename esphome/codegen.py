@@ -58,7 +58,9 @@ from esphome.cpp_types import (  # noqa
     bool_,
     int_,
     std_ns,
+    std_shared_ptr,
     std_string,
+    std_string_ref,
     std_vector,
     uint8,
     uint16,
@@ -87,4 +89,5 @@ from esphome.cpp_types import (  # noqa
     gpio_Flags,
     EntityCategory,
     Parented,
+    ESPTime,
 )

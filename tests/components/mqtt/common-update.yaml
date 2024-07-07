@@ -1,0 +1,13 @@
+substitutions:
+  verify_ssl: "true"
+
+http_request:
+  verify_ssl: ${verify_ssl}
+
+ota:
+  - platform: http_request
+
+update:
+  - platform: http_request
+    name: "OTA Update"
+    source: https://example.com/ota.json

@@ -79,7 +79,7 @@ SkipInitialFilter::SkipInitialFilter(size_t num_to_ignore) : num_to_ignore_(num_
 optional<float> SkipInitialFilter::new_value(float value) {
   if (num_to_ignore_ > 0) {
     num_to_ignore_--;
-    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %u left", this, value, num_to_ignore_);
+    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %zu left", this, value, num_to_ignore_);
     return {};
   }
 
@@ -252,7 +252,9 @@ ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period
 
 optional<float> ThrottleAverageFilter::new_value(float value) {
   ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::new_value(value=%f)", this, value);
-  if (!std::isnan(value)) {
+  if (std::isnan(value)) {
+    this->have_nan_ = true;
+  } else {
     this->sum_ += value;
     this->n_++;
   }
@@ -262,12 +264,14 @@ void ThrottleAverageFilter::setup() {
   this->set_interval("throttle_average", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
-      this->output(NAN);
+      if (this->have_nan_)
+        this->output(NAN);
     } else {
       this->output(this->sum_ / this->n_);
       this->sum_ = 0.0f;
       this->n_ = 0;
     }
+    this->have_nan_ = false;
   });
 }
 float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
@@ -355,11 +359,15 @@ OrFilter::OrFilter(std::vector<Filter *> filters) : filters_(std::move(filters))
 OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
 
 optional<float> OrFilter::PhiNode::new_value(float value) {
-  this->or_parent_->output(value);
+  if (!this->or_parent_->has_value_) {
+    this->or_parent_->output(value);
+    this->or_parent_->has_value_ = true;
+  }
 
   return {};
 }
 optional<float> OrFilter::new_value(float value) {
+  this->has_value_ = false;
   for (Filter *filter : this->filters_)
     filter->input(value);
 

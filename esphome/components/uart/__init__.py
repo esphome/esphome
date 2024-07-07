@@ -46,11 +46,20 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 
+NATIVE_UART_CLASSES = (
+    str(IDFUARTComponent),
+    str(ESP32ArduinoUARTComponent),
+    str(ESP8266UartComponent),
+    str(RP2040UartComponent),
+    str(LibreTinyUARTComponent),
+)
+
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
+MULTI_CONF_NO_DEFAULT = True
 
 
 def validate_raw_data(value):
@@ -249,6 +258,7 @@ KEY_UART_DEVICES = "uart_devices"
 def final_validate_device_schema(
     name: str,
     *,
+    uart_bus: str = CONF_UART_ID,
     baud_rate: Optional[int] = None,
     require_tx: bool = False,
     require_rx: bool = False,
@@ -259,7 +269,7 @@ def final_validate_device_schema(
     def validate_baud_rate(value):
         if value != baud_rate:
             raise cv.Invalid(
-                f"Component {name} requires baud rate {baud_rate} for the uart bus"
+                f"Component {name} requires baud rate {baud_rate} for the uart referenced by {uart_bus}"
             )
         return value
 
@@ -278,42 +288,43 @@ def final_validate_device_schema(
     def validate_data_bits(value):
         if value != data_bits:
             raise cv.Invalid(
-                f"Component {name} requires {data_bits} data bits for the uart bus"
+                f"Component {name} requires {data_bits} data bits for the uart referenced by {uart_bus}"
             )
         return value
 
     def validate_parity(value):
         if value != parity:
             raise cv.Invalid(
-                f"Component {name} requires parity {parity} for the uart bus"
+                f"Component {name} requires parity {parity} for the uart referenced by {uart_bus}"
             )
         return value
 
     def validate_stop_bits(value):
         if value != stop_bits:
             raise cv.Invalid(
-                f"Component {name} requires {stop_bits} stop bits for the uart bus"
+                f"Component {name} requires {stop_bits} stop bits for the uart referenced by {uart_bus}"
             )
         return value
 
     def validate_hub(hub_config):
         hub_schema = {}
         uart_id = hub_config[CONF_ID]
+        uart_id_type_str = str(uart_id.type)
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
-        if require_tx:
+        if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
                     CONF_TX_PIN,
-                    msg=f"Component {name} requires this uart bus to declare a tx_pin",
+                    msg=f"Component {name} requires uart referenced by {uart_bus} to declare a tx_pin",
                 )
             ] = validate_pin(CONF_TX_PIN, device)
-        if require_rx:
+        if require_rx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
                     CONF_RX_PIN,
-                    msg=f"Component {name} requires this uart bus to declare a rx_pin",
+                    msg=f"Component {name} requires uart referenced by {uart_bus} to declare a rx_pin",
                 )
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
@@ -327,7 +338,7 @@ def final_validate_device_schema(
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
-        {cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(validate_hub)},
+        {cv.Required(uart_bus): fv.id_declaration_match_schema(validate_hub)},
         extra=cv.ALLOW_EXTRA,
     )
 

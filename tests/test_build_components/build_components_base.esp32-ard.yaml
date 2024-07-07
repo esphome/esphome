@@ -1,0 +1,17 @@
+esphome:
+  name: componenttestesp32ard
+  friendly_name: $component_name
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: arduino
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

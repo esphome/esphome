@@ -13,7 +13,10 @@ enum class VerticalSwingMode : uint8_t {
   UP = 0x04,
   CENTER = 0x06,
   DOWN = 0x08,
-  AUTO = 0x0C
+  MAX_DOWN = 0x0A,
+  AUTO = 0x0C,
+  // Auto for special modes
+  AUTO_SPECIAL = 0x0E
 };
 
 enum class HorizontalSwingMode : uint8_t {
@@ -38,15 +41,20 @@ enum class ConditioningMode : uint8_t {
 enum class DataParameters : uint8_t {
   AC_POWER = 0x01,
   SET_POINT = 0x02,
+  VERTICAL_SWING_MODE = 0x03,
   AC_MODE = 0x04,
   FAN_MODE = 0x05,
   USE_FAHRENHEIT = 0x07,
+  DISPLAY_STATUS = 0x09,
   TEN_DEGREE = 0x0A,
   HEALTH_MODE = 0x0B,
+  HORIZONTAL_SWING_MODE = 0x0C,
+  SELF_CLEANING = 0x0D,
   BEEPER_STATUS = 0x16,
   LOCK_REMOTE = 0x17,
   QUIET_MODE = 0x19,
   FAST_MODE = 0x1A,
+  SLEEP_MODE = 0x1B,
 };
 
 enum class SpecialMode : uint8_t { NONE = 0x00, ELDERLY = 0x01, CHILDREN = 0x02, PREGNANT = 0x03 };
@@ -55,18 +63,18 @@ enum class FanMode : uint8_t { FAN_HIGH = 0x01, FAN_MID = 0x02, FAN_LOW = 0x03, 
 
 struct HaierPacketControl {
   // Control bytes starts here
-  // 10
+  // 1
   uint8_t set_point;  // Target temperature with 16°C offset (0x00 = 16°C)
-  // 11
+  // 2
   uint8_t vertical_swing_mode : 4;  // See enum VerticalSwingMode
   uint8_t : 0;
-  // 12
+  // 3
   uint8_t fan_mode : 3;      // See enum FanMode
   uint8_t special_mode : 2;  // See enum SpecialMode
   uint8_t ac_mode : 3;       // See enum ConditioningMode
-  // 13
+  // 4
   uint8_t : 8;
-  // 14
+  // 5
   uint8_t ten_degree : 1;           // 10 degree status
   uint8_t display_status : 1;       // If 0 disables AC's display
   uint8_t half_degree : 1;          // Use half degree
@@ -75,7 +83,7 @@ struct HaierPacketControl {
   uint8_t use_fahrenheit : 1;       // Use Fahrenheit instead of Celsius
   uint8_t : 1;
   uint8_t steri_clean : 1;
-  // 15
+  // 6
   uint8_t ac_power : 1;                 // Is ac on or off
   uint8_t health_mode : 1;              // Health mode (negative ions) on or off
   uint8_t electric_heating_status : 1;  // Electric heating status
@@ -84,16 +92,16 @@ struct HaierPacketControl {
   uint8_t sleep_mode : 1;               // Sleep mode
   uint8_t lock_remote : 1;              // Disable remote
   uint8_t beeper_status : 1;  // If 1 disables AC's command feedback beeper (need to be set on every control command)
-  // 16
+  // 7
   uint8_t target_humidity;  // Target humidity (0=30% .. 3C=90%, step = 1%)
-  // 17
+  // 8
   uint8_t horizontal_swing_mode : 3;  // See enum HorizontalSwingMode
   uint8_t : 3;
   uint8_t human_sensing_status : 2;  // Human sensing status
-  // 18
+  // 9
   uint8_t change_filter : 1;  // Filter need replacement
   uint8_t : 0;
-  // 19
+  // 10
   uint8_t fresh_air_status : 1;       // Fresh air status
   uint8_t humidification_status : 1;  // Humidification status
   uint8_t pm2p5_cleaning_status : 1;  // PM2.5 cleaning status
@@ -105,40 +113,68 @@ struct HaierPacketControl {
 };
 
 struct HaierPacketSensors {
-  // 20
+  // 11
   uint8_t room_temperature;  // 0.5°C step
-  // 21
+  // 12
   uint8_t room_humidity;  // 0%-100% with 1% step
-  // 22
+  // 13
   uint8_t outdoor_temperature;  // 1°C step, -64°C offset (0=-64°C)
-  // 23
+  // 14
   uint8_t pm2p5_level : 2;    // Indoor PM2.5 grade (00: Excellent, 01: good, 02: Medium, 03: Bad)
   uint8_t air_quality : 2;    // Air quality grade (00: Excellent, 01: good, 02: Medium, 03: Bad)
   uint8_t human_sensing : 2;  // Human presence result (00: N/A, 01: not detected, 02: One, 03: Multiple)
   uint8_t : 1;
   uint8_t ac_type : 1;  // 00 - Heat and cool, 01 - Cool only)
-  // 24
+  // 15
   uint8_t error_status;  // See enum ErrorStatus
-  // 25
+  // 16
   uint8_t operation_source : 2;   // who is controlling AC (00: Other, 01: Remote control, 02: Button, 03: ESP)
   uint8_t operation_mode_hk : 2;  // Homekit only, operation mode (00: Cool, 01: Dry, 02: Heat, 03: Fan)
   uint8_t : 3;
   uint8_t err_confirmation : 1;  // If 1 clear error status
-  // 26
+  // 17
   uint16_t total_cleaning_time;  // Cleaning cumulative time (1h step)
-  // 28
+  // 19
   uint16_t indoor_pm2p5_value;  // Indoor PM2.5 value (0 ug/m3 -  4095 ug/m3, 1 ug/m3 step)
-  // 30
+  // 21
   uint16_t outdoor_pm2p5_value;  // Outdoor PM2.5 value (0 ug/m3 -  4095 ug/m3, 1 ug/m3 step)
-  // 32
+  // 23
   uint16_t ch2o_value;  // Formaldehyde value (0 ug/m3 -  10000 ug/m3, 1 ug/m3 step)
-  // 34
+  // 25
   uint16_t voc_value;  // VOC value (Volatile Organic Compounds) (0 ug/m3 -  1023 ug/m3, 1 ug/m3 step)
-  // 36
+  // 27
   uint16_t co2_value;  // CO2 value (0 PPM -  10000 PPM, 1 PPM step)
 };
 
-constexpr size_t HAIER_STATUS_FRAME_SIZE = 2 + sizeof(HaierPacketControl) + sizeof(HaierPacketSensors);
+struct HaierPacketBigData {
+  // 29
+  uint8_t power[2];  // AC power consumption (0W - 65535W, 1W step)
+  // 31
+  uint8_t indoor_coil_temperature;  // 0.5°C step, -20°C offset (0=-20°C)
+  // 32
+  uint8_t outdoor_out_air_temperature;  // 1°C step, -64°C offset (0=-64°C)
+  // 33
+  uint8_t outdoor_coil_temperature;  // 1°C step, -64°C offset (0=-64°C)
+  // 34
+  uint8_t outdoor_in_air_temperature;  // 1°C step, -64°C offset (0=-64°C)
+  // 35
+  uint8_t outdoor_defrost_temperature;  // 1°C step, -64°C offset (0=-64°C)
+  // 36
+  uint8_t compressor_frequency;  // 1Hz step, 0Hz - 127Hz
+  // 37
+  uint8_t compressor_current[2];  // 0.1A step, 0.0A - 51.1A (0x0000 - 0x01FF)
+  // 39
+  uint8_t outdoor_fan_status : 2;  // 0 - off, 1 - on,  2 - information not available
+  uint8_t defrost_status : 2;      // 0 - off, 1 - on,  2 - information not available
+  uint8_t : 0;
+  // 40
+  uint8_t compressor_status : 2;               // 0 - off, 1 - on,  2 - information not available
+  uint8_t indoor_fan_status : 2;               // 0 - off, 1 - on,  2 - information not available
+  uint8_t four_way_valve_status : 2;           // 0 - off, 1 - on,  2 - information not available
+  uint8_t indoor_electric_heating_status : 2;  // 0 - off, 1 - on,  2 - information not available
+  // 41
+  uint8_t expansion_valve_open_degree[2];  // 0 - 4095
+};
 
 struct DeviceVersionAnswer {
   char protocol_version[8];
@@ -162,6 +198,62 @@ enum class SubcommandsControl : uint16_t {
                                   // the only group mentioned in document is 1) and return all user data (packet
                                   // content: all values like in status packet)
 };
+
+const std::string HON_ALARM_MESSAGES[] = {
+    "Outdoor module failure",
+    "Outdoor defrost sensor failure",
+    "Outdoor compressor exhaust sensor failure",
+    "Outdoor EEPROM abnormality",
+    "Indoor coil sensor failure",
+    "Indoor-outdoor communication failure",
+    "Power supply overvoltage protection",
+    "Communication failure between panel and indoor unit",
+    "Outdoor compressor overheat protection",
+    "Outdoor environmental sensor abnormality",
+    "Full water protection",
+    "Indoor EEPROM failure",
+    "Outdoor out air sensor failure",
+    "CBD and module communication failure",
+    "Indoor DC fan failure",
+    "Outdoor DC fan failure",
+    "Door switch failure",
+    "Dust filter needs cleaning reminder",
+    "Water shortage protection",
+    "Humidity sensor failure",
+    "Indoor temperature sensor failure",
+    "Manipulator limit failure",
+    "Indoor PM2.5 sensor failure",
+    "Outdoor PM2.5 sensor failure",
+    "Indoor heating overload/high load alarm",
+    "Outdoor AC current protection",
+    "Outdoor compressor operation abnormality",
+    "Outdoor DC current protection",
+    "Outdoor no-load failure",
+    "CT current abnormality",
+    "Indoor cooling freeze protection",
+    "High and low pressure protection",
+    "Compressor out air temperature is too high",
+    "Outdoor evaporator sensor failure",
+    "Outdoor cooling overload",
+    "Water pump drainage failure",
+    "Three-phase power supply failure",
+    "Four-way valve failure",
+    "External alarm/scraper flow switch failure",
+    "Temperature cutoff protection alarm",
+    "Different mode operation failure",
+    "Electronic expansion valve failure",
+    "Dual heat source sensor Tw failure",
+    "Communication failure with the wired controller",
+    "Indoor unit address duplication failure",
+    "50Hz zero crossing failure",
+    "Outdoor unit failure",
+    "Formaldehyde sensor failure",
+    "VOC sensor failure",
+    "CO2 sensor failure",
+    "Firewall failure",
+};
+
+constexpr size_t HON_ALARM_COUNT = sizeof(HON_ALARM_MESSAGES) / sizeof(HON_ALARM_MESSAGES[0]);
 
 }  // namespace hon_protocol
 }  // namespace haier
