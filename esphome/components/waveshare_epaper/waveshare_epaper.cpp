@@ -814,8 +814,8 @@ void WaveshareEPaper2P7InV2::dump_config() {
 //                          1.45inch_v2_e-paper_b
 // ========================================================
 // Datasheet:
-//  - 
-//  - 
+//  - https://files.waveshare.com/upload/9/9e/1.54inch-e-paper-b-v2-specification.pdf
+//  - https://www.waveshare.com/wiki/1.54inch_e-Paper_Module_(B)_Manual
 
 void WaveshareEPaper1P54InBV2::initialize(){
   this->reset_();
