@@ -230,7 +230,7 @@ void OpenthermHub::loop() {
   if (!initialized_)
     return;
 
-  if (sync_mode_){
+  if (sync_mode_) {
     sync_loop_();
     return;
   }
@@ -243,7 +243,7 @@ void OpenthermHub::loop() {
     case OperationMode::LISTEN:
       if (!check_timings_(cur_time)) {
         break;
-      }        
+      }
       last_mode_ = cur_mode;
       break;
     case OperationMode::ERROR_PROTOCOL:
@@ -262,7 +262,7 @@ void OpenthermHub::loop() {
     case OperationMode::IDLE:
       if (should_skip_loop_(cur_time)) {
         break;
-      }        
+      }
       start_conversation_();
       break;
     case OperationMode::SENT:
@@ -280,17 +280,17 @@ void OpenthermHub::sync_loop_() {
     ESP_LOGE(OT_TAG, "OpenTherm is not idle at the start of the loop");
     return;
   }
-  
+
   auto cur_time = millis();
-  
+
   check_timings_(cur_time);
-  
+
   if (should_skip_loop_(cur_time)) {
     return;
   }
-  
+
   start_conversation_();
-  
+
   if (!spin_wait_(1150, [&] { return opentherm_->is_active(); })) {
     ESP_LOGE(OT_TAG, "Hub timeout triggered during send");
     stop_opentherm_();
@@ -344,7 +344,7 @@ bool OpenthermHub::check_timings_(uint32_t cur_time) {
     stop_opentherm_();
     return false;
   }
-  
+
   return true;
 }
 
@@ -353,7 +353,7 @@ bool OpenthermHub::should_skip_loop_(uint32_t cur_time) const {
     ESP_LOGV(OT_TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
     return true;
   }
-  
+
   return false;
 }
 
