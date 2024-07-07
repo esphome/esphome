@@ -8,7 +8,6 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
-    CONF_ID,
 )
 from .. import mcp3428_ns, MCP3428Component, CONF_MCP3428_ID
 
