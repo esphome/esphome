@@ -40,7 +40,7 @@ void FlameLightEffect::start() {
              this->colors_[i].green, this->colors_[i].blue);
   }
 
-  if (this->flicker_level_probabilities_.size() == 0) {
+  if (this->flicker_level_probabilities_.empty()) {
     this->flicker_level_probabilities_ = {0.5f, 0.3f, 0.08f};
     ESP_LOGD("FlameLightEffect", "start()    Default flicker probability.");
   } else {
@@ -52,9 +52,9 @@ void FlameLightEffect::start() {
 
   // Ensure the probability count matches the number of levels.
   while (this->flicker_level_probabilities_.size() < this->number_levels_) {
-    float nextVal = this->flicker_level_probabilities_.size() > 0
-                        ? this->flicker_level_probabilities_[this->flicker_level_probabilities_.size() - 1] / 2.0f
-                        : 1.0f;
+    float nextVal = this->flicker_level_probabilities_.empty()
+                        ? 1.0f
+                        : this->flicker_level_probabilities_[this->flicker_level_probabilities_.size() - 1] / 2.0f;
     ESP_LOGW("FlameLightEffect", "start()    Not enough flicker_level_probability values, adding %.3f.", nextVal);
     this->flicker_level_probabilities_.push_back(nextVal);
   }
@@ -67,13 +67,13 @@ void FlameLightEffect::start() {
 
   if (cumulative_probability >= 1.0f) {
     ESP_LOGW("FlameLightEffect",
-             "start()    Your cumulative flicker probability is >= 100% (%.3f) -- Zero non-flicker time.",
-             cumulative_probability);
+             "start()    Your cumulative flicker probability is >= 100% (total is %.1f%%) -- Zero non-flicker time.",
+             cumulative_probability * 100.0f);
   } else {
     ESP_LOGD("FlameLightEffect", "start()   cumulative flicker probability: %.3f", cumulative_probability);
   }
 
-  if (this->number_flickers_config_.size() == 0) {
+  if (this->number_flickers_config_.empty()) {
     this->number_flickers_config_ = {
         FlameEffectNumberFlickers(0.40f, 2),  // The first probability does not matter, it acts as the fall-through.
         FlameEffectNumberFlickers(0.20f, 4), FlameEffectNumberFlickers(0.10f, 8), FlameEffectNumberFlickers(0.05f, 10),
@@ -90,7 +90,7 @@ void FlameLightEffect::apply() {
     return;
   }
 
-  if (this->is_custom_color_set_needed_ && this->colors_.size() > 0) {
+  if (this->is_custom_color_set_needed_ && !this->colors_.empty()) {
     // Setting the custom color is not in the start() because we
     // do not want to interrupt a running transformer.
 
@@ -99,13 +99,12 @@ void FlameLightEffect::apply() {
     // Logging colors as integers because it is easier to take the numbers
     // to other tools (such as HTML color pickers) for comparison.
     ESP_LOGD("FlameLightEffect", "Setting initial color to color @ idx 0:  R: %d  G: %d  B: %d  (W: %d)",
-             this->colors_.size(), this->colors_[0].red, this->colors_[0].green, this->colors_[0].blue,
-             this->colors_[0].white);
+             this->colors_[0].red, this->colors_[0].green, this->colors_[0].blue, this->colors_[0].white);
 
     this->initial_brightness_ = 1.0f;
     this->baseline_brightness_ = this->is_baseline_brightness_dim_ ? 1.0f - this->intensity_ : 1.0f;
     this->color_mode_ = ColorMode::RGB;
-    set_min_max_brightness();
+    set_min_max_brightness_();
     // We determined everything here so no need to get it again.
     this->is_baseline_brightness_needed_ = false;
 
@@ -148,7 +147,7 @@ void FlameLightEffect::apply() {
       }
     }
 
-    set_min_max_brightness();
+    set_min_max_brightness_();
     return;  // Important! Wait for the next pass to start effects since we may have stared a transition.
   }
 
@@ -157,7 +156,7 @@ void FlameLightEffect::apply() {
 
   if (this->flickers_left_ > 0) {
     // We decrement the counter below.
-    if (this->probability_true(0.5f)) {
+    if (this->probability_true_(0.5f)) {
       transition_length_ms = this->transition_length_ms_;
     } else {
       transition_length_ms = this->transition_length_ms_ + this->transition_length_jitter_ms_;
@@ -187,25 +186,25 @@ void FlameLightEffect::apply() {
       }
     }
 
-    this->set_flicker_brightness_levels(brightness_sublevel);
-    this->clamp_flicker_brightness_levels();
+    this->set_flicker_brightness_levels_(brightness_sublevel);
+    this->clamp_flicker_brightness_levels_();
 
-    this->flickers_left_ = this->determine_number_flickers();
-    transition_length_ms = this->determine_transistion_length_for_new_state();
-    this->is_in_bright_flicker_state_ = this->probability_true(0.5f);
+    this->flickers_left_ = this->determine_number_flickers_();
+    transition_length_ms = this->determine_transistion_length_for_new_state_();
+    this->is_in_bright_flicker_state_ = this->probability_true_(0.5f);
     new_brightness =
         this->is_in_bright_flicker_state_ ? this->flicker_bright_brightness_ : this->flicker_dim_brightness_;
     this->previous_flicker_state_ = this->flicker_state_;
 
     ESP_LOGD("FlameLightEffect",
-             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %d    Flicker Dim: %.3f    Bright: %.3f    "
-             "Flicker Count: %d",
+             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %ld    Flicker Dim: %.3f    Bright: %.3f    "
+             "Flicker Count: %ld",
              r, brightness_sublevel, this->flicker_state_, this->flicker_dim_brightness_,
              this->flicker_bright_brightness_, this->flickers_left_);
   }
 
   if (transition_length_ms < this->transition_length_ms_) {
-    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %dms, clamping to %dms", transition_length_ms,
+    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %ldms, clamping to %ldms", transition_length_ms,
              this->transition_length_ms_);
     transition_length_ms = this->transition_length_ms_;
   }
@@ -248,7 +247,7 @@ void FlameLightEffect::apply() {
     } else {
       c = this->colors_[this->colors_.size() - 1];
     }
-    ESP_LOGD("FlameLightEffect", "State %d Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red, c.green,
+    ESP_LOGD("FlameLightEffect", "State %ld Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red, c.green,
              c.blue);
 
     call.set_rgb(c.red / 255.0f, c.green / 255.0f, c.blue / 255.0f);
@@ -263,8 +262,8 @@ void FlameLightEffect::apply() {
 /*
  * Determine the number of flickers for the new state.
  */
-uint32_t FlameLightEffect::determine_number_flickers() {
-  if (this->number_flickers_config_.size() == 0) {
+uint32_t FlameLightEffect::determine_number_flickers_() {
+  if (this->number_flickers_config_.empty()) {
     ESP_LOGW("FlameLightEffect", "No number of flickers config at all?");
     return 4;
   }
@@ -292,11 +291,11 @@ uint32_t FlameLightEffect::determine_number_flickers() {
   return number_flickers_config_[0].number_flickers;
 }
 
-uint32_t FlameLightEffect::determine_transistion_length_for_new_state() {
+uint32_t FlameLightEffect::determine_transistion_length_for_new_state_() {
   uint32_t transition_length_ms;
   uint32_t delta = abs((int) this->flicker_state_ - (int) this->previous_flicker_state_);
 
-  if (this->probability_true(0.5)) {
+  if (this->probability_true_(0.5)) {
     transition_length_ms = this->transition_length_ms_ * (delta < 1 ? 1 : delta);
   } else {
     transition_length_ms = (this->transition_length_ms_ + this->transition_length_jitter_ms_) * (delta < 1 ? 1 : delta);
@@ -313,7 +312,7 @@ uint32_t FlameLightEffect::determine_transistion_length_for_new_state() {
 }
 
 /* *************** Candle *************** */
-void CandleLightEffect::set_flicker_brightness_levels(float level) {
+void CandleLightEffect::set_flicker_brightness_levels_(float level) {
   if (this->flicker_state_ == 0) {
     // No flicker.
     this->flicker_bright_brightness_ = this->baseline_brightness_;
@@ -326,7 +325,7 @@ void CandleLightEffect::set_flicker_brightness_levels(float level) {
   }
 }
 
-void CandleLightEffect::set_min_max_brightness() {
+void CandleLightEffect::set_min_max_brightness_() {
   this->max_brightness_ = this->baseline_brightness_;
   this->min_brightness_ = this->baseline_brightness_ - (this->intensity_ * this->initial_brightness_);
 
@@ -341,7 +340,7 @@ void FireplaceLightEffect::start() {
   FlameLightEffect::start();
 }
 
-void FireplaceLightEffect::set_flicker_brightness_levels(float level) {
+void FireplaceLightEffect::set_flicker_brightness_levels_(float level) {
   if (this->flicker_state_ == 0) {
     // No flicker.
     this->flicker_bright_brightness_ = this->baseline_brightness_;
@@ -353,7 +352,7 @@ void FireplaceLightEffect::set_flicker_brightness_levels(float level) {
   }
 }
 
-void FireplaceLightEffect::set_min_max_brightness() {
+void FireplaceLightEffect::set_min_max_brightness_() {
   this->min_brightness_ = this->baseline_brightness_;
   this->max_brightness_ = this->min_brightness_ + (this->intensity_ * this->initial_brightness_);
 
