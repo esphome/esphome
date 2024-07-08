@@ -4,7 +4,11 @@
 #include <vector>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/color.h"
+#include "esphome/core/log.h"
 #include "light_effect.h"
+#include "light_state.h"
+#include "color_mode.h"
 
 namespace esphome {
 namespace light {
