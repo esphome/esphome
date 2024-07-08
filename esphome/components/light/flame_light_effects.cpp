@@ -31,7 +31,7 @@ void FlameLightEffect::start() {
              this->flicker_intensity_, this->intensity_);
   }
 
-  ESP_LOGD("FlameLightEffect", "start()    Speed: %ums   Jitter: %u", this->transition_length_ms_,
+  ESP_LOGD("FlameLightEffect", "start()    Speed: %lums   Jitter: %lu", this->transition_length_ms_,
            this->transition_length_jitter_ms_);
 
   ESP_LOGD("FlameLightEffect", "start()    User supplied %d colors.", this->colors_.size());
@@ -197,14 +197,14 @@ void FlameLightEffect::apply() {
     this->previous_flicker_state_ = this->flicker_state_;
 
     ESP_LOGD("FlameLightEffect",
-             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %u    Flicker Dim: %.3f    Bright: %.3f    "
-             "Flicker Count: %u",
+             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %lu    Flicker Dim: %.3f    Bright: %.3f    "
+             "Flicker Count: %lu",
              r, brightness_sublevel, this->flicker_state_, this->flicker_dim_brightness_,
              this->flicker_bright_brightness_, this->flickers_left_);
   }
 
   if (transition_length_ms < this->transition_length_ms_) {
-    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %ums, clamping to %ums", transition_length_ms,
+    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %lums, clamping to %lums", transition_length_ms,
              this->transition_length_ms_);
     transition_length_ms = this->transition_length_ms_;
   }
@@ -247,7 +247,7 @@ void FlameLightEffect::apply() {
     } else {
       c = this->colors_[this->colors_.size() - 1];
     }
-    ESP_LOGD("FlameLightEffect", "State %u Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red, c.green,
+    ESP_LOGD("FlameLightEffect", "State %lu Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red, c.green,
              c.blue);
 
     call.set_rgb(c.red / 255.0f, c.green / 255.0f, c.blue / 255.0f);
