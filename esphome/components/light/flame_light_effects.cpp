@@ -268,9 +268,9 @@ uint32_t FlameLightEffect::determine_number_flickers_() {
     return 4;
   }
 
-  for (auto &i : this->number_flickers_config_) {
-    if (this->flicker_state_ > 0 && this->flicker_state_ == this->number_flickers_config_[i].force_at_level) {
-      return this->number_flickers_config_[i].number_flickers;
+  for (auto &flicker_config : this->number_flickers_config_) {
+    if (this->flicker_state_ > 0 && this->flicker_state_ == flicker_config.force_at_level) {
+      return flicker_config.number_flickers;
     }
   }
 
