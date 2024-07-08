@@ -31,7 +31,7 @@ void FlameLightEffect::start() {
              this->flicker_intensity_, this->intensity_);
   }
 
-  ESP_LOGD("FlameLightEffect", "start()    Speed: %dms   Jitter: %d", this->transition_length_ms_,
+  ESP_LOGD("FlameLightEffect", "start()    Speed: %ums   Jitter: %u", this->transition_length_ms_,
            this->transition_length_jitter_ms_);
 
   ESP_LOGD("FlameLightEffect", "start()    User supplied %d colors.", this->colors_.size());
@@ -52,11 +52,11 @@ void FlameLightEffect::start() {
 
   // Ensure the probability count matches the number of levels.
   while (this->flicker_level_probabilities_.size() < this->number_levels_) {
-    float nextVal = this->flicker_level_probabilities_.empty()
-                        ? 1.0f
-                        : this->flicker_level_probabilities_[this->flicker_level_probabilities_.size() - 1] / 2.0f;
-    ESP_LOGW("FlameLightEffect", "start()    Not enough flicker_level_probability values, adding %.3f.", nextVal);
-    this->flicker_level_probabilities_.push_back(nextVal);
+    float next_val = this->flicker_level_probabilities_.empty()
+                         ? 1.0f
+                         : this->flicker_level_probabilities_[this->flicker_level_probabilities_.size() - 1] / 2.0f;
+    ESP_LOGW("FlameLightEffect", "start()    Not enough flicker_level_probability values, adding %.3f.", next_val);
+    this->flicker_level_probabilities_.push_back(next_val);
   }
 
   float cumulative_probability = 0.0f;
@@ -67,7 +67,7 @@ void FlameLightEffect::start() {
 
   if (cumulative_probability >= 1.0f) {
     ESP_LOGW("FlameLightEffect",
-             "start()    Your cumulative flicker probability is >= 100% (total is %.1f%%) -- Zero non-flicker time.",
+             "start()    Your cumulative flicker probability is >= 100%% (total is %.1f%%) -- Zero non-flicker time.",
              cumulative_probability * 100.0f);
   } else {
     ESP_LOGD("FlameLightEffect", "start()   cumulative flicker probability: %.3f", cumulative_probability);
@@ -104,7 +104,7 @@ void FlameLightEffect::apply() {
     this->initial_brightness_ = 1.0f;
     this->baseline_brightness_ = this->is_baseline_brightness_dim_ ? 1.0f - this->intensity_ : 1.0f;
     this->color_mode_ = ColorMode::RGB;
-    set_min_max_brightness_();
+    set_min_max_brightness();
     // We determined everything here so no need to get it again.
     this->is_baseline_brightness_needed_ = false;
 
@@ -147,7 +147,7 @@ void FlameLightEffect::apply() {
       }
     }
 
-    set_min_max_brightness_();
+    set_min_max_brightness();
     return;  // Important! Wait for the next pass to start effects since we may have stared a transition.
   }
 
@@ -186,7 +186,7 @@ void FlameLightEffect::apply() {
       }
     }
 
-    this->set_flicker_brightness_levels_(brightness_sublevel);
+    this->set_flicker_brightness_levels(brightness_sublevel);
     this->clamp_flicker_brightness_levels_();
 
     this->flickers_left_ = this->determine_number_flickers_();
@@ -197,14 +197,14 @@ void FlameLightEffect::apply() {
     this->previous_flicker_state_ = this->flicker_state_;
 
     ESP_LOGD("FlameLightEffect",
-             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %ld    Flicker Dim: %.3f    Bright: %.3f    "
-             "Flicker Count: %ld",
+             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %u    Flicker Dim: %.3f    Bright: %.3f    "
+             "Flicker Count: %u",
              r, brightness_sublevel, this->flicker_state_, this->flicker_dim_brightness_,
              this->flicker_bright_brightness_, this->flickers_left_);
   }
 
   if (transition_length_ms < this->transition_length_ms_) {
-    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %ldms, clamping to %ldms", transition_length_ms,
+    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %ums, clamping to %ums", transition_length_ms,
              this->transition_length_ms_);
     transition_length_ms = this->transition_length_ms_;
   }
@@ -247,7 +247,7 @@ void FlameLightEffect::apply() {
     } else {
       c = this->colors_[this->colors_.size() - 1];
     }
-    ESP_LOGD("FlameLightEffect", "State %ld Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red, c.green,
+    ESP_LOGD("FlameLightEffect", "State %u Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red, c.green,
              c.blue);
 
     call.set_rgb(c.red / 255.0f, c.green / 255.0f, c.blue / 255.0f);
@@ -268,7 +268,7 @@ uint32_t FlameLightEffect::determine_number_flickers_() {
     return 4;
   }
 
-  for (int i = 0; i < this->number_flickers_config_.size(); i++) {
+  for (auto &i : this->number_flickers_config_) {
     if (this->flicker_state_ > 0 && this->flicker_state_ == this->number_flickers_config_[i].force_at_level) {
       return this->number_flickers_config_[i].number_flickers;
     }
@@ -312,7 +312,7 @@ uint32_t FlameLightEffect::determine_transistion_length_for_new_state_() {
 }
 
 /* *************** Candle *************** */
-void CandleLightEffect::set_flicker_brightness_levels_(float level) {
+void CandleLightEffect::set_flicker_brightness_levels(float level) {
   if (this->flicker_state_ == 0) {
     // No flicker.
     this->flicker_bright_brightness_ = this->baseline_brightness_;
@@ -325,7 +325,7 @@ void CandleLightEffect::set_flicker_brightness_levels_(float level) {
   }
 }
 
-void CandleLightEffect::set_min_max_brightness_() {
+void CandleLightEffect::set_min_max_brightness() {
   this->max_brightness_ = this->baseline_brightness_;
   this->min_brightness_ = this->baseline_brightness_ - (this->intensity_ * this->initial_brightness_);
 
@@ -340,7 +340,7 @@ void FireplaceLightEffect::start() {
   FlameLightEffect::start();
 }
 
-void FireplaceLightEffect::set_flicker_brightness_levels_(float level) {
+void FireplaceLightEffect::set_flicker_brightness_levels(float level) {
   if (this->flicker_state_ == 0) {
     // No flicker.
     this->flicker_bright_brightness_ = this->baseline_brightness_;
@@ -352,7 +352,7 @@ void FireplaceLightEffect::set_flicker_brightness_levels_(float level) {
   }
 }
 
-void FireplaceLightEffect::set_min_max_brightness_() {
+void FireplaceLightEffect::set_min_max_brightness() {
   this->min_brightness_ = this->baseline_brightness_;
   this->max_brightness_ = this->min_brightness_ + (this->intensity_ * this->initial_brightness_);
 

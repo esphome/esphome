@@ -71,20 +71,20 @@ class FlameLightEffect : public LightEffect {
   void set_use_exponential_gradient(bool enabled) { this->use_exponential_gradient_ = enabled; }
 
   void set_colors(const std::vector<Color> &colors) {
-    if (colors.size() > 0) {
+    if (!colors.empty()) {
       this->colors_ = colors;
       this->is_custom_color_set_needed_ = true;
     }
   }
 
   void set_flicker_level_probabilities(const std::vector<float> &values) {
-    if (values.size() > 0) {
+    if (!values.empty()) {
       this->flicker_level_probabilities_ = values;
     }
   }
 
   void set_number_flickers_config(const std::vector<FlameEffectNumberFlickers> &config) {
-    if (config.size() > 0) {
+    if (!config.empty()) {
       this->number_flickers_config_ = config;
     }
   }
@@ -149,7 +149,7 @@ class FlameLightEffect : public LightEffect {
 
   // float brightness_scale_ = 1.0f;
 
-  virtual void set_flicker_brightness_levels_(float level) = 0;
+  virtual void set_flicker_brightness_levels(float level) = 0;
 
   float max_brightness_ = 1.0f;
   float min_brightness_ = 0.0f;
@@ -159,7 +159,7 @@ class FlameLightEffect : public LightEffect {
    * which are in turn used to determine the color of light
    * in a two-color mode based on the brightness.
    */
-  virtual void set_min_max_brightness_() = 0;
+  virtual void set_min_max_brightness() = 0;
 
   /* Ensure the flicker brightness levels are not above 100% or below 0%.*/
   void clamp_flicker_brightness_levels_() {
@@ -193,8 +193,8 @@ class CandleLightEffect : public FlameLightEffect {
   explicit CandleLightEffect(const std::string &name) : FlameLightEffect(name) {}
 
  protected:
-  void set_flicker_brightness_levels_(float level) override;
-  void set_min_max_brightness_() override;
+  void set_flicker_brightness_levels(float level) override;
+  void set_min_max_brightness() override;
 };
 
 /*
@@ -208,8 +208,8 @@ class FireplaceLightEffect : public FlameLightEffect {
   void start() override;
 
  protected:
-  void set_flicker_brightness_levels_(float level) override;
-  void set_min_max_brightness_() override;
+  void set_flicker_brightness_levels(float level) override;
+  void set_min_max_brightness() override;
 };
 
 }  // namespace light
