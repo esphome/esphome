@@ -17,7 +17,7 @@ void DaikinClimate::transmit_state() {
   remote_state[24] = fan_speed >> 8;
   remote_state[25] = fan_speed & 0xff;
   remote_state[29] = this->powerful_quiet_preset_();
-  remote_state[34] = this->eco_preset_();
+  remote_state[32] = this->eco_preset_();
 
   // Calculate checksum
   for (int i = 16; i < 34; i++) {
