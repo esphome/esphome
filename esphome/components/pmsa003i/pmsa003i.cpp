@@ -15,8 +15,8 @@ void PMSA003IComponent::setup() {
   bool successful_read = this->read_data_(&data);
 
   if (!successful_read) {
-    for (int i = 0; i < 3; i++) {
-      ESP_LOGW(TAG, "Setup read failed. Trying again.");
+    for (int i = 0; i < 2; i++) {
+      ESP_LOGW(TAG, "_Setup read failed. Trying again.");
       successful_read = this->read_data_(&data);
       if (successful_read) {
         break;
