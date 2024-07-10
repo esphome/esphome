@@ -1,4 +1,3 @@
-#ifdef USE_ARDUINO
 
 #include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
@@ -8,8 +7,13 @@
 #ifdef USE_ESP8266
 #include <core_esp8266_waveform.h>
 #endif
+
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-timer.h>
+#endif
+
+#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
+#include "esp32-hw-timer.h"
 #endif
 
 namespace esphome {
@@ -191,7 +195,7 @@ void AcDimmer::setup() {
   // PWM and AcDimmer can even run at the same time this way
   setTimer1Callback(&timer_interrupt);
 #endif
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
   // 80 Divider -> 1 count=1µs
   dimmer_timer = timerBegin(0, 80, true);
   timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr, true);
@@ -200,6 +204,16 @@ void AcDimmer::setup() {
   // Here we just use an interrupt firing every 50 µs.
   timerAlarmWrite(dimmer_timer, 50, true);
   timerAlarmEnable(dimmer_timer);
+#endif
+#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
+  // 80 Divider -> 1 count=1µs
+  dimmer_timer = EspIdfTimer::timerBegin(0, 80, true);
+  EspIdfTimer::timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr, true);
+  // For ESP32, we can't use dynamic interval calculation because the timerX functions
+  // are not callable from ISR (placed in flash storage).
+  // Here we just use an interrupt firing every 50 µs.
+  EspIdfTimer::timerAlarmWrite(dimmer_timer, 50, true);
+  EspIdfTimer::timerAlarmEnable(dimmer_timer);
 #endif
 }
 void AcDimmer::write_state(float state) {
@@ -229,5 +243,3 @@ void AcDimmer::dump_config() {
 
 }  // namespace ac_dimmer
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

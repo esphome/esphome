@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
@@ -66,5 +64,3 @@ class AcDimmer : public output::FloatOutput, public Component {
 
 }  // namespace ac_dimmer
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
