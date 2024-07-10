@@ -1,5 +1,6 @@
 #include "pmsa003i.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include <cstring>
 
 namespace esphome {
@@ -12,6 +13,17 @@ void PMSA003IComponent::setup() {
 
   PM25AQIData data;
   bool successful_read = this->read_data_(&data);
+
+  if (!successful_read) {
+    for (int i = 0; i < 10; i++) {
+      ESP_LOGW(TAG, "Setup read failed. Trying again.");
+      delay(100);
+      successful_read = this->read_data_(&data);
+      if (succussful_read) {
+        break;
+      }
+    } 
+  }
 
   if (!successful_read) {
     this->mark_failed();
