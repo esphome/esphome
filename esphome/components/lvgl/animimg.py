@@ -16,6 +16,7 @@ from .defines import (
 from .lv_validation import lv_repeat_count, lv_milliseconds
 from .types import ObjUpdateAction, lv_animimg_t, void_ptr
 from .widget import get_widget, Widget, WidgetType
+from .helpers import lvgl_components_required
 
 ANIMIMG_BASE_SCHEMA = cv.Schema(
     {
@@ -46,6 +47,7 @@ class AnimimgType(WidgetType):
         return lv_animimg_t
 
     async def to_code(self, w: Widget, config):
+        lvgl_components_required.add("image")
         init = []
         wid = config[CONF_ID]
         if CONF_SRC in config:
