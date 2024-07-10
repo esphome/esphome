@@ -42,7 +42,6 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
     cg.add_build_flag("-std=c++17")
-    cg.add_build_flag("-lsodium")
     if IS_MACOS:
         cg.add_build_flag("-L/opt/homebrew/lib")
     cg.add_define("ESPHOME_BOARD", "host")
