@@ -19,7 +19,7 @@ void PMSA003IComponent::setup() {
       ESP_LOGW(TAG, "Setup read failed. Trying again.");
       delay(100);
       successful_read = this->read_data_(&data);
-      if (succussful_read) {
+      if (successful_read) {
         break;
       }
     } 
