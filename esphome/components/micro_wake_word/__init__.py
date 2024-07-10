@@ -108,6 +108,7 @@ GIT_SCHEMA = cv.All(
 KEY_AUTHOR = "author"
 KEY_MICRO = "micro"
 KEY_MINIMUM_ESPHOME_VERSION = "minimum_esphome_version"
+KEY_TRAINED_LANGUAGES = "trained_languages"
 KEY_VERSION = "version"
 KEY_WAKE_WORD = "wake_word"
 KEY_WEBSITE = "website"
@@ -139,6 +140,7 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
         cv.Required(KEY_AUTHOR): cv.string,
         cv.Required(KEY_VERSION): cv.All(cv.int_, 2),
         cv.Required(KEY_WAKE_WORD): cv.string,
+        cv.Required(KEY_TRAINED_LANGUAGES): cv.ensure_list(cv.string),
         cv.Optional(KEY_WEBSITE): cv.url,
         cv.Required(KEY_MICRO): cv.Schema(
             {
@@ -231,8 +233,6 @@ def _process_http_source(config):
     manifest_data = json.loads(json_contents)
     if not isinstance(manifest_data, dict):
         raise cv.Invalid("Manifest file must contain a JSON object")
-
-    _validate_manifest_version(manifest_data)
 
     model = manifest_data[CONF_MODEL]
     model_url = urljoin(url, model)
