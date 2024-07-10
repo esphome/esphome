@@ -15,7 +15,7 @@ void PMSA003IComponent::setup() {
   bool successful_read = this->read_data_(&data);
 
   if (!successful_read) {
-    for (int i = 0; i < 3; i++) {      
+    for (int i = 0; i < 3; i++) {
       successful_read = this->read_data_(&data);
       if (successful_read) {
         break;
