@@ -40,7 +40,7 @@ jobs:
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.1.0
+        uses: actions/setup-python@v5.1.1
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
