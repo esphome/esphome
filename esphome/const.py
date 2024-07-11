@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.6.6"
+__version__ = "2024.7.0b1"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1072,6 +1072,7 @@ DEVICE_CLASS_BUTTON = "button"
 DEVICE_CLASS_CARBON_DIOXIDE = "carbon_dioxide"
 DEVICE_CLASS_CARBON_MONOXIDE = "carbon_monoxide"
 DEVICE_CLASS_COLD = "cold"
+DEVICE_CLASS_CONDUCTIVITY = "conductivity"
 DEVICE_CLASS_CONNECTIVITY = "connectivity"
 DEVICE_CLASS_CURRENT = "current"
 DEVICE_CLASS_CURTAIN = "curtain"

@@ -96,10 +96,24 @@ void ESP32ArduinoUARTComponent::setup() {
     next_uart_num++;
   } else {
 #ifdef USE_LOGGER
-    // The logger doesn't use this UART component, instead it targets the UARTs
-    // directly (i.e. Serial/Serial0, Serial1, and Serial2). If the logger is
-    // enabled, skip the UART that it is configured to use.
-    if (logger::global_logger->get_baud_rate() > 0 && logger::global_logger->get_uart() == next_uart_num) {
+    bool logger_uses_hardware_uart = true;
+
+#ifdef USE_LOGGER_USB_CDC
+    if (logger::global_logger->get_uart() == logger::UART_SELECTION_USB_CDC) {
+      // this is not a hardware UART, ignore it
+      logger_uses_hardware_uart = false;
+    }
+#endif  // USE_LOGGER_USB_CDC
+
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
+    if (logger::global_logger->get_uart() == logger::UART_SELECTION_USB_SERIAL_JTAG) {
+      // this is not a hardware UART, ignore it
+      logger_uses_hardware_uart = false;
+    }
+#endif  // USE_LOGGER_USB_SERIAL_JTAG
+
+    if (logger_uses_hardware_uart && logger::global_logger->get_baud_rate() > 0 &&
+        logger::global_logger->get_uart() == next_uart_num) {
       next_uart_num++;
     }
 #endif  // USE_LOGGER

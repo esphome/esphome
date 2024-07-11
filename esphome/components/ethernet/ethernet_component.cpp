@@ -65,7 +65,8 @@ void EthernetComponent::setup() {
       .intr_flags = 0,
   };
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6)
   auto host = SPI2_HOST;
 #else
   auto host = SPI3_HOST;
@@ -631,7 +632,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 
   if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
-    ESP_LOGD(TAG, "Select PHY Register Page 0x%02" PRIX32, 0x0);
+    ESP_LOGD(TAG, "Select PHY Register Page 0x00");
     err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, 0x0);
     ESPHL_ERROR_CHECK(err, "Select PHY Register Page 0 failed");
   }
