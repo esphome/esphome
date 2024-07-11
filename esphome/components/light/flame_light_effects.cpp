@@ -1,5 +1,6 @@
 #include <utility>
 #include <vector>
+#include <cinttypes>  // For PRIu32
 
 #include "esphome/core/automation.h"
 #include "esphome/core/color.h"
@@ -31,7 +32,7 @@ void FlameLightEffect::start() {
              this->flicker_intensity_, this->intensity_);
   }
 
-  ESP_LOGD("FlameLightEffect", "start()    Speed: %lums   Jitter: %lu", this->transition_length_ms_,
+  ESP_LOGD("FlameLightEffect", "start()    Speed: %" PRIu32 "ms   Jitter: %" PRIu32, this->transition_length_ms_,
            this->transition_length_jitter_ms_);
 
   ESP_LOGD("FlameLightEffect", "start()    User supplied %d colors.", this->colors_.size());
@@ -197,15 +198,16 @@ void FlameLightEffect::apply() {
     this->previous_flicker_state_ = this->flicker_state_;
 
     ESP_LOGD("FlameLightEffect",
-             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %lu    Flicker Dim: %.3f    Bright: %.3f    "
-             "Flicker Count: %lu",
+             "Random Value: %.3f  ->  Level: %.1f    Flicker State: %" PRIu32
+             "    Flicker Dim: %.3f    Bright: %.3f    "
+             "Flicker Count: %" PRIu32,
              r, brightness_sublevel, this->flicker_state_, this->flicker_dim_brightness_,
              this->flicker_bright_brightness_, this->flickers_left_);
   }
 
   if (transition_length_ms < this->transition_length_ms_) {
-    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %lums, clamping to %lums", transition_length_ms,
-             this->transition_length_ms_);
+    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %" PRIu32 "ms, clamping to %" PRIu32 "ms",
+             transition_length_ms, this->transition_length_ms_);
     transition_length_ms = this->transition_length_ms_;
   }
 
@@ -247,8 +249,8 @@ void FlameLightEffect::apply() {
     } else {
       c = this->colors_[this->colors_.size() - 1];
     }
-    ESP_LOGD("FlameLightEffect", "State %lu Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red, c.green,
-             c.blue);
+    ESP_LOGD("FlameLightEffect", "State %" PRIu32 " Color:    R: %d    G: %d    B: %d", this->flicker_state_, c.red,
+             c.green, c.blue);
 
     call.set_rgb(c.red / 255.0f, c.green / 255.0f, c.blue / 255.0f);
   }
