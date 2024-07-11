@@ -1,6 +1,6 @@
 #include <utility>
 #include <vector>
-#include <cinttypes>  // For PRIu32
+#include <cinttypes>  // For PRIu32 an PRId32, portable formatting of values across platforms.
 
 #include "esphome/core/automation.h"
 #include "esphome/core/color.h"
@@ -212,7 +212,7 @@ void FlameLightEffect::apply() {
   }
 
   this->flickers_left_ -= 1;
-  //   ESP_LOGD("FlameLightEffect", "Brightness: %.3f    Transition Length: %dms    Short Flickers Left: %d",
+  //   ESP_LOGD("FlameLightEffect", "Brightness: %.3f    Transition Length: %" PRId32 "ms    Short Flickers Left: %d",
   //     new_brightness, transition_length_ms, flickers_left_);
   auto call = this->state_->make_call();
   call.set_publish(false);
@@ -304,8 +304,8 @@ uint32_t FlameLightEffect::determine_transistion_length_for_new_state_() {
   }
 
   if (transition_length_ms < this->transition_length_ms_) {
-    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %dms, clamping to %dms", transition_length_ms,
-             this->transition_length_ms_);
+    ESP_LOGW("FlameLightEffect", "Oops...the transition length is %" PRId32 "ms, clamping to %" PRId32 "ms",
+             transition_length_ms, this->transition_length_ms_);
 
     transition_length_ms = this->transition_length_ms_;
   }
