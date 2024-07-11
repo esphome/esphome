@@ -4,9 +4,16 @@ remote_transmitter:
 
 climate:
   - platform: heatpumpir
-    protocol: greeyan
-    horizontal_default: auto
-    vertical_default: auto
-    name: HeatpumpIR Climate on 8266
+    protocol: mitsubishi_heavy_zm
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
+  - platform: heatpumpir
+    protocol: greeyt
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30

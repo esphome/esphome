@@ -7,6 +7,13 @@ climate:
     protocol: daikin
     horizontal_default: mleft
     vertical_default: mup
-    name: HeatpumpIR Climate on BK72xx
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
+  - platform: heatpumpir
+    protocol: panasonic_altdke
+    horizontal_default: mright
+    vertical_default: mdown
+    name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
