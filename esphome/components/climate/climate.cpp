@@ -574,20 +574,24 @@ void Climate::dump_traits_(const char *tag) {
   ESP_LOGCONFIG(tag, "      - Max temperature: %.1f", traits.get_visual_max_temperature());
   ESP_LOGCONFIG(tag, "      - Temperature step:");
   ESP_LOGCONFIG(tag, "          Target: %.1f", traits.get_visual_target_temperature_step());
-  ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
-  ESP_LOGCONFIG(tag, "      - Min humidity: %.0f", traits.get_visual_min_humidity());
-  ESP_LOGCONFIG(tag, "      - Max humidity: %.0f", traits.get_visual_max_humidity());
   if (traits.get_supports_current_temperature()) {
-    ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
+    ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
   }
-  if (traits.get_supports_current_humidity()) {
-    ESP_LOGCONFIG(tag, "  [x] Supports current humidity");
+  if (traits.get_supports_target_humidity() || traits.get_supports_current_humidity()) {
+    ESP_LOGCONFIG(tag, "      - Min humidity: %.0f", traits.get_visual_min_humidity());
+    ESP_LOGCONFIG(tag, "      - Max humidity: %.0f", traits.get_visual_max_humidity());
   }
   if (traits.get_supports_two_point_target_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");
   }
+  if (traits.get_supports_current_temperature()) {
+    ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
+  }
   if (traits.get_supports_target_humidity()) {
     ESP_LOGCONFIG(tag, "  [x] Supports target humidity");
+  }
+  if (traits.get_supports_current_humidity()) {
+    ESP_LOGCONFIG(tag, "  [x] Supports current humidity");
   }
   if (traits.get_supports_action()) {
     ESP_LOGCONFIG(tag, "  [x] Supports action");
