@@ -51,6 +51,8 @@ class AnimimgType(WidgetType):
         init = []
         wid = config[CONF_ID]
         if CONF_SRC in config:
+            for x in config[CONF_SRC]:
+                await cg.get_variable(x)
             srcs = (
                 "{" + ",".join([f"lv_img_from({x.id})" for x in config[CONF_SRC]]) + "}"
             )
