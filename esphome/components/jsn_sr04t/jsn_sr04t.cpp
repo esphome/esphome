@@ -65,8 +65,6 @@ void Jsnsr04tComponent::dump_config() {
     case AJ_SR04M:
       ESP_LOGCONFIG(TAG, "  sensor model: aj_sr04m");
       break;
-    default:
-      ESP_LOGE(TAG, "  sensor model undefined, set 'model' option in YAML");
   }
   LOG_UPDATE_INTERVAL(this);
 }
