@@ -14,7 +14,7 @@ sensor:
     ambient_light:
       name: LTR390 ALS
     gain: X3
-    resolution: 13
+    resolution: 18
     window_correction_factor: 1.0
     address: 0x53
     update_interval: 60s
