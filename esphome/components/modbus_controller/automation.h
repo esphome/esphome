@@ -15,5 +15,5 @@ class ModbusCommandTrigger : public Trigger<int, int> {
   }
 };
 
-}  //namespace modbus_controller
-}  //namespace esphome
+}  // namespace modbus_controller
+}  // namespace esphome
