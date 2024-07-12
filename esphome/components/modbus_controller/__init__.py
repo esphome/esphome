@@ -3,7 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import modbus
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET, CONF_ON_WRITE, CONF_TRIGGER_ID
 from esphome.cpp_helpers import logging
 from .const import (
     CONF_BITMASK,
@@ -125,9 +125,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
-            cv.Optional("on_write"): automation.validate_automation(
+            cv.Optional(CONF_ON_WRITE): automation.validate_automation(
                 {
-                    cv.GenerateID("trigger_id"): cv.declare_id(ModbusWriteTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusWriteTrigger),
                 }
             )
         }
@@ -264,8 +264,8 @@ async def to_code(config):
                 )
             )
     await register_modbus_device(var, config)
-    for conf in config.get("on_write", []):
-        trigger = cg.new_Pvariable(conf["trigger_id"], var)
+    for conf in config.get(CONF_ON_WRITE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
 
