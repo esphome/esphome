@@ -1,12 +1,12 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace uptime {
 
-class UptimeSensor : public sensor::Sensor, public PollingComponent {
+class UptimeSecondsSensor : public sensor::Sensor, public PollingComponent {
  public:
   void update() override;
   void dump_config() override;

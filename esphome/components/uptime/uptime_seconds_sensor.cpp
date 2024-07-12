@@ -1,14 +1,15 @@
-#include "uptime_sensor.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
+#include "uptime_seconds_sensor.h"
+
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace uptime {
 
 static const char *const TAG = "uptime.sensor";
 
-void UptimeSensor::update() {
+void UptimeSecondsSensor::update() {
   const uint32_t ms = millis();
   const uint64_t ms_mask = (1ULL << 32) - 1ULL;
   const uint32_t last_ms = this->uptime_ & ms_mask;
@@ -26,9 +27,12 @@ void UptimeSensor::update() {
   const float seconds = float(seconds_int) + (this->uptime_ % 1000ULL) / 1000.0f;
   this->publish_state(seconds);
 }
-std::string UptimeSensor::unique_id() { return get_mac_address() + "-uptime"; }
-float UptimeSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
-void UptimeSensor::dump_config() { LOG_SENSOR("", "Uptime Sensor", this); }
+std::string UptimeSecondsSensor::unique_id() { return get_mac_address() + "-uptime"; }
+float UptimeSecondsSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
+void UptimeSecondsSensor::dump_config() {
+  LOG_SENSOR("", "Uptime Sensor", this);
+  ESP_LOGCONFIG(TAG, "  Type: Seconds");
+}
 
 }  // namespace uptime
 }  // namespace esphome
