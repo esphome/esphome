@@ -2,6 +2,8 @@
 
 #include "ble_descriptor.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/core/event_emitter.h"
+#include "esphome/core/helpers.h"
 
 #include <vector>
 
@@ -22,21 +24,31 @@ using namespace esp32_ble;
 
 class BLEService;
 
-class BLECharacteristic {
+namespace BLECharacteristicEvt {
+  enum VectorEvt {
+    ON_WRITE,
+  };
+
+  enum EmptyEvt {
+    ON_READ,
+  };
+}
+
+class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>, public EventEmitter<BLECharacteristicEvt::EmptyEvt> {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();
 
   void set_value(const uint8_t *data, size_t length);
   void set_value(std::vector<uint8_t> value);
-  void set_value(const std::string &value);
-  void set_value(uint8_t &data);
-  void set_value(uint16_t &data);
-  void set_value(uint32_t &data);
-  void set_value(int &data);
-  void set_value(float &data);
-  void set_value(double &data);
-  void set_value(bool &data);
+  void set_value(const std::string &value) { this->set_value(to_vector(value)); }
+  void set_value(uint8_t data) { this->set_value(to_vector(data)); }
+  void set_value(uint16_t data) { this->set_value(to_vector(data)); }
+  void set_value(uint32_t data) { this->set_value(to_vector(data)); }
+  void set_value(int data) { this->set_value(to_vector(data)); }
+  void set_value(float data) { this->set_value(to_vector(data)); }
+  void set_value(double data) { this->set_value(to_vector(data)); }
+  void set_value(bool data) { this->set_value(to_vector(data)); }
 
   void set_broadcast_property(bool value);
   void set_indicate_property(bool value);
@@ -50,8 +62,6 @@ class BLECharacteristic {
 
   void do_create(BLEService *service);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-
-  void on_write(const std::function<void(const std::vector<uint8_t> &)> &&func) { this->on_write_ = func; }
 
   void add_descriptor(BLEDescriptor *descriptor);
   void remove_descriptor(BLEDescriptor *descriptor);
@@ -82,8 +92,6 @@ class BLECharacteristic {
   SemaphoreHandle_t set_value_lock_;
 
   std::vector<BLEDescriptor *> descriptors_;
-
-  std::function<void(const std::vector<uint8_t> &)> on_write_;
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 

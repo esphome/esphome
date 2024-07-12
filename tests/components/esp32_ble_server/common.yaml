@@ -8,26 +8,29 @@ esp32_ble_server:
       num_handles: 14
       advertise: false
       characteristics:
-        - uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
-          properties:
-            - read
+        - id: test_notify_characteristic
+          uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
+          read: true
+          notify: true
           value: [0, 1, 2]
+          descriptors:
+            - uuid: cad48e28-7fbe-41cf-bae9-d77a6c111111
+              value: 123.1
     - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc42d
       advertise: false
       characteristics:
         - id: test_change_characteristic
           uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc11d
-          properties:
-            - read
+          read: true
           value: "Initial"
         - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12d
-          properties:
-            - read
-            - write
+          write: true
           on_write:
             then:
               - lambda: |-
-                  ESP_LOGD("BLE", "Received: %s", x.c_str());
-              - ble_server.characteristic_set_value:
+                  ESP_LOGD("BLE", "Received: %s", std::string(x.begin(), x.end()).c_str());
+              - ble_server.characteristic.set_value:
                   id: test_change_characteristic
-                  value: !lambda 'return "Echo " + x + "";'
+                  value: !lambda 'return {0x00, 0x01, 0x02};'
+              - ble_server.characteristic.notify:
+                  id: test_notify_characteristic

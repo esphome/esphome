@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_UUID,
     CONF_SERVICES,
     CONF_VALUE,
-    CONF_MAX_LENGTH,
 )
 from esphome.components import esp32_ble
 from esphome.core import CORE
@@ -24,8 +23,14 @@ CONF_ADVERTISE = "advertise"
 CONF_NUM_HANDLES = "num_handles"
 CONF_ON_WRITE = "on_write"
 CONF_CHARACTERISTICS = "characteristics"
-CONF_PROPERTIES = "properties"
+CONF_READ = "read"
+CONF_WRITE = "write"
+CONF_NOTIFY = "notify"
+CONF_BROADCAST = "broadcast"
+CONF_INDICATE = "indicate"
+CONF_WRITE_NO_RESPONSE = "write_no_response"
 CONF_DESCRIPTORS = "descriptors"
+CONF_VALUE_ACTION_ID = "value_action_id_"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 ESPBTUUID_ns = cg.esphome_ns.namespace("esp32_ble").namespace("ESPBTUUID")
@@ -36,15 +41,20 @@ BLEServer = esp32_ble_server_ns.class_(
     esp32_ble.GATTsEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
-BLEServerAutomationInterface = esp32_ble_server_ns.namespace(
-    "BLEServerAutomationInterface"
+esp32_ble_server_automations_ns = esp32_ble_server_ns.namespace(
+    "esp32_ble_server_automations"
 )
+BLETriggers_ns = esp32_ble_server_automations_ns.namespace("BLETriggers")
 BLEDescriptor = esp32_ble_server_ns.class_("BLEDescriptor")
 BLECharacteristic = esp32_ble_server_ns.class_("BLECharacteristic")
 BLEService = esp32_ble_server_ns.class_("BLEService")
-BLECharacteristicSetValueAction = BLEServerAutomationInterface.class_(
+BLECharacteristicSetValueAction = esp32_ble_server_automations_ns.class_(
     "BLECharacteristicSetValueAction", automation.Action
 )
+BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
+    "BLECharacteristicNotifyAction", automation.Action
+)
+_ble_server_config = None
 
 
 def validate_uuid(value):
@@ -53,40 +63,35 @@ def validate_uuid(value):
     return value
 
 
-PROPERTIES_SCHEMA = cv.All(
-    cv.ensure_list(
-        cv.one_of(
-            "READ",
-            "WRITE",
-            "NOTIFY",
-            "BROADCAST",
-            "INDICATE",
-            "WRITE_NR",
-            upper=True,
-        )
-    ),
-    cv.Length(min=1),
-)
-
 UUID_SCHEMA = cv.Any(cv.All(cv.string, validate_uuid), cv.hex_uint32_t)
 
-CHARACTERISTIC_VALUE_SCHEMA = cv.Any(
-    cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1)),
-    cv.string,
+DESCRIPTOR_VALUE_SCHEMA = cv.Any(
+    cv.boolean,
+    cv.float_,
     cv.hex_uint8_t,
     cv.hex_uint16_t,
     cv.hex_uint32_t,
     cv.int_,
-    cv.float_,
-    cv.boolean,
+    cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1)),
+    cv.string,
 )
 
-SERVICE_CHARACTERISTIC_DESCRIPTOR_SCHEMA = cv.Schema(
+CHARACTERISTIC_VALUE_SCHEMA = cv.Any(
+    cv.boolean,
+    cv.float_,
+    cv.hex_uint8_t,
+    cv.hex_uint16_t,
+    cv.hex_uint32_t,
+    cv.int_,
+    cv.templatable(cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1))),
+    cv.string,
+)
+
+DESCRIPTOR_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEDescriptor),
         cv.Required(CONF_UUID): UUID_SCHEMA,
-        cv.Optional(CONF_MAX_LENGTH, default=0): cv.int_,
-        cv.Required(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
+        cv.Required(CONF_VALUE): DESCRIPTOR_VALUE_SCHEMA,
     }
 )
 
@@ -94,10 +99,16 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLECharacteristic),
         cv.Required(CONF_UUID): UUID_SCHEMA,
-        cv.Required(CONF_PROPERTIES): PROPERTIES_SCHEMA,
+        cv.Optional(CONF_READ, default=False): cv.boolean,
+        cv.Optional(CONF_WRITE, default=False): cv.boolean,
+        cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
+        cv.Optional(CONF_BROADCAST, default=False): cv.boolean,
+        cv.Optional(CONF_INDICATE, default=False): cv.boolean,
+        cv.Optional(CONF_WRITE_NO_RESPONSE, default=False): cv.boolean,
         cv.Optional(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
+        cv.GenerateID(CONF_VALUE_ACTION_ID): cv.declare_id(BLECharacteristicSetValueAction),
         cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(
-            SERVICE_CHARACTERISTIC_DESCRIPTOR_SCHEMA
+            DESCRIPTOR_SCHEMA
         ),
         cv.Optional(CONF_ON_WRITE): automation.validate_automation(
             {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
@@ -129,21 +140,20 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def parse_properties(properties):
+def parse_properties(char_conf):
     result = 0
-    for prop in properties:
-        if prop == "READ":
-            result = result | BLECharacteristic_ns.PROPERTY_READ
-        elif prop == "WRITE":
-            result = result | BLECharacteristic_ns.PROPERTY_WRITE
-        elif prop == "NOTIFY":
-            result = result | BLECharacteristic_ns.PROPERTY_NOTIFY
-        elif prop == "BROADCAST":
-            result = result | BLECharacteristic_ns.PROPERTY_BROADCAST
-        elif prop == "INDICATE":
-            result = result | BLECharacteristic_ns.PROPERTY_INDICATE
-        elif prop == "WRITE_NR":
-            result = result | BLECharacteristic_ns.PROPERTY_WRITE_NR
+    if char_conf[CONF_READ]:
+        result = result | BLECharacteristic_ns.PROPERTY_READ
+    if char_conf[CONF_WRITE]:
+        result = result | BLECharacteristic_ns.PROPERTY_WRITE
+    if char_conf[CONF_NOTIFY]:
+        result = result | BLECharacteristic_ns.PROPERTY_NOTIFY
+    if char_conf[CONF_BROADCAST]:
+        result = result | BLECharacteristic_ns.PROPERTY_BROADCAST
+    if char_conf[CONF_INDICATE]:
+        result = result | BLECharacteristic_ns.PROPERTY_INDICATE
+    if char_conf[CONF_WRITE_NO_RESPONSE]:
+        result = result | BLECharacteristic_ns.PROPERTY_WRITE_NR
     return result
 
 
@@ -155,10 +165,47 @@ def parse_uuid(uuid):
     return ESPBTUUID_ns.from_uint32(uuid)
 
 
-def parse_value(value):
-    if isinstance(value, list):
-        return cg.std_vector.template(cg.uint8)(value)
-    return value
+def parse_descriptor_value(value):
+    # Compute the maximum length of the descriptor value
+    # Also parse the value for byte arrays
+    try:
+        cv.boolean(value)
+        return value, 1
+    except cv.Invalid:
+        pass
+    try:
+        cv.float_(value)
+        return value, 8
+    except cv.Invalid:
+        pass
+    try:
+        cv.hex_uint8_t(value)
+        return value, 1
+    except cv.Invalid:
+        pass
+    try:
+        cv.hex_uint16_t(value)
+        return value, 2
+    except cv.Invalid:
+        pass
+    try:
+        cv.hex_uint32_t(value)
+        return value, 4
+    except cv.Invalid:
+        pass
+    try:
+        cv.int_(value)
+        return value, 4
+    except cv.Invalid:
+        pass
+    try:
+        cv.string(value)
+        # Count the bytes in the string
+        value_len = len(value.encode("utf-8"))
+        return value, value_len
+    except cv.Invalid:
+        pass
+    return cg.std_vector.template(cg.uint8)(value), len(value)  # Assume it's a list of bytes
 
 
 def calculate_num_handles(service_config):
@@ -172,6 +219,8 @@ def calculate_num_handles(service_config):
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    global _ble_server_config
+    _ble_server_config = config
 
     await cg.register_component(var, config)
 
@@ -202,51 +251,106 @@ async def to_code(config):
                 char_conf[CONF_ID],
                 service_var.create_characteristic(
                     parse_uuid(char_conf[CONF_UUID]),
-                    parse_properties(char_conf[CONF_PROPERTIES]),
+                    parse_properties(char_conf),
                 ),
             )
             if CONF_ON_WRITE in char_conf:
                 on_write_conf = char_conf[CONF_ON_WRITE]
-                if "WRITE" not in char_conf[CONF_PROPERTIES]:
-                    raise cv.Invalid("on_write requires the WRITE property")
+                if not char_conf[CONF_WRITE] and not char_conf[CONF_WRITE_NO_RESPONSE]:
+                    raise cv.Invalid(f"on_write requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property to be set")
                 await automation.build_automation(
-                    BLEServerAutomationInterface.create_on_write_trigger(char_var),
-                    [(cg.std_string, "x")],
+                    BLETriggers_ns.create_on_write_trigger(char_var),
+                    [(cg.std_vector.template(cg.uint8), "x")],
                     on_write_conf,
                 )
             if CONF_VALUE in char_conf:
-                cg.add(char_var.set_value(parse_value(char_conf[CONF_VALUE])))
+                action_conf = {
+                    CONF_ID: char_conf[CONF_ID],
+                    CONF_VALUE: char_conf[CONF_VALUE],
+                }
+                value_action = await ble_server_characteristic_set_value(action_conf, char_conf[CONF_VALUE_ACTION_ID], cg.TemplateArguments(None), {})
+                cg.add(value_action.play())
             for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
-                max_length = descriptor_conf[CONF_MAX_LENGTH]
-                # If max_length is 0, calculate the optimal length based on the value
-                if max_length == 0:
-                    max_length = len(parse_value(descriptor_conf[CONF_VALUE]))
+                descriptor_value, max_length = parse_descriptor_value(descriptor_conf[CONF_VALUE])
                 desc_var = cg.new_Pvariable(
                     descriptor_conf[CONF_ID],
                     parse_uuid(descriptor_conf[CONF_UUID]),
                     max_length,
                 )
                 if CONF_VALUE in descriptor_conf:
-                    cg.add(desc_var.set_value(parse_value(descriptor_conf[CONF_VALUE])))
+                    cg.add(desc_var.set_value(descriptor_value))
         cg.add(var.enqueue_start_service(service_var))
     cg.add_define("USE_ESP32_BLE_SERVER")
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
 
+async def parse_characteristic_value(value, args):
+    if isinstance(value, cv.Lambda):
+        return await cg.templatable(value, args, cg.std_vector.template(cg.uint8), cg.std_vector.template(cg.uint8))
+    if isinstance(value, list):
+        return cg.std_vector.template(cg.uint8)(value)
+    # Transform the value into a vector of bytes
+    exp_value = cg.RawExpression(f'to_vector({value})')
+    try:
+        bool_value = cv.boolean(value)
+        return cg.RawExpression(f'to_vector({"true" if bool_value else "false"})')
+    except cv.Invalid:
+        pass
+    try:
+        int_ = cv.uint64_t(value)
+        return cg.RawExpression(f'to_vector({int_})')
+    except cv.Invalid:
+        pass
+    try:
+        float_ = cv.float_(value)
+        return cg.RawExpression(f'to_vector({float_})')
+    except cv.Invalid:
+        pass
+    try:
+        string_ = cv.string(value)
+        return cg.RawExpression(f'to_vector("{string_}")')
+    except cv.Invalid:
+        pass
+    raise cv.Invalid(f"Invalid value {value}")
+
+
 @automation.register_action(
-    "ble_server.characteristic_set_value",
+    "ble_server.characteristic.set_value",
     BLECharacteristicSetValueAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(BLECharacteristic),
-            cv.Required(CONF_VALUE): cv.templatable(cv.string),
+            cv.Required(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
         }
     ),
 )
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)
-    cg.add(var.set_value(template_))
+    value = await parse_characteristic_value(config[CONF_VALUE], args)
+    cg.add(var.set_value(value))
+    return var
+
+
+@automation.register_action(
+    "ble_server.characteristic.notify",
+    BLECharacteristicNotifyAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(BLECharacteristic),
+        }
+    ),
+)
+async def ble_server_characteristic_notify(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    # Check if the NOTIFY property is set from the global configuration
+    assert _ble_server_config is not None
+    for service_config in _ble_server_config[CONF_SERVICES]:
+        for char_conf in service_config[CONF_CHARACTERISTICS]:
+            if char_conf[CONF_ID] == config[CONF_ID]:
+                if not char_conf[CONF_NOTIFY]:
+                    raise cv.Invalid(f'Characteristic "{char_conf[CONF_ID]}" does not have the NOTIFY property set')
+                break
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     return var

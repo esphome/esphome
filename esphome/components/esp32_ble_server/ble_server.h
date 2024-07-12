@@ -26,21 +26,6 @@ namespace esp32_ble_server {
 
 using namespace esp32_ble;
 
-class BLEServerAutomationInterface {
- public:
-  static Trigger<std::string> *create_on_write_trigger(BLECharacteristic *characteristic);
-
-  template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
-   public:
-    BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-    TEMPLATABLE_VALUE(std::string, value)
-    void play(Ts... x) override { this->parent_->set_value(this->value_.value(x...)); }
-
-   protected:
-    BLECharacteristic *parent_;
-  };
-};
-
 class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;

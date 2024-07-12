@@ -17,15 +17,6 @@
 namespace esphome {
 namespace esp32_ble_server {
 
-Trigger<std::string> *BLEServerAutomationInterface::create_on_write_trigger(BLECharacteristic *characteristic) {
-  Trigger<std::string> *on_write_trigger = new Trigger<std::string>();  // NOLINT(cppcoreguidelines-owning-memory)
-  characteristic->on_write([on_write_trigger](const std::vector<uint8_t> &data) {
-    std::string value(data.begin(), data.end());
-    on_write_trigger->trigger(value);
-  });
-  return on_write_trigger;
-}
-
 static const char *const TAG = "esp32_ble_server";
 
 static const uint16_t DEVICE_INFORMATION_SERVICE_UUID = 0x180A;

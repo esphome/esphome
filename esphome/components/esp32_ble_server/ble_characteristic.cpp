@@ -37,51 +37,8 @@ void BLECharacteristic::set_value(std::vector<uint8_t> value) {
   this->value_ = std::move(value);
   xSemaphoreGive(this->set_value_lock_);
 }
-void BLECharacteristic::set_value(const std::string &value) {
-  this->set_value(std::vector<uint8_t>(value.begin(), value.end()));
-}
 void BLECharacteristic::set_value(const uint8_t *data, size_t length) {
   this->set_value(std::vector<uint8_t>(data, data + length));
-}
-void BLECharacteristic::set_value(uint8_t &data) {
-  uint8_t temp[1];
-  temp[0] = data;
-  this->set_value(temp, 1);
-}
-void BLECharacteristic::set_value(uint16_t &data) {
-  uint8_t temp[2];
-  temp[0] = data;
-  temp[1] = data >> 8;
-  this->set_value(temp, 2);
-}
-void BLECharacteristic::set_value(uint32_t &data) {
-  uint8_t temp[4];
-  temp[0] = data;
-  temp[1] = data >> 8;
-  temp[2] = data >> 16;
-  temp[3] = data >> 24;
-  this->set_value(temp, 4);
-}
-void BLECharacteristic::set_value(int &data) {
-  uint8_t temp[4];
-  temp[0] = data;
-  temp[1] = data >> 8;
-  temp[2] = data >> 16;
-  temp[3] = data >> 24;
-  this->set_value(temp, 4);
-}
-void BLECharacteristic::set_value(float &data) {
-  float temp = data;
-  this->set_value((uint8_t *) &temp, 4);
-}
-void BLECharacteristic::set_value(double &data) {
-  double temp = data;
-  this->set_value((uint8_t *) &temp, 8);
-}
-void BLECharacteristic::set_value(bool &data) {
-  uint8_t temp[1];
-  temp[0] = data;
-  this->set_value(temp, 1);
 }
 
 void BLECharacteristic::notify(bool require_ack) {
@@ -223,6 +180,8 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (!param->read.need_rsp)
         break;  // For some reason you can request a read but not want a response
 
+      this->EventEmitter<BLECharacteristicEvt::EmptyEvt>::emit(BLECharacteristicEvt::EmptyEvt::ON_READ);
+
       uint16_t max_offset = 22;
 
       esp_gatt_rsp_t response;
@@ -289,8 +248,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       }
 
       if (!param->write.is_prep) {
-        if (this->on_write_)
-          this->on_write_(this->value_);
+        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>::emit(BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_);
       }
 
       break;
@@ -301,8 +259,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         break;
       this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
-        if (this->on_write_)
-          this->on_write_(this->value_);
+        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>::emit(BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_);
       }
       esp_err_t err =
           esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);

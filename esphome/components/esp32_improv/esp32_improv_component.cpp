@@ -40,7 +40,7 @@ void ESP32ImprovComponent::setup_characteristics() {
   this->error_->add_descriptor(error_descriptor);
 
   this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
-  this->rpc_->on_write([this](const std::vector<uint8_t> &data) {
+  this->rpc_->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>::on(BLECharacteristicEvt::VectorEvt::ON_WRITE, [this](const std::vector<uint8_t> &data) {
     if (!data.empty()) {
       this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
     }
