@@ -1,6 +1,7 @@
 import binascii
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import modbus
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET
 from esphome.cpp_helpers import logging
@@ -97,6 +98,10 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
+ModbusWriteTrigger = modbus_controller_ns.class_(
+    "ModbusWriteTrigger", automation.Trigger.template()
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 ModbusServerRegisterSchema = cv.Schema(
@@ -120,6 +125,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
+            cv.Optional("on_write"): automation.validate_automation(
+                {
+                    cv.GenerateID("trigger_id"): cv.declare_id(ModbusWriteTrigger),
+                }
+            )
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -254,6 +264,9 @@ async def to_code(config):
                 )
             )
     await register_modbus_device(var, config)
+    for conf in config.get("on_write", []):
+        trigger = cg.new_Pvariable(conf["trigger_id"], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 async def register_modbus_device(var, config):

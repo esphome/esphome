@@ -43,7 +43,17 @@ bool ModbusController::send_next_command_() {
       ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
                command->register_address, command->register_count);
       command->send();
+
       this->last_command_timestamp_ = millis();
+
+      switch (command->function_code){
+        case ModbusFunctionCode::WRITE_SINGLE_COIL:
+        case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+        case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+        case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+          this->write_callback_.call();
+      }
+
       // remove from queue if no handler is defined
       if (!command->on_data_func) {
         command_queue_.pop_front();
@@ -657,6 +667,10 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
       break;
   }
   return value;
+}
+
+void ModbusController::add_on_write_callback(std::function<void()> &&callback) {
+  this->write_callback_.add(std::move(callback));
 }
 
 }  // namespace modbus_controller
