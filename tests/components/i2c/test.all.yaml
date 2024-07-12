@@ -1,0 +1,4 @@
+i2c:
+  - id: i2c_i2c
+    scl: ${virtual_gpio_0}
+    sda: ${virtual_gpio_1}

@@ -15,3 +15,5 @@ packages:
     file: $component_test_file
     vars:
       component_test_file: $component_test_file
+      virtual_gpio_0: 5
+      virtual_gpio_1: 4
