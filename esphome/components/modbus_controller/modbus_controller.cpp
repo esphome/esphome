@@ -46,13 +46,7 @@ bool ModbusController::send_next_command_() {
 
       this->last_command_timestamp_ = millis();
 
-      switch (command->function_code){
-        case ModbusFunctionCode::WRITE_SINGLE_COIL:
-        case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-        case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-        case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-          this->write_callback_.call();
-      }
+      this->write_callback_.call((int)command->function_code, command->register_address);
 
       // remove from queue if no handler is defined
       if (!command->on_data_func) {
@@ -669,7 +663,7 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
   return value;
 }
 
-void ModbusController::add_on_write_callback(std::function<void()> &&callback) {
+void ModbusController::add_on_write_callback(std::function<void(int, int)> &&callback) {
   this->write_callback_.add(std::move(callback));
 }
 

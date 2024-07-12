@@ -99,7 +99,7 @@ TYPE_REGISTER_MAP = {
 }
 
 ModbusWriteTrigger = modbus_controller_ns.class_(
-    "ModbusWriteTrigger", automation.Trigger.template()
+    "ModbusWriteTrigger", automation.Trigger.template(cg.int_, cg.int_)
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -266,7 +266,7 @@ async def to_code(config):
     await register_modbus_device(var, config)
     for conf in config.get(CONF_ON_WRITE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(int, "function_code"), (int, "address")], conf)
 
 
 async def register_modbus_device(var, config):
