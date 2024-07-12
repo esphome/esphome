@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_UUID,
     CONF_SERVICES,
     CONF_VALUE,
+    CONF_NOTIFY,
 )
 from esphome.components import esp32_ble
 from esphome.core import CORE
@@ -25,12 +26,11 @@ CONF_ON_WRITE = "on_write"
 CONF_CHARACTERISTICS = "characteristics"
 CONF_READ = "read"
 CONF_WRITE = "write"
-CONF_NOTIFY = "notify"
 CONF_BROADCAST = "broadcast"
 CONF_INDICATE = "indicate"
 CONF_WRITE_NO_RESPONSE = "write_no_response"
 CONF_DESCRIPTORS = "descriptors"
-CONF_VALUE_ACTION_ID = "value_action_id_"
+CONF_VALUE_ACTION_ID_ = "value_action_id_"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 ESPBTUUID_ns = cg.esphome_ns.namespace("esp32_ble").namespace("ESPBTUUID")
@@ -106,7 +106,9 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
         cv.Optional(CONF_INDICATE, default=False): cv.boolean,
         cv.Optional(CONF_WRITE_NO_RESPONSE, default=False): cv.boolean,
         cv.Optional(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
-        cv.GenerateID(CONF_VALUE_ACTION_ID): cv.declare_id(BLECharacteristicSetValueAction),
+        cv.GenerateID(CONF_VALUE_ACTION_ID): cv.declare_id(
+            BLECharacteristicSetValueAction
+        ),
         cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(
             DESCRIPTOR_SCHEMA
         ),
@@ -205,7 +207,10 @@ def parse_descriptor_value(value):
         return value, value_len
     except cv.Invalid:
         pass
-    return cg.std_vector.template(cg.uint8)(value), len(value)  # Assume it's a list of bytes
+    return (
+        cg.std_vector.template(cg.uint8)(value),
+        len(value),
+    )  # Assume it's a list of bytes
 
 
 def calculate_num_handles(service_config):
@@ -268,7 +273,7 @@ async def to_code(config):
                     CONF_ID: char_conf[CONF_ID],
                     CONF_VALUE: char_conf[CONF_VALUE],
                 }
-                value_action = await ble_server_characteristic_set_value(action_conf, char_conf[CONF_VALUE_ACTION_ID], cg.TemplateArguments(None), {})
+                value_action = await ble_server_characteristic_set_value(action_conf, char_conf[CONF_VALUE_ACTION_ID_], cg.TemplateArguments(None), {})
                 cg.add(value_action.play())
             for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
                 descriptor_value, max_length = parse_descriptor_value(descriptor_conf[CONF_VALUE])
@@ -291,20 +296,19 @@ async def parse_characteristic_value(value, args):
     if isinstance(value, list):
         return cg.std_vector.template(cg.uint8)(value)
     # Transform the value into a vector of bytes
-    exp_value = cg.RawExpression(f'to_vector({value})')
     try:
         bool_value = cv.boolean(value)
-        return cg.RawExpression(f'to_vector({"true" if bool_value else "false"})')
+        return cg.RawExpression(f"to_vector({'true' if bool_value else 'false'})")
     except cv.Invalid:
         pass
     try:
         int_ = cv.uint64_t(value)
-        return cg.RawExpression(f'to_vector({int_})')
+        return cg.RawExpression(f"to_vector({int_})")
     except cv.Invalid:
         pass
     try:
         float_ = cv.float_(value)
-        return cg.RawExpression(f'to_vector({float_})')
+        return cg.RawExpression(f"to_vector({float_})")
     except cv.Invalid:
         pass
     try:
@@ -312,7 +316,7 @@ async def parse_characteristic_value(value, args):
         return cg.RawExpression(f'to_vector("{string_}")')
     except cv.Invalid:
         pass
-    raise cv.Invalid(f"Invalid value {value}")
+    raise cv.Invalid(f"Could not find type for value: {value}")
 
 
 @automation.register_action(
@@ -350,7 +354,9 @@ async def ble_server_characteristic_notify(config, action_id, template_arg, args
         for char_conf in service_config[CONF_CHARACTERISTICS]:
             if char_conf[CONF_ID] == config[CONF_ID]:
                 if not char_conf[CONF_NOTIFY]:
-                    raise cv.Invalid(f'Characteristic "{char_conf[CONF_ID]}" does not have the NOTIFY property set')
+                    raise cv.Invalid(
+                        f'Characteristic "{char_conf[CONF_ID]}" does not have the NOTIFY property set'
+                    )
                 break
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var

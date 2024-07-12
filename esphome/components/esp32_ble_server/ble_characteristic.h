@@ -25,16 +25,17 @@ using namespace esp32_ble;
 class BLEService;
 
 namespace BLECharacteristicEvt {
-  enum VectorEvt {
-    ON_WRITE,
-  };
+enum VectorEvt {
+  ON_WRITE,
+};
 
-  enum EmptyEvt {
-    ON_READ,
-  };
+enum EmptyEvt {
+  ON_READ,
+};
 }
 
-class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>, public EventEmitter<BLECharacteristicEvt::EmptyEvt> {
+class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>,
+                          public EventEmitter<BLECharacteristicEvt::EmptyEvt> {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();

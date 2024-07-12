@@ -10,6 +10,7 @@ from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
+    CONF_NOTIFY,
 )
 from esphome import automation
 from .. import ble_client_ns
@@ -18,7 +19,6 @@ DEPENDENCIES = ["ble_client"]
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
-CONF_NOTIFY = "notify"
 CONF_ON_NOTIFY = "on_notify"
 TYPE_CHARACTERISTIC = "characteristic"
 TYPE_RSSI = "rssi"

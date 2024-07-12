@@ -39,26 +39,27 @@ class BLECharacteristicSetValueActionManager {
 
 template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
  public:
-   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-   TEMPLATABLE_VALUE(std::vector<uint8_t>, value)
-   void play(Ts... x) override {
+  BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
+  TEMPLATABLE_VALUE(std::vector<uint8_t>, value)
+  void play(Ts... x) override {
     // If the listener is already set, do nothing
     if (BLECharacteristicSetValueActionManager::get_instance()->get_listener(this->parent_) == this->listener_id_)
       return;
     // Set initial value
     this->parent_->set_value(this->value_.value(x...));
     // Set the listener for read events
-    this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt>::on(BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...](void) {
-      // Set the value of the characteristic every time it is read
-      this->parent_->set_value(this->value_.value(x...));
+    this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt>::on(
+      BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...](void) {
+        // Set the value of the characteristic every time it is read
+        this->parent_->set_value(this->value_.value(x...));
     });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(this->parent_, this->listener_id_);
-   }
+  }
 
  protected:
-   BLECharacteristic *parent_;
-   EventEmitterListenerID listener_id_;
+  BLECharacteristic *parent_;
+  EventEmitterListenerID listener_id_;
 };
 
 template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts...> {

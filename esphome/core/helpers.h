@@ -441,7 +441,7 @@ std::string base64_encode(const std::vector<uint8_t> &buf);
 std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 
-/// Create a byte vector multiple types of values.
+/// Create a byte vector from multiple types of values.
 std::vector<uint8_t> to_vector(bool value);
 std::vector<uint8_t> to_vector(uint8_t value);
 std::vector<uint8_t> to_vector(uint16_t value);
