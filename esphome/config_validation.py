@@ -609,7 +609,6 @@ only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
 only_with_zephyr = only_with_framework("zephyr")
-only_with_arduino_or_esp_idf = only_with_framework(["arduino", "esp-idf"])
 
 
 # Adapted from:
