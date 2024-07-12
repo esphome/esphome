@@ -114,7 +114,7 @@ EAP_AUTH_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string_strict,
             cv.Optional(CONF_PASSWORD): cv.string_strict,
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
-            cv.Optional(CONF_TTLS_PHASE_2): cv.All(
+            cv.SplitDefault(CONF_TTLS_PHASE_2, esp32_idf="mschapv2"): cv.All(
                 cv.enum(TTLS_PHASE_2), cv.only_with_esp_idf
             ),
             cv.Inclusive(
@@ -350,7 +350,7 @@ def eap_auth(config):
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
-        ("ttls_phase_2", config.get(CONF_TTLS_PHASE_2, TTLS_PHASE_2["mschapv2"])),
+        ("ttls_phase_2", config.get(CONF_TTLS_PHASE_2)),
     )
 
 

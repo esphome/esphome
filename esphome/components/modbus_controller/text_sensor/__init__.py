@@ -37,6 +37,7 @@ RAW_ENCODING = {
     "NONE": RawEncoding.NONE,
     "HEXBYTES": RawEncoding.HEXBYTES,
     "COMMA": RawEncoding.COMMA,
+    "ANSI": RawEncoding.ANSI,
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -49,7 +50,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
             cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.positive_int,
-            cv.Optional(CONF_RAW_ENCODE, default="NONE"): cv.enum(RAW_ENCODING),
+            cv.Optional(CONF_RAW_ENCODE, default="ANSI"): cv.enum(RAW_ENCODING),
         }
     ),
     validate_modbus_register,

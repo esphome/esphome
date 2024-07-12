@@ -9,7 +9,7 @@ import requests
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from esphome.core import CORE, HexInt, EsphomeError
+from esphome.core import CORE, HexInt
 
 from esphome.components import esp32, microphone
 from esphome import automation, git, external_files
@@ -41,9 +41,15 @@ CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
 DOMAIN = "micro_wake_word"
 
+
+CONF_FEATURE_STEP_SIZE = "feature_step_size"
+CONF_MODELS = "models"
+CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_AVERAGE_SIZE = "sliding_window_average_size"
-CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
+CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
+CONF_VAD = "vad"
 
 TYPE_HTTP = "http"
 
@@ -98,12 +104,14 @@ GIT_SCHEMA = cv.All(
     _process_git_source,
 )
 
-KEY_WAKE_WORD = "wake_word"
+
 KEY_AUTHOR = "author"
-KEY_WEBSITE = "website"
-KEY_VERSION = "version"
 KEY_MICRO = "micro"
 KEY_MINIMUM_ESPHOME_VERSION = "minimum_esphome_version"
+KEY_TRAINED_LANGUAGES = "trained_languages"
+KEY_VERSION = "version"
+KEY_WAKE_WORD = "wake_word"
+KEY_WEBSITE = "website"
 
 MANIFEST_SCHEMA_V1 = cv.Schema(
     {
@@ -125,6 +133,29 @@ MANIFEST_SCHEMA_V1 = cv.Schema(
     }
 )
 
+MANIFEST_SCHEMA_V2 = cv.Schema(
+    {
+        cv.Required(CONF_TYPE): "micro",
+        cv.Required(CONF_MODEL): cv.string,
+        cv.Required(KEY_AUTHOR): cv.string,
+        cv.Required(KEY_VERSION): cv.All(cv.int_, 2),
+        cv.Required(KEY_WAKE_WORD): cv.string,
+        cv.Required(KEY_TRAINED_LANGUAGES): cv.ensure_list(cv.string),
+        cv.Optional(KEY_WEBSITE): cv.url,
+        cv.Required(KEY_MICRO): cv.Schema(
+            {
+                cv.Required(CONF_FEATURE_STEP_SIZE): cv.int_range(min=0, max=30),
+                cv.Required(CONF_TENSOR_ARENA_SIZE): cv.int_,
+                cv.Required(CONF_PROBABILITY_CUTOFF): cv.float_,
+                cv.Required(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
+                cv.Required(KEY_MINIMUM_ESPHOME_VERSION): cv.All(
+                    cv.version_number, cv.validate_esphome_version
+                ),
+            }
+        ),
+    }
+)
+
 
 def _compute_local_file_path(config: dict) -> Path:
     url = config[CONF_URL]
@@ -133,6 +164,24 @@ def _compute_local_file_path(config: dict) -> Path:
     key = h.hexdigest()[:8]
     base_dir = external_files.compute_local_file_dir(DOMAIN)
     return base_dir / key
+
+
+def _convert_manifest_v1_to_v2(v1_manifest):
+    v2_manifest = v1_manifest.copy()
+
+    v2_manifest[KEY_VERSION] = 2
+    v2_manifest[KEY_MICRO][CONF_SLIDING_WINDOW_SIZE] = v1_manifest[KEY_MICRO][
+        CONF_SLIDING_WINDOW_AVERAGE_SIZE
+    ]
+    del v2_manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE]
+    v2_manifest[KEY_MICRO][
+        CONF_TENSOR_ARENA_SIZE
+    ] = 45672  # Original Inception-based V1 manifest models require a minimum of 45672 bytes
+    v2_manifest[KEY_MICRO][
+        CONF_FEATURE_STEP_SIZE
+    ] = 20  # Original Inception-based V1 manifest models use a 20 ms feature step size
+
+    return v2_manifest
 
 
 def _download_file(url: str, path: Path) -> bytes:
@@ -155,6 +204,24 @@ def _download_file(url: str, path: Path) -> bytes:
     return req.content
 
 
+def _validate_manifest_version(manifest_data):
+    if manifest_version := manifest_data.get(KEY_VERSION):
+        if manifest_version == 1:
+            try:
+                MANIFEST_SCHEMA_V1(manifest_data)
+            except cv.Invalid as e:
+                raise cv.Invalid(f"Invalid manifest file: {e}") from e
+        elif manifest_version == 2:
+            try:
+                MANIFEST_SCHEMA_V2(manifest_data)
+            except cv.Invalid as e:
+                raise cv.Invalid(f"Invalid manifest file: {e}") from e
+        else:
+            raise cv.Invalid("Invalid manifest version")
+    else:
+        raise cv.Invalid("Invalid manifest file, missing 'version' key.")
+
+
 def _process_http_source(config):
     url = config[CONF_URL]
     path = _compute_local_file_path(config)
@@ -166,11 +233,6 @@ def _process_http_source(config):
     manifest_data = json.loads(json_contents)
     if not isinstance(manifest_data, dict):
         raise cv.Invalid("Manifest file must contain a JSON object")
-
-    try:
-        MANIFEST_SCHEMA_V1(manifest_data)
-    except cv.Invalid as e:
-        raise cv.Invalid(f"Invalid manifest file: {e}") from e
 
     model = manifest_data[CONF_MODEL]
     model_url = urljoin(url, model)
@@ -206,7 +268,7 @@ def _validate_source_model_name(value):
     return MODEL_SOURCE_SCHEMA(
         {
             CONF_TYPE: TYPE_HTTP,
-            CONF_URL: f"https://github.com/esphome/micro-wake-word-models/raw/main/models/{value}.json",
+            CONF_URL: f"https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/{value}.json",
         }
     )
 
@@ -260,18 +322,55 @@ MODEL_SOURCE_SCHEMA = cv.Any(
     msg="Not a valid model name, local path, http(s) url, or github shorthand",
 )
 
+MODEL_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_MODEL): MODEL_SOURCE_SCHEMA,
+        cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
+        cv.Optional(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
+        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+    }
+)
+
+# Provide a default VAD model that could be overridden
+VAD_MODEL_SCHEMA = MODEL_SCHEMA.extend(
+    cv.Schema(
+        {
+            cv.Optional(
+                CONF_MODEL,
+                default="vad",
+            ): MODEL_SOURCE_SCHEMA,
+        }
+    )
+)
+
+
+def _maybe_empty_vad_schema(value):
+    # Idea borrowed from uart/__init__.py's ``maybe_empty_debug`` function. Accessed 2 July 2024.
+    # Loads a default VAD model without any parameters overridden.
+    if value is None:
+        value = {}
+    return VAD_MODEL_SCHEMA(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MicroWakeWord),
             cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-            cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
-            cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.positive_int,
+            cv.Required(CONF_MODELS): cv.ensure_list(MODEL_SCHEMA),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
                 single=True
             ),
-            cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
-            cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+            cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
+            cv.Optional(CONF_MODEL): cv.invalid(
+                f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
+            ),
+            cv.Optional(CONF_PROBABILITY_CUTOFF): cv.invalid(
+                f"The {CONF_PROBABILITY_CUTOFF} parameter has moved to be a list element under the {CONF_MODELS} parameter."
+            ),
+            cv.Optional(CONF_SLIDING_WINDOW_AVERAGE_SIZE): cv.invalid(
+                f"The {CONF_SLIDING_WINDOW_AVERAGE_SIZE} parameter has been renamed to {CONF_SLIDING_WINDOW_SIZE} and moved to be a list element under the {CONF_MODELS} parameter."
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_esp_idf,
@@ -282,45 +381,20 @@ def _load_model_data(manifest_path: Path):
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
-    try:
-        MANIFEST_SCHEMA_V1(manifest)
-    except cv.Invalid as e:
-        raise EsphomeError(f"Invalid manifest file: {e}") from e
+    _validate_manifest_version(manifest)
 
     model_path = manifest_path.parent / manifest[CONF_MODEL]
 
     with open(model_path, "rb") as f:
         model = f.read()
 
+    if manifest.get(KEY_VERSION) == 1:
+        manifest = _convert_manifest_v1_to_v2(manifest)
+
     return manifest, model
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-
-    mic = await cg.get_variable(config[CONF_MICROPHONE])
-    cg.add(var.set_microphone(mic))
-
-    if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
-        await automation.build_automation(
-            var.get_wake_word_detected_trigger(),
-            [(cg.std_string, "wake_word")],
-            on_wake_word_detection_config,
-        )
-
-    esp32.add_idf_component(
-        name="esp-tflite-micro",
-        repo="https://github.com/espressif/esp-tflite-micro",
-        ref="v1.3.1",
-    )
-
-    cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
-    cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
-    cg.add_build_flag("-DESP_NN")
-
-    model_config = config.get(CONF_MODEL)
-    data = []
+def _model_config_to_manifest_data(model_config):
     if model_config[CONF_TYPE] == TYPE_GIT:
         # compute path to model file
         key = f"{model_config[CONF_URL]}@{model_config.get(CONF_REF)}"
@@ -338,23 +412,95 @@ async def to_code(config):
     else:
         raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
 
-    manifest, data = _load_model_data(file)
+    return _load_model_data(file)
 
-    rhs = [HexInt(x) for x in data]
-    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.add(var.set_model_start(prog_arr))
 
-    probability_cutoff = config.get(
-        CONF_PROBABILITY_CUTOFF, manifest[KEY_MICRO][CONF_PROBABILITY_CUTOFF]
+def _feature_step_size_validate(config):
+    features_step_size = None
+
+    for model_parameters in config[CONF_MODELS]:
+        model_config = model_parameters.get(CONF_MODEL)
+        manifest, _ = _model_config_to_manifest_data(model_config)
+
+        model_step_size = manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]
+
+        if features_step_size is None:
+            features_step_size = model_step_size
+        elif features_step_size != model_step_size:
+            raise cv.Invalid("Cannot load models with different features step sizes.")
+
+
+FINAL_VALIDATE_SCHEMA = _feature_step_size_validate
+
+
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+    mic = await cg.get_variable(config[CONF_MICROPHONE])
+    cg.add(var.set_microphone(mic))
+
+    esp32.add_idf_component(
+        name="esp-tflite-micro",
+        repo="https://github.com/espressif/esp-tflite-micro",
+        ref="v1.3.1",
     )
-    cg.add(var.set_probability_cutoff(probability_cutoff))
-    sliding_window_average_size = config.get(
-        CONF_SLIDING_WINDOW_AVERAGE_SIZE,
-        manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE],
-    )
-    cg.add(var.set_sliding_window_average_size(sliding_window_average_size))
 
-    cg.add(var.set_wake_word(manifest[KEY_WAKE_WORD]))
+    cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
+    cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
+    cg.add_build_flag("-DESP_NN")
+
+    if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
+        await automation.build_automation(
+            var.get_wake_word_detected_trigger(),
+            [(cg.std_string, "wake_word")],
+            on_wake_word_detection_config,
+        )
+
+    if vad_model := config.get(CONF_VAD):
+        cg.add_define("USE_MICRO_WAKE_WORD_VAD")
+
+        # Use the general model loading code for the VAD codegen
+        config[CONF_MODELS].append(vad_model)
+
+    for model_parameters in config[CONF_MODELS]:
+        model_config = model_parameters.get(CONF_MODEL)
+        data = []
+        manifest, data = _model_config_to_manifest_data(model_config)
+
+        rhs = [HexInt(x) for x in data]
+        prog_arr = cg.progmem_array(model_parameters[CONF_RAW_DATA_ID], rhs)
+
+        probability_cutoff = model_parameters.get(
+            CONF_PROBABILITY_CUTOFF, manifest[KEY_MICRO][CONF_PROBABILITY_CUTOFF]
+        )
+        sliding_window_size = model_parameters.get(
+            CONF_SLIDING_WINDOW_SIZE,
+            manifest[KEY_MICRO][CONF_SLIDING_WINDOW_SIZE],
+        )
+
+        if manifest[KEY_WAKE_WORD] == "vad":
+            cg.add(
+                var.add_vad_model(
+                    prog_arr,
+                    probability_cutoff,
+                    sliding_window_size,
+                    manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE],
+                )
+            )
+        else:
+            cg.add(
+                var.add_wake_word_model(
+                    prog_arr,
+                    probability_cutoff,
+                    sliding_window_size,
+                    manifest[KEY_WAKE_WORD],
+                    manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE],
+                )
+            )
+
+    cg.add(var.set_features_step_size(manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]))
+    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.0.0")
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})

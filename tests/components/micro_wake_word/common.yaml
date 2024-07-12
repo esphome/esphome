@@ -10,6 +10,10 @@ microphone:
     pdm: true
 
 micro_wake_word:
-  model: hey_jarvis
   on_wake_word_detected:
     - logger.log: "Wake word detected"
+  models:
+    - model: hey_jarvis
+      probability_cutoff: 0.7
+    - model: okay_nabu
+      sliding_window_size: 5

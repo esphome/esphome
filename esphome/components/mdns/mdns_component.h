@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_MDNS
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
@@ -46,3 +47,4 @@ class MDNSComponent : public Component {
 
 }  // namespace mdns
 }  // namespace esphome
+#endif
