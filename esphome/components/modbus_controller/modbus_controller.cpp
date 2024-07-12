@@ -46,7 +46,7 @@ bool ModbusController::send_next_command_() {
 
       this->last_command_timestamp_ = millis();
 
-      this->command_callback_.call((int)command->function_code, command->register_address);
+      this->command_callback_.call((int) command->function_code, command->register_address);
 
       // remove from queue if no handler is defined
       if (!command->on_data_func) {

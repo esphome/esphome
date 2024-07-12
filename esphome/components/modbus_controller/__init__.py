@@ -3,7 +3,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import modbus
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_ADDRESS, 
+    CONF_ID, 
+    CONF_NAME, 
+    CONF_LAMBDA, 
+    CONF_OFFSET, 
+    CONF_TRIGGER_ID
+)
 from esphome.cpp_helpers import logging
 from .const import (
     CONF_BITMASK,
@@ -130,13 +137,12 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusCommandTrigger),
                 }
-            )
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
-
 
 ModbusItemBaseSchema = cv.Schema(
     {
@@ -267,14 +273,14 @@ async def to_code(config):
     await register_modbus_device(var, config)
     for conf in config.get(CONF_ON_COMMAND, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(int, "function_code"), (int, "address")], conf)
-
+        await automation.build_automation(
+            trigger, [(int, "function_code"), (int, "address")], conf
+        )
 
 async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
     return await modbus.register_modbus_device(var, config)
-
 
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
