@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import modbus
 from esphome.const import (
-    CONF_ADDRESS, 
+    CONF_ADDRESS,
     CONF_ID,
     CONF_NAME,
     CONF_LAMBDA,
