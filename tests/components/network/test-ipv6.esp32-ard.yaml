@@ -1,5 +1,4 @@
 substitutions:
-  tx_pin: GPIO4
-  rx_pin: GPIO5
+  network_enable_ipv6: "true"
 
 <<: !include common.yaml

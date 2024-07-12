@@ -1,12 +1,9 @@
 esphome:
-  name: componenttestesp32s2idf
+  name: componenttestesp8266ard
   friendly_name: $component_name
 
-esp32:
-  board: esp32-s2-saola-1
-  variant: ESP32S2
-  framework:
-    type: esp-idf
+esp8266:
+  board: d1_mini
 
 logger:
   level: VERY_VERBOSE
