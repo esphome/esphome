@@ -5,11 +5,11 @@ from esphome import automation
 from esphome.components import modbus
 from esphome.const import (
     CONF_ADDRESS, 
-    CONF_ID, 
-    CONF_NAME, 
-    CONF_LAMBDA, 
-    CONF_OFFSET, 
-    CONF_TRIGGER_ID
+    CONF_ID,
+    CONF_NAME,
+    CONF_LAMBDA,
+    CONF_OFFSET,
+    CONF_TRIGGER_ID,
 )
 from esphome.cpp_helpers import logging
 from .const import (
@@ -277,10 +277,12 @@ async def to_code(config):
             trigger, [(int, "function_code"), (int, "address")], conf
         )
 
+
 async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
     return await modbus.register_modbus_device(var, config)
+
 
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
