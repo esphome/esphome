@@ -293,4 +293,4 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    cg.add_library("dudanov/MideaUART", "1.1.8")
+    cg.add_library("dudanov/MideaUART", "1.1.9")

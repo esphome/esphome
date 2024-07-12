@@ -4,6 +4,7 @@
 #include <set>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/automation.h"
 // HaierProtocol
 #include <protocol/haier_protocol.h>
 
@@ -56,6 +57,7 @@ class HaierClimateBase : public esphome::Component,
   void set_answer_timeout(uint32_t timeout);
   void set_send_wifi(bool send_wifi);
   void send_custom_command(const haier_protocol::HaierMessage &message);
+  void add_status_message_callback(std::function<void(const char *, size_t)> &&callback);
 
  protected:
   enum class ProtocolPhases {
@@ -140,11 +142,19 @@ class HaierClimateBase : public esphome::Component,
   esphome::climate::ClimateTraits traits_;
   HvacSettings current_hvac_settings_;
   HvacSettings next_hvac_settings_;
-  std::unique_ptr<uint8_t[]> last_status_message_;
+  std::unique_ptr<uint8_t[]> last_status_message_{nullptr};
   std::chrono::steady_clock::time_point last_request_timestamp_;       // For interval between messages
   std::chrono::steady_clock::time_point last_valid_status_timestamp_;  // For protocol timeout
   std::chrono::steady_clock::time_point last_status_request_;          // To request AC status
   std::chrono::steady_clock::time_point last_signal_request_;          // To send WiFI signal level
+  CallbackManager<void(const char *, size_t)> status_message_callback_{};
+};
+
+class StatusMessageTrigger : public Trigger<const char *, size_t> {
+ public:
+  explicit StatusMessageTrigger(HaierClimateBase *parent) {
+    parent->add_status_message_callback([this](const char *data, size_t data_size) { this->trigger(data, data_size); });
+  }
 };
 
 }  // namespace haier
