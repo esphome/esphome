@@ -19,13 +19,13 @@ namespace time {
 class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
-
+#ifndef USE_ZEPHYR
   /// Set the time zone.
   void set_timezone(const std::string &tz) { this->timezone_ = tz; }
 
   /// Get the time zone currently in use.
   std::string get_timezone() { return this->timezone_; }
-
+#endif
   /// Get the time in the currently defined timezone.
   ESPTime now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
 
@@ -44,10 +44,10 @@ class RealTimeClock : public PollingComponent {
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
-
+#ifndef USE_ZEPHYR
   std::string timezone_{};
   void apply_timezone_();
-
+#endif
   CallbackManager<void()> time_sync_callback_;
 };
 

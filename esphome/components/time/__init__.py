@@ -25,8 +25,9 @@ from esphome.const import (
     CONF_HOUR,
     CONF_MINUTE,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import coroutine_with_priority, CORE
 from esphome.automation import Condition
+from esphome.components.zephyr import zephyr_add_prj_conf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -269,7 +270,10 @@ def validate_tz(value: str) -> str:
 
 TIME_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
+        cv.Optional(CONF_TIMEZONE, default=detect_tz): cv.All(
+            cv.only_with_arduino_or_esp_idf,
+            validate_tz,
+        ),
         cv.Optional(CONF_ON_TIME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CronTrigger),
@@ -294,7 +298,8 @@ TIME_SCHEMA = cv.Schema(
 
 
 async def setup_time_core_(time_var, config):
-    cg.add(time_var.set_timezone(config[CONF_TIMEZONE]))
+    if not CORE.using_zephyr:
+        cg.add(time_var.set_timezone(config[CONF_TIMEZONE]))
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
@@ -328,6 +333,8 @@ async def register_time(time_var, config):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("POSIX_CLOCK", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 
