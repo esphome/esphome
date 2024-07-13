@@ -59,6 +59,14 @@ static const char *iir_filter_to_str(BMP280IIRFilter filter) {
 void BMP280Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BMP280...");
   uint8_t chip_id = 0;
+
+  // Read the chip id twice, to work around a bug where the first read is 0.
+  // https://community.st.com/t5/stm32-mcus-products/issue-with-reading-bmp280-chip-id-using-spi/td-p/691855
+  if (!this->read_byte(0xD0, &chip_id)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return;
+  }
   if (!this->read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
