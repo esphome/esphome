@@ -32,7 +32,7 @@ enum VectorEvt {
 enum EmptyEvt {
   ON_READ,
 };
-}
+}  // namespace BLECharacteristicEvt
 
 class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>,
                           public EventEmitter<BLECharacteristicEvt::EmptyEvt> {

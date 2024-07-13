@@ -249,7 +249,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
 
       if (!param->write.is_prep) {
         this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>::emit(
-          BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_);
+            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_);
       }
 
       break;
@@ -261,7 +261,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
         this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>>::emit(
-          BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_);
+            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_);
       }
       esp_err_t err =
           esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);

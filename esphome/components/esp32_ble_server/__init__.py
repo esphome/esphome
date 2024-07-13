@@ -106,12 +106,10 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
         cv.Optional(CONF_INDICATE, default=False): cv.boolean,
         cv.Optional(CONF_WRITE_NO_RESPONSE, default=False): cv.boolean,
         cv.Optional(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
-        cv.GenerateID(CONF_VALUE_ACTION_ID): cv.declare_id(
+        cv.GenerateID(CONF_VALUE_ACTION_ID_): cv.declare_id(
             BLECharacteristicSetValueAction
         ),
-        cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(
-            DESCRIPTOR_SCHEMA
-        ),
+        cv.Optional(CONF_DESCRIPTORS, default=[]): cv.ensure_list(DESCRIPTOR_SCHEMA),
         cv.Optional(CONF_ON_WRITE): automation.validate_automation(
             {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
         ),
@@ -262,7 +260,9 @@ async def to_code(config):
             if CONF_ON_WRITE in char_conf:
                 on_write_conf = char_conf[CONF_ON_WRITE]
                 if not char_conf[CONF_WRITE] and not char_conf[CONF_WRITE_NO_RESPONSE]:
-                    raise cv.Invalid(f"on_write requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property to be set")
+                    raise cv.Invalid(
+                        f"on_write requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property to be set"
+                    )
                 await automation.build_automation(
                     BLETriggers_ns.create_on_write_trigger(char_var),
                     [(cg.std_vector.template(cg.uint8), "x")],
@@ -273,10 +273,17 @@ async def to_code(config):
                     CONF_ID: char_conf[CONF_ID],
                     CONF_VALUE: char_conf[CONF_VALUE],
                 }
-                value_action = await ble_server_characteristic_set_value(action_conf, char_conf[CONF_VALUE_ACTION_ID_], cg.TemplateArguments(None), {})
+                value_action = await ble_server_characteristic_set_value(
+                    action_conf,
+                    char_conf[CONF_VALUE_ACTION_ID_],
+                    cg.TemplateArguments(None),
+                    {},
+                )
                 cg.add(value_action.play())
             for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
-                descriptor_value, max_length = parse_descriptor_value(descriptor_conf[CONF_VALUE])
+                descriptor_value, max_length = parse_descriptor_value(
+                    descriptor_conf[CONF_VALUE]
+                )
                 desc_var = cg.new_Pvariable(
                     descriptor_conf[CONF_ID],
                     parse_uuid(descriptor_conf[CONF_UUID]),
@@ -284,6 +291,7 @@ async def to_code(config):
                 )
                 if CONF_VALUE in descriptor_conf:
                     cg.add(desc_var.set_value(descriptor_value))
+                cg.add(char_var.add_descriptor(desc_var))
         cg.add(var.enqueue_start_service(service_var))
     cg.add_define("USE_ESP32_BLE_SERVER")
     if CORE.using_esp_idf:
@@ -292,7 +300,12 @@ async def to_code(config):
 
 async def parse_characteristic_value(value, args):
     if isinstance(value, cv.Lambda):
-        return await cg.templatable(value, args, cg.std_vector.template(cg.uint8), cg.std_vector.template(cg.uint8))
+        return await cg.templatable(
+            value,
+            args,
+            cg.std_vector.template(cg.uint8),
+            cg.std_vector.template(cg.uint8),
+        )
     if isinstance(value, list):
         return cg.std_vector.template(cg.uint8)(value)
     # Transform the value into a vector of bytes

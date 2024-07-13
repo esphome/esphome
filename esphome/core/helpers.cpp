@@ -534,7 +534,7 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   return ret;
 }
 
-std::vector<uint8_t> to_vector(bool value) { return {value ? (uint8_t)1 : (uint8_t)0}; }
+std::vector<uint8_t> to_vector(bool value) { return {value ? (uint8_t) 1 : (uint8_t) 0}; }
 std::vector<uint8_t> to_vector(uint8_t value) { return {value}; }
 std::vector<uint8_t> to_vector(uint16_t value) { return {uint8_t(value >> 8), uint8_t(value & 0xFF)}; }
 std::vector<uint8_t> to_vector(uint32_t value) {
@@ -546,8 +546,16 @@ std::vector<uint8_t> to_vector(uint64_t value) {
           uint8_t((value >> 8) & 0xFF),  uint8_t(value & 0xFF)};
 }
 std::vector<uint8_t> to_vector(int value) { return to_vector(static_cast<uint32_t>(value)); }
-std::vector<uint8_t> to_vector(float value) { return to_vector(*reinterpret_cast<uint32_t *>(&value)); }
-std::vector<uint8_t> to_vector(double value) { return to_vector(*reinterpret_cast<uint64_t *>(&value)); }
+std::vector<uint8_t> to_vector(float value) {
+  uint32_t val;
+  memcpy(&val, &value, sizeof(val));
+  return to_vector(val);
+}
+std::vector<uint8_t> to_vector(double value) {
+  uint64_t val;
+  memcpy(&val, &value, sizeof(val));
+  return to_vector(val);
+}
 std::vector<uint8_t> to_vector(const std::string &value) { return std::vector<uint8_t>(value.begin(), value.end()); }
 
 // Colors
