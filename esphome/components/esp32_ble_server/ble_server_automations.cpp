@@ -41,8 +41,7 @@ void BLECharacteristicSetValueActionManager::set_listener(BLECharacteristic *cha
                  if (characteristic == evt_characteristic) {
                    pre_notify_listener();
                  }
-               }
-  );
+               });
   // Save the pair listener_id, pre_notify_listener_id to the map
   this->listeners_[characteristic] = std::make_pair(listener_id, pre_notify_listener_id);
 }
