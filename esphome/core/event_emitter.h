@@ -9,14 +9,14 @@
 namespace esphome {
 
 using EventEmitterListenerID = uint32_t;
-void RaiseEventEmitterFullError();
+void raise_event_emitter_full_error();
 
 // EventEmitter class that can emit events with a specific name (it is highly recommended to use an enum class for this)
 // and a list of arguments. Supports multiple listeners for each event.
 template<typename EvtType, typename... Args> class EventEmitter {
  public:
   EventEmitterListenerID on(EvtType event, std::function<void(Args...)> listener) {
-    EventEmitterListenerID listener_id = get_next_id(event);
+    EventEmitterListenerID listener_id = get_next_id_(event);
     listeners_[event][listener_id] = listener;
     return listener_id;
   }
@@ -28,7 +28,7 @@ template<typename EvtType, typename... Args> class EventEmitter {
   }
 
  protected:
-  void emit(EvtType event, Args... args) {
+  void emit_(EvtType event, Args... args) {
     if (listeners_.count(event) == 0)
       return;
     for (const auto &listener : listeners_[event]) {
@@ -36,11 +36,11 @@ template<typename EvtType, typename... Args> class EventEmitter {
     }
   }
 
-  EventEmitterListenerID get_next_id(EvtType event) {
+  EventEmitterListenerID get_next_id_(EvtType event) {
     // Check if the map is full
     if (listeners_[event].size() == std::numeric_limits<EventEmitterListenerID>::max()) {
       // Raise an error if the map is full
-      RaiseEventEmitterFullError();
+      raise_event_emitter_full_error();
       off(event, 0);
       return 0;
     }
