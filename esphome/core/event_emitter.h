@@ -2,16 +2,18 @@
 #include <unordered_map>
 #include <vector>
 #include <functional>
+#include <limits>
 
 #include "esphome/core/log.h"
 
 namespace esphome {
 
 using EventEmitterListenerID = uint32_t;
+void RaiseEventEmitterFullError(EventEmitterListenerID id);
 
 // EventEmitter class that can emit events with a specific name (it is highly recommended to use an enum class for this) and a list of arguments.
 // Supports multiple listeners for each event.
-template <typename EvtType, typename... Args> class EventEmitter {
+template<typename EvtType, typename... Args> class EventEmitter {
  public:
   EventEmitterListenerID on(EvtType event, std::function<void(Args...)> listener) {
     EventEmitterListenerID listener_id = get_next_id(event);
@@ -38,8 +40,7 @@ template <typename EvtType, typename... Args> class EventEmitter {
     // Check if the map is full
     if (listeners_[event].size() == std::numeric_limits<EventEmitterListenerID>::max()) {
       // Raise an error if the map is full
-      ESP_LOGE("event_emitter", "EventEmitter has reached the maximum number of listeners for event %d", event);
-      ESP_LOGW("event_emitter", "Removing listener with ID %d for event %d", 0, event);
+      RaiseEventEmitterFullError(0);
       off(event, 0);
       return 0;
     }
@@ -51,7 +52,7 @@ template <typename EvtType, typename... Args> class EventEmitter {
     current_id_ = next_id;
     return current_id_;
   }
-  
+
  private:
   std::unordered_map<EvtType, std::unordered_map<EventEmitterListenerID, std::function<void(Args...)>>> listeners_;
   EventEmitterListenerID current_id_ = 0;

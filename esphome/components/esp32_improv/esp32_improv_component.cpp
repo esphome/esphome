@@ -45,7 +45,7 @@ void ESP32ImprovComponent::setup_characteristics() {
         if (!data.empty()) {
           this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
         }
-  });
+      });
   BLEDescriptor *rpc_descriptor = new BLE2902();
   this->rpc_->add_descriptor(rpc_descriptor);
 
