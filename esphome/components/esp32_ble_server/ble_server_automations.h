@@ -49,7 +49,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
     this->parent_->set_value(this->value_.value(x...));
     // Set the listener for read events
     this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt>::on(
-        BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...](void) {
+        BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...]() {
           // Set the value of the characteristic every time it is read
           this->parent_->set_value(this->value_.value(x...));
         });
