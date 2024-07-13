@@ -37,6 +37,7 @@ haier_protocol::HandlerError Smartair2Climate::status_handler_(haier_protocol::F
     } else {
       if (data_size >= sizeof(smartair2_protocol::HaierPacketControl) + 2) {
         memcpy(this->last_status_message_.get(), data + 2, sizeof(smartair2_protocol::HaierPacketControl));
+        this->status_message_callback_.call((const char *) data, data_size);
       } else {
         ESP_LOGW(TAG, "Status packet too small: %d (should be >= %d)", data_size,
                  sizeof(smartair2_protocol::HaierPacketControl));
