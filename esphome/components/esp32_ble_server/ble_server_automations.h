@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <functional>
 
 #ifdef USE_ESP32
 
@@ -22,19 +23,24 @@ class BLETriggers {
   static Trigger<std::vector<uint8_t>> *create_on_write_trigger(BLECharacteristic *characteristic);
 };
 
+enum BLECharacteristicSetValueActionEvt {
+  PRE_NOTIFY,
+};
+
 // Class to make sure only one BLECharacteristicSetValueAction is active at a time
-class BLECharacteristicSetValueActionManager {
+class BLECharacteristicSetValueActionManager : public EventEmitter<BLECharacteristicSetValueActionEvt, BLECharacteristic *> {
  public:
   // Singleton pattern
   static BLECharacteristicSetValueActionManager *get_instance() {
     static BLECharacteristicSetValueActionManager instance;
     return &instance;
   }
-  void set_listener(BLECharacteristic *characteristic, EventEmitterListenerID listener_id);
-  EventEmitterListenerID get_listener(BLECharacteristic *characteristic) { return this->listeners_[characteristic]; }
+  void set_listener(BLECharacteristic *characteristic, EventEmitterListenerID listener_id, std::function<void()> pre_notify_listener);
+  EventEmitterListenerID get_listener(BLECharacteristic *characteristic) { return this->listeners_[characteristic].first; }
+  void emit_pre_notify(BLECharacteristic *characteristic) { this->emit_(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, characteristic); }
 
  private:
-  std::unordered_map<BLECharacteristic *, EventEmitterListenerID> listeners_;
+  std::unordered_map<BLECharacteristic *, std::pair<EventEmitterListenerID, EventEmitterListenerID>> listeners_;
 };
 
 template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
@@ -54,7 +60,10 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
           this->parent_->set_value(this->value_.value(x...));
         });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
-    BLECharacteristicSetValueActionManager::get_instance()->set_listener(this->parent_, this->listener_id_);
+    BLECharacteristicSetValueActionManager::get_instance()->set_listener(
+        this->parent_, this->listener_id_, [this, x...]() {
+          this->parent_->set_value(this->value_.value(x...));
+        });
   }
 
  protected:
@@ -65,7 +74,12 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
 template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts...> {
  public:
   BLECharacteristicNotifyAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-  void play(Ts... x) override { this->parent_->notify(); }
+  void play(Ts... x) override {
+    // Call the pre-notify event
+    BLECharacteristicSetValueActionManager::get_instance()->emit_pre_notify(this->parent_);
+    // Notify the characteristic
+    this->parent_->notify();
+  }
 
  protected:
   BLECharacteristic *parent_;
