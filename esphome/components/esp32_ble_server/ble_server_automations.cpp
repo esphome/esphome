@@ -20,7 +20,7 @@ Trigger<std::vector<uint8_t>> *BLETriggers::create_on_write_trigger(BLECharacter
 
 void BLECharacteristicSetValueActionManager::set_listener(BLECharacteristic *characteristic,
                                                           EventEmitterListenerID listener_id,
-                                                          const std::function<void()>& pre_notify_listener) {
+                                                          const std::function<void()> &pre_notify_listener) {
   // Check if there is already a listener for this characteristic
   if (this->listeners_.count(characteristic) > 0) {
     // Unpack the pair listener_id, pre_notify_listener_id

@@ -37,7 +37,7 @@ class BLECharacteristicSetValueActionManager
     return &instance;
   }
   void set_listener(BLECharacteristic *characteristic, EventEmitterListenerID listener_id,
-                    const std::function<void()>& pre_notify_listener);
+                    const std::function<void()> &pre_notify_listener);
   EventEmitterListenerID get_listener(BLECharacteristic *characteristic) {
     return this->listeners_[characteristic].first;
   }
