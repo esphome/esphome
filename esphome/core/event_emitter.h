@@ -11,8 +11,8 @@ namespace esphome {
 using EventEmitterListenerID = uint32_t;
 void RaiseEventEmitterFullError(EventEmitterListenerID id);
 
-// EventEmitter class that can emit events with a specific name (it is highly recommended to use an enum class for this) and a list of arguments.
-// Supports multiple listeners for each event.
+// EventEmitter class that can emit events with a specific name (it is highly recommended to use an enum class for this)
+// and a list of arguments. Supports multiple listeners for each event.
 template<typename EvtType, typename... Args> class EventEmitter {
  public:
   EventEmitterListenerID on(EvtType event, std::function<void(Args...)> listener) {
