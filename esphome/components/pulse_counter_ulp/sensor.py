@@ -24,11 +24,11 @@ from esphome.const import (
 from esphome.core import CORE
 
 pulse_counter_ulp_ns = cg.esphome_ns.namespace("pulse_counter_ulp")
-PulseCounterCountMode = pulse_counter_ulp_ns.enum("PulseCounterCountMode")
+CountMode = pulse_counter_ulp_ns.enum("CountMode", is_class=True)
 COUNT_MODES = {
-    "DISABLE": PulseCounterCountMode.PULSE_COUNTER_DISABLE,
-    "INCREMENT": PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
-    "DECREMENT": PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
+    "DISABLE": CountMode.disable,
+    "INCREMENT": CountMode.increment,
+    "DECREMENT": CountMode.decrement,
 }
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
@@ -134,7 +134,7 @@ async def to_code(config):
 
 
 @automation.register_action(
-    "pulse_counter.set_total_pulses",
+    "pulse_counter_ulp.set_total_pulses",
     SetTotalPulsesAction,
     cv.Schema(
         {

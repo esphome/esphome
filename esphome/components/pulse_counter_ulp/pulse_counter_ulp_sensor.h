@@ -13,11 +13,7 @@
 namespace esphome {
 namespace pulse_counter_ulp {
 
-enum PulseCounterCountMode {
-  PULSE_COUNTER_DISABLE = 0,
-  PULSE_COUNTER_INCREMENT,
-  PULSE_COUNTER_DECREMENT,
-};
+enum class CountMode { disable = 0, increment = 1, decrement = -1 };
 
 using pulse_counter_t = int32_t;
 using timestamp_t = int64_t;
@@ -27,8 +23,8 @@ struct UlpPulseCounterStorage {
   pulse_counter_t read_raw_value();
 
   InternalGPIOPin *pin;
-  PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
-  PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
+  CountMode rising_edge_mode{CountMode::increment};
+  CountMode falling_edge_mode{CountMode::disable};
   pulse_counter_t last_value{0};
 };
 
@@ -37,8 +33,8 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
   explicit PulseCounterUlpSensor() {}
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
-  void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
-  void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
+  void set_rising_edge_mode(CountMode mode) { storage_.rising_edge_mode = mode; }
+  void set_falling_edge_mode(CountMode mode) { storage_.falling_edge_mode = mode; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { time_id_ = time_id; }

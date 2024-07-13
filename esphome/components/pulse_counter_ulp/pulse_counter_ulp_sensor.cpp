@@ -11,7 +11,17 @@ namespace pulse_counter_ulp {
 
 static const char *const TAG = "pulse_counter_ulp";
 
-const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
+const char *to_string(CountMode count_mode) {
+  switch (count_mode) {
+    case CountMode::disable:
+      return "disable";
+    case CountMode::increment:
+      return "increment";
+    case CountMode::decrement:
+      return "decrement";
+  }
+  return "UNKNOWM MODE";
+}
 
 /* === ULP === */
 
@@ -22,30 +32,8 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
 
-  uint32_t rising = 0;
-  uint32_t falling = 0;
-  switch (this->rising_edge_mode) {
-    case PULSE_COUNTER_DISABLE:
-      rising = 0;
-      break;
-    case PULSE_COUNTER_INCREMENT:
-      rising = +1;
-      break;
-    case PULSE_COUNTER_DECREMENT:
-      rising = -1;
-      break;
-  }
-  switch (this->falling_edge_mode) {
-    case PULSE_COUNTER_DISABLE:
-      falling = 0;
-      break;
-    case PULSE_COUNTER_INCREMENT:
-      falling = +1;
-      break;
-    case PULSE_COUNTER_DECREMENT:
-      falling = -1;
-      break;
-  }
+  auto rising = static_cast<uint32_t>(this->rising_edge_mode);
+  auto falling = static_cast<uint32_t>(this->falling_edge_mode);
 
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
     ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
@@ -134,8 +122,8 @@ void PulseCounterUlpSensor::set_total_pulses(uint32_t pulses) {
 void PulseCounterUlpSensor::dump_config() {
   LOG_SENSOR("", "Pulse Counter", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode]);
-  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode]);
+  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", to_string(this->storage_.rising_edge_mode));
+  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", to_string(this->storage_.falling_edge_mode));
   LOG_UPDATE_INTERVAL(this);
 }
 
