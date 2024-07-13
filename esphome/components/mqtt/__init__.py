@@ -54,7 +54,12 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["network"]
 
-AUTO_LOAD = ["json"]
+
+def AUTO_LOAD():
+    if CORE.is_esp8266 or CORE.is_libretiny:
+        return ["async_tcp", "json"]
+    return ["json"]
+
 
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
@@ -121,6 +126,7 @@ MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
 MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
 MQTTEventComponent = mqtt_ns.class_("MQTTEventComponent", MQTTComponent)
+MQTTUpdateComponent = mqtt_ns.class_("MQTTUpdateComponent", MQTTComponent)
 MQTTValveComponent = mqtt_ns.class_("MQTTValveComponent", MQTTComponent)
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")

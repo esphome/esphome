@@ -69,6 +69,9 @@
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
+#ifdef USE_UPDATE
+#include "esphome/components/update/update_entity.h"
+#endif
 
 namespace esphome {
 
@@ -178,6 +181,10 @@ class Application {
   void register_event(event::Event *event) { this->events_.push_back(event); }
 #endif
 
+#ifdef USE_UPDATE
+  void register_update(update::UpdateEntity *update) { this->updates_.push_back(update); }
+#endif
+
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
@@ -221,6 +228,8 @@ class Application {
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
   void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
+
+  uint32_t get_loop_interval() const { return this->loop_interval_; }
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
@@ -419,6 +428,16 @@ class Application {
   }
 #endif
 
+#ifdef USE_UPDATE
+  const std::vector<update::UpdateEntity *> &get_updates() { return this->updates_; }
+  update::UpdateEntity *get_update_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->updates_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+
   Scheduler scheduler;
 
  protected:
@@ -492,6 +511,9 @@ class Application {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   std::vector<alarm_control_panel::AlarmControlPanel *> alarm_control_panels_{};
+#endif
+#ifdef USE_UPDATE
+  std::vector<update::UpdateEntity *> updates_{};
 #endif
 
   std::string name_;

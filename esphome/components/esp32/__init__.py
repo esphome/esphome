@@ -96,16 +96,16 @@ def get_board(core_obj=None):
 def get_download_types(storage_json):
     return [
         {
-            "title": "Modern format",
+            "title": "Factory format (Previously Modern)",
             "description": "For use with ESPHome Web and other tools.",
-            "file": "firmware-factory.bin",
-            "download": f"{storage_json.name}-factory.bin",
+            "file": "firmware.factory.bin",
+            "download": f"{storage_json.name}.factory.bin",
         },
         {
-            "title": "Legacy format",
-            "description": "For use with ESPHome Flasher.",
-            "file": "firmware.bin",
-            "download": f"{storage_json.name}.bin",
+            "title": "OTA format (Previously Legacy)",
+            "description": "For OTA updating a device.",
+            "file": "firmware.ota.bin",
+            "download": f"{storage_json.name}.ota.bin",
         },
     ]
 
@@ -227,7 +227,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 6)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 7)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32

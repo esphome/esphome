@@ -101,8 +101,10 @@ def clang_options(idedata):
     # add library include directories using -isystem to suppress their errors
     for directory in sorted(set(idedata["includes"]["build"])):
         # skip our own directories, we add those later
-        if not directory.startswith(f"{root_path}/") or directory.startswith(
-            f"{root_path}/.pio/"
+        if (
+            not directory.startswith(f"{root_path}/")
+            or directory.startswith(f"{root_path}/.pio/")
+            or directory.startswith(f"{root_path}/managed_components/")
         ):
             cmd.extend(["-isystem", directory])
 
@@ -266,7 +268,12 @@ def main():
     if args.fix and failed_files:
         print("Applying fixes ...")
         try:
-            subprocess.call(["clang-apply-replacements-14", tmpdir])
+            try:
+                subprocess.call(["clang-apply-replacements-14", tmpdir])
+            except FileNotFoundError:
+                subprocess.call(["clang-apply-replacements", tmpdir])
+        except FileNotFoundError:
+                print("Error please install clang-apply-replacements-14 or clang-apply-replacements.\n", file=sys.stderr)
         except:
             print("Error applying fixes.\n", file=sys.stderr)
             raise

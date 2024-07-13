@@ -186,6 +186,10 @@ void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &m
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
 }
 
+void HaierClimateBase::add_status_message_callback(std::function<void(const char *, size_t)> &&callback) {
+  this->status_message_callback_.add(std::move(callback));
+}
+
 haier_protocol::HandlerError HaierClimateBase::answer_preprocess_(
     haier_protocol::FrameType request_message_type, haier_protocol::FrameType expected_request_message_type,
     haier_protocol::FrameType answer_message_type, haier_protocol::FrameType expected_answer_message_type,
@@ -234,6 +238,7 @@ void HaierClimateBase::setup() {
   this->haier_protocol_.set_default_timeout_handler(
       std::bind(&esphome::haier::HaierClimateBase::timeout_default_handler_, this, std::placeholders::_1));
   this->set_handlers();
+  this->initialization();
 }
 
 void HaierClimateBase::dump_config() {
@@ -326,7 +331,7 @@ ClimateTraits HaierClimateBase::traits() { return traits_; }
 
 void HaierClimateBase::control(const ClimateCall &call) {
   ESP_LOGD("Control", "Control call");
-  if (this->protocol_phase_ < ProtocolPhases::IDLE) {
+  if (!this->valid_connection()) {
     ESP_LOGW(TAG, "Can't send control packet, first poll answer not received");
     return;  // cancel the control, we cant do it without a poll answer.
   }

@@ -1,5 +1,14 @@
 #include "wifi_component.h"
 #include <cinttypes>
+#include <map>
+
+#ifdef USE_ESP_IDF
+#if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
+#include <esp_eap_client.h>
+#else
+#include <esp_wpa2.h>
+#endif
+#endif
 
 #if defined(USE_ESP32) || defined(USE_ESP_IDF)
 #include <esp_wifi.h>
@@ -49,7 +58,7 @@ void WiFiComponent::setup() {
 
 void WiFiComponent::start() {
   ESP_LOGCONFIG(TAG, "Starting WiFi...");
-  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
+  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   this->last_connected_ = millis();
 
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
@@ -126,7 +135,7 @@ void WiFiComponent::loop() {
 
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
-        this->status_set_warning();
+        this->status_set_warning("waiting to reconnect");
         if (millis() - this->action_started_ > 5000) {
           if (this->fast_connect_ || this->retry_hidden_) {
             this->start_connecting(this->sta_[0], false);
@@ -137,13 +146,13 @@ void WiFiComponent::loop() {
         break;
       }
       case WIFI_COMPONENT_STATE_STA_SCANNING: {
-        this->status_set_warning();
+        this->status_set_warning("scanning for networks");
         this->check_scanning_finished();
         break;
       }
       case WIFI_COMPONENT_STATE_STA_CONNECTING:
       case WIFI_COMPONENT_STATE_STA_CONNECTING_2: {
-        this->status_set_warning();
+        this->status_set_warning("associating to network");
         this->check_connecting_finished();
         break;
       }
@@ -318,6 +327,16 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
     ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
     ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
     ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+#ifdef USE_ESP_IDF
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    std::map<esp_eap_ttls_phase2_types, std::string> phase2types = {{ESP_EAP_TTLS_PHASE2_PAP, "pap"},
+                                                                    {ESP_EAP_TTLS_PHASE2_CHAP, "chap"},
+                                                                    {ESP_EAP_TTLS_PHASE2_MSCHAP, "mschap"},
+                                                                    {ESP_EAP_TTLS_PHASE2_MSCHAPV2, "mschapv2"},
+                                                                    {ESP_EAP_TTLS_PHASE2_EAP, "eap"}};
+    ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), phase2types[eap_config.ttls_phase_2].c_str());
+#endif
+#endif
     bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
     bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
     bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
@@ -694,7 +713,7 @@ void WiFiComponent::retry_connect() {
 }
 
 bool WiFiComponent::can_proceed() {
-  if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED) {
+  if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
     return true;
   }
   return this->is_connected();

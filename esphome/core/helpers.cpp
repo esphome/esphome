@@ -78,7 +78,7 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
 
 // STL backports
 
-#if _GLIBCXX_RELEASE < 7
+#if _GLIBCXX_RELEASE < 8
 std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
 std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
 std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
@@ -93,7 +93,7 @@ std::string to_string(long double value) { return str_snprintf("%Lf", 32, value)
 // Mathematics
 
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
-uint8_t crc8(uint8_t *data, uint8_t len) {
+uint8_t crc8(const uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
   while ((len--) != 0u) {
@@ -433,11 +433,15 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
+static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        "abcdefghijklmnopqrstuvwxyz"
+                                        "0123456789+/";
+
 static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
 
-std::string base64_encode(const char *buf, unsigned int buf_len) {
+std::string base64_encode(const uint8_t *buf, size_t buf_len) {
   std::string ret;
   int i = 0;
   int j = 0;

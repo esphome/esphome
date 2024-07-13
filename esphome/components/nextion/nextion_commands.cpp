@@ -148,7 +148,25 @@ void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
 }
 
 void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.picc=%" PRIu8, component, pic_id);
+  this->add_no_result_to_queue_with_printf_("set_component_picc", "%s.picc=%" PRIu8, component, pic_id);
+}
+
+// Set video
+void Nextion::set_component_vid(const char *component, uint8_t vid_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_vid", "%s.vid=%" PRIu8, component, vid_id);
+}
+
+void Nextion::set_component_drag(const char *component, bool drag) {
+  this->add_no_result_to_queue_with_printf_("set_component_drag", "%s.drag=%i", component, drag ? 1 : 0);
+}
+
+void Nextion::set_component_aph(const char *component, uint8_t aph) {
+  this->add_no_result_to_queue_with_printf_("set_component_aph", "%s.aph=%" PRIu8, component, aph);
+}
+
+void Nextion::set_component_position(const char *component, uint32_t x, uint32_t y) {
+  this->add_no_result_to_queue_with_printf_("set_component_position_x", "%s.x=%" PRIu32, component, x);
+  this->add_no_result_to_queue_with_printf_("set_component_position_y", "%s.y=%" PRIu32, component, y);
 }
 
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_POWER,
     CONF_HUMIDITY,
     DEVICE_CLASS_CURRENT,
@@ -30,6 +31,7 @@ from ..climate import (
     HonClimate,
 )
 
+CODEOWNERS = ["@paveldn"]
 SensorTypeEnum = HonClimate.enum("SubSensorType", True)
 
 # Haier sensors
@@ -41,7 +43,6 @@ CONF_OUTDOOR_COIL_TEMPERATURE = "outdoor_coil_temperature"
 CONF_OUTDOOR_DEFROST_TEMPERATURE = "outdoor_defrost_temperature"
 CONF_OUTDOOR_IN_AIR_TEMPERATURE = "outdoor_in_air_temperature"
 CONF_OUTDOOR_OUT_AIR_TEMPERATURE = "outdoor_out_air_temperature"
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 
 # Additional icons
 ICON_SNOWFLAKE_THERMOMETER = "mdi:snowflake-thermometer"
@@ -136,16 +137,16 @@ SENSOR_TYPES = {
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_HAIER_ID): cv.use_id(HonClimate),
+        cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
     }
-).extend({cv.Optional(type): schema for type, schema in SENSOR_TYPES.items()})
+).extend({cv.Optional(type_): schema for type_, schema in SENSOR_TYPES.items()})
 
 
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_HAIER_ID])
 
-    for type, _ in SENSOR_TYPES.items():
-        if conf := config.get(type):
+    for type_ in SENSOR_TYPES:
+        if conf := config.get(type_):
             sens = await sensor.new_sensor(conf)
-            sensor_type = getattr(SensorTypeEnum, type.upper())
+            sensor_type = getattr(SensorTypeEnum, type_.upper())
             cg.add(paren.set_sub_sensor(sensor_type, sens))

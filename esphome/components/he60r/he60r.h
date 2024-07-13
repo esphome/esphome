@@ -25,15 +25,14 @@ class HE60rCover : public cover::Cover, public Component, public uart::UARTDevic
   void control(const cover::CoverCall &call) override;
   bool is_at_target_() const;
   void start_direction_(cover::CoverOperation dir);
-  void update_operation_(cover::CoverOperation dir);
   void endstop_reached_(cover::CoverOperation operation);
   void recompute_position_();
   void set_current_operation_(cover::CoverOperation operation);
   void process_rx_(uint8_t data);
 
-  uint32_t open_duration_{0};
-  uint32_t close_duration_{0};
-  uint32_t toggles_needed_{0};
+  unsigned open_duration_{0};
+  unsigned close_duration_{0};
+  unsigned toggles_needed_{0};
   cover::CoverOperation next_direction_{cover::COVER_OPERATION_IDLE};
   cover::CoverOperation last_command_{cover::COVER_OPERATION_IDLE};
   uint32_t last_recompute_time_{0};

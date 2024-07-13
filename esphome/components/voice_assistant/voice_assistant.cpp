@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 
+#include <cinttypes>
 #include <cstdio>
 
 namespace esphome {
@@ -17,7 +18,7 @@ static const char *const TAG = "voice_assistant";
 
 static const size_t SAMPLE_RATE_HZ = 16000;
 static const size_t INPUT_BUFFER_SIZE = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
-static const size_t BUFFER_SIZE = 1024 * SAMPLE_RATE_HZ / 1000;
+static const size_t BUFFER_SIZE = 512 * SAMPLE_RATE_HZ / 1000;
 static const size_t SEND_BUFFER_SIZE = INPUT_BUFFER_SIZE * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
@@ -71,6 +72,12 @@ void VoiceAssistant::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Voice Assistant...");
 
   global_voice_assistant = this;
+}
+
+bool VoiceAssistant::allocate_buffers_() {
+  if (this->send_buffer_ != nullptr) {
+    return true;  // Already allocated
+  }
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
@@ -78,8 +85,7 @@ void VoiceAssistant::setup() {
     this->speaker_buffer_ = speaker_allocator.allocate(SPEAKER_BUFFER_SIZE);
     if (this->speaker_buffer_ == nullptr) {
       ESP_LOGW(TAG, "Could not allocate speaker buffer");
-      this->mark_failed();
-      return;
+      return false;
     }
   }
 #endif
@@ -88,8 +94,7 @@ void VoiceAssistant::setup() {
   this->input_buffer_ = allocator.allocate(INPUT_BUFFER_SIZE);
   if (this->input_buffer_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate input buffer");
-    this->mark_failed();
-    return;
+    return false;
   }
 
 #ifdef USE_ESP_ADF
@@ -99,17 +104,71 @@ void VoiceAssistant::setup() {
   this->ring_buffer_ = RingBuffer::create(BUFFER_SIZE * sizeof(int16_t));
   if (this->ring_buffer_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate ring buffer");
-    this->mark_failed();
-    return;
+    return false;
   }
 
   ExternalRAMAllocator<uint8_t> send_allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
   if (send_buffer_ == nullptr) {
     ESP_LOGW(TAG, "Could not allocate send buffer");
-    this->mark_failed();
-    return;
+    return false;
   }
+
+  return true;
+}
+
+void VoiceAssistant::clear_buffers_() {
+  if (this->send_buffer_ != nullptr) {
+    memset(this->send_buffer_, 0, SEND_BUFFER_SIZE);
+  }
+
+  if (this->input_buffer_ != nullptr) {
+    memset(this->input_buffer_, 0, INPUT_BUFFER_SIZE * sizeof(int16_t));
+  }
+
+  if (this->ring_buffer_ != nullptr) {
+    this->ring_buffer_->reset();
+  }
+
+#ifdef USE_SPEAKER
+  if (this->speaker_buffer_ != nullptr) {
+    memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
+
+    this->speaker_buffer_size_ = 0;
+    this->speaker_buffer_index_ = 0;
+    this->speaker_bytes_received_ = 0;
+  }
+#endif
+}
+
+void VoiceAssistant::deallocate_buffers_() {
+  ExternalRAMAllocator<uint8_t> send_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  send_deallocator.deallocate(this->send_buffer_, SEND_BUFFER_SIZE);
+  this->send_buffer_ = nullptr;
+
+  if (this->ring_buffer_ != nullptr) {
+    this->ring_buffer_.reset();
+    this->ring_buffer_ = nullptr;
+  }
+
+#ifdef USE_ESP_ADF
+  if (this->vad_instance_ != nullptr) {
+    vad_destroy(this->vad_instance_);
+    this->vad_instance_ = nullptr;
+  }
+#endif
+
+  ExternalRAMAllocator<int16_t> input_deallocator(ExternalRAMAllocator<int16_t>::ALLOW_FAILURE);
+  input_deallocator.deallocate(this->input_buffer_, INPUT_BUFFER_SIZE);
+  this->input_buffer_ = nullptr;
+
+#ifdef USE_SPEAKER
+  if (this->speaker_buffer_ != nullptr) {
+    ExternalRAMAllocator<uint8_t> speaker_deallocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    speaker_deallocator.deallocate(this->speaker_buffer_, SPEAKER_BUFFER_SIZE);
+    this->speaker_buffer_ = nullptr;
+  }
+#endif
 }
 
 int VoiceAssistant::read_microphone_() {
@@ -138,21 +197,20 @@ void VoiceAssistant::loop() {
     }
     this->continuous_ = false;
     this->signal_stop_();
+    this->clear_buffers_();
     return;
   }
   switch (this->state_) {
     case State::IDLE: {
       if (this->continuous_ && this->desired_state_ == State::IDLE) {
         this->idle_trigger_->trigger();
-
-        this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
         if (this->use_wake_word_) {
           this->set_state_(State::START_MICROPHONE, State::WAIT_FOR_VAD);
         } else
 #endif
         {
-          this->set_state_(State::START_PIPELINE, State::START_MICROPHONE);
+          this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
         }
       } else {
         this->high_freq_.stop();
@@ -161,8 +219,15 @@ void VoiceAssistant::loop() {
     }
     case State::START_MICROPHONE: {
       ESP_LOGD(TAG, "Starting Microphone");
-      memset(this->send_buffer_, 0, SEND_BUFFER_SIZE);
-      memset(this->input_buffer_, 0, INPUT_BUFFER_SIZE * sizeof(int16_t));
+      if (!this->allocate_buffers_()) {
+        this->status_set_error("Failed to allocate buffers");
+        return;
+      }
+      if (this->status_has_error()) {
+        this->status_clear_error();
+      }
+      this->clear_buffers_();
+
       this->mic_->start();
       this->high_freq_.start();
       this->set_state_(State::STARTING_MICROPHONE);
@@ -318,7 +383,7 @@ void VoiceAssistant::loop() {
 #endif
 #ifdef USE_MEDIA_PLAYER
       if (this->media_player_ != nullptr) {
-        playing = (this->media_player_->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING);
+        playing = (this->media_player_->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING);
       }
 #endif
       if (playing) {
@@ -343,10 +408,9 @@ void VoiceAssistant::loop() {
         this->speaker_->stop();
         this->cancel_timeout("speaker-timeout");
         this->cancel_timeout("playing");
-        this->speaker_buffer_size_ = 0;
-        this->speaker_buffer_index_ = 0;
-        this->speaker_bytes_received_ = 0;
-        memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
+
+        this->clear_buffers_();
+
         this->wait_for_stream_end_ = false;
         this->stream_ended_ = false;
 
@@ -364,14 +428,15 @@ void VoiceAssistant::loop() {
 #ifdef USE_SPEAKER
 void VoiceAssistant::write_speaker_() {
   if (this->speaker_buffer_size_ > 0) {
-    size_t written = this->speaker_->play(this->speaker_buffer_, this->speaker_buffer_size_);
+    size_t write_chunk = std::min<size_t>(this->speaker_buffer_size_, 4 * 1024);
+    size_t written = this->speaker_->play(this->speaker_buffer_, write_chunk);
     if (written > 0) {
       memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
       this->speaker_buffer_size_ -= written;
       this->speaker_buffer_index_ -= written;
       this->set_timeout("speaker-timeout", 5000, [this]() { this->speaker_->stop(); });
     } else {
-      ESP_LOGD(TAG, "Speaker buffer full, trying again next loop");
+      ESP_LOGV(TAG, "Speaker buffer full, trying again next loop");
     }
   }
 }
@@ -507,14 +572,13 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
   if (this->state_ == State::IDLE) {
     this->continuous_ = continuous;
     this->silence_detection_ = silence_detection;
-    this->ring_buffer_->reset();
 #ifdef USE_ESP_ADF
     if (this->use_wake_word_) {
       this->set_state_(State::START_MICROPHONE, State::WAIT_FOR_VAD);
     } else
 #endif
     {
-      this->set_state_(State::START_PIPELINE, State::START_MICROPHONE);
+      this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
     }
   }
 }
@@ -560,7 +624,7 @@ void VoiceAssistant::signal_stop_() {
 }
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
-  ESP_LOGD(TAG, "Event Type: %d", msg.event_type);
+  ESP_LOGD(TAG, "Event Type: %" PRId32, msg.event_type);
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
@@ -620,7 +684,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this, text]() {
         this->tts_start_trigger_->trigger(text);
 #ifdef USE_SPEAKER
-        this->speaker_->start();
+        if (this->speaker_ != nullptr) {
+          this->speaker_->start();
+        }
 #endif
       });
       break;
@@ -640,7 +706,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this, url]() {
 #ifdef USE_MEDIA_PLAYER
         if (this->media_player_ != nullptr) {
-          this->media_player_->make_call().set_media_url(url).perform();
+          this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
         }
 #endif
         this->tts_end_trigger_->trigger(url);
@@ -723,7 +789,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this]() { this->stt_vad_end_trigger_->trigger(); });
       break;
     default:
-      ESP_LOGD(TAG, "Unhandled event type: %d", msg.event_type);
+      ESP_LOGD(TAG, "Unhandled event type: %" PRId32, msg.event_type);
       break;
   }
 }
@@ -735,10 +801,63 @@ void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
     this->speaker_buffer_index_ += msg.data.length();
     this->speaker_buffer_size_ += msg.data.length();
     this->speaker_bytes_received_ += msg.data.length();
+    ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data.length());
   } else {
     ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
   }
 #endif
+}
+
+void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse &msg) {
+  Timer timer = {
+      .id = msg.timer_id,
+      .name = msg.name,
+      .total_seconds = msg.total_seconds,
+      .seconds_left = msg.seconds_left,
+      .is_active = msg.is_active,
+  };
+  this->timers_[timer.id] = timer;
+  ESP_LOGD(TAG, "Timer Event");
+  ESP_LOGD(TAG, "  Type: %" PRId32, msg.event_type);
+  ESP_LOGD(TAG, "  %s", timer.to_string().c_str());
+
+  switch (msg.event_type) {
+    case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
+      this->timer_started_trigger_->trigger(timer);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_UPDATED:
+      this->timer_updated_trigger_->trigger(timer);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_CANCELLED:
+      this->timer_cancelled_trigger_->trigger(timer);
+      this->timers_.erase(timer.id);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_FINISHED:
+      this->timer_finished_trigger_->trigger(timer);
+      this->timers_.erase(timer.id);
+      break;
+  }
+
+  if (this->timers_.empty()) {
+    this->cancel_interval("timer-event");
+    this->timer_tick_running_ = false;
+  } else if (!this->timer_tick_running_) {
+    this->set_interval("timer-event", 1000, [this]() { this->timer_tick_(); });
+    this->timer_tick_running_ = true;
+  }
+}
+
+void VoiceAssistant::timer_tick_() {
+  std::vector<Timer> res;
+  res.reserve(this->timers_.size());
+  for (auto &pair : this->timers_) {
+    auto &timer = pair.second;
+    if (timer.is_active && timer.seconds_left > 0) {
+      timer.seconds_left--;
+    }
+    res.push_back(timer);
+  }
+  this->timer_tick_trigger_->trigger(res);
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -229,7 +229,6 @@ def lint_ext_check(fname):
         "docker/ha-addon-rootfs/**",
         "docker/*.py",
         "script/*",
-        "setup.py",
     ]
 )
 def lint_executable_bit(fname):
@@ -476,7 +475,7 @@ def lint_no_byte_datatype(fname, match):
 def lint_constants_usage():
     errs = []
     for constant, uses in CONSTANTS_USES.items():
-        if len(uses) < 4:
+        if len(uses) < 3:
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
@@ -631,7 +630,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",
-        "esphome/components/text/text.h",
+        "esphome/components/one_wire/one_wire.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
         "esphome/components/nextion/nextion_base.h",
@@ -639,6 +638,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/sensor/sensor.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
+        "esphome/components/text/text.h",
         "esphome/components/text_sensor/text_sensor.h",
         "esphome/components/valve/valve.h",
         "esphome/core/component.h",
