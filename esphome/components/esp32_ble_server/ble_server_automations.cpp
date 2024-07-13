@@ -34,14 +34,14 @@ void BLECharacteristicSetValueActionManager::set_listener(BLECharacteristic *cha
     this->off(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, old_pre_notify_listener_id);
   }
   // Create a new listener for the pre-notify event
-  EventEmitterListenerID pre_notify_listener_id = this->on(
-      BLECharacteristicSetValueActionEvt::PRE_NOTIFY,
-      [pre_notify_listener, characteristic](const BLECharacteristic *evt_characteristic) {
-        // Only call the pre-notify listener if the characteristic is the one we are interested in
-        if (characteristic == evt_characteristic) {
-          pre_notify_listener();
-        }
-      }
+  EventEmitterListenerID pre_notify_listener_id =
+      this->on(BLECharacteristicSetValueActionEvt::PRE_NOTIFY,
+               [pre_notify_listener, characteristic](const BLECharacteristic *evt_characteristic) {
+                 // Only call the pre-notify listener if the characteristic is the one we are interested in
+                 if (characteristic == evt_characteristic) {
+                   pre_notify_listener();
+                 }
+               }
   );
   // Save the pair listener_id, pre_notify_listener_id to the map
   this->listeners_[characteristic] = std::make_pair(listener_id, pre_notify_listener_id);

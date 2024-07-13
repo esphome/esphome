@@ -28,16 +28,22 @@ enum BLECharacteristicSetValueActionEvt {
 };
 
 // Class to make sure only one BLECharacteristicSetValueAction is active at a time
-class BLECharacteristicSetValueActionManager : public EventEmitter<BLECharacteristicSetValueActionEvt, BLECharacteristic *> {
+class BLECharacteristicSetValueActionManager
+    : public EventEmitter<BLECharacteristicSetValueActionEvt, BLECharacteristic *> {
  public:
   // Singleton pattern
   static BLECharacteristicSetValueActionManager *get_instance() {
     static BLECharacteristicSetValueActionManager instance;
     return &instance;
   }
-  void set_listener(BLECharacteristic *characteristic, EventEmitterListenerID listener_id, std::function<void()> pre_notify_listener);
-  EventEmitterListenerID get_listener(BLECharacteristic *characteristic) { return this->listeners_[characteristic].first; }
-  void emit_pre_notify(BLECharacteristic *characteristic) { this->emit_(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, characteristic); }
+  void set_listener(BLECharacteristic *characteristic, EventEmitterListenerID listener_id,
+                    std::function<void()> pre_notify_listener);
+  EventEmitterListenerID get_listener(BLECharacteristic *characteristic) {
+    return this->listeners_[characteristic].first;
+  }
+  void emit_pre_notify(BLECharacteristic *characteristic) {
+    this->emit_(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, characteristic);
+  }
 
  private:
   std::unordered_map<BLECharacteristic *, std::pair<EventEmitterListenerID, EventEmitterListenerID>> listeners_;
@@ -61,9 +67,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
         });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(
-        this->parent_, this->listener_id_, [this, x...]() {
-          this->parent_->set_value(this->value_.value(x...));
-        });
+        this->parent_, this->listener_id_, [this, x...]() { this->parent_->set_value(this->value_.value(x...)); });
   }
 
  protected:
