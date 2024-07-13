@@ -82,7 +82,7 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     result.is_light = data[0];
   }
   // MiaoMiaoce Battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x100A) && (value_length == 1)) {
+  else if ((value_type == 0x4803) && (value_length == 1)) {
     result.battery_level = data[0];
   }
   // MiaoMiaoce temperature, 4 bytes, float, 0.1 °C
