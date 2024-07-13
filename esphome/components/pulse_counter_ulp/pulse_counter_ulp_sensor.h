@@ -15,7 +15,7 @@ namespace pulse_counter_ulp {
 
 enum class CountMode { disable = 0, increment = 1, decrement = -1 };
 
-using pulse_counter_t = int32_t;
+using pulse_counter_t = int16_t;
 using timestamp_t = int64_t;
 
 struct UlpPulseCounterStorage {
