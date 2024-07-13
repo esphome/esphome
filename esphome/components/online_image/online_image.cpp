@@ -36,67 +36,11 @@ OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFor
   this->set_url(url);
 }
 
-void OnlineImage::draw(int x, int y, Display *display, Color color_on, Color color_off) {
-  switch (this->type_) {
-    case ImageType::IMAGE_TYPE_BINARY: {
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
-          if (this->get_binary_pixel_(img_x, img_y)) {
-            display->draw_pixel_at(x + img_x, y + img_y, color_on);
-          } else if (!this->transparent_) {
-            display->draw_pixel_at(x + img_x, y + img_y, color_off);
-          }
-        }
-      }
-      break;
-    }
-    case ImageType::IMAGE_TYPE_GRAYSCALE:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
-          auto color = this->get_grayscale_pixel_(img_x, img_y);
-          if (color.w >= 0x80) {
-            display->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-    case ImageType::IMAGE_TYPE_RGB565:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
-          auto color = this->get_rgb565_pixel_(img_x, img_y);
-          if (color.w >= 0x80) {
-            display->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-    case ImageType::IMAGE_TYPE_RGB24:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
-          auto color = this->get_rgb24_pixel_(img_x, img_y);
-          if (color.w >= 0x80) {
-            display->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-    case ImageType::IMAGE_TYPE_RGBA:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
-          auto color = this->get_rgba_pixel_(img_x, img_y);
-          if (color.w >= 0x80) {
-            display->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-  }
-}
-
 void OnlineImage::release() {
   if (this->buffer_) {
     ESP_LOGD(TAG, "Deallocating old buffer...");
     this->allocator_.deallocate(buffer_, get_buffer_size_());
+    this->data_start_ = nullptr;
     this->buffer_ = nullptr;
     this->width_ = 0;
     this->height_ = 0;
@@ -243,12 +187,12 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
   uint32_t pos = get_position_(x, y);
   switch (type_) {
     case ImageType::IMAGE_TYPE_BINARY: {
-      uint32_t byte_num = pos;
-      uint8_t bit_num = (x + y * buffer_width_) % 8;
+      const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
+      const uint32_t pos = x + y * width_8;
       if ((this->has_transparency() && color.w > 127) || is_color_on(color)) {
-        buffer_[byte_num] |= 1 << bit_num;
+        this->buffer_[pos / 8u] |= (0x80 >> (pos % 8u));
       } else {
-        buffer_[byte_num] &= ~(1 << bit_num);
+        this->buffer_[pos / 8u] &= ~(0x80 >> (pos % 8u));
       }
       break;
     }
@@ -304,59 +248,6 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
       break;
     }
   }
-}
-
-bool OnlineImage::get_binary_pixel_(int x, int y) const {
-  uint32_t pos = x + y * width_;
-  uint8_t position_offset = pos % 8;
-  uint8_t mask = 1 << position_offset;
-  return buffer_[pos / 8] & mask;
-}
-
-Color OnlineImage::get_grayscale_pixel_(int x, int y) const {
-  auto pos = get_position_(x, y);
-  uint8_t grey = buffer_[pos];
-  uint8_t alpha;
-  if (grey == 1 && this->has_transparency()) {
-    alpha = 0;
-  } else {
-    alpha = 0xFF;
-  }
-  return Color(grey, grey, grey, alpha);
-}
-
-Color OnlineImage::get_rgb565_pixel_(int x, int y) const {
-  auto pos = get_position_(x, y);
-  uint16_t col565 = encode_uint16(buffer_[pos], buffer_[pos + 1]);
-  uint8_t alpha;
-  if (col565 == 0x0020 && this->has_transparency()) {
-    alpha = 0;
-  } else {
-    alpha = 0xFF;
-  }
-  return Color(static_cast<uint8_t>((col565 >> 8) & 0xF8), static_cast<uint8_t>((col565 & 0x7E0) >> 3),
-               static_cast<uint8_t>((col565 & 0x1F) << 3), alpha);
-}
-
-Color OnlineImage::get_color_pixel_(int x, int y) const {
-  auto pos = get_position_(x, y);
-  auto r = buffer_[pos + 0];
-  auto g = buffer_[pos + 1];
-  auto b = buffer_[pos + 2];
-  auto a = (b == 1 && r == 0 && g == 0 && this->has_transparency()) ? 0 : 0xFF;
-  return Color(r, g, b, a);
-}
-
-Color OnlineImage::get_rgba_pixel_(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_) {
-    return Color(0);
-  }
-  auto pos = get_position_(x, y);
-  auto r = buffer_[pos + 0];
-  auto g = buffer_[pos + 1];
-  auto b = buffer_[pos + 2];
-  auto a = buffer_[pos + 3];
-  return Color(r, g, b, a);
 }
 
 void OnlineImage::end_connection_() {

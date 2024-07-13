@@ -50,8 +50,6 @@ class OnlineImage : public PollingComponent,
   OnlineImage(const std::string &url, int width, int height, ImageFormat format, image::ImageType type,
               uint32_t buffer_size);
 
-  void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
-
   void update() override;
   void loop() override;
 
@@ -74,12 +72,6 @@ class OnlineImage : public PollingComponent,
  protected:
   bool validate_url_(const std::string &url);
 
-  bool get_binary_pixel_(int x, int y) const;
-  Color get_rgba_pixel_(int x, int y) const;
-  Color get_color_pixel_(int x, int y) const;
-  Color get_rgb565_pixel_(int x, int y) const;
-  Color get_grayscale_pixel_(int x, int y) const;
-
   using Allocator = ExternalRAMAllocator<uint8_t>;
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
 
@@ -93,6 +85,18 @@ class OnlineImage : public PollingComponent,
   ESPHOME_ALWAYS_INLINE bool auto_resize_() const { return fixed_width_ == 0 || fixed_height_ == 0; }
 
   bool resize_(int width, int height);
+
+  /**
+   * @brief Draw a pixel into the buffer.
+   *
+   * This is used by the decoder to fill the buffer that will later be displayed
+   * by the `draw` method. This will internally convert the supplied 32 bit RGBA
+   * color into the requested image storage format.
+   *
+   * @param x Horizontal pixel position.
+   * @param y Vertical pixel position.
+   * @param color 32 bit color to put into the pixel.
+   */
   void draw_pixel_(int x, int y, Color color);
 
   void end_connection_();
