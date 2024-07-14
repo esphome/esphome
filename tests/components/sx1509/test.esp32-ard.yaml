@@ -1,0 +1,33 @@
+i2c:
+  - id: i2c_sx1509
+    scl: 16
+    sda: 17
+
+sx1509:
+  - id: sx1509_hub
+    address: 0x3E
+
+binary_sensor:
+  - platform: gpio
+    name: GPIO SX1509 Test
+    pin:
+      sx1509: sx1509_hub
+      number: 3
+
+switch:
+  - platform: gpio
+    name: GPIO SX1509 Test Out Open Drain
+    pin:
+      sx1509: sx1509_hub
+      number: 0
+      mode:
+        output: true
+        open_drain: true
+
+  - platform: gpio
+    name: GPIO SX1509 Test Out Standard
+    pin:
+      sx1509: sx1509_hub
+      number: 1
+      mode:
+        output: true

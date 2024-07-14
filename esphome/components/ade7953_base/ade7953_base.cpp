@@ -1,10 +1,15 @@
 #include "ade7953_base.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace ade7953_base {
 
 static const char *const TAG = "ade7953";
+
+static const float ADE_POWER_FACTOR = 154.0f;
+static const float ADE_WATTSEC_POWER_FACTOR = ADE_POWER_FACTOR * ADE_POWER_FACTOR / 3600;
 
 void ADE7953::setup() {
   if (this->irq_pin_ != nullptr) {
@@ -34,6 +39,7 @@ void ADE7953::setup() {
     this->ade_read_32(BIGAIN_32, &bigain_);
     this->ade_read_32(AWGAIN_32, &awgain_);
     this->ade_read_32(BWGAIN_32, &bwgain_);
+    this->last_update_ = millis();
     this->is_setup_ = true;
   });
 }
@@ -52,6 +58,7 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
   LOG_SENSOR("  ", "Rective Power A Sensor", this->reactive_power_a_sensor_);
   LOG_SENSOR("  ", "Reactive Power B Sensor", this->reactive_power_b_sensor_);
+  ESP_LOGCONFIG(TAG, "  USE_ACC_ENERGY_REGS: %d", this->use_acc_energy_regs_);
   ESP_LOGCONFIG(TAG, "  PGA_V_8: 0x%X", pga_v_);
   ESP_LOGCONFIG(TAG, "  PGA_IA_8: 0x%X", pga_ia_);
   ESP_LOGCONFIG(TAG, "  PGA_IB_8: 0x%X", pga_ib_);
@@ -85,6 +92,7 @@ void ADE7953::update() {
 
   uint32_t val;
   uint16_t val_16;
+  uint16_t reg;
 
   // Power factor
   err = this->ade_read_16(0x010A, &val_16);
@@ -92,23 +100,36 @@ void ADE7953::update() {
   err = this->ade_read_16(0x010B, &val_16);
   ADE_PUBLISH(power_factor_b, (int16_t) val_16, (0x7FFF / 100.0f));
 
+  float pf = ADE_POWER_FACTOR;
+  if (this->use_acc_energy_regs_) {
+    const uint32_t now = millis();
+    const auto diff = now - this->last_update_;
+    this->last_update_ = now;
+    // prevent DIV/0
+    pf = ADE_WATTSEC_POWER_FACTOR * (diff < 10 ? 10 : diff) / 1000;
+    ESP_LOGVV(TAG, "ADE7953::update() diff=%" PRIu32 " pf=%f", diff, pf);
+  }
+
   // Apparent power
-  err = this->ade_read_32(0x0310, &val);
-  ADE_PUBLISH(apparent_power_a, (int32_t) val, 154.0f);
-  err = this->ade_read_32(0x0311, &val);
-  ADE_PUBLISH(apparent_power_b, (int32_t) val, 154.0f);
+  reg = this->use_acc_energy_regs_ ? 0x0322 : 0x0310;
+  err = this->ade_read_32(reg, &val);
+  ADE_PUBLISH(apparent_power_a, (int32_t) val, pf);
+  err = this->ade_read_32(reg + 1, &val);
+  ADE_PUBLISH(apparent_power_b, (int32_t) val, pf);
 
   // Active power
-  err = this->ade_read_32(0x0312, &val);
-  ADE_PUBLISH(active_power_a, (int32_t) val, 154.0f);
-  err = this->ade_read_32(0x0313, &val);
-  ADE_PUBLISH(active_power_b, (int32_t) val, 154.0f);
+  reg = this->use_acc_energy_regs_ ? 0x031E : 0x0312;
+  err = this->ade_read_32(reg, &val);
+  ADE_PUBLISH(active_power_a, (int32_t) val, pf);
+  err = this->ade_read_32(reg + 1, &val);
+  ADE_PUBLISH(active_power_b, (int32_t) val, pf);
 
   // Reactive power
-  err = this->ade_read_32(0x0314, &val);
-  ADE_PUBLISH(reactive_power_a, (int32_t) val, 154.0f);
-  err = this->ade_read_32(0x0315, &val);
-  ADE_PUBLISH(reactive_power_b, (int32_t) val, 154.0f);
+  reg = this->use_acc_energy_regs_ ? 0x0320 : 0x0314;
+  err = this->ade_read_32(reg, &val);
+  ADE_PUBLISH(reactive_power_a, (int32_t) val, pf);
+  err = this->ade_read_32(reg + 1, &val);
+  ADE_PUBLISH(reactive_power_b, (int32_t) val, pf);
 
   // Current
   err = this->ade_read_32(0x031A, &val);

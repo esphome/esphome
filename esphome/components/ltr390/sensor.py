@@ -2,16 +2,18 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
-    CONF_ID,
+    CONF_AMBIENT_LIGHT,
     CONF_GAIN,
+    CONF_ID,
     CONF_LIGHT,
     CONF_RESOLUTION,
-    UNIT_LUX,
-    ICON_BRIGHTNESS_5,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
+    ICON_BRIGHTNESS_5,
+    UNIT_LUX,
 )
 
-CODEOWNERS = ["@sjtrny"]
+CODEOWNERS = ["@sjtrny", "@latonita"]
 DEPENDENCIES = ["i2c"]
 
 ltr390_ns = cg.esphome_ns.namespace("ltr390")
@@ -20,7 +22,6 @@ LTR390Component = ltr390_ns.class_(
     "LTR390Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_AMBIENT_LIGHT = "ambient_light"
 CONF_UV_INDEX = "uv_index"
 CONF_UV = "uv"
 CONF_WINDOW_CORRECTION_FACTOR = "window_correction_factor"
@@ -61,22 +62,38 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_UV_INDEX): sensor.sensor_schema(
                 unit_of_measurement=UNIT_UVI,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=5,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_UV): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
-            cv.Optional(CONF_GAIN, default="X3"): cv.enum(GAIN_OPTIONS),
-            cv.Optional(CONF_RESOLUTION, default=18): cv.enum(RES_OPTIONS),
+            cv.Optional(CONF_GAIN, default="X18"): cv.Any(
+                cv.enum(GAIN_OPTIONS),
+                cv.Schema(
+                    {
+                        cv.Required(CONF_AMBIENT_LIGHT): cv.enum(GAIN_OPTIONS),
+                        cv.Required(CONF_UV): cv.enum(GAIN_OPTIONS),
+                    }
+                ),
+            ),
+            cv.Optional(CONF_RESOLUTION, default=20): cv.Any(
+                cv.enum(RES_OPTIONS),
+                cv.Schema(
+                    {
+                        cv.Required(CONF_AMBIENT_LIGHT): cv.enum(RES_OPTIONS),
+                        cv.Required(CONF_UV): cv.enum(RES_OPTIONS),
+                    }
+                ),
+            ),
             cv.Optional(CONF_WINDOW_CORRECTION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
@@ -100,11 +117,25 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_gain_value(config[CONF_GAIN]))
-    cg.add(var.set_res_value(config[CONF_RESOLUTION]))
     cg.add(var.set_wfac_value(config[CONF_WINDOW_CORRECTION_FACTOR]))
 
     for key, funcName in TYPES.items():
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
+
+    gain_value = config[CONF_GAIN]
+    if isinstance(gain_value, dict):
+        cg.add(var.set_als_gain_value(gain_value[CONF_AMBIENT_LIGHT]))
+        cg.add(var.set_uv_gain_value(gain_value[CONF_UV]))
+    else:
+        cg.add(var.set_als_gain_value(gain_value))
+        cg.add(var.set_uv_gain_value(gain_value))
+
+    res_value = config[CONF_RESOLUTION]
+    if isinstance(res_value, dict):
+        cg.add(var.set_als_res_value(res_value[CONF_AMBIENT_LIGHT]))
+        cg.add(var.set_uv_res_value(res_value[CONF_UV]))
+    else:
+        cg.add(var.set_als_res_value(res_value))
+        cg.add(var.set_uv_res_value(res_value))

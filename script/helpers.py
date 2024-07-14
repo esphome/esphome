@@ -70,11 +70,11 @@ def splitlines_no_ends(string):
     return [s.strip() for s in string.splitlines()]
 
 
-def changed_files():
+def changed_files(branch="dev"):
     check_remotes = ["upstream", "origin"]
     check_remotes.extend(splitlines_no_ends(get_output("git", "remote")))
     for remote in check_remotes:
-        command = ["git", "merge-base", f"refs/remotes/{remote}/dev", "HEAD"]
+        command = ["git", "merge-base", f"refs/remotes/{remote}/{branch}", "HEAD"]
         try:
             merge_base = splitlines_no_ends(get_output(*command))[0]
             break

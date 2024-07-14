@@ -87,7 +87,7 @@ class BSDSocketImpl : public Socket {
   int listen(int backlog) override { return ::listen(fd_, backlog); }
   ssize_t read(void *buf, size_t len) override { return ::read(fd_, buf, len); }
   ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) override {
-#if defined(USE_ESP32)
+#if defined(USE_ESP32) || defined(USE_HOST)
     return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
 #else
     return ::lwip_recvfrom(this->fd_, buf, len, 0, addr, addr_len);

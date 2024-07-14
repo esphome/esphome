@@ -265,8 +265,8 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
   int32_t const var2 = (((((adc >> 4) - t1) * ((adc >> 4) - t1)) >> 12) * t3) >> 14;
   *t_fine = var1 + var2;
 
-  float const temperature = (*t_fine * 5 + 128) >> 8;
-  return temperature / 100.0f;
+  float const temperature = (*t_fine * 5 + 128);
+  return temperature / 25600.0f;
 }
 
 float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
