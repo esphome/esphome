@@ -5,3 +5,38 @@ wifi:
 web_server:
   port: 8080
   version: 2
+
+binary_sensor:
+cover:
+fan:
+light:
+sensor:
+switch:
+button:
+text_sensor:
+climate:
+number:
+text:
+select:
+lock:
+valve:
+alarm_control_panel:
+api:
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+datetime:
+  - platform: template
+    id: my_datetime_date
+    type: date
+    optimistic: yes
+  - platform: template
+    id: my_datetime_time
+    type: time
+    optimistic: yes
+  - platform: template
+    id: my_datetime
+    type: datetime
+    optimistic: yes
+event:
+update:

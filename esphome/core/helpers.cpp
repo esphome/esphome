@@ -78,7 +78,7 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
 
 // STL backports
 
-#if _GLIBCXX_RELEASE < 7
+#if _GLIBCXX_RELEASE < 8
 std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
 std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
 std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
