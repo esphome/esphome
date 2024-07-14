@@ -13,7 +13,7 @@ from esphome.const import (
     UNIT_LUX,
 )
 
-CODEOWNERS = ["@sjtrny"]
+CODEOWNERS = ["@sjtrny", "@latonita"]
 DEPENDENCIES = ["i2c"]
 
 ltr390_ns = cg.esphome_ns.namespace("ltr390")
@@ -76,8 +76,24 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_EMPTY,
             ),
-            cv.Optional(CONF_GAIN, default="X18"): cv.enum(GAIN_OPTIONS),
-            cv.Optional(CONF_RESOLUTION, default=20): cv.enum(RES_OPTIONS),
+            cv.Optional(CONF_GAIN, default="X18"): cv.Any(
+                cv.enum(GAIN_OPTIONS),
+                cv.Schema(
+                    {
+                        cv.Required(CONF_AMBIENT_LIGHT): cv.enum(GAIN_OPTIONS),
+                        cv.Required(CONF_UV): cv.enum(GAIN_OPTIONS),
+                    }
+                ),
+            ),
+            cv.Optional(CONF_RESOLUTION, default=20): cv.Any(
+                cv.enum(RES_OPTIONS),
+                cv.Schema(
+                    {
+                        cv.Required(CONF_AMBIENT_LIGHT): cv.enum(RES_OPTIONS),
+                        cv.Required(CONF_UV): cv.enum(RES_OPTIONS),
+                    }
+                ),
+            ),
             cv.Optional(CONF_WINDOW_CORRECTION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
@@ -101,11 +117,25 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_gain_value(config[CONF_GAIN]))
-    cg.add(var.set_res_value(config[CONF_RESOLUTION]))
     cg.add(var.set_wfac_value(config[CONF_WINDOW_CORRECTION_FACTOR]))
 
     for key, funcName in TYPES.items():
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
+
+    gain_value = config[CONF_GAIN]
+    if isinstance(gain_value, dict):
+        cg.add(var.set_als_gain_value(gain_value[CONF_AMBIENT_LIGHT]))
+        cg.add(var.set_uv_gain_value(gain_value[CONF_UV]))
+    else:
+        cg.add(var.set_als_gain_value(gain_value))
+        cg.add(var.set_uv_gain_value(gain_value))
+
+    res_value = config[CONF_RESOLUTION]
+    if isinstance(res_value, dict):
+        cg.add(var.set_als_res_value(res_value[CONF_AMBIENT_LIGHT]))
+        cg.add(var.set_uv_res_value(res_value[CONF_UV]))
+    else:
+        cg.add(var.set_als_res_value(res_value))
+        cg.add(var.set_uv_res_value(res_value))
