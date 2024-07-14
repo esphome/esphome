@@ -12,6 +12,7 @@ namespace jsn_sr04t {
 enum Model {
   JSN_SR04T,
   AJ_SR04M,
+  RCWL_1655,
 };
 
 class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
@@ -25,6 +26,7 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
 
  protected:
   void check_buffer_();
+  void parse_buffer_rclw_1655_();
   Model model_;
 
   std::vector<uint8_t> buffer_;
