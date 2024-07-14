@@ -49,8 +49,8 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     const uint16_t conductivity = encode_uint16(data[1], data[0]);
     result.conductivity = conductivity;
   }
-  // battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x100A) && (value_length == 1)) {
+  // battery / MiaoMiaoce battery, 1 byte, 8-bit unsigned integer, 1 %
+  else if ((value_type == 0x100A || value_type == 0x4803) && (value_length == 1)) {
     result.battery_level = data[0];
   }
   // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
@@ -80,10 +80,6 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     result.has_motion = !idle_time;
   } else if ((value_type == 0x1018) && (value_length == 1)) {
     result.is_light = data[0];
-  }
-  // MiaoMiaoce Battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x4803) && (value_length == 1)) {
-    result.battery_level = data[0];
   }
   // MiaoMiaoce temperature, 4 bytes, float, 0.1 °C
   else if ((value_type == 0x4C01) && (value_length == 4)) {
