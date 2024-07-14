@@ -52,6 +52,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   config.timeout_ms = this->timeout_;
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
+  config.auth_type = HTTP_AUTH_TYPE_BASIC;
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
   if (secure) {
     config.crt_bundle_attach = esp_crt_bundle_attach;
