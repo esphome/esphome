@@ -52,6 +52,7 @@ const uint8_t MITSUBISHI_BYTE16 = 0X00;
 
 climate::ClimateTraits MitsubishiClimate::traits() {
   auto traits = climate::ClimateTraits();
+  traits.set_supports_current_temperature(this->sensor_ != nullptr);
   traits.set_supports_action(false);
   traits.set_visual_min_temperature(MITSUBISHI_TEMP_MIN);
   traits.set_visual_max_temperature(MITSUBISHI_TEMP_MAX);
