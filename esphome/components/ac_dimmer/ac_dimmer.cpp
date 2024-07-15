@@ -13,6 +13,7 @@
 #endif
 
 #ifdef USE_ESP32_FRAMEWORK_ESP_IDF
+#include "esp_idf_version.h"
 #include "hw_timer_esp_idf.h"
 #endif
 
@@ -195,7 +196,8 @@ void AcDimmer::setup() {
   // PWM and AcDimmer can even run at the same time this way
   setTimer1Callback(&timer_interrupt);
 #endif
-#ifdef USE_ESP32
+
+#if USE_ESP32 && (ESP_IDF_VERSION_MAJOR == 4)
   // 80 Divider -> 1 count=1µs
   dimmer_timer = timerBegin(0, 80, true);
   timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr, true);
@@ -204,6 +206,16 @@ void AcDimmer::setup() {
   // Here we just use an interrupt firing every 50 µs.
   timerAlarmWrite(dimmer_timer, 50, true);
   timerAlarmEnable(dimmer_timer);
+#endif
+#if USE_ESP32 && (ESP_IDF_VERSION_MAJOR == 5)
+  // 1 MHz -> 1 count=1µs
+  dimmer_timer = timerBegin(1000000);
+  timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
+  // For ESP32, we can't use dynamic interval calculation because the timerX functions
+  // are not callable from ISR (placed in flash storage).
+  // Here we just use an interrupt firing every 50 µs.
+  timerAlarm(dimmer_timer, 50, true, 0);
+  timerStart(dimmer_timer);
 #endif
 }
 
