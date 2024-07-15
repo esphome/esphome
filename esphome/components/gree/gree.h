@@ -41,6 +41,10 @@ const uint32_t GREE_YAC_HEADER_MARK = 6000;
 const uint32_t GREE_YAC_HEADER_SPACE = 3000;
 const uint32_t GREE_YAC_BIT_MARK = 650;
 
+// Timing specific to YAC1FB9
+const uint32_t GREE_YAC1FB9_HEADER_SPACE = 4500;
+const uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
+
 // State Frame size
 const uint8_t GREE_STATE_FRAME_SIZE = 8;
 
@@ -67,7 +71,7 @@ const uint8_t GREE_HDIR_MRIGHT = 0x05;
 const uint8_t GREE_HDIR_RIGHT = 0x06;
 
 // Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC };
+enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9 };
 
 class GreeClimate : public climate_ir::ClimateIR {
  public:
