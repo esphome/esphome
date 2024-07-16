@@ -5,8 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef __linux__
-#error This HostUartComponent implementation is only for Linux
+#if !(defined(__linux__) || defined(__APPLE__))
+#error This HostUartComponent implementation is not supported on this host OS
 #endif
 
 #include <stdio.h>
@@ -24,6 +24,9 @@
 namespace {
 
 speed_t get_baud(int baud) {
+#ifdef __APPLE__
+  return baud;
+#else
   switch (baud) {
     case 50:
       return B50;
@@ -88,6 +91,7 @@ speed_t get_baud(int baud) {
     default:
       return B0;
   }
+#endif
 }
 
 }  // namespace
