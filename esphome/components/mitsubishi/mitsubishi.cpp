@@ -140,7 +140,7 @@ void MitsubishiClimate::transmit_state() {
       remote_state[8] = MITSUBISHI_MODE_A_COOL;
       if (this->supports_heat_) {
         remote_state[6] = MITSUBISHI_MODE_HEAT;
-        remote_state[8] = MITSUBISHI_MODE_A_HEAT; 
+        remote_state[8] = MITSUBISHI_MODE_A_HEAT;
       }
       remote_state[5] = MITSUBISHI_OFF;
       break;
