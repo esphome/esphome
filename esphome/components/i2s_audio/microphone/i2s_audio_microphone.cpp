@@ -46,7 +46,7 @@ void I2SAudioMicrophone::start_() {
     return;  // Waiting for another i2s to return lock
   }
   i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
+      .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_RX),
       .sample_rate = this->sample_rate_,
       .bits_per_sample = this->bits_per_sample_,
       .channel_format = this->channel_,
@@ -174,8 +174,7 @@ size_t I2SAudioMicrophone::read(int16_t *buf, size_t len) {
     size_t samples_read = bytes_read / sizeof(int32_t);
     samples.resize(samples_read);
     for (size_t i = 0; i < samples_read; i++) {
-      int32_t temp = reinterpret_cast<int32_t *>(buf)[i] >> 14;
-      samples[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
+      samples[i] = reinterpret_cast<int32_t *>(buf)[i] >> 16;
     }
     memcpy(buf, samples.data(), samples_read * sizeof(int16_t));
     return samples_read * sizeof(int16_t);
