@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef USE_ESP_IDF
+
 #include "modem_component.h"
 
 #include "esphome/core/automation.h"
@@ -15,3 +18,4 @@ class ModemNotRespondingTrigger : public Trigger<> {
 
 }  // namespace modem
 }  // namespace esphome
+#endif  // USE_ESP_IDF
