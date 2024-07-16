@@ -6,12 +6,13 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_MODEL,
+    CONF_TRIGGER_ID,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import coroutine_with_priority
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome.components.binary_sensor import BinarySensor
+from esphome import automation
 
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
@@ -19,18 +20,19 @@ AUTO_LOAD = ["network"]
 # following should be removed if conflicts are resolved (so we can have a wifi ap using modem)
 CONFLICTS_WITH = ["wifi", "captive_portal", "ethernet"]
 
-CONF_POWER_PIN = "power_pin"
-CONF_FLIGHT_PIN = "flight_pin"
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
-CONF_STATUS_PIN = "status_pin"
 CONF_DTR_PIN = "dtr_pin"
 CONF_INIT_AT = "init_at"
-CONF_READY = "ready"
-
+# CONF_ON_SCRIPT = "on_script"
+# CONF_OFF_SCRIPT = "off_script"
+CONF_ON_NOT_RESPONDING = "on_not_responding"
 
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
+ModemNotRespondingTrigger = modem_ns.class_(
+    "ModemNotRespondingTrigger", automation.Trigger.template()
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -41,16 +43,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_RX_PIN): cv.positive_int,
             cv.Required(CONF_MODEL): cv.string,
             cv.Required(CONF_APN): cv.string,
-            cv.Required(CONF_READY): cv.use_id(BinarySensor),
-            cv.Optional(CONF_FLIGHT_PIN): cv.positive_int,
-            cv.Optional(CONF_POWER_PIN): cv.positive_int,
-            cv.Optional(CONF_STATUS_PIN): cv.positive_int,
+            # cv.Optional(CONF_ON_SCRIPT): cv.use_id(Script),
+            # cv.Optional(CONF_OFF_SCRIPT): cv.use_id(Script),
             cv.Optional(CONF_DTR_PIN): cv.positive_int,
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string,
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
+            cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        ModemNotRespondingTrigger
+                    )
+                }
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -102,9 +109,17 @@ async def to_code(config):
         for cmd in init_at:
             cg.add(var.add_init_at_command(cmd))
 
-    if modem_ready := config.get(CONF_READY, None):
-        modem_ready_sensor = await cg.get_variable(modem_ready)
-        cg.add(var.set_ready_bsensor(modem_ready_sensor))
+    # if modem_ready := config.get(CONF_READY, None):
+    #     modem_ready_sensor = await cg.get_variable(modem_ready)
+    #     cg.add(var.set_ready_bsensor(modem_ready_sensor))
+
+    # if conf_on_script := config.get(CONF_ON_SCRIPT, None):
+    #    on_script = await cg.get_variable(conf_on_script)
+    #    cg.add(var.set_on_script(on_script))
+    #
+    # if conf_off_script := config.get(CONF_OFF_SCRIPT, None):
+    #    off_script = await cg.get_variable(conf_off_script)
+    #    cg.add(var.set_off_script(off_script))
 
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_apn(config[CONF_APN]))
@@ -113,5 +128,9 @@ async def to_code(config):
 
     cg.add(var.set_rx_pin(getattr(gpio_num_t, f"GPIO_NUM_{config[CONF_RX_PIN]}")))
     cg.add(var.set_tx_pin(getattr(gpio_num_t, f"GPIO_NUM_{config[CONF_TX_PIN]}")))
+
+    for conf in config.get(CONF_ON_NOT_RESPONDING, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
     await cg.register_component(var, config)

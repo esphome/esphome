@@ -35,7 +35,20 @@ ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-c
     return; \
   }
 
-using namespace esp_modem;
+std::string command_result_to_string(command_result err) {
+  std::string res = "UNKNOWN";
+  switch (err) {
+    case command_result::FAIL:
+      res = "FAIL";
+      break;
+    case command_result::OK:
+      res = "OK";
+      break;
+    case command_result::TIMEOUT:
+      res = "TIMEOUT";
+  }
+  return res;
+}
 
 ModemComponent::ModemComponent() { global_modem_component = this; }
 
@@ -158,17 +171,7 @@ void ModemComponent::start_connect_() {
 
   global_modem_component->got_ipv4_address_ = false;
 
-  this->dce->set_mode(modem_mode::COMMAND_MODE);
   vTaskDelay(pdMS_TO_TICKS(2000));
-
-  command_result res = command_result::TIMEOUT;
-
-  res = this->dce->sync();
-
-  if (res != command_result::OK) {
-    ESP_LOGW(TAG, "Unable to sync modem. Will retry later");
-    return;
-  }
 
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
     if (command_result::OK != this->dce->set_flow_control(2, 2)) {
@@ -205,8 +208,7 @@ void ModemComponent::start_connect_() {
   if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
   } else {
-    ESP_LOGE(TAG, "Failed to configure multiplexed command mode... exiting");
-    return;
+    ESP_LOGE(TAG, "Failed to configure multiplexed command mode. Trying to continue...");
   }
   vTaskDelay(pdMS_TO_TICKS(2000));
 
@@ -215,7 +217,11 @@ void ModemComponent::start_connect_() {
     std::string result;
     command_result err = this->dce->at(cmd.c_str(), result, 1000);
     delay(100);  // NOLINT
-    ESP_LOGI(TAG, "Init AT command: %s (status %d) -> %s", cmd.c_str(), (int) err, result.c_str());
+    if (err != command_result::OK) {
+      ESP_LOGE(TAG, "Error while executing '%s' command (status %s)", cmd.c_str(),
+               command_result_to_string(err).c_str());
+    }
+    ESP_LOGI(TAG, "Init AT command: %s  -> %s", cmd.c_str(), result.c_str());
   }
 }
 
@@ -229,17 +235,62 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
 
 void ModemComponent::loop() {
   const uint32_t now = millis();
-  static uint32_t last_log_time = now;
+  static uint32_t last_health_check = now;
+  const uint32_t healh_check_interval = 30000;
 
   switch (this->state_) {
     case ModemComponentState::STOPPED:
+      if ((this->on_script_ != nullptr && this->on_script_->is_running()) ||
+          (this->off_script_ != nullptr && this->off_script_->is_running())) {
+        break;
+      }
       if (this->started_) {
         if (!this->modem_ready()) {
-          if (now - last_log_time > 20000) {
-            ESP_LOGD(TAG, "Waiting for the modem to be ready...");
-            last_log_time = now;
+          // ESP_LOGW(TAG, "Trying to recover dce");
+          // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->recover());
+          // delay(1000);
+          // ESP_LOGW(TAG, "Forcing undef mode");
+          // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::UNDEF));
+          // delay(1000);
+          ESP_LOGW(TAG, "Forcing cmux manual mode mode");
+          ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE));
+          delay(1000);
+          // // ESP_LOGW(TAG, "Trying to recover dce");
+          // // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->recover());
+          // // delay(1000);
+          ESP_LOGW(TAG, "Forcing cmux manual command mode");
+          ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND));
+          delay(1000);
+          ESP_LOGW(TAG, "Forcing cmux manual exit mode");
+          ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT));
+          delay(1000);
+          // ESP_LOGW(TAG, "Forcing command mode");
+          // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::COMMAND_MODE));
+          // delay(1000);
+          // ESP_LOGW(TAG, "Forcing reset");
+          // this->dce->reset();
+          // ESP_LOGW(TAG, "Forcing hangup");
+          // this->dce->hang_up();
+          // this->send_at("AT+CGATT=0");  // disconnect network
+          // delay(1000);
+          // this->send_at("ATH");  // hangup
+          // delay(1000);
+          // delay(1000);
+          // ESP_LOGW(TAG, "Forcing disconnect");
+          // this->send_at("AT+CGATT=0");  // disconnect network
+          // delay(1000);
+          // ESP_LOGW(TAG, "Unable to sync modem");
+          if (!this->modem_ready()) {
+            this->on_not_responding_callback_.call();
+            // if (this->on_script_ != nullptr) {
+            //   ESP_LOGD(TAG, "Executing recover_script");
+            //   this->on_script_->execute();
+            // } else {
+            //   ESP_LOGE(TAG, "Modem not responding, and no recover_script");
+            // }
+          } else {
+            ESP_LOGD(TAG, "Modem is ready");
           }
-          break;
         } else {
           ESP_LOGI(TAG, "Starting modem connection");
           this->state_ = ModemComponentState::CONNECTING;
@@ -260,7 +311,8 @@ void ModemComponent::loop() {
         this->status_clear_warning();
       } else if (now - this->connect_begin_ > 45000) {
         ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
-        this->start_connect_();
+        this->state_ = ModemComponentState::STOPPED;
+        // this->start_connect_();
       }
       break;
     case ModemComponentState::CONNECTED:
@@ -271,6 +323,15 @@ void ModemComponent::loop() {
         ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
         this->state_ = ModemComponentState::CONNECTING;
         this->start_connect_();
+      } else {
+        if ((now - last_health_check) >= healh_check_interval) {
+          ESP_LOGV(TAG, "Health check");
+          last_health_check = now;
+          if (!this->send_at("AT+CGREG?")) {
+            ESP_LOGW(TAG, "Modem not responding. Re-connecting...");
+            this->state_ = ModemComponentState::STOPPED;
+          }
+        }
       }
       break;
   }
@@ -291,6 +352,50 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS main: %s", network::IPAddress(dns_main_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS backup: %s", network::IPAddress(dns_backup_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
+}
+
+bool ModemComponent::send_at(const std::string &cmd) {
+  std::string result;
+  // esp_modem::command_result err;
+  bool status;
+  ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
+  status = this->dce->at(cmd, result, 3000) == esp_modem::command_result::OK;
+  ESP_LOGV(TAG, "Result for command %s: %s (status %d)", cmd.c_str(), result.c_str(), status);
+  return status;
+}
+
+bool ModemComponent::get_imei(std::string &result) {
+  // wrapper around this->dce->get_imei() that check that the result is valid
+  // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
+  command_result status;
+  status = this->dce->get_imei(result);
+  bool success = true;
+
+  if (status == command_result::OK && result.length() == 15) {
+    for (char c : result) {
+      if (!isdigit(static_cast<unsigned char>(c))) {
+        success = false;
+        break;
+      }
+    }
+  } else {
+    success = false;
+  }
+
+  if (!success) {
+    result = "UNAVAILABLE";
+  }
+  return success;
+}
+
+bool ModemComponent::modem_ready() {
+  // check if the modem is ready to answer AT commands
+  std::string imei;
+  return this->get_imei(imei);
+}
+
+void ModemComponent::add_on_not_responding_callback(std::function<void()> &&callback) {
+  this->on_not_responding_callback_.add(std::move(callback));
 }
 
 }  // namespace modem
