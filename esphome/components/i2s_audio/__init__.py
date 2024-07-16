@@ -25,12 +25,22 @@ CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 
+CONF_I2S_MODE = "i2s_mode"
+CONF_PRIMARY = "primary"
+CONF_SECONDARY = "secondary"
+
 i2s_audio_ns = cg.esphome_ns.namespace("i2s_audio")
 I2SAudioComponent = i2s_audio_ns.class_("I2SAudioComponent", cg.Component)
 I2SAudioIn = i2s_audio_ns.class_("I2SAudioIn", cg.Parented.template(I2SAudioComponent))
 I2SAudioOut = i2s_audio_ns.class_(
     "I2SAudioOut", cg.Parented.template(I2SAudioComponent)
 )
+
+i2s_mode_t = cg.global_ns.enum("i2s_mode_t")
+I2S_MODE_OPTIONS = {
+    CONF_PRIMARY: i2s_mode_t.I2S_MODE_MASTER,  # NOLINT
+    CONF_SECONDARY: i2s_mode_t.I2S_MODE_SLAVE,  # NOLINT
+}
 
 # https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h
 I2S_PORTS = {
