@@ -171,7 +171,7 @@ void ModemComponent::start_connect_() {
 
   global_modem_component->got_ipv4_address_ = false;
 
-  vTaskDelay(pdMS_TO_TICKS(2000));
+  delay(2000);  // NOLINT
 
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
     if (command_result::OK != this->dce->set_flow_control(2, 2)) {
@@ -188,7 +188,7 @@ void ModemComponent::start_connect_() {
     if (!this->pin_code_.empty()) {
       ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
       this->dce->set_pin(this->pin_code_);
-      vTaskDelay(pdMS_TO_TICKS(2000));  // Need to wait for some time after unlocking the SIM
+      delay(2000);  // NOLINT
     }
     if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
       ESP_LOGE(TAG, "Invalid PIN");
@@ -204,13 +204,13 @@ void ModemComponent::start_connect_() {
   }
 
   ESP_LOGD(TAG, "Entering CMUX mode");
-  vTaskDelay(pdMS_TO_TICKS(2000));
+  delay(2000);  // NOLINT
   if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
   } else {
     ESP_LOGE(TAG, "Failed to configure multiplexed command mode. Trying to continue...");
   }
-  vTaskDelay(pdMS_TO_TICKS(2000));
+  delay(2000);  // NOLINT
 
   // send initial AT commands from yaml
   for (const auto &cmd : this->init_at_commands_) {
@@ -254,16 +254,16 @@ void ModemComponent::loop() {
           // delay(1000);
           ESP_LOGW(TAG, "Forcing cmux manual mode mode");
           ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE));
-          delay(1000);
+          delay(1000);  // NOLINT
           // // ESP_LOGW(TAG, "Trying to recover dce");
           // // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->recover());
           // // delay(1000);
           ESP_LOGW(TAG, "Forcing cmux manual command mode");
           ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND));
-          delay(1000);
+          delay(1000);  // NOLINT
           ESP_LOGW(TAG, "Forcing cmux manual exit mode");
           ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT));
-          delay(1000);
+          delay(1000);  // NOLINT
           // ESP_LOGW(TAG, "Forcing command mode");
           // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::COMMAND_MODE));
           // delay(1000);
