@@ -89,7 +89,7 @@ class ModemComponent : public Component {
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
   std::string use_address_;
-  uint32_t command_delay = 2000;
+  uint32_t command_delay = 500;
   CallbackManager<void()> on_not_responding_callback_;
 };
 

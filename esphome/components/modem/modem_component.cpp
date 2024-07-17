@@ -171,8 +171,6 @@ void ModemComponent::start_connect_() {
 
   global_modem_component->got_ipv4_address_ = false;
 
-  delay(this->command_delay);  // NOLINT
-
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
     if (command_result::OK != this->dce->set_flow_control(2, 2)) {
       ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
@@ -209,7 +207,6 @@ void ModemComponent::start_connect_() {
   } else {
     ESP_LOGE(TAG, "Failed to configure multiplexed command mode. Trying to continue...");
   }
-  delay(this->command_delay);  // NOLINT
 
   // send initial AT commands from yaml
   for (const auto &cmd : this->init_at_commands_) {
@@ -244,13 +241,10 @@ void ModemComponent::loop() {
           // Errors are not checked, because  some commands return FAIL, but make the modem to answer again...
           ESP_LOGV(TAG, "Forcing cmux manual mode mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
-          delay(this->command_delay);  // NOLINT
           ESP_LOGV(TAG, "Forcing cmux manual command mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
-          delay(this->command_delay);  // NOLINT
           ESP_LOGW(TAG, "Forcing cmux manual exit mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
-          delay(this->command_delay);  // NOLINT
           if (!this->modem_ready()) {
             this->on_not_responding_callback_.call();
           }
