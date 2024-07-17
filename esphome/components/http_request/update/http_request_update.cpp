@@ -116,19 +116,18 @@ void HttpRequestUpdate::update() {
     }
   }
 
-  std::string current_version = this->current_version_;
-  if (current_version.empty()) {
+  std::string current_version;
 #ifdef ESPHOME_PROJECT_VERSION
-    current_version = ESPHOME_PROJECT_VERSION;
+  current_version = ESPHOME_PROJECT_VERSION;
 #else
-    current_version = ESPHOME_VERSION;
+  current_version = ESPHOME_VERSION;
 #endif
-  }
+
   this->update_info_.current_version = current_version;
 
-  if (this->update_info_.latest_version.empty()) {
+  if (this->update_info_.latest_version.empty() || this->update_info_.latest_version == update_info_.current_version) {
     this->state_ = update::UPDATE_STATE_NO_UPDATE;
-  } else if (this->update_info_.latest_version != this->current_version_) {
+  } else {
     this->state_ = update::UPDATE_STATE_AVAILABLE;
   }
 

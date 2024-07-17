@@ -684,7 +684,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this, text]() {
         this->tts_start_trigger_->trigger(text);
 #ifdef USE_SPEAKER
-        this->speaker_->start();
+        if (this->speaker_ != nullptr) {
+          this->speaker_->start();
+        }
 #endif
       });
       break;

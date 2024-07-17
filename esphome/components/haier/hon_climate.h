@@ -104,6 +104,8 @@ class HonClimate : public HaierClimateBase {
   void start_self_cleaning();
   void start_steri_cleaning();
   void set_extra_control_packet_bytes_size(size_t size) { this->extra_control_packet_bytes_ = size; };
+  void set_extra_sensors_packet_bytes_size(size_t size) { this->extra_sensors_packet_bytes_ = size; };
+  void set_status_message_header_size(size_t size) { this->status_message_header_size_ = size; };
   void set_control_method(HonControlMethod method) { this->control_method_ = method; };
   void add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback);
   void add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback);
@@ -158,7 +160,11 @@ class HonClimate : public HaierClimateBase {
   esphome::optional<hon_protocol::HorizontalSwingMode> pending_horizontal_direction_{};
   esphome::optional<HardwareInfo> hvac_hardware_info_{};
   uint8_t active_alarms_[8];
-  int extra_control_packet_bytes_;
+  int extra_control_packet_bytes_{0};
+  int extra_sensors_packet_bytes_{4};
+  int status_message_header_size_{0};
+  int real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
+  int real_sensors_packet_size_{sizeof(hon_protocol::HaierPacketSensors) + 4};
   HonControlMethod control_method_;
   std::queue<haier_protocol::HaierMessage> control_messages_queue_;
   CallbackManager<void(uint8_t, const char *)> alarm_start_callback_{};

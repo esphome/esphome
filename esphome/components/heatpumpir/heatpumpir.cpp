@@ -61,6 +61,11 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_QLIMA_2, []() { return new Qlima2HeatpumpIR(); }},                             // NOLINT
     {PROTOCOL_SAMSUNG_AQV12MSAN, []() { return new SamsungAQV12MSANHeatpumpIR(); }},         // NOLINT
     {PROTOCOL_ZHJG01, []() { return new ZHJG01HeatpumpIR(); }},                              // NOLINT
+    {PROTOCOL_AIRWAY, []() { return new AIRWAYHeatpumpIR(); }},                              // NOLINT
+    {PROTOCOL_BGH_AUD, []() { return new BGHHeatpumpIR(); }},                                // NOLINT
+    {PROTOCOL_PANASONIC_ALTDKE, []() { return new PanasonicAltDKEHeatpumpIR(); }},           // NOLINT
+    {PROTOCOL_VAILLANTVAI8, []() { return new VaillantHeatpumpIR(); }},                      // NOLINT
+    {PROTOCOL_R51M, []() { return new R51MHeatpumpIR(); }},                                  // NOLINT
 };
 
 void HeatpumpIRClimate::setup() {
