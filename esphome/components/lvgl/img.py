@@ -42,7 +42,7 @@ class ImgType(WidgetType):
         add_lv_use("label")
         init = []
         if src := config.get(CONF_SRC):
-            init.extend(w.set_property(CONF_SRC, f"lv_img_from({src})"))
+            init.append(f"{w.var}->set_src({src})")
         if cf_angle := config.get(CONF_ANGLE):
             pivot_x = config[CONF_PIVOT_X]
             pivot_y = config[CONF_PIVOT_Y]

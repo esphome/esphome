@@ -45,6 +45,49 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
 #endif
 
+#ifdef LVGL_USES_IMAGE
+static lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc = nullptr) {
+  if (img_dsc == nullptr)
+    img_dsc = new lv_img_dsc_t();  // NOLINT
+  img_dsc->header.always_zero = 0;
+  img_dsc->header.reserved = 0;
+  img_dsc->header.w = src->get_width();
+  img_dsc->header.h = src->get_height();
+  img_dsc->data = src->get_data_start();
+  img_dsc->data_size = image::image_type_to_width_stride(img_dsc->header.w * img_dsc->header.h, src->get_type());
+  switch (src->get_type()) {
+    case image::IMAGE_TYPE_BINARY:
+      img_dsc->header.cf = LV_IMG_CF_ALPHA_1BIT;
+      break;
+
+    case image::IMAGE_TYPE_GRAYSCALE:
+      img_dsc->header.cf = LV_IMG_CF_ALPHA_8BIT;
+      break;
+
+    case image::IMAGE_TYPE_RGB24:
+      img_dsc->header.cf = LV_IMG_CF_RGB888;
+      break;
+
+    case image::IMAGE_TYPE_RGB565:
+#if LV_COLOR_DEPTH == 16
+      img_dsc->header.cf = src->has_transparency() ? LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED : LV_IMG_CF_TRUE_COLOR;
+#else
+      img_dsc->header.cf = LV_IMG_CF_RGB565;
+#endif
+      break;
+
+    case image::IMAGE_TYPE_RGBA:
+#if LV_COLOR_DEPTH == 32
+      img_dsc->header.cf = LV_IMG_CF_TRUE_COLOR;
+#else
+      img_dsc->header.cf = LV_IMG_CF_RGBA8888;
+#endif
+      break;
+  }
+  return img_dsc;
+}
+#endif
+
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
@@ -83,6 +126,18 @@ class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
         },
         LV_EVENT_PRESSED, this);
   }
+};
+#endif
+#if LV_USE_IMG
+class LvImgType : public LvCompound {
+ public:
+  void set_src(image::Image *src) {
+    lv_img_from(src, &this->img_);
+    lv_img_set_src(this->obj, &this->img_);
+  }
+
+ protected:
+  lv_img_dsc_t img_{};
 };
 #endif
 #if LV_USE_BTNMATRIX
@@ -231,48 +286,6 @@ class FontEngine {
   }
 };
 #endif  // LVGL_USES_FONT
-
-#ifdef LVGL_USES_IMAGE
-static lv_img_dsc_t *lv_img_from(image::Image *src) {
-  auto img = new lv_img_dsc_t();  // NOLINT
-  img->header.always_zero = 0;
-  img->header.reserved = 0;
-  img->header.w = src->get_width();
-  img->header.h = src->get_height();
-  img->data = src->get_data_start();
-  img->data_size = image::image_type_to_width_stride(img->header.w * img->header.h, src->get_type());
-  switch (src->get_type()) {
-    case image::IMAGE_TYPE_BINARY:
-      img->header.cf = LV_IMG_CF_ALPHA_1BIT;
-      break;
-
-    case image::IMAGE_TYPE_GRAYSCALE:
-      img->header.cf = LV_IMG_CF_ALPHA_8BIT;
-      break;
-
-    case image::IMAGE_TYPE_RGB24:
-      img->header.cf = LV_IMG_CF_RGB888;
-      break;
-
-    case image::IMAGE_TYPE_RGB565:
-#if LV_COLOR_DEPTH == 16
-      img->header.cf = src->has_transparency() ? LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED : LV_IMG_CF_TRUE_COLOR;
-#else
-      img->header.cf = LV_IMG_CF_RGB565;
-#endif
-      break;
-
-    case image::IMAGE_TYPE_RGBA:
-#if LV_COLOR_DEPTH == 32
-      img->header.cf = LV_IMG_CF_TRUE_COLOR;
-#else
-      img->header.cf = LV_IMG_CF_RGBA8888;
-#endif
-      break;
-  }
-  return img;
-}
-#endif
 
 #if LV_USE_ANIMIMG
 

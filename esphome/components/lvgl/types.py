@@ -132,7 +132,6 @@ lv_meter_t = LvType("lv_meter_t")
 lv_btn_t = LvBoolean("lv_btn_t")
 lv_checkbox_t = LvBoolean("lv_checkbox_t")
 lv_line_t = LvType("lv_line_t")
-lv_img_t = LvType("lv_img_t")
 lv_animimg_t = LvType("lv_animimg_t")
 lv_tile_t = LvType("lv_tileview_tile_t")
 lv_tab_t = LvType("lv_obj_t")
@@ -147,6 +146,8 @@ lv_roller_t = LvSelect("lv_roller_t")
 lv_switch_t = LvBoolean("lv_switch_t")
 lv_table_t = LvType("lv_table_t")
 lv_chart_t = LvType("lv_chart_t")
+lv_img_dsc_t = LvType("lv_img_dsc_t")
+lv_img_t = LvType("LvImgType", parents=(LvCompound,))
 lv_btnmatrix_t = LvType(
     "LvBtnmatrixType",
     parents=(KeyProvider, LvCompound),
