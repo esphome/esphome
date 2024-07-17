@@ -240,10 +240,6 @@ void ModemComponent::loop() {
 
   switch (this->state_) {
     case ModemComponentState::STOPPED:
-      if ((this->on_script_ != nullptr && this->on_script_->is_running()) ||
-          (this->off_script_ != nullptr && this->off_script_->is_running())) {
-        break;
-      }
       if (this->started_) {
         if (!this->modem_ready()) {
           // ESP_LOGW(TAG, "Trying to recover dce");

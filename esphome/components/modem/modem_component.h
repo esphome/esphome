@@ -4,7 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
-#include "esphome/components/script/script.h"
 
 #ifdef USE_ESP_IDF
 
@@ -57,8 +56,6 @@ class ModemComponent : public Component {
   void set_model(const std::string &model) {
     this->model_ = this->modem_model_map_.count(model) ? modem_model_map_[model] : ModemModel::UNKNOWN;
   }
-  void set_on_script(script::Script<> *on_script) { this->on_script_ = on_script; }
-  void set_off_script(script::Script<> *off_script) { this->off_script_ = off_script; }
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   bool send_at(const std::string &cmd);
   bool get_imei(std::string &result);
@@ -69,8 +66,6 @@ class ModemComponent : public Component {
  protected:
   gpio_num_t rx_pin_ = gpio_num_t::GPIO_NUM_NC;
   gpio_num_t tx_pin_ = gpio_num_t::GPIO_NUM_NC;
-  script::Script<> *on_script_ = nullptr;
-  script::Script<> *off_script_ = nullptr;
   std::string pin_code_;
   std::string username_;
   std::string password_;
