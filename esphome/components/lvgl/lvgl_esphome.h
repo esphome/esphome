@@ -337,8 +337,6 @@ class LvglComponent : public PollingComponent {
     }
     lv_disp_draw_buf_init(&this->draw_buf_, buf, nullptr, buffer_pixels);
     lv_disp_drv_init(&this->disp_drv_);
-    this->disp_drv_.hor_res = display->get_width();
-    this->disp_drv_.ver_res = display->get_height();
     this->disp_drv_.draw_buf = &this->draw_buf_;
     this->disp_drv_.user_data = this;
     this->disp_drv_.full_refresh = this->full_refresh_;
@@ -361,6 +359,8 @@ class LvglComponent : public PollingComponent {
         break;
     }
     display->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
+    this->disp_drv_.hor_res = display->get_width();
+    this->disp_drv_.ver_res = display->get_height();
     esph_log_d(TAG, "sw_rotate = %d, rotated=%d", this->disp_drv_.sw_rotate, this->disp_drv_.rotated);
     this->disp_ = lv_disp_drv_register(&this->disp_drv_);
     this->custom_change_event_ = (lv_event_code_t) lv_event_register_id();

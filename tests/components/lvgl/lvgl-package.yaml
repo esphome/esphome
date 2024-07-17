@@ -500,7 +500,7 @@ lvgl:
                         then:
                           - lvgl.tabview.select:
                               id: tabview_id
-                              tab_id: tabview_tab_2
+                              index: 1
                               animated: true
               - name: Tab1
                 id: tabview_tab_2
@@ -511,7 +511,7 @@ lvgl:
                         then:
                           - lvgl.tabview.select:
                               id: tabview_id
-                              tab_id: tabview_tab_1
+                              index: 0
                               animated: true
     - id: keyboard_page
       widgets:
