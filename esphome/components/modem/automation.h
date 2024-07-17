@@ -31,6 +31,17 @@ class ModemOnConnectTrigger : public Trigger<> {
   }
 };
 
+class ModemOnDisconnectTrigger : public Trigger<> {
+ public:
+  explicit ModemOnDisconnectTrigger(ModemComponent *parent) {
+    parent->add_on_state_callback([this, parent](ModemState state) {
+      if (!parent->is_failed() && state == ModemState::DISCONNECTED) {
+        this->trigger();
+      }
+    });
+  }
+};
+
 }  // namespace modem
 }  // namespace esphome
 #endif  // USE_ESP_IDF

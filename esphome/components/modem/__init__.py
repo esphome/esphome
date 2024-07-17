@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_MODEL,
     CONF_TRIGGER_ID,
     CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -36,6 +37,9 @@ ModemOnNotRespondingTrigger = modem_ns.class_(
 ModemOnConnectTrigger = modem_ns.class_(
     "ModemOnConnectTrigger", automation.Trigger.template()
 )
+ModemOnDisconnectTrigger = modem_ns.class_(
+    "ModemOndisconnectTrigger", automation.Trigger.template()
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -61,6 +65,13 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnConnectTrigger)}
+            ),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        ModemOnDisconnectTrigger
+                    )
+                }
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -127,6 +138,10 @@ async def to_code(config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_CONNECT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
