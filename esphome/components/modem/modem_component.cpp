@@ -256,6 +256,7 @@ void ModemComponent::loop() {
 
   switch (this->state_) {
     case ModemComponentState::STOPPED:
+      set_wdt(60);
       if (this->started_) {
         if (!this->modem_ready()) {
           ESP_LOGD(TAG, "Modem not responding. Trying to recover...");
@@ -279,6 +280,7 @@ void ModemComponent::loop() {
           this->start_connect_();
         }
       }
+      set_wdt(CONFIG_TASK_WDT_TIMEOUT_S);
       break;
     case ModemComponentState::CONNECTING:
       if (!this->started_) {
