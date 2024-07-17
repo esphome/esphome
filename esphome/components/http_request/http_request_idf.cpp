@@ -122,7 +122,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     return nullptr;
   }
 
-  auto is_ok = [](auto code) { return code >= HttpStatus_Ok && code < HttpStatus_MultipleChoices; };
+  auto is_ok = [](int code) { return code >= HttpStatus_Ok && code < HttpStatus_MultipleChoices; };
 
   container->content_length = esp_http_client_fetch_headers(client);
   container->status_code = esp_http_client_get_status_code(client);
@@ -132,7 +132,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   }
 
   if (this->follow_redirects_) {
-    auto is_redirect = [](auto code) {
+    auto is_redirect = [](int code) {
       return code == HttpStatus_MovedPermanently || code == HttpStatus_Found || code == HttpStatus_SeeOther ||
              code == HttpStatus_TemporaryRedirect || code == HttpStatus_PermanentRedirect;
     };
