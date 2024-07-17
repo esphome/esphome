@@ -1,13 +1,13 @@
-binary_sensor:
-  - platform: template
-    id: modem_ready
+logger:
 
 modem:
-  ready: modem_ready
+  id: atmodem
   rx_pin: 26
   tx_pin: 27
   model: SIM7600
   apn: orange
-  username: orange
-  password: orange
   pin_code: "0000"
+  init_at:
+    - AT
+  on_not_responding:
+    logger.log: "modem not responding"
