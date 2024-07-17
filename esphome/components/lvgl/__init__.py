@@ -3,6 +3,7 @@ import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.helpers import write_file_if_changed
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.display import Display
 from esphome.components.image import Image_
@@ -235,6 +236,25 @@ def add_define(macro, value="1"):
             "Redefinition of %s - was %s now %s", macro, lv_defines[macro], value
         )
     lv_defines[macro] = value
+
+
+def as_macro(macro, value):
+    if value is None:
+        return f"#define {macro}"
+    return f"#define {macro} {value}"
+
+
+LV_CONF_FILENAME = "lv_conf.h"
+LV_CONF_H_FORMAT = """\
+#pragma once
+{}
+"""
+
+
+def generate_lv_conf_h():
+    defines = [as_macro(m, v) for m, v in lv_defines.items()]
+    defines.sort()
+    return LV_CONF_H_FORMAT.format("\n".join(defines))
 
 
 async def msgbox_to_code(conf):
@@ -493,24 +513,17 @@ async def to_code(config):
     cg.add_library("lvgl/lvgl", "8.4.0")
     CORE.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
-    add_define("LV_CONF_SKIP", "1")
     add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
     add_define("LV_DRAW_COMPLEX", "1")
-    add_define("_STRINGIFY(x)", "_STRINGIFY_(x)")
-    add_define("_STRINGIFY_(x)", "#x")
     add_define("LV_TICK_CUSTOM", "1")
-    add_define(
-        "LV_TICK_CUSTOM_INCLUDE", "_STRINGIFY(esphome/components/lvgl/lvgl_hal.h)"
-    )
+    add_define("LV_TICK_CUSTOM_INCLUDE", '"esphome/components/lvgl/lvgl_hal.h"')
     add_define("LV_TICK_CUSTOM_SYS_TIME_EXPR", "(lv_millis())")
     add_define("LV_MEM_CUSTOM", "1")
     add_define("LV_MEM_CUSTOM_ALLOC", "lv_custom_mem_alloc")
     add_define("LV_MEM_CUSTOM_FREE", "lv_custom_mem_free")
     add_define("LV_MEM_CUSTOM_REALLOC", "lv_custom_mem_realloc")
-    add_define(
-        "LV_MEM_CUSTOM_INCLUDE", "_STRINGIFY(esphome/components/lvgl/lvgl_hal.h)"
-    )
+    add_define("LV_MEM_CUSTOM_INCLUDE", '"esphome/components/lvgl/lvgl_hal.h"')
 
     add_define("LV_LOG_LEVEL", f"LV_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}")
     for font in helpers.lv_fonts_used:
@@ -610,9 +623,11 @@ async def to_code(config):
         CORE.add_define(f"LVGL_USES_{comp.upper()}")
     # These must be build flags, since the lvgl code does not read our defines.h
     for use in helpers.lv_uses:
-        CORE.add_build_flag(f"-DLV_USE_{use.upper()}=1")
-    for macro, value in lv_defines.items():
-        cg.add_build_flag(f"-D\\'{macro}\\'=\\'{value}\\'")
+        add_define(f"LV_USE_{use.upper()}")
+    lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
+    write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
+    CORE.add_build_flag("-DLV_CONF_H=1")
+    CORE.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
 
 
 def indicator_update_schema(base):

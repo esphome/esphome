@@ -3,7 +3,7 @@
 #ifdef USE_LVGL
 
 // required for clang-tidy
-#ifndef LV_CONF_SKIP
+#ifndef LV_CONF_H
 #define LV_CONF_SKIP 1  // NOLINT
 #endif
 
