@@ -57,7 +57,7 @@ class ModemComponent : public Component {
     this->model_ = this->modem_model_map_.count(model) ? modem_model_map_[model] : ModemModel::UNKNOWN;
   }
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
-  bool send_at(const std::string &cmd);
+  std::string send_at(const std::string &cmd);
   bool get_imei(std::string &result);
   bool modem_ready();
   void add_on_not_responding_callback(std::function<void()> &&callback);
@@ -89,7 +89,7 @@ class ModemComponent : public Component {
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
   std::string use_address_;
-
+  uint32_t command_delay = 2000;
   CallbackManager<void()> on_not_responding_callback_;
 };
 

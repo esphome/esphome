@@ -171,7 +171,7 @@ void ModemComponent::start_connect_() {
 
   global_modem_component->got_ipv4_address_ = false;
 
-  delay(2000);  // NOLINT
+  delay(this->command_delay);  // NOLINT
 
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
     if (command_result::OK != this->dce->set_flow_control(2, 2)) {
@@ -188,7 +188,7 @@ void ModemComponent::start_connect_() {
     if (!this->pin_code_.empty()) {
       ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
       this->dce->set_pin(this->pin_code_);
-      delay(2000);  // NOLINT
+      delay(this->command_delay);  // NOLINT
     }
     if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
       ESP_LOGE(TAG, "Invalid PIN");
@@ -204,24 +204,21 @@ void ModemComponent::start_connect_() {
   }
 
   ESP_LOGD(TAG, "Entering CMUX mode");
-  delay(2000);  // NOLINT
   if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
   } else {
     ESP_LOGE(TAG, "Failed to configure multiplexed command mode. Trying to continue...");
   }
-  delay(2000);  // NOLINT
+  delay(this->command_delay);  // NOLINT
 
   // send initial AT commands from yaml
   for (const auto &cmd : this->init_at_commands_) {
-    std::string result;
-    command_result err = this->dce->at(cmd.c_str(), result, 1000);
-    delay(100);  // NOLINT
-    if (err != command_result::OK) {
-      ESP_LOGE(TAG, "Error while executing '%s' command (status %s)", cmd.c_str(),
-               command_result_to_string(err).c_str());
+    std::string result = this->send_at(cmd.c_str());
+    if (result == "ERROR") {
+      ESP_LOGE(TAG, "Error while executing 'init_at' '%s' command", cmd.c_str());
+    } else {
+      ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
-    ESP_LOGI(TAG, "Init AT command: %s  -> %s", cmd.c_str(), result.c_str());
   }
 }
 
@@ -247,13 +244,13 @@ void ModemComponent::loop() {
           // Errors are not checked, because  some commands return FAIL, but make the modem to answer again...
           ESP_LOGV(TAG, "Forcing cmux manual mode mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
-          delay(1000);  // NOLINT
+          delay(this->command_delay);  // NOLINT
           ESP_LOGV(TAG, "Forcing cmux manual command mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
-          delay(1000);  // NOLINT
+          delay(this->command_delay);  // NOLINT
           ESP_LOGW(TAG, "Forcing cmux manual exit mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
-          delay(1000);  // NOLINT
+          delay(this->command_delay);  // NOLINT
           if (!this->modem_ready()) {
             this->on_not_responding_callback_.call();
           }
@@ -296,7 +293,7 @@ void ModemComponent::loop() {
         if ((now - last_health_check) >= healh_check_interval) {
           ESP_LOGV(TAG, "Health check");
           last_health_check = now;
-          if (!this->send_at("AT+CGREG?")) {
+          if (this->send_at("AT+CGREG?") == "ERROR") {
             ESP_LOGW(TAG, "Modem not responding. Re-connecting...");
             this->state_ = ModemComponentState::STOPPED;
           }
@@ -323,14 +320,16 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
 }
 
-bool ModemComponent::send_at(const std::string &cmd) {
+std::string ModemComponent::send_at(const std::string &cmd) {
   std::string result;
-  // esp_modem::command_result err;
   bool status;
   ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
-  status = this->dce->at(cmd, result, 3000) == esp_modem::command_result::OK;
+  status = this->dce->at(cmd, result, this->command_delay) == esp_modem::command_result::OK;
   ESP_LOGV(TAG, "Result for command %s: %s (status %d)", cmd.c_str(), result.c_str(), status);
-  return status;
+  if (!status) {
+    result = "ERROR";
+  }
+  return result;
 }
 
 bool ModemComponent::get_imei(std::string &result) {
