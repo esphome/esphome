@@ -90,18 +90,13 @@ tabview_spec = TabviewType()
         {
             cv.Required(CONF_ID): cv.use_id(lv_tabview_t),
             cv.Optional(CONF_ANIMATED, default=False): animated,
-            cv.Exclusive(CONF_INDEX, CONF_INDEX): lv_int,
-            cv.Exclusive(CONF_TAB_ID, CONF_INDEX): cv.use_id(lv_tab_t),
+            cv.Required(CONF_INDEX): lv_int,
         },
     ).add_extra(cv.has_at_least_one_key(CONF_INDEX, CONF_TAB_ID)),
 )
 async def tabview_select(config, action_id, template_arg, args):
     widget = await get_widget(config[CONF_ID])
-    if tab := config.get(CONF_TAB_ID):
-        tab = await cg.get_variable(tab)
-        index = f"lv_obj_get_index(lv_tabview_get_content({tab}))"
-    else:
-        index = config[CONF_INDEX]
+    index = config[CONF_INDEX]
     init = [
         f"lv_tabview_set_act({widget.obj}, {index}, {config[CONF_ANIMATED]})",
         f" lv_event_send({widget.obj}, LV_EVENT_VALUE_CHANGED, nullptr)",
