@@ -74,6 +74,9 @@ def mdns_service(
 
 @coroutine_with_priority(55.0)
 async def to_code(config):
+    if config[CONF_DISABLED] is True:
+        return
+
     if CORE.using_arduino:
         if CORE.is_esp32:
             cg.add_library("ESPmDNS", None)
@@ -91,9 +94,6 @@ async def to_code(config):
             ref="mdns-v1.2.5",
             path="components/mdns",
         )
-
-    if config[CONF_DISABLED]:
-        return
 
     cg.add_define("USE_MDNS")
 
