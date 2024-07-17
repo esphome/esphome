@@ -9,10 +9,14 @@
 namespace esphome {
 namespace modem {
 
-class ModemNotRespondingTrigger : public Trigger<> {
+class ModemOnNotRespondingTrigger : public Trigger<> {
  public:
-  explicit ModemNotRespondingTrigger(ModemComponent *parent) {
-    parent->add_on_not_responding_callback([this, parent]() { this->trigger(); });
+  explicit ModemOnNotRespondingTrigger(ModemComponent *parent) {
+    parent->add_on_state_callback([this, parent](ModemState state) {
+      if (!parent->is_failed() && state == ModemState::NOT_RESPONDING) {
+        this->trigger();
+      }
+    });
   }
 };
 

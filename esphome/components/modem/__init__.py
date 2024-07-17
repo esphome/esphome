@@ -24,14 +24,13 @@ CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
 CONF_DTR_PIN = "dtr_pin"
 CONF_INIT_AT = "init_at"
-# CONF_ON_SCRIPT = "on_script"
-# CONF_OFF_SCRIPT = "off_script"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
 
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
-ModemNotRespondingTrigger = modem_ns.class_(
-    "ModemNotRespondingTrigger", automation.Trigger.template()
+ModemState = modem_ns.enum("ModemState")
+ModemOnNotRespondingTrigger = modem_ns.class_(
+    "ModemOnNotRespondingTrigger", automation.Trigger.template()
 )
 
 
@@ -52,7 +51,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ModemNotRespondingTrigger
+                        ModemOnNotRespondingTrigger
                     )
                 }
             ),
@@ -85,6 +84,8 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_PPP_CHAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_VJ_HEADER_COMPRESSION", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT", True)
+    # commented because cause crash if another UART is defined in the yaml
+    # If enabled, it should increase the reliability and the speed of the connection (TODO: test)
     # add_idf_sdkconfig_option("CONFIG_UART_ISR_IN_IRAM", True)
 
     cg.add_define("USE_MODEM")

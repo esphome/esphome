@@ -269,7 +269,7 @@ void ModemComponent::loop() {
           ESP_LOGW(TAG, "Forcing cmux manual exit mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
           if (!this->modem_ready()) {
-            this->on_not_responding_callback_.call();
+            this->on_state_callback_.call(ModemState::NOT_RESPONDING);
           }
           if (this->modem_ready()) {
             ESP_LOGI(TAG, "Modem is ready");
@@ -380,8 +380,8 @@ bool ModemComponent::modem_ready() {
   return this->get_imei(imei);
 }
 
-void ModemComponent::add_on_not_responding_callback(std::function<void()> &&callback) {
-  this->on_not_responding_callback_.add(std::move(callback));
+void ModemComponent::add_on_state_callback(std::function<void(ModemState)> &&callback) {
+  this->on_state_callback_.add(std::move(callback));
 }
 
 }  // namespace modem

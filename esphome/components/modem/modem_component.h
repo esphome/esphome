@@ -27,10 +27,18 @@ using namespace esp_modem;
 
 static const char *const TAG = "modem";
 
+// used internally for loop management
 enum class ModemComponentState {
   STOPPED,
   CONNECTING,
   CONNECTED,
+};
+
+// Automation states
+enum class ModemState {
+  NOT_RESPONDING,
+  CONNECTED,
+  DISCONNECTED,
 };
 
 enum class ModemModel { BG96, SIM800, SIM7000, SIM7070, SIM7600, UNKNOWN };
@@ -60,7 +68,7 @@ class ModemComponent : public Component {
   std::string send_at(const std::string &cmd);
   bool get_imei(std::string &result);
   bool modem_ready();
-  void add_on_not_responding_callback(std::function<void()> &&callback);
+  void add_on_state_callback(std::function<void(ModemState)> &&callback);
   std::unique_ptr<DCE> dce;
 
  protected:
@@ -90,7 +98,7 @@ class ModemComponent : public Component {
   void dump_connect_params_();
   std::string use_address_;
   uint32_t command_delay_ = 500;
-  CallbackManager<void()> on_not_responding_callback_;
+  CallbackManager<void(ModemState)> on_state_callback_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
