@@ -74,7 +74,6 @@ async def to_code(config):
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_TIMEOUT_S", 60)
     add_idf_sdkconfig_option("CONFIG_PPP", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_PAP_SUPPORT", True)

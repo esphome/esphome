@@ -14,6 +14,8 @@
 #include <lwip/dns.h>
 #include <cstring>
 #include <iostream>
+#include "esp_idf_version.h"
+#include "esp_task_wdt.h"
 
 static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 2048;
 static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 1024;
@@ -48,6 +50,19 @@ std::string command_result_to_string(command_result err) {
       res = "TIMEOUT";
   }
   return res;
+}
+
+void set_wdt(uint32_t timeout_s) {
+#if ESP_IDF_VERSION_MAJOR >= 5
+  esp_task_wdt_config_t wdt_config = {
+      .timeout_ms = timeout_s * 1000,
+      .idle_core_mask = 0x03,
+      .trigger_panic = true,
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
+#else
+  esp_task_wdt_init(timeout_s, true);
+#endif  // ESP_IDF_VERSION_MAJOR
 }
 
 ModemComponent::ModemComponent() { global_modem_component = this; }
@@ -86,6 +101,8 @@ bool ModemComponent::is_connected() { return this->state_ == ModemComponentState
 
 void ModemComponent::setup() {
   ESP_LOGI(TAG, "Setting up Modem...");
+  // increase WDT, because setup and start_connect take some time.
+  set_wdt(60);
 
   ESP_LOGV(TAG, "DTE setup");
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -162,10 +179,13 @@ void ModemComponent::setup() {
   assert(this->dce);
 
   this->started_ = true;
+
+  set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
   ESP_LOGV(TAG, "Setup finished");
 }
 
 void ModemComponent::start_connect_() {
+  set_wdt(60);
   this->connect_begin_ = millis();
   this->status_set_warning("Starting connection");
 
@@ -217,6 +237,8 @@ void ModemComponent::start_connect_() {
       ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
   }
+  // restore WDT
+  set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
 }
 
 void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
