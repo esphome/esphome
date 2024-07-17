@@ -28,7 +28,7 @@ namespace modem {
 
 using namespace esp_modem;
 
-ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+ModemComponent *global_modem_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \
@@ -65,7 +65,10 @@ void set_wdt(uint32_t timeout_s) {
 #endif  // ESP_IDF_VERSION_MAJOR
 }
 
-ModemComponent::ModemComponent() { global_modem_component = this; }
+ModemComponent::ModemComponent() {
+  assert(global_modem_component == nullptr);
+  global_modem_component = this;
+}
 
 void ModemComponent::dump_config() { ESP_LOGCONFIG(TAG, "Config Modem:"); }
 
@@ -293,6 +296,8 @@ void ModemComponent::loop() {
 
         this->dump_connect_params_();
         this->status_clear_warning();
+        this->on_state_callback_.call(ModemState::CONNECTED);
+
       } else if (now - this->connect_begin_ > 45000) {
         ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
         this->state_ = ModemComponentState::STOPPED;

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_MODEL,
     CONF_TRIGGER_ID,
+    CONF_ON_CONNECT,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -32,6 +33,9 @@ ModemState = modem_ns.enum("ModemState")
 ModemOnNotRespondingTrigger = modem_ns.class_(
     "ModemOnNotRespondingTrigger", automation.Trigger.template()
 )
+ModemOnConnectTrigger = modem_ns.class_(
+    "ModemOnConnectTrigger", automation.Trigger.template()
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -54,6 +58,9 @@ CONFIG_SCHEMA = cv.All(
                         ModemOnNotRespondingTrigger
                     )
                 }
+            ),
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnConnectTrigger)}
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -116,6 +123,10 @@ async def to_code(config):
     cg.add(var.set_tx_pin(getattr(gpio_num_t, f"GPIO_NUM_{config[CONF_TX_PIN]}")))
 
     for conf in config.get(CONF_ON_NOT_RESPONDING, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 

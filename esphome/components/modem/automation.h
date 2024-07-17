@@ -20,6 +20,17 @@ class ModemOnNotRespondingTrigger : public Trigger<> {
   }
 };
 
+class ModemOnConnectTrigger : public Trigger<> {
+ public:
+  explicit ModemOnConnectTrigger(ModemComponent *parent) {
+    parent->add_on_state_callback([this, parent](ModemState state) {
+      if (!parent->is_failed() && state == ModemState::CONNECTED) {
+        this->trigger();
+      }
+    });
+  }
+};
+
 }  // namespace modem
 }  // namespace esphome
 #endif  // USE_ESP_IDF
