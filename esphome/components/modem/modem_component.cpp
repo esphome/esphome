@@ -206,7 +206,7 @@ void ModemComponent::start_connect_() {
     if (!this->pin_code_.empty()) {
       ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
       this->dce->set_pin(this->pin_code_);
-      delay(this->command_delay);  // NOLINT
+      delay(this->command_delay_);  // NOLINT
     }
     if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
       ESP_LOGE(TAG, "Invalid PIN");
@@ -230,7 +230,7 @@ void ModemComponent::start_connect_() {
 
   // send initial AT commands from yaml
   for (const auto &cmd : this->init_at_commands_) {
-    std::string result = this->send_at(cmd.c_str());
+    std::string result = this->send_at(cmd);
     if (result == "ERROR") {
       ESP_LOGE(TAG, "Error while executing 'init_at' '%s' command", cmd.c_str());
     } else {
@@ -342,7 +342,7 @@ std::string ModemComponent::send_at(const std::string &cmd) {
   std::string result;
   bool status;
   ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
-  status = this->dce->at(cmd, result, this->command_delay) == esp_modem::command_result::OK;
+  status = this->dce->at(cmd, result, this->command_delay_) == esp_modem::command_result::OK;
   ESP_LOGV(TAG, "Result for command %s: %s (status %d)", cmd.c_str(), result.c_str(), status);
   if (!status) {
     result = "ERROR";
