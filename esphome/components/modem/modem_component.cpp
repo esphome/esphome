@@ -242,50 +242,23 @@ void ModemComponent::loop() {
     case ModemComponentState::STOPPED:
       if (this->started_) {
         if (!this->modem_ready()) {
-          // ESP_LOGW(TAG, "Trying to recover dce");
-          // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->recover());
-          // delay(1000);
-          // ESP_LOGW(TAG, "Forcing undef mode");
-          // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::UNDEF));
-          // delay(1000);
-          ESP_LOGW(TAG, "Forcing cmux manual mode mode");
-          ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE));
+          ESP_LOGD(TAG, "Modem not responding. Trying to recover...");
+
+          // Errors are not checked, because  some commands return FAIL, but make the modem to answer again...
+          ESP_LOGV(TAG, "Forcing cmux manual mode mode");
+          this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
           delay(1000);  // NOLINT
-          // // ESP_LOGW(TAG, "Trying to recover dce");
-          // // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->recover());
-          // // delay(1000);
-          ESP_LOGW(TAG, "Forcing cmux manual command mode");
-          ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND));
+          ESP_LOGV(TAG, "Forcing cmux manual command mode");
+          this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
           delay(1000);  // NOLINT
           ESP_LOGW(TAG, "Forcing cmux manual exit mode");
-          ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT));
+          this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
           delay(1000);  // NOLINT
-          // ESP_LOGW(TAG, "Forcing command mode");
-          // ESP_ERROR_CHECK_WITHOUT_ABORT(this->dce->set_mode(esp_modem::modem_mode::COMMAND_MODE));
-          // delay(1000);
-          // ESP_LOGW(TAG, "Forcing reset");
-          // this->dce->reset();
-          // ESP_LOGW(TAG, "Forcing hangup");
-          // this->dce->hang_up();
-          // this->send_at("AT+CGATT=0");  // disconnect network
-          // delay(1000);
-          // this->send_at("ATH");  // hangup
-          // delay(1000);
-          // delay(1000);
-          // ESP_LOGW(TAG, "Forcing disconnect");
-          // this->send_at("AT+CGATT=0");  // disconnect network
-          // delay(1000);
-          // ESP_LOGW(TAG, "Unable to sync modem");
           if (!this->modem_ready()) {
             this->on_not_responding_callback_.call();
-            // if (this->on_script_ != nullptr) {
-            //   ESP_LOGD(TAG, "Executing recover_script");
-            //   this->on_script_->execute();
-            // } else {
-            //   ESP_LOGE(TAG, "Modem not responding, and no recover_script");
-            // }
-          } else {
-            ESP_LOGD(TAG, "Modem is ready");
+          }
+          if (this->modem_ready()) {
+            ESP_LOGI(TAG, "Modem is ready");
           }
         } else {
           ESP_LOGI(TAG, "Starting modem connection");

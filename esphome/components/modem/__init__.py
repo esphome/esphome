@@ -43,8 +43,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_RX_PIN): cv.positive_int,
             cv.Required(CONF_MODEL): cv.string,
             cv.Required(CONF_APN): cv.string,
-            # cv.Optional(CONF_ON_SCRIPT): cv.use_id(Script),
-            # cv.Optional(CONF_OFF_SCRIPT): cv.use_id(Script),
             cv.Optional(CONF_DTR_PIN): cv.positive_int,
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string,
@@ -108,18 +106,6 @@ async def to_code(config):
     if init_at := config.get(CONF_INIT_AT, None):
         for cmd in init_at:
             cg.add(var.add_init_at_command(cmd))
-
-    # if modem_ready := config.get(CONF_READY, None):
-    #     modem_ready_sensor = await cg.get_variable(modem_ready)
-    #     cg.add(var.set_ready_bsensor(modem_ready_sensor))
-
-    # if conf_on_script := config.get(CONF_ON_SCRIPT, None):
-    #    on_script = await cg.get_variable(conf_on_script)
-    #    cg.add(var.set_on_script(on_script))
-    #
-    # if conf_off_script := config.get(CONF_OFF_SCRIPT, None):
-    #    off_script = await cg.get_variable(conf_off_script)
-    #    cg.add(var.set_off_script(off_script))
 
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_apn(config[CONF_APN]))
