@@ -12,8 +12,8 @@ namespace modem {
 class ModemOnNotRespondingTrigger : public Trigger<> {
  public:
   explicit ModemOnNotRespondingTrigger(ModemComponent *parent) {
-    parent->add_on_state_callback([this, parent](ModemState state) {
-      if (!parent->is_failed() && state == ModemState::NOT_RESPONDING) {
+    parent->add_on_state_callback([this, parent](ModemComponentState state) {
+      if (!parent->is_failed() && state == ModemComponentState::NOT_RESPONDING) {
         this->trigger();
       }
     });
@@ -23,8 +23,8 @@ class ModemOnNotRespondingTrigger : public Trigger<> {
 class ModemOnConnectTrigger : public Trigger<> {
  public:
   explicit ModemOnConnectTrigger(ModemComponent *parent) {
-    parent->add_on_state_callback([this, parent](ModemState state) {
-      if (!parent->is_failed() && state == ModemState::CONNECTED) {
+    parent->add_on_state_callback([this, parent](ModemComponentState state) {
+      if (!parent->is_failed() && state == ModemComponentState::CONNECTED) {
         this->trigger();
       }
     });
@@ -34,8 +34,8 @@ class ModemOnConnectTrigger : public Trigger<> {
 class ModemOnDisconnectTrigger : public Trigger<> {
  public:
   explicit ModemOnDisconnectTrigger(ModemComponent *parent) {
-    parent->add_on_state_callback([this, parent](ModemState state) {
-      if (!parent->is_failed() && state == ModemState::DISCONNECTED) {
+    parent->add_on_state_callback([this, parent](ModemComponentState state) {
+      if (!parent->is_failed() && state == ModemComponentState::DISCONNECTED) {
         this->trigger();
       }
     });

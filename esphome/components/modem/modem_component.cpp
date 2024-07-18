@@ -52,6 +52,31 @@ std::string command_result_to_string(command_result err) {
   return res;
 }
 
+std::string state_to_string(ModemComponentState state) {
+  std::string str;
+  switch (state) {
+    case ModemComponentState::NOT_RESPONDING:
+      str = "NOT_RESPONDING";
+      break;
+    case ModemComponentState::DISCONNECTED:
+      str = "DISCONNECTED";
+      break;
+    case ModemComponentState::CONNECTING:
+      str = "CONNECTING";
+      break;
+    case ModemComponentState::CONNECTED:
+      str = "CONNECTED";
+      break;
+    case ModemComponentState::DISCONNECTING:
+      str = "DISCONNECTING";
+      break;
+    case ModemComponentState::DISABLED:
+      str = "DISABLED";
+      break;
+  }
+  return str;
+}
+
 void set_wdt(uint32_t timeout_s) {
 #if ESP_IDF_VERSION_MAJOR >= 5
   esp_task_wdt_config_t wdt_config = {
@@ -104,8 +129,34 @@ bool ModemComponent::is_connected() { return this->state_ == ModemComponentState
 
 void ModemComponent::setup() {
   ESP_LOGI(TAG, "Setting up Modem...");
-  // increase WDT, because setup and start_connect take some time.
-  set_wdt(60);
+
+  esp_err_t err;
+  err = esp_netif_init();
+  ESPHL_ERROR_CHECK(err, "PPP netif init error");
+  err = esp_event_loop_create_default();
+  ESPHL_ERROR_CHECK(err, "PPP event loop init error");
+
+  esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
+
+  this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
+  assert(this->ppp_netif_);
+
+  // err = esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr,
+  //                                           nullptr);
+  err = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr);
+  ESPHL_ERROR_CHECK(err, "IP event handler register error");
+
+  this->reset_();
+
+  ESP_LOGV(TAG, "Setup finished");
+}
+
+void ModemComponent::reset_() {
+  // destroy previous dte/dce, and recreate them.
+  // destroying them seems to be the only way to have a clear state after hang up, and be able to reconnect.
+
+  this->dte_.reset();
+  this->dce.reset();
 
   ESP_LOGV(TAG, "DTE setup");
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -124,37 +175,19 @@ void ModemComponent::setup() {
 
   this->dte_ = create_uart_dte(&this->dte_config_);
 
+  ESP_LOGV(TAG, "PPP netif setup");
+
   assert(this->dte_);
 
   ESP_LOGV(TAG, "Set APN: %s", this->apn_.c_str());
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
 
-  ESP_LOGV(TAG, "PPP netif setup");
-  esp_err_t err;
-  err = esp_netif_init();
-  ESPHL_ERROR_CHECK(err, "PPP netif init error");
-  err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "PPP event loop init error");
-  esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
-
-  this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
-  assert(this->ppp_netif_);
   if (!this->username_.empty()) {
     ESP_LOGV(TAG, "Set auth: username: %s password: %s", this->username_.c_str(), this->password_.c_str());
     ESPHL_ERROR_CHECK(esp_netif_ppp_set_auth(this->ppp_netif_, NETIF_PPP_AUTHTYPE_PAP, this->username_.c_str(),
                                              this->password_.c_str()),
                       "ppp set auth");
   }
-  // dns setup not needed (perhaps fallback ?)
-  // esp_netif_dns_info_t dns_main = {};
-  // dns_main.ip.u_addr.ip4.addr = esp_ip4addr_aton("8.8.8.8");
-  // dns_main.ip.type = ESP_IPADDR_TYPE_V4;
-  // ESPHL_ERROR_CHECK(esp_netif_set_dns_info(this->ppp_netif_, ESP_NETIF_DNS_MAIN, &dns_main), "dns_main");
-
-  // Register user defined event handers
-  err = esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_GOT_IP, &ModemComponent::got_ip_event_handler, nullptr);
-  ESPHL_ERROR_CHECK(err, "GOT IP event handler register error");
-
   ESP_LOGV(TAG, "DCE setup");
 
   // NOLINTBEGIN(bugprone-branch-clone)
@@ -181,19 +214,6 @@ void ModemComponent::setup() {
 
   assert(this->dce);
 
-  this->started_ = true;
-
-  set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
-  ESP_LOGV(TAG, "Setup finished");
-}
-
-void ModemComponent::start_connect_() {
-  set_wdt(60);
-  this->connect_begin_ = millis();
-  this->status_set_warning("Starting connection");
-
-  global_modem_component->got_ipv4_address_ = false;
-
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
     if (command_result::OK != this->dce->set_flow_control(2, 2)) {
       ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
@@ -203,6 +223,25 @@ void ModemComponent::start_connect_() {
   } else {
     ESP_LOGI(TAG, "not set_flow_control, because 2-wire mode active.");
   }
+
+  set_wdt(60);
+  // be sure that the modem is not in CMUX mode
+  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
+  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
+  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
+
+  if (!this->modem_ready()) {
+    ESP_LOGW(TAG, "Modem still not ready after reset");
+  }
+  set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
+}
+
+void ModemComponent::start_connect_() {
+  set_wdt(60);
+  this->connect_begin_ = millis();
+  this->status_set_warning("Starting connection");
+
+  global_modem_component->got_ipv4_address_ = false;
 
   bool pin_ok = true;
   if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
@@ -244,24 +283,36 @@ void ModemComponent::start_connect_() {
   set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
 }
 
-void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-  ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
-  const esp_netif_ip_info_t *ip_info = &event->ip_info;
-  ESP_LOGW(TAG, "[IP event] Got IP " IPSTR, IP2STR(&ip_info->ip));
-  global_modem_component->got_ipv4_address_ = true;
-  global_modem_component->connected_ = true;
+void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+  ip_event_got_ip_t *event;
+  const esp_netif_ip_info_t *ip_info;
+  switch (event_id) {
+    case IP_EVENT_PPP_GOT_IP:
+      event = (ip_event_got_ip_t *) event_data;
+      ip_info = &event->ip_info;
+      ESP_LOGW(TAG, "[IP event] Got IP " IPSTR, IP2STR(&ip_info->ip));
+      global_modem_component->got_ipv4_address_ = true;
+      global_modem_component->connected_ = true;
+      break;
+    case IP_EVENT_PPP_LOST_IP:
+      ESP_LOGI(TAG, "got ip lost event");
+      global_modem_component->got_ipv4_address_ = false;
+      global_modem_component->connected_ = false;
+      break;
+  }
 }
 
 void ModemComponent::loop() {
+  static ModemComponentState last_state = this->state_;
   const uint32_t now = millis();
   static uint32_t last_health_check = now;
   const uint32_t healh_check_interval = 30000;
 
   switch (this->state_) {
-    case ModemComponentState::STOPPED:
-      set_wdt(60);
+    case ModemComponentState::NOT_RESPONDING:
       if (this->started_) {
         if (!this->modem_ready()) {
+          set_wdt(60);
           ESP_LOGD(TAG, "Modem not responding. Trying to recover...");
 
           // Errors are not checked, because  some commands return FAIL, but make the modem to answer again...
@@ -269,45 +320,63 @@ void ModemComponent::loop() {
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
           ESP_LOGV(TAG, "Forcing cmux manual command mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
-          ESP_LOGW(TAG, "Forcing cmux manual exit mode");
+          ESP_LOGV(TAG, "Forcing cmux manual exit mode");
           this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
-          if (!this->modem_ready()) {
-            this->on_state_callback_.call(ModemState::NOT_RESPONDING);
-          }
           if (this->modem_ready()) {
             ESP_LOGI(TAG, "Modem is ready");
+            this->state_ = ModemComponentState::DISCONNECTED;
+          } else {
+            // try to run `on_not_responding` user callback
+            this->on_state_callback_.call(this->state_);
+            if (!this->modem_ready()) {
+              ESP_LOGW(TAG, "Unable to recover modem. Reseting dte/dce");
+              this->reset_();
+            }
           }
-        } else {
-          ESP_LOGI(TAG, "Starting modem connection");
-          this->state_ = ModemComponentState::CONNECTING;
-          this->start_connect_();
+          set_wdt(CONFIG_TASK_WDT_TIMEOUT_S);
         }
       }
-      set_wdt(CONFIG_TASK_WDT_TIMEOUT_S);
       break;
+
+    case ModemComponentState::DISCONNECTED:
+      if (this->enabled_) {
+        if (this->started_) {
+          if (this->modem_ready()) {
+            ESP_LOGI(TAG, "Starting modem connection");
+            this->state_ = ModemComponentState::CONNECTING;
+            this->start_connect_();
+          } else {
+            this->state_ = ModemComponentState::NOT_RESPONDING;
+          }
+        } else {
+          // when disconnected, we have to reset the dte and the dce
+          this->reset_();
+          this->started_ = true;
+        }
+      } else {
+        this->state_ = ModemComponentState::DISABLED;
+      }
+      break;
+
     case ModemComponentState::CONNECTING:
       if (!this->started_) {
         ESP_LOGI(TAG, "Stopped modem connection");
-        this->state_ = ModemComponentState::STOPPED;
+        this->state_ = ModemComponentState::DISCONNECTED;
       } else if (this->connected_) {
-        // connection established
         ESP_LOGI(TAG, "Connected via Modem");
         this->state_ = ModemComponentState::CONNECTED;
 
         this->dump_connect_params_();
         this->status_clear_warning();
-        this->on_state_callback_.call(ModemState::CONNECTED);
 
       } else if (now - this->connect_begin_ > 45000) {
         ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
-        this->state_ = ModemComponentState::STOPPED;
-        // this->start_connect_();
+        this->state_ = ModemComponentState::DISCONNECTED;
       }
       break;
     case ModemComponentState::CONNECTED:
       if (!this->started_) {
-        ESP_LOGI(TAG, "Stopped Modem connection");
-        this->state_ = ModemComponentState::STOPPED;
+        this->state_ = ModemComponentState::DISCONNECTED;
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
         this->state_ = ModemComponentState::CONNECTING;
@@ -316,14 +385,61 @@ void ModemComponent::loop() {
         if ((now - last_health_check) >= healh_check_interval) {
           ESP_LOGV(TAG, "Health check");
           last_health_check = now;
-          if (this->send_at("AT+CGREG?") == "ERROR") {
-            ESP_LOGW(TAG, "Modem not responding. Re-connecting...");
-            this->state_ = ModemComponentState::STOPPED;
+          if (!this->modem_ready()) {
+            ESP_LOGW(TAG, "Modem not responding while connected");
+            this->state_ = ModemComponentState::NOT_RESPONDING;
           }
         }
       }
       break;
+
+    case ModemComponentState::DISCONNECTING:
+      if (this->started_) {
+        if (this->connected_) {
+          ESP_LOGD(TAG, "Hanging up...");
+          this->dce->hang_up();
+        }
+        this->started_ = false;
+      } else if (!this->connected_) {
+        // ip lost as expected
+        this->state_ = ModemComponentState::DISCONNECTED;
+        this->reset_();  // reset dce/dte
+      } else {
+        // waiting for ip to be lost (TODO: possible infinite loop ?)
+      }
+
+      break;
+
+    case ModemComponentState::DISABLED:
+      if (this->enabled_) {
+        this->state_ = ModemComponentState::DISCONNECTED;
+      }
+      break;
   }
+
+  if (this->state_ != last_state) {
+    ESP_LOGV(TAG, "State changed: %s -> %s", state_to_string(last_state).c_str(),
+             state_to_string(this->state_).c_str());
+    if (this->state_ != ModemComponentState::NOT_RESPONDING) {
+      // NOT_RESPONDING cb is handled separately.
+      this->on_state_callback_.call(this->state_);
+    }
+
+    last_state = this->state_;
+  }
+}
+
+void ModemComponent::enable() {
+  if (this->state_ == ModemComponentState::DISABLED) {
+    this->state_ = ModemComponentState::DISCONNECTED;
+  }
+  this->started_ = true;
+  this->enabled_ = true;
+}
+
+void ModemComponent::disable() {
+  this->enabled_ = false;
+  this->state_ = ModemComponentState::DISCONNECTING;
 }
 
 void ModemComponent::dump_connect_params_() {
@@ -382,10 +498,12 @@ bool ModemComponent::get_imei(std::string &result) {
 bool ModemComponent::modem_ready() {
   // check if the modem is ready to answer AT commands
   std::string imei;
+  set_wdt(60);
   return this->get_imei(imei);
+  set_wdt(CONFIG_TASK_WDT_TIMEOUT_S);
 }
 
-void ModemComponent::add_on_state_callback(std::function<void(ModemState)> &&callback) {
+void ModemComponent::add_on_state_callback(std::function<void(ModemComponentState)> &&callback) {
   this->on_state_callback_.add(std::move(callback));
 }
 

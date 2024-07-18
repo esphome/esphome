@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_ENABLE_ON_BOOT,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -30,7 +31,7 @@ CONF_ON_NOT_RESPONDING = "on_not_responding"
 
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
-ModemState = modem_ns.enum("ModemState")
+ModemComponentState = modem_ns.enum("ModemComponentState")
 ModemOnNotRespondingTrigger = modem_ns.class_(
     "ModemOnNotRespondingTrigger", automation.Trigger.template()
 )
@@ -38,7 +39,7 @@ ModemOnConnectTrigger = modem_ns.class_(
     "ModemOnConnectTrigger", automation.Trigger.template()
 )
 ModemOnDisconnectTrigger = modem_ns.class_(
-    "ModemOndisconnectTrigger", automation.Trigger.template()
+    "ModemOnDisconnectTrigger", automation.Trigger.template()
 )
 
 
@@ -56,6 +57,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
+            cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -120,6 +122,10 @@ async def to_code(config):
 
     if pin_code := config.get(CONF_PIN_CODE, None):
         cg.add(var.set_pin_code(pin_code))
+
+    if enable_on_boot := config.get(CONF_ENABLE_ON_BOOT, None):
+        if enable_on_boot:
+            cg.add(var.enable())
 
     if init_at := config.get(CONF_INIT_AT, None):
         for cmd in init_at:

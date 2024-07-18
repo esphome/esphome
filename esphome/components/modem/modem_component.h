@@ -27,18 +27,13 @@ using namespace esp_modem;
 
 static const char *const TAG = "modem";
 
-// used internally for loop management
 enum class ModemComponentState {
-  STOPPED,
+  NOT_RESPONDING,
+  DISCONNECTED,
   CONNECTING,
   CONNECTED,
-};
-
-// Automation states
-enum class ModemState {
-  NOT_RESPONDING,
-  CONNECTED,
-  DISCONNECTED,
+  DISCONNECTING,
+  DISABLED,
 };
 
 enum class ModemModel { BG96, SIM800, SIM7000, SIM7070, SIM7600, UNKNOWN };
@@ -68,10 +63,15 @@ class ModemComponent : public Component {
   std::string send_at(const std::string &cmd);
   bool get_imei(std::string &result);
   bool modem_ready();
-  void add_on_state_callback(std::function<void(ModemState)> &&callback);
-  std::unique_ptr<DCE> dce;
+  void enable();
+  void disable();
+  void add_on_state_callback(std::function<void(ModemComponentState)> &&callback);
+  std::unique_ptr<DCE> dce{nullptr};
 
  protected:
+  void reset_();
+  // void close_();
+  // bool linked_();
   gpio_num_t rx_pin_ = gpio_num_t::GPIO_NUM_NC;
   gpio_num_t tx_pin_ = gpio_num_t::GPIO_NUM_NC;
   std::string pin_code_;
@@ -85,20 +85,21 @@ class ModemComponent : public Component {
                                                                   {"SIM7000", ModemModel::SIM7000},
                                                                   {"SIM7070", ModemModel::SIM7070},
                                                                   {"SIM7600", ModemModel::SIM7600}};
-  std::shared_ptr<DTE> dte_;
+  std::shared_ptr<DTE> dte_{nullptr};
   esp_netif_t *ppp_netif_{nullptr};
   esp_modem_dte_config_t dte_config_;
-  ModemComponentState state_{ModemComponentState::STOPPED};
+  ModemComponentState state_{ModemComponentState::DISABLED};
   void start_connect_();
   bool started_{false};
+  bool enabled_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
   uint32_t connect_begin_;
-  static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+  static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
   std::string use_address_;
   uint32_t command_delay_ = 500;
-  CallbackManager<void(ModemState)> on_state_callback_;
+  CallbackManager<void(ModemComponentState)> on_state_callback_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
