@@ -695,7 +695,8 @@ def command_rename(args, config):
         os.remove(new_path)
         return 1
 
-    os.remove(CORE.config_path)
+    if CORE.config_path != new_path:
+        os.remove(CORE.config_path)
 
     print(color(Fore.BOLD_GREEN, "SUCCESS"))
     print()
