@@ -498,9 +498,11 @@ bool ModemComponent::get_imei(std::string &result) {
 bool ModemComponent::modem_ready() {
   // check if the modem is ready to answer AT commands
   std::string imei;
+  bool status;
   set_wdt(60);
-  return this->get_imei(imei);
+  status = this->get_imei(imei);
   set_wdt(CONFIG_TASK_WDT_TIMEOUT_S);
+  return status;
 }
 
 void ModemComponent::add_on_state_callback(std::function<void(ModemComponentState)> &&callback) {
