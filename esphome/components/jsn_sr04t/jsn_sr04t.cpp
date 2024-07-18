@@ -63,6 +63,8 @@ void Jsnsr04tComponent::check_buffer_() {
     case AJ_SR04M:
       checksum = this->buffer_[1] + this->buffer_[2];
       break;
+    default:
+      return;
   }
 
   if (this->buffer_[3] == checksum) {
