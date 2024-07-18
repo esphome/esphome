@@ -1,4 +1,5 @@
 import os.path
+import subprocess
 
 from esphome.const import (
     KEY_CORE,
@@ -56,11 +57,19 @@ def libsodium():
                 # in the build tree, linked explicitly.
                 cg.add_build_flag(files[0])
             elif IS_LINUX:
-                sodium = os.popen("apt -qq libsodium-dev").read()
-                if "libsodium-dev" in sodium and "installed" not in sodium:
-                    raise EsphomeError(
-                        "libsodium required for api encryption - install with `sudo apt install libsodium-dev'"
-                    )
+                try:
+                    with subprocess.Popen(
+                        ("apt", "-qq", "list", "libsodium-dev"),
+                        stderr=subprocess.DEVNULL,
+                        stdout=subprocess.PIPE,
+                    ).stdout as stdout:
+                        sodium = str(stdout.read())
+                        if "libsodium-dev" in sodium and "installed" not in sodium:
+                            raise EsphomeError(
+                                "libsodium required for api encryption - install with `sudo apt install libsodium-dev'"
+                            )
+                except FileNotFoundError:
+                    pass
                 cg.add_build_flag("-lsodium")
             else:
                 # How to check on Windows? Who knows.
