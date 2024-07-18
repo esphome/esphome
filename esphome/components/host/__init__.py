@@ -56,8 +56,8 @@ def libsodium():
                 # in the build tree, linked explicitly.
                 cg.add_build_flag(files[0])
             elif IS_LINUX:
-                # linux uses gcc which works ok. The location of the file is variable however, so not so easy to test
-                if not os.popen("/usr/sbin/ldconfig -p | grep libsodium").read():
+                sodium = os.popen("apt -qq libsodium-dev").read()
+                if "libsodium-dev" in sodium and "installed" not in sodium:
                     raise EsphomeError(
                         "libsodium required for api encryption - install with `sudo apt install libsodium-dev'"
                     )
