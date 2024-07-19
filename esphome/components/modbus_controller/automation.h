@@ -7,10 +7,10 @@
 namespace esphome {
 namespace modbus_controller {
 
-class ModbusCommandTrigger : public Trigger<int, int> {
+class ModbusCommandSentTrigger : public Trigger<int, int> {
  public:
-  ModbusCommandTrigger(ModbusController *a_modbuscontroller) {
-    a_modbuscontroller->add_on_command_callback(
+  ModbusCommandSentTrigger(ModbusController *a_modbuscontroller) {
+    a_modbuscontroller->add_on_command_sent_callback(
         [this](int function_code, int address) { this->trigger(function_code, address); });
   }
 };

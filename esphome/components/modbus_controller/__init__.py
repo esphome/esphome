@@ -20,7 +20,7 @@ from .const import (
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
-    CONF_ON_COMMAND,
+    CONF_ON_COMMAND_SENT,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
@@ -106,8 +106,8 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
-ModbusCommandTrigger = modbus_controller_ns.class_(
-    "ModbusCommandTrigger", automation.Trigger.template(cg.int_, cg.int_)
+ModbusCommandSentTrigger = modbus_controller_ns.class_(
+    "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -133,9 +133,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
-            cv.Optional(CONF_ON_COMMAND): automation.validate_automation(
+            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusCommandTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusCommandSentTrigger),
                 }
             ),
         }
@@ -271,7 +271,7 @@ async def to_code(config):
                 )
             )
     await register_modbus_device(var, config)
-    for conf in config.get(CONF_ON_COMMAND, []):
+    for conf in config.get(CONF_ON_COMMAND_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
             trigger, [(int, "function_code"), (int, "address")], conf
