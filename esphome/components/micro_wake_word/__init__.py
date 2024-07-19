@@ -357,7 +357,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(MicroWakeWord),
             cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-            cv.Required(CONF_MODELS): cv.ensure_list(MODEL_SCHEMA),
+            cv.Required(CONF_MODELS): cv.ensure_list(
+                cv.maybe_simple_value(MODEL_SCHEMA, key=CONF_MODEL)
+            ),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
                 single=True
             ),

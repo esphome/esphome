@@ -2,4 +2,7 @@ wifi:
   ssid: MySSID
   password: password1
 
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
 improv_serial:
