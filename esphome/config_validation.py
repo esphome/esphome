@@ -2065,7 +2065,7 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = rp2040_arduino
-        elif CORE.is_host:
+        elif CORE.is_host and framework == "host":
             if host is None:
                 msg = "This feature is incompatible with host platform"
                 if extra_message:
