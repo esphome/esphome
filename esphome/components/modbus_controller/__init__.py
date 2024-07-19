@@ -135,7 +135,9 @@ CONFIG_SCHEMA = cv.All(
             ): cv.ensure_list(ModbusServerRegisterSchema),
             cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusCommandSentTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        ModbusCommandSentTrigger
+                    ),
                 }
             ),
         }
