@@ -46,7 +46,7 @@ void I2SAudioMicrophone::start_() {
     return;  // Waiting for another i2s to return lock
   }
   i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
+      .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_RX),
       .sample_rate = this->sample_rate_,
       .bits_per_sample = this->bits_per_sample_,
       .channel_format = this->channel_,
