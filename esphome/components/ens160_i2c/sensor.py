@@ -13,7 +13,7 @@ ENS160I2CComponent = ens160_ns.class_(
 )
 
 CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
-    i2c.i2c_device_schema(default_address=0x52)
+    i2c.i2c_device_schema(default_address=0x53)
 ).extend({cv.GenerateID(): cv.declare_id(ENS160I2CComponent)})
 
 
