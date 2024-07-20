@@ -66,4 +66,3 @@ switch:
     web_server:
       sorting_group: sorting_group_2
       sorting_weight: -10
-      
