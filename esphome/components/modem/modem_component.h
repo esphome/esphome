@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/automation.h"
 
 #ifdef USE_ESP_IDF
 
@@ -59,6 +60,7 @@ class ModemComponent : public Component {
   void set_model(const std::string &model) {
     this->model_ = this->modem_model_map_.count(model) ? modem_model_map_[model] : ModemModel::UNKNOWN;
   }
+  void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   std::string send_at(const std::string &cmd);
   bool get_imei(std::string &result);
@@ -70,8 +72,6 @@ class ModemComponent : public Component {
 
  protected:
   void reset_();
-  // void close_();
-  // bool linked_();
   gpio_num_t rx_pin_ = gpio_num_t::GPIO_NUM_NC;
   gpio_num_t tx_pin_ = gpio_num_t::GPIO_NUM_NC;
   std::string pin_code_;
@@ -99,6 +99,7 @@ class ModemComponent : public Component {
   void dump_connect_params_();
   std::string use_address_;
   uint32_t command_delay_ = 500;
+  Trigger<> *not_responding_cb_{nullptr};
   CallbackManager<void(ModemComponentState)> on_state_callback_;
 };
 

@@ -108,8 +108,6 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
   esp_err_t err = esp_netif_get_ip_info(this->ppp_netif_, &ip);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
-    // TODO: do something smarter
-    // return false;
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
@@ -117,6 +115,7 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
 }
 
 std::string ModemComponent::get_use_address() const {
+  // not usefull for a modem ?
   if (this->use_address_.empty()) {
     return App.get_name() + ".local";
   }
@@ -225,13 +224,18 @@ void ModemComponent::reset_() {
   }
 
   set_wdt(60);
-  // be sure that the modem is not in CMUX mode
-  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
-  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
-  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
-
-  if (!this->modem_ready()) {
-    ESP_LOGW(TAG, "Modem still not ready after reset");
+  if (this->enabled_ && !this->modem_ready()) {
+    // if the esp has rebooted, but the modem not, it is still in cmux mode
+    // So we close cmux.
+    // The drawback is that if the modem is poweroff, those commands will take some time to execute.
+    this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
+    this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
+    this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
+    if (!this->modem_ready()) {
+      ESP_LOGW(TAG, "Modem still not ready after reset");
+    } else {
+      ESP_LOGD(TAG, "Modem exited previous CMUX session");
+    }
   }
   set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
 }
@@ -311,29 +315,18 @@ void ModemComponent::loop() {
   switch (this->state_) {
     case ModemComponentState::NOT_RESPONDING:
       if (this->started_) {
-        if (!this->modem_ready()) {
-          set_wdt(60);
-          ESP_LOGD(TAG, "Modem not responding. Trying to recover...");
-
-          // Errors are not checked, because  some commands return FAIL, but make the modem to answer again...
-          ESP_LOGV(TAG, "Forcing cmux manual mode mode");
-          this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
-          ESP_LOGV(TAG, "Forcing cmux manual command mode");
-          this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
-          ESP_LOGV(TAG, "Forcing cmux manual exit mode");
-          this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
-          if (this->modem_ready()) {
-            ESP_LOGI(TAG, "Modem is ready");
-            this->state_ = ModemComponentState::DISCONNECTED;
-          } else {
-            // try to run `on_not_responding` user callback
-            this->on_state_callback_.call(this->state_);
-            if (!this->modem_ready()) {
-              ESP_LOGW(TAG, "Unable to recover modem. Reseting dte/dce");
-              this->reset_();
+        if (this->modem_ready()) {
+          ESP_LOGW(TAG, "Modem recovered");
+          this->state_ = ModemComponentState::DISCONNECTED;
+        } else {
+          if (this->not_responding_cb_) {
+            if (!this->not_responding_cb_->is_action_running()) {
+              ESP_LOGD(TAG, "not respondig cb start");
+              this->not_responding_cb_->trigger();
             }
+          } else {
+            ESP_LOGW(TAG, "Modem not responding, and no 'on_not_responding' action defined");
           }
-          set_wdt(CONFIG_TASK_WDT_TIMEOUT_S);
         }
       }
       break;
@@ -420,10 +413,7 @@ void ModemComponent::loop() {
   if (this->state_ != last_state) {
     ESP_LOGV(TAG, "State changed: %s -> %s", state_to_string(last_state).c_str(),
              state_to_string(this->state_).c_str());
-    if (this->state_ != ModemComponentState::NOT_RESPONDING) {
-      // NOT_RESPONDING cb is handled separately.
-      this->on_state_callback_.call(this->state_);
-    }
+    this->on_state_callback_.call(this->state_);
 
     last_state = this->state_;
   }
