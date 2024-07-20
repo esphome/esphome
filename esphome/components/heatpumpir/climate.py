@@ -126,11 +126,5 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.27")
-
-    if CORE.is_libretiny:
-        cg.add_library(
-            name="IRremoteESP8266",
-            repository="https://github.com/X-Ryl669/IRremoteESP8266",
-            version="2.8.6",
-        )
+    #cg.add_library("tonia/HeatpumpIR", "1.0.27")
+    cg.add_library("https://github.com/dianlight/arduino-heatpumpir/archive/refs/heads/libretiny_dep_fix.zip","1.0.27")
