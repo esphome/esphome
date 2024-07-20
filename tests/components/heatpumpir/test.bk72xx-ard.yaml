@@ -1,5 +1,5 @@
 remote_transmitter:
-  pin: P26
+  pin: 6
   carrier_duty_percent: 50%
 
 climate:
@@ -11,16 +11,16 @@ climate:
     min_temperature: 18
     max_temperature: 30
   - platform: heatpumpir
-    protocol: greeyt
-    horizontal_default: left
-    vertical_default: up
+    protocol: daikin
+    horizontal_default: mleft
+    vertical_default: mup
     name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
   - platform: heatpumpir
-    protocol: daikin
-    horizontal_default: left
-    vertical_default: up
+    protocol: panasonic_altdke
+    horizontal_default: mright
+    vertical_default: mdown
     name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
