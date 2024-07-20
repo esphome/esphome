@@ -104,7 +104,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.int_range(0, 31),
             ),
             cv.Optional(
-                CONF_CONVERSATION_TIMEOUT, default="5m"
+                CONF_CONVERSATION_TIMEOUT, default="300s"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
                 min=0.0, min_included=False
