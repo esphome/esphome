@@ -306,6 +306,8 @@ void ModemComponent::loop() {
               ESP_LOGI(TAG, "Starting modem connection");
               this->state_ = ModemComponentState::CONNECTING;
               this->start_connect_();
+            } else {
+              this->disable();
             }
           } else {
             this->state_ = ModemComponentState::NOT_RESPONDING;
@@ -404,6 +406,7 @@ void ModemComponent::loop() {
 }
 
 void ModemComponent::enable() {
+  ESP_LOGD(TAG, "Enabling modem");
   if (this->state_ == ModemComponentState::DISABLED) {
     this->state_ = ModemComponentState::DISCONNECTED;
   }
@@ -412,8 +415,13 @@ void ModemComponent::enable() {
 }
 
 void ModemComponent::disable() {
+  ESP_LOGD(TAG, "Disabling modem");
   this->enabled_ = false;
-  this->state_ = ModemComponentState::DISCONNECTING;
+  if (this->state_ == ModemComponentState::CONNECTED) {
+    this->state_ = ModemComponentState::DISCONNECTING;
+  } else {
+    this->state_ = ModemComponentState::DISCONNECTED;
+  }
 }
 
 void ModemComponent::dump_connect_params_() {
