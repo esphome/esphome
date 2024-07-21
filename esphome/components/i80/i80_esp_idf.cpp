@@ -91,7 +91,7 @@ class I80BusIdf : public I80Bus {
     }
   }
 
-  I80Delegate *get_delegate(GPIOPin *cs_pin, uint32_t data_rate) override {
+  I80Delegate *get_delegate(GPIOPin *cs_pin, unsigned int data_rate) override {
     esp_lcd_panel_io_i80_config_t config = {};
     config.on_color_trans_done = trans_done;
     config.cs_gpio_num = -1;
