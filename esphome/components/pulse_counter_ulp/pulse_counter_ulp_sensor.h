@@ -11,17 +11,20 @@ namespace pulse_counter_ulp {
 
 enum class CountMode { disable = 0, increment = 1, decrement = -1 };
 
-using pulse_counter_t = int16_t;
 using timestamp_t = int64_t;
 
-struct UlpPulseCounterStorage {
-  bool pulse_counter_setup(InternalGPIOPin *pin);
-  pulse_counter_t read_raw_value();
+struct UlpProgram {
+  struct state {
+    uint16_t edge_count;
+    uint16_t run_count;
+  };
+  bool setup(InternalGPIOPin *pin);
+  state pop_state();
+  state peek_state() const;
 
   InternalGPIOPin *pin;
   CountMode rising_edge_mode{CountMode::increment};
   CountMode falling_edge_mode{CountMode::disable};
-  pulse_counter_t last_value{0};
 };
 
 class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
@@ -43,7 +46,7 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   InternalGPIOPin *pin_;
-  UlpPulseCounterStorage storage_;
+  UlpProgram storage_;
   timestamp_t last_time_{0};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_{nullptr};

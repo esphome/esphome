@@ -28,20 +28,8 @@ const char *to_string(CountMode count_mode) {
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
 
-bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
-  this->pin = pin;
-  this->pin->setup();
-
-  auto rising = static_cast<uint32_t>(this->rising_edge_mode);
-  auto falling = static_cast<uint32_t>(this->falling_edge_mode);
-
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
-    ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
-  } else {
-    ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
-    return true;
-  }
-
+namespace {
+bool setup_ulp(gpio_num_t gpio_num) {
   esp_err_t error = ulp_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "Loading ULP binary failed: %s", esp_err_to_name(error));
@@ -49,7 +37,6 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   /* GPIO used for pulse counting. */
-  gpio_num_t gpio_num = static_cast<gpio_num_t>(pin->get_pin());
   int rtcio_num = rtc_io_number_get(gpio_num);
   if (!rtc_gpio_is_valid_gpio(gpio_num)) {
     ESP_LOGE(TAG, "GPIO used for pulse counting must be an RTC IO");
@@ -90,19 +77,44 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
 
   return true;
 }
+}  // namespace
 
-pulse_counter_t UlpPulseCounterStorage::read_raw_value() {
+bool UlpProgram::setup(InternalGPIOPin *pin) {
+  this->pin = pin;
+  this->pin->setup();
+
+  auto rising = static_cast<uint32_t>(this->rising_edge_mode);
+  auto falling = static_cast<uint32_t>(this->falling_edge_mode);
+
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
+    return setup_ulp(static_cast<gpio_num_t>(pin->get_pin()));
+  } else {
+    ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
+    return true;
+  }
+}
+
+UlpProgram::state UlpProgram::pop_state() {
   // TODO count edges separately
-  auto count = static_cast<pulse_counter_t>(ulp_edge_count);
+  auto edge_count = static_cast<uint16_t>(ulp_edge_count);
+  auto run_count = static_cast<uint16_t>(ulp_run_count);
   ulp_edge_count = 0;
-  return count;
+  ulp_run_count = 0;
+  return {.edge_count = edge_count, .run_count = run_count};
+}
+
+UlpProgram::state UlpProgram::peek_state() const {
+  auto edge_count = static_cast<uint16_t>(ulp_edge_count);
+  auto run_count = static_cast<uint16_t>(ulp_run_count);
+  return {.edge_count = edge_count, .run_count = run_count};
 }
 
 /* === END ULP ===*/
 
 void PulseCounterUlpSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
-  if (!this->storage_.pulse_counter_setup(this->pin_)) {
+  if (!this->storage_.setup(this->pin_)) {
     this->mark_failed();
     return;
   }
@@ -122,21 +134,21 @@ void PulseCounterUlpSensor::dump_config() {
 }
 
 void PulseCounterUlpSensor::update() {
-  pulse_counter_t raw = this->storage_.read_raw_value();
+  UlpProgram::state raw = this->storage_.pop_state();
   timestamp_t now;
   timestamp_t interval;
   now = millis();
   interval = now - this->last_time_;
   if (this->last_time_ != 0) {
-    float value = (60000.0f * raw) / float(interval);  // per minute
+    float value = (60000.0f * raw.edge_count) / float(interval);  // per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
     this->publish_state(value);
   }
 
   if (this->total_sensor_ != nullptr) {
-    current_total_ += raw;
+    this->current_total_ += raw.edge_count;
     ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", this->get_name().c_str(), current_total_);
-    this->total_sensor_->publish_state(current_total_);
+    this->total_sensor_->publish_state(this->current_total_);
   }
   this->last_time_ = now;
 }
