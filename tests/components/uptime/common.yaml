@@ -1,3 +1,15 @@
+wifi:
+  ap:
+
+time:
+  - platform: sntp
+
 sensor:
   - platform: uptime
     name: Uptime Sensor
+  - platform: uptime
+    name: Uptime Sensor Seconds
+    type: seconds
+  - platform: uptime
+    name: Uptime Sensor Timestamp
+    type: timestamp

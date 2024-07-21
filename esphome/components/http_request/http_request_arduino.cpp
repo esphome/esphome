@@ -32,6 +32,13 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
 
   watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
+  if (this->follow_redirects_) {
+    container->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    container->client_.setRedirectLimit(this->redirect_limit_);
+  } else {
+    container->client_.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  }
+
 #if defined(USE_ESP8266)
   std::unique_ptr<WiFiClient> stream_ptr;
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
@@ -59,8 +66,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
                   "in your YAML, or use HTTPS");
   }
 #endif  // USE_ARDUINO_VERSION_CODE
-
-  container->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   bool status = container->client_.begin(*stream_ptr, url.c_str());
 
 #elif defined(USE_RP2040)

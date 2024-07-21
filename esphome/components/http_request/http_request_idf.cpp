@@ -52,6 +52,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   config.timeout_ms = this->timeout_;
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
+  config.auth_type = HTTP_AUTH_TYPE_BASIC;
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
   if (secure) {
     config.crt_bundle_attach = esp_crt_bundle_attach;
@@ -90,7 +91,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     int write_left = body_len;
     int write_index = 0;
     const char *buf = body.c_str();
-    while (body_len > 0) {
+    while (write_left > 0) {
       int written = esp_http_client_write(client, buf + write_index, write_left);
       if (written < 0) {
         err = ESP_FAIL;

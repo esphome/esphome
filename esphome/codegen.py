@@ -60,6 +60,7 @@ from esphome.cpp_types import (  # noqa
     std_ns,
     std_shared_ptr,
     std_string,
+    std_string_ref,
     std_vector,
     uint8,
     uint16,

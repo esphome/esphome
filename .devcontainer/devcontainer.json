@@ -1,7 +1,9 @@
 {
   "name": "ESPHome Dev",
   "image": "ghcr.io/esphome/esphome-lint:dev",
-  "postCreateCommand": ["script/devcontainer-post-create"],
+  "postCreateCommand": [
+    "script/devcontainer-post-create"
+  ],
   "containerEnv": {
     "DEVCONTAINER": "1",
     "PIP_BREAK_SYSTEM_PACKAGES": "1",
@@ -27,6 +29,9 @@
       "extensions": [
         // python
         "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.flake8",
+        "ms-python.black-formatter",
         "visualstudioexptteam.vscodeintellicode",
         // yaml
         "redhat.vscode-yaml",
@@ -38,9 +43,21 @@
       "settings": {
         "python.languageServer": "Pylance",
         "python.pythonPath": "/usr/bin/python3",
-        "python.linting.pylintEnabled": true,
-        "python.linting.enabled": true,
-        "python.formatting.provider": "black",
+        "pylint.args": [
+          "--rcfile=${workspaceFolder}/pyproject.toml"
+        ],
+        "flake8.args": [
+          "--config=${workspaceFolder}/.flake8"
+        ],
+        "black-formatter.args": [
+          "--config",
+          "${workspaceFolder}/pyproject.toml"
+        ],
+        "[python]": {
+          // VS will say "Value is not accepted" before building the devcontainer, but the warning
+          // should go away after build is completed.
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
         "editor.formatOnPaste": false,
         "editor.formatOnSave": true,
         "editor.formatOnType": true,

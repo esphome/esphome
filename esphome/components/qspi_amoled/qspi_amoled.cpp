@@ -25,6 +25,9 @@ void QspiAmoLed::setup() {
 }
 
 void QspiAmoLed::update() {
+  if (!this->setup_complete_) {
+    return;
+  }
   this->do_update_();
   // Start addresses and widths/heights must be divisible by 2 (CASET/RASET restriction in datasheet)
   if (this->x_low_ % 2 == 1) {
