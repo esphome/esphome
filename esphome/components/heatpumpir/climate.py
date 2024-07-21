@@ -130,4 +130,3 @@ def to_code(config):
     cg.add_library("tonia/HeatpumpIR", "1.0.27")
     if CORE.is_libretiny:
         CORE.add_platformio_option("lib_ignore", "IRremoteESP8266")
-    
