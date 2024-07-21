@@ -177,5 +177,14 @@ bool ListEntitiesIterator::on_event(event::Event *event) {
 }
 #endif
 
+#ifdef USE_UPDATE
+bool ListEntitiesIterator::on_update(update::UpdateEntity *update) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->update_json(update, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 }  // namespace web_server
 }  // namespace esphome

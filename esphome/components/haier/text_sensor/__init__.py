@@ -39,7 +39,7 @@ TEXT_SENSOR_TYPES = {
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_HAIER_ID): cv.use_id(HonClimate),
+        cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
     }
 ).extend({cv.Optional(type): schema for type, schema in TEXT_SENSOR_TYPES.items()})
 
@@ -47,8 +47,8 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_HAIER_ID])
 
-    for type, _ in TEXT_SENSOR_TYPES.items():
-        if conf := config.get(type):
+    for type_ in TEXT_SENSOR_TYPES:
+        if conf := config.get(type_):
             sens = await text_sensor.new_text_sensor(conf)
-            text_sensor_type = getattr(TextSensorTypeEnum, type.upper())
+            text_sensor_type = getattr(TextSensorTypeEnum, type_.upper())
             cg.add(paren.set_sub_text_sensor(text_sensor_type, sens))

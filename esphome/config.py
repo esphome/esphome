@@ -23,7 +23,7 @@ from esphome.const import (
     CONF_EXTERNAL_COMPONENTS,
     TARGET_PLATFORMS,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, DocumentRange
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
@@ -139,7 +139,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         )
 
     def run_validation_steps(self):
-        while self._validation_tasks:
+        while self._validation_tasks and not self.errors:
             task = heapq.heappop(self._validation_tasks)
             task.step.run(self)
 
@@ -184,7 +184,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
     def get_deepest_document_range_for_path(
         self, path: ConfigPath, get_key: bool = False
-    ) -> ESPHomeDataBase | None:
+    ) -> DocumentRange | None:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):
@@ -1123,4 +1123,4 @@ def read_config(command_line_substitutions):
             safe_print("")
 
         return None
-    return OrderedDict(res)
+    return res

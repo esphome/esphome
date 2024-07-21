@@ -3,7 +3,7 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_MQTT
-#ifdef USE_DATETIME_TIME
+#ifdef USE_DATETIME_DATETIME
 
 #include "esphome/components/datetime/datetime_entity.h"
 #include "mqtt_component.h"
@@ -17,7 +17,7 @@ class MQTTDateTimeComponent : public mqtt::MQTTComponent {
    *
    * @param time The time entity.
    */
-  explicit MQTTDateTimeComponent(datetime::DateTimeEntity *time);
+  explicit MQTTDateTimeComponent(datetime::DateTimeEntity *datetime);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -41,5 +41,5 @@ class MQTTDateTimeComponent : public mqtt::MQTTComponent {
 }  // namespace mqtt
 }  // namespace esphome
 
-#endif  // USE_DATETIME_DATE
+#endif  // USE_DATETIME_DATETIME
 #endif  // USE_MQTT

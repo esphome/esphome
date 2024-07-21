@@ -59,6 +59,7 @@
 #define USE_TIME
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
+#define USE_UPDATE
 #define USE_VALVE
 #define USE_WIFI
 #define USE_WIFI_AP
@@ -86,6 +87,7 @@
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
 #define USE_IMPROV
+#define USE_MICRO_WAKE_WORD_VAD
 #define USE_MICROPHONE
 #define USE_PSRAM
 #define USE_SOCKET_IMPL_BSD_SOCKETS

@@ -94,6 +94,7 @@ esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
 esphome/components/daikin_arc/* @MagicBear
 esphome/components/daikin_brc/* @hagak
+esphome/components/dallas_temp/* @ssieb
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/datetime/* @jesserockz @rfdarter
@@ -144,6 +145,7 @@ esphome/components/gdk101/* @Szewcson
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
+esphome/components/gpio/one_wire/* @ssieb
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/graphical_display_menu/* @MrMDavidson
@@ -172,6 +174,7 @@ esphome/components/host/time/* @clydebarrow
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
 esphome/components/http_request/ota/* @oarcher
+esphome/components/http_request/update/* @jesserockz
 esphome/components/htu31d/* @betterengineering
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/hyt271/* @Philippe12
@@ -211,7 +214,7 @@ esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
-esphome/components/ltr390/* @sjtrny
+esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr_als_ps/* @latonita
 esphome/components/matrix_keypad/* @ssieb
 esphome/components/max31865/* @DAVe3283
@@ -269,6 +272,7 @@ esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/number/* @esphome/core
+esphome/components/one_wire/* @ssieb
 esphome/components/optolink/* @j0ta29
 esphome/components/optolink/binary_sensor/* @j0ta29
 esphome/components/optolink/number/* @j0ta29
@@ -324,6 +328,7 @@ esphome/components/rtttl/* @glmnet
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
+esphome/components/sdl/* @clydebarrow
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
 esphome/components/seeed_mr24hpc1/* @limengdu
@@ -418,6 +423,7 @@ esphome/components/uart/button/* @ssieb
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
+esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
 esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb

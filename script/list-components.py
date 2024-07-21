@@ -50,6 +50,7 @@ def create_components_graph():
         {KEY_TARGET_FRAMEWORK: "arduino", KEY_TARGET_PLATFORM: None},
         {KEY_TARGET_FRAMEWORK: "esp-idf", KEY_TARGET_PLATFORM: None},
         {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: PLATFORM_ESP32},
+        {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: PLATFORM_ESP8266},
     ]
     CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
@@ -119,10 +120,30 @@ def find_children_of_component(components_graph, component_name, depth=0):
     return list(set(children))
 
 
+def get_components(files: list[str], get_dependencies: bool = False):
+    components = extract_component_names_array_from_files_array(files)
+
+    if get_dependencies:
+        components_graph = create_components_graph()
+
+        all_components = components.copy()
+        for c in components:
+            all_components.extend(find_children_of_component(components_graph, c))
+        # Remove duplicate values
+        all_changed_components = list(set(all_components))
+
+        return sorted(all_changed_components)
+
+    return sorted(components)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-c", "--changed", action="store_true", help="Only run on changed files"
+        "-c",
+        "--changed",
+        action="store_true",
+        help="List all components required for testing based on changes",
     )
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
@@ -140,26 +161,12 @@ def main():
             changed = changed_files(args.branch)
         else:
             changed = changed_files()
-        files = [f for f in files if f in changed]
+        # If any base test file(s) changed, there's no need to filter out components
+        if not any("tests/test_build_components" in file for file in changed):
+            files = [f for f in files if f in changed]
 
-    components = extract_component_names_array_from_files_array(files)
-
-    if args.changed:
-        components_graph = create_components_graph()
-
-        all_changed_components = components.copy()
-        for c in components:
-            all_changed_components.extend(
-                find_children_of_component(components_graph, c)
-            )
-        # Remove duplicate values
-        all_changed_components = list(set(all_changed_components))
-
-        for c in sorted(all_changed_components):
-            print(c)
-    else:
-        for c in sorted(components):
-            print(c)
+    for c in get_components(files, args.changed):
+        print(c)
 
 
 if __name__ == "__main__":
