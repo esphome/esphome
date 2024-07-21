@@ -6,9 +6,6 @@
 
 #include <cxx_include/esp_modem_api.hpp>
 
-#include <esp_idf_version.h>
-#include <esp_task_wdt.h>
-
 namespace esphome {
 namespace modem {
 
@@ -20,23 +17,15 @@ std::string state_to_string(ModemComponentState state);
 // When deleted, will restore default WDT
 class Watchdog {
  public:
-  Watchdog(int timeout_s) { this->set_wdt_(timeout_s); }
+  Watchdog(u_int32_t timeout_s);
 
-  ~Watchdog() { this->set_wdt_(CONFIG_TASK_WDT_TIMEOUT_S); }
+  ~Watchdog();
 
  private:
-  void set_wdt_(uint32_t timeout_s) {
-#if ESP_IDF_VERSION_MAJOR >= 5
-    esp_task_wdt_config_t wdt_config = {
-        .timeout_ms = timeout_s * 1000,
-        .idle_core_mask = 0x03,
-        .trigger_panic = true,
-    };
-    esp_task_wdt_reconfigure(&wdt_config);
-#else
-    esp_task_wdt_init(timeout_s, true);
-#endif  // ESP_IDF_VERSION_MAJOR
-  }
+  uint32_t timeout_s_;
+  uint64_t start_time_ms_;
+
+  void set_wdt_(uint32_t timeout_s);
 };
 
 }  // namespace modem
