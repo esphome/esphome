@@ -6,6 +6,8 @@ import os
 import re
 import sys
 import time
+import hashlib
+import gzip
 from datetime import datetime
 
 import argcomplete
@@ -38,7 +40,7 @@ from esphome.const import (
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent, is_ip_address
+from esphome.helpers import indent, is_ip_address, copy_file_if_changed
 from esphome.util import (
     run_external_command,
     run_external_process,
@@ -221,7 +223,25 @@ def compile_program(args, config):
     if rc != 0:
         return rc
     idedata = platformio_api.get_idedata(config)
-    return 0 if idedata is not None else 1
+    if idedata is None:
+        return 1
+
+    with open(CORE.firmware_bin, "rb") as firmware_bin:
+        bin_content = firmware_bin.read()
+
+    md5 = hashlib.md5(bin_content).hexdigest()
+    with open(CORE.firmware_md5, "w", encoding="ascii") as firmware_md5:
+        firmware_md5.write(md5)
+
+    gz_content = gzip.compress(bin_content, compresslevel=9)
+    with open(CORE.firmware_gz, "wb") as firmware_gz:
+        firmware_gz.write(gz_content)
+
+    md5_gz = hashlib.md5(gz_content).hexdigest()
+    with open(CORE.firmware_gz_md5, "w", encoding="ascii") as firmware_gz_md5:
+        firmware_gz_md5.write(md5_gz)
+
+    return 0
 
 
 def upload_using_esptool(config, port, file):
@@ -702,6 +722,22 @@ def command_rename(args, config):
     print()
     return 0
 
+def command_publish(args, config):
+    files = [ CORE.firmware_bin, CORE.firmware_md5, CORE.firmware_gz, CORE.firmware_gz_md5]
+    if not all(map(lambda f: os.path.isfile(f), files)):
+        exit_code = compile_program(args, config)
+        if exit_code != 0:
+            return exit_code
+
+    topdir = os.path.join(args.directory, CORE.name)
+    _LOGGER.info(f"Copying firmware files to {topdir}...")
+    for src_file in files:
+        dst_file = os.path.join(args.directory, CORE.name, os.path.basename(src_file))
+        copy_file_if_changed(src_file, dst_file)
+
+
+    return 0
+
 
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
@@ -723,6 +759,7 @@ POST_CONFIG_ACTIONS = {
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
+    "publish": command_publish,
 }
 
 
@@ -821,6 +858,19 @@ def parse_args(argv):
     )
     parser_discover.add_argument(
         "configuration", help="Your YAML configuration file.", nargs=1
+    )
+
+    parser_publish = subparsers.add_parser(
+        "publish",
+        help="Publish compiled binary. (currently copy binary to directory)",
+    )
+    parser_publish.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_publish.add_argument(
+        "--directory",
+        default=os.path.join(os.path.sep, "config", "www"),
+        help="Destination directory",
     )
 
     parser_run = subparsers.add_parser(

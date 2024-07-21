@@ -388,6 +388,11 @@ class EsphomeRunHandler(EsphomePortCommandWebSocket):
         """Build the command to run."""
         return await self.build_device_command(["run"], json_message)
 
+class EsphomePublishHandler(EsphomePortCommandWebSocket):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
+        config_file = settings.rel_path(json_message["configuration"])
+        return [*DASHBOARD_COMMAND, "publish", config_file]
+
 
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
@@ -1051,6 +1056,8 @@ def get_base_frontend_path() -> str:
     if not static_path.endswith("/"):
         static_path += "/"
 
+    _LOGGER.warning("esphome_dashboard %s" % os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard")))
+
     # This path can be relative, so resolve against the root or else templates don't work
     return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
 
@@ -1131,6 +1138,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}logs", EsphomeLogsHandler),
             (f"{rel}upload", EsphomeUploadHandler),
             (f"{rel}run", EsphomeRunHandler),
+            (f"{rel}publish", EsphomePublishHandler),
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),

@@ -630,6 +630,18 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
+    def firmware_md5(self):
+        return self.firmware_bin + '.md5'
+
+    @property
+    def firmware_gz(self):
+        return self.firmware_bin + '.gz'
+
+    @property
+    def firmware_gz_md5(self):
+        return self.firmware_gz + '.md5'
+
+    @property
     def target_platform(self):
         return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
 

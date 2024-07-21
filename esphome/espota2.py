@@ -8,8 +8,9 @@ import random
 import socket
 import sys
 import time
+from typing import Optional
 
-from esphome.core import EsphomeError
+from esphome.core import EsphomeError, CORE
 from esphome.helpers import is_ip_address, resolve_ip_address
 
 RESPONSE_OK = 0x00
@@ -194,11 +195,11 @@ def send_check(sock, data, msg):
 
 
 def perform_ota(
-    sock: socket.socket, password: str, file_handle: io.IOBase, filename: str
+    sock: socket.socket, password: str, filename: Optional[str] = None
 ) -> None:
-    file_contents = file_handle.read()
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
+    #file_contents = file_handle.read()
+    #file_size = len(file_contents)
+    #_LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -219,10 +220,28 @@ def perform_ota(
     )[0]
 
     if features == RESPONSE_SUPPORTS_COMPRESSION:
-        upload_contents = gzip.compress(file_contents, compresslevel=9)
-        _LOGGER.info("Compressed to %s bytes", len(upload_contents))
+        filename = CORE.firmware_gz
+        filename_md5 = CORE.firmware_gz_md5
+        #upload_contents = gzip.compress(file_contents, compresslevel=9)
+        #_LOGGER.info("Compressed to %s bytes", len(upload_contents))
+        _LOGGER.info("Using compressed image")
     else:
-        upload_contents = file_contents
+        _LOGGER.info("Not using compressed image")
+        filename = CORE.firmware_bin
+        filename_md5 = CORE.firmware_md5
+        #upload_contents = file_contents
+
+    try:
+        with open(filename, "rb") as file_handle:
+            file_contents = file_handle.read()
+    except IOError as e:
+        raise OTAError(f"Error on {filename}: {str(e)}")
+
+    try:
+        with open(filename_md5, "r", encoding='ascii') as file_md5_handle:
+            md5 = file_md5_handle.read()
+    except IOError as e:
+        raise OTAError(f"Error on {filename_md5}: {str(e)}")
 
     (auth,) = receive_exactly(
         sock, 1, "auth", [RESPONSE_REQUEST_AUTH, RESPONSE_AUTH_OK]
@@ -249,7 +268,7 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
-    upload_size = len(upload_contents)
+    upload_size = len(file_contents)
     upload_size_encoded = [
         (upload_size >> 24) & 0xFF,
         (upload_size >> 16) & 0xFF,
@@ -259,10 +278,9 @@ def perform_ota(
     send_check(sock, upload_size_encoded, "binary size")
     receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
-    _LOGGER.debug("MD5 of upload is %s", upload_md5)
+    _LOGGER.debug("MD5 of upload is %s", md5)
 
-    send_check(sock, upload_md5, "file checksum")
+    send_check(sock, md5, "file checksum")
     receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
 
     # Disable nodelay for transfer
@@ -278,7 +296,7 @@ def perform_ota(
     offset = 0
     progress = ProgressBar()
     while True:
-        chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
+        chunk = file_contents[offset : offset + UPLOAD_BLOCK_SIZE]
         if not chunk:
             break
         offset += len(chunk)
@@ -310,7 +328,7 @@ def perform_ota(
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
+def run_ota_impl_(remote_host, remote_port, password, filename=None):
     if is_ip_address(remote_host):
         _LOGGER.info("Connecting to %s", remote_host)
         ip = remote_host
@@ -339,21 +357,20 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1
 
-    with open(filename, "rb") as file_handle:
-        try:
-            perform_ota(sock, password, file_handle, filename)
-        except OTAError as err:
-            _LOGGER.error(str(err))
-            return 1
-        finally:
-            sock.close()
+    try:
+        perform_ota(sock, password, filename=filename)
+    except OTAError as err:
+        _LOGGER.error(str(err))
+        return 1
+    finally:
+        sock.close()
 
     return 0
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(remote_host, remote_port, password, filename=None):
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename)
+        return run_ota_impl_(remote_host, remote_port, password, filename=filename)
     except OTAError as err:
         _LOGGER.error(err)
         return 1
