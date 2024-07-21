@@ -3,8 +3,9 @@
 #include <memory>
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/automation.h"
+#include "esphome/components/network/util.h"
 
 #ifdef USE_ESP_IDF
 
@@ -53,8 +54,8 @@ class ModemComponent : public Component {
   network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
-  void set_rx_pin(gpio_num_t rx_pin) { this->rx_pin_ = rx_pin; }
-  void set_tx_pin(gpio_num_t tx_pin) { this->tx_pin_ = tx_pin; }
+  void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
+  void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
   void set_username(const std::string &username) { this->username_ = username; }
   void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
@@ -74,8 +75,8 @@ class ModemComponent : public Component {
 
  protected:
   void reset_();  // (re)create dte and dce
-  gpio_num_t rx_pin_ = gpio_num_t::GPIO_NUM_NC;
-  gpio_num_t tx_pin_ = gpio_num_t::GPIO_NUM_NC;
+  InternalGPIOPin *tx_pin_;
+  InternalGPIOPin *rx_pin_;
   std::string pin_code_;
   std::string username_;
   std::string password_;

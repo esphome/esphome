@@ -15,7 +15,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import coroutine_with_priority
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome import automation
+from esphome import pins, automation
 
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
@@ -47,11 +47,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModemComponent),
-            cv.Required(CONF_TX_PIN): cv.positive_int,
-            cv.Required(CONF_RX_PIN): cv.positive_int,
+            cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_MODEL): cv.string,
             cv.Required(CONF_APN): cv.string,
-            cv.Optional(CONF_DTR_PIN): cv.positive_int,
+            cv.Optional(CONF_DTR_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string,
             cv.Optional(CONF_PASSWORD): cv.string,
@@ -134,10 +134,11 @@ async def to_code(config):
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_apn(config[CONF_APN]))
 
-    gpio_num_t = cg.global_ns.enum("gpio_num_t")
+    tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
+    cg.add(var.set_tx_pin(tx_pin))
 
-    cg.add(var.set_rx_pin(getattr(gpio_num_t, f"GPIO_NUM_{config[CONF_RX_PIN]}")))
-    cg.add(var.set_tx_pin(getattr(gpio_num_t, f"GPIO_NUM_{config[CONF_TX_PIN]}")))
+    rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
+    cg.add(var.set_rx_pin(rx_pin))
 
     for conf in config.get(CONF_ON_NOT_RESPONDING, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

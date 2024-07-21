@@ -111,8 +111,8 @@ void ModemComponent::reset_() {
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
   this->dte_config_ = dte_config;
 
-  this->dte_config_.uart_config.tx_io_num = this->tx_pin_;
-  this->dte_config_.uart_config.rx_io_num = this->rx_pin_;
+  this->dte_config_.uart_config.tx_io_num = this->tx_pin_->get_pin();
+  this->dte_config_.uart_config.rx_io_num = this->rx_pin_->get_pin();
   // this->dte_config_.uart_config.rts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_RTS_PIN);
   // this->dte_config_.uart_config.cts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_CTS_PIN);
   this->dte_config_.uart_config.rx_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE;
