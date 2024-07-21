@@ -91,7 +91,8 @@ CONFIG_SCHEMA = cv.Schema(
         ONLINE_IMAGE_SCHEMA,
         validate_cross_dependencies,
         cv.require_framework_version(
-            esp8266_arduino=cv.Version(2, 7, 0),
+            # esp8266 not supported yet; if enabled in the future, minimum version of 2.7.0 is needed
+            # esp8266_arduino=cv.Version(2, 7, 0),
             esp32_arduino=cv.Version(0, 0, 0),
             esp_idf=cv.Version(4, 0, 0),
         ),
