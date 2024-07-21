@@ -9,13 +9,6 @@
 #include <esp_idf_version.h>
 #include <esp_task_wdt.h>
 
-#define ESPHL_ERROR_CHECK(err, message) \
-  if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
-    return; \
-  }
-
 namespace esphome {
 namespace modem {
 

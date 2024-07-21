@@ -20,6 +20,13 @@
 #include <cstring>
 #include <iostream>
 
+#define ESPHL_ERROR_CHECK(err, message) \
+  if ((err) != ESP_OK) { \
+    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
+    this->mark_failed(); \
+    return; \
+  }
+
 static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 2048;
 static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 1024;
 static const uint8_t CONFIG_MODEM_UART_EVENT_QUEUE_SIZE = 30;
