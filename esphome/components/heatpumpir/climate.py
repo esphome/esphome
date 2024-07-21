@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_VISUAL,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@rob-deutsch"]
 
@@ -126,5 +127,7 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    #cg.add_library("tonia/HeatpumpIR", "1.0.27")
-    cg.add_library("https://github.com/dianlight/arduino-heatpumpir/archive/refs/heads/libretiny_dep_fix.zip","1.0.27")
+    cg.add_library("tonia/HeatpumpIR", "1.0.27")
+    if CORE.is_libretiny:
+        CORE.add_platformio_option("lib_ignore", "IRremoteESP8266")
+    
