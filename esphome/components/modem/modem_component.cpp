@@ -84,6 +84,7 @@ bool ModemComponent::is_connected() { return this->state_ == ModemComponentState
 void ModemComponent::setup() {
   ESP_LOGI(TAG, "Setting up Modem...");
 
+  ESP_LOGV(TAG, "PPP netif setup");
   esp_err_t err;
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "PPP netif init error");
@@ -94,6 +95,16 @@ void ModemComponent::setup() {
 
   this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
   assert(this->ppp_netif_);
+
+  ESP_LOGV(TAG, "Set APN: %s", this->apn_.c_str());
+  this->dce_config_ = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
+
+  if (!this->username_.empty()) {
+    ESP_LOGV(TAG, "Set auth: username: %s password: %s", this->username_.c_str(), this->password_.c_str());
+    ESPHL_ERROR_CHECK(esp_netif_ppp_set_auth(this->ppp_netif_, NETIF_PPP_AUTHTYPE_PAP, this->username_.c_str(),
+                                             this->password_.c_str()),
+                      "ppp set auth");
+  }
 
   // err = esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr,
   //                                           nullptr);
@@ -129,35 +140,24 @@ void ModemComponent::reset_() {
 
   this->dte_ = create_uart_dte(&this->dte_config_);
 
-  ESP_LOGV(TAG, "PPP netif setup");
-
   assert(this->dte_);
 
-  ESP_LOGV(TAG, "Set APN: %s", this->apn_.c_str());
-  esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
-
-  if (!this->username_.empty()) {
-    ESP_LOGV(TAG, "Set auth: username: %s password: %s", this->username_.c_str(), this->password_.c_str());
-    ESPHL_ERROR_CHECK(esp_netif_ppp_set_auth(this->ppp_netif_, NETIF_PPP_AUTHTYPE_PAP, this->username_.c_str(),
-                                             this->password_.c_str()),
-                      "ppp set auth");
-  }
   ESP_LOGV(TAG, "DCE setup");
 
   // NOLINTBEGIN(bugprone-branch-clone)
   // ( because create_modem_dce(dce_factory::ModemType, config, std::move(dte), netif) is private )
   switch (this->model_) {
     case ModemModel::BG96:
-      this->dce = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_BG96_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
       break;
     case ModemModel::SIM800:
-      this->dce = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_SIM800_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
       break;
     case ModemModel::SIM7000:
-      this->dce = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_SIM7000_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
       break;
     case ModemModel::SIM7600:
-      this->dce = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
+      this->dce = create_SIM7600_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
       break;
     default:
       ESP_LOGE(TAG, "Unknown modem model");
@@ -179,6 +179,7 @@ void ModemComponent::reset_() {
   }
 
   if (this->enabled_ && !this->modem_ready()) {
+    ESP_LOGW(TAG, "Here...");
     // if the esp has rebooted, but the modem not, it is still in cmux mode
     // So we close cmux.
     // The drawback is that if the modem is poweroff, those commands will take some time to execute.
@@ -223,20 +224,7 @@ bool ModemComponent::prepare_sim_() {
   return pin_ok;
 }
 
-void ModemComponent::start_connect_() {
-  Watchdog wdt(60);
-  this->connect_begin_ = millis();
-  this->status_set_warning("Starting connection");
-
-  global_modem_component->got_ipv4_address_ = false;
-
-  ESP_LOGD(TAG, "Entering CMUX mode");
-  if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
-    ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
-  } else {
-    ESP_LOGE(TAG, "Failed to configure multiplexed command mode. Trying to continue...");
-  }
-
+void ModemComponent::send_init_at_() {
   // send initial AT commands from yaml
   for (const auto &cmd : this->init_at_commands_) {
     std::string result = this->send_at(cmd);
@@ -245,6 +233,22 @@ void ModemComponent::start_connect_() {
     } else {
       ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
+  }
+}
+
+void ModemComponent::start_connect_() {
+  Watchdog wdt(60);
+  this->connect_begin_ = millis();
+  this->status_set_warning("Starting connection");
+
+  // will be set to true on event IP_EVENT_PPP_GOT_IP
+  global_modem_component->got_ipv4_address_ = false;
+
+  ESP_LOGD(TAG, "Entering CMUX mode");
+  if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
+    ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
+  } else {
+    this->status_set_error("Unable to enter CMUX mode");
   }
 }
 
@@ -297,6 +301,7 @@ void ModemComponent::loop() {
       if (this->enabled_) {
         if (this->start_) {
           if (this->modem_ready()) {
+            this->send_init_at_();
             if (this->prepare_sim_()) {
               ESP_LOGI(TAG, "Starting modem connection");
               this->state_ = ModemComponentState::CONNECTING;
@@ -353,15 +358,31 @@ void ModemComponent::loop() {
       if (this->start_) {
         if (this->connected_) {
           ESP_LOGD(TAG, "Hanging up...");
-          this->dce->hang_up();
+          ESPMODEM_ERROR_CHECK(this->dce->hang_up(), "Unable to hang up");
+          if (!this->modem_ready()) {
+            ESP_LOGE(TAG, "modem not ready after hang up");
+          }
+          this->set_timeout("wait_lost_ip", 60000, [this]() {
+            this->dump_connect_params_();
+            this->status_set_error("No lost ip event received");
+          });
         }
         this->start_ = false;
       } else if (!this->connected_) {
         // ip lost as expected
+        this->cancel_timeout("wait_lost_ip");
         this->state_ = ModemComponentState::DISCONNECTED;
+
+        // This seems to be the only way to exit CMUX
         this->reset_();  // reset dce/dte
-      } else {
-        // waiting for ip to be lost (TODO: possible infinite loop ?)
+        if (!(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE) &&
+              this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT))) {
+          this->status_set_error("Unable to exit CMUX.");
+        }
+
+        if (!this->modem_ready()) {
+          ESP_LOGE(TAG, "modem not ready after reset");
+        }
       }
 
       break;
