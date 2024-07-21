@@ -105,14 +105,6 @@ void PulseCounterUlpSensor::setup() {
     this->mark_failed();
     return;
   }
-#ifdef CONF_USE_TIME
-  this->time_id_->add_on_time_sync_callback([this]() {
-    this->time_is_synchronized_ = true;
-    this->update();
-  });
-  this->pref_ = global_preferences->make_preference<timestamp_t>(this->get_object_id_hash());
-  this->pref_.load(&this->last_time_);
-#endif
 }
 
 void PulseCounterUlpSensor::set_total_pulses(uint32_t pulses) {
@@ -129,23 +121,10 @@ void PulseCounterUlpSensor::dump_config() {
 }
 
 void PulseCounterUlpSensor::update() {
-#ifdef CONF_USE_TIME
-  // Can't clear the pulse count until we can report the rate, so there's
-  // nothing to do until the time is synchronized
-  if (!time_is_synchronized_) {
-    return;
-  }
-#endif
-
   pulse_counter_t raw = this->storage_.read_raw_value();
   timestamp_t now;
   timestamp_t interval;
-#ifdef CONF_USE_TIME
-  // Convert to ms to match units when not using a Time component.
-  now = this->time_id_->timestamp_now() * 1000;
-#else
   now = millis();
-#endif
   interval = now - this->last_time_;
   if (this->last_time_ != 0) {
     float value = (60000.0f * raw) / float(interval);  // per minute
@@ -159,9 +138,6 @@ void PulseCounterUlpSensor::update() {
     this->total_sensor_->publish_state(current_total_);
   }
   this->last_time_ = now;
-#ifdef CONF_USE_TIME
-  this->pref_.save(&this->last_time_);
-#endif
 }
 
 }  // namespace pulse_counter_ulp

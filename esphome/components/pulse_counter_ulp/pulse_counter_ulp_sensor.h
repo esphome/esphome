@@ -4,10 +4,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
-
 #include <cinttypes>
 
 namespace esphome {
@@ -36,9 +32,6 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
   void set_rising_edge_mode(CountMode mode) { storage_.rising_edge_mode = mode; }
   void set_falling_edge_mode(CountMode mode) { storage_.falling_edge_mode = mode; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
-#ifdef USE_TIME
-  void set_time_id(time::RealTimeClock *time_id) { time_id_ = time_id; }
-#endif
 
   void set_total_pulses(uint32_t pulses);
 
@@ -54,12 +47,6 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
   timestamp_t last_time_{0};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_{nullptr};
-#ifdef USE_TIME
-  time::RealTimeClock *time_id_{nullptr};
-  bool time_is_synchronized_{false};
-  // Store last_time_ across deep sleep
-  ESPPreferenceObject pref_{};
-#endif
 };
 
 }  // namespace pulse_counter_ulp
