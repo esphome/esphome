@@ -8,146 +8,240 @@ namespace max31856 {
 
 static const char *const TAG = "max31856";
 
+enum MAX31856RegisterMasks : uint8_t { SPI_WRITE_M = 0x80 };
+
+enum MAX31856Registers : uint8_t {
+  MAX31856_MASK_REG = 0x02,    ///< Fault Mask register
+  MAX31856_CJHF_REG = 0x03,    ///< Cold junction High temp fault register
+  MAX31856_CJLF_REG = 0x04,    ///< Cold junction Low temp fault register
+  MAX31856_LTHFTH_REG = 0x05,  ///< Linearized Temperature High Fault Threshold Register, MSB
+  MAX31856_LTHFTL_REG = 0x06,  ///< Linearized Temperature High Fault Threshold Register, LSB
+  MAX31856_LTLFTH_REG = 0x07,  ///< Linearized Temperature Low Fault Threshold Register, MSB
+  MAX31856_LTLFTL_REG = 0x08,  ///< Linearized Temperature Low Fault Threshold Register, LSB
+  MAX31856_CJTO_REG = 0x09,    ///< Cold-Junction Temperature Offset Register
+  MAX31856_CJTH_REG = 0x0A,    ///< Cold-Junction Temperature Register, MSB
+  MAX31856_CJTL_REG = 0x0B,    ///< Cold-Junction Temperature Register, LSB
+  MAX31856_LTCBH_REG = 0x0C,   ///< Linearized TC Temperature, Byte 2
+  MAX31856_LTCBM_REG = 0x0D,   ///< Linearized TC Temperature, Byte 1
+  MAX31856_LTCBL_REG = 0x0E,   ///< Linearized TC Temperature, Byte 0
+  MAX31856_SR_REG = 0x0F,      ///< Fault Status Register
+
+  MAX31856_FAULT_CJRANGE = 0x80,  ///< Fault status Cold Junction Out-of-Range flag
+  MAX31856_FAULT_TCRANGE = 0x40,  ///< Fault status Thermocouple Out-of-Range flag
+  MAX31856_FAULT_CJHIGH = 0x20,   ///< Fault status Cold-Junction High Fault flag
+  MAX31856_FAULT_CJLOW = 0x10,    ///< Fault status Cold-Junction Low Fault flag
+  MAX31856_FAULT_TCHIGH = 0x08,   ///< Fault status Thermocouple Temperature High Fault flag
+  MAX31856_FAULT_TCLOW = 0x04,    ///< Fault status Thermocouple Temperature Low Fault flag
+  MAX31856_FAULT_OVUV = 0x02,     ///< Fault status Overvoltage or Undervoltage Input Fault flag
+  MAX31856_FAULT_OPEN = 0x01,     ///< Fault status Thermocouple Open-Circuit Fault flag
+};
+
+constexpr static uint8_t MAX31856_CR0_REG = 0x00;
+constexpr static uint8_t MAX31856_CR0_AUTOCONVERT = 1 << 7;
+constexpr static uint8_t MAX31856_CR0_1SHOT = 1 << 6;
+constexpr static uint8_t MAX31856_CR0_OCFAULT_ENABLED = 1 << 4;
+constexpr static uint8_t MAX31856_CR0_CJ_SENSOR_DISABLE = 1 << 3;
+constexpr static uint8_t MAX31856_CR0_FAULT_INT_MODE = 1 << 2;
+constexpr static uint8_t MAX31856_CR0_FAULTCLR = 1 << 1;
+
+constexpr static uint8_t MAX31856_CR1_REG = 0x01;
+
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+
+static const char *enum_type_to_str(MAX31856ThermocoupleType type) {
+  switch (type) {
+    case MAX31856_TCTYPE_B:
+      return "B";
+    case MAX31856_TCTYPE_E:
+      return "E";
+    case MAX31856_TCTYPE_J:
+      return "J";
+    case MAX31856_TCTYPE_K:
+      return "K";
+    case MAX31856_TCTYPE_N:
+      return "N";
+    case MAX31856_TCTYPE_R:
+      return "R";
+    case MAX31856_TCTYPE_S:
+      return "S";
+    case MAX31856_TCTYPE_T:
+      return "T";
+  }
+  return "K";
+}
+
+#endif
+
+static int enum_samples_per_value_to_int(MAX31856SamplesPerValue value) {
+  switch (value) {
+    case AVE_SAMPLES_1:
+      return 1;
+    case AVE_SAMPLES_2:
+      return 2;
+    case AVE_SAMPLES_4:
+      return 4;
+    case AVE_SAMPLES_8:
+      return 8;
+    case AVE_SAMPLES_16:
+      return 16;
+  }
+  return 16;
+}
+
 void MAX31856Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX31856Sensor '%s'...", this->name_.c_str());
+  ESP_LOGVV(TAG, "Setting up MAX31856Sensor '%s'...", this->name_.c_str());
+
   this->spi_setup();
 
   // assert on any fault
-  ESP_LOGCONFIG(TAG, "Setting up assertion on all faults");
   this->write_register_(MAX31856_MASK_REG, 0x0);
 
-  ESP_LOGCONFIG(TAG, "Setting up open circuit fault detection");
-  this->write_register_(MAX31856_CR0_REG, MAX31856_CR0_OCFAULT01);
+  // Set the thermocouple type and the number of samples to average
+  this->write_register_(MAX31856_CR1_REG, static_cast<uint8_t>(samples_per_value_) | static_cast<uint8_t>(type_));
 
-  this->set_thermocouple_type_();
-  this->set_noise_filter_();
+  // Turn on open circuit faults and set the filter
+  cr0_ = MAX31856_CR0_OCFAULT_ENABLED | static_cast<uint8_t>(filter_);
 
-  ESP_LOGCONFIG(TAG, "Completed setting up MAX31856Sensor '%s'...", this->name_.c_str());
+  if (this->data_ready_ != nullptr) {
+    // Enable autoconversion
+    cr0_ |= MAX31856_CR0_AUTOCONVERT;
+
+    // Data ready is active low
+    this->data_ready_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+
+    ESP_LOGI(TAG, "Using autoconversion mode, update_interval will be ignored");
+  }
+
+  this->write_register_(MAX31856_CR0_REG, cr0_);
+
+  ESP_LOGVV(TAG, "Completed setting up MAX31856Sensor '%s'...", this->name_.c_str());
 }
 
 void MAX31856Sensor::dump_config() {
   LOG_SENSOR("", "MAX31856", this);
   LOG_PIN("  CS Pin: ", this->cs_);
+  if (this->data_ready_ != nullptr) {
+    LOG_PIN("  Data Ready Pin: ", this->data_ready_);
+  } else {
+    LOG_UPDATE_INTERVAL(this);
+  }
   ESP_LOGCONFIG(TAG, "  Mains Filter: %s",
                 (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
-  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Type: %s", enum_type_to_str(type_));
+  ESP_LOGCONFIG(TAG, "  Samples per value: %d", enum_samples_per_value_to_int(samples_per_value_));
+  ESP_LOGCONFIG(TAG, "  Mode: %s", (this->data_ready_ != nullptr) ? "autoconversion" : "polling");
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "HasFaultBinarySensor", this->has_fault_binary_sensor_);
+#endif
 }
 
+// This method is used for autoconversion mode
+void MAX31856Sensor::loop() {
+  ESP_LOGVV(TAG, "loop");
+
+  if (this->data_ready_ == nullptr || this->have_faults_()) {
+    return;
+  }
+
+  // Data ready is active low
+  if (!this->data_ready_->digital_read()) {
+    this->read_thermocouple_temperature_();
+  }
+}
+
+// This method is used for polling mode
 void MAX31856Sensor::update() {
   ESP_LOGVV(TAG, "update");
 
-  this->one_shot_temperature_();
+  if (this->data_ready_ != nullptr) {
+    return;
+  }
 
-  // Datasheet max conversion time for 1 shot is 155ms for 60Hz / 185ms for 50Hz
-  auto f = std::bind(&MAX31856Sensor::read_thermocouple_temperature_, this);
-  this->set_timeout("MAX31856Sensor::read_thermocouple_temperature_", filter_ == FILTER_60HZ ? 155 : 185, f);
+  // Start a oneshot reading
+  this->write_register_(MAX31856_CR0_REG, cr0_ | MAX31856_CR0_1SHOT);
+
+  // Datasheet max conversion time for 1 shot for 1 sample is 155ms for 60Hz / 185ms for 50Hz
+  uint32_t timeout{};
+  auto nsamples = enum_samples_per_value_to_int(samples_per_value_);
+  if (filter_ == FILTER_60HZ) {
+    timeout = 155 + static_cast<uint32_t>(std::ceil((nsamples - 1) * 33.33f));
+  } else {
+    timeout = 185 + (nsamples - 1) * 40;
+  }
+  this->set_timeout("MAX31856Sensor::read_oneshot_temperature_", timeout,
+                    [this]() { this->read_oneshot_temperature_(); });
+}
+
+void MAX31856Sensor::call_setup() {
+  this->setup();
+
+  if (this->data_ready_ == nullptr) {
+    this->start_poller();
+  }
+}
+
+void MAX31856Sensor::read_oneshot_temperature_() {
+  if (this->have_faults_()) {
+    return;
+  }
+
+  read_thermocouple_temperature_();
 }
 
 void MAX31856Sensor::read_thermocouple_temperature_() {
-  if (this->has_fault_()) {
-    // Faults have been logged, clear it for next loop
-    this->clear_fault_();
-  } else {
-    int32_t temp24 = this->read_register24_(MAX31856_LTCBH_REG);
-    if (temp24 & 0x800000) {
-      temp24 |= 0xFF000000;  // fix sign
-    }
-
-    temp24 >>= 5;  // bottom 5 bits are unused
-
-    float temp_c = temp24;
-    temp_c *= 0.0078125;
-
-    ESP_LOGD(TAG, "Got thermocouple temperature: %.2f°C", temp_c);
-    this->publish_state(temp_c);
+  int32_t temp24 = this->read_register24_(MAX31856_LTCBH_REG);
+  if (temp24 & 0x800000) {
+    temp24 |= 0xFF000000;  // fix sign
   }
+
+  temp24 >>= 5;  // bottom 5 bits are unused
+
+  float temp_c = temp24;
+  temp_c /= 128.0f;
+
+  ESP_LOGD(TAG, "Got thermocouple temperature: %.3f°C", temp_c);
+  this->publish_state(temp_c);
 }
 
-void MAX31856Sensor::one_shot_temperature_() {
-  ESP_LOGVV(TAG, "one_shot_temperature_");
-  this->write_register_(MAX31856_CJTO_REG, 0x0);
-
-  uint8_t t = this->read_register_(MAX31856_CR0_REG);
-
-  t &= ~MAX31856_CR0_AUTOCONVERT;  // turn off autoconversion mode
-  t |= MAX31856_CR0_1SHOT;         // turn on one shot mode
-
-  this->write_register_(MAX31856_CR0_REG, t);
-}
-
-bool MAX31856Sensor::has_fault_() {
-  ESP_LOGVV(TAG, "read_fault_");
+bool MAX31856Sensor::have_faults_() {
   uint8_t faults = this->read_register_(MAX31856_SR_REG);
-
   if (faults == 0) {
-    ESP_LOGV(TAG, "status_set_warning");
-    this->status_clear_warning();
+#ifdef USE_BINARY_SENSOR
+    if (this->has_fault_binary_sensor_) {
+      this->has_fault_binary_sensor_->publish_state(false);
+    }
+#endif
+    this->status_clear_error();
     return false;
   }
 
-  ESP_LOGV(TAG, "status_set_warning");
-  this->status_set_warning();
+  if (!this->status_has_error()) {
+#ifdef USE_BINARY_SENSOR
+    if (this->has_fault_binary_sensor_) {
+      this->has_fault_binary_sensor_->publish_state(true);
+    }
+#endif
+    this->status_set_error();
 
-  if ((faults & MAX31856_FAULT_CJRANGE) == MAX31856_FAULT_CJRANGE) {
-    ESP_LOGW(TAG, "Cold Junction Out-of-Range: '%s'...", this->name_.c_str());
-  }
-  if ((faults & MAX31856_FAULT_TCRANGE) == MAX31856_FAULT_TCRANGE) {
-    ESP_LOGW(TAG, "Thermocouple Out-of-Range: '%s'...", this->name_.c_str());
-  }
-  if ((faults & MAX31856_FAULT_CJHIGH) == MAX31856_FAULT_CJHIGH) {
-    ESP_LOGW(TAG, "Cold-Junction High Fault: '%s'...", this->name_.c_str());
-  }
-  if ((faults & MAX31856_FAULT_CJLOW) == MAX31856_FAULT_CJLOW) {
-    ESP_LOGW(TAG, "Cold-Junction Low Fault: '%s'...", this->name_.c_str());
-  }
-  if ((faults & MAX31856_FAULT_TCHIGH) == MAX31856_FAULT_TCHIGH) {
-    ESP_LOGW(TAG, "Thermocouple Temperature High Fault: '%s'...", this->name_.c_str());
-  }
-  if ((faults & MAX31856_FAULT_TCLOW) == MAX31856_FAULT_TCLOW) {
-    ESP_LOGW(TAG, "Thermocouple Temperature Low Fault: '%s'...", this->name_.c_str());
-  }
-  if ((faults & MAX31856_FAULT_OVUV) == MAX31856_FAULT_OVUV) {
-    ESP_LOGW(TAG, "Overvoltage or Undervoltage Input Fault: '%s'...", this->name_.c_str());
-  }
-  if ((faults & MAX31856_FAULT_OPEN) == MAX31856_FAULT_OPEN) {
-    ESP_LOGW(TAG, "Thermocouple Open-Circuit Fault (possibly not connected): '%s'...", this->name_.c_str());
+    const auto log_err = [&](uint8_t bit, const char *msg) {
+      if ((faults & bit) != 0) {
+        ESP_LOGE(TAG, "%s", msg);
+      }
+    };
+
+    log_err(MAX31856_FAULT_CJRANGE, "Cold Junction Out-of-Range");
+    log_err(MAX31856_FAULT_TCRANGE, "Thermocouple Out-of-Range");
+    log_err(MAX31856_FAULT_CJHIGH, "Cold-Junction High Fault");
+    log_err(MAX31856_FAULT_CJLOW, "Cold-Junction Low Fault");
+    log_err(MAX31856_FAULT_TCHIGH, "Thermocouple Temperature High Fault");
+    log_err(MAX31856_FAULT_TCLOW, "Thermocouple Temperature Low Fault");
+    log_err(MAX31856_FAULT_OVUV, "Overvoltage or Undervoltage Input Fault");
+    log_err(MAX31856_FAULT_OPEN, "Thermocouple Open-Circuit Fault");
   }
 
   return true;
-}
-
-void MAX31856Sensor::clear_fault_() {
-  ESP_LOGV(TAG, "clear_fault_");
-  uint8_t t = this->read_register_(MAX31856_CR0_REG);
-
-  t |= MAX31856_CR0_FAULT;     // turn on fault interrupt mode
-  t |= MAX31856_CR0_FAULTCLR;  // enable the fault status clear bit
-
-  this->write_register_(MAX31856_CR0_REG, t);
-}
-
-void MAX31856Sensor::set_thermocouple_type_() {
-  MAX31856ThermocoupleType type = MAX31856_TCTYPE_K;
-  ESP_LOGCONFIG(TAG, "set_thermocouple_type_: 0x%02X", type);
-  uint8_t t = this->read_register_(MAX31856_CR1_REG);
-  t &= 0xF0;  // mask off bottom 4 bits
-  t |= (uint8_t) type & 0x0F;
-  this->write_register_(MAX31856_CR1_REG, t);
-}
-
-void MAX31856Sensor::set_noise_filter_() {
-  ESP_LOGCONFIG(TAG, "set_noise_filter_: 0x%02X", filter_);
-  uint8_t t = this->read_register_(MAX31856_CR0_REG);
-  if (filter_ == FILTER_50HZ) {
-    t |= 0x01;
-    ESP_LOGCONFIG(TAG, "set_noise_filter_: 50 Hz, t==0x%02X", t);
-  } else {
-    t &= 0xfe;
-    ESP_LOGCONFIG(TAG, "set_noise_filter_: 60 Hz, t==0x%02X", t);
-  }
-  this->write_register_(MAX31856_CR0_REG, t);
 }
 
 void MAX31856Sensor::write_register_(uint8_t reg, uint8_t value) {
