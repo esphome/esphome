@@ -1,21 +1,24 @@
 #ifdef USE_ESP_IDF
 #include "modem_component.h"
+#include "helpers.h"
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/network/util.h"
+
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
 #include <esp_event.h>
+#include <driver/gpio.h>
+#include <lwip/dns.h>
+
 #include <cxx_include/esp_modem_dte.hpp>
 #include <esp_modem_config.h>
 #include <cxx_include/esp_modem_api.hpp>
-#include <driver/gpio.h>
-#include <lwip/dns.h>
+
 #include <cstring>
 #include <iostream>
-#include "esp_idf_version.h"
-#include "esp_task_wdt.h"
 
 static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 2048;
 static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 1024;
@@ -29,66 +32,6 @@ namespace modem {
 using namespace esp_modem;
 
 ModemComponent *global_modem_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-#define ESPHL_ERROR_CHECK(err, message) \
-  if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
-    return; \
-  }
-
-std::string command_result_to_string(command_result err) {
-  std::string res = "UNKNOWN";
-  switch (err) {
-    case command_result::FAIL:
-      res = "FAIL";
-      break;
-    case command_result::OK:
-      res = "OK";
-      break;
-    case command_result::TIMEOUT:
-      res = "TIMEOUT";
-  }
-  return res;
-}
-
-std::string state_to_string(ModemComponentState state) {
-  std::string str;
-  switch (state) {
-    case ModemComponentState::NOT_RESPONDING:
-      str = "NOT_RESPONDING";
-      break;
-    case ModemComponentState::DISCONNECTED:
-      str = "DISCONNECTED";
-      break;
-    case ModemComponentState::CONNECTING:
-      str = "CONNECTING";
-      break;
-    case ModemComponentState::CONNECTED:
-      str = "CONNECTED";
-      break;
-    case ModemComponentState::DISCONNECTING:
-      str = "DISCONNECTING";
-      break;
-    case ModemComponentState::DISABLED:
-      str = "DISABLED";
-      break;
-  }
-  return str;
-}
-
-void set_wdt(uint32_t timeout_s) {
-#if ESP_IDF_VERSION_MAJOR >= 5
-  esp_task_wdt_config_t wdt_config = {
-      .timeout_ms = timeout_s * 1000,
-      .idle_core_mask = 0x03,
-      .trigger_panic = true,
-  };
-  esp_task_wdt_reconfigure(&wdt_config);
-#else
-  esp_task_wdt_init(timeout_s, true);
-#endif  // ESP_IDF_VERSION_MAJOR
-}
 
 ModemComponent::ModemComponent() {
   assert(global_modem_component == nullptr);
@@ -223,11 +166,11 @@ void ModemComponent::reset_() {
     ESP_LOGI(TAG, "not set_flow_control, because 2-wire mode active.");
   }
 
-  set_wdt(60);
   if (this->enabled_ && !this->modem_ready()) {
     // if the esp has rebooted, but the modem not, it is still in cmux mode
     // So we close cmux.
     // The drawback is that if the modem is poweroff, those commands will take some time to execute.
+    Watchdog wdt(60);
     this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
     this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
     this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
@@ -237,11 +180,10 @@ void ModemComponent::reset_() {
       ESP_LOGD(TAG, "Modem exited previous CMUX session");
     }
   }
-  set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
 }
 
 void ModemComponent::start_connect_() {
-  set_wdt(60);
+  Watchdog wdt(60);
   this->connect_begin_ = millis();
   this->status_set_warning("Starting connection");
 
@@ -283,8 +225,6 @@ void ModemComponent::start_connect_() {
       ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
   }
-  // restore WDT
-  set_wdt(CONFIG_ESP_TASK_WDT_TIMEOUT_S);
 }
 
 void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
@@ -294,12 +234,12 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
     case IP_EVENT_PPP_GOT_IP:
       event = (ip_event_got_ip_t *) event_data;
       ip_info = &event->ip_info;
-      ESP_LOGW(TAG, "[IP event] Got IP " IPSTR, IP2STR(&ip_info->ip));
+      ESP_LOGD(TAG, "[IP event] Got IP " IPSTR, IP2STR(&ip_info->ip));
       global_modem_component->got_ipv4_address_ = true;
       global_modem_component->connected_ = true;
       break;
     case IP_EVENT_PPP_LOST_IP:
-      ESP_LOGI(TAG, "got ip lost event");
+      ESP_LOGV(TAG, "[IP event] Lost IP");
       global_modem_component->got_ipv4_address_ = false;
       global_modem_component->connected_ = false;
       break;
@@ -314,14 +254,14 @@ void ModemComponent::loop() {
 
   switch (this->state_) {
     case ModemComponentState::NOT_RESPONDING:
-      if (this->started_) {
+      if (this->start_) {
         if (this->modem_ready()) {
-          ESP_LOGW(TAG, "Modem recovered");
+          ESP_LOGI(TAG, "Modem recovered");
           this->state_ = ModemComponentState::DISCONNECTED;
         } else {
           if (this->not_responding_cb_) {
             if (!this->not_responding_cb_->is_action_running()) {
-              ESP_LOGD(TAG, "not respondig cb start");
+              ESP_LOGD(TAG, "Calling 'on_not_responding' callback");
               this->not_responding_cb_->trigger();
             }
           } else {
@@ -333,7 +273,7 @@ void ModemComponent::loop() {
 
     case ModemComponentState::DISCONNECTED:
       if (this->enabled_) {
-        if (this->started_) {
+        if (this->start_) {
           if (this->modem_ready()) {
             ESP_LOGI(TAG, "Starting modem connection");
             this->state_ = ModemComponentState::CONNECTING;
@@ -344,7 +284,7 @@ void ModemComponent::loop() {
         } else {
           // when disconnected, we have to reset the dte and the dce
           this->reset_();
-          this->started_ = true;
+          this->start_ = true;
         }
       } else {
         this->state_ = ModemComponentState::DISABLED;
@@ -352,7 +292,7 @@ void ModemComponent::loop() {
       break;
 
     case ModemComponentState::CONNECTING:
-      if (!this->started_) {
+      if (!this->start_) {
         ESP_LOGI(TAG, "Stopped modem connection");
         this->state_ = ModemComponentState::DISCONNECTED;
       } else if (this->connected_) {
@@ -368,7 +308,7 @@ void ModemComponent::loop() {
       }
       break;
     case ModemComponentState::CONNECTED:
-      if (!this->started_) {
+      if (!this->start_) {
         this->state_ = ModemComponentState::DISCONNECTED;
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
@@ -387,12 +327,12 @@ void ModemComponent::loop() {
       break;
 
     case ModemComponentState::DISCONNECTING:
-      if (this->started_) {
+      if (this->start_) {
         if (this->connected_) {
           ESP_LOGD(TAG, "Hanging up...");
           this->dce->hang_up();
         }
-        this->started_ = false;
+        this->start_ = false;
       } else if (!this->connected_) {
         // ip lost as expected
         this->state_ = ModemComponentState::DISCONNECTED;
@@ -423,7 +363,7 @@ void ModemComponent::enable() {
   if (this->state_ == ModemComponentState::DISABLED) {
     this->state_ = ModemComponentState::DISCONNECTED;
   }
-  this->started_ = true;
+  this->start_ = true;
   this->enabled_ = true;
 }
 
@@ -489,9 +429,11 @@ bool ModemComponent::modem_ready() {
   // check if the modem is ready to answer AT commands
   std::string imei;
   bool status;
-  set_wdt(60);
-  status = this->get_imei(imei);
-  set_wdt(CONFIG_TASK_WDT_TIMEOUT_S);
+  {
+    // Temp increase watchdog timout
+    Watchdog wdt(60);
+    status = this->get_imei(imei);
+  }
   return status;
 }
 
