@@ -216,6 +216,7 @@ esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr_als_ps/* @latonita
+esphome/components/m5stack_8angle/* @rnauber
 esphome/components/matrix_keypad/* @ssieb
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger
