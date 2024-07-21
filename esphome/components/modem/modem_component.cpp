@@ -27,6 +27,11 @@
     return; \
   }
 
+#define ESPMODEM_ERROR_CHECK(err, message) \
+  if ((err) != command_result::OK) { \
+    ESP_LOGE(TAG, message ": %s", command_result_to_string(err).c_str()); \
+  }
+
 static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 2048;
 static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 1024;
 static const uint8_t CONFIG_MODEM_UART_EVENT_QUEUE_SIZE = 30;
@@ -189,32 +194,41 @@ void ModemComponent::reset_() {
   }
 }
 
-void ModemComponent::start_connect_() {
-  Watchdog wdt(60);
-  this->connect_begin_ = millis();
-  this->status_set_warning("Starting connection");
+bool ModemComponent::prepare_sim_() {
+  // it seems that read_pin(pin_ok) unexpectedly fail if no sim card is inserted, whithout updating the 'pin_ok'
+  bool pin_ok = false;
+  if (this->dce->read_pin(pin_ok) != command_result::OK) {
+    this->status_set_error("Unable to read pin status. Missing SIM card?");
+    return false;
+  }
 
-  global_modem_component->got_ipv4_address_ = false;
-
-  bool pin_ok = true;
-  if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
+  if (!pin_ok) {
     if (!this->pin_code_.empty()) {
       ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
-      this->dce->set_pin(this->pin_code_);
+      ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "");
       delay(this->command_delay_);  // NOLINT
     }
-    if (this->dce->read_pin(pin_ok) == command_result::OK && !pin_ok) {
-      ESP_LOGE(TAG, "Invalid PIN");
-      return;
-    }
   }
+
+  this->dce->read_pin(pin_ok);
   if (pin_ok) {
     if (this->pin_code_.empty()) {
       ESP_LOGD(TAG, "PIN not needed");
     } else {
       ESP_LOGD(TAG, "PIN unlocked");
     }
+  } else {
+    this->status_set_error("Invalid PIN code.");
   }
+  return pin_ok;
+}
+
+void ModemComponent::start_connect_() {
+  Watchdog wdt(60);
+  this->connect_begin_ = millis();
+  this->status_set_warning("Starting connection");
+
+  global_modem_component->got_ipv4_address_ = false;
 
   ESP_LOGD(TAG, "Entering CMUX mode");
   if (this->dce->set_mode(modem_mode::CMUX_MODE)) {
@@ -264,6 +278,7 @@ void ModemComponent::loop() {
       if (this->start_) {
         if (this->modem_ready()) {
           ESP_LOGI(TAG, "Modem recovered");
+          this->status_clear_warning();
           this->state_ = ModemComponentState::DISCONNECTED;
         } else {
           if (this->not_responding_cb_) {
@@ -282,9 +297,11 @@ void ModemComponent::loop() {
       if (this->enabled_) {
         if (this->start_) {
           if (this->modem_ready()) {
-            ESP_LOGI(TAG, "Starting modem connection");
-            this->state_ = ModemComponentState::CONNECTING;
-            this->start_connect_();
+            if (this->prepare_sim_()) {
+              ESP_LOGI(TAG, "Starting modem connection");
+              this->state_ = ModemComponentState::CONNECTING;
+              this->start_connect_();
+            }
           } else {
             this->state_ = ModemComponentState::NOT_RESPONDING;
           }
@@ -318,9 +335,8 @@ void ModemComponent::loop() {
       if (!this->start_) {
         this->state_ = ModemComponentState::DISCONNECTED;
       } else if (!this->connected_) {
-        ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
-        this->state_ = ModemComponentState::CONNECTING;
-        this->start_connect_();
+        this->status_set_warning("Connection via Modem lost!");
+        this->state_ = ModemComponentState::DISCONNECTED;
       } else {
         if ((now - last_health_check) >= healh_check_interval) {
           ESP_LOGV(TAG, "Health check");
@@ -398,11 +414,12 @@ void ModemComponent::dump_connect_params_() {
 
 std::string ModemComponent::send_at(const std::string &cmd) {
   std::string result;
-  bool status;
+  command_result status;
   ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
-  status = this->dce->at(cmd, result, this->command_delay_) == esp_modem::command_result::OK;
-  ESP_LOGV(TAG, "Result for command %s: %s (status %d)", cmd.c_str(), result.c_str(), status);
-  if (!status) {
+  status = this->dce->at(cmd, result, this->command_delay_);
+  ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), result.c_str(),
+           command_result_to_string(status).c_str());
+  if (status != esp_modem::command_result::OK) {
     result = "ERROR";
   }
   return result;

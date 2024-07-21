@@ -92,6 +92,7 @@ class ModemComponent : public Component {
   esp_netif_t *ppp_netif_{nullptr};
   esp_modem_dte_config_t dte_config_;
   ModemComponentState state_{ModemComponentState::DISABLED};
+  bool prepare_sim_();
   void start_connect_();
   bool start_{false};
   bool enabled_{false};
