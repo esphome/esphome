@@ -1,10 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome.components import binary_sensor, display
+import esphome.config_validation as cv
 from esphome.const import CONF_PAGE_ID, CONF_PAGES
 
-from .. import touchscreen_ns, CONF_TOUCHSCREEN_ID, Touchscreen, TouchListener
+from .. import CONF_TOUCHSCREEN_ID, TouchListener, Touchscreen, touchscreen_ns
 
 DEPENDENCIES = ["touchscreen"]
 
