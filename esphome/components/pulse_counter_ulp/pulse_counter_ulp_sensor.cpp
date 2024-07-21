@@ -65,6 +65,7 @@ bool UlpPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
    * Note that the ULP reads only the lower 16 bits of these variables.
    */
   ulp_edge_count = 0;
+  ulp_run_count = 0;
   ulp_debounce_counter = 3;
   ulp_debounce_max_count = 3;
   ulp_next_edge = 0;

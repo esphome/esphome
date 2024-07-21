@@ -55,6 +55,11 @@ debounce_max_count:
 edge_count:
 	.long 0
 
+	/* Number of times program run since last read */
+	.global run_count
+run_count:
+	.long 0
+
 	/* Total number of signal edges acquired */
 	.global edge_count_total
 edge_count_total:
@@ -70,6 +75,12 @@ io_number:
 	.text
 	.global entry
 entry:
+	/* Increment run_count */
+	move r3, run_count
+	ld r2, r3, 0
+	add r2, r2, 1
+	st r2, r3, 0
+
 	/* Load io_number */
 	move r3, io_number
 	ld r3, r3, 0
