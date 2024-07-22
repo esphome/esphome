@@ -1,4 +1,3 @@
-import esphome.components.lvgl.helpers
 from esphome import config_validation as cv
 from esphome.const import (
     CONF_FORMAT,
@@ -12,7 +11,12 @@ from . import defines as df
 from . import lv_validation as lvalid
 from . import types as ty
 from .defines import WIDGET_PARTS
-from .helpers import validate_printf, REQUIRED_COMPONENTS, add_lv_use
+from .helpers import (
+    validate_printf,
+    REQUIRED_COMPONENTS,
+    add_lv_use,
+    requires_component,
+)
 from .lv_validation import lv_font
 from .types import WIDGET_TYPES, get_widget_type
 
@@ -235,9 +239,7 @@ def widget_schema(name, extras=None):
     """
     validator = container_schema(name, extras=extras)
     if required := REQUIRED_COMPONENTS.get(name):
-        validator = cv.All(
-            validator, esphome.components.lvgl.helpers.requires_component(required)
-        )
+        validator = cv.All(validator, requires_component(required))
     return cv.Exclusive(name, df.CONF_WIDGETS), validator
 
 
