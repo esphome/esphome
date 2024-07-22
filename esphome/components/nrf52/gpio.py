@@ -12,7 +12,7 @@ from esphome.components.zephyr.const import (
     zephyr_ns,
 )
 
-GPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
+ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
 
 
 def _translate_pin(value):
