@@ -5,13 +5,15 @@
 #include "esphome/components/sensor/sensor.h"
 
 #include <cinttypes>
+#include <chrono>
 
 namespace esphome {
 namespace pulse_counter_ulp {
 
 enum class CountMode { disable = 0, increment = 1, decrement = -1 };
 
-using timestamp_t = int64_t;
+// millis() jumps when a time component synchronises, so we use steady_clock instead
+using clock = std::chrono::steady_clock;
 
 struct UlpProgram {
   struct state {
@@ -47,7 +49,7 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
  protected:
   InternalGPIOPin *pin_;
   UlpProgram storage_;
-  timestamp_t last_time_{0};
+  clock::time_point last_time_{};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_{nullptr};
 };
