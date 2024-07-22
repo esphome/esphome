@@ -16,13 +16,13 @@ from esphome.const import (
 from esphome.core import (
     CORE,
     Lambda,
+    ID,
 )
-from esphome.cpp_generator import RawExpression
+from esphome.cpp_generator import MockObj
 from esphome.helpers import write_file_if_changed
 from . import defines as df
 from . import helpers
 from . import lv_validation as lvalid
-from . import types as ty
 from .label import label_spec
 from .lvcode import (
     lv,
@@ -37,6 +37,12 @@ from .schemas import (
     obj_schema,
     any_widget_schema,
     WIDGET_TYPES,
+)
+from .types import (
+    FontEngine,
+    LvglComponent,
+    lv_disp_t_ptr,
+    lvgl_ns,
 )
 from .widget import (
     Widget,
@@ -67,7 +73,7 @@ WIDGET_SCHEMA = any_widget_schema()
 
 async def add_init_lambda(lv_component, init):
     if init:
-        lamb = await cg.process_lambda(Lambda(init), [(ty.lv_disp_t_ptr, "lv_disp")])
+        lamb = await cg.process_lambda(Lambda(init), [(lv_disp_t_ptr, "lv_disp")])
         cg.add(lv_component.add_init_lambda(lamb))
 
 
@@ -170,13 +176,14 @@ async def to_code(config):
     )
     CORE.add_build_flag("-Isrc")
 
-    cg.add_global(ty.lvgl_ns.using)
+    cg.add_global(lvgl_ns.using)
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
     Widget.create(config[CONF_ID], lv_component, WIDGET_TYPES[df.CONF_OBJ], config)
     displays = get_display_list(config)
     for display in displays:
         cg.add(lv_component.add_display(await cg.get_variable(display)))
+
     frac = config[CONF_BUFFER_SIZE]
     if frac >= 0.75:
         frac = 1
@@ -189,12 +196,12 @@ async def to_code(config):
     cg.add(lv_component.set_buffer_frac(int(frac)))
     cg.add(lv_component.set_full_refresh(config[df.CONF_FULL_REFRESH]))
 
+    for font in helpers.esphome_fonts_used:
+        await cg.get_variable(font)
+        cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
+
     with MainContext():
         lv.init()
-    cg.new_variable(
-        ty.CUSTOM_EVENT, RawExpression("(lv_event_code_t) lv_event_register_id()")
-    )
-
     with LvContext():
         await set_obj_properties(lv_scr_act, config)
         if widgets := config.get(df.CONF_WIDGETS):
@@ -219,7 +226,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Optional(CONF_ID, default=df.CONF_LVGL_COMPONENT): cv.declare_id(
-                ty.LvglComponent
+                LvglComponent
             ),
             cv.GenerateID(df.CONF_DISPLAYS): cv.Any(
                 cv.use_id(Display),

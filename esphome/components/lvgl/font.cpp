@@ -30,15 +30,15 @@ static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, ui
 }
 
 FontEngine::FontEngine(font::Font *esp_font) : font_(esp_font) {
+  this->bpp = esp_font->get_bpp();
+  this->lv_font_.dsc = this;
   this->lv_font_.line_height = this->height = esp_font->get_height();
   this->lv_font_.base_line = this->baseline = this->lv_font_.line_height - esp_font->get_baseline();
   this->lv_font_.get_glyph_dsc = get_glyph_dsc_cb;
   this->lv_font_.get_glyph_bitmap = get_glyph_bitmap;
-  this->lv_font_.dsc = this;
   this->lv_font_.subpx = LV_FONT_SUBPX_NONE;
   this->lv_font_.underline_position = -1;
   this->lv_font_.underline_thickness = 1;
-  this->bpp = esp_font->get_bpp();
 }
 
 const lv_font_t *FontEngine::get_lv_font() { return &this->lv_font_; }

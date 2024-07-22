@@ -170,7 +170,7 @@ class LvFont(LValidator):
                 return lv_builtin_font(value)
             fontval = cv.use_id(Font)(value)
             esphome_fonts_used.add(fontval)
-            return requires_component("font")(f"{fontval}_as_lv_font_")
+            return requires_component("font")(f"{fontval}_engine->get_lv_font()")
 
         super().__init__(validator, lv_font_t)
 
