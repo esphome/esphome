@@ -411,9 +411,10 @@ void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
   uint8_t cmd, x, num_args;
   while ((cmd = *addr++) != 0) {
     x = *addr++;
-    if (cmd == ILI9XXX_DELAY) {
-      ESP_LOGD(TAG, "Delay %dms", x);
-      delay(x);
+    if (x == ILI9XXX_DELAY_FLAG) {
+      cmd &= 0x7F;
+      ESP_LOGD(TAG, "Delay %dms", cmd);
+      delay(cmd);
     } else {
       num_args = x & 0x7F;
       ESP_LOGD(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, *addr);
