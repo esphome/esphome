@@ -11,3 +11,14 @@ lvgl:
         align: center
         text_font: montserrat_40
         border_post: true
+
+    - label:
+        text: "Hello shiny day"
+        text_color: 0xFFFFFF
+        align: bottom_mid
+        text_font: space16
+
+font:
+  - file: "gfonts://Roboto"
+    id: space16
+    bpp: 4
