@@ -44,7 +44,7 @@ def validate_gpio_pin(value):
 
 NRF52_PIN_SCHEMA = cv.All(
     pins.gpio_base_schema(
-        GPIOPin,
+        ZephyrGPIOPin,
         validate_gpio_pin,
         modes=pins.GPIO_STANDARD_MODES,
     ),

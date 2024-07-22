@@ -604,8 +604,8 @@ def only_with_framework(frameworks):
 
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
-only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_on_nrf52 = only_on(PLATFORM_NRF52)
+only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
 only_with_zephyr = only_with_framework("zephyr")
