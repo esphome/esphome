@@ -117,6 +117,7 @@ lvgl:
                         grid_cell_column_span: 2
                         grid_cell_row_pos: 0
                         grid_cell_column_pos: 0
+                        border_post: true
                         align: center
                         id: my_label_id
                         text: "Test Toggle Button"
