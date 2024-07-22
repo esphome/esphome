@@ -1,0 +1,7 @@
+lvgl:
+  widgets:
+    - label:
+        text: Hello world
+        text_color: 0xFF8000
+        align: center
+        text_font: montserrat_40
