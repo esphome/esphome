@@ -28,6 +28,7 @@ from .lvcode import (
     lv,
     LvContext,
     MainContext,
+    ConstantLiteral,
 )
 
 # from .menu import menu_spec
@@ -57,7 +58,9 @@ for widg in (
     WIDGET_TYPES[widg.name] = widg
 
 lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(None, "lv_scr_act()", lv_scr_act_spec, {}, parent=None)
+lv_scr_act = Widget.create(
+    None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {}, parent=None
+)
 
 WIDGET_SCHEMA = any_widget_schema()
 
@@ -193,8 +196,8 @@ async def to_code(config):
     )
 
     with LvContext():
+        await set_obj_properties(lv_scr_act, config)
         if widgets := config.get(df.CONF_WIDGETS):
-            await set_obj_properties(lv_scr_act, config)
             for w in widgets:
                 lv_w_type, w_cnfig = next(iter(w.items()))
                 await widget_to_code(w_cnfig, lv_w_type, lv_scr_act.obj)
