@@ -19,7 +19,7 @@ class ZephyrPreferenceBackend : public ESPPreferenceBackend {
   bool save(const uint8_t *data, size_t len) override {
     this->data.resize(len);
     std::memcpy(this->data.data(), data, len);
-    ESP_LOGVV(TAG, "save key: %u, len: %d", type_, len);
+    ESP_LOGVV(TAG, "save key: %u, len: %d", this->type_, len);
     return true;
   }
 
@@ -29,12 +29,12 @@ class ZephyrPreferenceBackend : public ESPPreferenceBackend {
       return false;
     }
     std::memcpy(data, this->data.data(), len);
-    ESP_LOGVV(TAG, "load key: %u, len: %d", type_, len);
+    ESP_LOGVV(TAG, "load key: %u, len: %d", this->type_, len);
     return true;
   }
 
-  const uint32_t get_type() const { return type_; }
-  const std::string get_key() const { return str_sprintf(ESPHOME_SETTINGS_KEY "/%" PRIx32, type_); }
+  const uint32_t get_type() const { return this->type_; }
+  const std::string get_key() const { return str_sprintf(ESPHOME_SETTINGS_KEY "/%" PRIx32, this->type_); }
 
   std::vector<uint8_t> data;
 
@@ -68,7 +68,7 @@ class ZephyrPreferences : public ESPPreferences {
       ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
       return;
     }
-    ESP_LOGD(TAG, "Loaded %u settings.", backends_.size());
+    ESP_LOGD(TAG, "Loaded %u settings.", this->backends_.size());
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
@@ -76,15 +76,15 @@ class ZephyrPreferences : public ESPPreferences {
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-    for (auto backend : backends_) {
+    for (auto backend : this->backends_) {
       if (backend->get_type() == type) {
         return ESPPreferenceObject(backend);
       }
     }
-    printf("type %u size %u\n", type, backends_.size());
+    printf("type %u size %u\n", type, this->backends_.size());
     auto *pref = new ZephyrPreferenceBackend(type);
     ESP_LOGD(TAG, "Add new setting %s.", pref->get_key().c_str());
-    backends_.push_back(pref);
+    this->backends_.push_back(pref);
     return ESPPreferenceObject(pref);
   }
 
@@ -100,7 +100,7 @@ class ZephyrPreferences : public ESPPreferences {
 
   bool reset() override {
     ESP_LOGD(TAG, "Reset settings");
-    for (auto backend : backends_) {
+    for (auto backend : this->backends_) {
       // save empty delete data
       backend->data.clear();
     }

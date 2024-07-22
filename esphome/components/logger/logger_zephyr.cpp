@@ -19,7 +19,7 @@ void Logger::loop() {
   }
   static bool opened = false;
   uint32_t dtr = 0;
-  uart_line_ctrl_get(uart_dev_, UART_LINE_CTRL_DTR, &dtr);
+  uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
 
   /* Poll if the DTR flag was set, optional */
   if (opened == dtr) {
@@ -52,7 +52,7 @@ void Logger::pre_setup() {
     if (!device_is_ready(uart_dev)) {
       ESP_LOGE(TAG, "%s is not ready.", get_uart_selection_());
     } else {
-      uart_dev_ = uart_dev;
+      this->uart_dev_ = uart_dev;
     }
   }
   global_logger = this;
@@ -63,14 +63,14 @@ void HOT Logger::write_msg_(const char *msg) {
 #ifdef CONFIG_PRINTK
   printk("%s\n", msg);
 #endif
-  if (nullptr == uart_dev_) {
+  if (nullptr == this->uart_dev_) {
     return;
   }
   while (*msg) {
-    uart_poll_out(uart_dev_, *msg);
+    uart_poll_out(this->uart_dev_, *msg);
     ++msg;
   }
-  uart_poll_out(uart_dev_, '\n');
+  uart_poll_out(this->uart_dev_, '\n');
 }
 
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};

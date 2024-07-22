@@ -1,4 +1,4 @@
-#if 1
+#ifdef USE_ZEPHYR
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/watchdog.h>

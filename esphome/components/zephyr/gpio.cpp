@@ -40,8 +40,8 @@ struct ISRPinArg {
 
 ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const {
   auto *arg = new ISRPinArg{};
-  arg->pin = pin_;
-  arg->inverted = inverted_;
+  arg->pin = this->pin_;
+  arg->inverted = this->inverted_;
   return ISRInternalGPIOPin((void *) arg);
 }
 
@@ -76,33 +76,33 @@ void ZephyrGPIOPin::setup() {
 }
 
 void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
-  if (nullptr == gpio_) {
+  if (nullptr == this->gpio_) {
     return;
   }
-  gpio_pin_configure(gpio_, pin_ % 32, flags_to_mode(flags, inverted_, value_));
+  gpio_pin_configure(this->gpio_, this->pin_ % 32, flags_to_mode(flags, this->inverted_, this->value_));
 }
 
 std::string ZephyrGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
+  snprintf(buffer, sizeof(buffer), "GPIO%u", this->pin_);
   return buffer;
 }
 
 bool ZephyrGPIOPin::digital_read() {
-  if (nullptr == gpio_) {
+  if (nullptr == this->gpio_) {
     return false;
   }
-  return bool(gpio_pin_get(gpio_, pin_ % 32) != inverted_);
+  return bool(gpio_pin_get(this->gpio_, this->pin_ % 32) != this->inverted_);
 }
 
 void ZephyrGPIOPin::digital_write(bool value) {
   // make sure that value is not ignored since it can be inverted e.g. on switch side
   // that way init state should be correct
-  value_ = value;
-  if (nullptr == gpio_) {
+  this->value_ = value;
+  if (nullptr == this->gpio_) {
     return;
   }
-  gpio_pin_set(gpio_, pin_ % 32, value != inverted_ ? 1 : 0);
+  gpio_pin_set(this->gpio_, this->pin_ % 32, value != this->inverted_ ? 1 : 0);
 }
 void ZephyrGPIOPin::detach_interrupt() const {
   // TODO

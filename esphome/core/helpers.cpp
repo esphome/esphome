@@ -57,7 +57,7 @@
 #endif
 
 #ifdef USE_ZEPHYR
-#include <zephyr/random/rand32.h>
+#include <zephyr/random/random.h>
 #endif
 
 namespace esphome {
@@ -635,7 +635,7 @@ void Mutex::lock() {}
 bool Mutex::try_lock() { return true; }
 void Mutex::unlock() {}
 #elif defined(USE_ZEPHYR)
-Mutex::Mutex() { k_mutex_init(&handle_); }
+Mutex::Mutex() { k_mutex_init(&this->handle_); }
 void Mutex::lock() { k_mutex_lock(&this->handle_, K_FOREVER); }
 bool Mutex::try_lock() { return k_mutex_lock(&this->handle_, K_NO_WAIT) == 0; }
 void Mutex::unlock() { k_mutex_unlock(&this->handle_); }
