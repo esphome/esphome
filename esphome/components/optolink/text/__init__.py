@@ -18,7 +18,7 @@ from .. import (
     SENSOR_BASE_SCHEMA,
 )
 
-DEPENDENCIES = ["optolink", "api"]
+DEPENDENCIES = ["optolink"]
 CODEOWNERS = ["@j0ta29"]
 
 TextType = optolink_ns.enum("TextType")
