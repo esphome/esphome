@@ -4,6 +4,10 @@ modem:
   id: atmodem
   rx_pin: GPIO26
   tx_pin: GPIO27
+  status_pin: GPIO34
+  power_pin:
+    number: GPIO04
+    inverted: True
   model: SIM7600
   apn: orange
   pin_code: "0000"
