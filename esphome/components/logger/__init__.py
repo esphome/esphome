@@ -18,11 +18,11 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
     PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
     PLATFORM_NRF52,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant

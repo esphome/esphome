@@ -57,12 +57,12 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
     __version__ as ESPHOME_VERSION,
-    PLATFORM_NRF52,
 )
 from esphome.core import (
     CORE,

@@ -1,12 +1,12 @@
 import esphome.codegen as cg
 
-KEY_ZEPHYR = "zephyr"
-KEY_PRJ_CONF = "prj_conf"
-KEY_OVERLAY = "overlay"
+BOOTLOADER_MCUBOOT = "mcuboot"
+
 KEY_BOOTLOADER = "bootloader"
 KEY_EXTRA_BUILD_FILES = "extra_build_files"
+KEY_OVERLAY = "overlay"
 KEY_PATH = "path"
-
-BOOTLOADER_MCUBOOT = "mcuboot"
+KEY_PRJ_CONF = "prj_conf"
+KEY_ZEPHYR = "zephyr"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")

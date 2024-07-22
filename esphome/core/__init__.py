@@ -15,13 +15,13 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
-    PLATFORM_RP2040,
     PLATFORM_HOST,
     PLATFORM_NRF52,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 )
 from esphome.coroutine import FakeAwaitable as _FakeAwaitable
 from esphome.coroutine import FakeEventLoop as _FakeEventLoop

@@ -11,14 +11,14 @@ from esphome.const import (
     KEY_NAME,
 )
 from .const import (
-    KEY_ZEPHYR,
-    KEY_PRJ_CONF,
-    KEY_OVERLAY,
-    zephyr_ns,
     BOOTLOADER_MCUBOOT,
-    KEY_EXTRA_BUILD_FILES,
-    KEY_PATH,
     KEY_BOOTLOADER,
+    KEY_EXTRA_BUILD_FILES,
+    KEY_OVERLAY,
+    KEY_PATH,
+    KEY_PRJ_CONF,
+    KEY_ZEPHYR,
+    zephyr_ns,
 )
 
 CODEOWNERS = ["@tomaszduda23"]

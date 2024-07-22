@@ -2,13 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
+    CONF_FRAMEWORK,
+    CONF_PLATFORM_VERSION,
+    CONF_TYPE,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
-    CONF_TYPE,
-    CONF_FRAMEWORK,
-    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -17,14 +17,12 @@ from esphome.components.zephyr import (
     zephyr_to_code,
 )
 from esphome.components.zephyr.const import (
-    KEY_ZEPHYR,
-    KEY_BOOTLOADER,
     BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    KEY_ZEPHYR,
 )
 from .boards_zephyr import BOARDS_ZEPHYR
-from .const import (
-    BOOTLOADER_ADAFRUIT,
-)
+from .const import BOOTLOADER_ADAFRUIT
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
