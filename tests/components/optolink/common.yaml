@@ -1,0 +1,70 @@
+binary_sensor:
+  - platform: optolink
+    name: Sammelstörung
+    address: 0x0A82
+
+sensor:
+  - platform: optolink
+    name: Rücklauftemperatur
+    address: 0x0808
+    bytes: 2
+    div_ratio: 10
+    unit_of_measurement: °C
+    icon: mdi:thermometer-chevron-down
+    device_class: temperature
+    update_interval: 120s
+
+text_sensor:
+  - platform: optolink
+    type: DEVICE_INFO
+    name: Gerätekennung
+    update_interval: 600s
+  - platform: optolink
+    type: STATE_INFO
+    name: Gerätestatus
+    update_interval: 15s
+  - platform: optolink
+    name: NRF_Sachnummer
+    address: 0x08E0
+    bytes: 7
+    type: RAW
+    update_interval: 1800s
+
+text:
+  - platform: optolink
+    name: Heizzeiten Montag
+    address: 0x2000
+    bytes: 56
+    type: DAY_SCHEDULE
+    day_of_week: MONDAY
+    update_interval: 60s
+    icon: mdi:heating-coil
+
+number:
+  - platform: optolink
+    name: Neigung Heizkennlinie
+    address: 0x27d3
+    bytes: 1
+    min_value: 0.2
+    max_value: 3.5
+    step: 0.1
+    div_ratio: 10
+    mode: box
+    icon: mdi:angle-acute
+    device_class: temperature
+
+select:
+  - platform: optolink
+    name: Betriebsart
+    address: 0x2323
+    bytes: 1
+    map:
+      - "0 -> Aus"
+      - "1 -> Nur Warmwasser"
+      - "2 -> Heizung und Warmwasser"
+
+switch:
+  - platform: optolink
+    name: Partybetrieb
+    address: 0x2303
+    icon: mdi:party-popper
