@@ -104,34 +104,12 @@ def _compute_url(config: dict) -> str:
     return f"https://raw.githubusercontent.com/boschsensortec/Bosch-BSEC2-Library/{BSEC2_LIBRARY_VERSION}/src/config/{model}/{model}_{algo}_{volts}_{sample_rate}_{operating_age}/{filename}.txt"
 
 
-def _download_file(url: str, path: Path) -> bytes:
-    if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.debug("Remote file has not changed, skipping download")
-        return path.read_bytes()
-
-    try:
-        req = requests.get(
-            url,
-            timeout=external_files.NETWORK_TIMEOUT,
-            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
-        )
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download file from {url}: {e}") from e
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
-    return req.content
-
-
 def download_bme68x_blob(config):
     url = _compute_url(config)
     path = _compute_local_file_path(url)
 
-    if len(_download_file(url, path)) > 0:
-        return config
-
-    raise cv.Invalid("Unable to download binary configuration blob")
+    external_files.download_content(url, path):
+    return config
 
 
 def validate_bme68x(config):
