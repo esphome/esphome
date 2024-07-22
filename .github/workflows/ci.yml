@@ -289,6 +289,10 @@ jobs:
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
+          - id: clang-tidy
+            name: Run script/clang-tidy for ZEPHYR
+            options: --environment nrf52 --grep USE_ZEPHYR
+            pio_cache_key: tidy-zephyr
 
     steps:
       - name: Check out code from GitHub

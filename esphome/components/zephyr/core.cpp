@@ -47,7 +47,7 @@ void loop();
 
 int main() {
   setup();
-  while (1) {
+  while (true) {
     loop();
     esphome::yield();
   }

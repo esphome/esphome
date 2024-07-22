@@ -26,7 +26,7 @@ void Logger::loop() {
     return;
   }
 
-  if (false == opened) {
+  if (!opened) {
     App.schedule_dump_config();
   }
   opened = !opened;
