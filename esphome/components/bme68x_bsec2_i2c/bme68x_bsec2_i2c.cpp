@@ -21,12 +21,8 @@ static const char *const TAG = "bme68x_bsec2_i2c.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-BME68xBSEC2I2CComponent
-    *BME68xBSEC2I2CComponent::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 void BME68xBSEC2I2CComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME68X via BSEC2...");
-  BME68xBSEC2I2CComponent::instance = this;
 
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
@@ -34,6 +30,7 @@ void BME68xBSEC2I2CComponent::setup() {
     return;
   }
 
+  this->bme68x_.intf_ptr = (void *) this;
   this->bme68x_.intf = BME68X_I2C_INTF;
   this->bme68x_.read = BME68xBSEC2I2CComponent::read_bytes_wrapper;
   this->bme68x_.write = BME68xBSEC2I2CComponent::write_bytes_wrapper;
@@ -477,12 +474,12 @@ void BME68xBSEC2I2CComponent::publish_sensor_(text_sensor::TextSensor *sensor, c
 #endif
 
 int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
-  return BME68xBSEC2I2CComponent::instance->read_bytes(a_register, data, len) ? 0 : -1;
+  return static_cast<BME68xBSEC2I2CComponent *>(intfPtr)->read_bytes(a_register, data, len) ? 0 : -1;
 }
 
 int8_t BME68xBSEC2I2CComponent::write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len,
                                                     void *intfPtr) {
-  return BME68xBSEC2I2CComponent::instance->write_bytes(a_register, data, len) ? 0 : -1;
+  return static_cast<BME68xBSEC2I2CComponent *>(intfPtr)->write_bytes(a_register, data, len) ? 0 : -1;
 }
 
 void BME68xBSEC2I2CComponent::delay_us(uint32_t period, void *intfPtr) {

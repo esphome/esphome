@@ -84,7 +84,6 @@ class BME68xBSEC2I2CComponent : public Component, public i2c::I2CDevice {
 #ifdef USE_TEXT_SENSOR
   void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *sensor) { this->iaq_accuracy_text_sensor_ = sensor; }
 #endif
-  static BME68xBSEC2I2CComponent *instance;
   static int8_t read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr);
   static int8_t write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len, void *intfPtr);
   static void delay_us(uint32_t period, void *intfPtr);
