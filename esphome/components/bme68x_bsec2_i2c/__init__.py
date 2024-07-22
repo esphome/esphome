@@ -16,7 +16,7 @@ from esphome.const import (
 )
 from esphome import core, external_files
 
-CODEOWNERS = ["@neffs"]
+CODEOWNERS = ["@neffs", "@kbx81"]
 
 DEPENDENCIES = ["i2c"]
 DOMAIN = "bme68x_bsec2_i2c"
