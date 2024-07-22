@@ -111,32 +111,15 @@ void ModemComponent::setup() {
   err = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "IP event handler register error");
 
-  this->reset_();
-
   if (this->power_pin_) {
     this->power_pin_->setup();
-
-    delay(100);  // NOLINT
-    // this->power_pin_->digital_write(false);
   }
 
   if (this->status_pin_) {
     this->status_pin_->setup();
-    delay(100);  // NOLINT
-    if (this->get_power_status()) {
-      ESP_LOGI(TAG, "Modem is ON");
-      this->poweroff();
-    } else {
-      ESP_LOGI(TAG, "Modem is OFF");
-      this->poweron();
-    }
   }
 
-  if (this->modem_ready()) {
-    ESP_LOGD(TAG, "modem ready at setup");
-  } else {
-    ESP_LOGD(TAG, "modem not ready at setup");
-  }
+  this->reset_();
 
   ESP_LOGV(TAG, "Setup finished");
 }
@@ -204,9 +187,7 @@ void ModemComponent::reset_() {
     ESP_LOGI(TAG, "not set_flow_control, because 2-wire mode active.");
   }
 
-  if (this->enabled_ && !this->modem_ready()) {
-    ESP_LOGW(TAG, "Here...");
-
+  if (this->enabled_ && this->get_power_status() && !this->modem_ready()) {
     // if the esp has rebooted, but the modem not, it is still in cmux mode
     // So we close cmux.
     // The drawback is that if the modem is poweroff, those commands will take some time to execute.
@@ -215,7 +196,7 @@ void ModemComponent::reset_() {
     this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
     this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
     if (!this->modem_ready()) {
-      ESP_LOGW(TAG, "Modem still not ready after reset");
+      ESP_LOGE(TAG, "Modem still not ready after reset");
     } else {
       ESP_LOGD(TAG, "Modem exited previous CMUX session");
     }
@@ -312,7 +293,10 @@ void ModemComponent::loop() {
           this->status_clear_warning();
           this->state_ = ModemComponentState::DISCONNECTED;
         } else {
-          if (this->not_responding_cb_) {
+          if (!this->get_power_status()) {
+            // Modem is OFF
+            this->state_ = ModemComponentState::DISCONNECTED;
+          } else if (this->not_responding_cb_) {
             if (!this->not_responding_cb_->is_action_running()) {
               ESP_LOGD(TAG, "Calling 'on_not_responding' callback");
               this->not_responding_cb_->trigger();
@@ -324,6 +308,7 @@ void ModemComponent::loop() {
       }
       break;
 
+    // disconnected, want to connect
     case ModemComponentState::DISCONNECTED:
       if (this->enabled_) {
         if (this->start_) {
@@ -336,6 +321,8 @@ void ModemComponent::loop() {
             } else {
               this->disable();
             }
+          } else if (!this->get_power_status()) {
+            this->poweron_();
           } else {
             this->state_ = ModemComponentState::NOT_RESPONDING;
           }
@@ -394,6 +381,21 @@ void ModemComponent::loop() {
           this->set_timeout("wait_lost_ip", 60000, [this]() {
             this->dump_connect_params_();
             this->status_set_error("No lost ip event received");
+
+            this->state_ = ModemComponentState::DISCONNECTED;
+
+            // This seems to be the only way to exit CMUX
+            this->reset_();  // reset dce/dte
+            if (!(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE) &&
+                  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT))) {
+              this->status_set_error("Unable to exit CMUX.");
+            }
+
+            if (!this->modem_ready()) {
+              ESP_LOGE(TAG, "modem not ready after reset");
+            }
+
+            ///////////////////////////
           });
         }
         this->start_ = false;
@@ -419,6 +421,8 @@ void ModemComponent::loop() {
     case ModemComponentState::DISABLED:
       if (this->enabled_) {
         this->state_ = ModemComponentState::DISCONNECTED;
+      } else if (this->status_pin_ && this->get_power_status()) {
+        this->poweroff_();
       }
       break;
   }
@@ -465,45 +469,51 @@ bool ModemComponent::get_power_status() {
     final_status = final_status && this->status_pin_->digital_read();
   }
   if (final_status != init_status) {
-    ESP_LOGV(TAG, "Floating status pin detected for state %d", final_status);
+    // ESP_LOGV(TAG, "Floating status pin detected for state %d", final_status);
   }
-  ESP_LOGV(TAG, "power status: %d", final_status);
   return final_status;
 }
 
-void ModemComponent::poweron() {
+void ModemComponent::poweron_() {
   if (this->power_pin_) {
     Watchdog wdt(60);
-    this->power_pin_->digital_write(0);
-    delay(10);
-    this->power_pin_->digital_write(1);
-    delay(1010);
-    this->power_pin_->digital_write(0);
+    ESP_LOGV(TAG, "Powering up modem with power_pin...");
+    this->power_pin_->digital_write(false);
+    delay(1300);  // min 100 for SIM7600, but min 1200 for SIM800.  min BG96: 650
+    this->power_pin_->digital_write(true);
+    // status will be on from 3s (SIM800) to 25s (SIM7600)
     while (!this->get_power_status()) {
       delay(this->command_delay_);
-      ESP_LOGV(TAG, "Waiting for modem to poweron");
+      ESP_LOGV(TAG, "Waiting for modem to poweron...");
     }
+    ESP_LOGV(TAG, "Modem ON");
     while (!this->modem_ready()) {
       delay(500);  // NOLINT
-      ESP_LOGV(TAG, "Waiting for modem to be ready after poweron");
+      ESP_LOGV(TAG, "Waiting for modem to be ready after poweron...");
     }
+    ESP_LOGV(TAG, "Modem ready after power ON");
   }
 }
 
-void ModemComponent::poweroff() {
+void ModemComponent::poweroff_() {
   if (this->get_power_status()) {
     if (this->power_pin_) {
-      ESP_LOGV(TAG, "Modem poweroff with power pin");
+      ESP_LOGV(TAG, "Powering off modem with power pin...");
       Watchdog wdt(60);
-      this->power_pin_->digital_write(false);
-      delay(2600);  // NOLINT
       this->power_pin_->digital_write(true);
+      delay(10);
+      this->power_pin_->digital_write(false);
+      delay(2700);  // NOLINT
+      this->power_pin_->digital_write(true);
+
+      // will have to wait at least 25s
       while (this->get_power_status()) {
         delay(this->command_delay_);
-        ESP_LOGV(TAG, "Waiting for modem to poweroff");
       }
+      ESP_LOGV(TAG, "Modem OFF");
     } else {
-      ESP_LOGD(TAG, "Modem poweroff with AT command (TODO)");
+      ESP_LOGD(TAG, "Modem poweroff with AT command");
+      this->dce->power_down();
     }
   }
 }

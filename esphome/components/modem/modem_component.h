@@ -70,8 +70,6 @@ class ModemComponent : public Component {
   std::string send_at(const std::string &cmd);
   bool get_imei(std::string &result);
   bool get_power_status();
-  void poweron();
-  void poweroff();
   bool modem_ready();
   void enable();
   void disable();
@@ -103,6 +101,8 @@ class ModemComponent : public Component {
   bool prepare_sim_();
   void send_init_at_();
   void start_connect_();
+  void poweron_();
+  void poweroff_();
   bool start_{false};
   bool enabled_{false};
   bool connected_{false};
