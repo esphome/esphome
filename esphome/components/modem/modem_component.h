@@ -78,6 +78,14 @@ class ModemComponent : public Component {
 
  protected:
   void reset_();  // (re)create dte and dce
+  bool prepare_sim_();
+  void send_init_at_();
+  void start_connect_();
+  void poweron_();
+  void poweroff_();
+  static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+  void dump_connect_params_();
+  void exit_cmux_();
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
   InternalGPIOPin *status_pin_{nullptr};
@@ -98,19 +106,12 @@ class ModemComponent : public Component {
   esp_modem_dte_config_t dte_config_;
   esp_modem_dce_config_t dce_config_;
   ModemComponentState state_{ModemComponentState::DISABLED};
-  bool prepare_sim_();
-  void send_init_at_();
-  void start_connect_();
-  void poweron_();
-  void poweroff_();
   bool start_{false};
   bool enabled_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
   // date start (millis())
   uint32_t connect_begin_;
-  static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
-  void dump_connect_params_();
   std::string use_address_;
   // timeout for AT commands
   uint32_t command_delay_ = 500;

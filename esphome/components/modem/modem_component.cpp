@@ -120,6 +120,10 @@ void ModemComponent::setup() {
   }
 
   this->reset_();
+  // At boot time, if the modem power  is up, but the modem is not ready, it is probably still in cmux mode
+  if (this->enabled_ && this->get_power_status() && !this->modem_ready()) {
+    this->exit_cmux_();
+  }
 
   ESP_LOGV(TAG, "Setup finished");
 }
@@ -127,6 +131,7 @@ void ModemComponent::setup() {
 void ModemComponent::reset_() {
   // destroy previous dte/dce, and recreate them.
   // destroying them seems to be the only way to have a clear state after hang up, and be able to reconnect.
+  // if the modem was previously in cmux mode, this->exit_cmux_(), will be needed after.
 
   this->dte_.reset();
   this->dce.reset();
@@ -185,21 +190,6 @@ void ModemComponent::reset_() {
     ESP_LOGI(TAG, "set_flow_control OK");
   } else {
     ESP_LOGI(TAG, "not set_flow_control, because 2-wire mode active.");
-  }
-
-  if (this->enabled_ && this->get_power_status() && !this->modem_ready()) {
-    // if the esp has rebooted, but the modem not, it is still in cmux mode
-    // So we close cmux.
-    // The drawback is that if the modem is poweroff, those commands will take some time to execute.
-    Watchdog wdt(60);
-    this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
-    this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
-    this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
-    if (!this->modem_ready()) {
-      ESP_LOGE(TAG, "Modem still not ready after reset");
-    } else {
-      ESP_LOGD(TAG, "Modem exited previous CMUX session");
-    }
   }
 }
 
@@ -379,23 +369,12 @@ void ModemComponent::loop() {
             ESP_LOGE(TAG, "modem not ready after hang up");
           }
           this->set_timeout("wait_lost_ip", 60000, [this]() {
-            this->dump_connect_params_();
-            this->status_set_error("No lost ip event received");
+            this->status_set_error("No lost ip event received. Forcing disconnect state");
 
             this->state_ = ModemComponentState::DISCONNECTED;
 
-            // This seems to be the only way to exit CMUX
             this->reset_();  // reset dce/dte
-            if (!(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE) &&
-                  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT))) {
-              this->status_set_error("Unable to exit CMUX.");
-            }
-
-            if (!this->modem_ready()) {
-              ESP_LOGE(TAG, "modem not ready after reset");
-            }
-
-            ///////////////////////////
+            this->exit_cmux_();
           });
         }
         this->start_ = false;
@@ -406,14 +385,7 @@ void ModemComponent::loop() {
 
         // This seems to be the only way to exit CMUX
         this->reset_();  // reset dce/dte
-        if (!(this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE) &&
-              this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT))) {
-          this->status_set_error("Unable to exit CMUX.");
-        }
-
-        if (!this->modem_ready()) {
-          ESP_LOGE(TAG, "modem not ready after reset");
-        }
+        this->exit_cmux_();
       }
 
       break;
@@ -452,6 +424,25 @@ void ModemComponent::disable() {
     this->state_ = ModemComponentState::DISCONNECTING;
   } else {
     this->state_ = ModemComponentState::DISCONNECTED;
+  }
+}
+
+void ModemComponent::exit_cmux_() {
+  // This must be called to gain command mode if:
+  //   - if the esp has rebooted, but the modem not, it is still in cmux mode
+  //   - after a dte/dce reset.
+  // If the modem was previously ready, this will *HANG* de dte, and the modem will be unreachable, with no chances to
+  // recover it.
+  // We need this because we are not able to do a simple esp_modem::modem_mode::COMMAND_MODE (this is probably a bug in
+  // esp_modem)
+  Watchdog wdt(60);
+  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_MODE);
+  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_COMMAND);
+  this->dce->set_mode(esp_modem::modem_mode::CMUX_MANUAL_EXIT);
+  if (!this->modem_ready()) {
+    ESP_LOGE(TAG, "Modem still not ready after reset");
+  } else {
+    ESP_LOGD(TAG, "Modem exited previous CMUX session");
   }
 }
 
