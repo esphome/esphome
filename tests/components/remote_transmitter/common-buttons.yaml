@@ -190,3 +190,8 @@ button:
         channel: 1
         button: 1
         check: 1
+  - platform: template
+    name: OnkyoRI
+    on_press:
+      remote_transmitter.transmit_onkyori:
+        data: 0xD9
