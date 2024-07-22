@@ -1,13 +1,11 @@
 import hashlib
 import logging
 from pathlib import Path
-import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import (
-    __version__,
     CONF_ID,
     CONF_MODEL,
     CONF_RAW_DATA_ID,
@@ -107,8 +105,8 @@ def _compute_url(config: dict) -> str:
 def download_bme68x_blob(config):
     url = _compute_url(config)
     path = _compute_local_file_path(url)
+    external_files.download_content(url, path)
 
-    external_files.download_content(url, path):
     return config
 
 
