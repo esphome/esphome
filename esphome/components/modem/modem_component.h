@@ -56,6 +56,8 @@ class ModemComponent : public Component {
   void set_use_address(const std::string &use_address);
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
+  void set_power_pin(InternalGPIOPin *power_pin) { this->power_pin_ = power_pin; }
+  void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void set_username(const std::string &username) { this->username_ = username; }
   void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
@@ -67,6 +69,9 @@ class ModemComponent : public Component {
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   std::string send_at(const std::string &cmd);
   bool get_imei(std::string &result);
+  bool get_power_status();
+  void poweron();
+  void poweroff();
   bool modem_ready();
   void enable();
   void disable();
@@ -77,6 +82,8 @@ class ModemComponent : public Component {
   void reset_();  // (re)create dte and dce
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
+  InternalGPIOPin *status_pin_{nullptr};
+  InternalGPIOPin *power_pin_{nullptr};
   std::string pin_code_;
   std::string username_;
   std::string password_;

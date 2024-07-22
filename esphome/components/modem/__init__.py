@@ -26,6 +26,9 @@ CONFLICTS_WITH = ["wifi", "captive_portal", "ethernet"]
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
 CONF_DTR_PIN = "dtr_pin"
+CONF_STATUS_PIN = "status_pin"
+CONF_POWER_PIN = "power_pin"
+CONF_FLIGTH_PIN = "flight_pin"
 CONF_INIT_AT = "init_at"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
 
@@ -51,6 +54,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_MODEL): cv.string,
             cv.Required(CONF_APN): cv.string,
+            cv.Optional(CONF_STATUS_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_DTR_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string,
@@ -139,6 +144,14 @@ async def to_code(config):
 
     rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
     cg.add(var.set_rx_pin(rx_pin))
+
+    if status_pin := config.get(CONF_STATUS_PIN, None):
+        pin = await cg.gpio_pin_expression(status_pin)
+        cg.add(var.set_status_pin(pin))
+
+    if power_pin := config.get(CONF_POWER_PIN, None):
+        pin = await cg.gpio_pin_expression(power_pin)
+        cg.add(var.set_power_pin(pin))
 
     for conf in config.get(CONF_ON_NOT_RESPONDING, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

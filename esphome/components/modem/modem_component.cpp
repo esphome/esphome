@@ -113,6 +113,31 @@ void ModemComponent::setup() {
 
   this->reset_();
 
+  if (this->power_pin_) {
+    this->power_pin_->setup();
+
+    delay(100);  // NOLINT
+    // this->power_pin_->digital_write(false);
+  }
+
+  if (this->status_pin_) {
+    this->status_pin_->setup();
+    delay(100);  // NOLINT
+    if (this->get_power_status()) {
+      ESP_LOGI(TAG, "Modem is ON");
+      this->poweroff();
+    } else {
+      ESP_LOGI(TAG, "Modem is OFF");
+      this->poweron();
+    }
+  }
+
+  if (this->modem_ready()) {
+    ESP_LOGD(TAG, "modem ready at setup");
+  } else {
+    ESP_LOGD(TAG, "modem not ready at setup");
+  }
+
   ESP_LOGV(TAG, "Setup finished");
 }
 
@@ -168,6 +193,7 @@ void ModemComponent::reset_() {
 
   assert(this->dce);
 
+  // flow control not fully implemented, but kept here for future work
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
     if (command_result::OK != this->dce->set_flow_control(2, 2)) {
       ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
@@ -180,6 +206,7 @@ void ModemComponent::reset_() {
 
   if (this->enabled_ && !this->modem_ready()) {
     ESP_LOGW(TAG, "Here...");
+
     // if the esp has rebooted, but the modem not, it is still in cmux mode
     // So we close cmux.
     // The drawback is that if the modem is poweroff, those commands will take some time to execute.
@@ -421,6 +448,63 @@ void ModemComponent::disable() {
     this->state_ = ModemComponentState::DISCONNECTING;
   } else {
     this->state_ = ModemComponentState::DISCONNECTED;
+  }
+}
+
+bool ModemComponent::get_power_status() {
+  if (!this->status_pin_) {
+    ESP_LOGV(TAG, "No status pin, assuming the modem is ON");
+    return true;
+  }
+  bool init_status = this->status_pin_->digital_read();
+  // The status pin might be floating when supposed to be low, at least on lilygo tsim7600
+  // as GPIO34 doesn't support pullup, we have to debounce it manually
+  bool final_status = init_status;
+  for (int i = 0; i < 5; i++) {
+    delay(10);
+    final_status = final_status && this->status_pin_->digital_read();
+  }
+  if (final_status != init_status) {
+    ESP_LOGV(TAG, "Floating status pin detected for state %d", final_status);
+  }
+  ESP_LOGV(TAG, "power status: %d", final_status);
+  return final_status;
+}
+
+void ModemComponent::poweron() {
+  if (this->power_pin_) {
+    Watchdog wdt(60);
+    this->power_pin_->digital_write(0);
+    delay(10);
+    this->power_pin_->digital_write(1);
+    delay(1010);
+    this->power_pin_->digital_write(0);
+    while (!this->get_power_status()) {
+      delay(this->command_delay_);
+      ESP_LOGV(TAG, "Waiting for modem to poweron");
+    }
+    while (!this->modem_ready()) {
+      delay(500);  // NOLINT
+      ESP_LOGV(TAG, "Waiting for modem to be ready after poweron");
+    }
+  }
+}
+
+void ModemComponent::poweroff() {
+  if (this->get_power_status()) {
+    if (this->power_pin_) {
+      ESP_LOGV(TAG, "Modem poweroff with power pin");
+      Watchdog wdt(60);
+      this->power_pin_->digital_write(false);
+      delay(2600);  // NOLINT
+      this->power_pin_->digital_write(true);
+      while (this->get_power_status()) {
+        delay(this->command_delay_);
+        ESP_LOGV(TAG, "Waiting for modem to poweroff");
+      }
+    } else {
+      ESP_LOGD(TAG, "Modem poweroff with AT command (TODO)");
+    }
   }
 }
 
