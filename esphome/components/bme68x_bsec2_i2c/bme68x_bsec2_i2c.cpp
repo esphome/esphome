@@ -2,10 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <string>
+#ifdef USE_BSEC2
 
 namespace esphome {
 namespace bme68x_bsec2_i2c {
-#ifdef USE_BSEC2
 
 #define BME68X_BSEC2_I2C_ALGORITHM_OUTPUT_LOG(a) \
   (a == ALGORITHM_OUTPUT_CLASSIFICATION ? "Classification" : "Regression")

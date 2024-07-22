@@ -12,11 +12,9 @@
 
 #ifdef USE_BSEC2
 #include <bsec2.h>
-#endif
 
 namespace esphome {
 namespace bme68x_bsec2_i2c {
-#ifdef USE_BSEC2
 
 enum AlgorithmOutput {
   ALGORITHM_OUTPUT_IAQ,

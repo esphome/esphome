@@ -122,8 +122,8 @@ CONFIG_SCHEMA = cv.All(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
             ): cv.positive_time_period_minutes,
         },
-        cv.only_with_arduino,
     ).extend(i2c.i2c_device_schema(0x76)),
+    cv.only_with_arduino,
     validate_bme68x,
 )
 
@@ -133,13 +133,14 @@ def _compute_url(config: dict) -> str:
     operating_age = config.get(CONF_OPERATING_AGE)
     sample_rate = SAMPLE_RATE_FILE_NAME[config.get(CONF_SAMPLE_RATE)]
     volts = VOLTAGE_FILE_NAME[config.get(CONF_SUPPLY_VOLTAGE)]
-    algo = "iaq"
-    filename = "bsec_iaq"
     if model == "bme688":
         algo = ALGORITHM_OUTPUT_FILE_NAME[
             config.get(CONF_ALGORITHM_OUTPUT, "classification")
         ]
         filename = "bsec_selectivity"
+    else:
+        algo = "iaq"
+        filename = "bsec_iaq"
     return f"https://raw.githubusercontent.com/boschsensortec/Bosch-BSEC2-Library/{BSEC2_LIBRARY_VERSION}/src/config/{model}/{model}_{algo}_{volts}_{sample_rate}_{operating_age}/{filename}.txt"
 
 
