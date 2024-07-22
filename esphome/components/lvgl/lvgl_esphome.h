@@ -47,7 +47,6 @@ class LvCompound {
 using LvLambdaType = std::function<void(lv_obj_t *)>;
 using set_value_lambda_t = std::function<void(float)>;
 using event_callback_t = void(_lv_event_t *);
-typedef std::;
 using text_lambda_t = std::function<const char *()>;
 
 #ifdef LVGL_USES_FONT

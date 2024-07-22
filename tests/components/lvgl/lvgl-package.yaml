@@ -1,7 +1,13 @@
+color:
+  - id: light_blue
+    hex: "3340FF"
+
 lvgl:
+  bg_color: light_blue
   widgets:
     - label:
         text: Hello world
         text_color: 0xFF8000
         align: center
         text_font: montserrat_40
+        border_post: true
