@@ -37,6 +37,7 @@ esphome/components/am43/sensor/* @buxtronix
 esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
+esphome/components/apds9306/* @aodrenah
 esphome/components/api/* @OttoWinter
 esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
@@ -216,6 +217,7 @@ esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr_als_ps/* @latonita
+esphome/components/m5stack_8angle/* @rnauber
 esphome/components/matrix_keypad/* @ssieb
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger
