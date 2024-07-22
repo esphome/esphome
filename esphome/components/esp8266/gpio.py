@@ -1,6 +1,9 @@
-import logging
 from dataclasses import dataclass
+import logging
 
+from esphome import pins
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANALOG,
     CONF_ID,
@@ -14,10 +17,7 @@ from esphome.const import (
     CONF_PULLUP,
     PLATFORM_ESP8266,
 )
-from esphome import pins
 from esphome.core import CORE, coroutine_with_priority
-import esphome.config_validation as cv
-import esphome.codegen as cg
 
 from . import boards
 from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
