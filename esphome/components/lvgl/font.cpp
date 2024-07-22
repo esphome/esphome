@@ -5,7 +5,7 @@ namespace esphome {
 namespace lvgl {
 
 static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter) {
-  FontEngine *fe = (FontEngine *) font->dsc;
+  auto fe = (FontEngine *) font->dsc;
   const font::GlyphData *gd = fe->get_glyph_data(unicode_letter);
   if (gd == nullptr)
     return nullptr;
@@ -13,6 +13,22 @@ static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_l
 
   return gd->data;
 }
+
+static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next) {
+  auto fe = (FontEngine *) font->dsc;
+  const font::GlyphData *gd = fe->get_glyph_data(unicode_letter);
+  if (gd == nullptr)
+    return false;
+  dsc->adv_w = gd->offset_x + gd->width;
+  dsc->ofs_x = gd->offset_x;
+  dsc->ofs_y = fe->height - gd->height - gd->offset_y - fe->baseline;
+  dsc->box_w = gd->width;
+  dsc->box_h = gd->height;
+  dsc->is_placeholder = 0;
+  dsc->bpp = fe->bpp;
+  return true;
+}
+
 FontEngine::FontEngine(font::Font *esp_font) : font_(esp_font) {
   this->lv_font_.line_height = this->height = esp_font->get_height();
   this->lv_font_.base_line = this->baseline = this->lv_font_.line_height - esp_font->get_baseline();
@@ -26,21 +42,6 @@ FontEngine::FontEngine(font::Font *esp_font) : font_(esp_font) {
 }
 
 const lv_font_t *FontEngine::get_lv_font() { return &this->lv_font_; }
-
-static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next) {
-  FontEngine *fe = (FontEngine *) font->dsc;
-  const font::GlyphData *gd = fe->get_glyph_data(unicode_letter);
-  if (gd == nullptr)
-    return false;
-  dsc->adv_w = gd->offset_x + gd->width;
-  dsc->ofs_x = gd->offset_x;
-  dsc->ofs_y = fe->height - gd->height - gd->offset_y - fe->baseline;
-  dsc->box_w = gd->width;
-  dsc->box_h = gd->height;
-  dsc->is_placeholder = 0;
-  dsc->bpp = fe->bpp;
-  return true;
-}
 
 const font::GlyphData *FontEngine::get_glyph_data(uint32_t unicode_letter) {
   if (unicode_letter == last_letter_)

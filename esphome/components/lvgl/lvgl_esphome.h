@@ -9,15 +9,10 @@
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
-#include "esphome/components/key_provider/key_provider.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "lvgl_hal.h"
 #include <lvgl.h>
-#include <map>
 #include <vector>
 
 #ifdef LVGL_USES_FONT
