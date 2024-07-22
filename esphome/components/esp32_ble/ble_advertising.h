@@ -13,7 +13,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-struct raw_adv_data_t {
+using raw_adv_data_t = struct {
   uint8_t *data;
   size_t length;
   esp_power_level_t power_level;
