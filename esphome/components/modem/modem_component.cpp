@@ -272,8 +272,6 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
 void ModemComponent::loop() {
   static ModemComponentState last_state = this->state_;
   const uint32_t now = millis();
-  static uint32_t last_health_check = now;
-  const uint32_t healh_check_interval = 30000;
 
   switch (this->state_) {
     case ModemComponentState::NOT_RESPONDING:
@@ -348,15 +346,6 @@ void ModemComponent::loop() {
       } else if (!this->connected_) {
         this->status_set_warning("Connection via Modem lost!");
         this->state_ = ModemComponentState::DISCONNECTED;
-      } else {
-        if ((now - last_health_check) >= healh_check_interval) {
-          ESP_LOGV(TAG, "Health check");
-          last_health_check = now;
-          if (!this->modem_ready()) {
-            ESP_LOGW(TAG, "Modem not responding while connected");
-            this->state_ = ModemComponentState::NOT_RESPONDING;
-          }
-        }
       }
       break;
 
@@ -369,7 +358,7 @@ void ModemComponent::loop() {
             ESP_LOGE(TAG, "modem not ready after hang up");
           }
           this->set_timeout("wait_lost_ip", 60000, [this]() {
-            this->status_set_error("No lost ip event received. Forcing disconnect state");
+            ESP_LOGW(TAG, "No lost ip event received. Forcing disconnect state");
 
             this->state_ = ModemComponentState::DISCONNECTED;
 
@@ -383,7 +372,6 @@ void ModemComponent::loop() {
         this->cancel_timeout("wait_lost_ip");
         this->state_ = ModemComponentState::DISCONNECTED;
 
-        // This seems to be the only way to exit CMUX
         this->reset_();  // reset dce/dte
         this->exit_cmux_();
       }
