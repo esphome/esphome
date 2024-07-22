@@ -1,8 +1,11 @@
-#include "bme68x_bsec2_i2c.h"
-#include "esphome/core/log.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include <string>
+#include "esphome/core/log.h"
+
 #ifdef USE_BSEC2
+#include "bme68x_bsec2_i2c.h"
+
+#include <string>
 
 namespace esphome {
 namespace bme68x_bsec2_i2c {
@@ -89,6 +92,7 @@ void BME68xBSEC2I2CComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  State save interval: %ims", this->state_save_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f", this->temperature_offset_);
 
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC2_I2C_SAMPLE_RATE_LOG(this->temperature_sample_rate_));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
@@ -96,11 +100,14 @@ void BME68xBSEC2I2CComponent::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   ESP_LOGCONFIG(TAG, "    Sample rate: %s", BME68X_BSEC2_I2C_SAMPLE_RATE_LOG(this->humidity_sample_rate_));
   LOG_SENSOR("  ", "Gas resistance", this->gas_resistance_sensor_);
-  LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
-  LOG_SENSOR("  ", "Numeric IAQ accuracy", this->iaq_accuracy_sensor_);
-  LOG_TEXT_SENSOR("  ", "IAQ accuracy", this->iaq_accuracy_text_sensor_);
   LOG_SENSOR("  ", "CO2 equivalent", this->co2_equivalent_sensor_);
   LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor_);
+  LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
+  LOG_SENSOR("  ", "Numeric IAQ accuracy", this->iaq_accuracy_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "IAQ accuracy", this->iaq_accuracy_text_sensor_);
+#endif
 }
 
 float BME68xBSEC2I2CComponent::get_setup_priority() const { return setup_priority::DATA; }
@@ -149,8 +156,8 @@ float BME68xBSEC2I2CComponent::calc_sensor_sample_rate_(SampleRate sample_rate) 
 
 void BME68xBSEC2I2CComponent::update_subscription_() {
   bsec_sensor_configuration_t virtual_sensors[BSEC_NUMBER_OUTPUTS];
-  int num_virtual_sensors = 0;
-
+  uint8_t num_virtual_sensors = 0;
+#ifdef USE_SENSOR
   if (this->iaq_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_IAQ;
     virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(SAMPLE_RATE_DEFAULT);
@@ -198,7 +205,7 @@ void BME68xBSEC2I2CComponent::update_subscription_() {
     virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(this->humidity_sample_rate_);
     num_virtual_sensors++;
   }
-
+#endif
   bsec_sensor_configuration_t sensor_settings[BSEC_MAX_PHYSICAL_SENSOR];
   uint8_t num_sensor_settings = BSEC_MAX_PHYSICAL_SENSOR;
   this->bsec_status_ = bsec_update_subscription_m(&this->bsec_instance_, virtual_sensors, num_virtual_sensors,
@@ -388,36 +395,54 @@ void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
         accuracy = outputs[i].accuracy;
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
+        this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
+#endif
+#ifdef USE_TEXT_SENSOR
         this->queue_push_([this, accuracy]() {
           this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
         });
-        this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
+#endif
 
         // Queue up an opportunity to save state
         this->queue_push_([this, accuracy]() { this->save_state_(accuracy); });
         break;
       case BSEC_OUTPUT_STATIC_IAQ:
         accuracy = outputs[i].accuracy;
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_static_sensor_, signal); });
+#endif
         break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->co2_equivalent_sensor_, signal); });
+#endif
         break;
       case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->breath_voc_equivalent_sensor_, signal); });
+#endif
         break;
       case BSEC_OUTPUT_RAW_PRESSURE:
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->pressure_sensor_, signal / 100.0f); });
+#endif
         break;
       case BSEC_OUTPUT_RAW_GAS:
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->gas_resistance_sensor_, signal); });
+#endif
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->temperature_sensor_, signal); });
+#endif
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
+#ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->humidity_sensor_, signal); });
+#endif
         break;
     }
   }
@@ -433,19 +458,23 @@ int64_t BME68xBSEC2I2CComponent::get_time_ns_() {
   return (time_ms + ((int64_t) this->millis_overflow_counter_ << 32)) * INT64_C(1000000);
 }
 
+#ifdef USE_SENSOR
 void BME68xBSEC2I2CComponent::publish_sensor_(sensor::Sensor *sensor, float value, bool change_only) {
   if (!sensor || (change_only && sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
 }
+#endif
 
+#ifdef USE_TEXT_SENSOR
 void BME68xBSEC2I2CComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
   if (!sensor || (sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
 }
+#endif
 
 int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
   return BME68xBSEC2I2CComponent::instance->read_bytes(a_register, data, len) ? 0 : -1;
@@ -504,6 +533,7 @@ void BME68xBSEC2I2CComponent::save_state_(uint8_t accuracy) {
 
   ESP_LOGI(TAG, "Saved state");
 }
-#endif
+
 }  // namespace bme68x_bsec2_i2c
 }  // namespace esphome
+#endif

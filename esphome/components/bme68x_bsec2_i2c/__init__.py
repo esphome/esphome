@@ -18,7 +18,6 @@ from esphome import core, external_files
 
 CODEOWNERS = ["@neffs"]
 
-AUTO_LOAD = ["sensor", "text_sensor"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "bme68x_bsec2_i2c"
 
