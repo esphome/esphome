@@ -14,7 +14,7 @@ namespace logger {
 static const char *const TAG = "logger";
 
 void Logger::loop() {
-  if (this->uart_ != UART_SELECTION_USB_CDC || nullptr == uart_dev_) {
+  if (this->uart_ != UART_SELECTION_USB_CDC || nullptr == this->uart_dev_) {
     return;
   }
   static bool opened = false;
