@@ -11,11 +11,14 @@ static const char *const TAG = "lvgl";
 namespace esphome {
 namespace lvgl {
 
+lv_event_code_t lv_custom_event;
 void LvglComponent::setup() {
   esph_log_config(TAG, "LVGL Setup starts");
 #if LV_USE_LOG
   lv_log_register_print_cb(log_cb);
 #endif
+  lv_init();
+  lv_custom_event = static_cast<lv_event_code_t>(lv_event_register_id());
   auto *display = this->displays_[0];
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;

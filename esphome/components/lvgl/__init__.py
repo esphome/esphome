@@ -2,7 +2,6 @@ import logging
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.components.display import Display
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -25,9 +24,7 @@ from . import helpers
 from . import lv_validation as lvalid
 from .label import label_spec
 from .lvcode import (
-    lv,
     LvContext,
-    MainContext,
     ConstantLiteral,
 )
 
@@ -49,6 +46,7 @@ from .widget import (
     LvScrActType,
     set_obj_properties,
     widget_to_code,
+    set_widgets_completed,
 )
 
 DOMAIN = "lvgl"
@@ -200,15 +198,13 @@ async def to_code(config):
         await cg.get_variable(font)
         cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
 
-    with MainContext():
-        lv.init()
     with LvContext():
         await set_obj_properties(lv_scr_act, config)
         if widgets := config.get(df.CONF_WIDGETS):
             for w in widgets:
                 lv_w_type, w_cnfig = next(iter(w.items()))
                 await widget_to_code(w_cnfig, lv_w_type, lv_scr_act.obj)
-    automation.widgets_completed = True
+    set_widgets_completed()
     await add_init_lambda(lv_component, LvContext.get_code())
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"LVGL_USES_{comp.upper()}")

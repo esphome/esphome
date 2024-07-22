@@ -184,6 +184,11 @@ widget_map: dict[Any, Widget] = {}
 widgets_completed = False  # will be set true when all widgets are available
 
 
+def set_widgets_completed():
+    global widgets_completed
+    widgets_completed = True
+
+
 def get_widget_generator(wid):
     """
     Used to wait for a widget during code generation.

@@ -21,6 +21,7 @@
 namespace esphome {
 namespace lvgl {
 
+extern lv_event_code_t lv_custom_event;
 #ifdef LVGL_USES_COLOR
 static lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
 #endif
