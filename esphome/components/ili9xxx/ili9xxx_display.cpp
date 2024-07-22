@@ -413,15 +413,15 @@ void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
     x = *addr++;
     if (x == ILI9XXX_DELAY_FLAG) {
       cmd &= 0x7F;
-      ESP_LOGD(TAG, "Delay %dms", cmd);
+      ESP_LOGV(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
       num_args = x & 0x7F;
-      ESP_LOGD(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, *addr);
+      ESP_LOGV(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, *addr);
       this->send_command(cmd, addr, num_args);
       addr += num_args;
       if (x & 0x80) {
-        ESP_LOGD(TAG, "Delay 150ms");
+        ESP_LOGV(TAG, "Delay 150ms");
         delay(150);  // NOLINT
       }
     }
