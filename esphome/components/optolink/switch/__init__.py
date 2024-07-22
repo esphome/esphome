@@ -3,7 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_UPDATE_INTERVAL
-from .. import SENSOR_BASE_SCHEMA, optolink_ns
+from .. import CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA, optolink_ns
 
 DEPENDENCIES = ["optolink"]
 CODEOWNERS = ["@j0ta29"]
@@ -13,7 +13,6 @@ OptolinkSwitch = optolink_ns.class_(
     "OptolinkSwitch", switch.Switch, cg.PollingComponent
 )
 
-CONF_OPTOLINK_ID = "optolink_id"
 CONFIG_SCHEMA = (
     switch.SWITCH_SCHEMA.extend(
         {

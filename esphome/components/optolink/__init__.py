@@ -33,7 +33,6 @@ DAY_OF_WEEK = {
 CONF_DAY_OF_WEEK = "day_of_week"
 
 OptolinkComponent = optolink_ns.class_("Optolink", cg.Component)
-CONF_OPTOLINK_ID = "optolink_id"
 SENSOR_BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OPTOLINK_ID): cv.use_id(OptolinkComponent),
