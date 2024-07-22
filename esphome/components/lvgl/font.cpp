@@ -5,8 +5,8 @@ namespace esphome {
 namespace lvgl {
 
 static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter) {
-  auto fe = (FontEngine *) font->dsc;
-  const font::GlyphData *gd = fe->get_glyph_data(unicode_letter);
+  auto *fe = (FontEngine *) font->dsc;
+  const auto *gd = fe->get_glyph_data(unicode_letter);
   if (gd == nullptr)
     return nullptr;
   // esph_log_d(TAG, "Returning bitmap @  %X", (uint32_t)gd->data);
@@ -15,8 +15,8 @@ static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_l
 }
 
 static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next) {
-  auto fe = (FontEngine *) font->dsc;
-  const font::GlyphData *gd = fe->get_glyph_data(unicode_letter);
+  auto *fe = (FontEngine *) font->dsc;
+  const auto *gd = fe->get_glyph_data(unicode_letter);
   if (gd == nullptr)
     return false;
   dsc->adv_w = gd->offset_x + gd->width;
