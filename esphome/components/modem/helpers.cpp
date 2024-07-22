@@ -16,7 +16,7 @@ Watchdog::Watchdog(u_int32_t timeout_s) {
   this->timeout_s_ = timeout_s;
   this->start_time_ms_ = millis();
   this->set_wdt_(timeout_s);
-  ESP_LOGV(TAG, "Watchog timeout init: %ds", timeout_s);
+  ESP_LOGV(TAG, "Watchog timeout init: %" PRIu32 "s", timeout_s);
 }
 
 Watchdog::~Watchdog() {
