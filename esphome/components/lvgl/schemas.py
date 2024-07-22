@@ -56,7 +56,7 @@ STYLE_PROPS = {
     "bg_opa": lv.opacity,
     "border_color": lv.lv_color,
     "border_opa": lv.opacity,
-    "border_post": cv.boolean,
+    "border_post": lv.bool_,
     "border_side": df.LvConstant(
         "LV_BORDER_SIDE_", "NONE", "TOP", "BOTTOM", "LEFT", "RIGHT", "INTERNAL"
     ).several_of,

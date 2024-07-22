@@ -44,9 +44,9 @@ class SliderType(WidgetType):
                     f"lv_slider_set_mode({var}, {config[CONF_MODE]})",
                 ]
             )
-            value = await get_start_value(config)
-            if value is not None:
-                init.append(f"lv_slider_set_value({var}, {value}, LV_ANIM_OFF)")
+        value = await get_start_value(config)
+        if value is not None:
+            init.append(f"lv_slider_set_value({var}, {value}, LV_ANIM_OFF)")
         return init
 
 
