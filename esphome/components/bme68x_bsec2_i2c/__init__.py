@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
 )
-from esphome import external_files
+from esphome import core, external_files
 
 CODEOWNERS = ["@neffs"]
 
@@ -81,6 +81,60 @@ VOLTAGE_FILE_NAME = {
 }
 
 
+def _compute_local_file_path(url: str) -> Path:
+    h = hashlib.new("sha256")
+    h.update(url.encode())
+    key = h.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(DOMAIN)
+    return base_dir / key
+
+
+def _compute_url(config: dict) -> str:
+    model = config.get(CONF_MODEL)
+    operating_age = config.get(CONF_OPERATING_AGE)
+    sample_rate = SAMPLE_RATE_FILE_NAME[config.get(CONF_SAMPLE_RATE)]
+    volts = VOLTAGE_FILE_NAME[config.get(CONF_SUPPLY_VOLTAGE)]
+    if model == "bme688":
+        algo = ALGORITHM_OUTPUT_FILE_NAME[
+            config.get(CONF_ALGORITHM_OUTPUT, "classification")
+        ]
+        filename = "bsec_selectivity"
+    else:
+        algo = "iaq"
+        filename = "bsec_iaq"
+    return f"https://raw.githubusercontent.com/boschsensortec/Bosch-BSEC2-Library/{BSEC2_LIBRARY_VERSION}/src/config/{model}/{model}_{algo}_{volts}_{sample_rate}_{operating_age}/{filename}.txt"
+
+
+def _download_file(url: str, path: Path) -> bytes:
+    if not external_files.has_remote_file_changed(url, path):
+        _LOGGER.debug("Remote file has not changed, skipping download")
+        return path.read_bytes()
+
+    try:
+        req = requests.get(
+            url,
+            timeout=external_files.NETWORK_TIMEOUT,
+            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
+        )
+        req.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise cv.Invalid(f"Could not download file from {url}: {e}") from e
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(req.content)
+    return req.content
+
+
+def download_bme68x_blob(config):
+    url = _compute_url(config)
+    path = _compute_local_file_path(url)
+
+    if len(_download_file(url, path)) > 0:
+        return config
+
+    raise cv.Invalid("Unable to download binary configuration blob")
+
+
 def validate_bme68x(config):
     if CONF_ALGORITHM_OUTPUT not in config:
         return config
@@ -125,51 +179,8 @@ CONFIG_SCHEMA = cv.All(
     ).extend(i2c.i2c_device_schema(0x76)),
     cv.only_with_arduino,
     validate_bme68x,
+    download_bme68x_blob,
 )
-
-
-def _compute_url(config: dict) -> str:
-    model = config.get(CONF_MODEL)
-    operating_age = config.get(CONF_OPERATING_AGE)
-    sample_rate = SAMPLE_RATE_FILE_NAME[config.get(CONF_SAMPLE_RATE)]
-    volts = VOLTAGE_FILE_NAME[config.get(CONF_SUPPLY_VOLTAGE)]
-    if model == "bme688":
-        algo = ALGORITHM_OUTPUT_FILE_NAME[
-            config.get(CONF_ALGORITHM_OUTPUT, "classification")
-        ]
-        filename = "bsec_selectivity"
-    else:
-        algo = "iaq"
-        filename = "bsec_iaq"
-    return f"https://raw.githubusercontent.com/boschsensortec/Bosch-BSEC2-Library/{BSEC2_LIBRARY_VERSION}/src/config/{model}/{model}_{algo}_{volts}_{sample_rate}_{operating_age}/{filename}.txt"
-
-
-def _compute_local_file_path(url: str) -> Path:
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
-
-
-def _download_file(url: str, path: Path) -> bytes:
-    if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.debug("Remote file has not changed, skipping download")
-        return path.read_bytes()
-
-    try:
-        req = requests.get(
-            url,
-            timeout=external_files.NETWORK_TIMEOUT,
-            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
-        )
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download file from {url}: {e}") from e
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
-    return req.content
 
 
 async def to_code(config):
@@ -187,12 +198,16 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    url = _compute_url(config)
-    path = _compute_local_file_path(url)
-    bsec2_iaq_config = _download_file(url, path)
+    path = _compute_local_file_path(_compute_url(config))
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            bsec2_iaq_config = f.read()
+    except Exception as e:
+        raise core.EsphomeError(f"Could not open binary configuration file {path}: {e}")
 
     # Convert retrieved BSEC2 config to an array of ints
-    rhs = [int(x) for x in bsec2_iaq_config.decode("utf-8").split(",")]
+    rhs = [int(x) for x in bsec2_iaq_config.split(",")]
     # Create an array which will reside in program memory and configure the sensor instance to use it
     bsec2_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_bsec2_configuration(bsec2_arr, len(rhs)))
