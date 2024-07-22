@@ -1964,8 +1964,11 @@ async def mirage_action(var, config, args):
     template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
     cg.add(var.set_code(template_))
 
+
 # OnkyoRI
-OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, OnkyoRIAction, OnkyoRIDumper = declare_protocol("OnkyoRI")
+OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, OnkyoRIAction, OnkyoRIDumper = (
+    declare_protocol("OnkyoRI")
+)
 OnkyoRI_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
 
 
@@ -1995,4 +1998,3 @@ def onkyori_dumper(var, config):
 async def onkyori_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    
