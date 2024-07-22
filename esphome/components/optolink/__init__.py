@@ -3,18 +3,21 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
+    CONF_BYTES,
     CONF_DIV_RATIO,
     CONF_ID,
     CONF_LOGGER,
     CONF_PROTOCOL,
     CONF_RX_PIN,
     CONF_TX_PIN,
+    CONF_TYPE,
     CONF_UPDATE_INTERVAL,
 )
 from esphome.core import CORE
 
 CODEOWNERS = ["@j0ta29"]
-DEPENDENCIES = []
+DEPENDENCIES = ["sensor"]
 AUTO_LOAD = []
 MULTI_CONF = False
 
@@ -31,6 +34,73 @@ DAY_OF_WEEK = {
     "SUNDAY": 6,
 }
 CONF_DAY_OF_WEEK = "day_of_week"
+
+
+def check_address_for_types(types_address_needed):
+    def validator_(config):
+        address_needed = config[CONF_TYPE] in types_address_needed
+        address_defined = CONF_ADDRESS in config
+        if address_needed and not address_defined:
+            raise cv.Invalid(
+                f"{CONF_ADDRESS} is required for this types: {types_address_needed}"
+            )
+        if not address_needed and address_defined:
+            raise cv.Invalid(
+                f"{CONF_ADDRESS} is only allowed for this types: {types_address_needed}"
+            )
+        return config
+
+    return validator_
+
+
+def check_bytes_for_types(types_bytes_needed):
+    def validator_(config):
+        bytes_needed = config[CONF_TYPE] in types_bytes_needed
+        bytes_defined = CONF_BYTES in config
+        if bytes_needed and not bytes_defined:
+            raise cv.Invalid(
+                f"{CONF_BYTES} is required for this types: {types_bytes_needed}"
+            )
+        if not bytes_needed and bytes_defined:
+            raise cv.Invalid(
+                f"{CONF_BYTES} is only allowed for this types: {types_bytes_needed}"
+            )
+
+        types_bytes_range_1_to_9 = ["MAP", "RAW"]
+        if config[CONF_TYPE] in types_bytes_range_1_to_9 and config[
+            CONF_BYTES
+        ] not in range(0, 10):
+            raise cv.Invalid(
+                f"{CONF_BYTES} must be between 1 and 9 for this types: {types_bytes_range_1_to_9}"
+            )
+
+        types_bytes_day_schedule = ["DAY_SCHEDULE"]
+        if config[CONF_TYPE] in types_bytes_day_schedule and config[CONF_BYTES] not in [
+            56
+        ]:
+            raise cv.Invalid(
+                f"{CONF_BYTES} must be 56 for this types: {types_bytes_day_schedule}"
+            )
+
+        return config
+
+    return validator_
+
+
+def check_dow_for_types(types_dow_needed):
+    def validator_(config):
+        if config[CONF_TYPE] in types_dow_needed and CONF_DAY_OF_WEEK not in config:
+            raise cv.Invalid(
+                f"{CONF_DAY_OF_WEEK} is required for this types: {types_dow_needed}"
+            )
+        if config[CONF_TYPE] not in types_dow_needed and CONF_DAY_OF_WEEK in config:
+            raise cv.Invalid(
+                f"{CONF_DAY_OF_WEEK} is only allowed for this types: {types_dow_needed}"
+            )
+        return config
+
+    return validator_
+
 
 OptolinkComponent = optolink_ns.class_("Optolink", cg.Component)
 SENSOR_BASE_SCHEMA = cv.Schema(

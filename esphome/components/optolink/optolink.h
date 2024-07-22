@@ -3,6 +3,7 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
 #include "VitoWiFi.h"
 
 namespace esphome {
@@ -34,6 +35,8 @@ class Optolink : public esphome::Component, public Print {
 
   void set_state(const char *format, ...);
   std::string get_state() { return state_; }
+
+  int get_queue_size();
 };
 
 }  // namespace optolink

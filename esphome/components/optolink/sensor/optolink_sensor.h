@@ -10,17 +10,20 @@
 namespace esphome {
 namespace optolink {
 
+enum SensorType { SENSOR_TYPE_DATAPOINT, SENSOR_TYPE_QUEUE_SIZE };
+
 class OptolinkSensor : public DatapointComponent, public esphome::sensor::Sensor, public esphome::PollingComponent {
  public:
   OptolinkSensor(Optolink *optolink) : DatapointComponent(optolink) {
     set_state_class(esphome::sensor::STATE_CLASS_MEASUREMENT);
   }
 
-  void set_min_value(float min_value);
+  void set_type(SensorType type) { type_ = type; }
+  void set_min_value(float min_value) { min_value_ = min_value; }
 
  protected:
-  void setup() override { setup_datapoint_(); }
-  void update() override { datapoint_read_request_(); }
+  void setup() override;
+  void update() override;
 
   const StringRef &get_component_name() override { return get_name(); }
   void datapoint_value_changed(float value) override { publish_state(value); };
@@ -29,6 +32,7 @@ class OptolinkSensor : public DatapointComponent, public esphome::sensor::Sensor
   void datapoint_value_changed(uint32_t value) override;
 
  private:
+  SensorType type_ = SENSOR_TYPE_DATAPOINT;
   float min_value_ = -FLT_MAX;
 };
 }  // namespace optolink

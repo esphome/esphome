@@ -32,10 +32,9 @@ void Optolink::setup() {
 #endif
 }
 
-void Optolink::loop() {
-  // ESP_LOGD(TAG, "queue size: %d", VitoWiFi.queueSize());
-  VitoWiFi.loop();
-}
+void Optolink::loop() { VitoWiFi.loop(); }
+
+int Optolink::get_queue_size() { return VitoWiFi.queueSize(); }
 
 void Optolink::set_state(const char *format, ...) {
   va_list args;

@@ -258,6 +258,8 @@ void DatapointComponent::set_optolink_state_(const char *format, ...) {
 
 std::string DatapointComponent::get_optolink_state_() { return optolink_->get_state(); }
 
+int DatapointComponent::get_optolink_queue_size_() { return optolink_->get_queue_size(); };
+
 void conv2_100_F::encode(uint8_t *out, DPValue in) {
   int16_t tmp = floor((in.getFloat() * 100) + 0.5);
   out[1] = tmp >> 8;

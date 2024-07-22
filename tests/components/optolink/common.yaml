@@ -13,6 +13,12 @@ sensor:
     icon: mdi:thermometer-chevron-down
     device_class: temperature
     update_interval: 120s
+  - platform: optolink
+    type: QUEUE_SIZE
+    name: Optolink Queue Size
+    icon: mdi:queue-first-in-last-out
+    entity_category: diagnostic
+    update_interval: 1s
 
 text_sensor:
   - platform: optolink

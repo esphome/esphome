@@ -48,6 +48,7 @@ class DatapointComponent {
   void unfitting_value_type_();
   void set_optolink_state_(const char *format, ...);
   std::string get_optolink_state_();
+  int get_optolink_queue_size_();
 
  private:
   const size_t max_retries_until_reset_ = 10;
