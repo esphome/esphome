@@ -8,18 +8,17 @@
 #endif
 
 #include "esphome/components/display/display.h"
+#include "esphome/components/display/display_color_utils.h"
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/components/display/display_color_utils.h"
-#include "esphome/core/component.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "lvgl_hal.h"
 #include <lvgl.h>
-#include <vector>
 #include <map>
+#include <vector>
 
 #ifdef LVGL_USES_FONT
 #include "esphome/components/font/font.h"
@@ -45,10 +44,11 @@ class LvCompound {
   lv_obj_t *obj{};
 };
 
-typedef std::function<void(lv_obj_t *)> LvLambdaType;
-typedef std::function<void(float)> set_value_lambda_t;
-typedef void(event_callback_t)(_lv_event_t *);
-typedef std::function<const char *(void)> text_lambda_t;
+using LvLambdaType = std::function<void(lv_obj_t *)>;
+using set_value_lambda_t = std::function<void(float)>;
+using event_callback_t = void(_lv_event_t *);
+typedef std::;
+using text_lambda_t = std::function<const char *()>;
 
 #ifdef LVGL_USES_FONT
 class FontEngine {
@@ -99,7 +99,7 @@ class LvglComponent : public PollingComponent {
   void update() override {}
 
   void add_display(display::Display *display) { this->displays_.push_back(display); }
-  void add_init_lambda(std::function<void(lv_disp_t *)> lamb) { this->init_lambdas_.push_back(lamb); }
+  void add_init_lambda(const std::function<void(lv_disp_t *)> &lamb) { this->init_lambdas_.push_back(lamb); }
   void dump_config() override { esph_log_config(TAG, "LVGL:"); }
   void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
@@ -107,7 +107,7 @@ class LvglComponent : public PollingComponent {
 
  protected:
   void draw_buffer_(const lv_area_t *area, const uint8_t *ptr) {
-    for (auto display : this->displays_) {
+    for (auto *display : this->displays_) {
       display->draw_pixels_at(area->x1, area->y1, lv_area_get_width(area), lv_area_get_height(area), ptr,
                               display::COLOR_ORDER_RGB, LV_BITNESS, LV_COLOR_16_SWAP);
     }
