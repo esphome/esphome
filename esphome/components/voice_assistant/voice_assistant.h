@@ -90,13 +90,21 @@ class VoiceAssistant : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
     this->speaker_ = speaker;
-    this->local_output_ = true;
+    if (this->speaker_ != nullptr) {
+      this->local_output_ = true;
+    } else {
+      this->local_output_ = false;
+    }
   }
 #endif
 #ifdef USE_MEDIA_PLAYER
   void set_media_player(media_player::MediaPlayer *media_player) {
     this->media_player_ = media_player;
-    this->local_output_ = true;
+    if (this->media_player_ != nullptr) {
+      this->local_output_ = true;
+    } else {
+      this->local_output_ = false;
+    }
   }
 #endif
 
