@@ -98,6 +98,7 @@ class BME68xBSEC2I2CComponent : public Component, public i2c::I2CDevice {
 
   struct bme68x_dev bme68x_;
   bsec_bme_settings_t bsec_settings_;
+  bsec_version_t version_;
   uint8_t bsec_instance_[BSEC_INSTANCE_SIZE];
 
   struct bme68x_heatr_conf bme68x_heatr_conf_;

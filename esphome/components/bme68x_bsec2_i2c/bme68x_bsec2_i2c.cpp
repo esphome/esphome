@@ -57,6 +57,8 @@ void BME68xBSEC2I2CComponent::setup() {
   }
 
   this->load_state_();
+
+  bsec_get_version_m(&this->bsec_instance_, &this->version_);
 }
 
 void BME68xBSEC2I2CComponent::dump_config() {
@@ -64,10 +66,8 @@ void BME68xBSEC2I2CComponent::dump_config() {
 
   LOG_I2C_DEVICE(this);
 
-  bsec_version_t version;
-  bsec_get_version_m(&this->bsec_instance_, &version);
-  ESP_LOGCONFIG(TAG, "  BSEC2 version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix,
-                version.minor_bugfix);
+  ESP_LOGCONFIG(TAG, "  BSEC2 version: %d.%d.%d.%d", this->version_.major, this->version_.minor,
+                this->version_.major_bugfix, this->version_.minor_bugfix);
 
   ESP_LOGCONFIG(TAG, "  BSEC2 configuration blob:");
   ESP_LOGCONFIG(TAG, "    Configured: %s", YESNO(this->bsec2_blob_configured_));
