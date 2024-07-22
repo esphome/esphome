@@ -115,6 +115,8 @@ class ModemComponent : public Component {
   std::string use_address_;
   // timeout for AT commands
   uint32_t command_delay_ = 500;
+  // Will be true when power transitionning
+  bool power_transition_ = false;
   // separate handler for `on_not_responding` (we want to know when it's ended)
   Trigger<> *not_responding_cb_{nullptr};
   CallbackManager<void(ModemComponentState)> on_state_callback_;

@@ -205,7 +205,7 @@ bool ModemComponent::prepare_sim_() {
     if (!this->pin_code_.empty()) {
       ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
       ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "");
-      delay(this->command_delay_);  // NOLINT
+      delay(this->command_delay_);
     }
   }
 
@@ -271,6 +271,12 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
 
 void ModemComponent::loop() {
   static ModemComponentState last_state = this->state_;
+
+  if (this->power_transition_) {
+    // No loop on power transition
+    return;
+  }
+
   const uint32_t now = millis();
 
   switch (this->state_) {
@@ -282,7 +288,7 @@ void ModemComponent::loop() {
           this->state_ = ModemComponentState::DISCONNECTED;
         } else {
           if (!this->get_power_status()) {
-            // Modem is OFF
+            // Modem is OFF. If poweron is needed, disconnect state will handle it.
             this->state_ = ModemComponentState::DISCONNECTED;
           } else if (this->not_responding_cb_) {
             if (!this->not_responding_cb_->is_action_running()) {
@@ -457,20 +463,27 @@ void ModemComponent::poweron_() {
   if (this->power_pin_) {
     Watchdog wdt(60);
     ESP_LOGV(TAG, "Powering up modem with power_pin...");
+    this->power_transition_ = true;
     this->power_pin_->digital_write(false);
-    delay(1300);  // min 100 for SIM7600, but min 1200 for SIM800.  min BG96: 650
+    // min 100 for SIM7600, but min 1200 for SIM800.  min BG96: 650
+    delay(1300);  // NOLINT
     this->power_pin_->digital_write(true);
-    // status will be on from 3s (SIM800) to 25s (SIM7600)
-    while (!this->get_power_status()) {
-      delay(this->command_delay_);
-      ESP_LOGV(TAG, "Waiting for modem to poweron...");
-    }
-    ESP_LOGV(TAG, "Modem ON");
-    while (!this->modem_ready()) {
-      delay(500);  // NOLINT
-      ESP_LOGV(TAG, "Waiting for modem to be ready after poweron...");
-    }
-    ESP_LOGV(TAG, "Modem ready after power ON");
+    // status will be on from 3s (SIM800) to 12s (SIM7600)
+    ESP_LOGD(TAG, "Will check that the modem is on in 12s...");
+    this->set_timeout("wait_poweron", 12000, [this]() {
+      Watchdog wdt(60);
+      while (!this->get_power_status()) {
+        delay(this->command_delay_);
+        ESP_LOGV(TAG, "Waiting for modem to poweron...");
+      }
+      ESP_LOGV(TAG, "Modem ON");
+      while (!this->modem_ready()) {
+        delay(500);  // NOLINT
+        ESP_LOGV(TAG, "Waiting for modem to be ready after poweron...");
+      }
+      ESP_LOGV(TAG, "Modem ready after power ON");
+      this->power_transition_ = false;
+    });
   }
 }
 
@@ -478,6 +491,7 @@ void ModemComponent::poweroff_() {
   if (this->get_power_status()) {
     if (this->power_pin_) {
       ESP_LOGV(TAG, "Powering off modem with power pin...");
+      this->power_transition_ = true;
       Watchdog wdt(60);
       this->power_pin_->digital_write(true);
       delay(10);
@@ -486,14 +500,20 @@ void ModemComponent::poweroff_() {
       this->power_pin_->digital_write(true);
 
       // will have to wait at least 25s
-      while (this->get_power_status()) {
-        delay(this->command_delay_);
-      }
-      ESP_LOGV(TAG, "Modem OFF");
-    } else {
-      ESP_LOGD(TAG, "Modem poweroff with AT command");
-      this->dce->power_down();
+      ESP_LOGD(TAG, "Will check that the modem is off in 25s...");
+      this->set_timeout("wait_poweron", 25000, [this]() {
+        Watchdog wdt(60);
+
+        while (this->get_power_status()) {
+          delay(this->command_delay_);
+        }
+        ESP_LOGV(TAG, "Modem OFF");
+        this->power_transition_ = false;
+      });
     }
+  } else {
+    ESP_LOGD(TAG, "Modem poweroff with AT command");
+    this->dce->power_down();
   }
 }
 
