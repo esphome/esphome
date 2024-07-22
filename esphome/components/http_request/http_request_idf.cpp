@@ -20,12 +20,8 @@ static const char *const TAG = "http_request.idf";
 
 void HttpRequestIDF::dump_config() {
   HttpRequestComponent::dump_config();
-  if (this->buffer_size_rx_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Buffer Size RX: %u", this->buffer_size_rx_);
-  }
-  if (this->buffer_size_tx_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Buffer Size TX: %u", this->buffer_size_tx_);
-  }
+  ESP_LOGCONFIG(TAG, "  Buffer Size RX: %u", this->buffer_size_rx_);
+  ESP_LOGCONFIG(TAG, "  Buffer Size TX: %u", this->buffer_size_tx_);
 }
 
 std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::string method, std::string body,

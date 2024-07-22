@@ -112,8 +112,12 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
             ),
-            cv.Optional(CONF_BUFFER_SIZE_RX): cv.All(cv.uint16_t, cv.only_with_esp_idf),
-            cv.Optional(CONF_BUFFER_SIZE_TX): cv.All(cv.uint16_t, cv.only_with_esp_idf),
+            cv.SplitDefault(CONF_BUFFER_SIZE_RX, esp32_idf=512): cv.All(
+                cv.uint16_t, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32_idf=512): cv.All(
+                cv.uint16_t, cv.only_with_esp_idf
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
