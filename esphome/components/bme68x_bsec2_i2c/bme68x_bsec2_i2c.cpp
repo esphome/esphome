@@ -410,6 +410,8 @@ void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num
 #ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_static_sensor_, signal); });
 #endif
+        // Queue up an opportunity to save state
+        this->queue_push_([this, accuracy]() { this->save_state_(accuracy); });
         break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
 #ifdef USE_SENSOR
