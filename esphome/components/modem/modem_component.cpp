@@ -50,7 +50,22 @@ ModemComponent::ModemComponent() {
   global_modem_component = this;
 }
 
-void ModemComponent::dump_config() { ESP_LOGCONFIG(TAG, "Config Modem:"); }
+void ModemComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Config Modem:");
+  ESP_LOGCONFIG(TAG, "  Model     : %s", USE_MODEM_MODEL);
+  ESP_LOGCONFIG(TAG, "  APN       : %s", this->apn_.c_str());
+  ESP_LOGCONFIG(TAG, "  PIN code  : %s", (this->pin_code_.empty()) ? "No" : "Yes (not shown)");
+  ESP_LOGCONFIG(TAG, "  Tx Pin    : GPIO%u", this->tx_pin_->get_pin());
+  ESP_LOGCONFIG(TAG, "  Rx Pin    : GPIO%u", this->rx_pin_->get_pin());
+  ESP_LOGCONFIG(TAG, "  Power pin : %s",
+                (this->power_pin_) ? ("GPIO" + std::to_string(this->power_pin_->get_pin())).c_str() : "Not defined");
+  if (this->status_pin_) {
+    std::string current_status = this->get_power_status() ? "ON" : "OFF";
+    ESP_LOGCONFIG(TAG, "  Status pin: GPIO%u (current state %s)", this->status_pin_->get_pin(), current_status.c_str());
+  } else {
+    ESP_LOGCONFIG(TAG, "  Status pin: Not defined");
+  }
+}
 
 float ModemComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
@@ -153,33 +168,21 @@ void ModemComponent::reset_() {
 
   this->dte_ = create_uart_dte(&this->dte_config_);
 
-  assert(this->dte_);
-
   ESP_LOGV(TAG, "DCE setup");
 
-  // NOLINTBEGIN(bugprone-branch-clone)
-  // ( because create_modem_dce(dce_factory::ModemType, config, std::move(dte), netif) is private )
-  switch (this->model_) {
-    case ModemModel::BG96:
-      this->dce = create_BG96_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
-      break;
-    case ModemModel::SIM800:
-      this->dce = create_SIM800_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
-      break;
-    case ModemModel::SIM7000:
-      this->dce = create_SIM7000_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
-      break;
-    case ModemModel::SIM7600:
-      this->dce = create_SIM7600_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
-      break;
-    default:
-      ESP_LOGE(TAG, "Unknown modem model");
-      return;
-      break;
-  }
-  // NOLINTEND(bugprone-branch-clone)
-
-  assert(this->dce);
+#if defined(USE_MODEM_MODEL_GENERIC)
+  this->dce = create_generic_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+#elif defined(USE_MODEM_MODEL_BG96)
+  this->dce = create_BG96_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+#elif defined(USE_MODEM_MODEL_SIM800)
+  this->dce = create_SIM800_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+#elif defined(USE_MODEM_MODEL_SIM7000)
+  this->dce = create_SIM7000_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+#elif defined(USE_MODEM_MODEL_SIM7600)
+  this->dce = create_SIM7600_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+#else
+#error Modem model not known
+#endif
 
   // flow control not fully implemented, but kept here for future work
   if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
@@ -346,6 +349,7 @@ void ModemComponent::loop() {
         this->state_ = ModemComponentState::DISCONNECTED;
       }
       break;
+
     case ModemComponentState::CONNECTED:
       if (!this->start_) {
         this->state_ = ModemComponentState::DISCONNECTED;
@@ -363,7 +367,7 @@ void ModemComponent::loop() {
           if (!this->modem_ready()) {
             ESP_LOGE(TAG, "modem not ready after hang up");
           }
-          this->set_timeout("wait_lost_ip", 60000, [this]() {
+          this->set_timeout("wait_lost_ip", 15000, [this]() {
             // often reached on 7600, but not reached on 7670
             ESP_LOGW(TAG, "No lost ip event received. Forcing disconnect state");
 
@@ -442,10 +446,7 @@ void ModemComponent::exit_cmux_() {
 }
 
 bool ModemComponent::get_power_status() {
-  if (!this->status_pin_) {
-    ESP_LOGV(TAG, "No status pin, assuming the modem is ON");
-    return true;
-  }
+#ifdef USE_MODEM_STATUS
   bool init_status = this->status_pin_->digital_read();
   // The status pin might be floating when supposed to be low, at least on lilygo tsim7600
   // as GPIO34 doesn't support pullup, we have to debounce it manually
@@ -458,21 +459,25 @@ bool ModemComponent::get_power_status() {
     // ESP_LOGV(TAG, "Floating status pin detected for state %d", final_status);
   }
   return final_status;
+#else
+  // No status pin, assuming the modem is ON
+  return true;
+#endif
 }
 
 void ModemComponent::poweron_() {
+#ifdef USE_MODEM_POWER
   if (this->power_pin_) {
     Watchdog wdt(60);
     ESP_LOGV(TAG, "Powering up modem with power_pin...");
     this->power_transition_ = true;
     this->power_pin_->digital_write(false);
     // min 100 for SIM7600, but min 1200 for SIM800.  min BG96: 650
-    delay(this->modem_model_ton_[this->model_]);  // NOLINT
+    delay(USE_MODEM_POWER_TON);
     this->power_pin_->digital_write(true);
     // use a timout for long wait delay
-    uint32_t tonuart = this->modem_model_tonuart_[this->model_];
-    ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(tonuart) / 1000);
-    this->set_timeout("wait_poweron", tonuart, [this]() {
+    ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
+    this->set_timeout("wait_poweron", USE_MODEM_POWER_TONUART, [this]() {
       Watchdog wdt(60);
       while (!this->get_power_status()) {
         delay(this->command_delay_);
@@ -487,9 +492,11 @@ void ModemComponent::poweron_() {
       this->power_transition_ = false;
     });
   }
+#endif  // USE_MODEM_POWER
 }
 
 void ModemComponent::poweroff_() {
+#ifdef USE_MODEM_POWER
   if (this->get_power_status()) {
     if (this->power_pin_) {
       ESP_LOGV(TAG, "Powering off modem with power pin...");
@@ -498,12 +505,11 @@ void ModemComponent::poweroff_() {
       this->power_pin_->digital_write(true);
       delay(10);
       this->power_pin_->digital_write(false);
-      delay(this->modem_model_toff_[this->model_]);
+      delay(USE_MODEM_POWER_TOFF);
       this->power_pin_->digital_write(true);
 
-      uint32_t toffuart = this->modem_model_toffuart_[this->model_];
-      ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(toffuart) / 1000);
-      this->set_timeout("wait_poweron", toffuart, [this]() {
+      ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(USE_MODEM_POWER_TOFFUART) / 1000);
+      this->set_timeout("wait_poweron", USE_MODEM_POWER_TOFFUART, [this]() {
         Watchdog wdt(60);
 
         while (this->get_power_status()) {
@@ -513,10 +519,8 @@ void ModemComponent::poweroff_() {
         this->power_transition_ = false;
       });
     }
-  } else {
-    ESP_LOGD(TAG, "Modem poweroff with AT command");
-    this->dce->power_down();
   }
+#endif  // USE_MODEM_POWER
 }
 
 void ModemComponent::dump_connect_params_() {
