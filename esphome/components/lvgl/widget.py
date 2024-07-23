@@ -106,6 +106,12 @@ class Widget:
     Represents a Widget.
     """
 
+    widgets_completed = False
+
+    @staticmethod
+    def set_completed():
+        Widget.widgets_completed = True
+
     def __init__(self, var, wtype: WidgetType, config: dict = None, parent=None):
         self.var = var
         self.type = wtype
@@ -182,12 +188,6 @@ class Widget:
 
 # Map of widgets to their config, used for trigger generation
 widget_map: dict[Any, Widget] = {}
-widgets_completed = False  # will be set true when all widgets are available
-
-
-def set_widgets_completed():
-    global widgets_completed
-    widgets_completed = True
 
 
 def get_widget_generator(wid):
@@ -199,7 +199,7 @@ def get_widget_generator(wid):
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if widgets_completed:
+        if Widget.widgets_completed:
             raise Invalid(
                 f"Widget {wid} not found, yet all widgets should be defined by now"
             )
