@@ -4,10 +4,11 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 """
 
-from esphome import config_validation as cv, codegen as cg
+from esphome import codegen as cg, config_validation as cv
 from esphome.core import ID, Lambda
 from esphome.cpp_types import uint32
-from esphome.schema_extractors import schema_extractor, SCHEMA_EXTRACT
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+
 from .lvcode import ConstantLiteral
 
 

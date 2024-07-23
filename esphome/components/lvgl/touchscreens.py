@@ -1,8 +1,9 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components.touchscreen import Touchscreen, CONF_TOUCHSCREEN_ID
+from esphome.components.touchscreen import CONF_TOUCHSCREEN_ID, Touchscreen
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
+from ...core import ID
 from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
@@ -10,9 +11,8 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lv_validation import lv_milliseconds
-from .types import LVTouchListener
 from .lvcode import lv, lv_add
-from ...core import ID
+from .types import LVTouchListener
 
 TOUCHSCREENS_CONFIG = cv.Any(
     cv.use_id(Touchscreen),

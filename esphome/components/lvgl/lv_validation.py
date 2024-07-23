@@ -1,29 +1,23 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
+from esphome.components.font import Font
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
-from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_COLOR
+import esphome.config_validation as cv
+from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT
 from esphome.core import HexInt
 from esphome.cpp_generator import MockObj
-from esphome.helpers import cpp_string_escape
 from esphome.cpp_types import uint32
-from esphome.components.font import Font
-from esphome.schema_extractors import (
-    SCHEMA_EXTRACT,
-    schema_extractor,
-)
+from esphome.helpers import cpp_string_escape
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+
 from . import types as ty
-from .defines import (
-    LvConstant,
-    LValidator,
-    LV_FONTS,
-)
+from .defines import LV_FONTS, LValidator, LvConstant
 from .helpers import (
-    lvgl_components_required,
-    lv_fonts_used,
     esphome_fonts_used,
+    lv_fonts_used,
+    lvgl_components_required,
     requires_component,
 )
 from .lvcode import ConstantLiteral, lv_expr

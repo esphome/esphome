@@ -1,21 +1,14 @@
 from esphome import config_validation as cv
-from esphome.const import (
-    CONF_FORMAT,
-    CONF_ARGS,
-    CONF_ID,
-    CONF_STATE,
-    CONF_TYPE,
-)
+from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.schema_extractors import SCHEMA_EXTRACT
-from . import defines as df
-from . import lv_validation as lvalid
-from . import types as ty
+
+from . import defines as df, lv_validation as lvalid, types as ty
 from .defines import WIDGET_PARTS
 from .helpers import (
-    validate_printf,
     REQUIRED_COMPONENTS,
     add_lv_use,
     requires_component,
+    validate_printf,
 )
 from .lv_validation import lv_font
 from .types import WIDGET_TYPES, get_widget_type

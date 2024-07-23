@@ -4,24 +4,25 @@ from typing import Any
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE
-from esphome.core import TimePeriod, ID
+from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObjClass
+
 from .defines import (
-    OBJ_FLAGS,
     CONF_DEFAULT,
-    STATES,
     CONF_MAIN,
-    PARTS,
-    LValidator,
-    join_enums,
     CONF_SCROLLBAR_MODE,
     CONF_WIDGETS,
+    OBJ_FLAGS,
+    PARTS,
+    STATES,
+    LValidator,
+    join_enums,
 )
 from .helpers import add_lv_use
-from .lvcode import lv_obj, lv_add, lv_assign, lv, ConstantLiteral, add_line_marks
+from .lvcode import ConstantLiteral, add_line_marks, lv, lv_add, lv_assign, lv_obj
 from .schemas import ALL_STYLES
-from .types import lv_obj_t, LvCompound, WIDGET_TYPES
+from .types import WIDGET_TYPES, LvCompound, lv_obj_t
 
 EVENT_LAMB = "event_lamb__"
 

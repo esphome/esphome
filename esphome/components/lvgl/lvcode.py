@@ -5,18 +5,18 @@ from typing import Union
 from esphome import codegen as cg
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import (
-    MockObj,
-    Statement,
-    Expression,
-    statement,
-    SafeExpType,
-    CallExpression,
-    RawExpression,
-    VariableDeclarationExpression,
-    RawStatement,
-    LambdaExpression,
     AssignmentExpression,
+    CallExpression,
+    Expression,
+    LambdaExpression,
     Literal,
+    MockObj,
+    RawExpression,
+    RawStatement,
+    SafeExpType,
+    Statement,
+    VariableDeclarationExpression,
+    statement,
 )
 
 from .helpers import get_line_marks
@@ -109,7 +109,7 @@ class LambdaContext(CodeContext):
         return_type: SafeExpType = None,
     ):
         super().__init__()
-        self.code_list: list["Statement"] = []
+        self.code_list: list[Statement] = []
         self.parameters = parameters
         self.return_type = return_type
 

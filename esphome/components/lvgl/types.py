@@ -1,10 +1,7 @@
 from esphome import codegen as cg
 from esphome.core import ID
-from .defines import (
-    CONF_TEXT,
-    CONF_LABEL,
-    CONF_OBJ,
-)
+
+from .defines import CONF_LABEL, CONF_OBJ, CONF_TEXT
 
 uint16_t_ptr = cg.uint16.operator("ptr")
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
