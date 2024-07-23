@@ -151,7 +151,6 @@ lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
 
 class LvFont(LValidator):
     def __init__(self):
-
         def lv_builtin_font(value):
             fontval = cv.one_of(*LV_FONTS, lower=True)(value)
             lv_fonts_used.add(fontval)
