@@ -1,52 +1,35 @@
 import logging
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.display import Display
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BUFFER_SIZE,
-    CONF_ID,
-    CONF_PAGES,
-    CONF_DISPLAY_ID,
-    CONF_LAMBDA,
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_BUFFER_SIZE,
     CONF_DISPLAY,
+    CONF_DISPLAY_ID,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_PAGES,
 )
-from esphome.core import (
-    CORE,
-    Lambda,
-    ID,
-)
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.helpers import write_file_if_changed
-from . import defines as df
-from . import helpers
-from . import lv_validation as lvalid
+
+from . import defines as df, helpers, lv_validation as lvalid
 from .label import label_spec
-from .lvcode import (
-    LvContext,
-    ConstantLiteral,
-)
+from .lvcode import ConstantLiteral, LvContext
 
 # from .menu import menu_spec
 from .obj import obj_spec
-from .schemas import (
-    obj_schema,
-    any_widget_schema,
-    WIDGET_TYPES,
-)
-from .types import (
-    FontEngine,
-    LvglComponent,
-    lv_disp_t_ptr,
-    lvgl_ns,
-)
+from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
+from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lvgl_ns
 from .widget import (
-    Widget,
     LvScrActType,
+    Widget,
     set_obj_properties,
-    widget_to_code,
     set_widgets_completed,
+    widget_to_code,
 )
 
 DOMAIN = "lvgl"
