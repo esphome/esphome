@@ -2,13 +2,14 @@ import sys
 from typing import Any
 
 from esphome.config_validation import Invalid
-from esphome.core import TimePeriod, ID
+from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObjClass
+
 from . import types as ty
 from .defines import BTNMATRIX_CTRLS, CONF_ARC, CONF_SPINBOX
-from .types import lv_obj_t
 from .helpers import get_line_marks
+from .types import lv_obj_t
 
 EVENT_LAMB = "event_lamb__"
 

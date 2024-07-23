@@ -1,38 +1,33 @@
 from esphome import codegen as cg, config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE, CONF_GROUP, CONF_STATE
-from esphome.core import Lambda, ID
+from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
+from esphome.core import ID, Lambda
+
 from .defines import (
-    CONF_LAYOUT,
-    TYPE_GRID,
-    CONF_GRID_ROWS,
-    CONF_GRID_COLUMNS,
-    TYPE_FLEX,
-    CONF_FLEX_FLOW,
-    CONF_FLEX_ALIGN_MAIN,
-    CONF_FLEX_ALIGN_CROSS,
-    CONF_FLEX_ALIGN_TRACK,
-    OBJ_FLAGS,
-    CONF_STYLES,
     CONF_DEFAULT,
-    STATES,
-    CONF_MAIN,
-    PARTS,
-    CONF_SCROLLBAR_MODE,
-    CONF_WIDGETS,
-    join_enums,
-    CONF_GRID_ROW_ALIGN,
+    CONF_FLEX_ALIGN_CROSS,
+    CONF_FLEX_ALIGN_MAIN,
+    CONF_FLEX_ALIGN_TRACK,
+    CONF_FLEX_FLOW,
     CONF_GRID_COLUMN_ALIGN,
+    CONF_GRID_COLUMNS,
+    CONF_GRID_ROW_ALIGN,
+    CONF_GRID_ROWS,
+    CONF_LAYOUT,
+    CONF_MAIN,
+    CONF_SCROLLBAR_MODE,
+    CONF_STYLES,
+    CONF_WIDGETS,
+    OBJ_FLAGS,
+    PARTS,
+    STATES,
+    TYPE_FLEX,
+    TYPE_GRID,
+    join_enums,
 )
 from .helpers import add_lv_use, get_line_marks, join_lines
 from .schemas import ALL_STYLES
-from .types import (
-    lv_coord_t,
-    LvCompound,
-    lv_obj_t,
-    LValidator,
-    WIDGET_TYPES,
-)
-from .widget import Widget, theme_widget_map, WidgetType
+from .types import WIDGET_TYPES, LValidator, LvCompound, lv_coord_t, lv_obj_t
+from .widget import Widget, WidgetType, theme_widget_map
 
 
 def cgen(*args):

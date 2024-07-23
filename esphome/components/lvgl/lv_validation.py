@@ -1,29 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
 from esphome.components.font import Font
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
-from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_VALUE, CONF_COLOR
+import esphome.config_validation as cv
+from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_VALUE
 from esphome.core import HexInt
 from esphome.helpers import cpp_string_escape
-from esphome.schema_extractors import (
-    SCHEMA_EXTRACT,
-    schema_extractor,
-)
-from . import types as ty, defines as df
-from .defines import (
-    LV_FONTS,
-    LvConstant,
-)
-from .helpers import (
-    lv_fonts_used,
-    esphome_fonts_used,
-    lvgl_components_required,
-)
-from .types import LValidator
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
+from . import defines as df, types as ty
+from .defines import LV_FONTS, LvConstant
+from .helpers import esphome_fonts_used, lv_fonts_used, lvgl_components_required
+from .types import LValidator
 
 # List of other components used
 

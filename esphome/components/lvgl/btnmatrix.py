@@ -1,24 +1,25 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.const import CONF_WIDTH, CONF_ID
+from esphome.const import CONF_ID, CONF_WIDTH
 from esphome.core import ID
+
 from .codegen import action_to_code
 from .defines import (
+    BTNMATRIX_CTRLS,
     CONF_BTNMATRIX,
+    CONF_BUTTONS,
+    CONF_CONTROL,
+    CONF_KEY_CODE,
     CONF_ONE_CHECKED,
     CONF_ROWS,
-    CONF_BUTTONS,
-    CONF_TEXT,
-    CONF_KEY_CODE,
-    CONF_CONTROL,
-    BTNMATRIX_CTRLS,
     CONF_SELECTED,
+    CONF_TEXT,
 )
-from .lv_validation import lv_bool, key_code
+from .lv_validation import key_code, lv_bool
 from .schemas import automation_schema
-from .types import LvBtnmBtn, lv_btn_t, char_ptr, ObjUpdateAction, lv_btnmatrix_t
-from .widget import get_widget, MatrixButton, Widget, WidgetType
+from .types import LvBtnmBtn, ObjUpdateAction, char_ptr, lv_btn_t, lv_btnmatrix_t
+from .widget import MatrixButton, Widget, WidgetType, get_widget
 
 BTNM_BTN_SCHEMA = cv.Schema(
     {

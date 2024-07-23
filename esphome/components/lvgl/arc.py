@@ -1,20 +1,21 @@
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_VALUE,
-    CONF_MIN_VALUE,
     CONF_MAX_VALUE,
-    CONF_ROTATION,
+    CONF_MIN_VALUE,
     CONF_MODE,
+    CONF_ROTATION,
+    CONF_VALUE,
 )
+
 from .defines import (
-    CONF_ARC,
-    CONF_START_ANGLE,
-    CONF_END_ANGLE,
-    CONF_ADJUSTABLE,
     ARC_MODES,
+    CONF_ADJUSTABLE,
+    CONF_ARC,
     CONF_CHANGE_RATE,
+    CONF_END_ANGLE,
+    CONF_START_ANGLE,
 )
-from .lv_validation import lv_float, angle, get_start_value
+from .lv_validation import angle, get_start_value, lv_float
 from .types import lv_arc_t
 from .widget import Widget, WidgetType
 

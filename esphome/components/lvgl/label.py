@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
-from .defines import CONF_LABEL, CONF_LONG_MODE, LV_LONG_MODES, CONF_TEXT, CONF_RECOLOR
+
+from .defines import CONF_LABEL, CONF_LONG_MODE, CONF_RECOLOR, CONF_TEXT, LV_LONG_MODES
 from .lv_validation import lv_bool, lv_text
 from .schemas import TEXT_SCHEMA
 from .types import lv_label_t

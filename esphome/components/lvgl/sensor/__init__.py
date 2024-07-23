@@ -1,18 +1,12 @@
 import esphome.codegen as cg
+from esphome.components.sensor import Sensor, new_sensor, sensor_schema
 import esphome.config_validation as cv
-from esphome.components.sensor import (
-    sensor_schema,
-    Sensor,
-    new_sensor,
-)
-from .. import (
-    add_init_lambda,
-    LVGL_SCHEMA,
-)
-from ..defines import CONF_WIDGET, CONF_LVGL_ID
+
+from .. import LVGL_SCHEMA, add_init_lambda
+from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lv_validation import requires_component
 from ..types import LvNumber
-from ..widget import get_widget, Widget
+from ..widget import Widget, get_widget
 
 BASE_SCHEMA = sensor_schema(Sensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(

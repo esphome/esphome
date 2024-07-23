@@ -1,6 +1,5 @@
 from .defines import CONF_OBJ
 from .types import lv_obj_t
-
 from .widget import WidgetType
 
 

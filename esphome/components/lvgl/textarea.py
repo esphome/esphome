@@ -1,17 +1,18 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_MAX_LENGTH
+
 from .defines import (
-    CONF_TEXTAREA,
-    CONF_PASSWORD_MODE,
-    CONF_ONE_LINE,
     CONF_ACCEPTED_CHARS,
+    CONF_ONE_LINE,
+    CONF_PASSWORD_MODE,
     CONF_PLACEHOLDER_TEXT,
     CONF_TEXT,
+    CONF_TEXTAREA,
 )
-from .lv_validation import lv_bool, lv_text, lv_int
+from .lv_validation import lv_bool, lv_int, lv_text
 from .schemas import TEXT_SCHEMA
 from .types import lv_textarea_t
-from .widget import WidgetType, Widget
+from .widget import Widget, WidgetType
 
 TEXTAREA_SCHEMA = TEXT_SCHEMA.extend(
     {
@@ -33,7 +34,6 @@ class TextareaType(WidgetType):
         return lv_textarea_t
 
     async def to_code(self, w: Widget, config: dict):
-
         init = []
         for prop in (CONF_TEXT, CONF_PLACEHOLDER_TEXT, CONF_ACCEPTED_CHARS):
             if value := config.get(prop):

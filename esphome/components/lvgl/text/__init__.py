@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text
+import esphome.config_validation as cv
 
-from .. import add_init_lambda, LVGL_SCHEMA, Widget
-from ..defines import CONF_WIDGET, CONF_LVGL_ID
+from .. import LVGL_SCHEMA, Widget, add_init_lambda
+from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lv_validation import requires_component
-from ..types import lvgl_ns, LvText
+from ..types import LvText, lvgl_ns
 from ..widget import get_widget
 
 LVGLText = lvgl_ns.class_("LVGLText", text.Text)

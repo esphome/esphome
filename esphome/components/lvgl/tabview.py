@@ -1,31 +1,32 @@
+from esphome import automation
+from esphome.automation import Trigger, validate_automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.automation import validate_automation, Trigger
 from esphome.const import (
-    CONF_NAME,
-    CONF_POSITION,
-    CONF_SIZE,
-    CONF_ON_VALUE,
-    CONF_TRIGGER_ID,
     CONF_ID,
     CONF_INDEX,
+    CONF_NAME,
+    CONF_ON_VALUE,
+    CONF_POSITION,
+    CONF_SIZE,
+    CONF_TRIGGER_ID,
 )
-from .codegen import set_obj_properties, add_widgets, action_to_code
+
+from .codegen import action_to_code, add_widgets, set_obj_properties
 from .defines import (
-    CONF_TABVIEW,
-    CONF_TABS,
-    CONF_OBJ,
-    DIRECTIONS,
     CONF_ANIMATED,
-    CONF_TAB_ID,
-    TYPE_FLEX,
     CONF_BTNMATRIX,
+    CONF_OBJ,
+    CONF_TAB_ID,
+    CONF_TABS,
+    CONF_TABVIEW,
+    DIRECTIONS,
+    TYPE_FLEX,
 )
-from .lv_validation import size, lv_int, animated
+from .lv_validation import animated, lv_int, size
 from .schemas import container_schema
-from .types import lv_tab_t, lv_obj_t_ptr, ObjUpdateAction, lv_tabview_t, LvType
-from .widget import Widget, get_widget, WidgetType
+from .types import LvType, ObjUpdateAction, lv_obj_t_ptr, lv_tab_t, lv_tabview_t
+from .widget import Widget, WidgetType, get_widget
 
 
 class TabviewType(WidgetType):

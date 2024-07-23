@@ -1,23 +1,13 @@
-from esphome import automation
-from esphome import codegen as cg
-from esphome.const import CONF_ID, CONF_TIME
+from esphome import automation, codegen as cg
 import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TIME
 
-from .defines import (
-    CONF_PAGE,
-    CONF_SKIP,
-    CONF_LVGL_ID,
-    CONF_ANIMATION,
-    LV_ANIM,
-)
+from .codegen import action_to_code, add_widgets, set_obj_properties
+from .defines import CONF_ANIMATION, CONF_LVGL_ID, CONF_PAGE, CONF_SKIP, LV_ANIM
 from .lv_validation import lv_bool, lv_milliseconds
-from .types import (
-    ObjUpdateAction,
-    lv_page_t,
-)
-from .codegen import add_widgets, action_to_code, set_obj_properties
 from .schemas import LVGL_SCHEMA
-from .widget import Widget, get_widget, WidgetType
+from .types import ObjUpdateAction, lv_page_t
+from .widget import Widget, WidgetType, get_widget
 
 
 class PageType(WidgetType):

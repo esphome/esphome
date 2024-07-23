@@ -1,8 +1,9 @@
 import esphome.config_validation as cv
-from esphome.const import CONF_COLOR, CONF_BRIGHTNESS, CONF_LED
+from esphome.const import CONF_BRIGHTNESS, CONF_COLOR, CONF_LED
+
 from .lv_validation import lv_brightness, lv_color
 from .types import lv_led_t
-from .widget import WidgetType, Widget
+from .widget import Widget, WidgetType
 
 LED_SCHEMA = cv.Schema(
     {

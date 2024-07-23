@@ -1,28 +1,27 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components.image import Image_
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_RANGE_TO,
-    CONF_RANGE_FROM,
     CONF_COLOR,
-    CONF_LENGTH,
-    CONF_WIDTH,
     CONF_COUNT,
-    CONF_VALUE,
-    CONF_LOCAL,
     CONF_ID,
+    CONF_LENGTH,
+    CONF_LOCAL,
+    CONF_RANGE_FROM,
+    CONF_RANGE_TO,
+    CONF_ROTATION,
+    CONF_VALUE,
+    CONF_WIDTH,
 )
-from esphome.const import CONF_ROTATION
-from . import defines as df
-from . import lv_validation as lv
-from . import types as ty
+
+from . import defines as df, lv_validation as lv, types as ty
 from .codegen import update_to_code
 from .defines import CONF_METER
 from .helpers import add_lv_use
 from .lv_validation import get_end_value, get_start_value, requires_component
-from .types import lv_meter_t, WIDGET_TYPES
-from .widget import get_widget, Widget, add_temp_var, WidgetType
+from .types import WIDGET_TYPES, lv_meter_t
+from .widget import Widget, WidgetType, add_temp_var, get_widget
 
 INDICATOR_LINE_SCHEMA = cv.Schema(
     {

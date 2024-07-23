@@ -1,55 +1,46 @@
 import logging
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.helpers import write_file_if_changed
+import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.display import Display
 from esphome.components.image import Image_
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
-from esphome.components.touchscreen import (
-    Touchscreen,
-    CONF_TOUCHSCREEN_ID,
-)
+from esphome.components.touchscreen import CONF_TOUCHSCREEN_ID, Touchscreen
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUFFER_SIZE,
+    CONF_DISPLAY,
+    CONF_DISPLAY_ID,
     CONF_GROUP,
     CONF_ID,
+    CONF_LAMBDA,
+    CONF_NAME,
+    CONF_ON_IDLE,
+    CONF_ON_VALUE,
     CONF_PAGES,
     CONF_SENSOR,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
-    CONF_ON_VALUE,
-    CONF_DISPLAY_ID,
-    CONF_ON_IDLE,
-    CONF_NAME,
-    CONF_LAMBDA,
-    CONF_AUTO_CLEAR_ENABLED,
-    CONF_DISPLAY,
 )
-from esphome.core import (
-    CORE,
-    ID,
-    Lambda,
-)
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import LambdaExpression
-from . import defines as df
-from . import helpers
-from . import lv_validation as lv
-from . import types as ty
+from esphome.helpers import write_file_if_changed
+
+from . import defines as df, helpers, lv_validation as lv, types as ty
 from .animimg import animimg_spec
 from .arc import arc_spec
 from .btn import btn_spec
-from .btnmatrix import BTNM_BTN_SCHEMA, btnmatrix_spec, set_btn_data, get_button_data
+from .btnmatrix import BTNM_BTN_SCHEMA, btnmatrix_spec, get_button_data, set_btn_data
 from .checkbox import checkbox_spec
 from .codegen import (
-    widget_to_code,
-    set_obj_properties,
-    cgen,
-    add_group,
     action_to_code,
+    add_group,
+    cgen,
+    set_obj_properties,
     update_to_code,
+    widget_to_code,
 )
 from .dropdown import dropdown_spec
 from .helpers import get_line_marks, join_lines
@@ -67,21 +58,21 @@ from .obj import obj_spec
 from .page import page_spec
 from .roller import roller_spec
 from .schemas import (
-    STYLE_SCHEMA,
-    STYLED_TEXT_SCHEMA,
-    LVGL_SCHEMA,
-    obj_schema,
-    container_schema,
-    any_widget_schema,
-    LAYOUT_SCHEMAS,
-    GRID_CELL_SCHEMA,
-    FLEX_OBJ_SCHEMA,
-    WIDGET_TYPES,
     ACTION_SCHEMA,
-    create_modify_schema,
-    grid_alignments,
     ALL_STYLES,
     ENCODER_SCHEMA,
+    FLEX_OBJ_SCHEMA,
+    GRID_CELL_SCHEMA,
+    LAYOUT_SCHEMAS,
+    LVGL_SCHEMA,
+    STYLE_SCHEMA,
+    STYLED_TEXT_SCHEMA,
+    WIDGET_TYPES,
+    any_widget_schema,
+    container_schema,
+    create_modify_schema,
+    grid_alignments,
+    obj_schema,
 )
 from .slider import slider_spec
 from .spinbox import spinbox_spec
@@ -91,13 +82,13 @@ from .textarea import textarea_spec
 from .tileview import tileview_spec
 from .types import ObjUpdateAction
 from .widget import (
+    LvScrActType,
     Widget,
     add_temp_var,
+    get_widget,
     lv_temp_vars,
     theme_widget_map,
     widget_map,
-    get_widget,
-    LvScrActType,
 )
 
 DOMAIN = "lvgl"
@@ -377,7 +368,6 @@ async def rotary_encoders_to_code(var, config):
                     f"{b_sensor}->add_on_state_callback([](bool state) {{ {listener}->event(LV_KEY_RIGHT, state); }})",
                 )
             else:
-
                 sensor = await cg.get_variable(sensor)
                 init.append(
                     f"{sensor}->register_listener([](uint32_t count) {{ {listener}->set_count(count); }})",

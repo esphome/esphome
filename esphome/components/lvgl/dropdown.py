@@ -1,20 +1,21 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
+
 from .codegen import set_obj_properties
 from .defines import (
-    CONF_DROPDOWN,
-    CONF_SYMBOL,
-    CONF_SELECTED_INDEX,
     CONF_DIR,
+    CONF_DROPDOWN,
     CONF_DROPDOWN_LIST,
     CONF_LABEL,
+    CONF_SELECTED_INDEX,
+    CONF_SYMBOL,
     DIRECTIONS,
 )
-from .lv_validation import lv_text, lv_int, option_string
+from .lv_validation import lv_int, lv_text, option_string
 from .schemas import part_schema
 from .types import lv_dropdown_list_t, lv_dropdown_t
-from .widget import Widget, add_temp_var, WidgetType
+from .widget import Widget, WidgetType, add_temp_var
 
 DROPDOWN_BASE_SCHEMA = cv.Schema(
     {

@@ -1,16 +1,17 @@
 import esphome.config_validation as cv
+
 from .codegen import widget_to_code
 from .defines import (
-    CONF_MENU,
-    CONF_ENTRIES,
-    CONF_ROOT_BACK_BTN,
-    CONF_HEADER_MODE,
-    LV_MENU_MODES,
-    LvConstant,
+    CONF_BTN,
     CONF_BTNMATRIX,
+    CONF_ENTRIES,
+    CONF_HEADER_MODE,
     CONF_IMG,
     CONF_LABEL,
-    CONF_BTN,
+    CONF_MENU,
+    CONF_ROOT_BACK_BTN,
+    LV_MENU_MODES,
+    LvConstant,
 )
 from .schemas import container_schema
 from .types import lv_menu_t

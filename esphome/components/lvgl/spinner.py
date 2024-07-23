@@ -1,7 +1,8 @@
 import esphome.config_validation as cv
-from .defines import CONF_SPINNER, CONF_ARC_LENGTH, CONF_SPIN_TIME, CONF_ARC
+
+from .defines import CONF_ARC, CONF_ARC_LENGTH, CONF_SPIN_TIME, CONF_SPINNER
 from .lv_validation import angle
-from .types import lv_spinner_t, LvType
+from .types import LvType, lv_spinner_t
 from .widget import Widget, WidgetType
 
 SPINNER_SCHEMA = cv.Schema(

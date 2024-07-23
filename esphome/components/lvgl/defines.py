@@ -6,7 +6,7 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 import esphome.config_validation as cv
 from esphome.const import CONF_LED
-from esphome.schema_extractors import schema_extractor, SCHEMA_EXTRACT
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 
 class LvConstant:

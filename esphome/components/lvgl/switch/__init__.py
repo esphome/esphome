@@ -1,17 +1,11 @@
 import esphome.codegen as cg
+from esphome.components.switch import Switch, new_switch, switch_schema
 import esphome.config_validation as cv
-from esphome.components.switch import (
-    switch_schema,
-    Switch,
-    new_switch,
-)
-from .. import (
-    add_init_lambda,
-    LVGL_SCHEMA,
-)
-from ..defines import CONF_WIDGET, CONF_LVGL_ID
+
+from .. import LVGL_SCHEMA, add_init_lambda
+from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lv_validation import requires_component
-from ..types import lvgl_ns, lv_pseudo_button_t
+from ..types import lv_pseudo_button_t, lvgl_ns
 from ..widget import get_widget
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch)

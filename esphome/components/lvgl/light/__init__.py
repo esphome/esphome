@@ -1,18 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components.light import LightOutput
 from esphome.components import light
-from esphome.const import (
-    CONF_LED,
-    CONF_OUTPUT_ID,
-    CONF_GAMMA_CORRECT,
-)
-from .. import (
-    add_init_lambda,
-    LVGL_SCHEMA,
-)
-from ..defines import CONF_LVGL_ID
+from esphome.components.light import LightOutput
+import esphome.config_validation as cv
+from esphome.const import CONF_GAMMA_CORRECT, CONF_LED, CONF_OUTPUT_ID
 
+from .. import LVGL_SCHEMA, add_init_lambda
+from ..defines import CONF_LVGL_ID
 from ..lv_validation import requires_component
 from ..types import lv_led_t, lvgl_ns
 from ..widget import get_widget

@@ -1,17 +1,12 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import select
-from esphome.const import (
-    CONF_ID,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
 
-from .. import (
-    LVGL_SCHEMA,
-    add_init_lambda,
-)
-from ..defines import CONF_WIDGET, CONF_LVGL_ID, CONF_ANIMATED
+from .. import LVGL_SCHEMA, add_init_lambda
+from ..defines import CONF_ANIMATED, CONF_LVGL_ID, CONF_WIDGET
 from ..lv_validation import requires_component
-from ..types import lvgl_ns, LvSelect
+from ..types import LvSelect, lvgl_ns
 from ..widget import get_widget
 
 LVGLSelect = lvgl_ns.class_("LVGLSelect", select.Select)

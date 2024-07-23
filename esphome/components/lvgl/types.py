@@ -1,14 +1,13 @@
-from esphome import automation, config_validation as cv, codegen as cg
+from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.key_provider import KeyProvider
-from esphome.const import CONF_VALUE, CONF_LED
+from esphome.const import CONF_LED, CONF_VALUE
 from esphome.core import ID, Lambda
+
 from .defines import (
-    CONF_TEXT,
-    CONF_OBJ,
     CONF_ANIMIMG,
     CONF_ARC,
-    CONF_BTN,
     CONF_BAR,
+    CONF_BTN,
     CONF_BTNMATRIX,
     CONF_CHECKBOX,
     CONF_DROPDOWN,
@@ -18,13 +17,15 @@ from .defines import (
     CONF_LINE,
     CONF_MENU,
     CONF_METER,
+    CONF_OBJ,
     CONF_PAGE,
     CONF_ROLLER,
     CONF_SLIDER,
+    CONF_SPINBOX,
     CONF_SPINNER,
     CONF_SWITCH,
-    CONF_SPINBOX,
     CONF_TABVIEW,
+    CONF_TEXT,
     CONF_TEXTAREA,
     CONF_TILEVIEW,
 )
@@ -67,7 +68,6 @@ WIDGET_TYPES: dict = {}
 
 
 class LvType(cg.MockObjClass):
-
     def __init__(self, *args, **kwargs):
         parens = kwargs.pop("parents", ())
         super().__init__(*args, parents=parens + (lv_obj_base_t,))

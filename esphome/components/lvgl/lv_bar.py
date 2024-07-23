@@ -1,7 +1,8 @@
 import esphome.config_validation as cv
-from esphome.const import CONF_VALUE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_MODE
-from .defines import CONF_BAR, CONF_ANIMATED, BAR_MODES
-from .lv_validation import lv_float, animated, get_start_value
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_MODE, CONF_VALUE
+
+from .defines import BAR_MODES, CONF_ANIMATED, CONF_BAR
+from .lv_validation import animated, get_start_value, lv_float
 from .types import lv_bar_t
 from .widget import Widget, WidgetType
 

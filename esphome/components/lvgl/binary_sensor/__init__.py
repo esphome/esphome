@@ -1,18 +1,16 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.binary_sensor import (
-    binary_sensor_schema,
     BinarySensor,
+    binary_sensor_schema,
     new_binary_sensor,
 )
-from .. import (
-    add_init_lambda,
-    LVGL_SCHEMA,
-)
-from ..defines import CONF_WIDGET, CONF_LVGL_ID
+import esphome.config_validation as cv
+
+from .. import LVGL_SCHEMA, add_init_lambda
+from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lv_validation import requires_component
 from ..types import lv_pseudo_button_t
-from ..widget import get_widget, Widget
+from ..widget import Widget, get_widget
 
 BASE_SCHEMA = binary_sensor_schema(BinarySensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(

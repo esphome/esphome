@@ -1,28 +1,23 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.const import CONF_ROW, CONF_ON_VALUE, CONF_TRIGGER_ID, CONF_ID
+from esphome.const import CONF_ID, CONF_ON_VALUE, CONF_ROW, CONF_TRIGGER_ID
+
 from . import lv_validation as lv
-from .codegen import set_obj_properties, add_widgets, action_to_code
+from .codegen import action_to_code, add_widgets, set_obj_properties
 from .defines import (
-    CONF_TILEVIEW,
-    CONF_OBJ,
-    CONF_COLUMN,
-    CONF_TILES,
-    CONF_DIR,
-    TILE_DIRECTIONS,
-    CONF_TILE_ID,
     CONF_ANIMATED,
+    CONF_COLUMN,
+    CONF_DIR,
+    CONF_OBJ,
+    CONF_TILE_ID,
+    CONF_TILES,
+    CONF_TILEVIEW,
+    TILE_DIRECTIONS,
 )
 from .schemas import container_schema
-from .types import (
-    lv_tile_t,
-    lv_obj_t_ptr,
-    lv_obj_t,
-    ObjUpdateAction,
-    lv_tileview_t,
-)
-from .widget import Widget, get_widget, WidgetType
+from .types import ObjUpdateAction, lv_obj_t, lv_obj_t_ptr, lv_tile_t, lv_tileview_t
+from .widget import Widget, WidgetType, get_widget
 
 
 class TileviewType(WidgetType):

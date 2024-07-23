@@ -1,16 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.text_sensor import (
-    text_sensor_schema,
     TextSensor,
     new_text_sensor,
+    text_sensor_schema,
 )
-from .. import (
-    add_init_lambda,
-    LVGL_SCHEMA,
-    Widget,
-)
-from ..defines import CONF_WIDGET, CONF_LVGL_ID
+import esphome.config_validation as cv
+
+from .. import LVGL_SCHEMA, Widget, add_init_lambda
+from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lv_validation import requires_component
 from ..types import LvText
 from ..widget import get_widget

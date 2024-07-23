@@ -2,14 +2,11 @@ import re
 
 from esphome import config_validation as cv
 from esphome.config import Config
-from esphome.const import CONF_FORMAT, CONF_ARGS
-from esphome.core import ID, CORE
+from esphome.const import CONF_ARGS, CONF_FORMAT
+from esphome.core import CORE, ID
 from esphome.yaml_util import ESPHomeDataBase
-from .defines import (
-    CONF_IMG,
-    CONF_ROTARY_ENCODERS,
-    CONF_TOUCHSCREENS,
-)
+
+from .defines import CONF_IMG, CONF_ROTARY_ENCODERS, CONF_TOUCHSCREENS
 
 lv_uses = {
     "USER_DATA",

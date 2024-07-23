@@ -1,20 +1,21 @@
-import esphome.config_validation as cv
 from esphome.components.image import Image_
-from esphome.const import CONF_MODE, CONF_ANGLE
+import esphome.config_validation as cv
+from esphome.const import CONF_ANGLE, CONF_MODE
+
 from .defines import (
+    CONF_ANTIALIAS,
     CONF_IMG,
-    CONF_SRC,
-    CONF_PIVOT_X,
     CONF_OFFSET_X,
     CONF_OFFSET_Y,
-    CONF_ANTIALIAS,
-    LvConstant,
+    CONF_PIVOT_X,
     CONF_PIVOT_Y,
+    CONF_SRC,
     CONF_ZOOM,
+    LvConstant,
 )
-from .lv_validation import size, angle, zoom, lv_bool, requires_component
-from .types import lv_img_t
 from .helpers import add_lv_use
+from .lv_validation import angle, lv_bool, requires_component, size, zoom
+from .types import lv_img_t
 from .widget import Widget, WidgetType
 
 IMG_SCHEMA = {
