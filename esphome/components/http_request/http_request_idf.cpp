@@ -87,6 +87,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     return nullptr;
   }
 
+  ESP_LOGV(TAG, "HTTP Request started: %s", url.c_str());
+
   if (body_len > 0) {
     int write_left = body_len;
     int write_index = 0;
@@ -109,9 +111,25 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     return nullptr;
   }
 
+  ESP_LOGV(TAG, "HTTP Request body written: %d", body_len);
+
   container->content_length = esp_http_client_fetch_headers(client);
+  if (esp_http_client_is_chunked_response(client)) {
+    ESP_LOGV(TAG, "HTTP Response is chunked");
+    int length = 0;
+    err = esp_http_client_get_chunk_length(client, &length);
+    if (err != ESP_OK) {
+      this->status_momentary_error("failed", 1000);
+      ESP_LOGE(TAG, "Failed to get chunk length: %s", esp_err_to_name(err));
+      esp_http_client_cleanup(client);
+      return nullptr;
+    }
+    container->content_length = length;
+  }
   const auto status_code = esp_http_client_get_status_code(client);
   container->status_code = status_code;
+
+  ESP_LOGD(TAG, "Status %d", status_code);
 
   if (status_code < 200 || status_code >= 300) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), status_code);
@@ -148,6 +166,8 @@ void HttpContainerIDF::end() {
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
+
+  ESP_LOGV(TAG, "HTTP Request ended: %d", this->status_code);
 }
 
 }  // namespace http_request
