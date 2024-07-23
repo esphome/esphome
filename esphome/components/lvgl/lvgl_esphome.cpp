@@ -11,7 +11,7 @@ static const char *const TAG = "lvgl";
 namespace esphome {
 namespace lvgl {
 
-lv_event_code_t lv_custom_event;
+lv_event_code_t lv_custom_event;  // NOLINT
 void LvglComponent::setup() {
   esph_log_config(TAG, "LVGL Setup starts");
 #if LV_USE_LOG
