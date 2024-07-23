@@ -386,12 +386,16 @@ void BME68xBSEC2I2CComponent::read_(int64_t trigger_time_ns) {
 
 void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
   ESP_LOGV(TAG, "Publishing sensor states");
-  uint8_t accuracy = 0xff;
+  bool save_state = false;
+  uint8_t accuracy = 0;
+  uint8_t max_accuracy = 0;
   for (uint8_t i = 0; i < num_outputs; i++) {
     float signal = outputs[i].signal;
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
         accuracy = outputs[i].accuracy;
+        max_accuracy = std::max(accuracy, max_accuracy);
+        save_state = true;
 #ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
         this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
@@ -401,17 +405,14 @@ void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num
           this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
         });
 #endif
-
-        // Queue up an opportunity to save state
-        this->queue_push_([this, accuracy]() { this->save_state_(accuracy); });
         break;
       case BSEC_OUTPUT_STATIC_IAQ:
         accuracy = outputs[i].accuracy;
+        max_accuracy = std::max(accuracy, max_accuracy);
+        save_state = true;
 #ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_static_sensor_, signal); });
 #endif
-        // Queue up an opportunity to save state
-        this->queue_push_([this, accuracy]() { this->save_state_(accuracy); });
         break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
 #ifdef USE_SENSOR
@@ -444,6 +445,10 @@ void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num
 #endif
         break;
     }
+  }
+  if (save_state) {
+    // Queue up an opportunity to save state
+    this->queue_push_([this, max_accuracy]() { this->save_state_(max_accuracy); });
   }
 }
 
