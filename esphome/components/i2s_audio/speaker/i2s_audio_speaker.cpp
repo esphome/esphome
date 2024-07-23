@@ -18,9 +18,9 @@ static const char *const TAG = "i2s_audio.speaker";
 void I2SAudioSpeaker::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2S Audio Speaker...");
 
-  this->buffer_queue_ = xQueueCreate(BUFFER_COUNT, sizeof(DataEvent));
+  this->buffer_queue_ = RingBuffer::create(BUFFER_COUNT * BUFFER_SIZE * sizeof(int16_t));
   if (this->buffer_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create buffer queue");
+    ESP_LOGE(TAG, "Could not allocate ring buffer");
     this->mark_failed();
     return;
   }
@@ -44,6 +44,7 @@ void I2SAudioSpeaker::start() {
   }
   this->state_ = speaker::STATE_STARTING;
 }
+
 void I2SAudioSpeaker::start_() {
   if (this->task_created_) {
     return;
@@ -109,49 +110,42 @@ void I2SAudioSpeaker::player_task(void *params) {
   }
 #endif
 
-  DataEvent data_event;
-
   event.type = TaskEventType::STARTED;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
 
-  int16_t buffer[BUFFER_SIZE / 2];
-
   while (true) {
-    if (xQueueReceive(this_speaker->buffer_queue_, &data_event, 100 / portTICK_PERIOD_MS) != pdTRUE) {
-      break;  // End of audio from main thread
+    if (== 0) {
+      if (this_speaker->state_ == speaker::STATE_STOPPING) {
+        break;
+      } else {
+        continue;
+      }
     }
-    if (data_event.stop) {
-      // Stop signal from main thread
-      xQueueReset(this_speaker->buffer_queue_);  // Flush queue
-      break;
-    }
-    size_t bytes_written;
-
-    memmove(buffer, data_event.data, data_event.len);
-    size_t remaining = data_event.len / 2;
-    size_t current = 0;
-
-    while (remaining > 0) {
-      uint32_t sample = (buffer[current] << 16) | (buffer[current] & 0xFFFF);
-
+    uint32_t sample;
+    uint8_t error_count = 0;
+    while (this_speaker->buffer_queue_.available() > 0) {
+      this_speaker->buffer_queue_.read((void *) &sample, sizeof(sample));
+      sample = (sample << 16) | (sample & 0xFFFF);
       esp_err_t err = i2s_write(this_speaker->parent_->get_port(), &sample, sizeof(sample), &bytes_written,
                                 (10 / portTICK_PERIOD_MS));
       if (err != ESP_OK) {
         event = {.type = TaskEventType::WARNING, .err = err};
+        error_count++;
         if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
           ESP_LOGW(TAG, "Failed to send WARNING event");
         }
-        continue;
-      }
-      if (bytes_written != sizeof(sample)) {
+      } else if (bytes_written != sizeof(sample)) {
         event = {.type = TaskEventType::WARNING, .err = ESP_FAIL};
+        error_count++;
         if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
           ESP_LOGW(TAG, "Failed to send WARNING event");
         }
-        continue;
+      } else {
+        error_count = 0;
       }
-      remaining--;
-      current++;
+      if (this_speaker->state_ == speaker::STATE_STOPED || error_count = > 5) {
+        break;
+      }
     }
 
     event.type = TaskEventType::PLAYING;
@@ -190,9 +184,6 @@ void I2SAudioSpeaker::stop() {
     return;
   }
   this->state_ = speaker::STATE_STOPPING;
-  DataEvent data;
-  data.stop = true;
-  xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
 }
 
 void I2SAudioSpeaker::watch_() {
@@ -218,7 +209,7 @@ void I2SAudioSpeaker::watch_() {
         this->task_created_ = false;
         this->player_task_handle_ = nullptr;
         this->parent_->unlock();
-        xQueueReset(this->buffer_queue_);
+        this->buffer_queue_.reset();
         ESP_LOGD(TAG, "Stopped I2S Audio Speaker");
         break;
       case TaskEventType::WARNING:
@@ -250,24 +241,15 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length) {
   if (this->state_ != speaker::STATE_RUNNING && this->state_ != speaker::STATE_STARTING) {
     this->start();
   }
-  size_t remaining = length;
-  size_t index = 0;
-  while (remaining > 0) {
-    DataEvent event;
-    event.stop = false;
-    size_t to_send_length = std::min(remaining, BUFFER_SIZE);
-    event.len = to_send_length;
-    memcpy(event.data, data + index, to_send_length);
-    if (xQueueSend(this->buffer_queue_, &event, 0) != pdTRUE) {
-      return index;
-    }
-    remaining -= to_send_length;
-    index += to_send_length;
-  }
-  return index;
+  length = std::min(this->free(), length);
+  this->buffer_queue_.write((void *) data, length);
+
+  return length;
 }
 
-bool I2SAudioSpeaker::has_buffered_data() const { return uxQueueMessagesWaiting(this->buffer_queue_) > 0; }
+bool I2SAudioSpeaker::has_buffered_data() const { return this->buffer_queue_.available() > 0; }
+
+size_t I2SAudioSpeaker::available_space() const { return this->buffer_queue_.free(); }
 
 }  // namespace i2s_audio
 }  // namespace esphome
