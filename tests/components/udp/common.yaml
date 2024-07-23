@@ -9,8 +9,12 @@ udp:
   ping_pong_enable: true
   binary_sensors:
     - binary_sensor_id1
+    - id: binary_sensor_id1
+      broadcast_id: other_id
   sensors:
     - sensor_id1
+    - id: sensor_id1
+      broadcast_id: other_id
   providers:
     - name: some-device-name
       encryption: "their key goes here"
