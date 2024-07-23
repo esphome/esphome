@@ -117,6 +117,31 @@ class ModemComponent : public Component {
   uint32_t command_delay_ = 500;
   // Will be true when power transitionning
   bool power_transition_ = false;
+  // time needed for power_pin to be low for poweron
+  std::unordered_map<ModemModel, uint32_t> modem_model_ton_ = {{ModemModel::BG96, 600},
+                                                               {ModemModel::SIM800, 1300},
+                                                               {ModemModel::SIM7000, 1100},
+                                                               {ModemModel::SIM7070, 1100},
+                                                               {ModemModel::SIM7600, 500}};
+  // time to wait after poweron for uart to be ready
+  std::unordered_map<ModemModel, uint32_t> modem_model_tonuart_ = {{ModemModel::BG96, 4900},
+                                                                   {ModemModel::SIM800, 3000},
+                                                                   {ModemModel::SIM7000, 4500},
+                                                                   {ModemModel::SIM7070, 2500},
+                                                                   {ModemModel::SIM7600, 12000}};
+  // time needed for power_pin to be high for poweroff
+  std::unordered_map<ModemModel, uint32_t> modem_model_toff_ = {{ModemModel::BG96, 650},
+                                                                {ModemModel::SIM800, 200},
+                                                                {ModemModel::SIM7000, 1300},
+                                                                {ModemModel::SIM7070, 1300},
+                                                                {ModemModel::SIM7600, 2800}};
+  // time to wait after for poweroff for uart to be really closed
+  std::unordered_map<ModemModel, uint32_t> modem_model_toffuart_ = {{ModemModel::BG96, 2000},
+                                                                    {ModemModel::SIM800, 3000},
+                                                                    {ModemModel::SIM7000, 1800},
+                                                                    {ModemModel::SIM7070, 1800},
+                                                                    {ModemModel::SIM7600, 25000}};
+
   // separate handler for `on_not_responding` (we want to know when it's ended)
   Trigger<> *not_responding_cb_{nullptr};
   CallbackManager<void(ModemComponentState)> on_state_callback_;

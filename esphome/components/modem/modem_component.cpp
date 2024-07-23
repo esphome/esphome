@@ -364,6 +364,7 @@ void ModemComponent::loop() {
             ESP_LOGE(TAG, "modem not ready after hang up");
           }
           this->set_timeout("wait_lost_ip", 60000, [this]() {
+            // often reached on 7600, but not reached on 7670
             ESP_LOGW(TAG, "No lost ip event received. Forcing disconnect state");
 
             this->state_ = ModemComponentState::DISCONNECTED;
@@ -466,11 +467,12 @@ void ModemComponent::poweron_() {
     this->power_transition_ = true;
     this->power_pin_->digital_write(false);
     // min 100 for SIM7600, but min 1200 for SIM800.  min BG96: 650
-    delay(1300);  // NOLINT
+    delay(this->modem_model_ton_[this->model_]);  // NOLINT
     this->power_pin_->digital_write(true);
-    // status will be on from 3s (SIM800) to 12s (SIM7600)
-    ESP_LOGD(TAG, "Will check that the modem is on in 12s...");
-    this->set_timeout("wait_poweron", 12000, [this]() {
+    // use a timout for long wait delay
+    uint32_t tonuart = this->modem_model_tonuart_[this->model_];
+    ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(tonuart) / 1000);
+    this->set_timeout("wait_poweron", tonuart, [this]() {
       Watchdog wdt(60);
       while (!this->get_power_status()) {
         delay(this->command_delay_);
@@ -496,12 +498,12 @@ void ModemComponent::poweroff_() {
       this->power_pin_->digital_write(true);
       delay(10);
       this->power_pin_->digital_write(false);
-      delay(2700);  // NOLINT
+      delay(this->modem_model_toff_[this->model_]);
       this->power_pin_->digital_write(true);
 
-      // will have to wait at least 25s
-      ESP_LOGD(TAG, "Will check that the modem is off in 25s...");
-      this->set_timeout("wait_poweron", 25000, [this]() {
+      uint32_t toffuart = this->modem_model_toffuart_[this->model_];
+      ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(toffuart) / 1000);
+      this->set_timeout("wait_poweron", toffuart, [this]() {
         Watchdog wdt(60);
 
         while (this->get_power_status()) {
