@@ -386,30 +386,21 @@ void BME68xBSEC2I2CComponent::read_(int64_t trigger_time_ns) {
 
 void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
   ESP_LOGV(TAG, "Publishing sensor states");
-  bool save_state = false;
-  uint8_t accuracy = 0;
+  bool update_accuracy = false;
   uint8_t max_accuracy = 0;
   for (uint8_t i = 0; i < num_outputs; i++) {
     float signal = outputs[i].signal;
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
-        accuracy = outputs[i].accuracy;
-        max_accuracy = std::max(accuracy, max_accuracy);
-        save_state = true;
+        max_accuracy = std::max(outputs[i].accuracy, max_accuracy);
+        update_accuracy = true;
 #ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
-        this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
-#endif
-#ifdef USE_TEXT_SENSOR
-        this->queue_push_([this, accuracy]() {
-          this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
-        });
 #endif
         break;
       case BSEC_OUTPUT_STATIC_IAQ:
-        accuracy = outputs[i].accuracy;
-        max_accuracy = std::max(accuracy, max_accuracy);
-        save_state = true;
+        max_accuracy = std::max(outputs[i].accuracy, max_accuracy);
+        update_accuracy = true;
 #ifdef USE_SENSOR
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_static_sensor_, signal); });
 #endif
@@ -446,7 +437,16 @@ void BME68xBSEC2I2CComponent::publish_(const bsec_output_t *outputs, uint8_t num
         break;
     }
   }
-  if (save_state) {
+  if (update_accuracy) {
+#ifdef USE_SENSOR
+    this->queue_push_(
+        [this, max_accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, max_accuracy, true); });
+#endif
+#ifdef USE_TEXT_SENSOR
+    this->queue_push_([this, max_accuracy]() {
+      this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[max_accuracy]);
+    });
+#endif
     // Queue up an opportunity to save state
     this->queue_push_([this, max_accuracy]() { this->save_state_(max_accuracy); });
   }
