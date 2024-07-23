@@ -7,12 +7,13 @@ set -e
 # - `c` - Component folder name to test. Default `*`.
 esphome_command="compile"
 target_component="*"
-while getopts e:c: flag
+while getopts e:c:t: flag
 do
     case $flag in
         e) esphome_command=${OPTARG};;
         c) target_component=${OPTARG};;
-        \?) echo "Usage: $0 [-e <config|compile|clean>] [-c <string>]" 1>&2; exit 1;;
+        t) requested_target_platform=${OPTARG};;
+        \?) echo "Usage: $0 [-e <config|compile|clean>] [-c <string>] [-t <string>]" 1>&2; exit 1;;
     esac
 done
 
@@ -23,6 +24,10 @@ if ! [ -d "./tests/test_build_components/build" ]; then
 fi
 
 start_esphome() {
+  if [ -n "$requested_target_platform" ] && [ "$requested_target_platform" != "$target_platform" ]; then
+    echo "Skiping $target_platform"
+    return
+  fi
   # create dynamic yaml file in `build` folder.
   # `./tests/test_build_components/build/[target_component].[test_name].[target_platform_with_version].yaml`
   component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform_with_version.yaml"

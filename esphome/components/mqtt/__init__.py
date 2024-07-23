@@ -61,6 +61,7 @@ def AUTO_LOAD():
     return ["json"]
 
 
+CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 
@@ -225,6 +226,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
+            cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
@@ -328,8 +330,12 @@ async def to_code(config):
     discovery_prefix = config[CONF_DISCOVERY_PREFIX]
     discovery_unique_id_generator = config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
     discovery_object_id_generator = config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
+    discover_ip = config[CONF_DISCOVER_IP]
 
     if not discovery:
+        discovery_prefix = ""
+
+    if not discovery and not discover_ip:
         cg.add(var.disable_discovery())
     elif discovery == "CLEAN":
         cg.add(
@@ -338,6 +344,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
                 True,
             )
         )
@@ -348,6 +355,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
             )
         )
 

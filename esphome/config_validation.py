@@ -829,7 +829,6 @@ def time_of_day(value):
 
 
 def date_time(date: bool, time: bool):
-
     pattern_str = r"^"  # Start of string
     if date:
         pattern_str += r"\d{4}-\d{1,2}-\d{1,2}"
@@ -2031,6 +2030,7 @@ def require_framework_version(
     esp32_arduino=None,
     esp8266_arduino=None,
     rp2040_arduino=None,
+    host=None,
     max_version=False,
     extra_message=None,
 ):
@@ -2065,6 +2065,13 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = rp2040_arduino
+        elif CORE.is_host and framework == "host":
+            if host is None:
+                msg = "This feature is incompatible with host platform"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = host
         else:
             raise Invalid(
                 f"""

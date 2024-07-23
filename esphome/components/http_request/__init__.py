@@ -99,7 +99,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
             cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
             cv.Optional(
-                CONF_TIMEOUT, default="5s"
+                CONF_TIMEOUT, default="4.5s"
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
@@ -257,7 +257,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             trigger,
             [
                 (cg.std_shared_ptr.template(HttpContainer), "response"),
-                (cg.std_string, "body"),
+                (cg.std_string_ref, "body"),
             ],
             conf,
         )

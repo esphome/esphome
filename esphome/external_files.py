@@ -7,6 +7,7 @@ from datetime import datetime
 import requests
 import esphome.config_validation as cv
 from esphome.core import CORE, TimePeriodSeconds
+from esphome.const import __version__
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@landonr"]
@@ -75,3 +76,28 @@ def compute_local_file_dir(domain: str) -> Path:
     base_directory.mkdir(parents=True, exist_ok=True)
 
     return base_directory
+
+
+def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> None:
+    if not has_remote_file_changed(url, path):
+        _LOGGER.debug("Remote file has not changed %s", url)
+        return
+
+    _LOGGER.debug(
+        "Remote file has changed, downloading from %s to %s",
+        url,
+        path,
+    )
+
+    try:
+        req = requests.get(
+            url,
+            timeout=timeout,
+            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
+        )
+        req.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise cv.Invalid(f"Could not download from {url}: {e}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(req.content)

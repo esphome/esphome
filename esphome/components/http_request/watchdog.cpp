@@ -46,7 +46,7 @@ void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
   };
   esp_task_wdt_reconfigure(&wdt_config);
 #else
-  esp_task_wdt_init(timeout_ms, true);
+  esp_task_wdt_init(timeout_ms / 1000, true);
 #endif  // ESP_IDF_VERSION_MAJOR
 #endif  // USE_ESP32
 
