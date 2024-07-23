@@ -33,8 +33,8 @@ class ZephyrPreferenceBackend : public ESPPreferenceBackend {
     return true;
   }
 
-  const uint32_t get_type() const { return this->type_; }
-  const std::string get_key() const { return str_sprintf(ESPHOME_SETTINGS_KEY "/%" PRIx32, this->type_); }
+  uint32_t get_type() const { return this->type_; }
+  std::string get_key() const { return str_sprintf(ESPHOME_SETTINGS_KEY "/%" PRIx32, this->type_); }
 
   std::vector<uint8_t> data;
 

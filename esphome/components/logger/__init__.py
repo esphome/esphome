@@ -1,9 +1,26 @@
 import re
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import LambdaAction
+import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
+from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
+from esphome.components.libretiny.const import COMPONENT_BK72XX, COMPONENT_RTL87XX
+from esphome.components.zephyr import (
+    zephyr_add_cdc_acm,
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+)
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ARGS,
     CONF_BAUD_RATE,
@@ -25,27 +42,6 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
-from esphome.components.esp32.const import (
-    VARIANT_ESP32,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32S3,
-    VARIANT_ESP32C2,
-    VARIANT_ESP32C6,
-    VARIANT_ESP32H2,
-)
-from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
-from esphome.components.libretiny.const import (
-    COMPONENT_BK72XX,
-    COMPONENT_RTL87XX,
-)
-from esphome.components.zephyr import (
-    zephyr_add_overlay,
-    zephyr_add_prj_conf,
-    zephyr_add_cdc_acm,
-)
-
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
