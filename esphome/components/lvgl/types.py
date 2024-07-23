@@ -21,6 +21,7 @@ lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
 lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
 lv_color_t = cg.global_ns.struct("lv_color_t")
+LVTouchListener = lvgl_ns.class_("LVTouchListener")
 
 
 # this will be populated later, in __init__.py to avoid circular imports.

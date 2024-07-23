@@ -28,7 +28,6 @@ from .lvcode import (
     ConstantLiteral,
 )
 
-# from .menu import menu_spec
 from .obj import obj_spec
 from .schemas import (
     obj_schema,
@@ -41,6 +40,7 @@ from .types import (
     lv_disp_t_ptr,
     lvgl_ns,
 )
+from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
 from .widget import (
     Widget,
     LvScrActType,
@@ -133,7 +133,7 @@ def warning_checks(config):
                     "Using auto_clear_enabled: true in display config not recommended with LVGL"
                 )
     buffer_frac = config[CONF_BUFFER_SIZE]
-    if not CORE.is_host and buffer_frac > 0.5 and "psram" not in global_config:
+    if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
 
 
@@ -199,6 +199,7 @@ async def to_code(config):
         cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
 
     with LvContext():
+        await touchscreens_to_code(lv_component, config)
         await set_obj_properties(lv_scr_act, config)
         if widgets := config.get(df.CONF_WIDGETS):
             for w in widgets:
@@ -247,6 +248,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
+            cv.GenerateID(df.CONF_TOUCHSCREENS): TOUCHSCREENS_CONFIG,
         }
     )
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))

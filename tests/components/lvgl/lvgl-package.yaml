@@ -1,9 +1,10 @@
-color:
-  - id: light_blue
-    hex: "3340FF"
-
 lvgl:
+  log_level: TRACE
   bg_color: light_blue
+  touchscreens:
+    - touchscreen_id: tft_touch
+      long_press_repeat_time: 200ms
+      long_press_time: 500ms
   widgets:
     - label:
         text: Hello world
@@ -22,3 +23,15 @@ font:
   - file: "gfonts://Roboto"
     id: space16
     bpp: 4
+
+image:
+  - id: cat_img
+    file: $component_dir/cat.png
+  - id: dog_img
+    file: $component_dir/dog.png
+    resize: 256x48
+    type: TRANSPARENT_BINARY
+
+color:
+  - id: light_blue
+    hex: "3340FF"
