@@ -291,7 +291,7 @@ jobs:
             pio_cache_key: tidyesp32-idf
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
-            options: --environment nrf52 --grep USE_ZEPHYR
+            options: --environment nrf52-tidy --grep USE_ZEPHYR
             pio_cache_key: tidy-zephyr
 
     steps:
