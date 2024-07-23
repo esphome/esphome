@@ -28,7 +28,6 @@ CONF_APN = "apn"
 CONF_DTR_PIN = "dtr_pin"
 CONF_STATUS_PIN = "status_pin"
 CONF_POWER_PIN = "power_pin"
-CONF_FLIGTH_PIN = "flight_pin"
 CONF_INIT_AT = "init_at"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
 
