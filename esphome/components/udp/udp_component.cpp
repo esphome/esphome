@@ -421,8 +421,6 @@ static bool process_rolling_code(Provider &provider, uint8_t *&buf, const uint8_
              (unsigned long) code0);
     return false;
   }
-  ESP_LOGV(TAG, "Rolling code %08lX:%08lX received after %08X:%08X", (unsigned long) code1, (unsigned long) code0,
-           (unsigned) provider.last_code[1], provider.last_code[0]);
   provider.last_code[0] = code0;
   provider.last_code[1] = code1;
   return true;
@@ -502,9 +500,9 @@ void UDPComponent::process_(uint8_t *buf, const size_t len) {
       auto key = get_uint32(buf);
       if (key == this->ping_key_) {
         ping_key_seen = true;
-        ESP_LOGV(TAG, "Found good ping key %X", key);
+        ESP_LOGV(TAG, "Found good ping key %X", (unsigned) key);
       } else {
-        ESP_LOGV(TAG, "Unknown ping key %X", key);
+        ESP_LOGV(TAG, "Unknown ping key %X", (unsigned) key);
       }
       continue;
     }

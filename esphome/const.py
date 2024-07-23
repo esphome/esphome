@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.6.0-dev"
+__version__ = "2024.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -784,6 +784,7 @@ CONF_STATIC_IP = "static_ip"
 CONF_STATUS = "status"
 CONF_STB_PIN = "stb_pin"
 CONF_STEP = "step"
+CONF_STEP_DELAY = "step_delay"
 CONF_STEP_MODE = "step_mode"
 CONF_STEP_PIN = "step_pin"
 CONF_STOP = "stop"
@@ -1083,6 +1084,7 @@ DEVICE_CLASS_DURATION = "duration"
 DEVICE_CLASS_EMPTY = ""
 DEVICE_CLASS_ENERGY = "energy"
 DEVICE_CLASS_ENERGY_STORAGE = "energy_storage"
+DEVICE_CLASS_FIRMWARE = "firmware"
 DEVICE_CLASS_FREQUENCY = "frequency"
 DEVICE_CLASS_GARAGE = "garage"
 DEVICE_CLASS_GARAGE_DOOR = "garage_door"

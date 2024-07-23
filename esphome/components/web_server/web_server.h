@@ -7,8 +7,8 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
 
-#include <vector>
 #include <map>
+#include <vector>
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -317,6 +317,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   /// Dump the event details with its value as a JSON string.
   std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
+#endif
+
+#ifdef USE_UPDATE
+  void on_update(update::UpdateEntity *obj) override;
+
+  /// Handle a update request under '/update/<id>'.
+  void handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the update state with its value as a JSON string.
+  std::string update_json(update::UpdateEntity *obj, JsonDetail start_config);
 #endif
 
   /// Override the web handler's canHandle method.

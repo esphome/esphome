@@ -312,6 +312,7 @@ async def to_code(config):
     esp32.add_idf_component(
         name="esp-tflite-micro",
         repo="https://github.com/espressif/esp-tflite-micro",
+        ref="v1.3.1",
     )
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")

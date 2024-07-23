@@ -16,6 +16,7 @@ from esphome import automation
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
 
+CONF_BOOT_IS_GOOD_AFTER = "boot_is_good_after"
 CONF_ON_SAFE_MODE = "on_safe_mode"
 
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
@@ -34,6 +35,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SafeModeComponent),
+            cv.Optional(
+                CONF_BOOT_IS_GOOD_AFTER, default="1min"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
             cv.Optional(
@@ -63,7 +67,9 @@ async def to_code(config):
         await automation.build_automation(trigger, [], conf)
 
     condition = var.should_enter_safe_mode(
-        config[CONF_NUM_ATTEMPTS], config[CONF_REBOOT_TIMEOUT]
+        config[CONF_NUM_ATTEMPTS],
+        config[CONF_REBOOT_TIMEOUT],
+        config[CONF_BOOT_IS_GOOD_AFTER],
     )
     cg.add(RawExpression(f"if ({condition}) return"))
     CORE.data[CONF_SAFE_MODE] = {}

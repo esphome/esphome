@@ -3,6 +3,7 @@ wifi:
   password: password1
 
 safe_mode:
+  boot_is_good_after: 2min
   num_attempts: 3
   reboot_timeout: 2min
   on_safe_mode:

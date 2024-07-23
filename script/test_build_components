@@ -24,8 +24,8 @@ fi
 
 start_esphome() {
   # create dynamic yaml file in `build` folder.
-  # `./tests/test_build_components/build/[target_component].[test_name].[target_platform].yaml`
-  component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform.yaml"
+  # `./tests/test_build_components/build/[target_component].[test_name].[target_platform_with_version].yaml`
+  component_test_file="./tests/test_build_components/build/$target_component.$test_name.$target_platform_with_version.yaml"
 
   cp $target_platform_file $component_test_file
   if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -36,7 +36,7 @@ start_esphome() {
   fi
 
   # Start esphome process
-  echo "> [$target_component] [$test_name] [$target_platform]"
+  echo "> [$target_component] [$test_name] [$target_platform_with_version]"
   set -x
   # TODO: Validate escape of Command line substitution value
   python -m esphome -s component_name $target_component -s component_dir ../../components/$target_component -s test_name $test_name -s target_platform $target_platform $esphome_command $component_test_file
@@ -76,16 +76,17 @@ for f in ./tests/components/$target_component/*.*.yaml; do
     # 2. `./tests/test_build_components/build_components_base.[target_platform]-ard.yaml`
     target_platform_file="./tests/test_build_components/build_components_base.$target_platform.yaml"
     if ! [ -f "$target_platform_file" ]; then
-      # Try find arduino test framework as platform.
-      target_platform_ard="$target_platform-ard"
-      target_platform_file="./tests/test_build_components/build_components_base.$target_platform_ard.yaml"
-      if ! [ -f "$target_platform_file" ]; then
-        echo "No base test file [./tests/test_build_components/build_components_base.$target_platform.yaml, ./tests/build_components_base.$target_platform_ard.yaml] for component test [$f] found."
-        exit 1
-      fi
-      target_platform=$target_platform_ard
+      echo "No base test file [./tests/test_build_components/build_components_base.$target_platform.yaml] for component test [$f] found."
+      exit 1
     fi
 
-    start_esphome
+    for target_platform_file in ./tests/test_build_components/build_components_base.$target_platform*.yaml; do
+      # trim off "./tests/test_build_components/build_components_base." prefix
+      target_platform_with_version=${target_platform_file:52}
+      # ...now remove suffix starting with "." leaving just the test target hardware and software platform (possibly with version)
+      # For example: "esp32-s3-idf-50"
+      target_platform_with_version=${target_platform_with_version%.*}
+      start_esphome
+    done
   fi
 done

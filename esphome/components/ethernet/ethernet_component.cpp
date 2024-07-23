@@ -631,7 +631,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 
   if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
-    ESP_LOGD(TAG, "Select PHY Register Page 0x%02" PRIX32, 0x0);
+    ESP_LOGD(TAG, "Select PHY Register Page 0x00");
     err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, 0x0);
     ESPHL_ERROR_CHECK(err, "Select PHY Register Page 0 failed");
   }

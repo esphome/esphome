@@ -799,7 +799,7 @@ void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
     this->speaker_buffer_index_ += msg.data.length();
     this->speaker_buffer_size_ += msg.data.length();
     this->speaker_bytes_received_ += msg.data.length();
-    ESP_LOGV(TAG, "Received audio: %" PRId32 " bytes from API", msg.data.length());
+    ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data.length());
   } else {
     ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
   }
