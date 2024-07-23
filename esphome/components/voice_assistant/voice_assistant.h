@@ -90,7 +90,7 @@ class VoiceAssistant : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
     this->speaker_ = speaker;
-    this->local_output_ = (this->speaker_ != nullptr)l
+    this->local_output_ = (this->speaker_ != nullptr);
   }
 #endif
 #ifdef USE_MEDIA_PLAYER
