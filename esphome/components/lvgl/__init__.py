@@ -23,13 +23,7 @@ from .obj import obj_spec
 from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
 from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
 from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lvgl_ns
-from .widget import (
-    LvScrActType,
-    Widget,
-    set_obj_properties,
-    set_widgets_completed,
-    widget_to_code,
-)
+from .widget import LvScrActType, Widget, set_obj_properties, widget_to_code
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ("display",)
@@ -187,7 +181,7 @@ async def to_code(config):
             for w in widgets:
                 lv_w_type, w_cnfig = next(iter(w.items()))
                 await widget_to_code(w_cnfig, lv_w_type, lv_scr_act.obj)
-    set_widgets_completed()
+    Widget.set_completed()
     await add_init_lambda(lv_component, LvContext.get_code())
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"LVGL_USES_{comp.upper()}")
