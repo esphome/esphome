@@ -1,12 +1,13 @@
 import esphome.codegen as cg
+from esphome.components.sensor import new_sensor, sensor_schema
+from esphome.config_validation import All, has_at_least_one_key
 from esphome.const import CONF_ID
-from esphome.config_validation import has_at_least_one_key, All
-from esphome.components.sensor import sensor_schema, new_sensor
+
 from . import (
-    SENSOR_SCHEMA,
-    CONF_UDP_ID,
-    CONF_REMOTE_ID,
     CONF_PROVIDER,
+    CONF_REMOTE_ID,
+    CONF_UDP_ID,
+    SENSOR_SCHEMA,
     require_internal_with_name,
 )
 

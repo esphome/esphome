@@ -1,18 +1,18 @@
 import hashlib
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.api import CONF_ENCRYPTION
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.sensor import Sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BINARY_SENSORS,
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_KEY,
+    CONF_NAME,
     CONF_PORT,
     CONF_SENSORS,
-    CONF_ID,
-    CONF_BINARY_SENSORS,
-    CONF_NAME,
-    CONF_KEY,
-    CONF_INTERNAL,
 )
 from esphome.cpp_generator import MockObjClass
 
@@ -25,6 +25,7 @@ udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.PollingComponent)
 
 CONF_BROADCAST = "broadcast"
+CONF_BROADCAST_ID = "broadcast_id"
 CONF_ADDRESSES = "addresses"
 CONF_PROVIDER = "provider"
 CONF_PROVIDERS = "providers"
@@ -36,13 +37,15 @@ CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
 
 
 def sensor_validation(cls: MockObjClass):
-    def validator(value):
-        value = cv.use_id(cls)(value)
-        if len(value.id) > 128:
-            raise cv.Invalid("sensor id must be <= 128 bytes long")
-        return value
-
-    return validator
+    return cv.maybe_simple_value(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(cls),
+                cv.Optional(CONF_BROADCAST_ID): cv.validate_id_name,
+            }
+        ),
+        key=CONF_ID,
+    )
 
 
 ENCRYPTION_SCHEMA = {
@@ -131,13 +134,25 @@ async def to_code(config):
         )
     )
     if sensors := config.get(CONF_SENSORS):
-        for sensor_id in sensors:
-            sensor = await cg.get_variable(sensor_id)
-            cg.add(var.add_sensor(sensor_id.id, sensor))
+        for sens_conf in sensors:
+            if isinstance(sens_conf, dict):
+                sens_id = sens_conf[CONF_ID]
+                sensor = await cg.get_variable(sens_id)
+                bcst_id = sens_conf.get(CONF_BROADCAST_ID) or sens_id.id
+            else:
+                sensor = await cg.get_variable(sens_conf)
+                bcst_id = sens_conf.id
+            cg.add(var.add_sensor(bcst_id, sensor))
     if sensors := config.get(CONF_BINARY_SENSORS):
-        for sensor_id in sensors:
-            sensor = await cg.get_variable(sensor_id)
-            cg.add(var.add_binary_sensor(sensor_id.id, sensor))
+        for sens_conf in sensors:
+            if isinstance(sens_conf, dict):
+                sens_id = sens_conf[CONF_ID]
+                sensor = await cg.get_variable(sens_id)
+                bcst_id = sens_conf.get(CONF_BROADCAST_ID) or sens_id.id
+            else:
+                sensor = await cg.get_variable(sens_conf)
+                bcst_id = sens_conf.id
+            cg.add(var.add_binary_sensor(bcst_id, sensor))
     if addresses := config.get(CONF_ADDRESSES):
         for address in addresses:
             cg.add(var.add_address(str(address)))
