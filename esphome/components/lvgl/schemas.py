@@ -115,7 +115,7 @@ STYLE_PROPS = {
     "max_width": lvalid.pixels_or_percent,
     "min_height": lvalid.pixels_or_percent,
     "min_width": lvalid.pixels_or_percent,
-    "radius": cv.Any(lvalid.size, df.LvConstant("LV_RADIUS_", "CIRCLE").one_of),
+    "radius": lvalid.radius,
     "width": lvalid.size,
     "x": lvalid.pixels_or_percent,
     "y": lvalid.pixels_or_percent,
