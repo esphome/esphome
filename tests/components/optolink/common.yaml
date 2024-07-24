@@ -28,7 +28,7 @@ text_sensor:
   - platform: optolink
     type: STATE_INFO
     name: Gerätestatus
-    update_interval: 15s
+    update_interval: 5s
   - platform: optolink
     name: NRF_Sachnummer
     address: 0x08E0
