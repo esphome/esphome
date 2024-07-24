@@ -166,11 +166,9 @@ int main() { return 0;}
         zephyr_dir = Path(build_dir / "zephyr")
         zephyr_dir.mkdir(exist_ok=True)
         Path(zephyr_dir / "prj.conf").write_text("", encoding="utf-8")
-        result = subprocess.run(
+        subprocess.run(
             ["pio", "run", "-e", build_environment, "-d", build_dir], check=False
         )
-        if result.returncode != 0:
-            print("Unable to compile empty main to build env")
 
         def extract_include_paths(command):
             include_paths = []
@@ -180,9 +178,6 @@ int main() { return 0;}
             return include_paths
 
         def extract_defines(command):
-            """
-            Extracts defined macros from the command string.
-            """
             defines = []
             define_pattern = re.compile(r"-D\s*([^\s]+)")
             for match in define_pattern.findall(command):
@@ -194,7 +189,6 @@ int main() { return 0;}
                 command = entry["command"]
                 cxx_path = command.split()[0]
                 return cxx_path
-            raise ValueError("No valid compiler path found in the compile commands")
 
         def get_builtin_include_paths(compiler):
             result = subprocess.run(
@@ -217,10 +211,8 @@ int main() { return 0;}
             return include_paths
 
         def extract_cxx_flags(command):
-            """
-            Extracts CXXFLAGS from the command string, excluding includes and defines.
-            """
             flags = []
+            # Extracts CXXFLAGS from the command string, excluding includes and defines.
             flag_pattern = re.compile(
                 r"(-O[0-3s]|-g|-std=[^\s]+|-Wall|-Wextra|-Werror|--[^\s]+|-f[^\s]+|-m[^\s]+|-imacros\s*[^\s]+)"
             )
