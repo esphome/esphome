@@ -133,26 +133,16 @@ async def to_code(config):
             config[CONF_PING_PONG_RECYCLE_TIME].total_seconds
         )
     )
-    if sensors := config.get(CONF_SENSORS):
-        for sens_conf in sensors:
-            if isinstance(sens_conf, dict):
-                sens_id = sens_conf[CONF_ID]
-                sensor = await cg.get_variable(sens_id)
-                bcst_id = sens_conf.get(CONF_BROADCAST_ID) or sens_id.id
-            else:
-                sensor = await cg.get_variable(sens_conf)
-                bcst_id = sens_conf.id
-            cg.add(var.add_sensor(bcst_id, sensor))
-    if sensors := config.get(CONF_BINARY_SENSORS):
-        for sens_conf in sensors:
-            if isinstance(sens_conf, dict):
-                sens_id = sens_conf[CONF_ID]
-                sensor = await cg.get_variable(sens_id)
-                bcst_id = sens_conf.get(CONF_BROADCAST_ID) or sens_id.id
-            else:
-                sensor = await cg.get_variable(sens_conf)
-                bcst_id = sens_conf.id
-            cg.add(var.add_binary_sensor(bcst_id, sensor))
+    for sens_conf in config.get(CONF_SENSORS, ()):
+        sens_id = sens_conf[CONF_ID]
+        sensor = await cg.get_variable(sens_id)
+        bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
+        cg.add(var.add_sensor(bcst_id, sensor))
+    for sens_conf in config.get(CONF_BINARY_SENSORS, ()):
+        sens_id = sens_conf[CONF_ID]
+        sensor = await cg.get_variable(sens_id)
+        bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
+        cg.add(var.add_binary_sensor(bcst_id, sensor))
     if addresses := config.get(CONF_ADDRESSES):
         for address in addresses:
             cg.add(var.add_address(str(address)))
