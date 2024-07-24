@@ -39,7 +39,7 @@ struct ISRPinArg {
 };
 
 ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};
+  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
   arg->pin = this->pin_;
   arg->inverted = this->inverted_;
   return ISRInternalGPIOPin((void *) arg);
