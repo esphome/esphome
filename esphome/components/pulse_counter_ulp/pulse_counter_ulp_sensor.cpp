@@ -135,12 +135,10 @@ void PulseCounterUlpSensor::dump_config() {
 
 void PulseCounterUlpSensor::update() {
   UlpProgram::state raw = this->storage_.pop_state();
-  clock::time_point now;
-  std::chrono::duration<float, std::ratio<60>> minutes;
-  now = clock::now();
-  minutes = now - this->last_time_;
+  clock::time_point now = clock::now();
+  auto interval = now - this->last_time_;
   if (this->last_time_ != clock::time_point{}) {
-    float value = raw.edge_count / minutes.count();  // pulses per minute
+    float value = std::chrono::minutes{1} * static_cast<float>(raw.edge_count) / interval;  // pulses per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
     this->publish_state(value);
   }
