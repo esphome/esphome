@@ -80,7 +80,7 @@ class HttpRequestComponent : public Component {
   const char *useragent_{nullptr};
   bool follow_redirects_;
   uint16_t redirect_limit_;
-  uint16_t timeout_{5000};
+  uint16_t timeout_{4500};
   uint32_t watchdog_timeout_{0};
 };
 
