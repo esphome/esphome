@@ -1,7 +1,7 @@
 from esphome import codegen as cg
 from esphome.core import ID
+from esphome.cpp_generator import MockObjClass
 
-from ...cpp_generator import MockObjClass
 from .defines import CONF_TEXT
 
 
