@@ -287,6 +287,8 @@ def container_validator(schema, widget_type):
             if not isinstance(layout, dict):
                 raise cv.Invalid("Layout value must be a dict")
             ltype = layout.get(CONF_TYPE)
+            if not ltype:
+                raise (cv.Invalid("Layout schema requires type:"))
             add_lv_use(ltype)
         result = result.extend(LAYOUT_SCHEMAS[ltype.lower()])
         if value == SCHEMA_EXTRACT:
