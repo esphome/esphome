@@ -53,8 +53,8 @@ class ZephyrPreferences : public ESPPreferences {
 
     static struct settings_handler settings_cb = {
         .name = ESPHOME_SETTINGS_KEY,
-        .h_set = load_setting_,
-        .h_export = export_settings_,
+        .h_set = load_setting,
+        .h_export = export_settings,
     };
 
     err = settings_register(&settings_cb);
@@ -76,7 +76,7 @@ class ZephyrPreferences : public ESPPreferences {
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-    for (auto backend : this->backends_) {
+    for (auto *backend : this->backends_) {
       if (backend->get_type() == type) {
         return ESPPreferenceObject(backend);
       }
@@ -100,7 +100,7 @@ class ZephyrPreferences : public ESPPreferences {
 
   bool reset() override {
     ESP_LOGD(TAG, "Reset settings");
-    for (auto backend : this->backends_) {
+    for (auto *backend : this->backends_) {
       // save empty delete data
       backend->data.clear();
     }
@@ -111,7 +111,7 @@ class ZephyrPreferences : public ESPPreferences {
  protected:
   std::vector<ZephyrPreferenceBackend *> backends_;
 
-  static int load_setting_(const char *name, size_t len, settings_read_cb read_cb, void *cb_arg) {
+  static int load_setting(const char *name, size_t len, settings_read_cb read_cb, void *cb_arg) {
     auto type = parse_hex<uint32_t>(name);
     if (!type.has_value()) {
       std::string full_name(ESPHOME_SETTINGS_KEY);
@@ -130,8 +130,8 @@ class ZephyrPreferences : public ESPPreferences {
     return 0;
   }
 
-  static int export_settings_(int (*cb)(const char *name, const void *value, size_t val_len)) {
-    for (auto backend : static_cast<ZephyrPreferences *>(global_preferences)->backends_) {
+  static int export_settings(int (*cb)(const char *name, const void *value, size_t val_len)) {
+    for (auto *backend : static_cast<ZephyrPreferences *>(global_preferences)->backends_) {
       auto name = backend->get_key();
       int err = cb(name.c_str(), backend->data.data(), backend->data.size());
       ESP_LOGD(TAG, "save in flash, name %s, len %u, err %d", name.c_str(), backend->data.size(), err);
