@@ -37,9 +37,7 @@ class RealTimeClock : public PollingComponent {
 
   void call_setup() override;
 
-  void add_on_time_sync_callback(const std::function<void()> &callback) {
-    this->time_sync_callback_.add(std::move(callback));
-  };
+  void add_on_time_sync_callback(const std::function<void()> &callback) { this->time_sync_callback_.add(callback); };
 
  protected:
   /// Report a unix epoch as current time.

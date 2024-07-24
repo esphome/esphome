@@ -116,9 +116,8 @@ def clang_options(idedata):
         # skip our own directories, we add those later
         if (
             not directory.startswith(f"{root_path}/")
-            or directory.startswith(f"{root_path}/.pio/")
+            or (directory.startswith(f"{root_path}") and "/.pio/" in directory)
             or directory.startswith(f"{root_path}/managed_components/")
-            or "zephyr/include/generated" in directory
         ):
             cmd.extend(["-isystem", directory])
 
