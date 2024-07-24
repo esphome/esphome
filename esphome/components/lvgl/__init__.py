@@ -14,6 +14,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
+from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
@@ -24,7 +25,7 @@ from .lvcode import ConstantLiteral, LvContext
 from .obj import obj_spec
 from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
 from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lvgl_ns
-from .widget import LvScrActType, Widget, set_obj_properties, widget_to_code
+from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ("display",)
@@ -94,7 +95,7 @@ def get_display_list(config):
 
 
 def warning_checks(config):
-    global_config = CORE.config
+    global_config = full_config.get()
     displays = get_display_list(config)
     if display_conf := global_config.get(CONF_DISPLAY):
         for display_id in displays:
@@ -115,7 +116,6 @@ def warning_checks(config):
 
 
 async def to_code(config):
-    warning_checks(config)
     cg.add_library("lvgl/lvgl", "8.4.0")
     CORE.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
@@ -177,14 +177,11 @@ async def to_code(config):
 
     with LvContext():
         await set_obj_properties(lv_scr_act, config)
-        if widgets := config.get(df.CONF_WIDGETS):
-            for w in widgets:
-                lv_w_type, w_cnfig = next(iter(w.items()))
-                await widget_to_code(w_cnfig, lv_w_type, lv_scr_act.obj)
+        await add_widgets(lv_scr_act, config)
     Widget.set_completed()
     await add_init_lambda(lv_component, LvContext.get_code())
     for comp in helpers.lvgl_components_required:
-        CORE.add_define(f"LVGL_USES_{comp.upper()}")
+        CORE.add_define(f"USE_LVGL_{comp.upper()}")
     for use in helpers.lv_uses:
         add_define(f"LV_USE_{use.upper()}")
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
@@ -192,6 +189,8 @@ async def to_code(config):
     CORE.add_build_flag("-DLV_CONF_H=1")
     CORE.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
 
+
+FINAL_VALIDATE_SCHEMA = warning_checks
 
 CONFIG_SCHEMA = (
     cv.polling_component_schema("1s")

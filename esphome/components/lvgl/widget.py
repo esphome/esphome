@@ -116,7 +116,6 @@ class Widget:
         self.var = var
         self.type = wtype
         self.config = config
-        self.parent = None
         self.scale = 1.0
         self.step = 1.0
         self.range_from = -sys.maxsize
@@ -309,6 +308,18 @@ async def set_obj_properties(w: Widget, config):
         lv_obj.set_scrollbar_mode(w.obj, scrollbar_mode)
 
 
+async def add_widgets(parent: Widget, config: dict):
+    """
+    Add all widgets to an object
+    :param parent: The enclosing obj
+    :param config: The configuration
+    :return:
+    """
+    for w in config.get(CONF_WIDGETS) or ():
+        w_type, w_cnfig = next(iter(w.items()))
+        await widget_to_code(w_cnfig, w_type, parent.obj)
+
+
 async def widget_to_code(w_cnfig, w_type, parent):
     """
     Converts a Widget definition to C code.
@@ -317,9 +328,7 @@ async def widget_to_code(w_cnfig, w_type, parent):
     :param parent: The parent to which the widget should be added
     :return:
     """
-    spec: WidgetType = WIDGET_TYPES.get(w_type)
-    if not spec:
-        raise cv.Invalid(f"No handler for widget {w_type}")
+    spec: WidgetType = WIDGET_TYPES[w_type]
     creator = spec.obj_creator(parent, w_cnfig)
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
@@ -334,21 +343,5 @@ async def widget_to_code(w_cnfig, w_type, parent):
 
     widget = Widget.create(wid, var, spec, w_cnfig, parent)
     await set_obj_properties(widget, w_cnfig)
-    if widgets := w_cnfig.get(CONF_WIDGETS):
-        for w in widgets:
-            sub_type, sub_config = next(iter(w.items()))
-            await widget_to_code(sub_config, sub_type, widget.obj)
+    await add_widgets(widget, w_cnfig)
     await spec.to_code(widget, w_cnfig)
-
-
-async def add_widgets(parent: Widget, config: dict):
-    """
-    Add all widgets to an object
-    :param parent: The enclosing obj
-    :param config: The configuration
-    :return:
-    """
-    if widgets := config.get(CONF_WIDGETS):
-        for w in widgets:
-            w_type, w_cnfig = next(iter(w.items()))
-            await widget_to_code(w_cnfig, w_type, parent.obj)
