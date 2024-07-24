@@ -1,15 +1,11 @@
 import os
 from typing import Union
+
 import esphome.codegen as cg
+from esphome.const import CONF_BOARD, KEY_NAME
 from esphome.core import CORE
-from esphome.helpers import (
-    write_file_if_changed,
-    copy_file_if_changed,
-)
-from esphome.const import (
-    CONF_BOARD,
-    KEY_NAME,
-)
+from esphome.helpers import copy_file_if_changed, write_file_if_changed
+
 from .const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
