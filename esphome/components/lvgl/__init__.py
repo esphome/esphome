@@ -85,9 +85,16 @@ def generate_lv_conf_h():
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
 
+def get_display_list(config):
+    display_list = config.get(df.CONF_DISPLAYS)
+    if isinstance(display_list, list):
+        return display_list
+    return (display_list,)
+
+
 def final_validation(config):
     global_config = full_config.get()
-    for display_id in config[df.CONF_DISPLAYS]:
+    for display_id in get_display_list(config):
         path = global_config.get_path_for_id(display_id)[:-1]
         display = global_config.get_config_for_path(path)
         if CONF_LAMBDA in display:
@@ -137,7 +144,7 @@ async def to_code(config):
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
     Widget.create(config[CONF_ID], lv_component, obj_spec, config)
-    for display in config[df.CONF_DISPLAYS]:
+    for display in get_display_list(config):
         cg.add(lv_component.add_display(await cg.get_variable(display)))
 
     frac = config[CONF_BUFFER_SIZE]
@@ -194,7 +201,9 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
-            cv.GenerateID(df.CONF_DISPLAYS): cv.ensure_list(cv.use_id(Display)),
+            cv.GenerateID(df.CONF_DISPLAYS): cv.Any(
+                cv.use_id(Display), cv.ensure_list(cv.use_id(Display))
+            ),
             cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
