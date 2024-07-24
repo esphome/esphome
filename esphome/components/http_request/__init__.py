@@ -145,10 +145,8 @@ async def to_code(config):
 
     if CORE.is_esp32:
         if CORE.using_esp_idf:
-            if buffer_size := config.get(CONF_BUFFER_SIZE_RX):
-                cg.add(var.set_buffer_size_rx(buffer_size))
-            if buffer_size := config.get(CONF_BUFFER_SIZE_TX):
-                cg.add(var.set_buffer_size_tx(buffer_size))
+            cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
+            cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
 
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
