@@ -215,7 +215,7 @@ uint32_t random_uint32() {
   std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
   return dist(rng);
 #elif defined(USE_ZEPHYR)
-  return rand();
+  return rand();  // NOLINT(cert-msc30-c,cert-msc50-cpp)
 #else
 #error "No random source available for this configuration."
 #endif
