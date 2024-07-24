@@ -9,7 +9,7 @@
 namespace esphome {
 namespace optolink {
 
-class OptolinkSwitch : public DatapointComponent, public esphome::switch_::Switch, public esphome::PollingComponent {
+class OptolinkSwitch : public DatapointComponent, public esphome::switch_::Switch {
  public:
   OptolinkSwitch(Optolink *optolink) : DatapointComponent(optolink, true) {
     set_bytes(1);

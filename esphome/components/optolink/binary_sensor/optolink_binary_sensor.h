@@ -9,9 +9,7 @@
 namespace esphome {
 namespace optolink {
 
-class OptolinkBinarySensor : public DatapointComponent,
-                             public esphome::binary_sensor::BinarySensor,
-                             public esphome::PollingComponent {
+class OptolinkBinarySensor : public DatapointComponent, public esphome::binary_sensor::BinarySensor {
  public:
   OptolinkBinarySensor(Optolink *optolink) : DatapointComponent(optolink) {
     set_bytes(1);

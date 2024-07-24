@@ -10,7 +10,6 @@ static const char *const TAG = "optolink.switch";
 
 void OptolinkSwitch::write_state(bool value) {
   if (value != 0 && value != 1) {
-    set_optolink_state_("datapoint value of switch %s not 0 or 1", get_component_name().c_str());
     ESP_LOGE(TAG, "datapoint value of switch %s not 0 or 1", get_component_name().c_str());
   } else {
     ESP_LOGI(TAG, "control of switch %s to value %d", get_component_name().c_str(), value);

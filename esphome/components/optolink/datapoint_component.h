@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/core/component.h"
 #include "VitoWiFi.h"
 
 namespace esphome {
@@ -11,7 +12,7 @@ namespace optolink {
 
 class Optolink;
 
-class DatapointComponent {
+class DatapointComponent : public esphome::PollingComponent {
  public:
   DatapointComponent(Optolink *optolink, bool writeable = false) : dp_value_outstanding_((uint8_t) 0) {
     optolink_ = optolink;
@@ -46,13 +47,11 @@ class DatapointComponent {
   void write_datapoint_value_(uint8_t *value, size_t length);
 
   void unfitting_value_type_();
-  void set_optolink_state_(const char *format, ...);
-  std::string get_optolink_state_();
-  int get_optolink_queue_size_();
+
+  Optolink *optolink_;
 
  private:
   const size_t max_retries_until_reset_ = 10;
-  Optolink *optolink_;
   IDatapoint *datapoint_ = nullptr;
   size_t read_retries_ = 0;
   size_t div_ratio_ = 0;
@@ -61,6 +60,9 @@ class DatapointComponent {
   bool writeable_;
   bool is_dp_value_writing_outstanding_ = false;
   DPValue dp_value_outstanding_;
+
+  static uint32_t last_recv;
+  static uint32_t last_send;
 
   void datapoint_write_request_(DPValue dp_value);
 };

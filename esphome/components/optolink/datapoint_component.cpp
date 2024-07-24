@@ -17,6 +17,7 @@ void DatapointComponent::setup_datapoint_() {
       datapoint_ = new Datapoint<convRaw>(get_component_name().c_str(), "optolink", address_, writeable_);
       datapoint_->setLength(bytes_);
       datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
+        optolink_->notify_receive();
         uint8_t buffer[bytes_];
         dp_value.getRaw(buffer);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
@@ -34,6 +35,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv1_1_US>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %d", dp.getName(), dp_value.getU8());
+            optolink_->notify_receive();
             datapoint_value_changed(dp_value.getU8());
             read_retries_ = 0;
           });
@@ -42,6 +44,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv2_1_US>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %d", dp.getName(), dp_value.getU16());
+            optolink_->notify_receive();
             datapoint_value_changed(dp_value.getU16());
             read_retries_ = 0;
           });
@@ -50,6 +53,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv4_1_UL>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %d", dp.getName(), dp_value.getU32());
+            optolink_->notify_receive();
             datapoint_value_changed((uint32_t) dp_value.getU32());
             read_retries_ = 0;
           });
@@ -64,6 +68,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv1_10_F>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %f", dp.getName(), dp_value.getFloat());
+            optolink_->notify_receive();
             datapoint_value_changed(dp_value.getFloat());
             read_retries_ = 0;
           });
@@ -72,6 +77,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv2_10_F>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %f", dp.getName(), dp_value.getFloat());
+            optolink_->notify_receive();
             datapoint_value_changed(dp_value.getFloat());
             read_retries_ = 0;
           });
@@ -86,6 +92,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv2_100_F>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %f", dp.getName(), dp_value.getFloat());
+            optolink_->notify_receive();
             datapoint_value_changed(dp_value.getFloat());
             read_retries_ = 0;
           });
@@ -100,6 +107,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv4_1000_F>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %f", dp.getName(), dp_value.getFloat());
+            optolink_->notify_receive();
             datapoint_value_changed(dp_value.getFloat());
             read_retries_ = 0;
           });
@@ -112,6 +120,7 @@ void DatapointComponent::setup_datapoint_() {
           datapoint_ = new Datapoint<conv4_3600_F>(get_component_name().c_str(), "optolink", address_, writeable_);
           datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
             ESP_LOGI(TAG, "recieved data for datapoint %s: %f", dp.getName(), dp_value.getFloat());
+            optolink_->notify_receive();
             datapoint_value_changed(dp_value.getFloat());
             read_retries_ = 0;
           });
@@ -128,14 +137,18 @@ void DatapointComponent::datapoint_read_request_() {
     ESP_LOGI(TAG, "read request for %s deferred due to outstanding write request", get_component_name().c_str());
     datapoint_write_request_(dp_value_outstanding_);
   } else {
-    if (read_retries_ == 0 || read_retries_ >= max_retries_until_reset_) {
-      if (optolink_->read_value(datapoint_)) {
-        read_retries_ = 1;
+    if (!optolink_->communication_suspended()) {
+      if ((read_retries_ == 0 || read_retries_ >= max_retries_until_reset_) || get_update_interval() > 10000) {
+        if (optolink_->read_value(datapoint_)) {
+          read_retries_ = 1;
+        }
+      } else {
+        read_retries_++;
+        ESP_LOGW(TAG, "%d. read request for %s rejected due to outstanding running request - increase update_interval!",
+                 read_retries_, get_component_name().c_str());
       }
     } else {
-      read_retries_++;
-      ESP_LOGW(TAG, "%d. read request for %s rejected  due to outstanding running request - increase update_interval!",
-               read_retries_, get_component_name().c_str());
+      read_retries_ = 0;
     }
   }
 }
@@ -166,9 +179,8 @@ void DatapointComponent::datapoint_value_changed(uint8_t *value, size_t length) 
 
 void DatapointComponent::datapoint_write_request_(DPValue dp_value) {
   if (!writeable_) {
-    optolink_->set_state("trying to control not writable datapoint %s", get_component_name().c_str());
     ESP_LOGE(TAG, "trying to control not writable datapoint %s", get_component_name().c_str());
-  } else if (datapoint_ != nullptr) {
+  } else if (datapoint_ != nullptr && !optolink_->communication_suspended()) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
     char buffer[100];
     dp_value.getString(buffer, sizeof(buffer));
@@ -242,23 +254,8 @@ void DatapointComponent::write_datapoint_value_(uint8_t *value, size_t length) {
 }
 
 void DatapointComponent::unfitting_value_type_() {
-  optolink_->set_state("Unfitting byte/div_ratio combination for sensor/component %s", get_component_name().c_str());
   ESP_LOGE(TAG, "Unfitting byte/div_ratio combination for sensor/component %s", get_component_name().c_str());
 }
-
-void DatapointComponent::set_optolink_state_(const char *format, ...) {
-  va_list args;
-  va_start(args, format);
-  char buffer[128];
-  std::vsnprintf(buffer, sizeof(buffer), format, args);
-  va_end(args);
-
-  optolink_->set_state(buffer);
-}
-
-std::string DatapointComponent::get_optolink_state_() { return optolink_->get_state(); }
-
-int DatapointComponent::get_optolink_queue_size_() { return optolink_->get_queue_size(); };
 
 void conv2_100_F::encode(uint8_t *out, DPValue in) {
   int16_t tmp = floor((in.getFloat() * 100) + 0.5);

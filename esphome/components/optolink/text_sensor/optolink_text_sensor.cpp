@@ -37,7 +37,7 @@ void OptolinkTextSensor::setup() {
 
 void OptolinkTextSensor::update() {
   if (type_ == TEXT_SENSOR_TYPE_STATE_INFO) {
-    publish_state(get_optolink_state_());
+    publish_state(optolink_->get_state());
   } else {
     datapoint_read_request_();
   }

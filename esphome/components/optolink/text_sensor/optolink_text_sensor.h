@@ -17,9 +17,7 @@ enum TextSensorType {
   TEXT_SENSOR_TYPE_STATE_INFO
 };
 
-class OptolinkTextSensor : public DatapointComponent,
-                           public esphome::text_sensor::TextSensor,
-                           public esphome::PollingComponent {
+class OptolinkTextSensor : public DatapointComponent, public esphome::text_sensor::TextSensor {
  public:
   OptolinkTextSensor(Optolink *optolink) : DatapointComponent(optolink) {}
 

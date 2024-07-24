@@ -10,7 +10,7 @@
 namespace esphome {
 namespace optolink {
 
-class OptolinkSelect : public DatapointComponent, public esphome::select::Select, public esphome::PollingComponent {
+class OptolinkSelect : public DatapointComponent, public esphome::select::Select {
  public:
   OptolinkSelect(Optolink *optolink) : DatapointComponent(optolink, true) {}
 

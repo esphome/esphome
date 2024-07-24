@@ -9,7 +9,7 @@
 namespace esphome {
 namespace optolink {
 
-class OptolinkNumber : public DatapointComponent, public esphome::number::Number, public esphome::PollingComponent {
+class OptolinkNumber : public DatapointComponent, public esphome::number::Number {
  public:
   OptolinkNumber(Optolink *optolink) : DatapointComponent(optolink, true) {}
 

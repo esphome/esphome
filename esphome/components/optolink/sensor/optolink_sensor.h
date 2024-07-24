@@ -12,7 +12,7 @@ namespace optolink {
 
 enum SensorType { SENSOR_TYPE_DATAPOINT, SENSOR_TYPE_QUEUE_SIZE };
 
-class OptolinkSensor : public DatapointComponent, public esphome::sensor::Sensor, public esphome::PollingComponent {
+class OptolinkSensor : public DatapointComponent, public esphome::sensor::Sensor {
  public:
   OptolinkSensor(Optolink *optolink) : DatapointComponent(optolink) {
     set_state_class(esphome::sensor::STATE_CLASS_MEASUREMENT);

@@ -25,7 +25,7 @@ void OptolinkSensor::update() {
       datapoint_read_request_();
       break;
     case SENSOR_TYPE_QUEUE_SIZE:
-      publish_state(get_optolink_queue_size_());
+      publish_state(optolink_->get_queue_size());
       break;
   }
 }

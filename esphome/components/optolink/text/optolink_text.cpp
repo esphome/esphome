@@ -26,8 +26,6 @@ void OptolinkText::setup() {
 };
 
 void OptolinkText::control(const std::string &value) {
-  ESP_LOGE(TAG, "control %s", value.c_str());
-
   ESP_LOGD(TAG, "update for schedule plan for component %s: %s", get_component_name().c_str(), value.c_str());
   uint8_t buffer[8];
   uint8_t *data = encode_day_schedule(value, buffer);

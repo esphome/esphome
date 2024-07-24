@@ -11,7 +11,7 @@ namespace optolink {
 
 enum TextType { TEXT_TYPE_DAY_SCHEDULE };
 
-class OptolinkText : public DatapointComponent, public esphome::text::Text, public esphome::PollingComponent {
+class OptolinkText : public DatapointComponent, public esphome::text::Text {
  public:
   OptolinkText(Optolink *optolink) : DatapointComponent(optolink) {}
 
