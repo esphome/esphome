@@ -27,7 +27,7 @@ async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_MPR121_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-    cg.register_parented(var, hub)
+    await cg.register_parented(var, hub)
 
     if CONF_TOUCH_THRESHOLD in config:
         cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
