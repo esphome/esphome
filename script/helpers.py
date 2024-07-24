@@ -165,7 +165,12 @@ int main() { return 0;}
         )
         zephyr_dir = Path(build_dir / "zephyr")
         zephyr_dir.mkdir(exist_ok=True)
-        Path(zephyr_dir / "prj.conf").write_text("", encoding="utf-8")
+        Path(zephyr_dir / "prj.conf").write_text(
+            """
+CONFIG_NEWLIB_LIBC=y
+""",
+            encoding="utf-8",
+        )
         subprocess.run(
             ["pio", "run", "-e", build_environment, "-d", build_dir], check=False
         )
@@ -239,6 +244,14 @@ int main() { return 0;}
                 idedata["includes"]["build"].update(extract_include_paths(command))
                 idedata["defines"].update(extract_defines(command))
                 idedata["cxx_flags"].update(extract_cxx_flags(command))
+
+            idedata["defines"].update(
+                [
+                    "pthread_attr_t=pthread_attr",
+                    "pthread_mutexattr_t=pthread_mutexattr",
+                    "pthread_condattr_t=pthread_condattr",
+                ]
+            )
 
             # Convert sets to lists for JSON serialization
             idedata["includes"]["build"] = list(idedata["includes"]["build"])
