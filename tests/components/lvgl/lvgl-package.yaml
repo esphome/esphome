@@ -91,6 +91,8 @@ lvgl:
         x: 100
         y: 120
     - btn:
+        width: 20%
+        height: 10%
         pressed:
           bg_color: light_blue
         widgets:
