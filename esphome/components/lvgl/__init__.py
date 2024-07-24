@@ -24,7 +24,7 @@ from .lvcode import ConstantLiteral, LvContext
 # from .menu import menu_spec
 from .obj import obj_spec
 from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
-from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lvgl_ns
+from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lv_font_t, lvgl_ns
 from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
 DOMAIN = "lvgl"
@@ -129,10 +129,6 @@ async def to_code(config):
 
     add_define("LV_LOG_LEVEL", f"LV_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}")
     add_define("LV_COLOR_DEPTH", config[df.CONF_COLOR_DEPTH])
-    default_font = config[df.CONF_DEFAULT_FONT]
-    add_define("LV_FONT_DEFAULT", default_font)
-    if lvalid.is_esphome_font(default_font):
-        add_define("LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{default_font})")
     for font in helpers.lv_fonts_used:
         add_define(f"LV_FONT_{font.upper()}")
 
@@ -170,6 +166,20 @@ async def to_code(config):
     for font in helpers.esphome_fonts_used:
         await cg.get_variable(font)
         cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
+    default_font = config[df.CONF_DEFAULT_FONT]
+    if default_font not in helpers.lv_fonts_used:
+        add_define(
+            "LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{df.DEFAULT_ESPHOME_FONT})"
+        )
+        globfont_id = ID(
+            df.DEFAULT_ESPHOME_FONT,
+            True,
+            type=lv_font_t.operator("ptr").operator("const"),
+        )
+        cg.new_variable(globfont_id, MockObj(default_font))
+        add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
+    else:
+        add_define("LV_FONT_DEFAULT", default_font)
 
     with LvContext():
         await set_obj_properties(lv_scr_act, config)

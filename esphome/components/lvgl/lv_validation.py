@@ -43,10 +43,6 @@ def color_retmapper(value):
     return lv_expr.color_from(MockObj(value))
 
 
-def is_esphome_font(fontval):
-    return "_as_lv_font_" in fontval
-
-
 def pixels_or_percent(value):
     """A length in one axis - either a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
