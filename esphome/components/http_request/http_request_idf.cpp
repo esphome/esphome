@@ -58,6 +58,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     config.crt_bundle_attach = esp_crt_bundle_attach;
   }
 #endif
+  config.cert_pem = this->cert_pem_;
 
   if (this->useragent_ != nullptr) {
     config.user_agent = this->useragent_;

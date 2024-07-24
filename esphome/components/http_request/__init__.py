@@ -37,6 +37,7 @@ CONF_HTTP_REQUEST_ID = "http_request_id"
 
 CONF_USERAGENT = "useragent"
 CONF_VERIFY_SSL = "verify_ssl"
+CONF_CERTIFICATE_PEM = "certificate_pem"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
@@ -105,6 +106,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
             cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
+            cv.Optional(CONF_CERTIFICATE_PEM): cv.string,
             cv.Optional(CONF_WATCHDOG_TIMEOUT): cv.All(
                 cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
                 cv.positive_not_null_time_period,
@@ -135,11 +137,14 @@ async def to_code(config):
     if timeout_ms := config.get(CONF_WATCHDOG_TIMEOUT):
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
+    if certificate_pem := config.get(CONF_CERTIFICATE_PEM):
+        cg.add(var.set_certificate_pem(certificate_pem))
+
     if CORE.is_esp32:
         if CORE.using_esp_idf:
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
-                config.get(CONF_VERIFY_SSL),
+                config.get(CONF_VERIFY_SSL) and CONF_CERTIFICATE_PEM not in config,
             )
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_INSECURE",
