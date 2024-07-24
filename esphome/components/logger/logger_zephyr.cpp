@@ -13,6 +13,7 @@ namespace logger {
 
 static const char *const TAG = "logger";
 
+#ifdef USE_LOGGER_USB_CDC
 void Logger::loop() {
   if (this->uart_ != UART_SELECTION_USB_CDC || nullptr == this->uart_dev_) {
     return;
@@ -31,6 +32,7 @@ void Logger::loop() {
   }
   opened = !opened;
 }
+#endif
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
@@ -42,12 +44,14 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
+#ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
         if (device_is_ready(uart_dev)) {
           usb_enable(nullptr);
         }
         break;
+#endif
     }
     if (!device_is_ready(uart_dev)) {
       ESP_LOGE(TAG, "%s is not ready.", get_uart_selection_());
