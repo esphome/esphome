@@ -1,8 +1,8 @@
 import json
 import os.path
+from pathlib import Path
 import re
 import subprocess
-from pathlib import Path
 
 import colorama
 
@@ -147,10 +147,129 @@ def load_idedata(environment):
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    stdout = subprocess.check_output(["pio", "run", "-t", "idedata", "-e", environment])
-    match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
-    data = json.loads(match.group())
+    if "nrf" in environment:
+        build_environment = environment.replace("-tidy", "")
+        build_dir = Path(temp_folder) / f"build-{build_environment}"
+        Path(build_dir).mkdir(exist_ok=True)
+        Path(build_dir / "platformio.ini").write_text(
+            Path(platformio_ini).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        esphome_dir = Path(build_dir / "esphome")
+        esphome_dir.mkdir(exist_ok=True)
+        Path(esphome_dir / "main.cpp").write_text(
+            """
+#include <zephyr/kernel.h>
+int main() { return 0;}
+""",
+            encoding="utf-8",
+        )
+        zephyr_dir = Path(build_dir / "zephyr")
+        zephyr_dir.mkdir(exist_ok=True)
+        Path(zephyr_dir / "prj.conf").write_text("", encoding="utf-8")
+        result = subprocess.run(
+            ["pio", "run", "-e", build_environment, "-d", build_dir], check=False
+        )
+        if result.returncode != 0:
+            print("Unable to compile empty main to build env")
 
+        def extract_include_paths(command):
+            include_paths = []
+            include_pattern = re.compile(r"(-I|-isystem)\s*([^\s]+)")
+            for match in include_pattern.findall(command):
+                include_paths.append(match[1])
+            return include_paths
+
+        def extract_defines(command):
+            """
+            Extracts defined macros from the command string.
+            """
+            defines = []
+            define_pattern = re.compile(r"-D\s*([^\s]+)")
+            for match in define_pattern.findall(command):
+                defines.append(match)
+            return defines
+
+        def find_cxx_path(commands):
+            for entry in commands:
+                command = entry["command"]
+                cxx_path = command.split()[0]
+                return cxx_path
+            raise ValueError("No valid compiler path found in the compile commands")
+
+        def get_builtin_include_paths(compiler):
+            result = subprocess.run(
+                [compiler, "-E", "-x", "c++", "-", "-v"],
+                input="",
+                text=True,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            include_paths = []
+            start_collecting = False
+            for line in result.stderr.splitlines():
+                if start_collecting:
+                    if line.startswith(" "):
+                        include_paths.append(line.strip())
+                    else:
+                        break
+                if "#include <...> search starts here:" in line:
+                    start_collecting = True
+            return include_paths
+
+        def extract_cxx_flags(command):
+            """
+            Extracts CXXFLAGS from the command string, excluding includes and defines.
+            """
+            flags = []
+            flag_pattern = re.compile(
+                r"(-O[0-3s]|-g|-std=[^\s]+|-Wall|-Wextra|-Werror|--[^\s]+|-f[^\s]+|-m[^\s]+|-imacros\s*[^\s]+)"
+            )
+            for match in flag_pattern.findall(command):
+                flags.append(match)
+            return flags
+
+        def transform_to_idedata_format(compile_commands):
+            cxx_path = find_cxx_path(compile_commands)
+            idedata = {
+                "includes": {
+                    "toolchain": get_builtin_include_paths(cxx_path),
+                    "build": set(),
+                },
+                "defines": set(),
+                "cxx_path": cxx_path,
+                "cxx_flags": set(),
+            }
+
+            for entry in compile_commands:
+                command = entry["command"]
+
+                idedata["includes"]["build"].update(extract_include_paths(command))
+                idedata["defines"].update(extract_defines(command))
+                idedata["cxx_flags"].update(extract_cxx_flags(command))
+
+            # Convert sets to lists for JSON serialization
+            idedata["includes"]["build"] = list(idedata["includes"]["build"])
+            idedata["defines"] = list(idedata["defines"])
+            idedata["cxx_flags"] = list(idedata["cxx_flags"])
+
+            return idedata
+
+        compile_commands = json.loads(
+            Path(
+                build_dir
+                / ".pio"
+                / "build"
+                / build_environment
+                / "compile_commands.json"
+            ).read_text(encoding="utf-8")
+        )
+        data = transform_to_idedata_format(compile_commands)
+    else:
+        stdout = subprocess.check_output(
+            ["pio", "run", "-t", "idedata", "-e", environment]
+        )
+        match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+        data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     return data
 
@@ -158,21 +277,23 @@ def load_idedata(environment):
 def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
-        result = subprocess.check_output([binary_file, "-version"])
-        if result.returncode == 0:
-            return binary_file
-    except Exception:
+        # If no exception was raised, the command was successful
+        result = subprocess.check_output(
+            [binary_file, "-version"], stderr=subprocess.STDOUT
+        )
+        return binary_file
+    except FileNotFoundError:
         pass
     binary_file = name
     try:
         result = subprocess.run(
-            [binary_file, "-version"], text=True, capture_output=True
+            [binary_file, "-version"], text=True, capture_output=True, check=False
         )
         if result.returncode == 0 and (f"version {version}") in result.stdout:
             return binary_file
         raise FileNotFoundError(f"{name} not found")
 
-    except FileNotFoundError as ex:
+    except FileNotFoundError:
         print(
             f"""
             Oops. It looks like {name} is not installed. It should be available under venv/bin
