@@ -1,17 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import esp32
+import esphome.config_validation as cv
 from esphome.const import (
-    __version__,
+    CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_ID,
-    CONF_TIMEOUT,
     CONF_METHOD,
+    CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_URL,
-    CONF_ESP8266_DISABLE_SSL_SUPPORT,
+    __version__,
 )
-from esphome.core import Lambda, CORE
-from esphome.components import esp32
+from esphome.core import CORE, Lambda
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
