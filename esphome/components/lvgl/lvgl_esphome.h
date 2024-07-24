@@ -27,7 +27,7 @@ namespace lvgl {
 
 extern lv_event_code_t lv_custom_event;  // NOLINT
 #ifdef USE_LVGL_COLOR
-static lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
+inline lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
 #endif
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;

@@ -130,6 +130,12 @@ def radius_validator(value):
     return value
 
 
+def id_name(value):
+    if value == SCHEMA_EXTRACT:
+        return "id"
+    return cv.validate_id_name(value)
+
+
 radius = LValidator(radius_validator, uint32, retmapper=literal_mapper)
 
 

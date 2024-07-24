@@ -90,6 +90,12 @@ lvgl:
         width: 10px
         x: 100
         y: 120
+    - btn:
+        pressed:
+          bg_color: light_blue
+        widgets:
+          - label:
+              text: Button
 
 font:
   - file: "gfonts://Roboto"

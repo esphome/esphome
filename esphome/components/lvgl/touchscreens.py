@@ -2,8 +2,8 @@ import esphome.codegen as cg
 from esphome.components.touchscreen import CONF_TOUCHSCREEN_ID, Touchscreen
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import ID
 
-from ...core import ID
 from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,

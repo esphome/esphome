@@ -88,6 +88,7 @@ class LvConstant(LValidator):
 
 
 # Widgets
+CONF_BTN = "btn"
 CONF_LABEL = "label"
 
 # Parts
@@ -475,12 +476,6 @@ LV_KEYS = LvConstant(
     "END",
 )
 
-
-# list of widgets and the parts allowed
-WIDGET_PARTS = {
-    CONF_LABEL: (CONF_MAIN, CONF_SCROLLBAR, CONF_SELECTED),
-    CONF_OBJ: (CONF_MAIN,),
-}
 
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 

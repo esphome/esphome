@@ -18,12 +18,20 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
+from .btn import btn_spec
 from .label import label_spec
 from .lvcode import ConstantLiteral, LvContext
 from .obj import obj_spec
-from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
+from .schemas import any_widget_schema, obj_schema
 from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
-from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lv_font_t, lvgl_ns
+from .types import (
+    WIDGET_TYPES,
+    FontEngine,
+    LvglComponent,
+    lv_disp_t_ptr,
+    lv_font_t,
+    lvgl_ns,
+)
 from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
 DOMAIN = "lvgl"
@@ -32,11 +40,8 @@ AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
 
-for widg in (
-    label_spec,
-    obj_spec,
-):
-    WIDGET_TYPES[widg.name] = widg
+for w_type in (label_spec, obj_spec, btn_spec):
+    WIDGET_TYPES[w_type.name] = w_type
 
 lv_scr_act_spec = LvScrActType()
 lv_scr_act = Widget.create(
@@ -145,7 +150,7 @@ async def to_code(config):
     cg.add_global(lvgl_ns.using)
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
-    Widget.create(config[CONF_ID], lv_component, WIDGET_TYPES[df.CONF_OBJ], config)
+    Widget.create(config[CONF_ID], lv_component, obj_spec, config)
     displays = get_display_list(config)
     for display in displays:
         cg.add(lv_component.add_display(await cg.get_variable(display)))
@@ -200,7 +205,7 @@ FINAL_VALIDATE_SCHEMA = final_validation
 
 CONFIG_SCHEMA = (
     cv.polling_component_schema("1s")
-    .extend(obj_schema("obj"))
+    .extend(obj_schema(obj_spec))
     .extend(
         {
             cv.Optional(CONF_ID, default=df.CONF_LVGL_COMPONENT): cv.declare_id(
