@@ -64,6 +64,7 @@ def clang_options(idedata):
     else:
         cmd.extend(
             [
+                # disable built-in include directories from the host
                 "-nostdinc++",
             ]
         )
