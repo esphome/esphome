@@ -40,6 +40,8 @@ CONF_VERIFY_SSL = "verify_ssl"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
+CONF_BUFFER_SIZE_RX = "buffer_size_rx"
+CONF_BUFFER_SIZE_TX = "buffer_size_tx"
 
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
 CONF_ON_RESPONSE = "on_response"
@@ -110,6 +112,12 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
             ),
+            cv.SplitDefault(CONF_BUFFER_SIZE_RX, esp32_idf=512): cv.All(
+                cv.uint16_t, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32_idf=512): cv.All(
+                cv.uint16_t, cv.only_with_esp_idf
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -137,6 +145,9 @@ async def to_code(config):
 
     if CORE.is_esp32:
         if CORE.using_esp_idf:
+            cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
+            cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
+
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
                 config.get(CONF_VERIFY_SSL),
