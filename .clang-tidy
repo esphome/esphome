@@ -85,6 +85,8 @@ Checks: >-
   -readability-redundant-string-init,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
+  -readability-named-parameter,
+  -readability-braces-around-statements,
 WarningsAsErrors: '*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google

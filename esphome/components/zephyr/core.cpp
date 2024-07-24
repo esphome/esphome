@@ -3,6 +3,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
+#include "esphome/core/hal.h"
 
 namespace esphome {
 

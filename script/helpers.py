@@ -218,7 +218,7 @@ int main() { return 0;}
                 r"(-O[0-3s]|-g|-std=[^\s]+|-Wall|-Wextra|-Werror|--[^\s]+|-f[^\s]+|-m[^\s]+|-imacros\s*[^\s]+)"
             )
             for match in flag_pattern.findall(command):
-                flags.append(match)
+                flags.append(match.replace("-imacros ", "-imacros"))
             return flags
 
         def transform_to_idedata_format(compile_commands):
