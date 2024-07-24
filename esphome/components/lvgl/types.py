@@ -26,7 +26,6 @@ WIDGET_TYPES: dict = {}
 
 
 class LvType(cg.MockObjClass):
-
     def __init__(self, *args, **kwargs):
         parens = kwargs.pop("parents", ())
         super().__init__(*args, parents=parens + (lv_obj_base_t,))

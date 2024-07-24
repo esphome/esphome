@@ -14,6 +14,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
+from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
@@ -22,8 +23,8 @@ from .lvcode import ConstantLiteral, LvContext
 from .obj import obj_spec
 from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
 from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
-from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lvgl_ns
-from .widget import LvScrActType, Widget, set_obj_properties, widget_to_code
+from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lv_font_t, lvgl_ns
+from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ("display",)
@@ -92,29 +93,24 @@ def get_display_list(config):
     return result
 
 
-def warning_checks(config):
-    global_config = CORE.config
-    displays = get_display_list(config)
-    if display_conf := global_config.get(CONF_DISPLAY):
-        for display_id in displays:
-            display = list(
-                filter(lambda c, k=display_id: c[CONF_ID] == k, display_conf)
-            )[0]
-            if CONF_LAMBDA in display:
-                LOGGER.warning(
-                    "Using lambda: in display config not recommended with LVGL"
-                )
-            if display[CONF_AUTO_CLEAR_ENABLED]:
-                LOGGER.warning(
-                    "Using auto_clear_enabled: true in display config not recommended with LVGL"
-                )
+def final_validation(config):
+    global_config = full_config.get()
+    for display_id in get_display_list(config):
+        display = list(
+            filter(lambda c, k=display_id: c[CONF_ID] == k, global_config[CONF_DISPLAY])
+        )[0]
+        if CONF_LAMBDA in display:
+            raise cv.Invalid("Using lambda: in display config not compatible with LVGL")
+        if display[CONF_AUTO_CLEAR_ENABLED]:
+            raise cv.Invalid(
+                "Using auto_clear_enabled: true in display config not compatible with LVGL"
+            )
     buffer_frac = config[CONF_BUFFER_SIZE]
     if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
 
 
 async def to_code(config):
-    warning_checks(config)
     cg.add_library("lvgl/lvgl", "8.4.0")
     CORE.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
@@ -132,10 +128,6 @@ async def to_code(config):
 
     add_define("LV_LOG_LEVEL", f"LV_LOG_LEVEL_{config[df.CONF_LOG_LEVEL]}")
     add_define("LV_COLOR_DEPTH", config[df.CONF_COLOR_DEPTH])
-    default_font = config[df.CONF_DEFAULT_FONT]
-    add_define("LV_FONT_DEFAULT", default_font)
-    if lvalid.is_esphome_font(default_font):
-        add_define("LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{default_font})")
     for font in helpers.lv_fonts_used:
         add_define(f"LV_FONT_{font.upper()}")
 
@@ -173,18 +165,29 @@ async def to_code(config):
     for font in helpers.esphome_fonts_used:
         await cg.get_variable(font)
         cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
+    default_font = config[df.CONF_DEFAULT_FONT]
+    if default_font not in helpers.lv_fonts_used:
+        add_define(
+            "LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{df.DEFAULT_ESPHOME_FONT})"
+        )
+        globfont_id = ID(
+            df.DEFAULT_ESPHOME_FONT,
+            True,
+            type=lv_font_t.operator("ptr").operator("const"),
+        )
+        cg.new_variable(globfont_id, MockObj(default_font))
+        add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
+    else:
+        add_define("LV_FONT_DEFAULT", default_font)
 
     with LvContext():
         await touchscreens_to_code(lv_component, config)
         await set_obj_properties(lv_scr_act, config)
-        if widgets := config.get(df.CONF_WIDGETS):
-            for w in widgets:
-                lv_w_type, w_cnfig = next(iter(w.items()))
-                await widget_to_code(w_cnfig, lv_w_type, lv_scr_act.obj)
+        await add_widgets(lv_scr_act, config)
     Widget.set_completed()
     await add_init_lambda(lv_component, LvContext.get_code())
     for comp in helpers.lvgl_components_required:
-        CORE.add_define(f"LVGL_USES_{comp.upper()}")
+        CORE.add_define(f"USE_LVGL_{comp.upper()}")
     for use in helpers.lv_uses:
         add_define(f"LV_USE_{use.upper()}")
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
@@ -192,6 +195,8 @@ async def to_code(config):
     CORE.add_build_flag("-DLV_CONF_H=1")
     CORE.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
 
+
+FINAL_VALIDATE_SCHEMA = final_validation
 
 CONFIG_SCHEMA = (
     cv.polling_component_schema("1s")

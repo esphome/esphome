@@ -136,8 +136,13 @@ FLAG_SCHEMA = cv.Schema({cv.Optional(flag): cv.boolean for flag in df.OBJ_FLAGS}
 FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
 
 
-def part_schema(parts):
-    parts = WIDGET_PARTS.get(parts)
+def part_schema(widget_type):
+    """
+    Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
+    :param widget_type:  The type of widget to generate for
+    :return:
+    """
+    parts = WIDGET_PARTS.get(widget_type)
     if parts is None:
         parts = (df.CONF_MAIN,)
     return cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts}).extend(
@@ -145,9 +150,14 @@ def part_schema(parts):
     )
 
 
-def obj_schema(wtype: str):
+def obj_schema(widget_type: str):
+    """
+    Create a schema for a widget type itself i.e. no allowance for children
+    :param widget_type:
+    :return:
+    """
     return (
-        part_schema(wtype)
+        part_schema(widget_type)
         .extend(FLAG_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
         .extend(
@@ -186,7 +196,7 @@ ALL_STYLES = {
 def container_validator(schema, widget_type):
     """
     Create a validator for a container given the widget type
-    :param schema:
+    :param schema: Base schema to extend
     :param widget_type:
     :return:
     """
@@ -223,20 +233,20 @@ def container_schema(widget_type, extras=None):
     return container_validator(schema, widget_type)
 
 
-def widget_schema(name, extras=None):
+def widget_schema(widget_type, extras=None):
     """
     Create a schema for a given widget type
-    :param name:
+    :param widget_type: The name of the widget
     :param extras:
     :return:
     """
-    validator = container_schema(name, extras=extras)
-    if required := REQUIRED_COMPONENTS.get(name):
+    validator = container_schema(widget_type, extras=extras)
+    if required := REQUIRED_COMPONENTS.get(widget_type):
         validator = cv.All(validator, requires_component(required))
-    return cv.Exclusive(name, df.CONF_WIDGETS), validator
+    return cv.Exclusive(widget_type, df.CONF_WIDGETS), validator
 
 
-# All widget schemas must be defined before this.
+# All widget schemas must be defined before this is called.
 
 
 def any_widget_schema(extras=None):

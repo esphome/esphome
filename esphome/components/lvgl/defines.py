@@ -482,6 +482,8 @@ WIDGET_PARTS = {
     CONF_OBJ: (CONF_MAIN,),
 }
 
+DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
+
 
 def join_enums(enums, prefix=""):
     return "|".join(f"(int){prefix}{e.upper()}" for e in enums)

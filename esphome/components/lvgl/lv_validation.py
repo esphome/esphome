@@ -69,10 +69,6 @@ def color_retmapper(value):
 lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
 
 
-def is_esphome_font(fontval):
-    return "_as_lv_font_" in fontval
-
-
 def pixels_or_percent_validator(value):
     """A length in one axis - either a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
@@ -188,7 +184,6 @@ lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
 
 class LvFont(LValidator):
     def __init__(self):
-
         def lv_builtin_font(value):
             fontval = cv.one_of(*LV_FONTS, lower=True)(value)
             lv_fonts_used.add(fontval)

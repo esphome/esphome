@@ -197,7 +197,6 @@ class MockLv:
 
 
 class LvExpr(MockLv):
-
     def __getattr__(self, attr: str) -> "MockLv":
         return LvExpr(f"{self.base}{attr}")
 

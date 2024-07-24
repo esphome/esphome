@@ -15,7 +15,7 @@
 #include <lvgl.h>
 #include <vector>
 
-#ifdef LVGL_USES_FONT
+#ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
 #endif
 #ifdef LV_USE_TOUCHSCREEN
@@ -25,8 +25,8 @@
 namespace esphome {
 namespace lvgl {
 
-extern lv_event_code_t lv_custom_event;
-#ifdef LVGL_USES_COLOR
+extern lv_event_code_t lv_custom_event;  // NOLINT
+#ifdef USE_LVGL_COLOR
 static lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
 #endif
 #if LV_COLOR_DEPTH == 16
@@ -49,7 +49,7 @@ using set_value_lambda_t = std::function<void(float)>;
 using event_callback_t = void(_lv_event_t *);
 using text_lambda_t = std::function<const char *()>;
 
-#ifdef LVGL_USES_FONT
+#ifdef USE_LVGL_FONT
 class FontEngine {
  public:
   FontEngine(font::Font *esp_font);
@@ -66,7 +66,7 @@ class FontEngine {
   const font::GlyphData *last_data_{};
   lv_font_t lv_font_{};
 };
-#endif  // LVGL_USES_FONT
+#endif  // USE_LVGL_FONT
 
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
@@ -99,7 +99,7 @@ class LvglComponent : public PollingComponent {
 
   void add_display(display::Display *display) { this->displays_.push_back(display); }
   void add_init_lambda(const std::function<void(lv_disp_t *)> &lamb) { this->init_lambdas_.push_back(lamb); }
-  void dump_config() override { esph_log_config(TAG, "LVGL:"); }
+  void dump_config() override;
   void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
@@ -113,21 +113,8 @@ class LvglComponent : public PollingComponent {
   bool is_paused() const { return this->paused_; }
 
  protected:
-  void draw_buffer_(const lv_area_t *area, const uint8_t *ptr) {
-    for (auto *display : this->displays_) {
-      display->draw_pixels_at(area->x1, area->y1, lv_area_get_width(area), lv_area_get_height(area), ptr,
-                              display::COLOR_ORDER_RGB, LV_BITNESS, LV_COLOR_16_SWAP);
-    }
-  }
-
-  void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
-    auto now = millis();
-    this->draw_buffer_(area, (const uint8_t *) color_p);
-    esph_log_v(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
-               lv_area_get_height(area), (int) (millis() - now));
-    lv_disp_flush_ready(disp_drv);
-  }
-
+  void draw_buffer_(const lv_area_t *area, const uint8_t *ptr);
+  void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
   std::vector<display::Display *> displays_{};
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};

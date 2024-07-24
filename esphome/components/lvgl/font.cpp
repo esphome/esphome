@@ -1,6 +1,6 @@
 #include "lvgl_esphome.h"
 
-#ifdef LVGL_USES_FONT
+#ifdef USE_LVGL_FONT
 namespace esphome {
 namespace lvgl {
 
@@ -73,4 +73,4 @@ const font::GlyphData *FontEngine::get_glyph_data(uint32_t unicode_letter) {
 }
 }  // namespace lvgl
 }  // namespace esphome
-#endif  // LVGL_USES_FONT
+#endif  // USES_LVGL_FONT
