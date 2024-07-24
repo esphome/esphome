@@ -82,7 +82,10 @@ void PMWCS3Component::read_data_() {
     ESP_LOGVV(TAG, "Failed to write into REG_READ_START register !!!");
     return;
   }
-  // NOLINT  delay(100);
+
+  // Wait for the sensor to be ready.
+  // 80ms empirically determined (conservative).
+  delay(80);
 
   if (!this->read_bytes(PMWCS3_REG_GET_DATA, (uint8_t *) &data, 8)) {
     ESP_LOGVV(TAG, "Error reading PMWCS3_REG_GET_DATA registers");
