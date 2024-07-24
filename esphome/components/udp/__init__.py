@@ -143,20 +143,14 @@ async def to_code(config):
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_binary_sensor(bcst_id, sensor))
-    if addresses := config.get(CONF_ADDRESSES):
-        for address in addresses:
-            cg.add(var.add_address(str(address)))
-    else:
-        cg.add(var.add_address("255.255.255.255"))
+    for address in config.get(CONF_ADDRESSES, ("255.255.255.255",)):
+        cg.add(var.add_address(str(address)))
 
     if encryption := config.get(CONF_ENCRYPTION):
         cg.add(var.set_encryption_key(hash_encryption_key(encryption)))
 
-    if providers := config.get(CONF_PROVIDERS):
-        for provider in providers:
-            name = provider[CONF_NAME]
-            cg.add(var.add_provider(name))
-            if encryption := provider.get(CONF_ENCRYPTION):
-                cg.add(
-                    var.set_provider_encryption(name, hash_encryption_key(encryption))
-                )
+    for provider in config.get(CONF_PROVIDERS, ()):
+        name = provider[CONF_NAME]
+        cg.add(var.add_provider(name))
+        if encryption := provider.get(CONF_ENCRYPTION):
+            cg.add(var.set_provider_encryption(name, hash_encryption_key(encryption)))
