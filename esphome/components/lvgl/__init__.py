@@ -94,22 +94,18 @@ def get_display_list(config):
     return result
 
 
-def warning_checks(config):
+def final_validation(config):
     global_config = full_config.get()
-    displays = get_display_list(config)
-    if display_conf := global_config.get(CONF_DISPLAY):
-        for display_id in displays:
-            display = list(
-                filter(lambda c, k=display_id: c[CONF_ID] == k, display_conf)
-            )[0]
-            if CONF_LAMBDA in display:
-                LOGGER.warning(
-                    "Using lambda: in display config not recommended with LVGL"
-                )
-            if display[CONF_AUTO_CLEAR_ENABLED]:
-                LOGGER.warning(
-                    "Using auto_clear_enabled: true in display config not recommended with LVGL"
-                )
+    for display_id in get_display_list(config):
+        display = list(
+            filter(lambda c, k=display_id: c[CONF_ID] == k, global_config[CONF_DISPLAY])
+        )[0]
+        if CONF_LAMBDA in display:
+            raise cv.Invalid("Using lambda: in display config not compatible with LVGL")
+        if display[CONF_AUTO_CLEAR_ENABLED]:
+            raise cv.Invalid(
+                "Using auto_clear_enabled: true in display config not compatible with LVGL"
+            )
     buffer_frac = config[CONF_BUFFER_SIZE]
     if not CORE.is_host and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
@@ -190,7 +186,7 @@ async def to_code(config):
     CORE.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
 
 
-FINAL_VALIDATE_SCHEMA = warning_checks
+FINAL_VALIDATE_SCHEMA = final_validation
 
 CONFIG_SCHEMA = (
     cv.polling_component_schema("1s")
