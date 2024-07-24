@@ -181,7 +181,8 @@ int main() { return 0;}
             defines = []
             define_pattern = re.compile(r"-D\s*([^\s]+)")
             for match in define_pattern.findall(command):
-                defines.append(match)
+                if match not in ("_ASMLANGUAGE"):
+                    defines.append(match)
             return defines
 
         def find_cxx_path(commands):

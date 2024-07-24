@@ -78,7 +78,7 @@ class NullPin : public GPIOPin {
   std::string dump_summary() const override { return {"Not used"}; }
 };
 
-static GPIOPin *const NULL_PIN = new NullPin();
+static const GPIOPin *const NULL_PIN = new NullPin();
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
 class ISRInternalGPIOPin {

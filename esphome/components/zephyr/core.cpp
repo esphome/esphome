@@ -6,8 +6,8 @@
 
 namespace esphome {
 
-static int wdt_channel_id = -EINVAL;
-const device *wdt = nullptr;
+static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
 void yield() { ::k_yield(); }
 uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
@@ -16,22 +16,20 @@ void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }
 
 void arch_init() {
-  wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
-
-  if (device_is_ready(wdt)) {
+  if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
     wdt_config.window.max = 2000;
-    wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
+    wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
     if (wdt_channel_id >= 0) {
-      wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG | WDT_OPT_PAUSE_IN_SLEEP);
+      wdt_setup(WDT, WDT_OPT_PAUSE_HALTED_BY_DBG | WDT_OPT_PAUSE_IN_SLEEP);
     }
   }
 }
 
 void arch_feed_wdt() {
   if (wdt_channel_id >= 0) {
-    wdt_feed(wdt, wdt_channel_id);
+    wdt_feed(WDT, wdt_channel_id);
   }
 }
 
