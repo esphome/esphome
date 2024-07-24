@@ -82,7 +82,7 @@ class ZephyrPreferences : public ESPPreferences {
       }
     }
     printf("type %u size %u\n", type, this->backends_.size());
-    auto *pref = new ZephyrPreferenceBackend(type);
+    auto *pref = new ZephyrPreferenceBackend(type);  // NOLINT(cppcoreguidelines-owning-memory)
     ESP_LOGD(TAG, "Add new setting %s.", pref->get_key().c_str());
     this->backends_.push_back(pref);
     return ESPPreferenceObject(pref);
@@ -125,7 +125,7 @@ class ZephyrPreferences : public ESPPreferences {
     int err = read_cb(cb_arg, data.data(), len);
 
     ESP_LOGD(TAG, "load setting, name: %s(%u), len %u, err %u", name, *type, len, err);
-    auto *pref = new ZephyrPreferenceBackend(*type, std::move(data));
+    auto *pref = new ZephyrPreferenceBackend(*type, std::move(data));  // NOLINT(cppcoreguidelines-owning-memory)
     static_cast<ZephyrPreferences *>(global_preferences)->backends_.push_back(pref);
     return 0;
   }
@@ -141,7 +141,7 @@ class ZephyrPreferences : public ESPPreferences {
 };
 
 void setup_preferences() {
-  auto *prefs = new ZephyrPreferences();
+  auto *prefs = new ZephyrPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
   global_preferences = prefs;
   prefs->open();
 }
