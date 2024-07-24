@@ -61,9 +61,6 @@ class DatapointComponent : public esphome::PollingComponent {
   bool is_dp_value_writing_outstanding_ = false;
   DPValue dp_value_outstanding_;
 
-  static uint32_t last_recv;
-  static uint32_t last_send;
-
   void datapoint_write_request_(DPValue dp_value);
 };
 
