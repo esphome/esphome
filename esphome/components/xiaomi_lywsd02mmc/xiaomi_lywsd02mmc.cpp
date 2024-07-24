@@ -56,14 +56,14 @@ bool XiaomiLYWSD02MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &device
 }
 
 void XiaomiLYWSD02MMC::set_bindkey(const std::string &bindkey) {
-  memset(bindkey_, 0, 16);
+  memset(this->bindkey_, 0, 16);
   if (bindkey.size() != 32) {
     return;
   }
   char temp[3] = {0};
   for (int i = 0; i < 16; i++) {
     strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, nullptr, 16);
+    this->bindkey_[i] = std::strtoul(temp, nullptr, 16);
   }
 }
 

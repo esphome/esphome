@@ -17,8 +17,9 @@ from esphome.const import (
     CONF_BINDKEY,
 )
 
-DEPENDENCIES = ["esp32_ble_tracker"]
 AUTO_LOAD = ["xiaomi_ble"]
+CODEOWNERS = ["@juanluss31"]
+DEPENDENCIES = ["esp32_ble_tracker"]
 
 xiaomi_lywsd02mmc_ns = cg.esphome_ns.namespace("xiaomi_lywsd02mmc")
 XiaomiLYWSD02MMC = xiaomi_lywsd02mmc_ns.class_(
@@ -65,12 +66,12 @@ async def to_code(config):
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
+    if humidity_config := config.get(CONF_HUMIDITY):
+        sens = await sensor.new_sensor(humidity_config)
         cg.add(var.set_humidity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+    if battery_level_config := config.get(CONF_BATTERY_LEVEL):
+        sens = await sensor.new_sensor(battery_level_config)
         cg.add(var.set_battery_level(sens))
