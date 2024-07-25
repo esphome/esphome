@@ -77,7 +77,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     esp_http_client_set_header(client, header.name, header.value);
   }
 
-  int body_len = body.length();
+  const int body_len = body.length();
 
   esp_err_t err = esp_http_client_open(client, body_len);
   if (err != ESP_OK) {
@@ -109,18 +109,62 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
     return nullptr;
   }
 
-  container->content_length = esp_http_client_fetch_headers(client);
-  const auto status_code = esp_http_client_get_status_code(client);
-  container->status_code = status_code;
+  auto is_ok = [](int code) { return code >= HttpStatus_Ok && code < HttpStatus_MultipleChoices; };
 
-  if (status_code < 200 || status_code >= 300) {
-    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), status_code);
-    this->status_momentary_error("failed", 1000);
-    esp_http_client_cleanup(client);
-    return nullptr;
+  container->content_length = esp_http_client_fetch_headers(client);
+  container->status_code = esp_http_client_get_status_code(client);
+  if (is_ok(container->status_code)) {
+    container->duration_ms = millis() - start;
+    return container;
   }
-  container->duration_ms = millis() - start;
-  return container;
+
+  if (this->follow_redirects_) {
+    auto is_redirect = [](int code) {
+      return code == HttpStatus_MovedPermanently || code == HttpStatus_Found || code == HttpStatus_SeeOther ||
+             code == HttpStatus_TemporaryRedirect || code == HttpStatus_PermanentRedirect;
+    };
+    auto num_redirects = this->redirect_limit_;
+    while (is_redirect(container->status_code) && num_redirects > 0) {
+      err = esp_http_client_set_redirection(client);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_http_client_set_redirection failed: %s", esp_err_to_name(err));
+        this->status_momentary_error("failed", 1000);
+        esp_http_client_cleanup(client);
+        return nullptr;
+      }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char url[256]{};
+      if (esp_http_client_get_url(client, url, sizeof(url) - 1) == ESP_OK) {
+        ESP_LOGV(TAG, "redirecting to url: %s", url);
+      }
+#endif
+      err = esp_http_client_open(client, 0);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_http_client_open failed: %s", esp_err_to_name(err));
+        this->status_momentary_error("failed", 1000);
+        esp_http_client_cleanup(client);
+        return nullptr;
+      }
+
+      container->content_length = esp_http_client_fetch_headers(client);
+      container->status_code = esp_http_client_get_status_code(client);
+      if (is_ok(container->status_code)) {
+        container->duration_ms = millis() - start;
+        return container;
+      }
+
+      num_redirects--;
+    }
+
+    if (num_redirects == 0) {
+      ESP_LOGW(TAG, "Reach redirect limit count=%d", this->redirect_limit_);
+    }
+  }
+
+  ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
+  this->status_momentary_error("failed", 1000);
+  esp_http_client_cleanup(client);
+  return nullptr;
 }
 
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
