@@ -27,7 +27,7 @@ bool SmlFile::setup_node(SmlNode *node) {
   uint8_t parse_length = length;
   if (has_extended_length) {
     length = (length << 4) + (this->buffer_[this->pos_ + 1] & 0x0f);
-    parse_length = length - 1;
+    parse_length = length;
     this->pos_ += 1;
   }
 
@@ -37,7 +37,9 @@ bool SmlFile::setup_node(SmlNode *node) {
   node->type = type & 0x07;
   node->nodes.clear();
   node->value_bytes.clear();
-  if (this->buffer_[this->pos_] == 0x00) {  // end of message
+
+  // if the list is a has_extended_length list with e.g. 16 elements this is a 0x00 byte but not the end of message
+  if (!has_extended_length && this->buffer_[this->pos_] == 0x00) {  // end of message
     this->pos_ += 1;
   } else if (is_list) {  // list
     this->pos_ += 1;
