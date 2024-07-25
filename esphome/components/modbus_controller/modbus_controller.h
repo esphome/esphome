@@ -456,6 +456,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   size_t get_command_queue_length() { return command_queue_.size(); }
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
+  /// Set callback for commands
+  void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -488,6 +490,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool module_offline_;
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_;
+  CallbackManager<void(int, int)> command_sent_callback_{};
 };
 
 /** Convert vector<uint8_t> response payload to float.

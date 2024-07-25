@@ -4,6 +4,13 @@ remote_transmitter:
 
 climate:
   - platform: heatpumpir
+    protocol: mitsubishi_heavy_zm
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
+  - platform: heatpumpir
     protocol: daikin
     horizontal_default: mleft
     vertical_default: mup
