@@ -106,9 +106,9 @@ font:
 
 image:
   - id: cat_img
-    file: $component_dir/cat.png
+    file: $component_dir/logo-text.svg
   - id: dog_img
-    file: $component_dir/dog.png
+    file: $component_dir/logo-text.svg
     resize: 256x48
     type: TRANSPARENT_BINARY
 
