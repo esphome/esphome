@@ -85,13 +85,6 @@ def generate_lv_conf_h():
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
 
-def get_display_list(config):
-    display_list = config.get(df.CONF_DISPLAYS)
-    if isinstance(display_list, list):
-        return display_list
-    return (display_list,)
-
-
 def final_validation(config):
     global_config = full_config.get()
     for display_id in config[df.CONF_DISPLAYS]:
