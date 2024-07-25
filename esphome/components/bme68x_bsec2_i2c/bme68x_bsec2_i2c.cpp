@@ -100,6 +100,7 @@ void BME68xBSEC2I2CComponent::dump_config() {
   LOG_SENSOR("  ", "CO2 equivalent", this->co2_equivalent_sensor_);
   LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor_);
   LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
+  LOG_SENSOR("  ", "IAQ static", this->iaq_static_sensor_);
   LOG_SENSOR("  ", "Numeric IAQ accuracy", this->iaq_accuracy_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
