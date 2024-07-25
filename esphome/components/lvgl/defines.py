@@ -480,4 +480,4 @@ DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
 
 def join_enums(enums, prefix=""):
-    return "|".join(f"(int){prefix}{e.upper()}" for e in enums)
+    return ConstantLiteral("|".join(f"(int){prefix}{e.upper()}" for e in enums))

@@ -21,7 +21,7 @@ from .label import label_spec
 from .lvcode import ConstantLiteral, LvContext
 from .obj import obj_spec
 from .schemas import any_widget_schema, obj_schema
-from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
+from .touchscreens import touchscreen_config, touchscreens_to_code
 from .types import (
     WIDGET_TYPES,
     FontEngine,
@@ -212,7 +212,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
-            cv.GenerateID(df.CONF_TOUCHSCREENS): TOUCHSCREENS_CONFIG,
+            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_config,
         }
     )
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))

@@ -143,7 +143,9 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
-lv_bool = LValidator(cv.boolean, cg.bool_, BinarySensor, "get_state()")
+lv_bool = LValidator(
+    cv.boolean, cg.bool_, BinarySensor, "get_state()", retmapper=literal_mapper
+)
 
 
 def lvms_validator_(value):

@@ -232,10 +232,10 @@ async def set_obj_properties(w: Widget, config):
             else:
                 clears.add(key)
         if adds:
-            adds = ConstantLiteral(join_enums(adds, "LV_STATE_"))
+            adds = join_enums(adds, "LV_STATE_")
             w.add_state(adds)
         if clears:
-            clears = ConstantLiteral(join_enums(clears, "LV_STATE_"))
+            clears = join_enums(clears, "LV_STATE_")
             w.clear_state(clears)
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)

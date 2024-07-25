@@ -126,7 +126,7 @@ SET_STATE_SCHEMA = cv.Schema(
     {cv.Optional(state): lvalid.lv_bool for state in df.STATES}
 )
 # Setting object flags
-FLAG_SCHEMA = cv.Schema({cv.Optional(flag): cv.boolean for flag in df.OBJ_FLAGS})
+FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
 FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
 
 
