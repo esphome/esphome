@@ -13,20 +13,17 @@ from .lv_validation import lv_milliseconds
 from .lvcode import lv, lv_add
 from .types import LVTouchListener
 
-TOUCHSCREENS_CONFIG = cv.maybe_simple_value(
-    {
-        cv.Required(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
-        cv.Optional(CONF_LONG_PRESS_TIME, default="400ms"): lv_milliseconds,
-        cv.Optional(CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): lv_milliseconds,
-        cv.GenerateID(): cv.declare_id(LVTouchListener),
-    },
-    key=CONF_TOUCHSCREEN_ID,
+TOUCHSCREENS_CONFIG = cv.ensure_list(
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
+            cv.Optional(CONF_LONG_PRESS_TIME, default="400ms"): lv_milliseconds,
+            cv.Optional(CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): lv_milliseconds,
+            cv.GenerateID(): cv.declare_id(LVTouchListener),
+        },
+        key=CONF_TOUCHSCREEN_ID,
+    )
 )
-
-
-def touchscreen_config(config):
-    value = cv.ensure_list(TOUCHSCREENS_CONFIG)(config)
-    return value or [TOUCHSCREENS_CONFIG(config)]
 
 
 async def touchscreens_to_code(var, config):

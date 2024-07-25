@@ -190,17 +190,21 @@ lv_float = LValidator(cv.float_, cg.float_, Sensor, "get_state()")
 lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
 
 
+def is_lv_font(font):
+    return isinstance(font, str) and font.lower() in LV_FONTS
+
+
 class LvFont(LValidator):
     def __init__(self):
         def lv_builtin_font(value):
             fontval = cv.one_of(*LV_FONTS, lower=True)(value)
             lv_fonts_used.add(fontval)
-            return "&lv_font_" + fontval
+            return fontval
 
         def validator(value):
             if value == SCHEMA_EXTRACT:
                 return LV_FONTS
-            if isinstance(value, str) and value.lower() in LV_FONTS:
+            if is_lv_font(value):
                 return lv_builtin_font(value)
             fontval = cv.use_id(Font)(value)
             esphome_fonts_used.add(fontval)
@@ -209,6 +213,8 @@ class LvFont(LValidator):
         super().__init__(validator, lv_font_t)
 
     async def process(self, value, args=()):
+        if is_lv_font(value):
+            return ConstantLiteral(f"&lv_font_{value}")
         return ConstantLiteral(f"{value}_engine->get_lv_font()")
 
 

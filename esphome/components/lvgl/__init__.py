@@ -21,7 +21,7 @@ from .label import label_spec
 from .lvcode import ConstantLiteral, LvContext
 from .obj import obj_spec
 from .schemas import any_widget_schema, obj_schema
-from .touchscreens import touchscreen_config, touchscreens_to_code
+from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
 from .types import (
     WIDGET_TYPES,
     FontEngine,
@@ -99,6 +99,10 @@ def final_validation(config):
     buffer_frac = config[CONF_BUFFER_SIZE]
     if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
+    if "touchscreen" in global_config and not config[df.CONF_TOUCHSCREENS]:
+        LOGGER.warning(
+            "Touchscreen not used by LVGL unless specified with lvgl `touchscreens:` key"
+        )
 
 
 async def to_code(config):
@@ -156,7 +160,7 @@ async def to_code(config):
         await cg.get_variable(font)
         cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
     default_font = config[df.CONF_DEFAULT_FONT]
-    if default_font not in helpers.lv_fonts_used:
+    if not lvalid.is_lv_font(default_font):
         add_define(
             "LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{df.DEFAULT_ESPHOME_FONT})"
         )
@@ -170,7 +174,7 @@ async def to_code(config):
         )
         add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
-        add_define("LV_FONT_DEFAULT", default_font)
+        add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
 
     with LvContext():
         await touchscreens_to_code(lv_component, config)
@@ -214,7 +218,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
-            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_config,
+            cv.GenerateID(df.CONF_TOUCHSCREENS): TOUCHSCREENS_CONFIG,
         }
     )
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))
