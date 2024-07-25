@@ -14,9 +14,10 @@ size_t lv_millis(void) { return esphome::millis(); }
 #if defined(USE_HOST) || defined(USE_RP2040) || defined(USE_ESP8266)
 void *lv_custom_mem_alloc(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
-  if (ptr == nullptr) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+  if (ptr == nullptr)
     esphome::esph_log_e(TAG, "Failed to allocate %zu bytes", size);
-  }
+#endif
   return ptr;
 }
 void lv_custom_mem_free(void *ptr) { return free(ptr); }                            // NOLINT
@@ -31,12 +32,9 @@ void *lv_custom_mem_alloc(size_t size) {
     cap_bits = MALLOC_CAP_8BIT;
     ptr = heap_caps_malloc(size, cap_bits);
   }
-  if (ptr == nullptr) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+  if (ptr == nullptr)
     esphome::esph_log_e(TAG, "Failed to allocate %zu bytes", size);
-    return nullptr;
-  }
-#ifdef ESPHOME_LOG_HAS_VERBOSE
-  esphome::esph_log_v(TAG, "allocate %zu - > %p", size, ptr);
 #endif
   return ptr;
 }
