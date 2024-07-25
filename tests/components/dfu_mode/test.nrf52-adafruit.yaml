@@ -1,0 +1,11 @@
+output:
+  - platform: gpio
+    pin:
+      number: 14
+      inverted: true
+      mode:
+        output: true
+    id: rest_gpio
+
+dfu_mode:
+  reset_output: rest_gpio

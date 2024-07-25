@@ -111,6 +111,7 @@ class DeepSleepComponent : public Component {
   void dump_config_platform_();
   bool prepare_to_sleep_();
   void deep_sleep_();
+  void setup_deep_sleep_();
 
   optional<uint64_t> sleep_duration_;
 #ifdef USE_ESP32

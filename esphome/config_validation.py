@@ -62,6 +62,7 @@ from esphome.const import (
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
     __version__ as ESPHOME_VERSION,
+    PLATFORM_NRF52,
 )
 from esphome.core import (
     CORE,
@@ -604,8 +605,10 @@ def only_with_framework(frameworks):
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
+only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
+only_with_zephyr = only_with_framework("zephyr")
 
 
 # Adapted from:
@@ -1647,6 +1650,7 @@ class SplitDefault(Optional):
         bk72xx=vol.UNDEFINED,
         rtl87xx=vol.UNDEFINED,
         host=vol.UNDEFINED,
+        nrf52=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1678,6 +1682,7 @@ class SplitDefault(Optional):
         self._bk72xx_default = vol.default_factory(bk72xx)
         self._rtl87xx_default = vol.default_factory(rtl87xx)
         self._host_default = vol.default_factory(host)
+        self._nrf52_default = vol.default_factory(nrf52)
 
     @property
     def default(self):
@@ -1720,6 +1725,8 @@ class SplitDefault(Optional):
             return self._rtl87xx_default
         if CORE.is_host:
             return self._host_default
+        if CORE.is_nrf52:
+            return self._nrf52_default
         raise NotImplementedError
 
     @default.setter

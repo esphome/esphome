@@ -1,0 +1,25 @@
+zephyr_ble_server:
+
+ota:
+  - platform: zephyr_mcumgr
+    hardware_uart: cdc
+    on_begin:
+      then:
+        - logger.log: "OTA start"
+    on_progress:
+      then:
+        - logger.log:
+            format: "OTA progress %0.1f%%"
+            args: ["x"]
+    on_end:
+      then:
+        - logger.log: "OTA end"
+    on_error:
+      then:
+        - logger.log:
+            format: "OTA update error %d"
+            args: ["x"]
+    on_state_change:
+      then:
+        lambda: >-
+          ESP_LOGD("ota", "State %d", state);

@@ -1,0 +1,80 @@
+---
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+
+esphome:
+  name: nrf52-test-nrf-adafruit
+
+logger:
+  level: NONE
+  logs:
+    switch: NONE
+
+switch:
+  - platform: gpio
+    pin:
+      number: 15
+      mode:
+        output: true
+    id: gpio_15
+
+interval:
+  - interval: 500ms
+    then:
+      - switch.toggle: gpio_15
+
+output:
+  - platform: gpio
+    pin:
+      number: 14
+      inverted: true
+      mode:
+        output: true
+    id: rest_gpio
+  - platform: gpio
+    pin:
+      number: 13
+      mode:
+        output: true
+    id: ldo
+
+dfu_mode:
+  reset_output: rest_gpio
+
+zephyr_ble_server:
+
+zephyr_ble_nus:
+  log: true
+
+zephyr_debug:
+
+debug:
+
+sensor:
+  - platform: uptime
+    name: Uptime Sensor
+    update_interval: 5sec
+  - platform: adc
+    pin: VDDHDIV5
+    name: "VDDH Voltage"
+    update_interval: 5sec
+    filters:
+      - multiply: 5
+  - platform: adc
+    pin: VDD
+    name: "VDD Voltage"
+    update_interval: 5sec
+  - platform: adc
+    pin: AIN0
+    name: "AIN0 Voltage"
+    update_interval: 5sec
+
+deep_sleep:
+  run_duration: 10s
+  sleep_duration: 10s
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
+

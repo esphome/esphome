@@ -1,5 +1,5 @@
 import logging
-
+from esphome.cpp_generator import MockObj
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
@@ -16,6 +16,11 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
+)
+from esphome.components.zephyr import (
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+    zephyr_add_user,
 )
 from . import (
     ATTENUATION_MODES,
@@ -72,6 +77,10 @@ ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
 
+CONF_NRF_SAADC = "nrf_saadc"
+
+adc_dt_spec = cg.global_ns.class_("adc_dt_spec").operator("const")
+
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         ADCSensor,
@@ -87,6 +96,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, _attenuation
             ),
+            cv.GenerateID(CONF_NRF_SAADC): cv.declare_id(adc_dt_spec),
             cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
         }
     )
@@ -106,6 +116,35 @@ async def to_code(config):
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
         cg.add(var.set_is_temperature())
+    elif CORE.using_zephyr:
+        zephyr_add_prj_conf("ADC", True)
+        nrf_saadc = config[CONF_NRF_SAADC]
+        channel_id = int(str(nrf_saadc)[str(nrf_saadc).find("_id") + 4 :] or "1") - 1
+        rhs = MockObj(f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})")
+        adc = cg.new_Pvariable(nrf_saadc, rhs)
+        cg.add(var.set_adc_channel(adc))
+        gain = "ADC_GAIN_1_6"
+        if config[CONF_PIN][CONF_NUMBER] == "VDDHDIV5":
+            gain = "ADC_GAIN_1_2"
+        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+&adc {{
+    #address-cells = <1>;
+    #size-cells = <0>;
+
+    channel@{channel_id} {{
+        reg = <{channel_id}>;
+        zephyr,gain = "{gain}";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_{config[CONF_PIN][CONF_NUMBER]}>;
+        zephyr,resolution = <14>;
+        zephyr,oversampling = <8>;
+    }};
+}};
+"""
+        )
     else:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))

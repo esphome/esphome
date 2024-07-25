@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.core import CORE
 from esphome.const import (
     CONF_BLOCK,
     CONF_DEVICE,
@@ -7,6 +8,9 @@ from esphome.const import (
     CONF_FREE,
     CONF_ID,
     CONF_LOOP_TIME,
+)
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
 )
 
 CODEOWNERS = ["@OttoWinter"]
@@ -42,5 +46,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("HWINFO", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

@@ -6,7 +6,13 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "safe_mode"]
+
+
+def AUTO_LOAD():
+    if CORE.is_nrf52:
+        return []
+    return ["md5", "safe_mode"]
+
 
 IS_PLATFORM_COMPONENT = True
 

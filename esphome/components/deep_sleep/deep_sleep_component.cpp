@@ -9,10 +9,8 @@ static const char *const TAG = "deep_sleep";
 
 bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void DeepSleepComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
-  global_has_deep_sleep = true;
-
+void DeepSleepComponent::setup_deep_sleep_() {
+  this->next_enter_deep_sleep_ = false;
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling Deep Sleep to start in %" PRIu32 " ms", *run_duration);
@@ -20,6 +18,13 @@ void DeepSleepComponent::setup() {
   } else {
     ESP_LOGD(TAG, "Not scheduling Deep Sleep, as no run duration is configured.");
   }
+}
+
+void DeepSleepComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
+  global_has_deep_sleep = true;
+
+  this->setup_deep_sleep_();
 }
 
 void DeepSleepComponent::dump_config() {
@@ -64,6 +69,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   App.run_safe_shutdown_hooks();
 
   this->deep_sleep_();
+  this->setup_deep_sleep_();
 }
 
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
