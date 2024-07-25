@@ -204,12 +204,12 @@ class LvFont(LValidator):
                 return lv_builtin_font(value)
             fontval = cv.use_id(Font)(value)
             esphome_fonts_used.add(fontval)
-            return requires_component("font")(f"{fontval}_engine->get_lv_font()")
+            return requires_component("font")(fontval)
 
         super().__init__(validator, lv_font_t)
 
     async def process(self, value, args=()):
-        return ConstantLiteral(value)
+        return ConstantLiteral(f"{value}_engine->get_lv_font()")
 
 
 lv_font = LvFont()
