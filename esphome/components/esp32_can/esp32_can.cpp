@@ -80,9 +80,9 @@ bool ESP32Can::setup_internal() {
   }
 
   if (next_controller_id >= SOC_TWAI_CONTROLLER_NUM) {
-      ESP_LOGW(TAG, "Maximum number of CAN components created already.");
-      this->mark_failed();
-      return false;
+    ESP_LOGW(TAG, "Maximum number of CAN components created already.");
+    this->mark_failed();
+    return false;
   }
 
   // Install TWAI driver
