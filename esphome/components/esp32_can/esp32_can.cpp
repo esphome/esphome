@@ -67,6 +67,7 @@ static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config
 }
 
 bool ESP32Can::setup_internal() {
+  static uint8_t next_controller_id = 0;
   twai_general_config_t g_config =
       TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, TWAI_MODE_NORMAL);
   twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
@@ -78,15 +79,23 @@ bool ESP32Can::setup_internal() {
     return false;
   }
 
+  if (next_controller_id >= SOC_TWAI_CONTROLLER_NUM) {
+      ESP_LOGW(TAG, "Maximum number of CAN components created already.");
+      this->mark_failed();
+      return false;
+  }
+
   // Install TWAI driver
-  if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK) {
+  this->controller_id_ = next_controller_id;
+  g_config.controller_id = next_controller_id++;
+  if (twai_driver_install_v2(&g_config, &t_config, &f_config, &this->bus) != ESP_OK) {
     // Failed to install driver
     this->mark_failed();
     return false;
   }
 
   // Start TWAI driver
-  if (twai_start() != ESP_OK) {
+  if (twai_start_v2(this->bus) != ESP_OK) {
     // Failed to start driver
     this->mark_failed();
     return false;
@@ -116,7 +125,7 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
     memcpy(message.data, frame->data, frame->can_data_length_code);
   }
 
-  if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
+  if (twai_transmit_v2(this->bus, &message, pdMS_TO_TICKS(1000)) == ESP_OK) {
     return canbus::ERROR_OK;
   } else {
     return canbus::ERROR_ALLTXBUSY;
@@ -126,7 +135,7 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
 canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
   twai_message_t message;
 
-  if (twai_receive(&message, 0) != ESP_OK) {
+  if (twai_receive_v2(this->bus, &message, 0) != ESP_OK) {
     return canbus::ERROR_NOMSG;
   }
 

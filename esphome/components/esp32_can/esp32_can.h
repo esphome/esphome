@@ -4,6 +4,7 @@
 
 #include "esphome/components/canbus/canbus.h"
 #include "esphome/core/component.h"
+#include <driver/twai.h>
 
 namespace esphome {
 namespace esp32_can {
@@ -21,6 +22,8 @@ class ESP32Can : public canbus::Canbus {
 
   int rx_{-1};
   int tx_{-1};
+  int controller_id_{0};
+  twai_handle_t bus;
 };
 
 }  // namespace esp32_can
