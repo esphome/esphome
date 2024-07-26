@@ -12,6 +12,7 @@ modem:
   apn: orange
   pin_code: "0000"
   enable_on_boot: True
+  enable_cmux: False
   init_at:
     - AT
   on_not_responding:

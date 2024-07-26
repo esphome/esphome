@@ -6,7 +6,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/network/util.h"
-// #include "esphome/components/gpio/binary_sensor/gpio_binary_sensor.h"
 
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
@@ -112,6 +111,7 @@ void ModemComponent::setup() {
     ESP_LOGCONFIG(TAG, "  Status pin: Not defined");
   }
   ESP_LOGCONFIG(TAG, "  Enabled   : %s", this->enabled_ ? "Yes" : "No");
+  ESP_LOGCONFIG(TAG, "  Use CMUX  : %s", this->cmux_ ? "Yes" : "No");
 
   ESP_LOGV(TAG, "PPP netif setup");
   esp_err_t err;
@@ -272,7 +272,7 @@ void ModemComponent::start_connect_() {
       ESP_LOGD(TAG, "Modem has correctly entered multiplexed command/data mode");
 
     } else {
-      ESP_LOGD(TAG, "Unable to enter CMUX mode");
+      ESP_LOGE(TAG, "Unable to enter CMUX mode");
       this->status_set_error("Unable to enter CMUX mode");
     }
     assert(this->modem_ready());

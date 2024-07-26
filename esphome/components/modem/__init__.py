@@ -1,3 +1,5 @@
+import logging
+
 from esphome.const import (
     CONF_ID,
     CONF_USE_ADDRESS,
@@ -17,9 +19,11 @@ from esphome.core import coroutine_with_priority
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome import pins, automation
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["network", "binary_sensor", "gpio"]
+AUTO_LOAD = ["network"]
 # following should be removed if conflicts are resolved (so we can have a wifi ap using modem)
 CONFLICTS_WITH = ["wifi", "captive_portal", "ethernet"]
 
@@ -30,6 +34,7 @@ CONF_STATUS_PIN = "status_pin"
 CONF_POWER_PIN = "power_pin"
 CONF_INIT_AT = "init_at"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
+CONF_ENABLE_CMUX = "enable_cmux"
 
 MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7600", "GENERIC"]
 MODEM_MODELS_POWER = {
@@ -70,6 +75,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_CMUX, default=False): cv.boolean,
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -100,6 +106,12 @@ def _final_validate(config):
     #     raise cv.Invalid(
     #         f"'{CONF_STATUS_PIN}' must be declared if using '{CONF_POWER_PIN}'"
     #     )
+    if config.get(CONF_STATUS_PIN, None):
+        _LOGGER.warning("Using '%s' is experimental", CONF_STATUS_PIN)
+    if config[CONF_ENABLE_CMUX]:
+        _LOGGER.warning("Using '%s: True' is experimental", CONF_ENABLE_CMUX)
+    if not config[CONF_ENABLE_ON_BOOT]:
+        _LOGGER.warning("Using '%s: False' is experimental", CONF_ENABLE_ON_BOOT)
     if config.get(CONF_POWER_PIN, None):
         if config[CONF_MODEL] not in MODEM_MODELS_POWER:
             raise cv.Invalid(
@@ -114,8 +126,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     add_idf_component(
         name="esp_modem",
-        repo="https://github.com/oarcher/esp-protocols.git",
-        ref="dev",
+        repo="https://github.com/espressif/esp-protocols.git",
+        ref="modem-v1.1.0",
         path="components/esp_modem",
     )
 
@@ -124,17 +136,22 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_PAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_PAP_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD", True)
-    # ("ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP", 0)
     add_idf_sdkconfig_option("CONFIG_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_NOTIFY_PHASE_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_CHAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_VJ_HEADER_COMPRESSION", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT", True)
+
     # commented because cause crash if another UART is defined in the yaml
     # If enabled, it should increase the reliability and the speed of the connection (TODO: test)
     # add_idf_sdkconfig_option("CONFIG_UART_ISR_IN_IRAM", True)
+
+    # If Uart queue full message ( A7672 ), those config option might be changed
+    # https://github.com/espressif/esp-protocols/issues/272#issuecomment-1558682967
+    add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD", True)
+    add_idf_sdkconfig_option("ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED", False)
+    add_idf_sdkconfig_option("ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", False)
 
     cg.add_define("USE_MODEM")
 
@@ -151,9 +168,11 @@ async def to_code(config):
     if pin_code := config.get(CONF_PIN_CODE, None):
         cg.add(var.set_pin_code(pin_code))
 
-    if enable_on_boot := config.get(CONF_ENABLE_ON_BOOT, None):
-        if enable_on_boot:
-            cg.add(var.enable())
+    if config[CONF_ENABLE_ON_BOOT]:
+        cg.add(var.enable())
+
+    if config[CONF_ENABLE_CMUX]:
+        cg.add(var.enable_cmux())
 
     if init_at := config.get(CONF_INIT_AT, None):
         for cmd in init_at:
