@@ -1,0 +1,15 @@
+espnow:
+  auto_add_peer: true
+  peers:
+    - FF:FF:FF:FF:FF:FF
+  on_package_received:
+    - logger.log:
+        format: "Received: %s  RSSI: %d"
+        args: [it->data().data(), it->rssi()]
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO39
+    name: Button
+    on_click:
+      - espnow.send: "hallo everyone"
