@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_ESP_IDF
 
 #include <memory>
 #include "esphome/core/component.h"
@@ -6,8 +7,6 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/network/util.h"
-
-#ifdef USE_ESP_IDF
 
 // esp_modem will use esphome logger (needed if other components include esphome/core/log.h)
 // We need to do this because "cxx_include/esp_modem_api.hpp" is not a pure C++ header, and use logging.
@@ -54,8 +53,8 @@ class ModemComponent : public Component {
   void set_use_address(const std::string &use_address);
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
-  void set_power_pin(InternalGPIOPin *power_pin) { this->power_pin_ = power_pin; }
-  void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
+  void set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
+  void set_status_pin(GPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void set_username(const std::string &username) { this->username_ = username; }
   void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
@@ -70,9 +69,10 @@ class ModemComponent : public Component {
   void disable();
   void add_on_state_callback(std::function<void(ModemComponentState)> &&callback);
   std::unique_ptr<DCE> dce{nullptr};
+  uint8_t get_cmux_vt_states();
 
  protected:
-  void reset_();  // (re)create dte and dce
+  void create_dte_dce_();  // (re)create dte and dce
   bool prepare_sim_();
   void send_init_at_();
   void start_connect_();
@@ -83,8 +83,8 @@ class ModemComponent : public Component {
   void exit_cmux_();
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
-  InternalGPIOPin *status_pin_{nullptr};
-  InternalGPIOPin *power_pin_{nullptr};
+  GPIOPin *status_pin_{nullptr};
+  GPIOPin *power_pin_{nullptr};
   std::string pin_code_;
   std::string username_;
   std::string password_;
@@ -95,6 +95,7 @@ class ModemComponent : public Component {
   esp_modem_dte_config_t dte_config_;
   esp_modem_dce_config_t dce_config_;
   ModemComponentState state_{ModemComponentState::DISABLED};
+  bool cmux_{false};
   bool start_{false};
   bool enabled_{false};
   bool connected_{false};
