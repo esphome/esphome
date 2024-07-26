@@ -194,6 +194,8 @@ CONFIG_NEWLIB_LIBC=y
             for entry in commands:
                 command = entry["command"]
                 cxx_path = command.split()[0]
+                if not cxx_path.endswith("++"):
+                    continue
                 return cxx_path
 
         def get_builtin_include_paths(compiler):
@@ -240,6 +242,9 @@ CONFIG_NEWLIB_LIBC=y
 
             for entry in compile_commands:
                 command = entry["command"]
+                exec = command.split()[0]
+                if exec != cxx_path:
+                    continue
 
                 idedata["includes"]["build"].update(extract_include_paths(command))
                 idedata["defines"].update(extract_defines(command))

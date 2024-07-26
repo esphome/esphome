@@ -52,14 +52,9 @@ def clang_options(idedata):
 
     if "zephyr" in triplet:
         omit_flags += (
-            "-fno-printf-return-value",
             "-fno-reorder-functions",
-            "-format-zero-length",
             "-mfp16-format=ieee",
-            "-std=c99",
-            "-fno-defer-pop",
             "--param=min-pagesize=0",
-            "--specs=picolibc.specs",
         )
     else:
         cmd.extend(
