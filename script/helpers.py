@@ -172,7 +172,7 @@ CONFIG_NEWLIB_LIBC=y
             encoding="utf-8",
         )
         subprocess.run(
-            ["pio", "run", "-e", build_environment, "-d", build_dir], check=False
+            ["pio", "run", "-e", build_environment, "-d", build_dir], check=True
         )
 
         def extract_include_paths(command):
@@ -204,7 +204,8 @@ CONFIG_NEWLIB_LIBC=y
                 input="",
                 text=True,
                 stderr=subprocess.PIPE,
-                check=False,
+                stdout=subprocess.DEVNULL,
+                check=True,
             )
             include_paths = []
             start_collecting = False
