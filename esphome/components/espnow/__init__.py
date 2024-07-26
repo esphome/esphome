@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_MAC_ADDRESS, CONF_TRIGGER_ID
 from esphome.core import CORE
 
-CODEOWNERS = ["@LumenSoftNL", "@jesserockz"]
+CODEOWNERS = ["@nielsnl68", "@jesserockz"]
 
 espnow_ns = cg.esphome_ns.namespace("espnow")
 ESPNowComponent = espnow_ns.class_("ESPNowComponent", cg.Component)
@@ -33,7 +33,7 @@ CONF_ESPNOW = "espnow"
 CONF_ON_PACKAGE_RECEIVED = "on_package_received"
 CONF_ON_PACKAGE_SEND = "on_package_send"
 CONF_ON_NEW_PEER = "on_new_peer"
-CONF_CHANNEL = "wifi_channel"
+CONF_WIFI_CHANNEL = "wifi_channel"
 CONF_PEERS = "peers"
 CONF_AUTO_ADD_PEER = "auto_add_peer"
 
@@ -51,7 +51,7 @@ def validate_raw_data(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESPNowComponent),
-        cv.Optional(CONF_CHANNEL, default=0): cv.int_range(0, 14),
+        cv.Optional(CONF_WIFI_CHANNEL, default=0): cv.int_range(0, 14),
         cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
         cv.Optional(CONF_ON_PACKAGE_RECEIVED): automation.validate_automation(
             {
@@ -87,7 +87,7 @@ async def to_code(config):
 
     cg.add_define("USE_ESPNOW")
 
-    cg.add(var.set_wifi_channel(config[CONF_CHANNEL]))
+    cg.add(var.set_wifi_channel(config[CONF_WIFI_CHANNEL]))
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
 
     for conf in config.get(CONF_ON_PACKAGE_SEND, []):
