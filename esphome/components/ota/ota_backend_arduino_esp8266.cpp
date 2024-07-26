@@ -1,15 +1,18 @@
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
-#include "ota_backend.h"
 #include "ota_backend_arduino_esp8266.h"
+#include "ota_backend.h"
 
-#include "esphome/core/defines.h"
 #include "esphome/components/esp8266/preferences.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #include <Updater.h>
 
 namespace esphome {
 namespace ota {
+
+static const char *const TAG = "ota.arduino_esp8266";
 
 std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoESP8266OTABackend>(); }
 
@@ -29,6 +32,9 @@ OTAResponseTypes ArduinoESP8266OTABackend::begin(size_t image_size) {
     return OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
   if (error == UPDATE_ERROR_SPACE)
     return OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE;
+
+  ESP_LOGE(TAG, "Begin error: %d", error);
+
   return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
@@ -36,16 +42,25 @@ void ArduinoESP8266OTABackend::set_update_md5(const char *md5) { Update.setMD5(m
 
 OTAResponseTypes ArduinoESP8266OTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
-  if (written != len) {
-    return OTA_RESPONSE_ERROR_WRITING_FLASH;
+  if (written == len) {
+    return OTA_RESPONSE_OK;
   }
-  return OTA_RESPONSE_OK;
+
+  uint8_t error = Update.getError();
+  ESP_LOGE(TAG, "Write error: %d", error);
+
+  return OTA_RESPONSE_ERROR_WRITING_FLASH;
 }
 
 OTAResponseTypes ArduinoESP8266OTABackend::end() {
-  if (!Update.end())
-    return OTA_RESPONSE_ERROR_UPDATE_END;
-  return OTA_RESPONSE_OK;
+  if (Update.end()) {
+    return OTA_RESPONSE_OK;
+  }
+
+  uint8_t error = Update.getError();
+  ESP_LOGE(TAG, "End error: %d", error);
+
+  return OTA_RESPONSE_ERROR_UPDATE_END;
 }
 
 void ArduinoESP8266OTABackend::abort() {
