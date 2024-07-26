@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_IGNORE_OUT_OF_RANGE,
+    CONF_MULTIPLE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -249,6 +250,7 @@ CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
+RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -731,6 +733,23 @@ async def round_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
         config[CONF_ACCURACY_DECIMALS],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "round_to_multiple_of",
+    RoundMultipleFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_MULTIPLE): cv.positive_not_null_float,
+        },
+        key=CONF_MULTIPLE,
+    ),
+)
+async def round_multiple_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_MULTIPLE],
     )
 
 
