@@ -12,6 +12,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/ring_buffer.h"
 
 namespace esphome {
 namespace i2s_audio {
@@ -22,6 +23,7 @@ enum class TaskEventType : uint8_t {
   STARTING = 0,
   STARTED,
   PLAYING,
+  PAUSING,
   STOPPING,
   STOPPED,
   WARNING = 255,
@@ -47,6 +49,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
 
   void start() override;
   void stop() override;
+  void finish() override;
 
   size_t play(const uint8_t *data, size_t length) override;
 
@@ -60,7 +63,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
   static void player_task(void *params);
 
   TaskHandle_t player_task_handle_{nullptr};
-  RingBuffer buffer_queue_;
+  std::unique_ptr<RingBuffer> buffer_queue_{nullptr};
   QueueHandle_t event_queue_;
 
   uint8_t dout_pin_{0};
