@@ -263,7 +263,7 @@ void ModemComponent::start_connect_() {
   this->status_set_warning("Starting connection");
 
   // will be set to true on event IP_EVENT_PPP_GOT_IP
-  global_modem_component->got_ipv4_address_ = false;  // FIXME this
+  this->got_ipv4_address_ = false;
 
   if (this->cmux_) {
     ESP_LOGD(TAG, "Entering CMUX mode");
@@ -356,8 +356,6 @@ void ModemComponent::loop() {
               this->disable();
             }
           } else if (!this->get_power_status()) {
-            ESP_LOGI(TAG,
-                     "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
             this->poweron_();
           } else {
             this->state_ = ModemComponentState::NOT_RESPONDING;
@@ -414,18 +412,6 @@ void ModemComponent::loop() {
             ESP_LOGW(TAG, "Unable to hang up modem. Trying to continue anyway.");
           }
           this->dump_connect_params_();
-          // this->set_timeout("wait_lost_ip", 15000, [this]() {
-          //   // often reached on 7600, but not reached on 7670
-          //   // FIXME: don't wait for lost IP (ip is lost for 7600 several minutes after)
-          //   ESP_LOGW(TAG, "No lost ip event received. Forcing disconnect state");
-          //   // esp_netif_action_stop(this->ppp_netif_, nullptr, 0, nullptr);
-          //   this->dump_connect_params_();
-          //   // esp_netif_action_disconnected(this->ppp_netif_, nullptr, 0, nullptr);
-          //   // esp_netif_action_stop(this->ppp_netif_, nullptr, 0, nullptr);
-          //   esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
-          //   // esp_netif_destroy(this->ppp_netif_);
-          //   this->dump_connect_params_();
-          // });
         }
         this->start_ = false;
       } else if (!this->connected_) {
@@ -435,14 +421,14 @@ void ModemComponent::loop() {
         this->dump_connect_params_();
         this->state_ = ModemComponentState::DISCONNECTED;
       } else {
+        // Waiting for IP_EVENT_PPP_LOST_IP.
+        // This can take a long time, so we ckeck the IP addr, and trigger the event manualy if it's null.
         esp_netif_ip_info_t ip_info;
         esp_netif_get_ip_info(this->ppp_netif_, &ip_info);
         if (ip_info.ip.addr == 0) {
           // lost IP
           esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
         }
-
-        // waiting for lost IP
       }
 
       break;
@@ -556,6 +542,10 @@ void ModemComponent::poweroff_() {
 }
 
 void ModemComponent::dump_connect_params_() {
+  if (!this->connected_) {
+    ESP_LOGCONFIG(TAG, "Modem connection: Not connected");
+    return;
+  }
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->ppp_netif_, &ip);
   ESP_LOGCONFIG(TAG, "Modem connection:");
