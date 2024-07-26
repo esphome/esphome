@@ -1,18 +1,12 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DATA,
-    CONF_ID,
-    CONF_MAC_ADDRESS,
-    CONF_TRIGGER_ID,
-    CONF_WIFI,
-)
+from esphome.const import CONF_DATA, CONF_ID, CONF_MAC_ADDRESS, CONF_TRIGGER_ID
 from esphome.core import CORE
 
 CODEOWNERS = ["@LumenSoftNL", "@jesserockz"]
 
-espnow_ns = cg.esphome_ns.namespace("esp_now")
+espnow_ns = cg.esphome_ns.namespace("espnow")
 ESPNowComponent = espnow_ns.class_("ESPNowComponent", cg.Component)
 ESPNowListener = espnow_ns.class_("ESPNowListener")
 
@@ -54,17 +48,6 @@ def validate_raw_data(value):
     )
 
 
-def disallowed_component(comp):
-    """Validate that this option can only be specified when the component `comp` is not loaded."""
-
-    def validator(value):
-        if comp in CORE.loaded_integrations:
-            raise cv.Invalid(f"This component  requires component {comp}")
-        return value
-
-    return validator
-
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESPNowComponent),
@@ -87,7 +70,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
     },
-    disallowed_component(CONF_WIFI),
+    cv.only_on_esp32,
 ).extend(cv.COMPONENT_SCHEMA)
 
 

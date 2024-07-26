@@ -14,7 +14,7 @@
 #include <vector>
 
 namespace esphome {
-namespace esp_now {
+namespace espnow {
 
 typedef uint8_t espnow_addr_t[6];
 
@@ -121,7 +121,7 @@ class ESPNowComponent : public Component {
   ESPNowComponent();
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
-    static void on_data_received((const esp_now_recv_info_t *recv_info, const uint8_t *data, int size);
+  static void on_data_received(const esp_now_recv_info_t *recv_info, const uint8_t *data, int size);
 #else
   static void on_data_received(const uint8_t *addr, const uint8_t *data, int size);
 #endif
@@ -129,14 +129,12 @@ class ESPNowComponent : public Component {
   static void on_data_send(const uint8_t *mac_addr, esp_now_send_status_t status);
 
   void dump_config() override;
-  float get_setup_priority() const override {
-    return -100; }
+  float get_setup_priority() const override { return -100; }
 
   void setup() override;
 
   void loop() override;
-  void set_wifi_channel(uint8_t channel) {
-    this->wifi_channel_ = channel; }
+  void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
 
   ESPNowPackage *send_package(const uint64_t mac_address, const uint8_t *data, int len) {
     auto package = new ESPNowPackage(mac_address, data, len);
@@ -170,8 +168,7 @@ class ESPNowComponent : public Component {
   esp_err_t add_peer(uint64_t addr);
   esp_err_t del_peer(uint64_t addr);
 
-  void set_auto_add_peer(bool value) {
-    this->auto_add_peer_ = value; }
+  void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
 
   void on_package_received(ESPNowPackage *package);
   void on_package_send(ESPNowPackage *package);
@@ -181,8 +178,7 @@ class ESPNowComponent : public Component {
 
  protected:
   void unHold_send_(uint64_t mac);
-  void push_receive_package_(ESPNowPackage *package) {
-    this->receive_queue_.push(std::move(package)); }
+  void push_receive_package_(ESPNowPackage *package) { this->receive_queue_.push(std::move(package)); }
   bool validate_channel_(uint8_t channel);
   uint8_t wifi_channel_{0};
   bool auto_add_peer_{false};
@@ -279,7 +275,7 @@ class ESPNowNewPeerTrigger : public Trigger<ESPNowPackage *> {
 
 extern ESPNowComponent *global_esp_now;
 
-}  // namespace esp_now
+}  // namespace espnow
 }  // namespace esphome
 
 // #endif

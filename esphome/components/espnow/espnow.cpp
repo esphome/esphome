@@ -18,9 +18,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace esp_now {
+namespace espnow {
 
-static const char *const TAG = "esp_now";
+static const char *const TAG = "espnow";
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 1)
 typedef struct {
@@ -275,7 +275,7 @@ void ESPNowComponent::loop() {
 
 /**< callback function of receiving ESPNOW data */
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
-void ESPNowComponent::on_data_received((const esp_now_recv_info_t *recv_info, const uint8_t *data, int size)
+void ESPNowComponent::on_data_received(const esp_now_recv_info_t *recv_info, const uint8_t *data, int size)
 #else
 void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data, int size)
 #endif
@@ -300,7 +300,6 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
   package->rssi(rx_ctrl->rssi);
   package->timestamp(rx_ctrl->timestamp);
   global_esp_now->push_receive_package_(package);
-
 }
 
 void ESPNowComponent::on_data_send(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -321,8 +320,7 @@ void ESPNowComponent::on_data_send(const uint8_t *mac_addr, esp_now_send_status_
   global_esp_now->can_send_ = true;
 }
 
-
 ESPNowComponent *global_esp_now = nullptr;
 
-}  // namespace esp_now
+}  // namespace espnow
 }  // namespace esphome
