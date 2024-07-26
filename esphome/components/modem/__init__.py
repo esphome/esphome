@@ -19,7 +19,7 @@ from esphome import pins, automation
 
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["network"]
+AUTO_LOAD = ["network", "binary_sensor", "gpio"]
 # following should be removed if conflicts are resolved (so we can have a wifi ap using modem)
 CONFLICTS_WITH = ["wifi", "captive_portal", "ethernet"]
 
@@ -61,8 +61,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
-            cv.Optional(CONF_STATUS_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_STATUS_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DTR_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string,
@@ -96,10 +96,10 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    if config.get(CONF_POWER_PIN, None) and not config.get(CONF_STATUS_PIN, None):
-        raise cv.Invalid(
-            f"'{CONF_STATUS_PIN}' must be declared if using '{CONF_POWER_PIN}'"
-        )
+    # if config.get(CONF_POWER_PIN, None) and not config.get(CONF_STATUS_PIN, None):
+    #     raise cv.Invalid(
+    #         f"'{CONF_STATUS_PIN}' must be declared if using '{CONF_POWER_PIN}'"
+    #     )
     if config.get(CONF_POWER_PIN, None):
         if config[CONF_MODEL] not in MODEM_MODELS_POWER:
             raise cv.Invalid(
@@ -114,8 +114,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     add_idf_component(
         name="esp_modem",
-        repo="https://github.com/espressif/esp-protocols.git",
-        ref="modem-v1.1.0",
+        repo="https://github.com/oarcher/esp-protocols.git",
+        ref="dev",
         path="components/esp_modem",
     )
 
@@ -125,6 +125,7 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_PPP_PAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_PAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD", True)
+    # ("ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP", 0)
     add_idf_sdkconfig_option("CONFIG_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_NOTIFY_PHASE_SUPPORT", True)
