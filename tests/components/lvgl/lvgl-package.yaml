@@ -90,11 +90,14 @@ lvgl:
         width: 10px
         x: 100
         y: 120
-    - btn:
+    - button:
         width: 20%
         height: 10%
         pressed:
           bg_color: light_blue
+        checkable: true
+        checked:
+          bg_color: 0x000000
         widgets:
           - label:
               text: Button
