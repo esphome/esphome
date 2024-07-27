@@ -28,8 +28,7 @@ const char *to_string(CountMode count_mode) {
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
 
-namespace {
-bool setup_ulp(gpio_num_t gpio_num) {
+bool UlpProgram::setup_ulp() {
   esp_err_t error = ulp_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "Loading ULP binary failed: %s", esp_err_to_name(error));
@@ -37,6 +36,7 @@ bool setup_ulp(gpio_num_t gpio_num) {
   }
 
   /* GPIO used for pulse counting. */
+  auto gpio_num = static_cast<gpio_num_t>(this->pin->get_pin());
   int rtcio_num = rtc_io_number_get(gpio_num);
   if (!rtc_gpio_is_valid_gpio(gpio_num)) {
     ESP_LOGE(TAG, "GPIO used for pulse counting must be an RTC IO");
@@ -63,10 +63,10 @@ bool setup_ulp(gpio_num_t gpio_num) {
   rtc_gpio_set_direction(gpio_num, RTC_GPIO_MODE_INPUT_ONLY);
   rtc_gpio_hold_en(gpio_num);
 
-  /* Set ULP wake up period to T = 20ms.
-   * Minimum pulse width has to be T * (ulp_debounce_counter + 1) = 80ms.
+  /* Set ULP wake up period T
+   * Minimum pulse width has to be T * (ulp_debounce_counter + 1).
    */
-  ulp_set_wakeup_period(0, 20000);
+  ulp_set_wakeup_period(0, this->sleep_duration_ / std::chrono::microseconds{1});
 
   /* Start the program */
   error = ulp_run(&ulp_entry - RTC_SLOW_MEM);
@@ -77,7 +77,6 @@ bool setup_ulp(gpio_num_t gpio_num) {
 
   return true;
 }
-}  // namespace
 
 bool UlpProgram::setup(InternalGPIOPin *pin) {
   this->pin = pin;
@@ -88,7 +87,7 @@ bool UlpProgram::setup(InternalGPIOPin *pin) {
 
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
     ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
-    return setup_ulp(static_cast<gpio_num_t>(pin->get_pin()));
+    return setup_ulp();
   } else {
     ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
     return true;
@@ -138,6 +137,7 @@ void PulseCounterUlpSensor::update() {
   clock::time_point now = clock::now();
   clock::duration interval = now - this->last_time_;
   if (interval != clock::duration::zero()) {
+    ulp_mean_exec_time_ = interval / static_cast<float>(raw.run_count);
     float value = std::chrono::minutes{1} * static_cast<float>(raw.edge_count) / interval;  // pulses per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
     this->publish_state(value);

@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_PIN,
     CONF_RISING_EDGE,
     CONF_NUMBER,
+    CONF_SLEEP_DURATION,
+    CONF_DEBOUNCE,
     CONF_TOTAL,
     CONF_VALUE,
     ICON_PULSE,
@@ -86,6 +88,10 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 validate_count_mode,
             ),
+            cv.Optional(
+                CONF_SLEEP_DURATION, default="20000us"
+            ): cv.positive_time_period_microseconds,
+            cv.Optional(CONF_DEBOUNCE, default=3): cv.positive_int,
             cv.Optional(CONF_TOTAL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PULSES,
                 icon=ICON_PULSE,
@@ -119,6 +125,7 @@ async def to_code(config):
     count = config[CONF_COUNT_MODE]
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
+    cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
 
     if CONF_TOTAL in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL])
