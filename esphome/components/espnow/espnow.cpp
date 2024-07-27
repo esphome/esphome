@@ -294,7 +294,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
   ESPNowPackage *package = new ESPNowPackage(addr_to_uint64(addr), data, size);
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
-  package->is_broadcast(memcmp(recv_info->des_addr, ESP_NOW.BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0);
+  package->is_broadcast(addr_to_uint64(recv_info->des_addr) == ESPNOW_BROADCAST_ADDR);
 #endif
 
   package->rssi(rx_ctrl->rssi);
