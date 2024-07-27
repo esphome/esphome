@@ -8,7 +8,7 @@ from .defines import (
     CONF_LONG_PRESS_TIME,
     CONF_TOUCHSCREENS,
 )
-from .helpers import add_lv_use
+from .helpers import add_lv_use, requires_component
 from .lv_validation import lv_milliseconds
 from .lvcode import lv, lv_add
 from .types import LVTouchListener
@@ -16,7 +16,9 @@ from .types import LVTouchListener
 TOUCHSCREENS_CONFIG = cv.ensure_list(
     cv.maybe_simple_value(
         {
-            cv.Required(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
+            cv.Required(CONF_TOUCHSCREEN_ID): cv.All(
+                cv.use_id(Touchscreen), requires_component("touchscreen")
+            ),
             cv.Optional(CONF_LONG_PRESS_TIME, default="400ms"): lv_milliseconds,
             cv.Optional(CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): lv_milliseconds,
             cv.GenerateID(): cv.declare_id(LVTouchListener),

@@ -16,11 +16,12 @@ from .defines import (
     OBJ_FLAGS,
     PARTS,
     STATES,
+    ConstantLiteral,
     LValidator,
     join_enums,
 )
 from .helpers import add_lv_use
-from .lvcode import ConstantLiteral, add_line_marks, lv, lv_add, lv_assign, lv_obj
+from .lvcode import add_group, add_line_marks, lv, lv_add, lv_assign, lv_obj
 from .schemas import ALL_STYLES
 from .types import WIDGET_TYPES, WidgetType, lv_obj_t
 
@@ -205,6 +206,8 @@ async def set_obj_properties(w: Widget, config):
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
                 w.set_style(prop, value, lv_state)
+    if group := add_group(config.get(CONF_GROUP)):
+        lv.group_add_obj(group, w.obj)
     flag_clr = set()
     flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]

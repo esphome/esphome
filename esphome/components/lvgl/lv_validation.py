@@ -13,14 +13,14 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from . import types as ty
-from .defines import LV_FONTS, LValidator, LvConstant
+from .defines import LV_FONTS, ConstantLiteral, LValidator, LvConstant
 from .helpers import (
     esphome_fonts_used,
     lv_fonts_used,
     lvgl_components_required,
     requires_component,
 )
-from .lvcode import ConstantLiteral, lv_expr
+from .lvcode import lv_expr
 from .types import lv_font_t
 
 

@@ -9,7 +9,6 @@ from esphome.cpp_generator import (
     CallExpression,
     Expression,
     LambdaExpression,
-    Literal,
     MockObj,
     RawExpression,
     RawStatement,
@@ -19,7 +18,9 @@ from esphome.cpp_generator import (
     statement,
 )
 
+from .defines import ConstantLiteral
 from .helpers import get_line_marks
+from .types import lv_group_t
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -226,12 +227,19 @@ def lv_assign(target, expression):
     lv_add(RawExpression(f"{target} = {expression}"))
 
 
-class ConstantLiteral(Literal):
-    __slots__ = ("constant",)
+lv_groups = {}  # Widget group names
 
-    def __init__(self, constant: str):
-        super().__init__()
-        self.constant = constant
 
-    def __str__(self):
-        return self.constant
+def add_group(name):
+    if name is None:
+        return None
+    fullname = f"lv_esp_group_{name}"
+    if name not in lv_groups:
+        gid = ID(fullname, True, type=lv_group_t.operator("ptr"))
+        lv_add(
+            AssignmentExpression(
+                type_=gid.type, modifier="", name=fullname, rhs=lv_expr.group_create()
+            )
+        )
+        lv_groups[name] = ConstantLiteral(fullname)
+    return lv_groups[name]

@@ -1,6 +1,12 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_LVGL
+
+#ifdef USE_LVGL_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_LVGL_ROTARY_ENCODER
+#include "esphome/components/rotary_encoder/rotary_encoder.h"
+#endif
 
 // required for clang-tidy
 #ifndef LV_CONF_H
@@ -10,7 +16,6 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <lvgl.h>
 #include <vector>
@@ -18,7 +23,7 @@
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
 #endif
-#ifdef LV_USE_TOUCHSCREEN
+#ifdef USE_LVGL_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
 #endif
 
@@ -40,7 +45,7 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 // Parent class for things that wrap an LVGL object
 class LvCompound final {
  public:
-  virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
+  void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
 };
 
@@ -126,7 +131,7 @@ class LvglComponent : public PollingComponent {
   bool full_refresh_{};
 };
 
-#ifdef LV_USE_TOUCHSCREEN
+#ifdef USE_LVGL_TOUCHSCREEN
 class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglComponent> {
  public:
   LVTouchListener(uint32_t long_press_time, uint32_t long_press_repeat_time) {
@@ -160,7 +165,62 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
   bool touch_pressed_{};
 };
 #endif
+
+#ifdef USE_LVGL_KEY_LISTENER
+class LVEncoderListener : public Parented<LvglComponent> {
+ public:
+  LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt) {
+    lv_indev_drv_init(&this->drv_);
+    this->drv_.type = type;
+    this->drv_.user_data = this;
+    this->drv_.long_press_time = lpt;
+    this->drv_.long_press_repeat_time = lprt;
+    this->drv_.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
+      auto *l = static_cast<LVEncoderListener *>(d->user_data);
+      data->state = l->pressed_ ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+      data->key = l->key_;
+      data->enc_diff = (int16_t) (l->count_ - l->last_count_);
+      l->last_count_ = l->count_;
+      data->continue_reading = false;
+    };
+  }
+
+  void set_left_button(binary_sensor::BinarySensor *left_button) {
+    left_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_LEFT, state); });
+  }
+  void set_right_button(binary_sensor::BinarySensor *right_button) {
+    right_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_RIGHT, state); });
+  }
+
+  void set_enter_button(binary_sensor::BinarySensor *enter_button) {
+    enter_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_ENTER, state); });
+  }
+
+  void set_sensor(rotary_encoder::RotaryEncoderSensor *sensor) {
+    sensor->register_listener([this](int32_t count) { this->set_count(count); });
+  }
+
+  void event(int key, bool pressed) {
+    if (!this->parent_->is_paused()) {
+      this->pressed_ = pressed;
+      this->key_ = key;
+    }
+  }
+
+  void set_count(int32_t count) {
+    if (!this->parent_->is_paused())
+      this->count_ = count;
+  }
+
+  lv_indev_drv_t *get_drv() { return &this->drv_; }
+
+ protected:
+  lv_indev_drv_t drv_{};
+  bool pressed_{};
+  int32_t count_{};
+  int32_t last_count_{};
+  int key_{};
+};
+#endif
 }  // namespace lvgl
 }  // namespace esphome
-
-#endif

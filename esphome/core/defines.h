@@ -19,7 +19,6 @@
 #define USE_API
 #define USE_API_NOISE
 #define USE_API_PLAINTEXT
-#define USE_BINARY_SENSOR
 #define USE_BUTTON
 #define USE_CLIMATE
 #define USE_COVER
@@ -39,9 +38,12 @@
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LVGL
+#define USE_LVGL_BINARY_SENSOR
 #define USE_LVGL_FONT
 #define USE_LVGL_IMAGE
+#define USE_LVGL_KEY_LISTENER
 #define USE_LVGL_TOUCHSCREEN
+#define USE_LVGL_ROTARY_ENCODER
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
@@ -54,6 +56,7 @@
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
+#define USE_ROTARY_ENCODER
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_STATUS_LED

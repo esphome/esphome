@@ -1,10 +1,17 @@
 from esphome import config_validation as cv
-from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_ID, CONF_STATE, CONF_TYPE
+from esphome.const import (
+    CONF_ARGS,
+    CONF_FORMAT,
+    CONF_GROUP,
+    CONF_ID,
+    CONF_STATE,
+    CONF_TYPE,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid, types as ty
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import lv_font
+from .lv_validation import id_name, lv_font
 from .types import WIDGET_TYPES, WidgetType
 
 # A schema for text properties
@@ -24,6 +31,20 @@ TEXT_SCHEMA = cv.Schema(
             ),
             lvalid.lv_text,
         )
+    }
+)
+
+
+ENCODER_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.All(
+            cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
+        ),
+        cv.Optional(CONF_GROUP): lvalid.id_name,
+        cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): lvalid.lv_milliseconds,
+        cv.Optional(
+            df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
+        ): lvalid.lv_milliseconds,
     }
 )
 
@@ -156,6 +177,7 @@ def obj_schema(widget_type: WidgetType):
             cv.Schema(
                 {
                     cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+                    cv.Optional(CONF_GROUP): id_name,
                 }
             )
         )

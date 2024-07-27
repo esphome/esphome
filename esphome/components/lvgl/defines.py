@@ -6,10 +6,20 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.core import ID, Lambda
+from esphome.cpp_generator import Literal
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
-from .lvcode import ConstantLiteral
+
+class ConstantLiteral(Literal):
+    __slots__ = ("constant",)
+
+    def __init__(self, constant: str):
+        super().__init__()
+        self.constant = constant
+
+    def __str__(self):
+        return self.constant
 
 
 class LValidator:
@@ -423,6 +433,7 @@ CONF_RECOLOR = "recolor"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROTARY_ENCODERS = "rotary_encoders"
 CONF_ROWS = "rows"
 CONF_SCALES = "scales"
 CONF_SCALE_LINES = "scale_lines"

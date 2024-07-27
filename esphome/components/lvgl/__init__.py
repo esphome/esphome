@@ -17,9 +17,11 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .btn import btn_spec
+from .defines import ConstantLiteral
 from .label import label_spec
-from .lvcode import ConstantLiteral, LvContext
+from .lvcode import LvContext
 from .obj import obj_spec
+from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import any_widget_schema, obj_schema
 from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
 from .types import (
@@ -178,6 +180,7 @@ async def to_code(config):
 
     with LvContext():
         await touchscreens_to_code(lv_component, config)
+        await rotary_encoders_to_code(lv_component, config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
     Widget.set_completed()
@@ -219,6 +222,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
             cv.GenerateID(df.CONF_TOUCHSCREENS): TOUCHSCREENS_CONFIG,
+            cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
         }
     )
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))
