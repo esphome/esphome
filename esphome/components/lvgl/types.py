@@ -7,8 +7,8 @@ from .defines import (
     CONF_ANIMIMG,
     CONF_ARC,
     CONF_BAR,
-    CONF_BTNMATRIX,
     CONF_BUTTON,
+    CONF_BUTTONMATRIX,
     CONF_CHECKBOX,
     CONF_DROPDOWN,
     CONF_IMG,
@@ -197,7 +197,7 @@ LV_TYPES = {
     CONF_BUTTON: lv_btn_t,
     # For backwards compatibility
     CONF_BAR: lv_bar_t,
-    CONF_BTNMATRIX: lv_btnmatrix_t,
+    CONF_BUTTONMATRIX: lv_btnmatrix_t,
     CONF_CHECKBOX: lv_checkbox_t,
     CONF_DROPDOWN: lv_dropdown_t,
     CONF_IMG: lv_img_t,

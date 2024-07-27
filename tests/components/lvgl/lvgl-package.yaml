@@ -101,7 +101,7 @@ lvgl:
             bg_opa: 30%
             pad_all: 0
             widgets:
-              - btn:
+              - button:
                   layout:
                     type: grid
                     grid_rows: [fr(1), content]
@@ -130,7 +130,7 @@ lvgl:
               then:
                 - lvgl.widget.show: message_box
 
-        - btnmatrix:
+        - buttonmatrix:
             x: 10
             y: 40
             width: 220
@@ -183,13 +183,13 @@ lvgl:
             id: switch_id
             on_defocus:
               then:
-                - lvgl.button.update:
+                - lvgl.matrixbutton.update:
                     id: button_1
                     width: 1
                     selected: true
                     control:
                       checkable: false
-                - lvgl.btnmatrix.update:
+                - lvgl.buttonmatrix.update:
                     id: b_matrix
                     state:
                       disabled: true
@@ -357,7 +357,7 @@ lvgl:
                 - logger.log:
                     format: "Spinbox value is %f"
                     args: [x]
-        - btn:
+        - button:
             layout:
               type: grid
               grid_rows: [content, content]

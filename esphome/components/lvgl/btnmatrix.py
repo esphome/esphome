@@ -4,10 +4,11 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WIDTH
 from esphome.core import ID
 
+from ...cpp_generator import MockObjClass
 from .codegen import action_to_code
 from .defines import (
     BTNMATRIX_CTRLS,
-    CONF_BTNMATRIX,
+    CONF_BUTTONMATRIX,
     CONF_BUTTONS,
     CONF_CONTROL,
     CONF_KEY_CODE,
@@ -119,7 +120,7 @@ def set_btn_data(btnm: Widget, ctrl_list, width_list):
 
 class BtnmatrixType(WidgetType):
     def __init__(self):
-        super().__init__(CONF_BTNMATRIX, BTNMATRIX_SCHEMA, {})
+        super().__init__(CONF_BUTTONMATRIX, BTNMATRIX_SCHEMA, {})
 
     @property
     def w_type(self):
@@ -144,12 +145,18 @@ class BtnmatrixType(WidgetType):
             init.append(f"{w.var}->add_btn({bid})")
         return init
 
+    def get_uses(self):
+        return ("btnmatrix",)
+
+    def obj_creator(self, parent: MockObjClass, config: dict):
+        return f"lv_btnmatrix_create({parent})"
+
 
 btnmatrix_spec = BtnmatrixType()
 
 
 @automation.register_action(
-    "lvgl.button.update",
+    "lvgl.matrixbutton.update",
     ObjUpdateAction,
     cv.Schema(
         {

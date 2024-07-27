@@ -15,7 +15,6 @@ from esphome.const import (
 from .codegen import action_to_code, add_widgets, set_obj_properties
 from .defines import (
     CONF_ANIMATED,
-    CONF_BTNMATRIX,
     CONF_OBJ,
     CONF_TAB_ID,
     CONF_TABS,
@@ -60,7 +59,7 @@ class TabviewType(WidgetType):
         return lv_tabview_t
 
     def get_uses(self):
-        return CONF_BTNMATRIX, TYPE_FLEX
+        return "btnmatrix", TYPE_FLEX
 
     async def to_code(self, w: Widget, config: dict):
         init = []
