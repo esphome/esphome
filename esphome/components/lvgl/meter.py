@@ -69,7 +69,7 @@ INDICATOR_SCHEMA = cv.Schema(
                 cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
             }
         ),
-        cv.Exclusive(df.CONF_IMG, df.CONF_INDICATORS): cv.All(
+        cv.Exclusive(df.CONF_IMAGE, df.CONF_INDICATORS): cv.All(
             INDICATOR_IMG_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(ty.lv_meter_indicator_t),
@@ -189,7 +189,7 @@ class MeterType(WidgetType):
                         f"{ivar} = lv_meter_add_scale_lines({var}, {s}, {color_start},"
                         + f"{color_end}, {v[CONF_LOCAL]}, {v[CONF_WIDTH]})"
                     )
-                if t == df.CONF_IMG:
+                if t == df.CONF_IMAGE:
                     add_lv_use("img")
                     init.append(
                         f"{ivar} = lv_meter_add_needle_img({var}, {s}, lv_img_from({v[df.CONF_SRC]}),"

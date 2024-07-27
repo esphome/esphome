@@ -313,7 +313,7 @@ lvgl:
                       width: 2
                       color: 0xFF0000
                       r_mod: -4
-                  - img:
+                  - image:
                       id: needle_img
                       src: cat_img
                       value: 4
@@ -368,7 +368,7 @@ lvgl:
               - lvgl.spinbox.update:
                   id: spinbox_id
                   value: 100
-        - img:
+        - image:
             layout:
               type: FLEX
               flex_flow: column_wrap
@@ -382,7 +382,7 @@ lvgl:
             clip_corner: true
             on_click:
               then:
-                - lvgl.img.update:
+                - lvgl.image.update:
                     id: img_id
                     src: dog_img
         - animimg:
@@ -452,7 +452,7 @@ lvgl:
                 row: 0
                 column: 0
                 widgets:
-                  - img:
+                  - image:
                       align: center
                       src: cat_img
                       on_click:
@@ -467,7 +467,7 @@ lvgl:
                 row: 1
                 column: 0
                 widgets:
-                  - img:
+                  - image:
                       src: dog_img
                       on_click:
                         then:
@@ -495,7 +495,7 @@ lvgl:
                 layout:
                   type: flex
                 widgets:
-                  - img:
+                  - image:
                       src: dog_img
                       on_click:
                         then:
@@ -506,7 +506,7 @@ lvgl:
               - name: Tab1
                 id: tabview_tab_2
                 widgets:
-                  - img:
+                  - image:
                       src: cat_img
                       on_click:
                         then:

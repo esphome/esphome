@@ -9,7 +9,7 @@ from .codegen import action_to_code
 from .defines import (
     CONF_ANIMIMG,
     CONF_AUTO_START,
-    CONF_IMG,
+    CONF_IMAGE,
     CONF_LABEL,
     CONF_REPEAT_COUNT,
     CONF_SRC,
@@ -68,7 +68,7 @@ class AnimimgType(WidgetType):
         return init
 
     def get_uses(self):
-        return CONF_IMG, CONF_LABEL
+        return CONF_IMAGE, CONF_LABEL
 
 
 animimg_spec = AnimimgType()
