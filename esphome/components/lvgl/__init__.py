@@ -256,7 +256,7 @@ async def msgbox_to_code(conf):
     :return: code to add to the init lambda
     """
     helpers.add_lv_use(
-        df.TYPE_FLEX, df.CONF_BTNMATRIX, df.CONF_BTN, df.CONF_LABEL, "MSGBOX"
+        df.TYPE_FLEX, df.CONF_BTNMATRIX, df.CONF_BUTTON, df.CONF_LABEL, "MSGBOX", "BTN"
     )
     init = []
     mbid = conf[CONF_ID]

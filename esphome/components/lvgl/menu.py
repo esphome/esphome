@@ -2,8 +2,8 @@ import esphome.config_validation as cv
 
 from .codegen import widget_to_code
 from .defines import (
-    CONF_BTN,
     CONF_BTNMATRIX,
+    CONF_BUTTON,
     CONF_ENTRIES,
     CONF_HEADER_MODE,
     CONF_IMG,
@@ -45,7 +45,7 @@ class MenuType(WidgetType):
         return init
 
     def get_uses(self):
-        return (CONF_BTNMATRIX, CONF_IMG, CONF_LABEL, CONF_BTN)
+        return (CONF_BTNMATRIX, CONF_IMG, CONF_LABEL, CONF_BUTTON)
 
 
 menu_spec = MenuType()

@@ -46,7 +46,7 @@ class LvConstant:
 CONF_ANIMIMG = "animimg"
 CONF_ARC = "arc"
 CONF_BAR = "bar"
-CONF_BTN = "btn"
+CONF_BUTTON = "button"
 CONF_BTNMATRIX = "btnmatrix"
 CONF_CANVAS = "canvas"
 CONF_CHART = "chart"
@@ -473,7 +473,7 @@ LV_KEYS = LvConstant(
 WIDGET_PARTS = {
     CONF_ANIMIMG: (CONF_MAIN,),
     CONF_ARC: (CONF_MAIN, CONF_INDICATOR, CONF_KNOB),
-    CONF_BTN: (CONF_MAIN,),
+    CONF_BUTTON: (CONF_MAIN,),
     CONF_BAR: (CONF_MAIN, CONF_INDICATOR),
     CONF_BTNMATRIX: (CONF_MAIN, CONF_ITEMS),
     # CONF_CANVAS: (CONF_MAIN,),
