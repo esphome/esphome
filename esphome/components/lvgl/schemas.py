@@ -201,6 +201,11 @@ STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
     STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
 )
 
+LVGL_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
+    }
+)
 ALL_STYLES = {
     **STYLE_PROPS,
 }

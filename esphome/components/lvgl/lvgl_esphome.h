@@ -49,6 +49,16 @@ class LvCompound final {
   lv_obj_t *obj{};
 };
 
+class LvPageType {
+ public:
+  LvPageType(bool skip) : skip(skip) {}
+
+  void setup() { this->page = lv_obj_create(nullptr); }
+  void show() {}
+  lv_obj_t *page{};
+  bool skip;
+};
+
 using LvLambdaType = std::function<void(lv_obj_t *)>;
 using set_value_lambda_t = std::function<void(float)>;
 using event_callback_t = void(_lv_event_t *);
@@ -116,6 +126,24 @@ class LvglComponent : public PollingComponent {
     }
   }
   bool is_paused() const { return this->paused_; }
+  void add_page(LvPageType *page) { this->pages_.push_back(page); }
+  void show_next_page() {
+    if (this->pages_.empty())
+      return;
+    do {
+      this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
+    } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
+    this->pages_[this->current_page_]->show();
+  }
+
+  void show_prev_page() {
+    if (this->pages_.empty())
+      return;
+    do {
+      this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();
+    } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
+    this->pages_[this->current_page_]->show();
+  }
 
  protected:
   void draw_buffer_(const lv_area_t *area, const uint8_t *ptr);
@@ -125,6 +153,8 @@ class LvglComponent : public PollingComponent {
   lv_disp_drv_t disp_drv_{};
   lv_disp_t *disp_{};
   bool paused_{};
+  std::vector<LvPageType *> pages_{};
+  size_t current_page_{0};
 
   std::vector<std::function<void(lv_disp_t *)>> init_lambdas_;
   size_t buffer_frac_{1};

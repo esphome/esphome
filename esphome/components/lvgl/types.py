@@ -1,4 +1,4 @@
-from esphome import codegen as cg
+from esphome import automation, codegen as cg
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
 
@@ -38,6 +38,8 @@ lv_group_t = cg.global_ns.struct("lv_group_t")
 LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
 lv_obj_t = LvType("lv_obj_t")
+lv_page_t = cg.global_ns.class_("LvPageType")
+ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
 
 
 # this will be populated later, in __init__.py to avoid circular imports.
