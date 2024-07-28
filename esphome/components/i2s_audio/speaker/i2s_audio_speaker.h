@@ -60,6 +60,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
  protected:
   void start_();
   void watch_();
+  void set_state_(speaker::State state);
 
   static void player_task(void *params);
 

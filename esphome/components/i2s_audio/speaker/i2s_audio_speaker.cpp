@@ -42,7 +42,7 @@ void I2SAudioSpeaker::start() {
     ESP_LOGW(TAG, "Called start while task has been already created.");
     return;
   }
-  this->state_ = speaker::STATE_STARTING;
+  this->set_state_(speaker::STATE_STARTING);
 }
 
 void I2SAudioSpeaker::start_() {
@@ -188,15 +188,16 @@ void I2SAudioSpeaker::player_task(void *params) {
 }
 
 void I2SAudioSpeaker::finish() {
+  ESP_LOGE(TAG, "Finishing I2S Audio Speaker");
   if (this->is_failed())
     return;
   if (this->state_ == speaker::STATE_STOPPED)
     return;
   if (this->state_ == speaker::STATE_STARTING) {
-    this->state_ = speaker::STATE_STOPPED;
+    this->set_state_(speaker::STATE_STOPPED);
     return;
   }
-  this->state_ = speaker::STATE_STOPPING;
+  this->set_state_(speaker::STATE_STOPPING);
 }
 
 void I2SAudioSpeaker::stop() {
@@ -213,7 +214,7 @@ void I2SAudioSpeaker::watch_() {
         break;
       case TaskEventType::STARTED:
         ESP_LOGD(TAG, "Started I2S Audio Speaker");
-        this->state_ = speaker::STATE_RUNNING;
+        this->set_state_(speaker::STATE_RUNNING);
         break;
       case TaskEventType::STOPPING:
         ESP_LOGD(TAG, "Stopping I2S Audio Speaker");
@@ -223,7 +224,7 @@ void I2SAudioSpeaker::watch_() {
         this->status_clear_warning();
         break;
       case TaskEventType::STOPPED:
-        this->state_ = speaker::STATE_STOPPED;
+        this->set_state_(speaker::STATE_STOPPED);
         vTaskDelete(this->player_task_handle_);
         this->task_created_ = false;
         this->player_task_handle_ = nullptr;
@@ -265,6 +266,29 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length) {
 bool I2SAudioSpeaker::has_buffered_data() const { return this->buffer_queue_->available() > 0; }
 
 size_t I2SAudioSpeaker::available_space() const { return this->buffer_queue_->free(); }
+
+static const LogString *state_to_string(speaker::State state) {
+  switch (state) {
+    case speaker::STATE_STOPPED:
+      return LOG_STR("STATE_STOPPED");
+    case speaker::STATE_STARTING:
+      return LOG_STR("STATE_STARTING");
+    case speaker::STATE_RUNNING:
+      return LOG_STR("STATE_RUNNING");
+    case speaker::STATE_STOPPING:
+      return LOG_STR("STATE_STOPPING");
+
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+};
+
+void I2SAudioSpeaker::set_state_(speaker::State state) {
+  speaker::State old_state = this->state_;
+  this->state_ = state;
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
+           LOG_STR_ARG(state_to_string(state)));
+}
 
 }  // namespace i2s_audio
 }  // namespace esphome

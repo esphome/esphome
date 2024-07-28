@@ -23,6 +23,8 @@ i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 
 CONF_MUTE_PIN = "mute_pin"
 CONF_DAC_TYPE = "dac_type"
+CONF_USE_16BIT_MODE = "use_16bit_mode"
+
 
 INTERNAL_DAC_OPTIONS = {
     "left": i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
@@ -52,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(): cv.declare_id(I2SAudioSpeaker),
                     cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
                     cv.Required(CONF_MODE): cv.enum(INTERNAL_DAC_OPTIONS, lower=True),
+                    cv.Optional(CONF_USE_16BIT_MODE): cv.boolean,
                 }
             ).extend(cv.COMPONENT_SCHEMA),
             "external": speaker.SPEAKER_SCHEMA.extend(
@@ -64,6 +67,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_MODE, default="mono"): cv.one_of(
                         *EXTERNAL_DAC_OPTIONS, lower=True
                     ),
+                    cv.Optional(CONF_USE_16BIT_MODE): cv.boolean,
                 }
             ).extend(cv.COMPONENT_SCHEMA),
         },
@@ -85,3 +89,6 @@ async def to_code(config):
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
+
+    if CONF_USE_16BIT_MODE in config:
+        cg.add(var.use_16bit_mode(config[CONF_USE_16BIT_MODE]))
