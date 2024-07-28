@@ -101,6 +101,34 @@ lvgl:
         widgets:
           - label:
               text: Button
+        on_click:
+          logger.log: Button clicked
+        on_value:
+          logger.log:
+            format: "state now %d"
+            args: [x]
+        on_short_click:
+          logger.log: Button clicked
+        on_long_press:
+          logger.log: Button clicked
+        on_cancel:
+          logger.log: Button clicked
+        on_ready:
+          logger.log: Button clicked
+        on_defocus:
+          logger.log: Button clicked
+        on_focus:
+          logger.log: Button clicked
+        on_scroll:
+          logger.log: Button clicked
+        on_scroll_end:
+          logger.log: Button clicked
+        on_scroll_begin:
+          logger.log: Button clicked
+        on_release:
+          logger.log: Button clicked
+        on_long_press_repeat:
+          logger.log: Button clicked
 
 font:
   - file: "gfonts://Roboto"
