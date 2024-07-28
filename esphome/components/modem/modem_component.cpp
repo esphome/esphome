@@ -21,7 +21,7 @@
 #include <iostream>
 
 #ifndef USE_MODEM_MODEL
-#define USE_MODEM_MODEL UNKNOWN
+#define USE_MODEM_MODEL "UNKNOWN"
 #endif
 
 #define ESPHL_ERROR_CHECK(err, message) \
@@ -36,10 +36,10 @@
     ESP_LOGE(TAG, message ": %s", command_result_to_string(err).c_str()); \
   }
 
-static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 2048;
-static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 1024;
+static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 32768;
+static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 32768;
 static const uint8_t CONFIG_MODEM_UART_EVENT_QUEUE_SIZE = 30;
-static const size_t CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE = 2048;
+static const size_t CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE = 32768;
 static const uint8_t CONFIG_MODEM_UART_EVENT_TASK_PRIORITY = 5;
 
 namespace esphome {
@@ -56,7 +56,7 @@ ModemComponent::ModemComponent() {
 
 void ModemComponent::dump_config() { this->dump_connect_params_(); }
 
-float ModemComponent::get_setup_priority() const { return setup_priority::WIFI; }  // FIXME AFTER_WIFI
+float ModemComponent::get_setup_priority() const { return setup_priority::WIFI + 1; }  // just before WIFI
 
 bool ModemComponent::can_proceed() { return this->is_connected(); }
 
@@ -406,7 +406,7 @@ void ModemComponent::loop() {
             // assert(this->dce->set_mode(modem_mode::COMMAND_MODE)); // OK on 7600, nok on 7670...
             this->dce->set_mode(modem_mode::COMMAND_MODE);
           }
-          delay(500);
+          delay(200);  // NOLINT
           ESP_LOGD(TAG, "Hanging up connection after %.1fmin", float(this->connect_begin_) / (1000 * 60));
           if (this->dce->hang_up() != command_result::OK) {
             ESP_LOGW(TAG, "Unable to hang up modem. Trying to continue anyway.");

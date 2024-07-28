@@ -1,23 +1,23 @@
 import logging
 
+from esphome import automation, pins
+import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ENABLE_ON_BOOT,
     CONF_ID,
-    CONF_USE_ADDRESS,
-    CONF_TX_PIN,
-    CONF_RX_PIN,
-    CONF_USERNAME,
-    CONF_PASSWORD,
     CONF_MODEL,
-    CONF_TRIGGER_ID,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
-    CONF_ENABLE_ON_BOOT,
+    CONF_PASSWORD,
+    CONF_RX_PIN,
+    CONF_TRIGGER_ID,
+    CONF_TX_PIN,
+    CONF_USE_ADDRESS,
+    CONF_USERNAME,
 )
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.core import coroutine_with_priority
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome import pins, automation
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 # following should be removed if conflicts are resolved (so we can have a wifi ap using modem)
-CONFLICTS_WITH = ["wifi", "captive_portal", "ethernet"]
+CONFLICTS_WITH = ["captive_portal", "ethernet"]
 
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
@@ -131,7 +131,6 @@ async def to_code(config):
         path="components/esp_modem",
     )
 
-    add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
     add_idf_sdkconfig_option("CONFIG_PPP", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_PPP_PAP_SUPPORT", True)
