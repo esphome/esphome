@@ -46,6 +46,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
   void set_internal_dac_mode(i2s_dac_mode_t mode) { this->internal_dac_mode_ = mode; }
 #endif
   void set_external_dac_channels(uint8_t channels) { this->external_dac_channels_ = channels; }
+  void use_16bit_mode(bool mode) { this->use_16bit_mode_ = mode; }
 
   void start() override;
   void stop() override;
@@ -68,6 +69,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
 
   uint8_t dout_pin_{0};
   bool task_created_{false};
+  bool use_16bit_mode_{false};
 
 #if SOC_I2S_SUPPORTS_DAC
   i2s_dac_mode_t internal_dac_mode_{I2S_DAC_CHANNEL_DISABLE};

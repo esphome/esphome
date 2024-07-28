@@ -113,12 +113,14 @@ void I2SAudioSpeaker::player_task(void *params) {
   event.type = TaskEventType::STARTED;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
   bool last_available_state = false;
+  const uint8_t wordsize = this->use_16bit_mode ? 2 : 4;
   while (true) {
     uint32_t sample;
     uint8_t error_count = 0;
     size_t bytes_written = 0;
     while (this_speaker->buffer_queue_->available() > 0) {
       if (!last_available_state) {
+        ESP_LOGV(TAG, "PLAYING");
         event.type = TaskEventType::PLAYING;
         event.err = 0;
         if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
@@ -126,17 +128,19 @@ void I2SAudioSpeaker::player_task(void *params) {
         }
         last_available_state = true;
       }
-      this_speaker->buffer_queue_->read((void *) &sample, sizeof(sample));
-      sample = (sample << 16) | (sample & 0xFFFF);
-      esp_err_t err = i2s_write(this_speaker->parent_->get_port(), &sample, sizeof(sample), &bytes_written,
-                                (10 / portTICK_PERIOD_MS));
+      this_speaker->buffer_queue_->read((void *) &sample, wordsize);
+      if (!this->use_16bit_mode) {
+        sample = (sample << 16) | (sample & 0xFFFF);
+      }
+      esp_err_t err =
+          i2s_write(this_speaker->parent_->get_port(), &sample, wordsize, &bytes_written, (10 / portTICK_PERIOD_MS));
       if (err != ESP_OK) {
         event = {.type = TaskEventType::WARNING, .err = err};
         error_count++;
         if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
           ESP_LOGW(TAG, "Failed to send WARNING event");
         }
-      } else if (bytes_written != sizeof(sample)) {
+      } else if (bytes_written != wordsize) {
         event = {.type = TaskEventType::WARNING, .err = ESP_FAIL};
         error_count++;
         if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
@@ -150,9 +154,11 @@ void I2SAudioSpeaker::player_task(void *params) {
       }
     }
     if (this_speaker->state_ == speaker::STATE_STOPPING || error_count >= 5) {
+      ESP_LOGV(TAG, "STOPPING");
       break;
     }
     if (last_available_state) {
+      ESP_LOGV(TAG, "PAUSING");
       event.type = TaskEventType::PAUSING;
       event.err = 0;
       if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
