@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
 from esphome.components.font import Font
+from esphome.components.image import Image_
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
@@ -21,7 +22,7 @@ from .helpers import (
     requires_component,
 )
 from .lvcode import lv_expr
-from .types import lv_font_t
+from .types import lv_font_t, lv_img_t
 
 
 def literal_mapper(value, args=()):
@@ -143,6 +144,9 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
+lv_image = LValidator(
+    cv.use_id(Image_), lv_img_t, retmapper=lambda x: f"lv_img_from({x})"
+)
 lv_bool = LValidator(
     cv.boolean, cg.bool_, BinarySensor, "get_state()", retmapper=literal_mapper
 )

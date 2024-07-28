@@ -64,9 +64,10 @@ STYLE_PROPS = {
     "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
     "bg_grad_dir": df.LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER").one_of,
     "bg_grad_stop": lvalid.stop_value,
-    "bg_img_opa": lvalid.opacity,
-    "bg_img_recolor": lvalid.lv_color,
-    "bg_img_recolor_opa": lvalid.opacity,
+    "bg_image_opa": lvalid.opacity,
+    "bg_image_recolor": lvalid.lv_color,
+    "bg_image_recolor_opa": lvalid.opacity,
+    "bg_image_src": lvalid.lv_image,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
     "border_color": lvalid.lv_color,
@@ -130,6 +131,12 @@ STYLE_PROPS = {
     "width": lvalid.size,
     "x": lvalid.pixels_or_percent,
     "y": lvalid.pixels_or_percent,
+}
+
+STYLE_REMAP = {
+    "bg_image_opa": "bg_img_opa",
+    "bg_image_recolor_opa": "bg_img_recolor_opa",
+    "bg_image_src": "bg_img_src",
 }
 
 # Complete object style schema

@@ -39,6 +39,7 @@ lv_group_t = cg.global_ns.struct("lv_group_t")
 LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
 lv_obj_t = LvType("lv_obj_t")
+lv_img_t = LvType("lv_img_t")
 
 
 # this will be populated later, in __init__.py to avoid circular imports.
