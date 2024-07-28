@@ -1,6 +1,7 @@
+from esphome.const import CONF_BUTTON
 from esphome.cpp_generator import MockObjClass
 
-from .defines import CONF_BUTTON, CONF_MAIN
+from .defines import CONF_MAIN
 from .types import LvBoolean, WidgetType
 
 
