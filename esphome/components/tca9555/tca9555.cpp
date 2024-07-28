@@ -1,14 +1,14 @@
 #include "tca9555.h"
 #include "esphome/core/log.h"
 
-#define TCA9555_INPUT_PORT_REGISTER_0 0x00
-#define TCA9555_INPUT_PORT_REGISTER_1 0x01
-#define TCA9555_OUTPUT_PORT_REGISTER_0 0x02
-#define TCA9555_OUTPUT_PORT_REGISTER_1 0x03
-#define TCA9555_POLARITY_REGISTER_0 0x04
-#define TCA9555_POLARITY_REGISTER_1 0x05
-#define TCA9555_CONFIGURATION_PORT_0 0x06
-#define TCA9555_CONFIGURATION_PORT_1 0x07
+static const uint8_t tca9555_input_port_register_0 = 0x00;
+static const uint8_t tca9555_input_port_register_1 = 0x01;
+static const uint8_t tca9555_output_port_register_0 = 0x02;
+static const uint8_t tca9555_output_port_register_1 = 0x03;
+static const uint8_t tca9555_polarity_register_0 = 0x04;
+static const uint8_t tca9555_polarity_register_1 = 0x05;
+static const uint8_t tca9555_configuration_port_0 = 0x06;
+static const uint8_t tca9555_configuration_port_1 = 0x07;
 
 namespace esphome {
 namespace tca9555 {
@@ -62,7 +62,7 @@ bool TCA9555Component::read_gpio_() {
     return false;
   bool success;
   uint8_t data[2];
-  success = this->read_bytes(TCA9555_INPUT_PORT_REGISTER_0, data, 2);
+  success = this->read_bytes(tca9555_input_port_register_0, data, 2);
   this->input_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
 
   if (!success) {
@@ -80,7 +80,7 @@ bool TCA9555Component::write_gpio_() {
 
   data[0] = this->mode_mask_;
   data[1] = this->mode_mask_ >> 8;
-  if (!this->write_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2)) {
+  if (!this->write_bytes(tca9555_configuration_port_0, data, 2)) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Mode mask set failed!");
     return false;
@@ -88,7 +88,7 @@ bool TCA9555Component::write_gpio_() {
 
   data[0] = this->output_mask_;
   data[1] = this->output_mask_ >> 8;
-  if (!this->write_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
+  if (!this->write_bytes(tca9555_output_port_register_0, data, 2)) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Output register set failed!");
     return false;
