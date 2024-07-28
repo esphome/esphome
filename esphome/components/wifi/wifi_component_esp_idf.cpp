@@ -892,29 +892,31 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_netif_dhcps_option failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_option lease failed! %d", err);
     return false;
   }
 
   if (s_gw_netif) {
+    const char *if_key = esp_netif_get_ifkey(s_gw_netif);
+
+    ESP_LOGD(TAG, "Using previous netif '%s' to setup NAT", if_key);
+
     esp_netif_dns_info_t dns_gw;
     esp_netif_get_dns_info(s_gw_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
 
     if (dns_gw.ip.u_addr.ip4.addr != 0) {
       dhcps_offer_t dhcps_dns_value = OFFER_DNS;
-      ESP_LOGD(TAG, "Reusing DNS " IPSTR " for DHCP server", IP2STR(&dns_gw.ip.u_addr.ip4));
-      ESP_ERROR_CHECK(esp_netif_dhcps_option(s_gw_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER,
+      ESP_LOGD(TAG, "Reusing DNS " IPSTR " from netif '%s' for DHCP server", IP2STR(&dns_gw.ip.u_addr.ip4), if_key);
+      ESP_ERROR_CHECK(esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER,
                                              &dhcps_dns_value, sizeof(dhcps_dns_value)));
+      err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_netif_dhcps_option dns failed! %d", err);
+        return false;
+      }
     }
 
-    esp_netif_ip_info_t gw_ip_info;
-    esp_netif_get_ip_info(s_gw_netif, &gw_ip_info);
-    const char *if_key = esp_netif_get_ifkey(s_gw_netif);
-
-    if (esp_netif_is_netif_up(s_gw_netif)) {
-      ESP_LOGI(TAG, "netif %s is up", if_key);
-      ip_napt_enable(_g_esp_netif_soft_ap_ip.ip.addr, 1);
-    }
+    ip_napt_enable(info.ip.addr, 1);
   }
 
   err = esp_netif_dhcps_start(s_ap_netif);
