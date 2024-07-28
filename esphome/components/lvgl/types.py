@@ -23,6 +23,7 @@ lvgl_ns = cg.esphome_ns.namespace("lvgl")
 char_ptr = cg.global_ns.namespace("char").operator("ptr")
 void_ptr = cg.void.operator("ptr")
 LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
+LvglComponentPtr = LvglComponent.operator("ptr")
 lv_event_code_t = cg.global_ns.namespace("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 FontEngine = lvgl_ns.class_("FontEngine")
@@ -60,7 +61,7 @@ class LvBoolean(LvType):
         super().__init__(
             *args,
             largs=[(cg.bool_, "x")],
-            lvalue=lambda w: w.is_checked(),
+            lvalue=lambda w: w.has_state("LV_STATE_CHECKED"),
             has_on_value=True,
             **kwargs,
         )

@@ -103,7 +103,7 @@ class LvglComponent : public PollingComponent {
   void update() override {}
 
   void add_display(display::Display *display) { this->displays_.push_back(display); }
-  void add_init_lambda(const std::function<void(lv_disp_t *)> &lamb) { this->init_lambdas_.push_back(lamb); }
+  void add_init_lambda(const std::function<void(LvglComponent *)> &lamb) { this->init_lambdas_.push_back(lamb); }
   void dump_config() override;
   void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
@@ -113,6 +113,13 @@ class LvglComponent : public PollingComponent {
     if (!paused && lv_scr_act() != nullptr) {
       lv_disp_trig_activity(this->disp_);  // resets the inactivity time
       lv_obj_invalidate(lv_scr_act());
+    }
+  }
+
+  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
+    lv_obj_add_event_cb(obj, callback, event, this);
+    if (event == LV_EVENT_VALUE_CHANGED) {
+      lv_obj_add_event_cb(obj, callback, lv_custom_event, this);
     }
   }
   bool is_paused() const { return this->paused_; }
@@ -126,7 +133,7 @@ class LvglComponent : public PollingComponent {
   lv_disp_t *disp_{};
   bool paused_{};
 
-  std::vector<std::function<void(lv_disp_t *)>> init_lambdas_;
+  std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   size_t buffer_frac_{1};
   bool full_refresh_{};
 };

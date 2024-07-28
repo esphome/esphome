@@ -1,10 +1,13 @@
 from esphome import config_validation as cv
+from esphome.automation import Trigger, validate_automation
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
+    CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT
@@ -163,6 +166,25 @@ def part_schema(widget_type: WidgetType):
     )
 
 
+def automation_schema(typ: ty.LvType):
+    if typ.has_on_value:
+        events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
+    else:
+        events = df.LV_EVENT_TRIGGERS
+    if isinstance(typ, ty.LvType):
+        template = Trigger.template(typ.get_arg_type())
+    else:
+        template = Trigger.template()
+    return {
+        cv.Optional(event): validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
+            }
+        )
+        for event in events
+    }
+
+
 def obj_schema(widget_type: WidgetType):
     """
     Create a schema for a widget type itself i.e. no allowance for children
@@ -173,6 +195,7 @@ def obj_schema(widget_type: WidgetType):
         part_schema(widget_type)
         .extend(FLAG_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
+        .extend(automation_schema(widget_type.w_type))
         .extend(
             cv.Schema(
                 {

@@ -19,11 +19,12 @@ from .defines import (
     ConstantLiteral,
     LValidator,
     join_enums,
+    literal,
 )
 from .helpers import add_lv_use
-from .lvcode import add_group, add_line_marks, lv, lv_add, lv_assign, lv_obj
+from .lvcode import add_group, add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj
 from .schemas import ALL_STYLES
-from .types import WIDGET_TYPES, WidgetType, lv_obj_t
+from .types import WIDGET_TYPES, LvType, WidgetType, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
 
@@ -77,17 +78,20 @@ class Widget:
             return f"{self.var}->obj"
         return self.var
 
-    def add_state(self, *args):
-        return lv_obj.add_state(self.obj, *args)
+    def add_state(self, state):
+        return lv_obj.add_state(self.obj, literal(state))
 
-    def clear_state(self, *args):
-        return lv_obj.clear_state(self.obj, *args)
+    def clear_state(self, state):
+        return lv_obj.clear_state(self.obj, literal(state))
 
-    def add_flag(self, *args):
-        return lv_obj.add_flag(self.obj, *args)
+    def has_state(self, state):
+        return lv_expr.obj_get_state(self.obj) & literal(state) != 0
 
-    def clear_flag(self, *args):
-        return lv_obj.clear_flag(self.obj, *args)
+    def add_flag(self, flag):
+        return lv_obj.add_flag(self.obj, literal(flag))
+
+    def clear_flag(self, flag):
+        return lv_obj.clear_flag(self.obj, literal(flag))
 
     def set_property(self, prop, value, animated: bool = None, ltype=None):
         if isinstance(value, dict):
@@ -125,6 +129,16 @@ class Widget:
 
     def __str__(self):
         return f"({self.var}, {self.type})"
+
+    def get_args(self):
+        if isinstance(self.type.w_type, LvType):
+            return self.type.w_type.args
+        return [(lv_obj_t_ptr, "obj")]
+
+    def get_value(self):
+        if isinstance(self.type.w_type, LvType):
+            return self.type.w_type.value(self)
+        return self.obj
 
 
 # Map of widgets to their config, used for trigger generation
@@ -242,7 +256,7 @@ async def set_obj_properties(w: Widget, config):
             w.clear_state(clears)
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
-            state = ConstantLiteral(f"LV_STATE_{key.upper}")
+            state = f"LV_STATE_{key.upper}"
             lv.cond_if(lamb)
             w.add_state(state)
             lv.cond_else()

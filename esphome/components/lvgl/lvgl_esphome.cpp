@@ -74,7 +74,7 @@ void LvglComponent::setup() {
   ESP_LOGV(TAG, "sw_rotate = %d, rotated=%d", this->disp_drv_.sw_rotate, this->disp_drv_.rotated);
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
   for (const auto &v : this->init_lambdas_)
-    v(this->disp_);
+    v(this);
   lv_disp_trig_activity(this->disp_);
   ESP_LOGCONFIG(TAG, "LVGL Setup complete");
 }

@@ -107,12 +107,14 @@ class LambdaContext(CodeContext):
     def __init__(
         self,
         parameters: list[tuple[SafeExpType, str]],
-        return_type: SafeExpType = None,
+        return_type: SafeExpType = cg.void,
+        capture: str = "",
     ):
         super().__init__()
         self.code_list: list[Statement] = []
         self.parameters = parameters
         self.return_type = return_type
+        self.capture = capture
 
     def add(self, expression: Union[Expression, Statement]):
         self.code_list.append(expression)
@@ -127,8 +129,13 @@ class LambdaContext(CodeContext):
         return await cg.process_lambda(
             Lambda("\n".join(code_text) + "\n\n"),
             self.parameters,
+            capture=self.capture,
             return_type=self.return_type,
         )
+
+    def __enter__(self):
+        super().__enter__()
+        return self
 
 
 class LocalVariable(MockObj):

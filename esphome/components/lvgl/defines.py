@@ -4,6 +4,8 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 """
 
+from typing import Union
+
 from esphome import codegen as cg, config_validation as cv
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import Literal
@@ -20,6 +22,12 @@ class ConstantLiteral(Literal):
 
     def __str__(self):
         return self.constant
+
+
+def literal(arg: Union[str, ConstantLiteral]):
+    if isinstance(arg, str):
+        return ConstantLiteral(arg)
+    return arg
 
 
 class LValidator:

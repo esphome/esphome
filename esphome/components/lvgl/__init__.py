@@ -16,6 +16,7 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
+from .automation import generate_triggers
 from .btn import btn_spec
 from .defines import ConstantLiteral
 from .label import label_spec
@@ -24,14 +25,7 @@ from .obj import obj_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import any_widget_schema, obj_schema
 from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
-from .types import (
-    WIDGET_TYPES,
-    FontEngine,
-    LvglComponent,
-    lv_disp_t_ptr,
-    lv_font_t,
-    lvgl_ns,
-)
+from .types import WIDGET_TYPES, FontEngine, LvglComponent, lv_font_t, lvgl_ns
 from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
 DOMAIN = "lvgl"
@@ -53,7 +47,9 @@ WIDGET_SCHEMA = any_widget_schema()
 
 async def add_init_lambda(lv_component, init):
     if init:
-        lamb = await cg.process_lambda(Lambda(init), [(lv_disp_t_ptr, "lv_disp")])
+        lamb = await cg.process_lambda(
+            Lambda(init), [(LvglComponent.operator("ptr"), "lv_component")]
+        )
         cg.add(lv_component.add_init_lambda(lamb))
 
 
@@ -183,7 +179,8 @@ async def to_code(config):
         await rotary_encoders_to_code(lv_component, config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
-    Widget.set_completed()
+        Widget.set_completed()
+        await generate_triggers(lv_component)
     await add_init_lambda(lv_component, LvContext.get_code())
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
