@@ -23,7 +23,7 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import add_group, add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj
-from .schemas import ALL_STYLES
+from .schemas import ALL_STYLES, STYLE_REMAP
 from .types import WIDGET_TYPES, LvType, WidgetType, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
@@ -219,7 +219,8 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                w.set_style(prop, value, lv_state)
+                prop_r = STYLE_REMAP.get(prop, prop)
+                w.set_style(prop_r, value, lv_state)
     if group := add_group(config.get(CONF_GROUP)):
         lv.group_add_obj(group, w.obj)
     flag_clr = set()

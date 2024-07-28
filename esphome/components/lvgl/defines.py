@@ -7,6 +7,7 @@ Constants already defined in esphome.const are not duplicated here and must be i
 from typing import Union
 
 from esphome import codegen as cg, config_validation as cv
+from esphome.components.lvgl.helpers import requires_component
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import Literal
 from esphome.cpp_types import uint32
@@ -36,14 +37,19 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype, idtype=None, idexpr=None, retmapper=None):
+    def __init__(
+        self, validator, rtype, idtype=None, idexpr=None, retmapper=None, requires=None
+    ):
         self.validator = validator
         self.rtype = rtype
         self.idtype = idtype
         self.idexpr = idexpr
         self.retmapper = retmapper
+        self.requires = requires
 
     def __call__(self, value):
+        if self.requires:
+            value = requires_component(self.requires)(value)
         if isinstance(value, cv.Lambda):
             return cv.returning_lambda(value)
         if self.idtype is not None and isinstance(value, ID):

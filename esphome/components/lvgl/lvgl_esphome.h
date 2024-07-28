@@ -19,6 +19,9 @@
 #include "esphome/core/log.h"
 #include <lvgl.h>
 #include <vector>
+#ifdef USE_LVGL_IMAGE
+#include "esphome/components/image/image.h"
+#endif
 
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
@@ -72,6 +75,9 @@ class FontEngine {
   lv_font_t lv_font_{};
 };
 #endif  // USE_LVGL_FONT
+#ifdef USE_LVGL_IMAGE
+lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc = nullptr);
+#endif  // USE_LVGL_IMAGE
 
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
