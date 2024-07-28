@@ -948,6 +948,7 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
+    argcomplete.autocomplete(parser)
     return parser.parse_args(arguments)
 
 
