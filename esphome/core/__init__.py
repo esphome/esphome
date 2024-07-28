@@ -24,7 +24,7 @@ from esphome.const import (
 )
 
 # pylint: disable=unused-import
-from esphome.coroutine import (  # noqa
+from esphome.coroutine import (  # noqa: F401
     FakeAwaitable as _FakeAwaitable,
     FakeEventLoop as _FakeEventLoop,
     coroutine,
