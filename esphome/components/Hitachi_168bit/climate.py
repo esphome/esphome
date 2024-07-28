@@ -4,7 +4,7 @@ from esphome.components import climate_ir
 from esphome.const import CONF_ID, CONF_MODEL
 
 AUTO_LOAD = ["climate_ir"]
-CODEOWNERS = ["@glmnet"]
+CODEOWNERS = ["@Rodrigoah"]
 
 whirlpool_ns = cg.esphome_ns.namespace("whirlpool")
 WhirlpoolClimate = whirlpool_ns.class_("WhirlpoolClimate", climate_ir.ClimateIR)
