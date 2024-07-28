@@ -422,12 +422,15 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_L2_TO_L3_COPY", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_TASK_STACK_SIZE", 8192)  # was 4096
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+        if CORE.is_esp32 and CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_L2_TO_L3_COPY", True)
+            add_idf_sdkconfig_option(
+                "CONFIG_LWIP_TCPIP_TASK_STACK_SIZE", 8192
+            )  # was 4096
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
 
     elif CORE.is_esp32 and CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)

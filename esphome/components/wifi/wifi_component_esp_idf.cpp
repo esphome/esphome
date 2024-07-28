@@ -24,7 +24,7 @@
 
 #ifdef USE_WIFI_AP
 #include "dhcpserver/dhcpserver.h"
-#include <lwip/lwip_napt.h>
+#include "lwip/lwip_napt.h"
 #endif  // USE_WIFI_AP
 
 #include "lwip/apps/sntp.h"
@@ -47,8 +47,8 @@ static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-#endif                                        // USE_WIFI_AP
 static esp_netif_t *s_gw_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif                                        // USE_WIFI_AP
 static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_ap_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -138,10 +138,19 @@ void WiFiComponent::wifi_pre_setup_() {
   ESP_LOGV(TAG, "Use EFuse MAC without checking CRC: %s", get_mac_address_pretty().c_str());
 #endif
 
+#ifdef USE_WIFI_AP
   s_gw_netif = esp_netif_next(nullptr);
+  if (s_gw_netif && this->has_sta()) {
+    ESP_LOGE(TAG, "Only WiFi AP can be used when a network interface (%s) already exists",
+             esp_netif_get_ifkey(s_gw_netif));
+    return;
+  }
   esp_err_t err;
-  // FIXME: should raise an error if gw_netif exists, and using wifi sta
   if (!s_gw_netif) {
+#else
+  if (true) {
+#endif  // USE_WIFI_AP
+
     err = esp_netif_init();
     if (err != ERR_OK) {
       ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
