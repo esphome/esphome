@@ -138,6 +138,7 @@ void WiFiComponent::wifi_pre_setup_() {
   ESP_LOGV(TAG, "Use EFuse MAC without checking CRC: %s", get_mac_address_pretty().c_str());
 #endif
 
+  esp_err_t err;
 #ifdef USE_WIFI_AP
   s_gw_netif = esp_netif_next(nullptr);
   if (s_gw_netif && this->has_sta()) {
@@ -145,7 +146,6 @@ void WiFiComponent::wifi_pre_setup_() {
              esp_netif_get_ifkey(s_gw_netif));
     return;
   }
-  esp_err_t err;
   if (!s_gw_netif) {
 #else
   if (true) {
