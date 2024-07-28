@@ -113,7 +113,7 @@ void I2SAudioSpeaker::player_task(void *params) {
   event.type = TaskEventType::STARTED;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
   bool last_available_state = false;
-  const uint8_t wordsize = this->use_16bit_mode_ ? 2 : 4;
+  const uint8_t wordsize = this_speaker->use_16bit_mode_ ? 2 : 4;
   while (true) {
     uint32_t sample;
     uint8_t error_count = 0;
@@ -129,7 +129,7 @@ void I2SAudioSpeaker::player_task(void *params) {
         last_available_state = true;
       }
       this_speaker->buffer_queue_->read((void *) &sample, wordsize);
-      if (!this->use_16bit_mode_) {
+      if (!this_speaker->use_16bit_mode_) {
         sample = (sample << 16) | (sample & 0xFFFF);
       }
       esp_err_t err =
