@@ -138,7 +138,7 @@ void WiFiComponent::wifi_pre_setup_() {
   ESP_LOGV(TAG, "Use EFuse MAC without checking CRC: %s", get_mac_address_pretty().c_str());
 #endif
 
-  s_gw_netif = esp_netif_next(NULL);
+  s_gw_netif = esp_netif_next(nullptr);
   esp_err_t err;
   // FIXME: should raise an error if gw_netif exists, and using wifi sta
   if (!s_gw_netif) {
