@@ -53,8 +53,10 @@ ESPNowPackage::ESPNowPackage(const uint64_t mac_address, const std::vector<uint8
 }
 
 ESPNowPackage::ESPNowPackage(const uint64_t mac_address, const uint8_t *data, size_t len) {
-  this->data_.resize(len);
-  std::copy_n(data, len, this->data_.begin());
+  this->mac_address_ = mac_address;
+  this->data_.clear();
+  //  this->data_.insert(this->data_.begin(), len,  *data)
+  //  std::copy_n(data, len, this->data_.begin());
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }

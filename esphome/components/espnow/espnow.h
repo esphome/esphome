@@ -137,12 +137,13 @@ class ESPNowComponent : public Component {
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
 
   ESPNowPackage *send_package(const uint64_t mac_address, const uint8_t *data, int len) {
-    auto package = new ESPNowPackage(mac_address, data, len);
-    return this->send_package(package);
+    //  ESPNowPackage * package = new ESPNowPackage(mac_address, data, len);
+    //  return this->send_package(package);
+    return nullptr;
   }
 
   ESPNowPackage *send_package(const uint64_t mac_address, const std::vector<uint8_t> data) {
-    auto package = new ESPNowPackage(mac_address, data);
+    ESPNowPackage *package = new ESPNowPackage(mac_address, data);
     return this->send_package(package);
   }
 
