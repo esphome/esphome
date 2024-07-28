@@ -747,7 +747,14 @@ def parse_args(argv):
     )
 
     parser = argparse.ArgumentParser(
-        description=f"ESPHome v{const.__version__}", parents=[options_parser]
+        description=f"ESPHome {const.__version__}", parents=[options_parser]
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"ESPHome: {const.__version__}",
+        help="Print the ESPHome version and exit.",
     )
 
     mqtt_options = argparse.ArgumentParser(add_help=False)
