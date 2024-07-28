@@ -1,7 +1,6 @@
 #pragma once
 
 #include <utility>
-
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #ifdef USE_BINARY_SENSOR
@@ -44,12 +43,13 @@ enum State {
   STATE_SEND_USSD1,
   STATE_SEND_USSD2,
   STATE_CHECK_USSD,
-  STATE_RECEIVED_USSD
+  STATE_RECEIVED_USSD,
+  STATE_ICCID,             // Yeni state
+  STATE_PARSE_ICCID        // Yeni state
 };
 
 class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
  public:
-  /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
   void loop() override;
   void dump_config() override;
@@ -60,6 +60,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
 #endif
 #ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
+  void set_iccid_sensor(sensor::Sensor *iccid_sensor) { iccid_sensor_ = iccid_sensor; }  // Yeni sensör
 #endif
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->sms_received_callback_.add(std::move(callback));
@@ -81,11 +82,13 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void dial(const std::string &recipient);
   void connect();
   void disconnect();
+  void request_iccid_();  // Yeni metod
 
  protected:
   void send_cmd_(const std::string &message);
   void parse_cmd_(std::string message);
   void set_registered_(bool registered);
+  void parse_iccid_response_(std::string message);  // Yeni metod
 
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *registered_binary_sensor_{nullptr};
@@ -93,6 +96,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
 
 #ifdef USE_SENSOR
   sensor::Sensor *rssi_sensor_{nullptr};
+  sensor::Sensor *iccid_sensor_{nullptr};  // Yeni sensör
 #endif
   std::string sender_;
   std::string message_;
