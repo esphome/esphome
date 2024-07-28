@@ -16,7 +16,6 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .automation import generate_triggers
 from .btn import btn_spec
 from .defines import ConstantLiteral
 from .label import label_spec
@@ -25,6 +24,7 @@ from .obj import obj_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import any_widget_schema, obj_schema
 from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
+from .trigger import generate_triggers
 from .types import WIDGET_TYPES, FontEngine, LvglComponent, lv_font_t, lvgl_ns
 from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
