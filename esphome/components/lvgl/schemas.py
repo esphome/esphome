@@ -48,9 +48,10 @@ STYLE_PROPS = {
     "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
     "bg_grad_dir": df.LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER").one_of,
     "bg_grad_stop": lv.stop_value,
-    "bg_img_opa": lv.opacity,
-    "bg_img_recolor": lv.lv_color,
-    "bg_img_recolor_opa": lv.opacity,
+    "bg_image_opa": lv.opacity,
+    "bg_image_recolor": lv.lv_color,
+    "bg_image_recolor_opa": lv.opacity,
+    "bg_image_src": lv.lv_image,
     "bg_main_stop": lv.stop_value,
     "bg_opa": lv.opacity,
     "border_color": lv.lv_color,
@@ -62,8 +63,8 @@ STYLE_PROPS = {
     "border_width": cv.positive_int,
     "clip_corner": lv.lv_bool,
     "height": lv.size,
-    "img_recolor": lv.lv_color,
-    "img_recolor_opa": lv.opacity,
+    "image_recolor": lv.lv_color,
+    "image_recolor_opa": lv.opacity,
     "line_width": cv.positive_int,
     "line_dash_width": cv.positive_int,
     "line_dash_gap": cv.positive_int,
@@ -114,6 +115,12 @@ STYLE_PROPS = {
     "width": lv.size,
     "x": lv.pixels_or_percent,
     "y": lv.pixels_or_percent,
+}
+
+STYLE_REMAP = {
+    "bg_image_opa": "bg_img_opa",
+    "bg_image_recolor_opa": "bg_img_recolor_opa",
+    "bg_image_src": "bg_img_src",
 }
 
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(

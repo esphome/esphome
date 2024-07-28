@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
 from esphome.components.font import Font
+from esphome.components.image import Image_
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
@@ -176,6 +177,9 @@ def option_string(value):
 
 lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
 lv_bool = LValidator(bool_, cg.bool_, BinarySensor, "get_state()")
+lv_image = LValidator(
+    cv.use_id(Image_), ty.lv_img_t, retmapper=lambda x: f"lv_img_from({x})"
+)
 
 
 def lvms_validator_(value):

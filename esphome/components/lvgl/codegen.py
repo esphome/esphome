@@ -25,7 +25,7 @@ from .defines import (
     join_enums,
 )
 from .helpers import add_lv_use, get_line_marks, join_lines
-from .schemas import ALL_STYLES
+from .schemas import ALL_STYLES, STYLE_REMAP
 from .types import WIDGET_TYPES, LValidator, LvCompound, lv_coord_t, lv_obj_t
 from .widget import Widget, WidgetType, theme_widget_map
 
@@ -117,7 +117,9 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                init.extend(w.set_style(prop, value, lv_state))
+                # Remapping for backwards compatibility of style names
+                prop_r = STYLE_REMAP.get(prop, prop)
+                init.extend(w.set_style(prop_r, value, lv_state))
     if group := add_group(config.get(CONF_GROUP)):
         init.append(f"lv_group_add_obj({group}, {w.obj})")
     flag_clr = set()

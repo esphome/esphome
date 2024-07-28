@@ -4,7 +4,6 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.display import Display
-from esphome.components.image import Image_
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
 from esphome.components.touchscreen import CONF_TOUCHSCREEN_ID, Touchscreen
 import esphome.config_validation as cv
@@ -269,7 +268,7 @@ async def msgbox_to_code(conf):
     msgbox = cg.new_variable(
         ID(f"{mbid.id}_msgbox", is_declaration=True, type=ty.lv_obj_t_ptr), cg.nullptr
     )
-    Widget.create(mbid, outer, obj_spec, conf)
+    mbw = Widget.create(mbid, outer, obj_spec, conf)
     btnm_widg = Widget.create(str(btnm), btnm, btnmatrix_spec, conf)
     text_id, ctrl_list, width_list, _, _ = await get_button_data(
         (conf,), mbid, btnm_widg
@@ -294,6 +293,7 @@ async def msgbox_to_code(conf):
                     {btnm} = lv_msgbox_get_btns({msgbox});
                 """
     )
+    init.extend(await set_obj_properties(mbw, conf))
     if close_button:
         init.append(
             f"""lv_obj_remove_event_cb(lv_msgbox_get_close_btn({msgbox}), nullptr);
@@ -462,7 +462,9 @@ async def disp_update(disp, config: dict):
         )
     if bg_image := config.get(df.CONF_DISP_BG_IMAGE):
         helpers.lvgl_components_required.add("image")
-        init.append(f"lv_disp_set_bg_image({disp}, lv_img_from({bg_image}))")
+        init.append(
+            f"lv_disp_set_bg_image({disp}, {await lv.lv_image.process(bg_image)})"
+        )
     return init
 
 
@@ -626,7 +628,7 @@ def indicator_update_schema(base):
 
 DISP_BG_SCHEMA = cv.Schema(
     {
-        cv.Optional(df.CONF_DISP_BG_IMAGE): cv.use_id(Image_),
+        cv.Optional(df.CONF_DISP_BG_IMAGE): lv.lv_image,
         cv.Optional(df.CONF_DISP_BG_COLOR): lv.lv_color,
     }
 )

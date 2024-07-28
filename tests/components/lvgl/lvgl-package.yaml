@@ -56,10 +56,13 @@ lvgl:
     - id: message_box
       close_button: true
       title: Messagebox
+      bg_image_src: cat_img
+      bg_image_opa: 50%
       body:
         text: "This is a sample messagebox."
-        bg_color: 0x808080
-        bg_opa: 30%
+        bg_image_src: cat_img
+        bg_image_opa: 30%
+        bg_image_recolor: 0x404040
       buttons:
         - id: msgbox_apply
           text: "Apply"
