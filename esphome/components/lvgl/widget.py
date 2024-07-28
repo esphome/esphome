@@ -21,7 +21,7 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import ConstantLiteral, add_line_marks, lv, lv_add, lv_assign, lv_obj
-from .schemas import ALL_STYLES
+from .schemas import ALL_STYLES, STYLE_REMAP
 from .types import WIDGET_TYPES, WidgetType, lv_obj_t
 
 EVENT_LAMB = "event_lamb__"
@@ -204,7 +204,9 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                w.set_style(prop, value, lv_state)
+                    # Remapping for backwards compatibility of style names
+                prop_r = STYLE_REMAP.get(prop, prop)
+                w.set_style(prop_r, value, lv_state)
     flag_clr = set()
     flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]

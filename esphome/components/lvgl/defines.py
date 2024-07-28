@@ -88,7 +88,7 @@ class LvConstant(LValidator):
 
 
 # Widgets
-CONF_BTN = "btn"
+CONF_BUTTON = "button"
 CONF_LABEL = "label"
 
 # Parts

@@ -30,9 +30,9 @@ lvgl:
         bg_dither_mode: ordered
         bg_grad_dir: hor
         bg_grad_stop: 128
-        bg_img_opa: transp
-        bg_img_recolor: light_blue
-        bg_img_recolor_opa: 50%
+        bg_image_opa: transp
+        bg_image_recolor: light_blue
+        bg_image_recolor_opa: 50%
         bg_main_stop: 0
         bg_opa: 20%
         border_color: 0x00FF00
@@ -42,8 +42,8 @@ lvgl:
         border_width: 4
         clip_corner: false
         height: 50%
-        img_recolor: light_blue
-        img_recolor_opa: cover
+        image_recolor: light_blue
+        image_recolor_opa: cover
         line_width: 10
         line_dash_width: 10
         line_dash_gap: 10
@@ -90,7 +90,7 @@ lvgl:
         width: 10px
         x: 100
         y: 120
-    - btn:
+    - button:
         width: 20%
         height: 10%
         pressed:
