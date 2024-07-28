@@ -753,7 +753,7 @@ def parse_args(argv):
     parser.add_argument(
         "--version",
         action="version",
-        version=f"ESPHome: {const.__version__}",
+        version=f"Version: {const.__version__}",
         help="Print the ESPHome version and exit.",
     )
 
