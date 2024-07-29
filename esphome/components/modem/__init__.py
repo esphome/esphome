@@ -3,6 +3,8 @@ import logging
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+
+# from esphome.components.wifi import wifi_has_sta  # uncomment after PR#4091 merged
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
@@ -106,6 +108,11 @@ def _final_validate(config):
     #     raise cv.Invalid(
     #         f"'{CONF_STATUS_PIN}' must be declared if using '{CONF_POWER_PIN}'"
     #     )
+
+    # uncomment after PR#4091 merged
+    # if wifi_config := fv.full_config.get().get(CONF_WIFI, None):
+    #     if wifi_has_sta(wifi_config):
+    #         raise cv.Invalid("Wifi must be AP only when using ethernet")
     if config.get(CONF_STATUS_PIN, None):
         _LOGGER.warning("Using '%s' is experimental", CONF_STATUS_PIN)
     if config[CONF_ENABLE_CMUX]:
