@@ -99,7 +99,7 @@ bool TCA9555Component::write_gpio_() {
 }
 float TCA9555Component::get_setup_priority() const { return setup_priority::IO; }
 
-void TCA9555GPIOPin::setup() { pin_mode(flags_); }
+void TCA9555GPIOPin::setup() { this->pin_mode(this->flags_); }
 void TCA9555GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool TCA9555GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void TCA9555GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
