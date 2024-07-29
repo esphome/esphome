@@ -18,9 +18,9 @@
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
 #endif
-#ifdef LV_USE_TOUCHSCREEN
+#ifdef USE_LVGL_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
-#endif
+#endif  // USE_LVGL_TOUCHSCREEN
 
 namespace esphome {
 namespace lvgl {
@@ -28,14 +28,14 @@ namespace lvgl {
 extern lv_event_code_t lv_custom_event;  // NOLINT
 #ifdef USE_LVGL_COLOR
 inline lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
-#endif
+#endif  // USE_LVGL_COLOR
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_888;
-#else
+#else   // LV_COLOR_DEPTH
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
-#endif
+#endif  // LV_COLOR_DEPTH
 
 // Parent class for things that wrap an LVGL object
 class LvCompound final {
@@ -126,10 +126,10 @@ class LvglComponent : public PollingComponent {
   bool full_refresh_{};
 };
 
-#ifdef LV_USE_TOUCHSCREEN
+#ifdef USE_LVGL_TOUCHSCREEN
 class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglComponent> {
  public:
-  LVTouchListener(uint32_t long_press_time, uint32_t long_press_repeat_time) {
+  LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time) {
     lv_indev_drv_init(&this->drv_);
     this->drv_.long_press_repeat_time = long_press_repeat_time;
     this->drv_.long_press_time = long_press_time;
@@ -159,8 +159,8 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
   touchscreen::TouchPoint touch_point_{};
   bool touch_pressed_{};
 };
-#endif
+#endif  // USE_LVGL_TOUCHSCREEN
 }  // namespace lvgl
 }  // namespace esphome
 
-#endif
+#endif  // USE_LVGL
