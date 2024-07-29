@@ -11,7 +11,7 @@ from .defines import (
 )
 from .helpers import lvgl_components_required
 from .lv_validation import lv_milliseconds
-from .lvcode import lv, lv_add
+from .lvcode import lv
 from .types import LVTouchListener
 
 PRESS_TIME = cv.All(lv_milliseconds, cv.Range(max=TimePeriod(milliseconds=65535)))
@@ -43,4 +43,4 @@ async def touchscreens_to_code(var, config):
         listener = cg.new_Pvariable(tconf[CONF_ID], lpt, lprt)
         await cg.register_parented(listener, var)
         lv.indev_drv_register(listener.get_drv())
-        lv_add(touchscreen.register_listener(listener))
+        cg.add(touchscreen.register_listener(listener))
