@@ -70,7 +70,6 @@ class ModemComponent : public Component {
   void disable();
   void add_on_state_callback(std::function<void(ModemComponentState)> &&callback);
   std::unique_ptr<DCE> dce{nullptr};
-  uint8_t get_cmux_vt_states();
 
  protected:
   void create_dte_dce_();  // (re)create dte and dce
@@ -81,7 +80,6 @@ class ModemComponent : public Component {
   void poweroff_();
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
-  void exit_cmux_();
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
   GPIOPin *status_pin_{nullptr};
@@ -91,10 +89,13 @@ class ModemComponent : public Component {
   std::string password_;
   std::string apn_;
   std::vector<std::string> init_at_commands_;
+  size_t uart_rx_buffer_size_ = 2048;         // 256-2048
+  size_t uart_tx_buffer_size_ = 1024;         // 256-2048
+  uint8_t uart_event_queue_size_ = 30;        // 10-40
+  size_t uart_event_task_stack_size_ = 2048;  // 2000-6000
+  uint8_t uart_event_task_priority_ = 5;      // 3-22
   std::shared_ptr<DTE> dte_{nullptr};
   esp_netif_t *ppp_netif_{nullptr};
-  esp_modem_dte_config_t dte_config_;
-  esp_modem_dce_config_t dce_config_;
   ModemComponentState state_{ModemComponentState::DISABLED};
   bool cmux_{false};
   bool start_{false};

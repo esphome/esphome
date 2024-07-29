@@ -21,7 +21,8 @@
 #include <iostream>
 
 #ifndef USE_MODEM_MODEL
-#define USE_MODEM_MODEL "UNKNOWN"
+#define USE_MODEM_MODEL "GENERIC"
+#define USE_MODEM_MODEL_GENERIC
 #endif
 
 #define ESPHL_ERROR_CHECK(err, message) \
@@ -35,12 +36,6 @@
   if ((err) != command_result::OK) { \
     ESP_LOGE(TAG, message ": %s", command_result_to_string(err).c_str()); \
   }
-
-static const size_t CONFIG_MODEM_UART_RX_BUFFER_SIZE = 32768;
-static const size_t CONFIG_MODEM_UART_TX_BUFFER_SIZE = 32768;
-static const uint8_t CONFIG_MODEM_UART_EVENT_QUEUE_SIZE = 30;
-static const size_t CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE = 32768;
-static const uint8_t CONFIG_MODEM_UART_EVENT_TASK_PRIORITY = 5;
 
 namespace esphome {
 namespace modem {
@@ -63,13 +58,8 @@ bool ModemComponent::can_proceed() { return this->is_connected(); }
 network::IPAddresses ModemComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
-  ESP_LOGV(TAG, "get_ip_addresses");
-  esp_err_t err = esp_netif_get_ip_info(this->ppp_netif_, &ip);
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
-  } else {
-    addresses[0] = network::IPAddress(&ip.ip);
-  }
+  esp_netif_get_ip_info(this->ppp_netif_, &ip);
+  addresses[0] = network::IPAddress(&ip.ip);
   return addresses;
 }
 
@@ -125,19 +115,15 @@ void ModemComponent::setup() {
   this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
   assert(this->ppp_netif_);
 
-  ESP_LOGV(TAG, "Set APN: %s", this->apn_.c_str());
-  this->dce_config_ = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
-
   if (!this->username_.empty()) {
     ESP_LOGV(TAG, "Set auth: username: %s password: %s", this->username_.c_str(), this->password_.c_str());
     ESPHL_ERROR_CHECK(esp_netif_ppp_set_auth(this->ppp_netif_, NETIF_PPP_AUTHTYPE_PAP, this->username_.c_str(),
                                              this->password_.c_str()),
-                      "ppp set auth");
+                      "PPP set auth");
   }
 
-  // err = esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr,
-  //                                           nullptr);
-  err = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr);
+  err = esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr,
+                                            nullptr);
   ESPHL_ERROR_CHECK(err, "IP event handler register error");
 
   this->create_dte_dce_();
@@ -159,47 +145,46 @@ void ModemComponent::create_dte_dce_() {
   this->dce.reset();
 
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
-  this->dte_config_ = dte_config;
 
-  this->dte_config_.uart_config.tx_io_num = this->tx_pin_->get_pin();
-  this->dte_config_.uart_config.rx_io_num = this->rx_pin_->get_pin();
-  // this->dte_config_.uart_config.rts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_RTS_PIN);
-  // this->dte_config_.uart_config.cts_io_num =  static_cast<gpio_num_t>( CONFIG_EXAMPLE_MODEM_UART_CTS_PIN);
-  this->dte_config_.uart_config.rx_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE;
-  this->dte_config_.uart_config.tx_buffer_size = CONFIG_MODEM_UART_TX_BUFFER_SIZE;
-  this->dte_config_.uart_config.event_queue_size = CONFIG_MODEM_UART_EVENT_QUEUE_SIZE;
-  this->dte_config_.task_stack_size = CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE * 2;
-  this->dte_config_.task_priority = CONFIG_MODEM_UART_EVENT_TASK_PRIORITY;
-  this->dte_config_.dte_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE / 2;
+  dte_config.uart_config.tx_io_num = this->tx_pin_->get_pin();
+  dte_config.uart_config.rx_io_num = this->rx_pin_->get_pin();
+  dte_config.uart_config.rx_buffer_size = this->uart_rx_buffer_size_;
+  dte_config.uart_config.tx_buffer_size = this->uart_tx_buffer_size_;
+  dte_config.uart_config.event_queue_size = this->uart_event_queue_size_;
+  dte_config.task_stack_size = this->uart_event_task_stack_size_;
+  dte_config.task_priority = this->uart_event_task_priority_;
+  dte_config.dte_buffer_size = this->uart_rx_buffer_size_ / 2;
 
-  this->dte_ = create_uart_dte(&this->dte_config_);
+  this->dte_ = create_uart_dte(&dte_config);
 
-  // this->dte_->set_mode(modem_mode::COMMAND_MODE);
+  esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
 
 #if defined(USE_MODEM_MODEL_GENERIC)
-  this->dce = create_generic_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+  this->dce = create_generic_dce(&dce_config, this->dte_, this->ppp_netif_);
 #elif defined(USE_MODEM_MODEL_BG96)
-  this->dce = create_BG96_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+  this->dce = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
 #elif defined(USE_MODEM_MODEL_SIM800)
-  this->dce = create_SIM800_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+  this->dce = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
 #elif defined(USE_MODEM_MODEL_SIM7000)
-  this->dce = create_SIM7000_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+  this->dce = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
 #elif defined(USE_MODEM_MODEL_SIM7600)
-  this->dce = create_SIM7600_dce(&this->dce_config_, this->dte_, this->ppp_netif_);
+  this->dce = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
 #else
 #error Modem model not known
 #endif
 
   // flow control not fully implemented, but kept here for future work
-  if (this->dte_config_.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
-    if (command_result::OK != this->dce->set_flow_control(2, 2)) {
-      ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
-      return;
-    }
-    ESP_LOGD(TAG, "set_flow_control OK");
-  }
+  // if (dte_config.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
+  //   if (command_result::OK != this->dce->set_flow_control(2, 2)) {
+  //     ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
+  //     return;
+  //   }
+  //   ESP_LOGD(TAG, "set_flow_control OK");
+  // }
 
   // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
+  // No error check done. It can take some times if the commands fail
+  // but this allow to recover from a previous session.
   Watchdog wdt(60);
   if (this->cmux_) {
     this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE);
@@ -211,6 +196,8 @@ void ModemComponent::create_dte_dce_() {
   if (this->modem_ready()) {
     ESP_LOGD(TAG, "modem ready after exiting cmux/data mode");
   } else {
+    // the modem may be off. As the status pin is optionnal (and seems to be unreliable)
+    // we can be sure of the cause.
     ESP_LOGD(TAG, "modem *not* ready after exiting cmux/data mode");
   }
 }
@@ -226,7 +213,7 @@ bool ModemComponent::prepare_sim_() {
   if (!pin_ok) {
     if (!this->pin_code_.empty()) {
       ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
-      ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "");
+      ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "Set pin code failed");
       delay(this->command_delay_);
     }
   }
@@ -281,7 +268,7 @@ void ModemComponent::start_connect_() {
     if (this->dce->set_mode(modem_mode::DATA_MODE)) {
       ESP_LOGD(TAG, "Modem has correctly entered data mode");
     } else {
-      ESP_LOGD(TAG, "Unable to enter DATA mode");
+      ESP_LOGE(TAG, "Unable to enter DATA mode");
       this->status_set_error("Unable to enter DATA mode");
     }
     assert(!this->modem_ready());
@@ -408,9 +395,7 @@ void ModemComponent::loop() {
           }
           delay(200);  // NOLINT
           ESP_LOGD(TAG, "Hanging up connection after %.1fmin", float(this->connect_begin_) / (1000 * 60));
-          if (this->dce->hang_up() != command_result::OK) {
-            ESP_LOGW(TAG, "Unable to hang up modem. Trying to continue anyway.");
-          }
+          ESPMODEM_ERROR_CHECK(this->dce->hang_up(), "Unable to hang up modem. Trying to continue anyway.");
           this->dump_connect_params_();
         }
         this->start_ = false;
@@ -475,9 +460,10 @@ bool ModemComponent::get_power_status() {
   // This code is not fully checked. The status pin seems to be flickering on Lilygo T-SIM7600
   return this->status_pin_->digital_read();
 #else
-  // No status pin, assuming the modem is ON
-  // return true;
-  // Watchdog wdt(60);
+  if (!this->cmux_ && this->connected_) {
+    // Data mode, connected:  assume power is OK
+    return true;
+  }
   return this->modem_ready();
 #endif
 }
@@ -489,23 +475,19 @@ void ModemComponent::poweron_() {
     ESP_LOGV(TAG, "Powering up modem with power_pin...");
     this->power_transition_ = true;
     this->power_pin_->digital_write(false);
-    // min 100 for SIM7600, but min 1200 for SIM800.  min BG96: 650
     delay(USE_MODEM_POWER_TON);
     this->power_pin_->digital_write(true);
     // use a timout for long wait delay
     ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
     this->set_timeout("wait_poweron", USE_MODEM_POWER_TONUART, [this]() {
       Watchdog wdt(60);
-      // while (!this->get_power_status()) {
-      //   delay(this->command_delay_);
-      //   ESP_LOGV(TAG, "Waiting for modem to poweron...");
-      // }
       this->create_dte_dce_();
-      while (!this->modem_ready()) {
-        delay(500);  // NOLINT
-        ESP_LOGV(TAG, "Waiting for modem to be ready after poweron...");
+      delay(500);  // NOLINT
+      if (!this->modem_ready()) {
+        ESP_LOGE(TAG, "Unable to power on the modem");
+      } else {
+        ESP_LOGD(TAG, "Modem ready after power ON");
       }
-      ESP_LOGV(TAG, "Modem ready after power ON");
       this->power_transition_ = false;
     });
   }
@@ -514,7 +496,6 @@ void ModemComponent::poweron_() {
 
 void ModemComponent::poweroff_() {
 #ifdef USE_MODEM_POWER
-  // if (this->get_power_status()) {
   if (this->power_pin_) {
     ESP_LOGV(TAG, "Powering off modem with power pin...");
     this->power_transition_ = true;
@@ -529,15 +510,15 @@ void ModemComponent::poweroff_() {
     this->set_timeout("wait_poweroff", USE_MODEM_POWER_TOFFUART, [this]() {
       Watchdog wdt(60);
 
-      // while (this->get_power_status()) {
-      //   delay(this->command_delay_);
-      // }
-      assert(!this->modem_ready());
-      ESP_LOGV(TAG, "Modem OFF");
+      if (this->modem_ready()) {
+        ESP_LOGE(TAG, "Unable to power off the modem");
+      } else {
+        ESP_LOGD(TAG, "Modem OFF");
+      }
+
       this->power_transition_ = false;
     });
   }
-  // }
 #endif  // USE_MODEM_POWER
 }
 
@@ -549,17 +530,17 @@ void ModemComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->ppp_netif_, &ip);
   ESP_LOGCONFIG(TAG, "Modem connection:");
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
-  ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(&ip.netmask).str().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(&ip.gw).str().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address  : %s", network::IPAddress(&ip.ip).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Hostname    : '%s'", App.get_name().c_str());
+  ESP_LOGCONFIG(TAG, "  Subnet      : %s", network::IPAddress(&ip.netmask).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Gateway     : %s", network::IPAddress(&ip.gw).str().c_str());
 
   const ip_addr_t *dns_main_ip = dns_getserver(ESP_NETIF_DNS_MAIN);
   const ip_addr_t *dns_backup_ip = dns_getserver(ESP_NETIF_DNS_BACKUP);
   const ip_addr_t *dns_fallback_ip = dns_getserver(ESP_NETIF_DNS_FALLBACK);
 
-  ESP_LOGCONFIG(TAG, "  DNS main: %s", network::IPAddress(dns_main_ip).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS backup: %s", network::IPAddress(dns_backup_ip).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS main    : %s", network::IPAddress(dns_main_ip).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(dns_backup_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
 }
 
@@ -603,12 +584,6 @@ bool ModemComponent::get_imei(std::string &result) {
 bool ModemComponent::modem_ready() {
   // check if the modem is ready to answer AT commands
   std::string imei;
-  // bool status;
-  // {
-  //   // Temp increase watchdog timout. // FIXME infinite loop if while(!this->modem_ready())
-  //   Watchdog wdt(60);
-  //   status = this->get_imei(imei);
-  // }
   return this->get_imei(imei);
 }
 

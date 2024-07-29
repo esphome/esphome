@@ -133,23 +133,13 @@ async def to_code(config):
 
     add_idf_sdkconfig_option("CONFIG_PPP", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_PPP_PAP_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_LWIP_PPP_PAP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP", 0)
     add_idf_sdkconfig_option("CONFIG_PPP_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_PPP_NOTIFY_PHASE_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_PPP_CHAP_SUPPORT", True)
-    add_idf_sdkconfig_option("CONFIG_LWIP_PPP_VJ_HEADER_COMPRESSION", True)
-    add_idf_sdkconfig_option("CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT", True)
-
-    # commented because cause crash if another UART is defined in the yaml
-    # If enabled, it should increase the reliability and the speed of the connection (TODO: test)
-    # add_idf_sdkconfig_option("CONFIG_UART_ISR_IN_IRAM", True)
 
     # If Uart queue full message ( A7672 ), those config option might be changed
     # https://github.com/espressif/esp-protocols/issues/272#issuecomment-1558682967
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD", True)
-    add_idf_sdkconfig_option("ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED", False)
+    add_idf_sdkconfig_option("ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED", True)
     add_idf_sdkconfig_option("ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", False)
 
     cg.add_define("USE_MODEM")
