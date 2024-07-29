@@ -46,9 +46,9 @@ class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
   void digital_write(bool value) override;
   std::string dump_summary() const override;
 
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
  protected:
   uint8_t pin_;
