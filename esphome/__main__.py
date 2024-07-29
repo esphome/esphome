@@ -957,67 +957,6 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
-    # On Python 3.9+ we can simply set exit_on_error=False in the constructor
-    def _raise(x):
-        raise argparse.ArgumentError(None, x)
-
-    # First, try new-style parsing, but don't exit in case of failure
-    try:
-        # duplicate parser so that we can use the original one to raise errors later on
-        current_parser = argparse.ArgumentParser(add_help=False, parents=[parser])
-        current_parser.set_defaults(deprecated_argv_suggestion=None)
-        current_parser.error = _raise
-        return current_parser.parse_args(arguments)
-    except argparse.ArgumentError:
-        pass
-
-    # Second, try compat parsing and rearrange the command-line if it succeeds
-    # Disable argparse's built-in help option and add it manually to prevent this
-    # parser from printing the help messagefor the old format when invoked with -h.
-    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
-    compat_parser.add_argument("-h", "--help", action="store_true")
-    compat_parser.add_argument("configuration", nargs="*")
-    compat_parser.add_argument(
-        "command",
-        choices=[
-            "config",
-            "compile",
-            "upload",
-            "logs",
-            "run",
-            "clean-mqtt",
-            "wizard",
-            "mqtt-fingerprint",
-            "version",
-            "clean",
-            "dashboard",
-            "vscode",
-            "update-all",
-        ],
-    )
-
-    try:
-        compat_parser.error = _raise
-        result, unparsed = compat_parser.parse_known_args(argv[1:])
-        last_option = len(arguments) - len(unparsed) - 1 - len(result.configuration)
-        unparsed = [
-            "--device" if arg in ("--upload-port", "--serial-port") else arg
-            for arg in unparsed
-        ]
-        arguments = (
-            arguments[0:last_option]
-            + [result.command]
-            + result.configuration
-            + unparsed
-        )
-        deprecated_argv_suggestion = arguments
-    except argparse.ArgumentError:
-        # old-style parsing failed, don't suggest any argument
-        deprecated_argv_suggestion = None
-
-    # Finally, run the new-style parser again with the possibly swapped arguments,
-    # and let it error out if the command is unparsable.
-    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
     argcomplete.autocomplete(parser)
     return parser.parse_args(arguments)
 
@@ -1032,13 +971,6 @@ def run_esphome(argv):
         # Show timestamp for dashboard access logs
         args.command == "dashboard",
     )
-    if args.deprecated_argv_suggestion is not None and args.command != "vscode":
-        _LOGGER.warning(
-            "Calling ESPHome with the configuration before the command is deprecated "
-            "and will be removed in the future. "
-        )
-        _LOGGER.warning("Please instead use:")
-        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
     if sys.version_info < (3, 8, 0):
         _LOGGER.error(
