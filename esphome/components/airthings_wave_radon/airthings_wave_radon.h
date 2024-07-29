@@ -19,8 +19,8 @@ class AirthingsWaveRadon : public airthings_wave_base::AirthingsWaveBase {
 
   void dump_config() override;
 
-  void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
-  void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
+  void set_radon(sensor::Sensor *radon) { this->radon_sensor_ = radon; }
+  void set_radon_long_term(sensor::Sensor *radon_long_term) { this->radon_long_term_sensor_ = radon_long_term; }
 
  protected:
   bool is_valid_radon_value_(uint16_t radon);
