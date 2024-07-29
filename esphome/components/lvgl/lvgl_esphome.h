@@ -3,15 +3,15 @@
 
 #ifdef USE_LVGL_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
+#endif  // USE_LVGL_BINARY_SENSOR
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
-#endif
+#endif  // USE_LVGL_ROTARY_ENCODER
 
 // required for clang-tidy
 #ifndef LV_CONF_H
 #define LV_CONF_SKIP 1  // NOLINT
-#endif
+#endif                  // LV_CONF_H
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
@@ -22,11 +22,11 @@
 #include <vector>
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
-#endif
+#endif  // USE_LVGL_IMAGE
 
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
-#endif
+#endif  // USE_LVGL_FONT
 #ifdef USE_LVGL_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
 #endif  // USE_LVGL_TOUCHSCREEN
@@ -322,6 +322,6 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int32_t last_count_{};
   int key_{};
 };
-#endif
+#endif  // USE_LVGL_KEY_LISTENER
 }  // namespace lvgl
 }  // namespace esphome
