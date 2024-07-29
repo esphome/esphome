@@ -192,6 +192,23 @@ def automation_schema(typ: ty.LvType):
     }
 
 
+def create_modify_schema(widget_type, extras: dict = None):
+    schema = (
+        part_schema(widget_type)
+        .extend(
+            {
+                cv.Required(CONF_ID): cv.use_id(widget_type),
+                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+            }
+        )
+        .extend(FLAG_SCHEMA)
+        .extend(widget_type.modify_schema)
+    )
+    if extras is not None:
+        return schema.extend(extras)
+    return schema
+
+
 def obj_schema(widget_type: WidgetType):
     """
     Create a schema for a widget type itself i.e. no allowance for children

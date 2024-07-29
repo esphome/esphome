@@ -1,4 +1,4 @@
-from esphome import codegen as cg
+from esphome import automation, codegen as cg
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
 
@@ -27,6 +27,9 @@ LvglComponentPtr = LvglComponent.operator("ptr")
 lv_event_code_t = cg.global_ns.namespace("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 FontEngine = lvgl_ns.class_("FontEngine")
+ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
+LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
+LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
 LvCompound = lvgl_ns.class_("LvCompound")
 lv_font_t = cg.global_ns.class_("lv_font_t")
 lv_style_t = cg.global_ns.struct("lv_style_t")
@@ -87,11 +90,14 @@ class WidgetType:
         self.name = name
         self.w_type = w_type
         self.parts = parts
-        self.schema = schema or {}
-        if modify_schema is None:
-            self.modify_schema = schema
+        if schema is None:
+            self.schema = {}
         else:
-            self.modify_schema = modify_schema
+            self.schema = schema
+        if modify_schema is None:
+            self.modify_schema = self.schema
+        else:
+            self.modify_schema = self.schema
 
     @property
     def animated(self):

@@ -4,9 +4,9 @@ from typing import Any
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE
-from esphome.core import ID, TimePeriod
+from esphome.core import CORE, ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, VariableDeclarationExpression
 
 from .defines import (
     CONF_DEFAULT,
@@ -297,7 +297,10 @@ async def widget_to_code(w_cnfig, w_type, parent):
         var = cg.new_Pvariable(wid)
         lv_add(var.set_obj(creator))
     else:
-        var = cg.Pvariable(wid, cg.nullptr, type_=lv_obj_t)
+        var = MockObj(wid, "->")
+        decl = VariableDeclarationExpression(lv_obj_t, "*", wid)
+        CORE.add_global(decl)
+        CORE.register_variable(wid, var)
         lv_assign(var, creator)
 
     widget = Widget.create(wid, var, spec, w_cnfig, parent)

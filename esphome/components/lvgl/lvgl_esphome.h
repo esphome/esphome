@@ -57,6 +57,15 @@ using set_value_lambda_t = std::function<void(float)>;
 using event_callback_t = void(_lv_event_t *);
 using text_lambda_t = std::function<const char *()>;
 
+template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
+ public:
+  explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
+
+  void play(Ts... x) override { this->lamb_(x...); }
+
+ protected:
+  std::function<void(Ts...)> lamb_;
+};
 #ifdef USE_LVGL_FONT
 class FontEngine {
  public:
@@ -142,6 +151,27 @@ class LvglComponent : public PollingComponent {
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   size_t buffer_frac_{1};
   bool full_refresh_{};
+};
+
+template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
+ public:
+  void play(Ts... x) override { this->action_(this->parent_); }
+
+  void set_action(std::function<void(LvglComponent *)> action) { this->action_ = action; }
+
+ protected:
+  std::function<void(LvglComponent *)> action_{};
+};
+
+template<typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<LvglComponent> {
+ public:
+  bool check(Ts... x) override { return this->condition_lambda_(this->parent_); }
+  void set_condition_lambda(std::function<bool(LvglComponent *)> condition_lambda) {
+    this->condition_lambda_ = condition_lambda;
+  }
+
+ protected:
+  std::function<bool(LvglComponent *)> condition_lambda_{};
 };
 
 #ifdef USE_LVGL_TOUCHSCREEN

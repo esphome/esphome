@@ -106,7 +106,7 @@ class LambdaContext(CodeContext):
 
     def __init__(
         self,
-        parameters: list[tuple[SafeExpType, str]],
+        parameters: list[tuple[SafeExpType, str]] = None,
         return_type: SafeExpType = cg.void,
         capture: str = "",
     ):
@@ -120,18 +120,22 @@ class LambdaContext(CodeContext):
         self.code_list.append(expression)
         return expression
 
-    async def code(self) -> LambdaExpression:
-        code_text = []
-        for exp in self.code_list:
-            text = str(statement(exp))
-            text = text.rstrip()
-            code_text.append(text)
+    async def get_lambda(self) -> LambdaExpression:
+        code_text = self.get_code()
         return await cg.process_lambda(
             Lambda("\n".join(code_text) + "\n\n"),
             self.parameters,
             capture=self.capture,
             return_type=self.return_type,
         )
+
+    def get_code(self):
+        code_text = []
+        for exp in self.code_list:
+            text = str(statement(exp))
+            text = text.rstrip()
+            code_text.append(text)
+        return code_text
 
     def __enter__(self):
         super().__enter__()
@@ -195,13 +199,13 @@ class MockLv:
         return result
 
     def cond_if(self, expression: Expression):
-        CodeContext.append(RawExpression(f"if({expression}) {{"))
+        CodeContext.append(RawStatement(f"if {expression} {{"))
 
     def cond_else(self):
-        CodeContext.append(RawExpression("} else {"))
+        CodeContext.append(RawStatement("} else {"))
 
     def cond_endif(self):
-        CodeContext.append(RawExpression("}"))
+        CodeContext.append(RawStatement("}"))
 
 
 class LvExpr(MockLv):

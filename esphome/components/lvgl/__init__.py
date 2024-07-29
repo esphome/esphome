@@ -1,5 +1,6 @@
 import logging
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.display import Display
 import esphome.config_validation as cv
@@ -24,10 +25,18 @@ from .lv_validation import lv_images_used
 from .lvcode import LvContext
 from .obj import obj_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
-from .schemas import any_widget_schema, obj_schema
+from .schemas import any_widget_schema, create_modify_schema, obj_schema
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
-from .types import WIDGET_TYPES, FontEngine, LvglComponent, lv_font_t, lvgl_ns
+from .types import (
+    WIDGET_TYPES,
+    FontEngine,
+    LvglComponent,
+    ObjUpdateAction,
+    lv_font_t,
+    lvgl_ns,
+)
+from .update import update_to_code
 from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
 DOMAIN = "lvgl"
@@ -45,6 +54,13 @@ lv_scr_act = Widget.create(
 )
 
 WIDGET_SCHEMA = any_widget_schema()
+
+for w_type in WIDGET_TYPES.values():
+    automation.register_action(
+        f"lvgl.{w_type.name}.update",
+        ObjUpdateAction,
+        create_modify_schema(w_type, extras=w_type.modify_schema),
+    )(update_to_code)
 
 
 async def add_init_lambda(lv_component, init):

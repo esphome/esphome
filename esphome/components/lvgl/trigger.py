@@ -51,4 +51,4 @@ async def add_trigger(conf, event, lv_component, w):
     with LambdaContext([(lv_event_t_ptr, "event_data")]) as context:
         add_line_marks(tid)
         lv_add(trigger.trigger(value))
-    lv_add(lv_component.add_event_cb(w.obj, await context.code(), literal(event)))
+    lv_add(lv_component.add_event_cb(w.obj, await context.get_lambda(), literal(event)))
