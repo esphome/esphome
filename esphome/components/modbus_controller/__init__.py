@@ -1,8 +1,16 @@
 import binascii
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import modbus
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ID,
+    CONF_NAME,
+    CONF_LAMBDA,
+    CONF_OFFSET,
+    CONF_TRIGGER_ID,
+)
 from esphome.cpp_helpers import logging
 from .const import (
     CONF_BITMASK,
@@ -12,6 +20,7 @@ from .const import (
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_ON_COMMAND_SENT,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
@@ -97,6 +106,10 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
+ModbusCommandSentTrigger = modbus_controller_ns.class_(
+    "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 ModbusServerRegisterSchema = cv.Schema(
@@ -120,12 +133,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
+            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        ModbusCommandSentTrigger
+                    ),
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
-
 
 ModbusItemBaseSchema = cv.Schema(
     {
@@ -254,6 +273,11 @@ async def to_code(config):
                 )
             )
     await register_modbus_device(var, config)
+    for conf in config.get(CONF_ON_COMMAND_SENT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(int, "function_code"), (int, "address")], conf
+        )
 
 
 async def register_modbus_device(var, config):
