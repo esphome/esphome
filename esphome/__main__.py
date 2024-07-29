@@ -1,12 +1,12 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
+from datetime import datetime
 import functools
 import logging
 import os
 import re
 import sys
 import time
-from datetime import datetime
 
 import argcomplete
 
@@ -39,14 +39,14 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent, is_ip_address
+from esphome.log import Fore, color, setup_log
 from esphome.util import (
+    get_serial_ports,
+    list_yaml_files,
     run_external_command,
     run_external_process,
     safe_print,
-    list_yaml_files,
-    get_serial_ports,
 )
-from esphome.log import color, setup_log, Fore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,6 +116,7 @@ def get_port_type(port):
 
 def run_miniterm(config, port):
     import serial
+
     from esphome import platformio_api
 
     if CONF_LOGGER not in config:
@@ -596,8 +597,9 @@ def command_update_all(args):
 
 
 def command_idedata(args, config):
-    from esphome import platformio_api
     import json
+
+    from esphome import platformio_api
 
     logging.disable(logging.INFO)
     logging.disable(logging.WARNING)

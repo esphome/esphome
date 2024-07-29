@@ -1,20 +1,20 @@
-import operator
 from functools import reduce
-import esphome.config_validation as cv
-from esphome.core import CORE
+import operator
 
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_INPUT,
+    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
-    CONF_IGNORE_STRAPPING_WARNING,
-    CONF_ALLOW_OTHER_USES,
-    CONF_INVERTED,
 )
+from esphome.core import CORE
 
 
 class PinRegistry(dict):
