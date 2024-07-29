@@ -1,27 +1,27 @@
 import logging
 import os
-import re
 from pathlib import Path
+import re
 from typing import Union
 
-from esphome.config import iter_components
+from esphome import loader
+from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
+    ENV_NOGITIGNORE,
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
     __version__,
-    ENV_NOGITIGNORE,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
-    mkdir_p,
-    read_file,
-    write_file_if_changed,
-    walk_files,
     copy_file_if_changed,
     get_bool_env,
+    mkdir_p,
+    read_file,
+    walk_files,
+    write_file_if_changed,
 )
 from esphome.storage_json import StorageJSON, storage_path
-from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,14 +70,14 @@ UPLOAD_SPEED_OVERRIDE = {
 
 def get_flags(key):
     flags = set()
-    for _, component, conf in iter_components(CORE.config):
+    for _, component, conf in iter_component_configs(CORE.config):
         flags |= getattr(component, key)(conf)
     return flags
 
 
 def get_include_text():
     include_text = '#include "esphome.h"\nusing namespace esphome;\n'
-    for _, component, conf in iter_components(CORE.config):
+    for _, component, conf in iter_component_configs(CORE.config):
         if not hasattr(component, "includes"):
             continue
         includes = component.includes
@@ -203,7 +203,9 @@ def write_platformio_project():
     write_platformio_ini(content)
 
 
-DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
+DEFINES_H_FORMAT = (
+    ESPHOME_H_FORMAT
+) = """\
 #pragma once
 #include "esphome/core/macros.h"
 {}
@@ -230,7 +232,7 @@ the custom_components folder or the external_components feature.
 
 def copy_src_tree():
     source_files: list[loader.FileResource] = []
-    for _, component, _ in iter_components(CORE.config):
+    for _, component in iter_components(CORE.config):
         source_files += component.resources
     source_files_map = {
         Path(x.package.replace(".", "/") + "/" + x.resource): x for x in source_files

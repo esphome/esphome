@@ -104,7 +104,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
 
   if (this->filter_us != 0) {
     uint16_t filter_val = std::min(static_cast<unsigned int>(this->filter_us * 80u), 1023u);
-    ESP_LOGCONFIG(TAG, "    Filter Value: %uus (val=%u)", this->filter_us, filter_val);
+    ESP_LOGCONFIG(TAG, "    Filter Value: %" PRIu32 "us (val=%u)", this->filter_us, filter_val);
     error = pcnt_set_filter_value(this->pcnt_unit, filter_val);
     if (error != ESP_OK) {
       ESP_LOGE(TAG, "Setting filter value failed: %s", esp_err_to_name(error));
@@ -161,7 +161,7 @@ void PulseCounterSensor::dump_config() {
   LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  Rising Edge: %s", EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode]);
   ESP_LOGCONFIG(TAG, "  Falling Edge: %s", EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode]);
-  ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %u µs", this->storage_.filter_us);
+  ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %" PRIu32 " µs", this->storage_.filter_us);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -177,7 +177,7 @@ void PulseCounterSensor::update() {
 
   if (this->total_sensor_ != nullptr) {
     current_total_ += raw;
-    ESP_LOGD(TAG, "'%s': Total : %i pulses", this->get_name().c_str(), current_total_);
+    ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", this->get_name().c_str(), current_total_);
     this->total_sensor_->publish_state(current_total_);
   }
   this->last_time_ = now;

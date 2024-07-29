@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
+from esphome.components import web_server
 from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
@@ -18,12 +19,14 @@ from esphome.const import (
     CONF_VALUE,
     CONF_OPERATION,
     CONF_CYCLE,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -62,6 +65,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
@@ -79,6 +83,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -117,6 +122,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
     DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
@@ -165,26 +171,30 @@ NUMBER_OPERATION_OPTIONS = {
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.string_strict
 
-NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
-                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
-            },
-            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-        ),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-    }
+NUMBER_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                    cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
+                },
+                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+            ),
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
+            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+        }
+    )
 )
 
 _UNDEF = object()
@@ -237,13 +247,18 @@ async def setup_number_core_(
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
-    if CONF_UNIT_OF_MEASUREMENT in config:
-        cg.add(var.traits.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.traits.set_unit_of_measurement(unit_of_measurement))
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.traits.set_device_class(device_class))
+
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.traits.set_device_class(config[CONF_DEVICE_CLASS]))
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_number(
@@ -257,8 +272,8 @@ async def register_number(
     )
 
 
-async def new_number(config, *, min_value: float, max_value: float, step: float):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_number(config, *args, min_value: float, max_value: float, step: float):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_number(
         var, config, min_value=min_value, max_value=max_value, step=step
     )
@@ -282,15 +297,15 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
-    if CONF_ABOVE in config:
-        cg.add(var.set_min(config[CONF_ABOVE]))
-    if CONF_BELOW in config:
-        cg.add(var.set_max(config[CONF_BELOW]))
+    if (above := config.get(CONF_ABOVE)) is not None:
+        cg.add(var.set_min(above))
+    if (below := config.get(CONF_BELOW)) is not None:
+        cg.add(var.set_max(below))
 
     return var
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_NUMBER")
     cg.add_global(number_ns.using)
@@ -389,14 +404,14 @@ async def number_set_to_code(config, action_id, template_arg, args):
 async def number_to_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_OPERATION in config:
-        to_ = await cg.templatable(config[CONF_OPERATION], args, NumberOperation)
+    if (operation := config.get(CONF_OPERATION)) is not None:
+        to_ = await cg.templatable(operation, args, NumberOperation)
         cg.add(var.set_operation(to_))
-        if CONF_CYCLE in config:
-            cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
-            cg.add(var.set_cycle(cycle_))
-    if CONF_MODE in config:
-        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[config[CONF_MODE]]))
-        if CONF_CYCLE in config:
-            cg.add(var.set_cycle(config[CONF_CYCLE]))
+        if (cycle := config.get(CONF_CYCLE)) is not None:
+            template_ = await cg.templatable(cycle, args, bool)
+            cg.add(var.set_cycle(template_))
+    if (mode := config.get(CONF_MODE)) is not None:
+        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[mode]))
+        if (cycle := config.get(CONF_CYCLE)) is not None:
+            cg.add(var.set_cycle(cycle))
     return var

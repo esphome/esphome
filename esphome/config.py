@@ -1,43 +1,54 @@
+from __future__ import annotations
+
 import abc
+from contextlib import contextmanager
+import contextvars
 import functools
 import heapq
 import logging
 import re
-
-from typing import Optional, Union
-
-from contextlib import contextmanager
+from typing import Any, Union
 
 import voluptuous as vol
 
-from esphome import core, yaml_util, loader
-import esphome.core.config as core_config
+from esphome import core, loader, pins, yaml_util
+from esphome.config_helpers import Extend, Remove
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
-    CONF_ID,
-    CONF_PLATFORM,
-    CONF_PACKAGES,
-    CONF_SUBSTITUTIONS,
     CONF_EXTERNAL_COMPONENTS,
+    CONF_ID,
+    CONF_PACKAGES,
+    CONF_PLATFORM,
+    CONF_SUBSTITUTIONS,
     TARGET_PLATFORMS,
 )
-from esphome.core import CORE, EsphomeError
-from esphome.helpers import indent
-from esphome.util import safe_print, OrderedDict
-
-from esphome.config_helpers import Extend
-from esphome.loader import get_component, get_platform, ComponentManifest
-from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
-from esphome.voluptuous_schema import ExtraKeysInvalid
-from esphome.log import color, Fore
+from esphome.core import CORE, DocumentRange, EsphomeError
+import esphome.core.config as core_config
 import esphome.final_validate as fv
-import esphome.config_validation as cv
-from esphome.types import ConfigType, ConfigPathType, ConfigFragmentType
+from esphome.helpers import indent
+from esphome.loader import ComponentManifest, get_component, get_platform
+from esphome.log import Fore, color
+from esphome.types import ConfigFragmentType, ConfigType
+from esphome.util import OrderedDict, safe_print
+from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def iter_components(config):
+    for domain, conf in config.items():
+        component = get_component(domain)
+        yield domain, component
+        if component.is_platform_component:
+            for p_config in conf:
+                p_name = f"{domain}.{p_config[CONF_PLATFORM]}"
+                platform = get_platform(domain, p_config[CONF_PLATFORM])
+                yield p_name, platform
+
+
+def iter_component_configs(config):
     for domain, conf in config.items():
         component = get_component(domain)
         if component.multi_conf:
@@ -53,6 +64,7 @@ def iter_components(config):
 
 
 ConfigPath = list[Union[str, int]]
+path_context = contextvars.ContextVar("Config path")
 
 
 def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
@@ -63,7 +75,7 @@ def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
 
 @functools.total_ordering
 class _ValidationStepTask:
-    def __init__(self, priority: float, id_number: int, step: "ConfigValidationStep"):
+    def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
         self.priority = priority
         self.id_number = id_number
         self.step = step
@@ -109,10 +121,15 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             last_root = max(
                 i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
             )
-            error.path = error.path[last_root + 1 :]
+            # can't change the path so re-create the error
+            error = vol.Invalid(
+                message=error.error_message,
+                path=error.path[last_root + 1 :],
+                error_type=error.error_type,
+            )
         self.errors.append(error)
 
-    def add_validation_step(self, step: "ConfigValidationStep"):
+    def add_validation_step(self, step: ConfigValidationStep):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
         heapq.heappush(
@@ -120,7 +137,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         )
 
     def run_validation_steps(self):
-        while self._validation_tasks:
+        while self._validation_tasks and not self.errors:
             task = heapq.heappop(self._validation_tasks)
             task.step.run(self)
 
@@ -129,6 +146,8 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         path = path or []
         try:
             yield
+        except cv.FinalExternalInvalid as e:
+            self.add_error(e)
         except vol.Invalid as e:
             e.prepend(path)
             self.add_error(e)
@@ -154,7 +173,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             conf = conf[key]
         conf[path[-1]] = value
 
-    def get_error_for_path(self, path: ConfigPath) -> Optional[vol.Invalid]:
+    def get_error_for_path(self, path: ConfigPath) -> vol.Invalid | None:
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 self.errors.remove(err)
@@ -163,7 +182,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
     def get_deepest_document_range_for_path(
         self, path: ConfigPath, get_key: bool = False
-    ) -> Optional[ESPHomeDataBase]:
+    ) -> DocumentRange | None:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):
@@ -192,7 +211,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         return doc_range
 
     def get_nested_item(
-        self, path: ConfigPathType, raise_error: bool = False
+        self, path: ConfigPath, raise_error: bool = False
     ) -> ConfigFragmentType:
         data = self
         for item_index in path:
@@ -223,7 +242,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
                 return path
         raise KeyError(f"ID {id} not found in configuration")
 
-    def get_config_for_path(self, path: ConfigPathType) -> ConfigFragmentType:
+    def get_config_for_path(self, path: ConfigPath) -> ConfigFragmentType:
         return self.get_nested_item(path, raise_error=True)
 
     @property
@@ -274,8 +293,7 @@ class ConfigValidationStep(abc.ABC):
     priority: float = 0.0
 
     @abc.abstractmethod
-    def run(self, result: Config) -> None:
-        ...
+    def run(self, result: Config) -> None: ...  # noqa: E704
 
 
 class LoadValidationStep(ConfigValidationStep):
@@ -296,8 +314,14 @@ class LoadValidationStep(ConfigValidationStep):
             # Ignore top-level keys starting with a dot
             return
         result.add_output_path([self.domain], self.domain)
-        result[self.domain] = self.conf
         component = get_component(self.domain)
+        if (
+            component is not None
+            and component.multi_conf_no_default
+            and isinstance(self.conf, core.AutoLoad)
+        ):
+            self.conf = []
+        result[self.domain] = self.conf
         path = [self.domain]
         if component is None:
             result.add_str_error(f"Component not found: {self.domain}", path)
@@ -309,10 +333,11 @@ class LoadValidationStep(ConfigValidationStep):
             if load not in result:
                 result.add_validation_step(AutoLoadValidationStep(load))
 
+        result.add_validation_step(
+            MetadataValidationStep([self.domain], self.domain, self.conf, component)
+        )
+
         if not component.is_platform_component:
-            result.add_validation_step(
-                MetadataValidationStep([self.domain], self.domain, self.conf, component)
-            )
             return
 
         # This is a platform component, proceed to reading platform entries
@@ -343,7 +368,16 @@ class LoadValidationStep(ConfigValidationStep):
                         path + [CONF_ID],
                     )
                     continue
-                result.add_str_error("No platform specified! See 'platform' key.", path)
+                if isinstance(p_id, Remove):
+                    result.add_str_error(
+                        f"Source for removal of ID '{p_id.value}' was not found.",
+                        path + [CONF_ID],
+                    )
+                    continue
+                result.add_str_error(
+                    f"'{self.domain}' requires a 'platform' key but it was not specified.",
+                    path,
+                )
                 continue
             # Remove temp output path and construct new one
             result.remove_output_path(path, p_domain)
@@ -411,13 +445,35 @@ class MetadataValidationStep(ConfigValidationStep):
 
     def run(self, result: Config) -> None:
         if self.conf is None:
-            result[self.domain] = self.conf = {}
+            if self.comp.multi_conf and self.comp.multi_conf_no_default:
+                result[self.domain] = self.conf = []
+            else:
+                result[self.domain] = self.conf = {}
 
         success = True
         for dependency in self.comp.dependencies:
-            if dependency not in result:
+            dependency_parts = dependency.split(".")
+            if len(dependency_parts) > 2:
                 result.add_str_error(
-                    f"Component {self.domain} requires component {dependency}",
+                    "Dependencies must be specified as a single component or in component.platform format only",
+                    self.path,
+                )
+                return
+            component_dep = dependency_parts[0]
+            platform_dep = dependency_parts[-1]
+            if component_dep not in result:
+                result.add_str_error(
+                    f"Component {self.domain} requires component {component_dep}",
+                    self.path,
+                )
+                success = False
+            elif component_dep != platform_dep and (
+                not isinstance(platform_list := result.get(component_dep), list)
+                or not any(CONF_PLATFORM in p for p in platform_list)
+                or not any(p[CONF_PLATFORM] == platform_dep for p in platform_list)
+            ):
+                result.add_str_error(
+                    f"Component {self.domain} requires 'platform: {platform_dep}' in component '{component_dep}'",
                     self.path,
                 )
                 success = False
@@ -487,8 +543,7 @@ class SchemaValidationStep(ConfigValidationStep):
         self.comp = comp
 
     def run(self, result: Config) -> None:
-        if self.comp.config_schema is None:
-            return
+        token = path_context.set(self.path)
         with result.catch_error(self.path):
             if self.comp.is_platform:
                 # Remove 'platform' key for validation
@@ -502,11 +557,12 @@ class SchemaValidationStep(ConfigValidationStep):
                 validated["platform"] = platform_val
                 validated.move_to_end("platform", last=False)
                 result.set_by_path(self.path, validated)
-            else:
+            elif self.comp.config_schema is not None:
                 schema = cv.Schema(self.comp.config_schema)
                 validated = schema(self.conf)
                 result.set_by_path(self.path, validated)
 
+        path_context.reset(token)
         result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
@@ -630,6 +686,35 @@ class IDPassValidationStep(ConfigValidationStep):
                             )
 
 
+class RemoveReferenceValidationStep(ConfigValidationStep):
+    """
+    Make sure all !remove references have been removed from the config.
+    Any left overs mean the merge step couldn't find corresponding previously existing id/key
+    """
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+
+        def recursive_check_remove_tag(config: Config, path: ConfigPath = None):
+            path = path or []
+
+            if isinstance(config, Remove):
+                result.add_str_error(
+                    f"Source for removal at '{'->'.join([str(p) for p in path])}' was not found.",
+                    path,
+                )
+            elif isinstance(config, list):
+                for i, item in enumerate(config):
+                    recursive_check_remove_tag(item, path + [i])
+            elif isinstance(config, dict):
+                for key, value in config.items():
+                    recursive_check_remove_tag(value, path + [key])
+
+        recursive_check_remove_tag(result)
+
+
 class FinalValidateValidationStep(ConfigValidationStep):
     """Run final_validate_schema for all components."""
 
@@ -645,19 +730,34 @@ class FinalValidateValidationStep(ConfigValidationStep):
             # If result already has errors, skip this step
             return
 
-        if self.comp.final_validate_schema is None:
-            return
-
         token = fv.full_config.set(result)
 
         conf = result.get_nested_item(self.path)
         with result.catch_error(self.path):
-            self.comp.final_validate_schema(conf)
+            if self.comp.final_validate_schema is not None:
+                self.comp.final_validate_schema(conf)
 
         fv.full_config.reset(token)
 
 
-def validate_config(config, command_line_substitutions) -> Config:
+class PinUseValidationCheck(ConfigValidationStep):
+    """Check for pin reuse"""
+
+    priority = -30  # Should happen after component final validations
+
+    def __init__(self) -> None:
+        pass
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+        pins.PIN_SCHEMA_REGISTRY.final_validate(result)
+
+
+def validate_config(
+    config: dict[str, Any], command_line_substitutions: dict[str, Any]
+) -> Config:
     result = Config()
 
     loader.clear_component_meta_finders()
@@ -678,11 +778,11 @@ def validate_config(config, command_line_substitutions) -> Config:
     CORE.raw_config = config
 
     # 1. Load substitutions
-    if CONF_SUBSTITUTIONS in config:
+    if CONF_SUBSTITUTIONS in config or command_line_substitutions:
         from esphome.components import substitutions
 
         result[CONF_SUBSTITUTIONS] = {
-            **config[CONF_SUBSTITUTIONS],
+            **config.get(CONF_SUBSTITUTIONS, {}),
             **command_line_substitutions,
         }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
@@ -752,6 +852,9 @@ def validate_config(config, command_line_substitutions) -> Config:
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
+    result.add_validation_step(PinUseValidationCheck())
+
+    result.add_validation_step(RemoveReferenceValidationStep())
 
     result.run_validation_steps()
 
@@ -780,6 +883,9 @@ def _get_parent_name(path, config):
                 # Sub-item
                 break
             return domain
+    # When processing a list, skip back over the index
+    while len(path) > 1 and isinstance(path[-1], int):
+        path = path[:-1]
     return path[-1]
 
 
@@ -818,24 +924,23 @@ class InvalidYAMLError(EsphomeError):
         self.base_exc = base_exc
 
 
-def _load_config(command_line_substitutions):
+def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
+    """Load the configuration file."""
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
 
     try:
-        result = validate_config(config, command_line_substitutions)
+        return validate_config(config, command_line_substitutions)
     except EsphomeError:
         raise
     except Exception:
         _LOGGER.error("Unexpected exception while reading configuration:")
         raise
 
-    return result
 
-
-def load_config(command_line_substitutions):
+def load_config(command_line_substitutions: dict[str, Any]) -> Config:
     try:
         return _load_config(command_line_substitutions)
     except vol.Invalid as err:
@@ -1002,11 +1107,18 @@ def read_config(command_line_substitutions):
             if errline:
                 errstr += f" {errline}"
             safe_print(errstr)
-            safe_print(indent(dump_dict(res, path)[0]))
+            split_dump = dump_dict(res, path)[0].splitlines()
+            # find the last error message
+            i = len(split_dump) - 1
+            while i > 10 and "\033[" not in split_dump[i]:
+                i = i - 1
+            # discard lines more than 4 beyond the last error
+            i = min(i + 4, len(split_dump))
+            safe_print(indent("\n".join(split_dump[:i])))
 
         for err in res.errors:
             safe_print(color(Fore.BOLD_RED, err.msg))
             safe_print("")
 
         return None
-    return OrderedDict(res)
+    return res

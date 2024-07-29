@@ -23,15 +23,12 @@ static const uint8_t READ_TOUCH[1] = {0x07};
     return; \
   }
 
-void Store::gpio_intr(Store *store) { store->touch = true; }
-
 void LilygoT547Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Lilygo T5 4.7 Touchscreen...");
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
 
-  this->store_.pin = this->interrupt_pin_->to_isr();
-  this->interrupt_pin_->attach_interrupt(Store::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
+  this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to communicate!");
@@ -41,19 +38,19 @@ void LilygoT547Touchscreen::setup() {
   }
 
   this->write_register(POWER_REGISTER, WAKEUP_CMD, 1);
+  if (this->display_ != nullptr) {
+    if (this->x_raw_max_ == this->x_raw_min_) {
+      this->x_raw_max_ = this->display_->get_native_width();
+    }
+    if (this->y_raw_max_ == this->y_raw_min_) {
+      this->x_raw_max_ = this->display_->get_native_height();
+    }
+  }
 }
 
-void LilygoT547Touchscreen::loop() {
-  if (!this->store_.touch) {
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
-    return;
-  }
-  this->store_.touch = false;
-
+void LilygoT547Touchscreen::update_touches() {
   uint8_t point = 0;
   uint8_t buffer[40] = {0};
-  uint32_t sum_l = 0, sum_h = 0;
 
   i2c::ErrorCode err;
   err = this->write_register(TOUCH_REGISTER, READ_FLAGS, 1);
@@ -69,102 +66,30 @@ void LilygoT547Touchscreen::loop() {
 
   point = buffer[5] & 0xF;
 
-  if (point == 0) {
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
-    return;
-  } else if (point == 1) {
+  if (point == 1) {
     err = this->write_register(TOUCH_REGISTER, READ_TOUCH, 1);
     ERROR_CHECK(err);
     err = this->read(&buffer[5], 2);
     ERROR_CHECK(err);
 
-    sum_l = buffer[5] << 8 | buffer[6];
   } else if (point > 1) {
     err = this->write_register(TOUCH_REGISTER, READ_TOUCH, 1);
     ERROR_CHECK(err);
     err = this->read(&buffer[5], 5 * (point - 1) + 3);
     ERROR_CHECK(err);
-
-    sum_l = buffer[5 * point + 1] << 8 | buffer[5 * point + 2];
   }
 
   this->write_register(TOUCH_REGISTER, CLEAR_FLAGS, 2);
 
-  for (int i = 0; i < 5 * point; i++)
-    sum_h += buffer[i];
+  if (point == 0)
+    point = 1;
 
-  if (sum_l != sum_h)
-    point = 0;
-
-  if (point) {
-    uint8_t offset;
-    for (int i = 0; i < point; i++) {
-      if (i == 0) {
-        offset = 0;
-      } else {
-        offset = 4;
-      }
-
-      TouchPoint tp;
-
-      tp.id = (buffer[i * 5 + offset] >> 4) & 0x0F;
-      tp.state = buffer[i * 5 + offset] & 0x0F;
-      if (tp.state == 0x06)
-        tp.state = 0x07;
-
-      uint16_t y = (uint16_t) ((buffer[i * 5 + 1 + offset] << 4) | ((buffer[i * 5 + 3 + offset] >> 4) & 0x0F));
-      uint16_t x = (uint16_t) ((buffer[i * 5 + 2 + offset] << 4) | (buffer[i * 5 + 3 + offset] & 0x0F));
-
-      switch (this->rotation_) {
-        case ROTATE_0_DEGREES:
-          tp.y = this->display_height_ - y;
-          tp.x = x;
-          break;
-        case ROTATE_90_DEGREES:
-          tp.x = this->display_height_ - y;
-          tp.y = this->display_width_ - x;
-          break;
-        case ROTATE_180_DEGREES:
-          tp.y = y;
-          tp.x = this->display_width_ - x;
-          break;
-        case ROTATE_270_DEGREES:
-          tp.x = y;
-          tp.y = x;
-          break;
-      }
-
-      this->defer([this, tp]() { this->send_touch_(tp); });
-    }
-  } else {
-    TouchPoint tp;
-    tp.id = (buffer[0] >> 4) & 0x0F;
-    tp.state = 0x06;
-
-    uint16_t y = (uint16_t) ((buffer[0 * 5 + 1] << 4) | ((buffer[0 * 5 + 3] >> 4) & 0x0F));
-    uint16_t x = (uint16_t) ((buffer[0 * 5 + 2] << 4) | (buffer[0 * 5 + 3] & 0x0F));
-
-    switch (this->rotation_) {
-      case ROTATE_0_DEGREES:
-        tp.y = this->display_height_ - y;
-        tp.x = x;
-        break;
-      case ROTATE_90_DEGREES:
-        tp.x = this->display_height_ - y;
-        tp.y = this->display_width_ - x;
-        break;
-      case ROTATE_180_DEGREES:
-        tp.y = y;
-        tp.x = this->display_width_ - x;
-        break;
-      case ROTATE_270_DEGREES:
-        tp.x = y;
-        tp.y = x;
-        break;
-    }
-
-    this->defer([this, tp]() { this->send_touch_(tp); });
+  uint16_t id, x_raw, y_raw;
+  for (uint8_t i = 0; i < point; i++) {
+    id = (buffer[i * 5] >> 4) & 0x0F;
+    y_raw = (uint16_t) ((buffer[i * 5 + 1] << 4) | ((buffer[i * 5 + 3] >> 4) & 0x0F));
+    x_raw = (uint16_t) ((buffer[i * 5 + 2] << 4) | (buffer[i * 5 + 3] & 0x0F));
+    this->add_raw_touch_position_(id, x_raw, y_raw);
   }
 
   this->status_clear_warning();

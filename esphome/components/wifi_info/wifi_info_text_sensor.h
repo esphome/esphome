@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
+#include <array>
 
 namespace esphome {
 namespace wifi_info {
@@ -10,32 +11,38 @@ namespace wifi_info {
 class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    auto ip = wifi::global_wifi_component->wifi_sta_ip();
-    if (ip != this->last_ip_) {
-      this->last_ip_ = ip;
-      this->publish_state(ip.str());
+    auto ips = wifi::global_wifi_component->wifi_sta_ip_addresses();
+    if (ips != this->last_ips_) {
+      this->last_ips_ = ips;
+      this->publish_state(ips[0].str());
+      uint8_t sensor = 0;
+      for (auto &ip : ips) {
+        if (ip.is_set()) {
+          if (this->ip_sensors_[sensor] != nullptr) {
+            this->ip_sensors_[sensor]->publish_state(ip.str());
+          }
+          sensor++;
+        }
+      }
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   std::string unique_id() override { return get_mac_address() + "-wifiinfo-ip"; }
   void dump_config() override;
+  void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
  protected:
-  network::IPAddress last_ip_;
+  network::IPAddresses last_ips_;
+  std::array<text_sensor::TextSensor *, 5> ip_sensors_;
 };
 
 class DNSAddressWifiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    std::string dns_results;
-
     auto dns_one = wifi::global_wifi_component->get_dns_address(0);
     auto dns_two = wifi::global_wifi_component->get_dns_address(1);
 
-    dns_results += "DNS1: ";
-    dns_results += dns_one.str();
-    dns_results += " DNS2: ";
-    dns_results += dns_two.str();
+    std::string dns_results = dns_one.str() + " " + dns_two.str();
 
     if (dns_results != this->last_results_) {
       this->last_results_ = dns_results;

@@ -20,6 +20,12 @@ static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 static const uint8_t PN532_COMMAND_POWERDOWN = 0x16;
 
+enum PN532ReadReady {
+  WOULDBLOCK = 0,
+  TIMEOUT,
+  READY,
+};
+
 class PN532BinarySensor;
 
 class PN532 : public PollingComponent {
@@ -54,8 +60,11 @@ class PN532 : public PollingComponent {
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
   bool read_ack_();
+  void send_ack_();
   void send_nack_();
 
+  enum PN532ReadReady read_ready_(bool block);
+  virtual bool is_read_ready() = 0;
   virtual bool write_data(const std::vector<uint8_t> &data) = 0;
   virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
   virtual bool read_response(uint8_t command, std::vector<uint8_t> &data) = 0;
@@ -91,6 +100,8 @@ class PN532 : public PollingComponent {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
+  uint32_t rd_start_time_{0};
+  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,
     CLEAN,

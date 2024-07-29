@@ -2,6 +2,8 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace coolix {
 

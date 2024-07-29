@@ -1,13 +1,13 @@
 #include "api_server.h"
+#include <cerrno>
 #include "api_connection.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
-#include "esphome/core/hal.h"
-#include "esphome/components/network/util.h"
-#include <cerrno>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -111,6 +111,7 @@ void APIServer::loop() {
                                 [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
+    this->client_disconnected_trigger_->trigger((*it)->client_info_, (*it)->client_peername_);
     ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
   // resize vector
@@ -254,6 +255,42 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATE
+void APIServer::on_date_update(datetime::DateEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_date_state(obj);
+}
+#endif
+
+#ifdef USE_DATETIME_TIME
+void APIServer::on_time_update(datetime::TimeEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_time_state(obj);
+}
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+void APIServer::on_datetime_update(datetime::DateTimeEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_datetime_state(obj);
+}
+#endif
+
+#ifdef USE_TEXT
+void APIServer::on_text_update(text::Text *obj, const std::string &state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_text_state(obj, state);
+}
+#endif
+
 #ifdef USE_SELECT
 void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (obj->is_internal())
@@ -272,12 +309,35 @@ void APIServer::on_lock_update(lock::Lock *obj) {
 }
 #endif
 
+#ifdef USE_VALVE
+void APIServer::on_valve_update(valve::Valve *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_valve_state(obj);
+}
+#endif
+
 #ifdef USE_MEDIA_PLAYER
 void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
     c->send_media_player_state(obj);
+}
+#endif
+
+#ifdef USE_EVENT
+void APIServer::on_event(event::Event *obj, const std::string &event_type) {
+  for (auto &c : this->clients_)
+    c->send_event(obj, event_type);
+}
+#endif
+
+#ifdef USE_UPDATE
+void APIServer::on_update(update::UpdateEntity *obj) {
+  for (auto &c : this->clients_)
+    c->send_update_state(obj);
 }
 #endif
 
@@ -309,7 +369,7 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
   for (auto &client : this->clients_) {
-    if (!client->remove_ && client->connection_state_ == APIConnection::ConnectionState::CONNECTED)
+    if (!client->remove_ && client->is_authenticated())
       client->send_time_request();
   }
 }
@@ -321,22 +381,6 @@ void APIServer::on_shutdown() {
   }
   delay(10);
 }
-
-#ifdef USE_VOICE_ASSISTANT
-bool APIServer::start_voice_assistant(const std::string &conversation_id, bool use_vad) {
-  for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(true, conversation_id, use_vad))
-      return true;
-  }
-  return false;
-}
-void APIServer::stop_voice_assistant() {
-  for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(false, "", false))
-      return;
-  }
-}
-#endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {

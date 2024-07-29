@@ -127,8 +127,18 @@ void PN532::loop() {
   if (!this->requested_read_)
     return;
 
+  auto ready = this->read_ready_(false);
+  if (ready == WOULDBLOCK)
+    return;
+
+  bool success = false;
   std::vector<uint8_t> read;
-  bool success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
+
+  if (ready == READY) {
+    success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
+  } else {
+    this->send_ack_();  // abort still running InListPassiveTarget
+  }
 
   this->requested_read_ = false;
 
@@ -286,10 +296,56 @@ bool PN532::read_ack_() {
   return matches;
 }
 
+void PN532::send_ack_() {
+  ESP_LOGV(TAG, "Sending ACK for abort");
+  this->write_data({0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00});
+  delay(10);
+}
 void PN532::send_nack_() {
   ESP_LOGV(TAG, "Sending NACK for retransmit");
   this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00});
   delay(10);
+}
+
+enum PN532ReadReady PN532::read_ready_(bool block) {
+  if (this->rd_ready_ == READY) {
+    if (block) {
+      this->rd_start_time_ = 0;
+      this->rd_ready_ = WOULDBLOCK;
+    }
+    return READY;
+  }
+
+  if (!this->rd_start_time_) {
+    this->rd_start_time_ = millis();
+  }
+
+  while (true) {
+    if (this->is_read_ready()) {
+      this->rd_ready_ = READY;
+      break;
+    }
+
+    if (millis() - this->rd_start_time_ > 100) {
+      ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
+      this->rd_ready_ = TIMEOUT;
+      break;
+    }
+
+    if (!block) {
+      this->rd_ready_ = WOULDBLOCK;
+      break;
+    }
+
+    yield();
+  }
+
+  auto rdy = this->rd_ready_;
+  if (block || rdy == TIMEOUT) {
+    this->rd_start_time_ = 0;
+    this->rd_ready_ = WOULDBLOCK;
+  }
+  return rdy;
 }
 
 void PN532::turn_off_rf_() {

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cinttypes>
+#include <cmath>
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
@@ -7,8 +10,6 @@
 #include "esphome/core/preferences.h"
 #include <VOCGasIndexAlgorithm.h>
 #include <NOxGasIndexAlgorithm.h>
-
-#include <cmath>
 
 namespace esphome {
 namespace sgp4x {

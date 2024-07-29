@@ -17,12 +17,16 @@ static const uint8_t BP5758D_ADDR_START_2CH = 0b00100000;
 static const uint8_t BP5758D_ADDR_START_5CH = 0b00110000;
 static const uint8_t BP5758D_ALL_DATA_CHANNEL_ENABLEMENT = 0b00011111;
 
+static const uint8_t BP5758D_DELAY = 2;
+
 void BP5758D::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BP5758D Output Component...");
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
+  delayMicroseconds(BP5758D_DELAY);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(false);
+  delayMicroseconds(BP5758D_DELAY);
   this->channel_current_.resize(5, 0);
   this->pwm_amounts_.resize(5, 0);
 }
@@ -39,10 +43,14 @@ void BP5758D::loop() {
   uint8_t data[17];
   if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
       this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
-    // Off / Sleep
-    data[0] = BP5758D_MODEL_ID + BP5758D_ADDR_STANDBY;
-    for (int i = 1; i < 16; i++)
+    for (int i = 1; i < 17; i++)
       data[i] = 0;
+
+    // First turn all channels off
+    data[0] = BP5758D_MODEL_ID + BP5758D_ADDR_START_5CH;
+    this->write_buffer_(data, 17);
+    // Then sleep
+    data[0] = BP5758D_MODEL_ID + BP5758D_ADDR_STANDBY;
     this->write_buffer_(data, 17);
   } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
              (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
@@ -119,28 +127,42 @@ void BP5758D::set_channel_value_(uint8_t channel, uint16_t value) {
 void BP5758D::set_channel_current_(uint8_t channel, uint8_t current) { this->channel_current_[channel] = current; }
 
 void BP5758D::write_bit_(bool value) {
-  this->clock_pin_->digital_write(false);
   this->data_pin_->digital_write(value);
+  delayMicroseconds(BP5758D_DELAY);
   this->clock_pin_->digital_write(true);
+  delayMicroseconds(BP5758D_DELAY);
+  this->clock_pin_->digital_write(false);
+  delayMicroseconds(BP5758D_DELAY);
 }
 
 void BP5758D::write_byte_(uint8_t data) {
   for (uint8_t mask = 0x80; mask; mask >>= 1) {
     this->write_bit_(data & mask);
   }
-  this->clock_pin_->digital_write(false);
-  this->data_pin_->digital_write(true);
+
+  // ack bit
+  this->data_pin_->pin_mode(gpio::FLAG_INPUT);
   this->clock_pin_->digital_write(true);
+  delayMicroseconds(BP5758D_DELAY);
+  this->clock_pin_->digital_write(false);
+  delayMicroseconds(BP5758D_DELAY);
+  this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }
 
 void BP5758D::write_buffer_(uint8_t *buffer, uint8_t size) {
   this->data_pin_->digital_write(false);
+  delayMicroseconds(BP5758D_DELAY);
+  this->clock_pin_->digital_write(false);
+  delayMicroseconds(BP5758D_DELAY);
+
   for (uint32_t i = 0; i < size; i++) {
     this->write_byte_(buffer[i]);
   }
-  this->clock_pin_->digital_write(false);
+
   this->clock_pin_->digital_write(true);
+  delayMicroseconds(BP5758D_DELAY);
   this->data_pin_->digital_write(true);
+  delayMicroseconds(BP5758D_DELAY);
 }
 
 }  // namespace bp5758d

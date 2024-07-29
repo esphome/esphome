@@ -1,17 +1,17 @@
-import logging
-from typing import Callable, Optional, Any, ContextManager
-from types import ModuleType
-import importlib
-import importlib.util
-import importlib.resources
-import importlib.abc
-import sys
-from pathlib import Path
 from dataclasses import dataclass
+import importlib
+import importlib.abc
+import importlib.resources
+import importlib.util
+import logging
+from pathlib import Path
+import sys
+from types import ModuleType
+from typing import Any, Callable, ContextManager, Optional
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
-import esphome.core.config
 from esphome.core import CORE
+import esphome.core.config
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +23,9 @@ class FileResource:
     resource: str
 
     def path(self) -> ContextManager[Path]:
-        return importlib.resources.path(self.package, self.resource)
+        return importlib.resources.as_file(
+            importlib.resources.files(self.package) / self.resource
+        )
 
 
 class ComponentManifest:
@@ -56,6 +58,10 @@ class ComponentManifest:
     @property
     def multi_conf(self) -> bool:
         return getattr(self.module, "MULTI_CONF", False)
+
+    @property
+    def multi_conf_no_default(self) -> bool:
+        return getattr(self.module, "MULTI_CONF_NO_DEFAULT", False)
 
     @property
     def to_code(self) -> Optional[Callable[[Any], None]]:
@@ -97,10 +103,15 @@ class ComponentManifest:
         loaded .py file (does not look through subdirectories)
         """
         ret = []
-        for resource in importlib.resources.contents(self.package):
+
+        for resource in (
+            r.name
+            for r in importlib.resources.files(self.package).iterdir()
+            if r.is_file()
+        ):
             if Path(resource).suffix not in SOURCE_FILE_EXTENSIONS:
                 continue
-            if not importlib.resources.is_resource(self.package, resource):
+            if not importlib.resources.files(self.package).joinpath(resource).is_file():
                 # Not a resource = this is a directory (yeah this is confusing)
                 continue
             ret.append(FileResource(self.package, resource))
@@ -164,7 +175,11 @@ def _lookup_module(domain):
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
-        if "No module named" not in str(e):
+        if "No module named" in str(e):
+            _LOGGER.error(
+                "Unable to import component %s: %s", domain, str(e), exc_info=False
+            )
+        else:
             _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
         return None
     except Exception:  # pylint: disable=broad-except

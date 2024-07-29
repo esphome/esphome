@@ -22,6 +22,7 @@ from esphome.const import (
     ICON_THERMOMETER,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
     UNIT_HOUR,
     UNIT_MINUTE,
@@ -128,7 +129,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                     icon=ICON_RADIATOR,
                     accuracy_decimals=0,
                     device_class=DEVICE_CLASS_ENERGY,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    state_class=STATE_CLASS_TOTAL_INCREASING,
                 ),
                 cv.Optional(CONF_TIME): sensor.sensor_schema(
                     unit_of_measurement=UNIT_MINUTE,
@@ -209,7 +210,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                     icon=ICON_RADIATOR,
                     accuracy_decimals=0,
                     device_class=DEVICE_CLASS_ENERGY,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    state_class=STATE_CLASS_TOTAL_INCREASING,
                 ),
                 cv.Optional(CONF_TIME): sensor.sensor_schema(
                     unit_of_measurement=UNIT_MINUTE,
@@ -290,7 +291,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                     icon=ICON_RADIATOR,
                     accuracy_decimals=0,
                     device_class=DEVICE_CLASS_ENERGY,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    state_class=STATE_CLASS_TOTAL_INCREASING,
                 ),
                 cv.Optional(CONF_TIME): sensor.sensor_schema(
                     unit_of_measurement=UNIT_MINUTE,
@@ -353,7 +354,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                     icon=ICON_RADIATOR,
                     accuracy_decimals=0,
                     device_class=DEVICE_CLASS_ENERGY,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    state_class=STATE_CLASS_TOTAL_INCREASING,
                 ),
                 cv.Optional(CONF_VERSION): sensor.sensor_schema(
                     accuracy_decimals=2,
@@ -433,7 +434,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                     icon=ICON_RADIATOR,
                     accuracy_decimals=0,
                     device_class=DEVICE_CLASS_ENERGY,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    state_class=STATE_CLASS_TOTAL_INCREASING,
                 ),
                 cv.Optional(CONF_TIME): sensor.sensor_schema(
                     unit_of_measurement=UNIT_MINUTE,

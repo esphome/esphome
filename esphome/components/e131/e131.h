@@ -3,6 +3,7 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
 
+#include <cinttypes>
 #include <map>
 #include <memory>
 #include <set>

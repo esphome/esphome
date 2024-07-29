@@ -10,5 +10,3 @@ Things to note when contributing:
    for more information.
  - Please also update the tests in the `tests/` folder. You can do so by just adding a line in one of the YAML files
    which checks if your new feature compiles correctly.
- - Sometimes I will let pull requests linger because I'm not 100% sure about them. Please feel free to ping
-   me after some time.

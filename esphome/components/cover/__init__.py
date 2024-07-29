@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ID,
     CONF_DEVICE_CLASS,
@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_TILT_STATE_TOPIC,
     CONF_STOP,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     CONF_TRIGGER_ID,
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
@@ -88,42 +89,46 @@ CoverClosedTrigger = cover_ns.class_(
 
 CONF_ON_CLOSED = "on_closed"
 
-COVER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(Cover),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
-        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
-        cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_TILT_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
-            }
-        ),
-    }
+COVER_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(Cover),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
+            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_TILT_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
+                }
+            ),
+        }
+    )
 )
 
 
 async def setup_cover_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
 
     for conf in config.get(CONF_ON_OPEN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -132,24 +137,24 @@ async def setup_cover_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
+
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-        if CONF_POSITION_STATE_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_position_state_topic(config[CONF_POSITION_STATE_TOPIC])
-            )
-        if CONF_POSITION_COMMAND_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_position_command_topic(
-                    config[CONF_POSITION_COMMAND_TOPIC]
-                )
-            )
-        if CONF_TILT_STATE_TOPIC in config:
-            cg.add(mqtt_.set_custom_tilt_state_topic(config[CONF_TILT_STATE_TOPIC]))
-        if CONF_TILT_COMMAND_TOPIC in config:
-            cg.add(mqtt_.set_custom_tilt_command_topic(config[CONF_TILT_COMMAND_TOPIC]))
+        if (position_state_topic := config.get(CONF_POSITION_STATE_TOPIC)) is not None:
+            cg.add(mqtt_.set_custom_position_state_topic(position_state_topic))
+        if (
+            position_command_topic := config.get(CONF_POSITION_COMMAND_TOPIC)
+        ) is not None:
+            cg.add(mqtt_.set_custom_position_command_topic(position_command_topic))
+        if (tilt_state_topic := config.get(CONF_TILT_STATE_TOPIC)) is not None:
+            cg.add(mqtt_.set_custom_tilt_state_topic(tilt_state_topic))
+        if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
+            cg.add(mqtt_.set_custom_tilt_command_topic(tilt_command_topic))
 
 
 async def register_cover(var, config):
@@ -205,17 +210,17 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 async def cover_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_STOP in config:
-        template_ = await cg.templatable(config[CONF_STOP], args, bool)
+    if (stop := config.get(CONF_STOP)) is not None:
+        template_ = await cg.templatable(stop, args, bool)
         cg.add(var.set_stop(template_))
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, float)
+    if (state := config.get(CONF_STATE)) is not None:
+        template_ = await cg.templatable(state, args, float)
         cg.add(var.set_position(template_))
-    if CONF_POSITION in config:
-        template_ = await cg.templatable(config[CONF_POSITION], args, float)
+    if (position := config.get(CONF_POSITION)) is not None:
+        template_ = await cg.templatable(position, args, float)
         cg.add(var.set_position(template_))
-    if CONF_TILT in config:
-        template_ = await cg.templatable(config[CONF_TILT], args, float)
+    if (tilt := config.get(CONF_TILT)) is not None:
+        template_ = await cg.templatable(tilt, args, float)
         cg.add(var.set_tilt(template_))
     return var
 

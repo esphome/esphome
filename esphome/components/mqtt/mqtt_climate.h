@@ -20,6 +20,7 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   void setup() override;
 
   MQTT_COMPONENT_CUSTOM_TOPIC(current_temperature, state)
+  MQTT_COMPONENT_CUSTOM_TOPIC(current_humidity, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(mode, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(mode, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(target_temperature, state)
@@ -28,6 +29,8 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(target_temperature_low, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(target_temperature_high, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(target_temperature_high, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(target_humidity, state)
+  MQTT_COMPONENT_CUSTOM_TOPIC(target_humidity, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(away, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(away, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(action, state)

@@ -61,23 +61,24 @@ void SGP4xComponent::setup() {
   ESP_LOGD(TAG, "Product version: 0x%0X", uint16_t(this->featureset_ & 0x1FF));
 
   if (this->store_baseline_) {
-    // Hash with compilation time
+    // Hash with compilation time and serial number
     // This ensures the baseline storage is cleared after OTA
-    uint32_t hash = fnv1_hash(App.get_compilation_time());
+    // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
+    uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(this->serial_number_));
     this->pref_ = global_preferences->make_preference<SGP4xBaselines>(hash, true);
 
     if (this->pref_.load(&this->voc_baselines_storage_)) {
       this->voc_state0_ = this->voc_baselines_storage_.state0;
       this->voc_state1_ = this->voc_baselines_storage_.state1;
-      ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04X, state1: 0x%04X", this->voc_baselines_storage_.state0,
-               voc_baselines_storage_.state1);
+      ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+               this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
     }
 
     // Initialize storage timestamp
     this->seconds_since_last_store_ = 0;
 
     if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-      ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04X, state1: 0x%04X",
+      ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
                this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
       voc_algorithm_.set_states(this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
     }
@@ -165,7 +166,7 @@ bool SGP4xComponent::measure_gas_indices_(int32_t &voc, int32_t &nox) {
   if (nox_sensor_) {
     nox = nox_algorithm_.process(nox_sraw);
   }
-  ESP_LOGV(TAG, "VOC = %d, NOx = %d", voc, nox);
+  ESP_LOGV(TAG, "VOC = %" PRId32 ", NOx = %" PRId32, voc, nox);
   // Store baselines after defined interval or if the difference between current and stored baseline becomes too
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
@@ -177,8 +178,8 @@ bool SGP4xComponent::measure_gas_indices_(int32_t &voc, int32_t &nox) {
       this->voc_baselines_storage_.state1 = this->voc_state1_;
 
       if (this->pref_.save(&this->voc_baselines_storage_)) {
-        ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04X ,state1: 0x%04X", this->voc_baselines_storage_.state0,
-                 voc_baselines_storage_.state1);
+        ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
+                 this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
       } else {
         ESP_LOGW(TAG, "Could not store VOC baselines");
       }
@@ -272,7 +273,7 @@ void SGP4xComponent::update_gas_indices() {
   }
   if (this->samples_read_ < this->samples_to_stabilize_) {
     this->samples_read_++;
-    ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %u", this->samples_read_,
+    ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %" PRIu32, this->samples_read_,
              this->samples_to_stabilize_, this->voc_index_);
     return;
   }

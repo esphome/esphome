@@ -28,6 +28,8 @@ class TuyaFan : public Component, public fan::Fan {
   optional<uint8_t> oscillation_id_{};
   optional<uint8_t> direction_id_{};
   int speed_count_{};
+  TuyaDatapointType speed_type_{};
+  TuyaDatapointType oscillation_type_{};
 };
 
 }  // namespace tuya

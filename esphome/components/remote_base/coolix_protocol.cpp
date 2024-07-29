@@ -101,11 +101,11 @@ optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
 
 void CoolixProtocol::dump(const CoolixData &data) {
   if (data.is_strict()) {
-    ESP_LOGI(TAG, "Received Coolix: 0x%06X", data.first);
+    ESP_LOGI(TAG, "Received Coolix: 0x%06" PRIX32, data.first);
   } else if (data.has_second()) {
-    ESP_LOGI(TAG, "Received unstrict Coolix: [0x%06X, 0x%06X]", data.first, data.second);
+    ESP_LOGI(TAG, "Received unstrict Coolix: [0x%06" PRIX32 ", 0x%06" PRIX32 "]", data.first, data.second);
   } else {
-    ESP_LOGI(TAG, "Received unstrict Coolix: [0x%06X]", data.first);
+    ESP_LOGI(TAG, "Received unstrict Coolix: [0x%06" PRIX32 "]", data.first);
   }
 }
 

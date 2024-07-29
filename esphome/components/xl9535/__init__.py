@@ -43,11 +43,17 @@ def validate_mode(mode):
     return mode
 
 
+def validate_pin(pin):
+    if pin in (8, 9):
+        raise cv.Invalid(f"pin {pin} doesn't exist")
+    return pin
+
+
 XL9535_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(XL9535GPIOPin),
         cv.Required(CONF_XL9535): cv.use_id(XL9535Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
+        cv.Required(CONF_NUMBER): cv.All(cv.int_range(min=0, max=17), validate_pin),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,

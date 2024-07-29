@@ -68,42 +68,81 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
     if (bit_value) {
-      temp_reg_data |= (1 << pin);
+      output_state_ |= (1 << pin);  // set bit in shadow register
     } else {
-      temp_reg_data &= ~(1 << pin);
+      output_state_ &= ~(1 << pin);  // reset bit shadow register
+    }
+    for (uint16_t b = 0x8000; b; b >>= 1) {
+      if ((~ddr_mask_) & b) {  // transfer bits of outputs, but don't mess with inputs
+        if (output_state_ & b) {
+          temp_reg_data |= b;
+        } else {
+          temp_reg_data &= ~b;
+        }
+      }
     }
     this->write_byte_16(REG_DATA_B, temp_reg_data);
   }
 }
 
 void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
+  ESP_LOGI(TAG, "Configuring pin %u with flags %x", pin, flags);
+
+  uint16_t temp_word = 0;
+
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
-  if (flags == gpio::FLAG_OUTPUT) {
+  if (flags & gpio::FLAG_OUTPUT) {
+    // Always disable input buffer
+    this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
+    temp_word |= (1 << pin);
+    this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
+
+    if (flags & gpio::FLAG_OPEN_DRAIN) {
+      // Pullup must be disabled for open drain mode
+      this->read_byte_16(REG_PULL_UP_B, &temp_word);
+      temp_word &= ~(1 << pin);
+      this->write_byte_16(REG_PULL_UP_B, temp_word);
+      this->read_byte_16(REG_OPEN_DRAIN_B, &temp_word);
+      temp_word |= (1 << pin);
+      this->write_byte_16(REG_OPEN_DRAIN_B, temp_word);
+      ESP_LOGD(TAG, "Open drain output mode set for %u", pin);
+    } else {
+      ESP_LOGD(TAG, "Output Mode for %u", pin);
+    }
+
+    // Set direction to output
     this->ddr_mask_ &= ~(1 << pin);
+    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   } else {
-    this->ddr_mask_ |= (1 << pin);
+    ESP_LOGD(TAG, "Input Mode for %u", pin);
 
-    uint16_t temp_pullup;
-    this->read_byte_16(REG_PULL_UP_B, &temp_pullup);
-    uint16_t temp_pulldown;
-    this->read_byte_16(REG_PULL_DOWN_B, &temp_pulldown);
+    // Always enable input buffer
+    this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
+    temp_word &= ~(1 << pin);
+    this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
 
+    // Pullup
+    this->read_byte_16(REG_PULL_UP_B, &temp_word);
     if (flags & gpio::FLAG_PULLUP) {
-      temp_pullup |= (1 << pin);
+      temp_word |= (1 << pin);
     } else {
-      temp_pullup &= ~(1 << pin);
+      temp_word &= ~(1 << pin);
     }
+    this->write_byte_16(REG_PULL_UP_B, temp_word);
 
+    // Pulldown
+    this->read_byte_16(REG_PULL_DOWN_B, &temp_word);
     if (flags & gpio::FLAG_PULLDOWN) {
-      temp_pulldown |= (1 << pin);
+      temp_word |= (1 << pin);
     } else {
-      temp_pulldown &= ~(1 << pin);
+      temp_word &= ~(1 << pin);
     }
+    this->write_byte_16(REG_PULL_DOWN_B, temp_word);
 
-    this->write_byte_16(REG_PULL_UP_B, temp_pullup);
-    this->write_byte_16(REG_PULL_DOWN_B, temp_pulldown);
+    // Set direction to input
+    this->ddr_mask_ |= (1 << pin);
+    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   }
-  this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 }
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
@@ -134,6 +173,7 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
 
   this->read_byte_16(REG_DATA_B, &temp_word);
   temp_word &= ~(1 << pin);
+  output_state_ &= ~(1 << pin);
   this->write_byte_16(REG_DATA_B, temp_word);
 }
 

@@ -27,7 +27,7 @@ bool SmlFile::setup_node(SmlNode *node) {
   uint8_t parse_length = length;
   if (has_extended_length) {
     length = (length << 4) + (this->buffer_[this->pos_ + 1] & 0x0f);
-    parse_length = length - 1;
+    parse_length = length;
     this->pos_ += 1;
   }
 
@@ -37,7 +37,9 @@ bool SmlFile::setup_node(SmlNode *node) {
   node->type = type & 0x07;
   node->nodes.clear();
   node->value_bytes.clear();
-  if (this->buffer_[this->pos_] == 0x00) {  // end of message
+
+  // if the list is a has_extended_length list with e.g. 16 elements this is a 0x00 byte but not the end of message
+  if (!has_extended_length && this->buffer_[this->pos_] == 0x00) {  // end of message
     this->pos_ += 1;
   } else if (is_list) {  // list
     this->pos_ += 1;
@@ -88,11 +90,6 @@ uint64_t bytes_to_uint(const bytes &buffer) {
   for (auto const value : buffer) {
     val = (val << 8) + value;
   }
-  // Some smart meters send 24 bit signed integers. Sign extend to 64 bit if the
-  // 24 bit value is negative.
-  if (buffer.size() == 3 && buffer[0] & 0x80) {
-    val |= 0xFFFFFFFFFF000000;
-  }
   return val;
 }
 
@@ -100,19 +97,15 @@ int64_t bytes_to_int(const bytes &buffer) {
   uint64_t tmp = bytes_to_uint(buffer);
   int64_t val;
 
-  switch (buffer.size()) {
-    case 1:  // int8
-      val = (int8_t) tmp;
-      break;
-    case 2:  // int16
-      val = (int16_t) tmp;
-      break;
-    case 4:  // int32
-      val = (int32_t) tmp;
-      break;
-    default:  // int64
-      val = (int64_t) tmp;
+  // sign extension for abbreviations of leading ones (e.g. 3 byte transmissions, see 6.2.2 of SML protocol definition)
+  // see https://stackoverflow.com/questions/42534749/signed-extension-from-24-bit-to-32-bit-in-c
+  if (buffer.size() < 8) {
+    const int bits = buffer.size() * 8;
+    const uint64_t m = 1u << (bits - 1);
+    tmp = (tmp ^ m) - m;
   }
+
+  val = (int64_t) tmp;
   return val;
 }
 

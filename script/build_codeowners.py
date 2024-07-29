@@ -28,7 +28,7 @@ BASE = """
 # the integration's code owner is automatically notified.
 
 # Core Code
-setup.py @esphome/core
+pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 

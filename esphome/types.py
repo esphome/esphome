@@ -1,7 +1,8 @@
 """This helper module tracks commonly used types in the esphome python codebase."""
+
 from typing import Union
 
-from esphome.core import ID, Lambda, EsphomeCore
+from esphome.core import ID, EsphomeCore, Lambda
 
 ConfigFragmentType = Union[
     str,

@@ -1,0 +1,15 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_hhccjcy01
+    mac_address: 94:2B:FF:5C:91:61
+    temperature:
+      name: Xiaomi HHCCJCY01 Temperature
+    moisture:
+      name: Xiaomi HHCCJCY01 Moisture
+    illuminance:
+      name: Xiaomi HHCCJCY01 Illuminance
+    conductivity:
+      name: Xiaomi HHCCJCY01 Soil Conductivity
+    battery_level:
+      name: Xiaomi HHCCJCY01 Battery Level

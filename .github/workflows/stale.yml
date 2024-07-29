@@ -1,7 +1,6 @@
 ---
 name: Stale
 
-# yamllint disable-line rule:truthy
 on:
   schedule:
     - cron: "30 0 * * *"
@@ -18,7 +17,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v8
+      - uses: actions/stale@v9.0.0
         with:
           days-before-pr-stale: 90
           days-before-pr-close: 7
@@ -38,7 +37,7 @@ jobs:
   close-issues:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v8
+      - uses: actions/stale@v9.0.0
         with:
           days-before-pr-stale: -1
           days-before-pr-close: -1

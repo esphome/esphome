@@ -1,0 +1,16 @@
+output:
+  - platform: ledc
+    id: light_output_1
+    pin: 1
+  - platform: ledc
+    id: light_output_2
+    pin: 2
+
+light:
+  - platform: cwww
+    name: CWWW Light
+    cold_white: light_output_1
+    warm_white: light_output_2
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    constant_brightness: true

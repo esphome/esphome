@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_ENABLE_TIME, CONF_ID, CONF_KEEP_ON_TIME, CONF_PIN
+from esphome.const import (
+    CONF_ENABLE_ON_BOOT,
+    CONF_ENABLE_TIME,
+    CONF_ID,
+    CONF_KEEP_ON_TIME,
+    CONF_PIN,
+)
 
 CODEOWNERS = ["@esphome/core"]
 power_supply_ns = cg.esphome_ns.namespace("power_supply")
@@ -18,6 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_KEEP_ON_TIME, default="10s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ENABLE_ON_BOOT, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -30,5 +37,6 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
     cg.add(var.set_enable_time(config[CONF_ENABLE_TIME]))
     cg.add(var.set_keep_on_time(config[CONF_KEEP_ON_TIME]))
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
 
     cg.add_define("USE_POWER_SUPPLY")

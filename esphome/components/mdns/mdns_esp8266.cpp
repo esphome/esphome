@@ -1,4 +1,5 @@
-#if defined(USE_ESP8266) && defined(USE_ARDUINO)
+#include "esphome/core/defines.h"
+#if defined(USE_ESP8266) && defined(USE_ARDUINO) && defined(USE_MDNS)
 
 #include <ESP8266mDNS.h>
 #include "esphome/components/network/ip_address.h"
@@ -13,8 +14,7 @@ namespace mdns {
 void MDNSComponent::setup() {
   this->compile_records_();
 
-  network::IPAddress addr = network::get_ip_address();
-  MDNS.begin(this->hostname_.c_str(), (uint32_t) addr);
+  MDNS.begin(this->hostname_.c_str());
 
   for (const auto &service : this->services_) {
     // Strip the leading underscore from the proto and service_type. While it is

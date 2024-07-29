@@ -1,0 +1,1 @@
+CODEOWNERS = ["@mak-42"]

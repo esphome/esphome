@@ -8,13 +8,13 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_MOTION_SENSOR,
     ICON_ACCOUNT,
+    CONF_HAS_TARGET,
+    CONF_HAS_MOVING_TARGET,
+    CONF_HAS_STILL_TARGET,
 )
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
-CONF_HAS_TARGET = "has_target"
-CONF_HAS_MOVING_TARGET = "has_moving_target"
-CONF_HAS_STILL_TARGET = "has_still_target"
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
 
 CONFIG_SCHEMA = {

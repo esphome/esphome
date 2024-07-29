@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components import web_server
 from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.core import CORE, coroutine_with_priority
@@ -8,10 +9,11 @@ from esphome.const import (
     CONF_ON_STATE,
     CONF_TRIGGER_ID,
     CONF_CODE,
+    CONF_WEB_SERVER_ID,
 )
 from esphome.cpp_helpers import setup_entity
 
-CODEOWNERS = ["@grahambrown11"]
+CODEOWNERS = ["@grahambrown11", "@hwstar"]
 IS_PLATFORM_COMPONENT = True
 
 CONF_ON_TRIGGERED = "on_triggered"
@@ -22,6 +24,8 @@ CONF_ON_ARMED_HOME = "on_armed_home"
 CONF_ON_ARMED_NIGHT = "on_armed_night"
 CONF_ON_ARMED_AWAY = "on_armed_away"
 CONF_ON_DISARMED = "on_disarmed"
+CONF_ON_CHIME = "on_chime"
+CONF_ON_READY = "on_ready"
 
 alarm_control_panel_ns = cg.esphome_ns.namespace("alarm_control_panel")
 AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.EntityBase)
@@ -53,17 +57,29 @@ ArmedAwayTrigger = alarm_control_panel_ns.class_(
 DisarmedTrigger = alarm_control_panel_ns.class_(
     "DisarmedTrigger", automation.Trigger.template()
 )
+ChimeTrigger = alarm_control_panel_ns.class_(
+    "ChimeTrigger", automation.Trigger.template()
+)
+ReadyTrigger = alarm_control_panel_ns.class_(
+    "ReadyTrigger", automation.Trigger.template()
+)
+
 ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
 ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
 ArmNightAction = alarm_control_panel_ns.class_("ArmNightAction", automation.Action)
 DisarmAction = alarm_control_panel_ns.class_("DisarmAction", automation.Action)
 PendingAction = alarm_control_panel_ns.class_("PendingAction", automation.Action)
 TriggeredAction = alarm_control_panel_ns.class_("TriggeredAction", automation.Action)
+ChimeAction = alarm_control_panel_ns.class_("ChimeAction", automation.Action)
+ReadyAction = alarm_control_panel_ns.class_("ReadyAction", automation.Action)
+
 AlarmControlPanelCondition = alarm_control_panel_ns.class_(
     "AlarmControlPanelCondition", automation.Condition
 )
 
 ALARM_CONTROL_PANEL_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+    web_server.WEBSERVER_SORTING_SCHEMA
+).extend(
     {
         cv.GenerateID(): cv.declare_id(AlarmControlPanel),
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
@@ -109,6 +125,16 @@ ALARM_CONTROL_PANEL_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_ON_CLEARED): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClearedTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_CHIME): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ChimeTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_READY): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReadyTrigger),
             }
         ),
     }
@@ -157,6 +183,15 @@ async def setup_alarm_control_panel_core_(var, config):
     for conf in config.get(CONF_ON_CLEARED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_CHIME, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_READY, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_alarm_control_panel(var, config):
@@ -227,6 +262,29 @@ async def alarm_action_pending_to_code(config, action_id, template_arg, args):
     "alarm_control_panel.triggered", TriggeredAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
 )
 async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    return var
+
+
+@automation.register_action(
+    "alarm_control_panel.chime", ChimeAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+)
+async def alarm_action_chime_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    return var
+
+
+@automation.register_action(
+    "alarm_control_panel.ready", ReadyAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+)
+@automation.register_condition(
+    "alarm_control_panel.ready",
+    AlarmControlPanelCondition,
+    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
+)
+async def alarm_action_ready_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var

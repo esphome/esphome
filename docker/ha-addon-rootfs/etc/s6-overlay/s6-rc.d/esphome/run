@@ -35,11 +35,23 @@ if bashio::config.has_value 'default_compile_process_limit'; then
     export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=$(bashio::config 'default_compile_process_limit')
 else
     if grep -q 'Raspberry Pi 3' /proc/cpuinfo; then
-        export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=1;
+        export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=1
     fi
 fi
 
 mkdir -p "${pio_cache_base}"
+
+mkdir -p /config/esphome
+
+if bashio::fs.directory_exists '/config/esphome/.esphome'; then
+    bashio::log.info "Migrating old .esphome directory..."
+    if bashio::fs.file_exists '/config/esphome/.esphome/esphome.json'; then
+        mv /config/esphome/.esphome/esphome.json /data/esphome.json
+    fi
+    mkdir -p "/data/storage"
+    mv /config/esphome/.esphome/*.json /data/storage/ || true
+    rm -rf /config/esphome/.esphome
+fi
 
 bashio::log.info "Starting ESPHome dashboard..."
 exec esphome dashboard /config/esphome --socket /var/run/esphome.sock --ha-addon

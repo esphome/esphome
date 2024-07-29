@@ -62,7 +62,7 @@ optional<SonyData> SonyProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 void SonyProtocol::dump(const SonyData &data) {
-  ESP_LOGI(TAG, "Received Sony: data=0x%08X, nbits=%d", data.data, data.nbits);
+  ESP_LOGI(TAG, "Received Sony: data=0x%08" PRIX32 ", nbits=%d", data.data, data.nbits);
 }
 
 }  // namespace remote_base

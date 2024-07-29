@@ -111,6 +111,23 @@ LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move
 
 optional<bool> LambdaFilter::new_value(bool value, bool is_initial) { return this->f_(value); }
 
+optional<bool> SettleFilter::new_value(bool value, bool is_initial) {
+  if (!this->steady_) {
+    this->set_timeout("SETTLE", this->delay_.value(), [this, value, is_initial]() {
+      this->steady_ = true;
+      this->output(value, is_initial);
+    });
+    return {};
+  } else {
+    this->steady_ = false;
+    this->output(value, is_initial);
+    this->set_timeout("SETTLE", this->delay_.value(), [this]() { this->steady_ = true; });
+    return value;
+  }
+}
+
+float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 }  // namespace binary_sensor
 
 }  // namespace esphome

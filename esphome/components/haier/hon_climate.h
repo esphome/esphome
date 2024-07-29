@@ -1,28 +1,21 @@
 #pragma once
 
 #include <chrono>
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#include "esphome/core/automation.h"
 #include "haier_base.h"
+#include "hon_packet.h"
 
 namespace esphome {
 namespace haier {
-
-enum class AirflowVerticalDirection : uint8_t {
-  HEALTH_UP = 0,
-  MAX_UP = 1,
-  UP = 2,
-  CENTER = 3,
-  DOWN = 4,
-  HEALTH_DOWN = 5,
-};
-
-enum class AirflowHorizontalDirection : uint8_t {
-  MAX_LEFT = 0,
-  LEFT = 1,
-  CENTER = 2,
-  RIGHT = 3,
-  MAX_RIGHT = 4,
-};
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -30,7 +23,70 @@ enum class CleaningState : uint8_t {
   STERI_CLEAN = 2,
 };
 
+enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE_PARAMETER };
+
+struct HonSettings {
+  hon_protocol::VerticalSwingMode last_vertiacal_swing;
+  hon_protocol::HorizontalSwingMode last_horizontal_swing;
+};
+
 class HonClimate : public HaierClimateBase {
+#ifdef USE_SENSOR
+ public:
+  enum class SubSensorType {
+    // Used data based sensors
+    OUTDOOR_TEMPERATURE = 0,
+    HUMIDITY,
+    // Big data based sensors
+    INDOOR_COIL_TEMPERATURE,
+    OUTDOOR_COIL_TEMPERATURE,
+    OUTDOOR_DEFROST_TEMPERATURE,
+    OUTDOOR_IN_AIR_TEMPERATURE,
+    OUTDOOR_OUT_AIR_TEMPERATURE,
+    POWER,
+    COMPRESSOR_FREQUENCY,
+    COMPRESSOR_CURRENT,
+    EXPANSION_VALVE_OPEN_DEGREE,
+    SUB_SENSOR_TYPE_COUNT,
+    BIG_DATA_FRAME_SUB_SENSORS = INDOOR_COIL_TEMPERATURE,
+  };
+  void set_sub_sensor(SubSensorType type, sensor::Sensor *sens);
+
+ protected:
+  void update_sub_sensor_(SubSensorType type, float value);
+  sensor::Sensor *sub_sensors_[(size_t) SubSensorType::SUB_SENSOR_TYPE_COUNT]{nullptr};
+#endif
+#ifdef USE_BINARY_SENSOR
+ public:
+  enum class SubBinarySensorType {
+    OUTDOOR_FAN_STATUS = 0,
+    DEFROST_STATUS,
+    COMPRESSOR_STATUS,
+    INDOOR_FAN_STATUS,
+    FOUR_WAY_VALVE_STATUS,
+    INDOOR_ELECTRIC_HEATING_STATUS,
+    SUB_BINARY_SENSOR_TYPE_COUNT,
+  };
+  void set_sub_binary_sensor(SubBinarySensorType type, binary_sensor::BinarySensor *sens);
+
+ protected:
+  void update_sub_binary_sensor_(SubBinarySensorType type, uint8_t value);
+  binary_sensor::BinarySensor *sub_binary_sensors_[(size_t) SubBinarySensorType::SUB_BINARY_SENSOR_TYPE_COUNT]{nullptr};
+#endif
+#ifdef USE_TEXT_SENSOR
+ public:
+  enum class SubTextSensorType {
+    CLEANING_STATUS = 0,
+    PROTOCOL_VERSION,
+    APPLIANCE_NAME,
+    SUB_TEXT_SENSOR_TYPE_COUNT,
+  };
+  void set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSensor *sens);
+
+ protected:
+  void update_sub_text_sensor_(SubTextSensorType type, const std::string &value);
+  text_sensor::TextSensor *sub_text_sensors_[(size_t) SubTextSensorType::SUB_TEXT_SENSOR_TYPE_COUNT]{nullptr};
+#endif
  public:
   HonClimate();
   HonClimate(const HonClimate &) = delete;
@@ -39,53 +95,103 @@ class HonClimate : public HaierClimateBase {
   void dump_config() override;
   void set_beeper_state(bool state);
   bool get_beeper_state() const;
-  void set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor);
-  AirflowVerticalDirection get_vertical_airflow() const;
-  void set_vertical_airflow(AirflowVerticalDirection direction);
-  AirflowHorizontalDirection get_horizontal_airflow() const;
-  void set_horizontal_airflow(AirflowHorizontalDirection direction);
+  esphome::optional<hon_protocol::VerticalSwingMode> get_vertical_airflow() const;
+  void set_vertical_airflow(hon_protocol::VerticalSwingMode direction);
+  esphome::optional<hon_protocol::HorizontalSwingMode> get_horizontal_airflow() const;
+  void set_horizontal_airflow(hon_protocol::HorizontalSwingMode direction);
   std::string get_cleaning_status_text() const;
   CleaningState get_cleaning_status() const;
   void start_self_cleaning();
   void start_steri_cleaning();
+  void set_extra_control_packet_bytes_size(size_t size) { this->extra_control_packet_bytes_ = size; };
+  void set_extra_sensors_packet_bytes_size(size_t size) { this->extra_sensors_packet_bytes_ = size; };
+  void set_status_message_header_size(size_t size) { this->status_message_header_size_ = size; };
+  void set_control_method(HonControlMethod method) { this->control_method_ = method; };
+  void add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback);
+  void add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback);
+  float get_active_alarm_count() const { return this->active_alarm_count_; }
 
  protected:
   void set_handlers() override;
   void process_phase(std::chrono::steady_clock::time_point now) override;
   haier_protocol::HaierMessage get_control_message() override;
-  bool is_message_invalid(uint8_t message_type) override;
-  void process_pending_action() override;
+  haier_protocol::HaierMessage get_power_message(bool state) override;
+  void initialization() override;
+  bool prepare_pending_action() override;
+  void process_protocol_reset() override;
+  bool should_get_big_data_();
 
   // Answers handlers
-  haier_protocol::HandlerError get_device_version_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_device_version_answer_handler_(haier_protocol::FrameType request_type,
+                                                                  haier_protocol::FrameType message_type,
                                                                   const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError get_device_id_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_device_id_answer_handler_(haier_protocol::FrameType request_type,
+                                                             haier_protocol::FrameType message_type,
                                                              const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError status_handler_(uint8_t request_type, uint8_t message_type, const uint8_t *data,
+  haier_protocol::HandlerError status_handler_(haier_protocol::FrameType request_type,
+                                               haier_protocol::FrameType message_type, const uint8_t *data,
                                                size_t data_size);
-  haier_protocol::HandlerError get_management_information_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_management_information_answer_handler_(haier_protocol::FrameType request_type,
+                                                                          haier_protocol::FrameType message_type,
                                                                           const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError report_network_status_answer_handler_(uint8_t request_type, uint8_t message_type,
-                                                                     const uint8_t *data, size_t data_size);
-  haier_protocol::HandlerError get_alarm_status_answer_handler_(uint8_t request_type, uint8_t message_type,
+  haier_protocol::HandlerError get_alarm_status_answer_handler_(haier_protocol::FrameType request_type,
+                                                                haier_protocol::FrameType message_type,
                                                                 const uint8_t *data, size_t data_size);
+  haier_protocol::HandlerError alarm_status_message_handler_(haier_protocol::FrameType type, const uint8_t *buffer,
+                                                             size_t size);
   // Helper functions
   haier_protocol::HandlerError process_status_message_(const uint8_t *packet, uint8_t size);
-  std::unique_ptr<uint8_t[]> last_status_message_;
+  void process_alarm_message_(const uint8_t *packet, uint8_t size, bool check_new);
+  void fill_control_messages_queue_();
+  void clear_control_messages_queue_();
+
+  struct HardwareInfo {
+    std::string protocol_version_;
+    std::string software_version_;
+    std::string hardware_version_;
+    std::string device_name_;
+    bool functions_[5];
+  };
+
   bool beeper_status_;
   CleaningState cleaning_status_;
   bool got_valid_outdoor_temp_;
-  AirflowVerticalDirection vertical_direction_;
-  AirflowHorizontalDirection horizontal_direction_;
-  bool hvac_hardware_info_available_;
-  std::string hvac_protocol_version_;
-  std::string hvac_software_version_;
-  std::string hvac_hardware_version_;
-  std::string hvac_device_name_;
-  bool hvac_functions_[5];
-  bool &use_crc_;
+  esphome::optional<hon_protocol::VerticalSwingMode> pending_vertical_direction_{};
+  esphome::optional<hon_protocol::HorizontalSwingMode> pending_horizontal_direction_{};
+  esphome::optional<HardwareInfo> hvac_hardware_info_{};
   uint8_t active_alarms_[8];
-  esphome::sensor::Sensor *outdoor_sensor_;
+  int extra_control_packet_bytes_{0};
+  int extra_sensors_packet_bytes_{4};
+  int status_message_header_size_{0};
+  int real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
+  int real_sensors_packet_size_{sizeof(hon_protocol::HaierPacketSensors) + 4};
+  HonControlMethod control_method_;
+  std::queue<haier_protocol::HaierMessage> control_messages_queue_;
+  CallbackManager<void(uint8_t, const char *)> alarm_start_callback_{};
+  CallbackManager<void(uint8_t, const char *)> alarm_end_callback_{};
+  float active_alarm_count_{NAN};
+  std::chrono::steady_clock::time_point last_alarm_request_;
+  int big_data_sensors_{0};
+  esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
+  esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
+  HonSettings settings_;
+  ESPPreferenceObject rtc_;
+};
+
+class HaierAlarmStartTrigger : public Trigger<uint8_t, const char *> {
+ public:
+  explicit HaierAlarmStartTrigger(HonClimate *parent) {
+    parent->add_alarm_start_callback(
+        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
+  }
+};
+
+class HaierAlarmEndTrigger : public Trigger<uint8_t, const char *> {
+ public:
+  explicit HaierAlarmEndTrigger(HonClimate *parent) {
+    parent->add_alarm_end_callback(
+        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
+  }
 };
 
 }  // namespace haier

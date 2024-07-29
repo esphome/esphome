@@ -13,8 +13,11 @@ from esphome.const import (
     CONF_ON_ENROLLMENT_DONE,
     CONF_ON_ENROLLMENT_FAILED,
     CONF_ON_ENROLLMENT_SCAN,
+    CONF_ON_FINGER_SCAN_START,
     CONF_ON_FINGER_SCAN_MATCHED,
     CONF_ON_FINGER_SCAN_UNMATCHED,
+    CONF_ON_FINGER_SCAN_MISPLACED,
+    CONF_ON_FINGER_SCAN_INVALID,
     CONF_PASSWORD,
     CONF_SENSING_PIN,
     CONF_SPEED,
@@ -22,16 +25,22 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 
-CODEOWNERS = ["@OnFreund", "@loongyh"]
+CODEOWNERS = ["@OnFreund", "@loongyh", "@alexborro"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "sensor"]
 MULTI_CONF = True
 
 CONF_FINGERPRINT_GROW_ID = "fingerprint_grow_id"
+CONF_SENSOR_POWER_PIN = "sensor_power_pin"
+CONF_IDLE_PERIOD_TO_SLEEP = "idle_period_to_sleep"
 
 fingerprint_grow_ns = cg.esphome_ns.namespace("fingerprint_grow")
 FingerprintGrowComponent = fingerprint_grow_ns.class_(
     "FingerprintGrowComponent", cg.PollingComponent, uart.UARTDevice
+)
+
+FingerScanStartTrigger = fingerprint_grow_ns.class_(
+    "FingerScanStartTrigger", automation.Trigger.template()
 )
 
 FingerScanMatchedTrigger = fingerprint_grow_ns.class_(
@@ -40,6 +49,14 @@ FingerScanMatchedTrigger = fingerprint_grow_ns.class_(
 
 FingerScanUnmatchedTrigger = fingerprint_grow_ns.class_(
     "FingerScanUnmatchedTrigger", automation.Trigger.template()
+)
+
+FingerScanMisplacedTrigger = fingerprint_grow_ns.class_(
+    "FingerScanMisplacedTrigger", automation.Trigger.template()
+)
+
+FingerScanInvalidTrigger = fingerprint_grow_ns.class_(
+    "FingerScanInvalidTrigger", automation.Trigger.template()
 )
 
 EnrollmentScanTrigger = fingerprint_grow_ns.class_(
@@ -87,13 +104,35 @@ AURA_LED_COLORS = {
 }
 validate_aura_led_colors = cv.enum(AURA_LED_COLORS, upper=True)
 
-CONFIG_SCHEMA = (
+
+def validate(config):
+    if CONF_SENSOR_POWER_PIN in config and CONF_SENSING_PIN not in config:
+        raise cv.Invalid("You cannot use the Sensor Power Pin without a Sensing Pin")
+    if CONF_IDLE_PERIOD_TO_SLEEP in config and CONF_SENSOR_POWER_PIN not in config:
+        raise cv.Invalid(
+            "You cannot have an Idle Period to Sleep without a Sensor Power Pin"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(FingerprintGrowComponent),
             cv.Optional(CONF_SENSING_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_SENSOR_POWER_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(
+                CONF_IDLE_PERIOD_TO_SLEEP
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_PASSWORD): cv.uint32_t,
             cv.Optional(CONF_NEW_PASSWORD): cv.uint32_t,
+            cv.Optional(CONF_ON_FINGER_SCAN_START): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FingerScanStartTrigger
+                    ),
+                }
+            ),
             cv.Optional(CONF_ON_FINGER_SCAN_MATCHED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -105,6 +144,20 @@ CONFIG_SCHEMA = (
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         FingerScanUnmatchedTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_FINGER_SCAN_MISPLACED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FingerScanMisplacedTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_FINGER_SCAN_INVALID): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        FingerScanInvalidTrigger
                     ),
                 }
             ),
@@ -132,7 +185,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("500ms"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    validate,
 )
 
 
@@ -152,6 +206,18 @@ async def to_code(config):
         sensing_pin = await cg.gpio_pin_expression(config[CONF_SENSING_PIN])
         cg.add(var.set_sensing_pin(sensing_pin))
 
+    if CONF_SENSOR_POWER_PIN in config:
+        sensor_power_pin = await cg.gpio_pin_expression(config[CONF_SENSOR_POWER_PIN])
+        cg.add(var.set_sensor_power_pin(sensor_power_pin))
+
+    if CONF_IDLE_PERIOD_TO_SLEEP in config:
+        idle_period_to_sleep_ms = config[CONF_IDLE_PERIOD_TO_SLEEP]
+        cg.add(var.set_idle_period_to_sleep_ms(idle_period_to_sleep_ms))
+
+    for conf in config.get(CONF_ON_FINGER_SCAN_START, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
     for conf in config.get(CONF_ON_FINGER_SCAN_MATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
@@ -159,6 +225,14 @@ async def to_code(config):
         )
 
     for conf in config.get(CONF_ON_FINGER_SCAN_UNMATCHED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_FINGER_SCAN_MISPLACED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_FINGER_SCAN_INVALID, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 

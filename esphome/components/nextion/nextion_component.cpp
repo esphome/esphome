@@ -99,11 +99,11 @@ void NextionComponent::update_component_settings(bool force_update) {
     this->bco2_needs_update_ = false;
   }
   if (this->pco_needs_update_ || (force_update && this->pco_is_set_)) {
-    this->nextion_->set_component_font_color(this->variable_name_.c_str(), this->pco_);
+    this->nextion_->set_component_foreground_color(this->variable_name_.c_str(), this->pco_);
     this->pco_needs_update_ = false;
   }
   if (this->pco2_needs_update_ || (force_update && this->pco2_is_set_)) {
-    this->nextion_->set_component_pressed_font_color(this->variable_name_.c_str(), this->pco2_);
+    this->nextion_->set_component_pressed_foreground_color(this->variable_name_.c_str(), this->pco2_);
     this->pco2_needs_update_ = false;
   }
 

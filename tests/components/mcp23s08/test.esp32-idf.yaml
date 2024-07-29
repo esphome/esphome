@@ -1,0 +1,10 @@
+spi:
+  - id: spi_mcp23s08
+    clk_pin: 16
+    mosi_pin: 17
+    miso_pin: 15
+
+mcp23s08:
+  - id: mcp23s08_hub
+    cs_pin: 12
+    deviceaddress: 0

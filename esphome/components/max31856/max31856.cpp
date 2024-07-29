@@ -188,7 +188,7 @@ uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
   ESP_LOGVV(TAG, "read_byte lsb=0x%02X", lsb);
   this->disable();
   const uint32_t value((msb << 16) | (mid << 8) | lsb);
-  ESP_LOGV(TAG, "read_register_24_ reg=0x%02X: value=0x%06X", reg, value);
+  ESP_LOGV(TAG, "read_register_24_ reg=0x%02X: value=0x%06" PRIX32, reg, value);
   return value;
 }
 

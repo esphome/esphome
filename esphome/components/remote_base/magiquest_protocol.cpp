@@ -76,7 +76,7 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   return data;
 }
 void MagiQuestProtocol::dump(const MagiQuestData &data) {
-  ESP_LOGI(TAG, "Received MagiQuest: wand_id=0x%08X, magnitude=0x%04X", data.wand_id, data.magnitude);
+  ESP_LOGI(TAG, "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=0x%04X", data.wand_id, data.magnitude);
 }
 
 }  // namespace remote_base

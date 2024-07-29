@@ -18,6 +18,7 @@ class PN532Spi : public pn532::PN532,
   void dump_config() override;
 
  protected:
+  bool is_read_ready() override;
   bool write_data(const std::vector<uint8_t> &data) override;
   bool read_data(std::vector<uint8_t> &data, uint8_t len) override;
   bool read_response(uint8_t command, std::vector<uint8_t> &data) override;

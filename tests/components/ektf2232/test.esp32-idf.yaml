@@ -1,0 +1,24 @@
+i2c:
+  - id: i2c_ektf2232
+    scl: 16
+    sda: 17
+
+display:
+  - platform: ssd1306_i2c
+    id: ssd1306_display
+    model: SSD1306_128X64
+    reset_pin: 13
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: ektf2232
+    interrupt_pin: 14
+    rts_pin: 15
+    display: ssd1306_display
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]

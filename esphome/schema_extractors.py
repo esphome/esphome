@@ -8,7 +8,6 @@ originally do.
 However there is a property to further disable decorator
 impact."""
 
-
 # This is set to true by script/build_language_schema.py
 # only, so data is collected (again functionality is not modified)
 EnableSchemaExtraction = False

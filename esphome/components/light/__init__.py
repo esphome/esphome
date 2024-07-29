@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.automation as auto
-from esphome.components import mqtt, power_supply
+from esphome.components import mqtt, power_supply, web_server
 from esphome.const import (
     CONF_COLOR_CORRECT,
     CONF_DEFAULT_TRANSITION_LENGTH,
@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_GAMMA_CORRECT,
     CONF_ID,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     CONF_POWER_SUPPLY,
     CONF_RESTORE_MODE,
     CONF_ON_TURN_OFF,
@@ -56,29 +57,35 @@ RESTORE_MODES = {
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
 
-LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(LightState),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTJSONLightComponent),
-        cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
-            RESTORE_MODES, upper=True, space="_"
-        ),
-        cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_STATE): auto.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
-            }
-        ),
-    }
+LIGHT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(LightState),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt.MQTTJSONLightComponent
+            ),
+            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
+            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_STATE): auto.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
@@ -137,18 +144,16 @@ async def setup_light_core_(light_var, output_var, config):
 
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if CONF_DEFAULT_TRANSITION_LENGTH in config:
-        cg.add(
-            light_var.set_default_transition_length(
-                config[CONF_DEFAULT_TRANSITION_LENGTH]
-            )
-        )
-    if CONF_FLASH_TRANSITION_LENGTH in config:
-        cg.add(
-            light_var.set_flash_transition_length(config[CONF_FLASH_TRANSITION_LENGTH])
-        )
-    if CONF_GAMMA_CORRECT in config:
-        cg.add(light_var.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
+    if (
+        default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)
+    ) is not None:
+        cg.add(light_var.set_default_transition_length(default_transition_length))
+    if (
+        flash_transition_length := config.get(CONF_FLASH_TRANSITION_LENGTH)
+    ) is not None:
+        cg.add(light_var.set_flash_transition_length(flash_transition_length))
+    if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
+        cg.add(light_var.set_gamma_correct(gamma_correct))
     effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
@@ -164,16 +169,20 @@ async def setup_light_core_(light_var, output_var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
         await auto.build_automation(trigger, [], conf)
 
-    if CONF_COLOR_CORRECT in config:
-        cg.add(output_var.set_correction(*config[CONF_COLOR_CORRECT]))
+    if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:
+        cg.add(output_var.set_correction(*color_correct))
 
-    if CONF_POWER_SUPPLY in config:
-        var_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
+    if (power_supply_id := config.get(CONF_POWER_SUPPLY)) is not None:
+        var_ = await cg.get_variable(power_supply_id)
         cg.add(output_var.set_power_supply(var_))
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        mqtt_ = cg.new_Pvariable(mqtt_id, light_var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, light_var, config)
 
 
 async def register_light(output_var, config):

@@ -10,15 +10,15 @@ namespace socket {
 Socket::~Socket() {}
 
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
-#if LWIP_IPV6
+#if USE_NETWORK_IPV6
   return socket(AF_INET6, type, protocol);
 #else
   return socket(AF_INET, type, protocol);
-#endif
+#endif /* USE_NETWORK_IPV6 */
 }
 
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
-#if LWIP_IPV6
+#if USE_NETWORK_IPV6
   if (addrlen < sizeof(sockaddr_in6)) {
     errno = EINVAL;
     return 0;
@@ -47,11 +47,11 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::stri
   server->sin_addr.s_addr = inet_addr(ip_address.c_str());
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
-#endif
+#endif /* USE_NETWORK_IPV6 */
 }
 
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port) {
-#if LWIP_IPV6
+#if USE_NETWORK_IPV6
   if (addrlen < sizeof(sockaddr_in6)) {
     errno = EINVAL;
     return 0;
@@ -60,7 +60,7 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
   memset(server, 0, sizeof(sockaddr_in6));
   server->sin6_family = AF_INET6;
   server->sin6_port = htons(port);
-  server->sin6_addr = in6addr_any;
+  server->sin6_addr = IN6ADDR_ANY_INIT;
   return sizeof(sockaddr_in6);
 #else
   if (addrlen < sizeof(sockaddr_in)) {
@@ -73,7 +73,7 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
   server->sin_addr.s_addr = ESPHOME_INADDR_ANY;
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
-#endif
+#endif /* USE_NETWORK_IPV6 */
 }
 }  // namespace socket
 }  // namespace esphome

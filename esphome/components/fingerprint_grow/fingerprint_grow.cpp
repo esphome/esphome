@@ -1,5 +1,6 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace fingerprint_grow {
@@ -14,16 +15,23 @@ void FingerprintGrowComponent::update() {
     return;
   }
 
-  if (this->sensing_pin_ != nullptr) {
+  if (this->has_sensing_pin_) {
+    // A finger touch results in a low level (digital_read() == false)
     if (this->sensing_pin_->digital_read()) {
       ESP_LOGV(TAG, "No touch sensing");
       this->waiting_removal_ = false;
+      if ((this->enrollment_image_ == 0) &&  // Not in enrolment process
+          (millis() - this->last_transfer_ms_ > this->idle_period_to_sleep_ms_) && (this->is_sensor_awake_)) {
+        this->sensor_sleep_();
+      }
       return;
+    } else if (!this->waiting_removal_) {
+      this->finger_scan_start_callback_.call();
     }
   }
 
   if (this->waiting_removal_) {
-    if (this->scan_image_(1) == NO_FINGER) {
+    if ((!this->has_sensing_pin_) && (this->scan_image_(1) == NO_FINGER)) {
       ESP_LOGD(TAG, "Finger removed");
       this->waiting_removal_ = false;
     }
@@ -50,6 +58,29 @@ void FingerprintGrowComponent::update() {
 
 void FingerprintGrowComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Grow Fingerprint Reader...");
+
+  this->has_sensing_pin_ = (this->sensing_pin_ != nullptr);
+  this->has_power_pin_ = (this->sensor_power_pin_ != nullptr);
+
+  // Call pins setup, so we effectively apply the config generated from the yaml file.
+  if (this->has_sensing_pin_) {
+    this->sensing_pin_->setup();
+  }
+  if (this->has_power_pin_) {
+    // Starts with output low (disabling power) to avoid glitches in the sensor
+    this->sensor_power_pin_->digital_write(false);
+    this->sensor_power_pin_->setup();
+
+    // If the user didn't specify an idle period to sleep, applies the default.
+    if (this->idle_period_to_sleep_ms_ == UINT32_MAX) {
+      this->idle_period_to_sleep_ms_ = DEFAULT_IDLE_PERIOD_TO_SLEEP_MS;
+    }
+  }
+
+  // Place the sensor in a known (sleep/off) state and sync internal var state.
+  this->sensor_sleep_();
+  delay(20);  // This delay guarantees the sensor will in fact be powered power.
+
   if (this->check_password_()) {
     if (this->new_password_ != -1) {
       if (this->set_password_())
@@ -90,7 +121,7 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
 }
 
 void FingerprintGrowComponent::scan_and_match_() {
-  if (this->sensing_pin_ != nullptr) {
+  if (this->has_sensing_pin_) {
     ESP_LOGD(TAG, "Scan and match");
   } else {
     ESP_LOGV(TAG, "Scan and match");
@@ -121,43 +152,52 @@ void FingerprintGrowComponent::scan_and_match_() {
 }
 
 uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
-  if (this->sensing_pin_ != nullptr) {
+  if (this->has_sensing_pin_) {
     ESP_LOGD(TAG, "Getting image %d", buffer);
   } else {
     ESP_LOGV(TAG, "Getting image %d", buffer);
   }
   this->data_ = {GET_IMAGE};
-  switch (this->send_command_()) {
+  uint8_t send_result = this->send_command_();
+  switch (send_result) {
     case OK:
       break;
     case NO_FINGER:
-      if (this->sensing_pin_ != nullptr) {
-        ESP_LOGD(TAG, "No finger");
+      if (this->has_sensing_pin_) {
+        this->waiting_removal_ = true;
+        ESP_LOGD(TAG, "Finger Misplaced");
+        this->finger_scan_misplaced_callback_.call();
       } else {
         ESP_LOGV(TAG, "No finger");
       }
-      return this->data_[0];
+      return send_result;
     case IMAGE_FAIL:
       ESP_LOGE(TAG, "Imaging error");
+      this->finger_scan_invalid_callback_.call();
+      return send_result;
     default:
-      return this->data_[0];
+      ESP_LOGD(TAG, "Unknown Scan Error: %d", send_result);
+      return send_result;
   }
 
   ESP_LOGD(TAG, "Processing image %d", buffer);
   this->data_ = {IMAGE_2_TZ, buffer};
-  switch (this->send_command_()) {
+  send_result = this->send_command_();
+  switch (send_result) {
     case OK:
       ESP_LOGI(TAG, "Processed image %d", buffer);
       break;
     case IMAGE_MESS:
       ESP_LOGE(TAG, "Image too messy");
+      this->finger_scan_invalid_callback_.call();
       break;
     case FEATURE_FAIL:
     case INVALID_IMAGE:
       ESP_LOGE(TAG, "Could not find fingerprint features");
+      this->finger_scan_invalid_callback_.call();
       break;
   }
-  return this->data_[0];
+  return send_result;
 }
 
 uint8_t FingerprintGrowComponent::save_fingerprint_() {
@@ -204,7 +244,7 @@ bool FingerprintGrowComponent::check_password_() {
 }
 
 bool FingerprintGrowComponent::set_password_() {
-  ESP_LOGI(TAG, "Setting new password: %d", this->new_password_);
+  ESP_LOGI(TAG, "Setting new password: %" PRIu32, this->new_password_);
   this->data_ = {SET_PASSWORD, (uint8_t) (this->new_password_ >> 24), (uint8_t) (this->new_password_ >> 16),
                  (uint8_t) (this->new_password_ >> 8), (uint8_t) (this->new_password_ & 0xFF)};
   if (this->send_command_() == OK) {
@@ -220,10 +260,11 @@ bool FingerprintGrowComponent::get_parameters_() {
   ESP_LOGD(TAG, "Getting parameters");
   this->data_ = {READ_SYS_PARAM};
   if (this->send_command_() == OK) {
-    ESP_LOGD(TAG, "Got parameters");
-    if (this->status_sensor_ != nullptr) {
+    ESP_LOGD(TAG, "Got parameters");        // Bear in mind data_[0] is the transfer status,
+    if (this->status_sensor_ != nullptr) {  // the parameters table start at data_[1]
       this->status_sensor_->publish_state(((uint16_t) this->data_[1] << 8) | this->data_[2]);
     }
+    this->system_identifier_code_ = ((uint16_t) this->data_[3] << 8) | this->data_[4];
     this->capacity_ = ((uint16_t) this->data_[5] << 8) | this->data_[6];
     if (this->capacity_sensor_ != nullptr) {
       this->capacity_sensor_->publish_state(this->capacity_);
@@ -321,7 +362,9 @@ void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, ui
   }
 }
 
-uint8_t FingerprintGrowComponent::send_command_() {
+uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer) {
+  while (this->available())
+    this->read();
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
   this->write(this->address_[0]);
@@ -330,12 +373,12 @@ uint8_t FingerprintGrowComponent::send_command_() {
   this->write(this->address_[3]);
   this->write(COMMAND);
 
-  uint16_t wire_length = this->data_.size() + 2;
+  uint16_t wire_length = p_data_buffer->size() + 2;
   this->write((uint8_t) (wire_length >> 8));
   this->write((uint8_t) (wire_length & 0xFF));
 
-  uint16_t sum = ((wire_length) >> 8) + ((wire_length) &0xFF) + COMMAND;
-  for (auto data : this->data_) {
+  uint16_t sum = (wire_length >> 8) + (wire_length & 0xFF) + COMMAND;
+  for (auto data : *p_data_buffer) {
     this->write(data);
     sum += data;
   }
@@ -343,7 +386,7 @@ uint8_t FingerprintGrowComponent::send_command_() {
   this->write((uint8_t) (sum >> 8));
   this->write((uint8_t) (sum & 0xFF));
 
-  this->data_.clear();
+  p_data_buffer->clear();
 
   uint8_t byte;
   uint16_t idx = 0, length = 0;
@@ -353,7 +396,9 @@ uint8_t FingerprintGrowComponent::send_command_() {
       delay(1);
       continue;
     }
+
     byte = this->read();
+
     switch (idx) {
       case 0:
         if (byte != (uint8_t) (START_CODE >> 8))
@@ -387,9 +432,9 @@ uint8_t FingerprintGrowComponent::send_command_() {
         length |= byte;
         break;
       default:
-        this->data_.push_back(byte);
+        p_data_buffer->push_back(byte);
         if ((idx - 8) == length) {
-          switch (this->data_[0]) {
+          switch ((*p_data_buffer)[0]) {
             case OK:
             case NO_FINGER:
             case IMAGE_FAIL:
@@ -409,29 +454,122 @@ uint8_t FingerprintGrowComponent::send_command_() {
               ESP_LOGE(TAG, "Reader failed to process request");
               break;
             default:
-              ESP_LOGE(TAG, "Unknown response received from reader: %d", this->data_[0]);
+              ESP_LOGE(TAG, "Unknown response received from reader: 0x%.2X", (*p_data_buffer)[0]);
               break;
           }
-          return this->data_[0];
+          this->last_transfer_ms_ = millis();
+          return (*p_data_buffer)[0];
         }
         break;
     }
     idx++;
   }
   ESP_LOGE(TAG, "No response received from reader");
-  this->data_[0] = TIMEOUT;
+  (*p_data_buffer)[0] = TIMEOUT;
+  this->last_transfer_ms_ = millis();
   return TIMEOUT;
+}
+
+uint8_t FingerprintGrowComponent::send_command_() {
+  this->sensor_wakeup_();
+  return this->transfer_(&this->data_);
+}
+
+void FingerprintGrowComponent::sensor_wakeup_() {
+  // Immediately return if there is no power pin or the sensor is already on
+  if ((!this->has_power_pin_) || (this->is_sensor_awake_))
+    return;
+
+  this->sensor_power_pin_->digital_write(true);
+  this->is_sensor_awake_ = true;
+
+  uint8_t byte = TIMEOUT;
+
+  // Wait for the byte HANDSHAKE_SIGN from the sensor meaning it is operational.
+  for (uint16_t timer = 0; timer < WAIT_FOR_WAKE_UP_MS; timer++) {
+    if (this->available() > 0) {
+      byte = this->read();
+
+      /* If the received byte is zero, the UART probably misinterpreted a raising edge on
+       * the RX pin due the power up as byte "zero" - I verified this behaviour using
+       * the esp32-arduino lib. So here we just ignore this fake byte.
+       */
+      if (byte != 0)
+        break;
+    }
+    delay(1);
+  }
+
+  /* Lets check if the received by is a HANDSHAKE_SIGN, otherwise log an error
+   * message and try to continue on the best effort.
+   */
+  if (byte == HANDSHAKE_SIGN) {
+    ESP_LOGD(TAG, "Sensor has woken up!");
+  } else if (byte == TIMEOUT) {
+    ESP_LOGE(TAG, "Timed out waiting for sensor wake-up");
+  } else {
+    ESP_LOGE(TAG, "Received wrong byte from the sensor during wake-up: 0x%.2X", byte);
+  }
+
+  /* Next step, we must authenticate with the password. We cannot call check_password_ here
+   * neither use data_ to store the command because it might be already in use by the caller
+   * of send_command_()
+   */
+  std::vector<uint8_t> buffer = {VERIFY_PASSWORD, (uint8_t) (this->password_ >> 24), (uint8_t) (this->password_ >> 16),
+                                 (uint8_t) (this->password_ >> 8), (uint8_t) (this->password_ & 0xFF)};
+
+  if (this->transfer_(&buffer) != OK) {
+    ESP_LOGE(TAG, "Wrong password");
+  }
+}
+
+void FingerprintGrowComponent::sensor_sleep_() {
+  // Immediately return if the power pin feature is not implemented
+  if (!this->has_power_pin_)
+    return;
+
+  this->sensor_power_pin_->digital_write(false);
+  this->is_sensor_awake_ = false;
+  ESP_LOGD(TAG, "Fingerprint sensor is now in sleep mode.");
 }
 
 void FingerprintGrowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "GROW_FINGERPRINT_READER:");
+  ESP_LOGCONFIG(TAG, "  System Identifier Code: 0x%.4X", this->system_identifier_code_);
+  ESP_LOGCONFIG(TAG, "  Touch Sensing Pin: %s",
+                this->has_sensing_pin_ ? this->sensing_pin_->dump_summary().c_str() : "None");
+  ESP_LOGCONFIG(TAG, "  Sensor Power Pin: %s",
+                this->has_power_pin_ ? this->sensor_power_pin_->dump_summary().c_str() : "None");
+  if (this->idle_period_to_sleep_ms_ < UINT32_MAX) {
+    ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %" PRIu32 " ms", this->idle_period_to_sleep_ms_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: Never");
+  }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Fingerprint Count", this->fingerprint_count_sensor_);
-  LOG_SENSOR("  ", "Status", this->status_sensor_);
-  LOG_SENSOR("  ", "Capacity", this->capacity_sensor_);
-  LOG_SENSOR("  ", "Security Level", this->security_level_sensor_);
-  LOG_SENSOR("  ", "Last Finger ID", this->last_finger_id_sensor_);
-  LOG_SENSOR("  ", "Last Confidence", this->last_confidence_sensor_);
+  if (this->fingerprint_count_sensor_) {
+    LOG_SENSOR("  ", "Fingerprint Count", this->fingerprint_count_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint16_t) this->fingerprint_count_sensor_->get_state());
+  }
+  if (this->status_sensor_) {
+    LOG_SENSOR("  ", "Status", this->status_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint8_t) this->status_sensor_->get_state());
+  }
+  if (this->capacity_sensor_) {
+    LOG_SENSOR("  ", "Capacity", this->capacity_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint16_t) this->capacity_sensor_->get_state());
+  }
+  if (this->security_level_sensor_) {
+    LOG_SENSOR("  ", "Security Level", this->security_level_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %u", (uint8_t) this->security_level_sensor_->get_state());
+  }
+  if (this->last_finger_id_sensor_) {
+    LOG_SENSOR("  ", "Last Finger ID", this->last_finger_id_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %" PRIu32, (uint32_t) this->last_finger_id_sensor_->get_state());
+  }
+  if (this->last_confidence_sensor_) {
+    LOG_SENSOR("  ", "Last Confidence", this->last_confidence_sensor_);
+    ESP_LOGCONFIG(TAG, "    Current Value: %" PRIu32, (uint32_t) this->last_confidence_sensor_->get_state());
+  }
 }
 
 }  // namespace fingerprint_grow

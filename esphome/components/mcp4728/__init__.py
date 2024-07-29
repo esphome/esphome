@@ -10,6 +10,7 @@ CONF_STORE_IN_EEPROM = "store_in_eeprom"
 
 mcp4728_ns = cg.esphome_ns.namespace("mcp4728")
 MCP4728Component = mcp4728_ns.class_("MCP4728Component", cg.Component, i2c.I2CDevice)
+CONF_MCP4728_ID = "mcp4728_id"
 
 CONFIG_SCHEMA = (
     cv.Schema(

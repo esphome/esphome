@@ -1,6 +1,8 @@
 #include "remote_base.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace remote_base {
 
@@ -13,8 +15,11 @@ RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_b
   next_rmt_channel = rmt_channel_t(int(next_rmt_channel) + mem_block_num);
 }
 
+RemoteRMTChannel::RemoteRMTChannel(rmt_channel_t channel, uint8_t mem_block_num)
+    : channel_(channel), mem_block_num_(mem_block_num) {}
+
 void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
-  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) >= RMT_CHANNEL_MAX) {
+  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) > RMT_CHANNEL_MAX) {
     this->mem_block_num_ = int(RMT_CHANNEL_MAX) - int(this->channel_);
     ESP_LOGW(TAG, "Not enough RMT memory blocks available, reduced to %i blocks.", this->mem_block_num_);
   }
@@ -103,18 +108,18 @@ void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
 
 void RemoteReceiverBase::call_listeners_() {
   for (auto *listener : this->listeners_)
-    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_));
+    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
 }
 
 void RemoteReceiverBase::call_dumpers_() {
   bool success = false;
   for (auto *dumper : this->dumpers_) {
-    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_)))
+    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_)))
       success = true;
   }
   if (!success) {
     for (auto *dumper : this->secondary_dumpers_)
-      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_));
+      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
   }
 }
 
@@ -125,7 +130,7 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
   const auto &vec = this->temp_.get_data();
   char buffer[256];
   uint32_t buffer_offset = 0;
-  buffer_offset += sprintf(buffer, "Sending times=%u wait=%ums: ", send_times, send_wait);
+  buffer_offset += sprintf(buffer, "Sending times=%" PRIu32 " wait=%" PRIu32 "ms: ", send_times, send_wait);
 
   for (size_t i = 0; i < vec.size(); i++) {
     const int32_t value = vec[i];
@@ -133,9 +138,9 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
     int written;
 
     if (i + 1 < vec.size()) {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d, ", value);
+      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32 ", ", value);
     } else {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d", value);
+      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32, value);
     }
 
     if (written < 0 || written >= int(remaining_length)) {
@@ -145,9 +150,9 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
       buffer_offset = 0;
       written = sprintf(buffer, "  ");
       if (i + 1 < vec.size()) {
-        written += sprintf(buffer + written, "%d, ", value);
+        written += sprintf(buffer + written, "%" PRId32 ", ", value);
       } else {
-        written += sprintf(buffer + written, "%d", value);
+        written += sprintf(buffer + written, "%" PRId32, value);
       }
     }
 

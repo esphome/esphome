@@ -1,0 +1,16 @@
+esphome:
+  on_boot:
+    then:
+      - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e'
+      - rtttl.stop
+
+output:
+  - platform: ledc
+    id: rtttl_output
+    pin: 13
+    frequency: 1500Hz
+    channel: 14
+    max_power: 0.5
+
+rtttl:
+  output: rtttl_output
