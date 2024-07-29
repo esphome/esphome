@@ -5321,23 +5321,23 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  repeat: ");
-  out.append("'").append(this->this->repeat).append("'");
+  out.append("'").append(this->repeat).append("'");
   out.append("\n");
 
   out.append("  shuffle: ");
   out.append(YESNO(this->shuffle));
   out.append("\n");
-  
+
   out.append("  artist: ");
-  out.append("'").append(this->this->artist).append("'");
+  out.append("'").append(this->artist).append("'");
   out.append("\n");
 
   out.append("  album: ");
-  out.append("'").append(this->this->album).append("'");
+  out.append("'").append(this->album).append("'");
   out.append("\n");
 
   out.append("  title: ");
-  out.append("'").append(this->this->title).append("'");
+  out.append("'").append(this->title).append("'");
   out.append("\n");
   out.append("}");
 
@@ -5489,7 +5489,7 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   out.append("  enqueue: ");
   out.append("'").append(this->enqueue).append("'");
   out.append("\n");
-  
+
   out.append("  has_group_members: ");
   out.append(YESNO(this->has_group_members));
   out.append("\n");

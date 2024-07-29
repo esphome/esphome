@@ -73,7 +73,9 @@ class MediaPlayerTraits {
 
   bool get_supports_pause() const { return this->supports_pause_; }
 
-  void set_supports_next_previous_track(bool supports_next_previous_track) { this->supports_next_previous_track_ = supports_next_previous_track; }
+  void set_supports_next_previous_track(bool supports_next_previous_track) {
+    this->supports_next_previous_track_ = supports_next_previous_track;
+  }
 
   bool get_supports_next_previous_track() const { return this->supports_next_previous_track_; }
 
@@ -132,7 +134,7 @@ class MediaPlayer : public EntityBase {
  public:
   MediaPlayerState state{MEDIA_PLAYER_STATE_OFF};
 
-  float volume{0.0f};
+  float volume{1.0f};
 
   MediaPlayerCall make_call() { return MediaPlayerCall(this); }
 

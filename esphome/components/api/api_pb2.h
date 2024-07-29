@@ -1323,7 +1323,6 @@ class MediaPlayerStateResponse : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-
 };
 class MediaPlayerCommandRequest : public ProtoMessage {
  public:

@@ -80,7 +80,9 @@ OffTrigger = media_player_ns.class_("OffTrigger", automation.Trigger.template())
 IsIdleCondition = media_player_ns.class_("IsIdleCondition", automation.Condition)
 IsPlayingCondition = media_player_ns.class_("IsPlayingCondition", automation.Condition)
 IsPausedCondition = media_player_ns.class_("IsPausedCondition", automation.Condition)
-IsAnnouncingCondition = media_player_ns.class_("IsAnnouncingCondition", automation.Condition)
+IsAnnouncingCondition = media_player_ns.class_(
+    "IsAnnouncingCondition", automation.Condition
+)
 IsOnCondition = media_player_ns.class_("IsOnCondition", automation.Condition)
 IsOffCondition = media_player_ns.class_("IsOffCondition", automation.Condition)
 
