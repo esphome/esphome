@@ -7,11 +7,12 @@ Constants already defined in esphome.const are not duplicated here and must be i
 from typing import Union
 
 from esphome import codegen as cg, config_validation as cv
-from esphome.components.lvgl.helpers import requires_component
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import Literal
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+
+from .helpers import requires_component
 
 
 class ConstantLiteral(Literal):

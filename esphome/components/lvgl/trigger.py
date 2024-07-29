@@ -18,6 +18,13 @@ lv_event_t_ptr = cg.global_ns.namespace("lv_event_t").operator("ptr")
 
 
 async def generate_triggers(lv_component):
+    """
+    Generate LVGL triggers for all defined widgets
+    Must be done after all widgets completed
+    :param lv_component:  The parent component
+    :return:
+    """
+
     for w in widget_map.values():
         if w.config:
             for event, conf in {
