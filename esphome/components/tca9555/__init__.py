@@ -63,12 +63,9 @@ TCA9555_PIN_SCHEMA = pins.gpio_base_schema(
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_TCA9555, TCA9555_PIN_SCHEMA)
 async def tca9555_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_TCA9555])
+    await cg.register_parented(var, config[CONF_TCA9555])
 
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
+    cg.add(var.set_pin(config[CONF_NUMBER]))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     return var

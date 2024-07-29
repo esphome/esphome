@@ -38,7 +38,7 @@ class TCA9555Component : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
-class TCA9555GPIOPin : public GPIOPin {
+class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -46,13 +46,11 @@ class TCA9555GPIOPin : public GPIOPin {
   void digital_write(bool value) override;
   std::string dump_summary() const override;
 
-  void set_parent(TCA9555Component *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
 
  protected:
-  TCA9555Component *parent_;
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
