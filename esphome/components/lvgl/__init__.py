@@ -23,7 +23,7 @@ from .lvcode import LvContext
 from .obj import obj_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import any_widget_schema, obj_schema
-from .touchscreens import TOUCHSCREENS_CONFIG, touchscreens_to_code
+from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import WIDGET_TYPES, FontEngine, LvglComponent, lv_font_t, lvgl_ns
 from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
@@ -97,10 +97,6 @@ def final_validation(config):
     buffer_frac = config[CONF_BUFFER_SIZE]
     if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
-    if "touchscreen" in global_config and not config[df.CONF_TOUCHSCREENS]:
-        LOGGER.warning(
-            "Touchscreen not used by LVGL unless specified with lvgl `touchscreens:` key"
-        )
 
 
 async def to_code(config):
@@ -218,7 +214,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
-            cv.GenerateID(df.CONF_TOUCHSCREENS): TOUCHSCREENS_CONFIG,
+            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
             cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
         }
     )
