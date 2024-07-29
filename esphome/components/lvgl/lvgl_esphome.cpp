@@ -19,10 +19,12 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, const uint8_t *ptr) {
 }
 
 void LvglComponent::flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
-  auto now = millis();
-  this->draw_buffer_(area, (const uint8_t *) color_p);
-  ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
-           lv_area_get_height(area), (int) (millis() - now));
+  if (!this->paused_) {
+    auto now = millis();
+    this->draw_buffer_(area, (const uint8_t *) color_p);
+    ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
+             lv_area_get_height(area), (int) (millis() - now));
+  }
   lv_disp_flush_ready(disp_drv);
 }
 

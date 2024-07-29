@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
+from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid, types as ty
@@ -38,16 +39,18 @@ TEXT_SCHEMA = cv.Schema(
 )
 
 
+PRESS_TIME = cv.All(
+    lvalid.lv_milliseconds, cv.Range(max=TimePeriod(milliseconds=65535))
+)
+
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
             cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): lvalid.id_name,
-        cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): lvalid.lv_milliseconds,
-        cv.Optional(
-            df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
-        ): lvalid.lv_milliseconds,
+        cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
+        cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
 )
 
@@ -249,6 +252,13 @@ ALIGN_TO_SCHEMA = {
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
     STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
+)
+
+# For use by platform components
+LVGL_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
+    }
 )
 
 ALL_STYLES = {

@@ -18,6 +18,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include <lvgl.h>
+#include <utility>
 #include <vector>
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
@@ -112,19 +113,38 @@ class LvglComponent : public PollingComponent {
       area->y2++;
   }
 
-  void loop() override { lv_timer_handler_run_in_period(5); }
   void setup() override;
 
-  void update() override {}
+  void update() override {
+    // update indicators
+    if (this->paused_) {
+      return;
+    }
+    this->idle_callbacks_.call(lv_disp_get_inactive_time(this->disp_));
+  }
 
+  void loop() override {
+    if (this->paused_) {
+      if (this->show_snow_)
+        this->write_random();
+    }
+    lv_timer_handler_run_in_period(5);
+  }
+
+  void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
+    this->idle_callbacks_.add(std::move(callback));
+  }
   void add_display(display::Display *display) { this->displays_.push_back(display); }
   void add_init_lambda(const std::function<void(LvglComponent *)> &lamb) { this->init_lambdas_.push_back(lamb); }
   void dump_config() override;
   void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
+  bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
   void set_paused(bool paused, bool show_snow) {
     this->paused_ = paused;
+    this->show_snow_ = show_snow;
+    this->snow_line_ = 0;
     if (!paused && lv_scr_act() != nullptr) {
       lv_disp_trig_activity(this->disp_);  // resets the inactivity time
       lv_obj_invalidate(lv_scr_act());
@@ -140,6 +160,25 @@ class LvglComponent : public PollingComponent {
   bool is_paused() const { return this->paused_; }
 
  protected:
+  void write_random() {
+    // length of 2 lines in 32 bit units
+    // we write 2 lines for the benefit of displays that won't write one line at a time.
+    size_t line_len = this->disp_drv_.hor_res * LV_COLOR_DEPTH / 8 / 4 * 2;
+    for (size_t i = 0; i != line_len; i++) {
+      ((uint32_t *) (this->draw_buf_.buf1))[i] = random_uint32();
+    }
+    lv_area_t area;
+    area.x1 = 0;
+    area.x2 = this->disp_drv_.hor_res - 1;
+    if (this->snow_line_ == this->disp_drv_.ver_res / 2) {
+      area.y1 = random_uint32() % (this->disp_drv_.ver_res / 2) * 2;
+    } else {
+      area.y1 = this->snow_line_++ * 2;
+    }
+    // write 2 lines
+    area.y2 = area.y1 + 1;
+    this->draw_buffer_(&area, (const uint8_t *) this->draw_buf_.buf1);
+  }
   void draw_buffer_(const lv_area_t *area, const uint8_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
   std::vector<display::Display *> displays_{};
@@ -147,17 +186,37 @@ class LvglComponent : public PollingComponent {
   lv_disp_drv_t disp_drv_{};
   lv_disp_t *disp_{};
   bool paused_{};
+  bool show_snow_{};
+  uint32_t snow_line_{};
 
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
+  CallbackManager<void(uint32_t)> idle_callbacks_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
 };
 
+class IdleTrigger : public Trigger<> {
+ public:
+  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(timeout) {
+    parent->add_on_idle_callback([this](uint32_t idle_time) {
+      if (!this->is_idle_ && idle_time > this->timeout_.value()) {
+        this->is_idle_ = true;
+        this->trigger();
+      } else if (this->is_idle_ && idle_time < this->timeout_.value()) {
+        this->is_idle_ = false;
+      }
+    });
+  }
+
+ protected:
+  TemplatableValue<uint32_t> timeout_;
+  bool is_idle_{};
+};
+
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
  public:
+  explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
   void play(Ts... x) override { this->action_(this->parent_); }
-
-  void set_action(std::function<void(LvglComponent *)> action) { this->action_ = action; }
 
  protected:
   std::function<void(LvglComponent *)> action_{};
@@ -165,10 +224,9 @@ template<typename... Ts> class LvglAction : public Action<Ts...>, public Parente
 
 template<typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<LvglComponent> {
  public:
+  LvglCondition(std::function<bool(LvglComponent *)> &&condition_lambda)
+      : condition_lambda_(std::move(condition_lambda)) {}
   bool check(Ts... x) override { return this->condition_lambda_(this->parent_); }
-  void set_condition_lambda(std::function<bool(LvglComponent *)> condition_lambda) {
-    this->condition_lambda_ = condition_lambda;
-  }
 
  protected:
   std::function<bool(LvglComponent *)> condition_lambda_{};

@@ -307,3 +307,9 @@ async def widget_to_code(w_cnfig, w_type, parent):
     await set_obj_properties(widget, w_cnfig)
     await add_widgets(widget, w_cnfig)
     await spec.to_code(widget, w_cnfig)
+
+
+lv_scr_act_spec = LvScrActType()
+lv_scr_act = Widget.create(
+    None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {}, parent=None
+)

@@ -1,6 +1,6 @@
 import logging
 
-from esphome import automation
+from esphome.automation import build_automation, register_action, validate_automation
 import esphome.codegen as cg
 from esphome.components.display import Display
 import esphome.config_validation as cv
@@ -9,7 +9,10 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_ON_IDLE,
     CONF_PAGES,
+    CONF_TIMEOUT,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
 )
 from esphome.core import CORE, ID, Lambda
@@ -18,8 +21,8 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
+from .automation import update_to_code
 from .btn import btn_spec
-from .defines import ConstantLiteral
 from .label import label_spec
 from .lv_validation import lv_images_used
 from .lvcode import LvContext
@@ -31,13 +34,13 @@ from .trigger import generate_triggers
 from .types import (
     WIDGET_TYPES,
     FontEngine,
+    IdleTrigger,
     LvglComponent,
     ObjUpdateAction,
     lv_font_t,
     lvgl_ns,
 )
-from .update import update_to_code
-from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
+from .widget import Widget, add_widgets, lv_scr_act, set_obj_properties
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ("display",)
@@ -48,15 +51,10 @@ LOGGER = logging.getLogger(__name__)
 for w_type in (label_spec, obj_spec, btn_spec):
     WIDGET_TYPES[w_type.name] = w_type
 
-lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(
-    None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {}, parent=None
-)
-
 WIDGET_SCHEMA = any_widget_schema()
 
 for w_type in WIDGET_TYPES.values():
-    automation.register_action(
+    register_action(
         f"lvgl.{w_type.name}.update",
         ObjUpdateAction,
         create_modify_schema(w_type, extras=w_type.modify_schema),
@@ -202,6 +200,10 @@ async def to_code(config):
         await add_widgets(lv_scr_act, config)
         Widget.set_completed()
         await generate_triggers(lv_component)
+        for conf in config.get(CONF_ON_IDLE, ()):
+            templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
+            idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
+            await build_automation(idle_trigger, [], conf)
     await add_init_lambda(lv_component, LvContext.get_code())
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
@@ -236,6 +238,14 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
                 "big_endian", "little_endian"
+            ),
+            cv.Optional(CONF_ON_IDLE): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
+                    cv.Required(CONF_TIMEOUT): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
+                }
             ),
             cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,

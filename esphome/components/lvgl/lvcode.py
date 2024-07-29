@@ -8,6 +8,7 @@ from esphome.cpp_generator import (
     AssignmentExpression,
     CallExpression,
     Expression,
+    ExpressionStatement,
     LambdaExpression,
     MockObj,
     RawExpression,
@@ -208,6 +209,11 @@ class MockLv:
         CodeContext.append(RawStatement("}"))
 
 
+class ReturnStatement(ExpressionStatement):
+    def __str__(self):
+        return f"return {self.expression};"
+
+
 class LvExpr(MockLv):
     def __getattr__(self, attr: str) -> "MockLv":
         return LvExpr(f"{self.base}{attr}")
@@ -222,6 +228,7 @@ lv = MockLv("lv_")
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
 lv_obj = MockLv("lv_obj_")
+lvgl_comp = MockObj("lvgl_comp", "->")
 
 
 # equivalent to cg.add() for the lvgl init context
