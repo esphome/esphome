@@ -17,7 +17,7 @@ from .lvcode import (
     lv_obj,
     lvgl_comp,
 )
-from .schemas import LVGL_SCHEMA
+from .schemas import ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
     LvglAction,
     LvglComponent,
@@ -44,7 +44,7 @@ async def action_to_code(action: list, action_id, widget: Widget, template_arg, 
 
 async def update_to_code(config, action_id, template_arg, args):
     if config is not None:
-        widget = await get_widget(config[CONF_ID])
+        widget = await get_widget(config)
         with LambdaContext() as context:
             add_line_marks(action_id)
             await set_obj_properties(widget, config)
@@ -109,8 +109,8 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     ),
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
-    if obj_id := config.get(CONF_ID):
-        w = await get_widget(obj_id)
+    if CONF_ID in config:
+        w = await get_widget(config)
     else:
         w = lv_scr_act
     with LambdaContext() as context:
@@ -150,3 +150,39 @@ async def resume_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, config[CONF_ID])
     return var
+
+
+@automation.register_action("lvgl.widget.disable", ObjUpdateAction, ACTION_SCHEMA)
+async def obj_disable_to_code(config, action_id, template_arg, args):
+    w = await get_widget(config)
+    with LambdaContext() as context:
+        add_line_marks(action_id)
+        w.add_state("LV_STATE_DISABLED")
+    return await action_to_code(context.get_code(), action_id, w, template_arg, args)
+
+
+@automation.register_action("lvgl.widget.enable", ObjUpdateAction, ACTION_SCHEMA)
+async def obj_enable_to_code(config, action_id, template_arg, args):
+    w = await get_widget(config)
+    with LambdaContext() as context:
+        add_line_marks(action_id)
+        w.clear_state("LV_STATE_DISABLED")
+    return await action_to_code(context.get_code(), action_id, w, template_arg, args)
+
+
+@automation.register_action("lvgl.widget.hide", ObjUpdateAction, ACTION_SCHEMA)
+async def obj_hide_to_code(config, action_id, template_arg, args):
+    w = await get_widget(config)
+    with LambdaContext() as context:
+        add_line_marks(action_id)
+        w.add_flag("LV_OBJ_FLAG_HIDDEN")
+    return await action_to_code(context.get_code(), action_id, w, template_arg, args)
+
+
+@automation.register_action("lvgl.widget.show", ObjUpdateAction, ACTION_SCHEMA)
+async def obj_show_to_code(config, action_id, template_arg, args):
+    w = await get_widget(config)
+    with LambdaContext() as context:
+        add_line_marks(action_id)
+        w.clear_flag("LV_OBJ_FLAG_HIDDEN")
+    return await action_to_code(context.get_code(), action_id, w, template_arg, args)

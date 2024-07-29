@@ -4,7 +4,7 @@ from typing import Any
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE
-from esphome.core import CORE, ID, TimePeriod
+from esphome.core import CORE, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj, MockObjClass, VariableDeclarationExpression
 
@@ -161,7 +161,8 @@ def get_widget_generator(wid):
         yield
 
 
-async def get_widget(wid: ID) -> Widget:
+async def get_widget(config: dict, id: str = CONF_ID) -> Widget:
+    wid = config[id]
     if obj := widget_map.get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))

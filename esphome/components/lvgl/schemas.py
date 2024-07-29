@@ -38,6 +38,12 @@ TEXT_SCHEMA = cv.Schema(
     }
 )
 
+ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
+    },
+    key=CONF_ID,
+)
 
 PRESS_TIME = cv.All(
     lvalid.lv_milliseconds, cv.Range(max=TimePeriod(milliseconds=65535))

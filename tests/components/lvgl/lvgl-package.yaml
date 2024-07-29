@@ -112,15 +112,15 @@ lvgl:
             format: "state now %d"
             args: [x]
         on_short_click:
-          logger.log: Button clicked
+          lvgl.widget.hide: hello_label
         on_long_press:
-          logger.log: Button clicked
+          lvgl.widget.show: hello_label
         on_cancel:
-          logger.log: Button clicked
+          lvgl.widget.enable: hello_label
         on_ready:
-          logger.log: Button clicked
+          lvgl.widget.disable: hello_label
         on_defocus:
-          logger.log: Button clicked
+          lvgl.widget.hide: hello_label
         on_focus:
           logger.log: Button clicked
         on_scroll:
