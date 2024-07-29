@@ -2,8 +2,17 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.5.4
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [--fix]
+      # Run the formatter.
+      - id: ruff-format
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.2.0
+    rev: 24.4.2
     hooks:
       - id: black
         args:
@@ -40,3 +49,10 @@ repos:
     hooks:
       - id: clang-format
         types_or: [c, c++]
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: script/run-in-env.sh pylint
+        language: script
+        types: [python]

@@ -6,6 +6,7 @@ from esphome import pins
 from esphome.components import esp32_rmt, light
 from esphome.const import (
     CONF_CHIPSET,
+    CONF_IS_RGBW,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
@@ -52,7 +53,6 @@ CHIPSETS = {
 }
 
 
-CONF_IS_RGBW = "is_rgbw"
 CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"

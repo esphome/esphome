@@ -68,6 +68,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_EVENT
   bool on_event(event::Event *event) override;
 #endif
+#ifdef USE_UPDATE
+  bool on_update(update::UpdateEntity *update) override;
+#endif
 
  protected:
   WebServer *web_server_;

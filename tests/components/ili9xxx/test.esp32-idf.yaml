@@ -12,24 +12,12 @@ display:
       swap_xy: true
       mirror_x: true
       mirror_y: false
-    model: TFT 2.4
-    color_palette: GRAYSCALE
+    model: custom
     cs_pin: 12
     dc_pin: 13
     reset_pin: 14
+    init_sequence:
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10]
+
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9xxx
-    dimensions:
-      width: 320
-      height: 240
-      offset_width: 20
-      offset_height: 10
-    model: TFT 2.4
-    cs_pin: 25
-    dc_pin: 26
-    reset_pin: 27
-    auto_clear_enabled: false
-    rotation: 90
-    lambda: |-
-      it.fill(Color::WHITE);

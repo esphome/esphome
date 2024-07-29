@@ -1,6 +1,4 @@
 from esphome import pins
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
@@ -8,39 +6,46 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.network import IPAddress
+from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DOMAIN,
-    CONF_ID,
-    CONF_MANUAL_IP,
-    CONF_STATIC_IP,
-    CONF_TYPE,
-    CONF_USE_ADDRESS,
-    CONF_GATEWAY,
-    CONF_SUBNET,
+    CONF_ADDRESS,
+    CONF_CLK_PIN,
+    CONF_CS_PIN,
     CONF_DNS1,
     CONF_DNS2,
-    CONF_CLK_PIN,
+    CONF_DOMAIN,
+    CONF_GATEWAY,
+    CONF_ID,
+    CONF_INTERRUPT_PIN,
+    CONF_MANUAL_IP,
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
-    CONF_CS_PIN,
-    CONF_INTERRUPT_PIN,
+    CONF_PAGE_ID,
     CONF_RESET_PIN,
     CONF_SPI,
+    CONF_STATIC_IP,
+    CONF_SUBNET,
+    CONF_TYPE,
+    CONF_USE_ADDRESS,
+    CONF_VALUE,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.components.network import IPAddress
-from esphome.components.spi import get_spi_interface, CONF_INTERFACE_INDEX
+import esphome.final_validate as fv
 
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
+PHYRegister = ethernet_ns.struct("PHYRegister")
 CONF_PHY_ADDR = "phy_addr"
 CONF_MDC_PIN = "mdc_pin"
 CONF_MDIO_PIN = "mdio_pin"
 CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
+CONF_PHY_REGISTERS = "phy_registers"
 
 CONF_CLOCK_SPEED = "clock_speed"
 
@@ -117,6 +122,13 @@ BASE_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+PHY_REGISTER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.hex_int,
+        cv.Required(CONF_VALUE): cv.hex_int,
+        cv.Optional(CONF_PAGE_ID): cv.hex_int,
+    }
+)
 RMII_SCHEMA = BASE_SCHEMA.extend(
     cv.Schema(
         {
@@ -127,6 +139,7 @@ RMII_SCHEMA = BASE_SCHEMA.extend(
             ),
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
         }
     )
 )
@@ -198,6 +211,15 @@ def manual_ip(config):
     )
 
 
+def phy_register(address: int, value: int, page: int):
+    return cg.StructInitializer(
+        PHYRegister,
+        ("address", address),
+        ("value", value),
+        ("page", page),
+    )
+
+
 @coroutine_with_priority(60.0)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -225,6 +247,13 @@ async def to_code(config):
         cg.add(var.set_clk_mode(*CLK_MODES[config[CONF_CLK_MODE]]))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        for register_value in config.get(CONF_PHY_REGISTERS, []):
+            reg = phy_register(
+                register_value.get(CONF_ADDRESS),
+                register_value.get(CONF_VALUE),
+                register_value.get(CONF_PAGE_ID),
+            )
+            cg.add(var.add_phy_register(reg))
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))

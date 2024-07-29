@@ -1,7 +1,1 @@
-button:
-  - platform: shutdown
-    name: Shutdown Button
-
-switch:
-  - platform: shutdown
-    name: Shutdown Switch
+<<: !include common.yaml

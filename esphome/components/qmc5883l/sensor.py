@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
+    CONF_HEADING,
     CONF_TEMPERATURE,
     CONF_ID,
     CONF_OVERSAMPLING,
@@ -23,8 +24,6 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 qmc5883l_ns = cg.esphome_ns.namespace("qmc5883l")
-
-CONF_HEADING = "heading"
 
 QMC5883LComponent = qmc5883l_ns.class_(
     "QMC5883LComponent", cg.PollingComponent, i2c.I2CDevice

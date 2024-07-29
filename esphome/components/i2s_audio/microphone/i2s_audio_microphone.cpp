@@ -46,7 +46,7 @@ void I2SAudioMicrophone::start_() {
     return;  // Waiting for another i2s to return lock
   }
   i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
+      .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_RX),
       .sample_rate = this->sample_rate_,
       .bits_per_sample = this->bits_per_sample_,
       .channel_format = this->channel_,
@@ -57,32 +57,61 @@ void I2SAudioMicrophone::start_() {
       .use_apll = this->use_apll_,
       .tx_desc_auto_clear = false,
       .fixed_mclk = 0,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
+      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
+
+  esp_err_t err;
 
 #if SOC_I2S_SUPPORTS_ADC
   if (this->adc_) {
     config.mode = (i2s_mode_t) (config.mode | I2S_MODE_ADC_BUILT_IN);
-    i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
+    err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
+      this->status_set_error();
+      return;
+    }
 
-    i2s_set_adc_mode(ADC_UNIT_1, this->adc_channel_);
-    i2s_adc_enable(this->parent_->get_port());
+    err = i2s_set_adc_mode(ADC_UNIT_1, this->adc_channel_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error setting ADC mode: %s", esp_err_to_name(err));
+      this->status_set_error();
+      return;
+    }
+    err = i2s_adc_enable(this->parent_->get_port());
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error enabling ADC: %s", esp_err_to_name(err));
+      this->status_set_error();
+      return;
+    }
+
   } else
 #endif
   {
     if (this->pdm_)
       config.mode = (i2s_mode_t) (config.mode | I2S_MODE_PDM);
 
-    i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
+    err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
+      this->status_set_error();
+      return;
+    }
 
     i2s_pin_config_t pin_config = this->parent_->get_pin_config();
     pin_config.data_in_num = this->din_pin_;
 
-    i2s_set_pin(this->parent_->get_port(), &pin_config);
+    err = i2s_set_pin(this->parent_->get_port(), &pin_config);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error setting I2S pin: %s", esp_err_to_name(err));
+      this->status_set_error();
+      return;
+    }
   }
   this->state_ = microphone::STATE_RUNNING;
   this->high_freq_.start();
+  this->status_clear_error();
 }
 
 void I2SAudioMicrophone::stop() {
@@ -96,11 +125,33 @@ void I2SAudioMicrophone::stop() {
 }
 
 void I2SAudioMicrophone::stop_() {
-  i2s_stop(this->parent_->get_port());
-  i2s_driver_uninstall(this->parent_->get_port());
+  esp_err_t err;
+#if SOC_I2S_SUPPORTS_ADC
+  if (this->adc_) {
+    err = i2s_adc_disable(this->parent_->get_port());
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error disabling ADC: %s", esp_err_to_name(err));
+      this->status_set_error();
+      return;
+    }
+  }
+#endif
+  err = i2s_stop(this->parent_->get_port());
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Error stopping I2S microphone: %s", esp_err_to_name(err));
+    this->status_set_error();
+    return;
+  }
+  err = i2s_driver_uninstall(this->parent_->get_port());
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Error uninstalling I2S driver: %s", esp_err_to_name(err));
+    this->status_set_error();
+    return;
+  }
   this->parent_->unlock();
   this->state_ = microphone::STATE_STOPPED;
   this->high_freq_.stop();
+  this->status_clear_error();
 }
 
 size_t I2SAudioMicrophone::read(int16_t *buf, size_t len) {

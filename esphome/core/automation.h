@@ -24,7 +24,7 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
 
 template<typename T, typename... X> class TemplatableValue {
  public:
-  TemplatableValue() : type_(EMPTY) {}
+  TemplatableValue() : type_(NONE) {}
 
   template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F value) : type_(VALUE), value_(value) {}
@@ -32,13 +32,13 @@ template<typename T, typename... X> class TemplatableValue {
   template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
 
-  bool has_value() { return this->type_ != EMPTY; }
+  bool has_value() { return this->type_ != NONE; }
 
   T value(X... x) {
     if (this->type_ == LAMBDA) {
       return this->f_(x...);
     }
-    // return value also when empty
+    // return value also when none
     return this->value_;
   }
 
@@ -58,7 +58,7 @@ template<typename T, typename... X> class TemplatableValue {
 
  protected:
   enum {
-    EMPTY,
+    NONE,
     VALUE,
     LAMBDA,
   } type_;
@@ -233,7 +233,7 @@ template<typename... Ts> class Automation {
  public:
   explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
 
-  Action<Ts...> *add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
+  void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
   void add_actions(const std::vector<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }

@@ -25,7 +25,7 @@ from .base_component import (
     CONF_EXIT_REPARSE_ON_START,
 )
 
-CODEOWNERS = ["@senexcrenshaw"]
+CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]

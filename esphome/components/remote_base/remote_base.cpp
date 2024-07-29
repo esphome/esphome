@@ -108,18 +108,18 @@ void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
 
 void RemoteReceiverBase::call_listeners_() {
   for (auto *listener : this->listeners_)
-    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_));
+    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
 }
 
 void RemoteReceiverBase::call_dumpers_() {
   bool success = false;
   for (auto *dumper : this->dumpers_) {
-    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_)))
+    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_)))
       success = true;
   }
   if (!success) {
     for (auto *dumper : this->secondary_dumpers_)
-      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_));
+      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
   }
 }
 

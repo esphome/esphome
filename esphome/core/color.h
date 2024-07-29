@@ -31,19 +31,19 @@ struct Color {
     uint32_t raw_32;
   };
 
-  inline Color() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
-  inline Color(uint8_t red, uint8_t green, uint8_t blue) ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
+  inline Color() ESPHOME_ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
+  inline Color(uint8_t red, uint8_t green, uint8_t blue) ESPHOME_ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
 
-  inline Color(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ALWAYS_INLINE : r(red),
-                                                                                        g(green),
-                                                                                        b(blue),
-                                                                                        w(white) {}
-  inline explicit Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                            g((colorcode >> 8) & 0xFF),
-                                                            b((colorcode >> 0) & 0xFF),
-                                                            w((colorcode >> 24) & 0xFF) {}
+  inline Color(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ESPHOME_ALWAYS_INLINE : r(red),
+                                                                                                g(green),
+                                                                                                b(blue),
+                                                                                                w(white) {}
+  inline explicit Color(uint32_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
+                                                                    g((colorcode >> 8) & 0xFF),
+                                                                    b((colorcode >> 0) & 0xFF),
+                                                                    w((colorcode >> 24) & 0xFF) {}
 
-  inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
+  inline bool is_on() ESPHOME_ALWAYS_INLINE { return this->raw_32 != 0; }
 
   inline bool operator==(const Color &rhs) {  // NOLINT
     return this->raw_32 == rhs.raw_32;
@@ -57,31 +57,33 @@ struct Color {
   inline bool operator!=(uint32_t colorcode) {  // NOLINT
     return this->raw_32 != colorcode;
   }
-  inline uint8_t &operator[](uint8_t x) ALWAYS_INLINE { return this->raw[x]; }
-  inline Color operator*(uint8_t scale) const ALWAYS_INLINE {
+  inline uint8_t &operator[](uint8_t x) ESPHOME_ALWAYS_INLINE { return this->raw[x]; }
+  inline Color operator*(uint8_t scale) const ESPHOME_ALWAYS_INLINE {
     return Color(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
                  esp_scale8(this->white, scale));
   }
-  inline Color operator~() const ALWAYS_INLINE { return Color(255 - this->red, 255 - this->green, 255 - this->blue); }
-  inline Color &operator*=(uint8_t scale) ALWAYS_INLINE {
+  inline Color operator~() const ESPHOME_ALWAYS_INLINE {
+    return Color(255 - this->red, 255 - this->green, 255 - this->blue);
+  }
+  inline Color &operator*=(uint8_t scale) ESPHOME_ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale);
     this->green = esp_scale8(this->green, scale);
     this->blue = esp_scale8(this->blue, scale);
     this->white = esp_scale8(this->white, scale);
     return *this;
   }
-  inline Color operator*(const Color &scale) const ALWAYS_INLINE {
+  inline Color operator*(const Color &scale) const ESPHOME_ALWAYS_INLINE {
     return Color(esp_scale8(this->red, scale.red), esp_scale8(this->green, scale.green),
                  esp_scale8(this->blue, scale.blue), esp_scale8(this->white, scale.white));
   }
-  inline Color &operator*=(const Color &scale) ALWAYS_INLINE {
+  inline Color &operator*=(const Color &scale) ESPHOME_ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale.red);
     this->green = esp_scale8(this->green, scale.green);
     this->blue = esp_scale8(this->blue, scale.blue);
     this->white = esp_scale8(this->white, scale.white);
     return *this;
   }
-  inline Color operator+(const Color &add) const ALWAYS_INLINE {
+  inline Color operator+(const Color &add) const ESPHOME_ALWAYS_INLINE {
     Color ret;
     if (uint8_t(add.r + this->r) < this->r)
       ret.r = 255;
@@ -101,10 +103,10 @@ struct Color {
       ret.w = this->w + add.w;
     return ret;
   }
-  inline Color &operator+=(const Color &add) ALWAYS_INLINE { return *this = (*this) + add; }
-  inline Color operator+(uint8_t add) const ALWAYS_INLINE { return (*this) + Color(add, add, add, add); }
-  inline Color &operator+=(uint8_t add) ALWAYS_INLINE { return *this = (*this) + add; }
-  inline Color operator-(const Color &subtract) const ALWAYS_INLINE {
+  inline Color &operator+=(const Color &add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
+  inline Color operator+(uint8_t add) const ESPHOME_ALWAYS_INLINE { return (*this) + Color(add, add, add, add); }
+  inline Color &operator+=(uint8_t add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
+  inline Color operator-(const Color &subtract) const ESPHOME_ALWAYS_INLINE {
     Color ret;
     if (subtract.r > this->r)
       ret.r = 0;
@@ -124,11 +126,11 @@ struct Color {
       ret.w = this->w - subtract.w;
     return ret;
   }
-  inline Color &operator-=(const Color &subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
-  inline Color operator-(uint8_t subtract) const ALWAYS_INLINE {
+  inline Color &operator-=(const Color &subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }
+  inline Color operator-(uint8_t subtract) const ESPHOME_ALWAYS_INLINE {
     return (*this) - Color(subtract, subtract, subtract, subtract);
   }
-  inline Color &operator-=(uint8_t subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
+  inline Color &operator-=(uint8_t subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }
   static Color random_color() {
     uint32_t rand = random_uint32();
     uint8_t w = rand >> 24;

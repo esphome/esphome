@@ -23,7 +23,6 @@ CODEOWNERS = ["@numo68"]
 
 display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
 
-CONF_DISPLAY_ID = "display_id"
 
 CONF_ROTARY = "rotary"
 CONF_JOYSTICK = "joystick"

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
+    CONF_OE_PIN,
     CONF_PAGES,
     CONF_WAKEUP_PIN,
 )
@@ -29,7 +30,6 @@ CONF_GREYSCALE = "greyscale"
 CONF_GMOD_PIN = "gmod_pin"
 CONF_GPIO0_ENABLE_PIN = "gpio0_enable_pin"
 CONF_LE_PIN = "le_pin"
-CONF_OE_PIN = "oe_pin"
 CONF_PARTIAL_UPDATING = "partial_updating"
 CONF_POWERUP_PIN = "powerup_pin"
 CONF_SPH_PIN = "sph_pin"

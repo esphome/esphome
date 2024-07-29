@@ -34,7 +34,7 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
@@ -66,7 +66,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -87,7 +87,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -108,7 +108,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -129,7 +129,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -150,7 +150,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -199,7 +199,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -229,7 +229,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -247,72 +247,6 @@ jobs:
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
-
-  compile-tests-list:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
-      - name: Find all YAML test files
-        id: set-matrix
-        run: echo "matrix=$(ls tests/test*.yaml | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
-
-  validate-tests:
-    name: Validate YAML test ${{ matrix.file }}
-    runs-on: ubuntu-latest
-    needs:
-      - common
-      - compile-tests-list
-    strategy:
-      fail-fast: false
-      matrix:
-        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run esphome config ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          esphome config ${{ matrix.file }}
-
-  compile-tests:
-    name: Run YAML test ${{ matrix.file }}
-    runs-on: ubuntu-latest
-    needs:
-      - common
-      - black
-      - ci-custom
-      - clang-format
-      - flake8
-      - pylint
-      - pytest
-      - pyupgrade
-      - compile-tests-list
-      - validate-tests
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        file: ${{ fromJson(needs.compile-tests-list.outputs.matrix) }}
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run esphome compile ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          esphome compile ${{ matrix.file }}
 
   clang-tidy:
     name: ${{ matrix.name }}
@@ -358,18 +292,26 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+
       - name: Cache platformio
+        if: github.ref == 'refs/heads/dev'
         uses: actions/cache@v4.0.2
         with:
           path: ~/.platformio
-          # yamllint disable-line rule:line-length
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}
+
+      - name: Cache platformio
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@v4.0.2
+        with:
+          path: ~/.platformio
+          key: platformio-${{ matrix.pio_cache_key }}
 
       - name: Install clang-tidy
         run: sudo apt-get install clang-tidy-14
@@ -378,6 +320,13 @@ jobs:
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Run 'pio run --list-targets -e esp32-idf-tidy'
+        if: matrix.name == 'Run script/clang-tidy for ESP32 IDF'
+        run: |
+          . venv/bin/activate
+          mkdir -p .temp
+          pio run --list-targets -e esp32-idf-tidy
 
       - name: Run clang-tidy
         run: |
@@ -402,7 +351,7 @@ jobs:
       count: ${{ steps.list-components.outputs.count }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
         with:
           # Fetch enough history so `git merge-base refs/remotes/origin/dev HEAD` works.
           fetch-depth: 500
@@ -446,11 +395,11 @@ jobs:
       matrix:
         file: ${{ fromJson(needs.list-components.outputs.components) }}
     steps:
-      - name: Install libsodium
-        run: sudo apt-get install libsodium-dev
+      - name: Install dependencies
+        run: sudo apt-get install libsodium-dev libsdl2-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -476,7 +425,7 @@ jobs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Split components into 20 groups
         id: split
         run: |
@@ -500,11 +449,11 @@ jobs:
       - name: List components
         run: echo ${{ matrix.components }}
 
-      - name: Install libsodium
-        run: sudo apt-get install libsodium-dev
+      - name: Install dependencies
+        run: sudo apt-get install libsodium-dev libsdl2-dev
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.7
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -519,6 +468,8 @@ jobs:
       - name: Compile config
         run: |
           . venv/bin/activate
+          mkdir build_cache
+          export PLATFORMIO_BUILD_CACHE_DIR=$PWD/build_cache
           for component in ${{ matrix.components }}; do
             ./script/test_build_components -e compile -c $component
           done
@@ -535,7 +486,6 @@ jobs:
       - pylint
       - pytest
       - pyupgrade
-      - compile-tests
       - clang-tidy
       - list-components
       - test-build-components

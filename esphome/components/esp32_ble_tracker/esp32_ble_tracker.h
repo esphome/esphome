@@ -86,6 +86,8 @@ class ESPBTDevice {
 
   const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &get_scan_result() const { return scan_result_; }
 
+  bool resolve_irk(const uint8_t *irk) const;
+
   optional<ESPBLEiBeacon> get_ibeacon() const {
     for (auto &it : this->manufacturer_datas_) {
       auto res = ESPBLEiBeacon::from_manufacturer_data(it);

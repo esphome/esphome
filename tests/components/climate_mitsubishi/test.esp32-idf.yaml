@@ -1,0 +1,28 @@
+uart:
+  id: uart_0
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+
+climate:
+  - platform: climate_mitsubishi
+    name: Mitsubishi Heat Pump
+    uart_id: uart_0
+    compressor_frequency:
+      name: Compressor Frequency
+    fan_velocity:
+      name: Fan Velocity
+    conflicted:
+      name: Conflict
+    preheat:
+      name: Preheat
+    inject_enable:
+      name: Inject Enable
+    control_temperature:
+      name: Control Temperature
+    remote_temperature:
+      name: Remote Temperature
+    temperature_offset:
+      name: Temperature Offset
+    vertical_airflow:
+      name: Vertical Airflow
