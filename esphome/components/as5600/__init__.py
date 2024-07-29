@@ -54,7 +54,6 @@ FAST_FILTER = {
     "LSB10": 7,
 }
 
-CONF_ANGLE = "angle"
 CONF_RAW_ANGLE = "raw_angle"
 CONF_RAW_POSITION = "raw_position"
 CONF_WATCHDOG = "watchdog"

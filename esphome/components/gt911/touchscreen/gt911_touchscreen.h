@@ -26,6 +26,7 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
 
   InternalGPIOPin *interrupt_pin_{};
   std::vector<GT911ButtonListener *> button_listeners_;
+  uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.
 };
 
 }  // namespace gt911

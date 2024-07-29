@@ -85,7 +85,8 @@ class SPIBusHw : public SPIBus {
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
   return new SPIBusHw(clk, sdo, sdi, interface);
 }
 

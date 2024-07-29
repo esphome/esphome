@@ -2,7 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
+    CONF_EXTERNAL_TEMPERATURE,
     CONF_ID,
+    CONF_INTERNAL_TEMPERATURE,
     CONF_SPEED,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
@@ -15,8 +17,6 @@ from .. import EMC2101_COMPONENT_SCHEMA, CONF_EMC2101_ID, emc2101_ns
 
 DEPENDENCIES = ["emc2101"]
 
-CONF_INTERNAL_TEMPERATURE = "internal_temperature"
-CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 CONF_DUTY_CYCLE = "duty_cycle"
 
 EMC2101Sensor = emc2101_ns.class_("EMC2101Sensor", cg.PollingComponent)

@@ -236,6 +236,7 @@ void SSD1306::set_invert(bool invert) {
   // Inverse display mode (0xA6, 0xA7)
   this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
 }
+float SSD1306::get_contrast() { return this->contrast_; };
 void SSD1306::set_contrast(float contrast) {
   // validation
   this->contrast_ = clamp(contrast, 0.0F, 1.0F);
@@ -243,6 +244,7 @@ void SSD1306::set_contrast(float contrast) {
   this->command(SSD1306_COMMAND_SET_CONTRAST);
   this->command(int(SSD1306_MAX_CONTRAST * (this->contrast_)));
 }
+float SSD1306::get_brightness() { return this->brightness_; };
 void SSD1306::set_brightness(float brightness) {
   // validation
   if (!this->is_ssd1305_())

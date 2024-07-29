@@ -1,0 +1,21 @@
+spi:
+  id: spi_bus
+  clk_pin: ${clk_pin}
+  mosi_pin: ${mosi_pin}
+  miso_pin: ${miso_pin}
+
+wk2132_spi:
+  - id: wk2132_spi_id
+    cs_pin: ${cs_pin}
+    spi_id: spi_bus
+    crystal: 11059200
+    data_rate: 1MHz
+    uart:
+      - id: wk2132_spi_id0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - id: wk2132_spi_id1
+        channel: 1
+        baud_rate: 921600

@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_MAGNITUDE,
     CONF_STATUS,
     CONF_POSITION,
+    CONF_ANGLE,
 )
 from .. import as5600_ns, AS5600Component
 
@@ -19,7 +20,6 @@ DEPENDENCIES = ["as5600"]
 
 AS5600Sensor = as5600_ns.class_("AS5600Sensor", sensor.Sensor, cg.PollingComponent)
 
-CONF_ANGLE = "angle"
 CONF_RAW_ANGLE = "raw_angle"
 CONF_RAW_POSITION = "raw_position"
 CONF_WATCHDOG = "watchdog"

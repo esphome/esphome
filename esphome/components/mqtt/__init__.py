@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
@@ -52,8 +54,14 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["network"]
 
-AUTO_LOAD = ["json"]
 
+def AUTO_LOAD():
+    if CORE.is_esp8266 or CORE.is_libretiny:
+        return ["async_tcp", "json"]
+    return ["json"]
+
+
+CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 
@@ -111,10 +119,16 @@ MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
 MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
+MQTTDateComponent = mqtt_ns.class_("MQTTDateComponent", MQTTComponent)
+MQTTTimeComponent = mqtt_ns.class_("MQTTTimeComponent", MQTTComponent)
+MQTTDateTimeComponent = mqtt_ns.class_("MQTTDateTimeComponent", MQTTComponent)
 MQTTTextComponent = mqtt_ns.class_("MQTTTextComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
 MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
+MQTTEventComponent = mqtt_ns.class_("MQTTEventComponent", MQTTComponent)
+MQTTUpdateComponent = mqtt_ns.class_("MQTTUpdateComponent", MQTTComponent)
+MQTTValveComponent = mqtt_ns.class_("MQTTValveComponent", MQTTComponent)
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {
@@ -199,6 +213,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_with_esp_idf
             ),
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
+                cv.string, cv.only_on_esp32
+            ),
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
+                cv.string, cv.only_on_esp32
+            ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
@@ -206,6 +226,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
+            cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
@@ -309,8 +330,12 @@ async def to_code(config):
     discovery_prefix = config[CONF_DISCOVERY_PREFIX]
     discovery_unique_id_generator = config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
     discovery_object_id_generator = config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
+    discover_ip = config[CONF_DISCOVER_IP]
 
     if not discovery:
+        discovery_prefix = ""
+
+    if not discovery and not discover_ip:
         cg.add(var.disable_discovery())
     elif discovery == "CLEAN":
         cg.add(
@@ -319,6 +344,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
                 True,
             )
         )
@@ -329,6 +355,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
             )
         )
 
@@ -378,6 +405,9 @@ async def to_code(config):
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+        if CONF_CLIENT_CERTIFICATE in config:
+            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+            cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
 
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139
@@ -478,6 +508,8 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
+    if CONF_QOS in config:
+        cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
     if not config.get(CONF_DISCOVERY, True):

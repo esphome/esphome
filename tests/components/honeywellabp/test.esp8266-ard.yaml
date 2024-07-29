@@ -1,0 +1,15 @@
+spi:
+  - id: spi_bme280
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+sensor:
+  - platform: honeywellabp
+    cs_pin: 15
+    pressure:
+      name: Honeywell pressure
+      min_pressure: 0
+      max_pressure: 15
+    temperature:
+      name: Honeywell temperature

@@ -849,9 +849,11 @@ def convert(schema, config_var, path):
 
             config_var["id_type"] = {
                 "class": str(data.base),
-                "parents": [str(x.base) for x in parents]
-                if isinstance(parents, list)
-                else None,
+                "parents": (
+                    [str(x.base) for x in parents]
+                    if isinstance(parents, list)
+                    else None
+                ),
             }
         elif schema_type == "use_id":
             if inspect.ismodule(data):

@@ -1,11 +1,12 @@
 #pragma once
 
+#include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include <vector>
 #include <map>
+#include <utility>
+#include <vector>
 
 #ifdef USE_ARDUINO
 
@@ -208,6 +209,10 @@ class SPIDelegate {
     esph_log_e("spi_device", "variable length write not implemented");
   }
 
+  virtual void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address,
+                                   const uint8_t *data, size_t length, uint8_t bus_width) {
+    esph_log_e("spi_device", "write_cmd_addr_data not implemented");
+  }
   // write 16 bits
   virtual void write16(uint16_t data) {
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
@@ -331,6 +336,7 @@ class SPIComponent : public Component {
   void set_miso(GPIOPin *sdi) { this->sdi_pin_ = sdi; }
 
   void set_mosi(GPIOPin *sdo) { this->sdo_pin_ = sdo; }
+  void set_data_pins(std::vector<uint8_t> pins) { this->data_pins_ = std::move(pins); }
 
   void set_interface(SPIInterface interface) {
     this->interface_ = interface;
@@ -348,15 +354,19 @@ class SPIComponent : public Component {
   GPIOPin *clk_pin_{nullptr};
   GPIOPin *sdi_pin_{nullptr};
   GPIOPin *sdo_pin_{nullptr};
+  std::vector<uint8_t> data_pins_{};
+
   SPIInterface interface_{};
   bool using_hw_{false};
   const char *interface_name_{nullptr};
   SPIBus *spi_bus_{};
   std::map<SPIClient *, SPIDelegate *> devices_;
 
-  static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
+  static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                         const std::vector<uint8_t> &data_pins);
 };
 
+using QuadSPIComponent = SPIComponent;
 /**
  * Base class for SPIDevice, un-templated.
  */
@@ -422,18 +432,49 @@ class SPIDevice : public SPIClient {
 
   void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
 
+  /**
+   * Write a single data item, up to 32 bits.
+   * @param data    The data
+   * @param num_bits The number of bits to write. The lower num_bits of data will be sent.
+   */
   void write(uint16_t data, size_t num_bits) { this->delegate_->write(data, num_bits); };
+
+  /* Write command, address and data. Command and address will be written as single-bit SPI,
+   * data phase can be multiple bit (currently only 1 or 4)
+   * @param cmd_bits Number of bits to write in the command phase
+   * @param cmd The command value to write
+   * @param addr_bits Number of bits to write in addr phase
+   * @param address Address data
+   * @param data Plain data bytes
+   * @param length Number of data bytes
+   * @param bus_width The number of data lines to use for the data phase.
+   */
+  void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
+                           size_t length, uint8_t bus_width = 1) {
+    this->delegate_->write_cmd_addr_data(cmd_bits, cmd, addr_bits, address, data, length, bus_width);
+  }
 
   void write_byte(uint8_t data) { this->delegate_->write_array(&data, 1); }
 
+  /**
+   * Write the array data, replace with received data.
+   * @param data
+   * @param length
+   */
   void transfer_array(uint8_t *data, size_t length) { this->delegate_->transfer(data, length); }
 
   uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
 
-  // the driver will byte-swap if required.
+  /** Write 16 bit data. The driver will byte-swap if required.
+   */
   void write_byte16(uint16_t data) { this->delegate_->write16(data); }
 
-  // avoid use of this if possible. It's inefficient and ugly.
+  /**
+   * Write an array of data as 16 bit values, byte-swapping if required. Use of this should be avoided as
+   * it is horribly slow.
+   * @param data
+   * @param length
+   */
   void write_array16(const uint16_t *data, size_t length) { this->delegate_->write_array16(data, length); }
 
   void enable() { this->delegate_->begin_transaction(); }

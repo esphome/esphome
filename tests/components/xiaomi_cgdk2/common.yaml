@@ -1,0 +1,12 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_cgdk2
+    mac_address: A4:C1:38:D1:61:7D
+    bindkey: c99d2313182473b38001086febf781bd
+    temperature:
+      name: Xiaomi CGD1 Temperature
+    humidity:
+      name: Xiaomi CGD1 Humidity
+    battery_level:
+      name: Xiaomi CGD1 Battery Level

@@ -25,9 +25,13 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       this->proxy_->send_connections_free();
       break;
     }
+    case ESP_GATTC_CLOSE_EVT: {
+      this->proxy_->send_device_connection(this->address_, false, 0, param->close.reason);
+      this->set_address(0);
+      this->proxy_->send_connections_free();
+      break;
+    }
     case ESP_GATTC_OPEN_EVT: {
-      if (param->open.conn_id != this->conn_id_)
-        break;
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->proxy_->send_device_connection(this->address_, false, 0, param->open.status);
         this->set_address(0);
@@ -39,9 +43,8 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       this->seen_mtu_or_services_ = false;
       break;
     }
-    case ESP_GATTC_CFG_MTU_EVT: {
-      if (param->cfg_mtu.conn_id != this->conn_id_)
-        break;
+    case ESP_GATTC_CFG_MTU_EVT:
+    case ESP_GATTC_SEARCH_CMPL_EVT: {
       if (!this->seen_mtu_or_services_) {
         // We don't know if we will get the MTU or the services first, so
         // only send the device connection true if we have already received
@@ -53,24 +56,8 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       this->proxy_->send_connections_free();
       break;
     }
-    case ESP_GATTC_SEARCH_CMPL_EVT: {
-      if (param->search_cmpl.conn_id != this->conn_id_)
-        break;
-      if (!this->seen_mtu_or_services_) {
-        // We don't know if we will get the MTU or the services first, so
-        // only send the device connection true if we have already received
-        // the mtu.
-        this->seen_mtu_or_services_ = true;
-        break;
-      }
-      this->proxy_->send_device_connection(this->address_, true, this->mtu_);
-      this->proxy_->send_connections_free();
-      break;
-    }
     case ESP_GATTC_READ_DESCR_EVT:
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->conn_id_)
-        break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%d] [%s] Error reading char/descriptor at handle 0x%2X, status=%d", this->connection_index_,
                  this->address_str_.c_str(), param->read.handle, param->read.status);
@@ -89,8 +76,6 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
     case ESP_GATTC_WRITE_DESCR_EVT: {
-      if (param->write.conn_id != this->conn_id_)
-        break;
       if (param->write.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%d] [%s] Error writing char/descriptor at handle 0x%2X, status=%d", this->connection_index_,
                  this->address_str_.c_str(), param->write.handle, param->write.status);
@@ -131,8 +116,6 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.conn_id != this->conn_id_)
-        break;
       ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_NOTIFY_EVT: handle=0x%2X", this->connection_index_, this->address_str_.c_str(),
                param->notify.handle);
       api::BluetoothGATTNotifyDataResponse resp;

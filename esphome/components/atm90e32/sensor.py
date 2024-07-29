@@ -9,8 +9,10 @@ from esphome.const import (
     CONF_PHASE_A,
     CONF_PHASE_B,
     CONF_PHASE_C,
+    CONF_PHASE_ANGLE,
     CONF_POWER,
     CONF_POWER_FACTOR,
+    CONF_APPARENT_POWER,
     CONF_FREQUENCY,
     CONF_FORWARD_ACTIVE_ENERGY,
     CONF_REVERSE_ACTIVE_ENERGY,
@@ -25,12 +27,13 @@ from esphome.const import (
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
+    UNIT_DEGREES,
+    UNIT_CELSIUS,
     UNIT_HERTZ,
     UNIT_VOLT,
-    UNIT_AMPERE,
-    UNIT_WATT,
-    UNIT_CELSIUS,
     UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
     UNIT_WATT_HOURS,
 )
 
@@ -40,6 +43,10 @@ CONF_GAIN_PGA = "gain_pga"
 CONF_CURRENT_PHASES = "current_phases"
 CONF_GAIN_VOLTAGE = "gain_voltage"
 CONF_GAIN_CT = "gain_ct"
+CONF_HARMONIC_POWER = "harmonic_power"
+CONF_PEAK_CURRENT = "peak_current"
+CONF_PEAK_CURRENT_SIGNED = "peak_current_signed"
+UNIT_DEG = "degrees"
 LINE_FREQS = {
     "50HZ": 50,
     "60HZ": 60,
@@ -85,6 +92,12 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
             accuracy_decimals=2,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
         cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_POWER_FACTOR,
@@ -101,6 +114,24 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_ENERGY,
             state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional(CONF_PHASE_ANGLE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DEGREES,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_HARMONIC_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PEAK_CURRENT): sensor.sensor_schema(
+            unit_of_measurement=UNIT_AMPERE,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_CURRENT,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
@@ -132,6 +163,7 @@ CONFIG_SCHEMA = (
                 CURRENT_PHASES, upper=True
             ),
             cv.Optional(CONF_GAIN_PGA, default="2X"): cv.enum(PGA_GAINS, upper=True),
+            cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -162,6 +194,9 @@ async def to_code(config):
         if reactive_power_config := conf.get(CONF_REACTIVE_POWER):
             sens = await sensor.new_sensor(reactive_power_config)
             cg.add(var.set_reactive_power_sensor(i, sens))
+        if apparent_power_config := conf.get(CONF_APPARENT_POWER):
+            sens = await sensor.new_sensor(apparent_power_config)
+            cg.add(var.set_apparent_power_sensor(i, sens))
         if power_factor_config := conf.get(CONF_POWER_FACTOR):
             sens = await sensor.new_sensor(power_factor_config)
             cg.add(var.set_power_factor_sensor(i, sens))
@@ -171,6 +206,15 @@ async def to_code(config):
         if reverse_active_energy_config := conf.get(CONF_REVERSE_ACTIVE_ENERGY):
             sens = await sensor.new_sensor(reverse_active_energy_config)
             cg.add(var.set_reverse_active_energy_sensor(i, sens))
+        if phase_angle_config := conf.get(CONF_PHASE_ANGLE):
+            sens = await sensor.new_sensor(phase_angle_config)
+            cg.add(var.set_phase_angle_sensor(i, sens))
+        if harmonic_active_power_config := conf.get(CONF_HARMONIC_POWER):
+            sens = await sensor.new_sensor(harmonic_active_power_config)
+            cg.add(var.set_harmonic_active_power_sensor(i, sens))
+        if peak_current_config := conf.get(CONF_PEAK_CURRENT):
+            sens = await sensor.new_sensor(peak_current_config)
+            cg.add(var.set_peak_current_sensor(i, sens))
 
     if frequency_config := config.get(CONF_FREQUENCY):
         sens = await sensor.new_sensor(frequency_config)
@@ -182,3 +226,4 @@ async def to_code(config):
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
+    cg.add(var.set_peak_current_signed(config[CONF_PEAK_CURRENT_SIGNED]))

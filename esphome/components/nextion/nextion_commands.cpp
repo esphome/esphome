@@ -36,22 +36,23 @@ void Nextion::sleep(bool sleep) {
 // End sleep safe commands
 
 // Protocol reparse mode
-void Nextion::set_protocol_reparse_mode(bool active_mode) {
-  const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
+bool Nextion::set_protocol_reparse_mode(bool active_mode) {
+  ESP_LOGV(TAG, "Set Nextion protocol reparse mode: %s", YESNO(active_mode));
+  this->ignore_is_setup_ = true;  // if not in reparse mode setup will fail, so it should be ignored
+  bool all_commands_sent = true;
   if (active_mode) {  // Sets active protocol reparse mode
-    this->write_str(
-        "recmod=1");  // send_command_ cannot be used as Nextion might not be setup if incorrect reparse mode
-    this->write_array(to_send, sizeof(to_send));
-  } else {                                        // Sets passive protocol reparse mode
-    this->write_str("DRAKJHSUYDGBNCJHGJKSHBDN");  // To exit active reparse mode this sequence must be sent
-    this->write_array(to_send, sizeof(to_send));
-    this->write_str("recmod=0");  // Sending recmode=0 twice is recommended
-    this->write_array(to_send, sizeof(to_send));
-    this->write_str("recmod=0");
-    this->write_array(to_send, sizeof(to_send));
+    all_commands_sent &= this->send_command_("recmod=1");
+  } else {  // Sets passive protocol reparse mode
+    all_commands_sent &=
+        this->send_command_("DRAKJHSUYDGBNCJHGJKSHBDN");   // To exit active reparse mode this sequence must be sent
+    all_commands_sent &= this->send_command_("recmod=0");  // Sending recmode=0 twice is recommended
+    all_commands_sent &= this->send_command_("recmod=0");
   }
-  this->write_str("connect");
-  this->write_array(to_send, sizeof(to_send));
+  if (!this->nextion_reports_is_setup_) {  // No need to connect if is already setup
+    all_commands_sent &= this->send_command_("connect");
+  }
+  this->ignore_is_setup_ = false;
+  return all_commands_sent;
 }
 void Nextion::set_exit_reparse_on_start(bool exit_reparse) { this->exit_reparse_on_start_ = exit_reparse; }
 
@@ -143,11 +144,29 @@ void Nextion::set_component_pressed_font_color(const char *component, Color colo
 
 // Set picture
 void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%d", component, pic_id);
+  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%" PRIu8, component, pic_id);
 }
 
 void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.picc=%d", component, pic_id);
+  this->add_no_result_to_queue_with_printf_("set_component_picc", "%s.picc=%" PRIu8, component, pic_id);
+}
+
+// Set video
+void Nextion::set_component_vid(const char *component, uint8_t vid_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_vid", "%s.vid=%" PRIu8, component, vid_id);
+}
+
+void Nextion::set_component_drag(const char *component, bool drag) {
+  this->add_no_result_to_queue_with_printf_("set_component_drag", "%s.drag=%i", component, drag ? 1 : 0);
+}
+
+void Nextion::set_component_aph(const char *component, uint8_t aph) {
+  this->add_no_result_to_queue_with_printf_("set_component_aph", "%s.aph=%" PRIu8, component, aph);
+}
+
+void Nextion::set_component_position(const char *component, uint32_t x, uint32_t y) {
+  this->add_no_result_to_queue_with_printf_("set_component_position_x", "%s.x=%" PRIu32, component, x);
+  this->add_no_result_to_queue_with_printf_("set_component_position_y", "%s.y=%" PRIu32, component, y);
 }
 
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {
@@ -178,7 +197,7 @@ void Nextion::set_auto_wake_on_touch(bool auto_wake) {
 
 // General Component
 void Nextion::set_component_font(const char *component, uint8_t font_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_font", "%s.font=%d", component, font_id);
+  this->add_no_result_to_queue_with_printf_("set_component_font", "%s.font=%" PRIu8, component, font_id);
 }
 
 void Nextion::hide_component(const char *component) {
@@ -197,101 +216,131 @@ void Nextion::disable_component_touch(const char *component) {
   this->add_no_result_to_queue_with_printf_("disable_component_touch", "tsw %s,0", component);
 }
 
-void Nextion::set_component_picture(const char *component, const char *picture) {
-  this->add_no_result_to_queue_with_printf_("set_component_picture", "%s.val=%s", component, picture);
+void Nextion::set_component_picture(const char *component, uint8_t picture_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_picture", "%s.pic=%" PRIu8, component, picture_id);
 }
 
 void Nextion::set_component_text(const char *component, const char *text) {
   this->add_no_result_to_queue_with_printf_("set_component_text", "%s.txt=\"%s\"", component, text);
 }
 
-void Nextion::set_component_value(const char *component, int value) {
-  this->add_no_result_to_queue_with_printf_("set_component_value", "%s.val=%d", component, value);
+void Nextion::set_component_value(const char *component, int32_t value) {
+  this->add_no_result_to_queue_with_printf_("set_component_value", "%s.val=%" PRId32, component, value);
 }
 
-void Nextion::add_waveform_data(int component_id, uint8_t channel_number, uint8_t value) {
-  this->add_no_result_to_queue_with_printf_("add_waveform_data", "add %d,%u,%u", component_id, channel_number, value);
+void Nextion::add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value) {
+  this->add_no_result_to_queue_with_printf_("add_waveform_data", "add %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id,
+                                            channel_number, value);
 }
 
-void Nextion::open_waveform_channel(int component_id, uint8_t channel_number, uint8_t value) {
-  this->add_no_result_to_queue_with_printf_("open_waveform_channel", "addt %d,%u,%u", component_id, channel_number,
-                                            value);
+void Nextion::open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value) {
+  this->add_no_result_to_queue_with_printf_("open_waveform_channel", "addt %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id,
+                                            channel_number, value);
 }
 
-void Nextion::set_component_coordinates(const char *component, int x, int y) {
-  this->add_no_result_to_queue_with_printf_("set_component_coordinates command 1", "%s.xcen=%d", component, x);
-  this->add_no_result_to_queue_with_printf_("set_component_coordinates command 2", "%s.ycen=%d", component, y);
+void Nextion::set_component_coordinates(const char *component, uint16_t x, uint16_t y) {
+  this->add_no_result_to_queue_with_printf_("set_component_coordinates command 1", "%s.xcen=%" PRIu16, component, x);
+  this->add_no_result_to_queue_with_printf_("set_component_coordinates command 2", "%s.ycen=%" PRIu16, component, y);
 }
 
 // Drawing
-void Nextion::display_picture(int picture_id, int x_start, int y_start) {
-  this->add_no_result_to_queue_with_printf_("display_picture", "pic %d, %d, %d", x_start, y_start, picture_id);
+void Nextion::display_picture(uint16_t picture_id, uint16_t x_start, uint16_t y_start) {
+  this->add_no_result_to_queue_with_printf_("display_picture", "pic %" PRIu16 ", %" PRIu16 ", %" PRIu16, x_start,
+                                            y_start, picture_id);
 }
 
-void Nextion::fill_area(int x1, int y1, int width, int height, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("fill_area", "fill %d,%d,%d,%d,%" PRIu16, x1, y1, width, height, color);
+void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_(
+      "fill_area", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1, width, height, color);
 }
 
-void Nextion::fill_area(int x1, int y1, int width, int height, const char *color) {
-  this->add_no_result_to_queue_with_printf_("fill_area", "fill %d,%d,%d,%d,%s", x1, y1, width, height, color);
+void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color) {
+  this->add_no_result_to_queue_with_printf_("fill_area", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", x1,
+                                            y1, width, height, color);
 }
 
-void Nextion::fill_area(int x1, int y1, int width, int height, Color color) {
-  this->add_no_result_to_queue_with_printf_("fill_area", "fill %d,%d,%d,%d,%d", x1, y1, width, height,
-                                            display::ColorUtil::color_to_565(color));
+void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color) {
+  this->add_no_result_to_queue_with_printf_("fill_area",
+                                            "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1,
+                                            width, height, display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::line(int x1, int y1, int x2, int y2, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("line", "line %d,%d,%d,%d,%" PRIu16, x1, y1, x2, y2, color);
+void Nextion::line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("line", "line %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
+                                            y1, x2, y2, color);
 }
 
-void Nextion::line(int x1, int y1, int x2, int y2, const char *color) {
-  this->add_no_result_to_queue_with_printf_("line", "line %d,%d,%d,%d,%s", x1, y1, x2, y2, color);
+void Nextion::line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, const char *color) {
+  this->add_no_result_to_queue_with_printf_("line", "line %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", x1, y1,
+                                            x2, y2, color);
 }
 
-void Nextion::line(int x1, int y1, int x2, int y2, Color color) {
-  this->add_no_result_to_queue_with_printf_("line", "line %d,%d,%d,%d,%d", x1, y1, x2, y2,
-                                            display::ColorUtil::color_to_565(color));
+void Nextion::line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, Color color) {
+  this->add_no_result_to_queue_with_printf_("line", "line %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
+                                            y1, x2, y2, display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::rectangle(int x1, int y1, int width, int height, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("draw", "draw %d,%d,%d,%d,%" PRIu16, x1, y1, x1 + width, y1 + height,
+void Nextion::rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("draw", "draw %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
+                                            y1, static_cast<uint16_t>(x1 + width), static_cast<uint16_t>(y1 + height),
                                             color);
 }
 
-void Nextion::rectangle(int x1, int y1, int width, int height, const char *color) {
-  this->add_no_result_to_queue_with_printf_("draw", "draw %d,%d,%d,%d,%s", x1, y1, x1 + width, y1 + height, color);
+void Nextion::rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color) {
+  this->add_no_result_to_queue_with_printf_("draw", "draw %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", x1, y1,
+                                            static_cast<uint16_t>(x1 + width), static_cast<uint16_t>(y1 + height),
+                                            color);
 }
 
-void Nextion::rectangle(int x1, int y1, int width, int height, Color color) {
-  this->add_no_result_to_queue_with_printf_("draw", "draw %d,%d,%d,%d,%d", x1, y1, x1 + width, y1 + height,
+void Nextion::rectangle(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color) {
+  this->add_no_result_to_queue_with_printf_("draw", "draw %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
+                                            y1, static_cast<uint16_t>(x1 + width), static_cast<uint16_t>(y1 + height),
                                             display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::circle(int center_x, int center_y, int radius, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("cir", "cir %d,%d,%d,%" PRIu16, center_x, center_y, radius, color);
+void Nextion::circle(uint16_t center_x, uint16_t center_y, uint16_t radius, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("cir", "cir %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, center_x,
+                                            center_y, radius, color);
 }
 
-void Nextion::circle(int center_x, int center_y, int radius, const char *color) {
-  this->add_no_result_to_queue_with_printf_("cir", "cir %d,%d,%d,%s", center_x, center_y, radius, color);
+void Nextion::circle(uint16_t center_x, uint16_t center_y, uint16_t radius, const char *color) {
+  this->add_no_result_to_queue_with_printf_("cir", "cir %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", center_x, center_y,
+                                            radius, color);
 }
 
-void Nextion::circle(int center_x, int center_y, int radius, Color color) {
-  this->add_no_result_to_queue_with_printf_("cir", "cir %d,%d,%d,%d", center_x, center_y, radius,
-                                            display::ColorUtil::color_to_565(color));
+void Nextion::circle(uint16_t center_x, uint16_t center_y, uint16_t radius, Color color) {
+  this->add_no_result_to_queue_with_printf_("cir", "cir %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, center_x,
+                                            center_y, radius, display::ColorUtil::color_to_565(color));
 }
 
-void Nextion::filled_circle(int center_x, int center_y, int radius, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("cirs", "cirs %d,%d,%d,%" PRIu16, center_x, center_y, radius, color);
+void Nextion::filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radius, uint16_t color) {
+  this->add_no_result_to_queue_with_printf_("cirs", "cirs %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, center_x,
+                                            center_y, radius, color);
 }
 
-void Nextion::filled_circle(int center_x, int center_y, int radius, const char *color) {
-  this->add_no_result_to_queue_with_printf_("cirs", "cirs %d,%d,%d,%s", center_x, center_y, radius, color);
+void Nextion::filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radius, const char *color) {
+  this->add_no_result_to_queue_with_printf_("cirs", "cirs %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", center_x, center_y,
+                                            radius, color);
 }
 
-void Nextion::filled_circle(int center_x, int center_y, int radius, Color color) {
-  this->add_no_result_to_queue_with_printf_("cirs", "cirs %d,%d,%d,%d", center_x, center_y, radius,
-                                            display::ColorUtil::color_to_565(color));
+void Nextion::filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radius, Color color) {
+  this->add_no_result_to_queue_with_printf_("cirs", "cirs %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, center_x,
+                                            center_y, radius, display::ColorUtil::color_to_565(color));
+}
+
+void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, uint16_t background_color,
+                     uint16_t foreground_color, uint8_t logo_pic, uint8_t border_width) {
+  this->add_no_result_to_queue_with_printf_(
+      "qrcode", "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1,
+      y1, size, background_color, foreground_color, logo_pic, border_width, content);
+}
+
+void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, Color background_color,
+                     Color foreground_color, uint8_t logo_pic, uint8_t border_width) {
+  this->add_no_result_to_queue_with_printf_(
+      "qrcode", "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1,
+      y1, size, display::ColorUtil::color_to_565(background_color), display::ColorUtil::color_to_565(foreground_color),
+      logo_pic, border_width, content);
 }
 
 void Nextion::set_nextion_rtc_time(ESPTime time) {

@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_xgzp68xx
+    scl: 5
+    sda: 4
+
+sensor:
+  - platform: xgzp68xx
+    k_value: 4096
+    temperature:
+      name: Pressure Temperature
+    pressure:
+      name: Differential pressure

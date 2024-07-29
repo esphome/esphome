@@ -79,6 +79,7 @@ enum MQTTDiscoveryObjectIdGenerator {
 struct MQTTDiscoveryInfo {
   std::string prefix;  ///< The Home Assistant discovery prefix. Empty means disabled.
   bool retain;         ///< Whether to retain discovery messages.
+  bool discover_ip;    ///< Enable the Home Assistant device discovery.
   bool clean;
   MQTTDiscoveryUniqueIdGenerator unique_id_generator;
   MQTTDiscoveryObjectIdGenerator object_id_generator;
@@ -122,12 +123,14 @@ class MQTTClientComponent : public Component {
    * @param retain Whether to retain discovery messages.
    */
   void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
-                          MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain, bool clean = false);
+                          MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain, bool discover_ip,
+                          bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
   void disable_discovery();
   bool is_discovery_enabled() const;
+  bool is_discovery_ip_enabled() const;
 
 #if ASYNC_TCP_SSL_ENABLED
   /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
@@ -146,6 +149,8 @@ class MQTTClientComponent : public Component {
 #endif
 #ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
+  void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
+  void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
 #endif
   const Availability &get_availability();
@@ -288,6 +293,7 @@ class MQTTClientComponent : public Component {
   MQTTDiscoveryInfo discovery_info_{
       .prefix = "homeassistant",
       .retain = true,
+      .discover_ip = true,
       .clean = false,
       .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
       .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,

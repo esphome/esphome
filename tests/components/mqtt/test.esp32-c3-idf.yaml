@@ -1,0 +1,3 @@
+packages:
+  common: !include common.yaml
+  update: !include common-update.yaml

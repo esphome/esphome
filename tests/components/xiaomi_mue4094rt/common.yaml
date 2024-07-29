@@ -1,0 +1,7 @@
+esp32_ble_tracker:
+
+binary_sensor:
+  - platform: xiaomi_mue4094rt
+    name: MUE4094RT Motion
+    mac_address: 7A:80:8E:19:36:BA
+    timeout: 5s

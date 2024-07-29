@@ -53,13 +53,22 @@ enum class TuyaCommandType : uint8_t {
   WIFI_RESET = 0x04,
   WIFI_SELECT = 0x05,
   DATAPOINT_DELIVER = 0x06,
-  DATAPOINT_REPORT = 0x07,
+  DATAPOINT_REPORT_ASYNC = 0x07,
   DATAPOINT_QUERY = 0x08,
   WIFI_TEST = 0x0E,
   LOCAL_TIME_QUERY = 0x1C,
+  DATAPOINT_REPORT_SYNC = 0x22,
+  DATAPOINT_REPORT_ACK = 0x23,
   WIFI_RSSI = 0x24,
   VACUUM_MAP_UPLOAD = 0x28,
   GET_NETWORK_STATUS = 0x2B,
+  EXTENDED_SERVICES = 0x34,
+};
+
+enum class TuyaExtendedServicesCommandType : uint8_t {
+  RESET_NOTIFICATION = 0x04,
+  MODULE_RESET = 0x05,
+  UPDATE_IN_PROGRESS = 0x0A,
 };
 
 enum class TuyaInitState : uint8_t {
@@ -130,14 +139,14 @@ class Tuya : public Component, public uart::UARTDevice {
 
 #ifdef USE_TIME
   void send_local_time_();
-  optional<time::RealTimeClock *> time_id_{};
+  time::RealTimeClock *time_id_{nullptr};
   bool time_sync_callback_registered_{false};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   bool init_failed_{false};
   int init_retries_{0};
   uint8_t protocol_version_ = -1;
-  optional<InternalGPIOPin *> status_pin_{};
+  InternalGPIOPin *status_pin_{nullptr};
   int status_pin_reported_ = -1;
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;

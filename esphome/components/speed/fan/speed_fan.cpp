@@ -38,7 +38,6 @@ void SpeedFan::control(const fan::FanCall &call) {
 void SpeedFan::write_state_() {
   float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
   this->output_->set_level(speed);
-
   if (this->oscillating_ != nullptr)
     this->oscillating_->set_state(this->oscillating);
   if (this->direction_ != nullptr)

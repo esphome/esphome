@@ -1,6 +1,10 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
+#ifdef USE_HOST
+#include <sys/time.h>
+#else
 #include "lwip/opt.h"
+#endif
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
@@ -8,6 +12,8 @@
 #include <sys/time.h>
 #endif
 #include <cerrno>
+
+#include <cinttypes>
 
 namespace esphome {
 namespace time {
@@ -25,7 +31,7 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
   ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
-  timezone tz = {0, 0};
+  struct timezone tz = {0, 0};
   int ret = settimeofday(&timev, &tz);
   if (ret == EINVAL) {
     // Some ESP8266 frameworks abort when timezone parameter is not NULL

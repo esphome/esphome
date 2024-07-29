@@ -1,0 +1,12 @@
+uart:
+  - id: uart_dsmr
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+dsmr:
+  decryption_key: 00112233445566778899aabbccddeeff
+  max_telegram_length: 1000
+  request_pin: 15
+  request_interval: 20s
+  receive_timeout: 100ms

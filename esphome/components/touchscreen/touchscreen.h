@@ -16,6 +16,7 @@ static const uint8_t STATE_RELEASED = 0x00;
 static const uint8_t STATE_PRESSED = 0x01;
 static const uint8_t STATE_UPDATED = 0x02;
 static const uint8_t STATE_RELEASING = 0x04;
+static const uint8_t STATE_CALIBRATE = 0x07;
 
 struct TouchPoint {
   uint8_t id;
@@ -68,8 +69,6 @@ class Touchscreen : public PollingComponent {
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
 
-  virtual void update_touches() = 0;
-
   optional<TouchPoint> get_touch() { return this->touches_.begin()->second; }
 
   TouchPoints_t get_touches() {
@@ -82,6 +81,7 @@ class Touchscreen : public PollingComponent {
 
   void update() override;
   void loop() override;
+  void call_setup() override;
 
  protected:
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
@@ -90,17 +90,17 @@ class Touchscreen : public PollingComponent {
 
   void add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw = 0);
 
+  virtual void update_touches() = 0;
+
   void send_touches_();
 
   int16_t normalize_(int16_t val, int16_t min_val, int16_t max_val, bool inverted = false);
 
-  uint16_t get_width_() { return this->display_->get_width(); }
-
-  uint16_t get_height_() { return this->display_->get_height(); }
-
   display::Display *display_{nullptr};
 
   int16_t x_raw_min_{0}, x_raw_max_{0}, y_raw_min_{0}, y_raw_max_{0};
+  int16_t display_width_{0}, display_height_{0};
+
   uint16_t touch_timeout_{0};
   bool invert_x_{false}, invert_y_{false}, swap_x_y_{false};
 
@@ -115,6 +115,7 @@ class Touchscreen : public PollingComponent {
   bool first_touch_{true};
   bool need_update_{false};
   bool is_touched_{false};
+  bool was_touched_{false};
   bool skip_update_{false};
 };
 

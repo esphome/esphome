@@ -1,12 +1,11 @@
-#include "esphome/core/defines.h"
 #ifdef USE_ESP_IDF
-
-#include <esp_task_wdt.h>
-
 #include "ota_backend_esp_idf.h"
-#include "ota_component.h"
-#include <esp_ota_ops.h>
+
 #include "esphome/components/md5/md5.h"
+#include "esphome/core/defines.h"
+
+#include <esp_ota_ops.h>
+#include <esp_task_wdt.h>
 
 #if ESP_IDF_VERSION_MAJOR >= 5
 #include <spi_flash_mmap.h>
@@ -14,6 +13,8 @@
 
 namespace esphome {
 namespace ota {
+
+std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::IDFOTABackend>(); }
 
 OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
   this->partition_ = esp_ota_get_next_update_partition(nullptr);

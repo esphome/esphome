@@ -1,8 +1,16 @@
 import binascii
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import modbus
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ID,
+    CONF_NAME,
+    CONF_LAMBDA,
+    CONF_OFFSET,
+    CONF_TRIGGER_ID,
+)
 from esphome.cpp_helpers import logging
 from .const import (
     CONF_BITMASK,
@@ -12,6 +20,7 @@ from .const import (
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_ON_COMMAND_SENT,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
@@ -23,6 +32,8 @@ CODEOWNERS = ["@martgras"]
 
 AUTO_LOAD = ["modbus"]
 
+CONF_READ_LAMBDA = "read_lambda"
+CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
@@ -31,6 +42,7 @@ ModbusController = modbus_controller_ns.class_(
 )
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
+ServerRegister = modbus_controller_ns.struct("ServerRegister")
 
 ModbusFunctionCode_ns = modbus_controller_ns.namespace("ModbusFunctionCode")
 ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
@@ -94,9 +106,21 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
-MULTI_CONF = True
+ModbusCommandSentTrigger = modbus_controller_ns.class_(
+    "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+ModbusServerRegisterSchema = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ServerRegister),
+        cv.Required(CONF_ADDRESS): cv.positive_int,
+        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
+        cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
+    }
+)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -106,12 +130,21 @@ CONFIG_SCHEMA = cv.All(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(
+                CONF_SERVER_REGISTERS,
+            ): cv.ensure_list(ModbusServerRegisterSchema),
+            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        ModbusCommandSentTrigger
+                    ),
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
-
 
 ModbusItemBaseSchema = cv.Schema(
     {
@@ -154,6 +187,17 @@ def validate_modbus_register(config):
     return config
 
 
+def _final_validate(config):
+    if CONF_SERVER_REGISTERS in config:
+        return modbus.final_validate_modbus_device("modbus_controller", role="server")(
+            config
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 def modbus_calc_properties(config):
     byte_offset = 0
     reg_count = 0
@@ -183,7 +227,7 @@ def modbus_calc_properties(config):
 
 
 async def add_modbus_base_properties(
-    var, config, sensor_type, lamdba_param_type=cg.float_, lamdba_return_type=float
+    var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
 ):
     if CONF_CUSTOM_COMMAND in config:
         cg.add(var.set_custom_data(config[CONF_CUSTOM_COMMAND]))
@@ -196,13 +240,13 @@ async def add_modbus_base_properties(
             config[CONF_LAMBDA],
             [
                 (sensor_type.operator("ptr"), "item"),
-                (lamdba_param_type, "x"),
+                (lambda_param_type, "x"),
                 (
                     cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
                     "data",
                 ),
             ],
-            return_type=cg.optional.template(lamdba_return_type),
+            return_type=cg.optional.template(lambda_return_type),
         )
         cg.add(var.set_template(template_))
 
@@ -211,7 +255,29 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
+    if CONF_SERVER_REGISTERS in config:
+        for server_register in config[CONF_SERVER_REGISTERS]:
+            cg.add(
+                var.add_server_register(
+                    cg.new_Pvariable(
+                        server_register[CONF_ID],
+                        server_register[CONF_ADDRESS],
+                        server_register[CONF_VALUE_TYPE],
+                        TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]],
+                        await cg.process_lambda(
+                            server_register[CONF_READ_LAMBDA],
+                            [],
+                            return_type=cg.float_,
+                        ),
+                    )
+                )
+            )
     await register_modbus_device(var, config)
+    for conf in config.get(CONF_ON_COMMAND_SENT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(int, "function_code"), (int, "address")], conf
+        )
 
 
 async def register_modbus_device(var, config):
