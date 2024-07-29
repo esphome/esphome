@@ -40,6 +40,28 @@ def opacity_validator(value):
 opacity = LValidator(opacity_validator, uint32, retmapper=literal)
 
 
+def literal_mapper(value, args=()):
+    if isinstance(value, str):
+        return ConstantLiteral(value)
+    return value
+
+
+opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
+
+
+@schema_extractor("one_of")
+def opacity_validator(value):
+    if value == SCHEMA_EXTRACT:
+        return opacity_consts.choices
+    value = cv.Any(cv.percentage, opacity_consts.one_of)(value)
+    if isinstance(value, float):
+        return int(value * 255)
+    return value
+
+
+opacity = LValidator(opacity_validator, uint32, retmapper=literal_mapper)
+
+
 @schema_extractor("one_of")
 def color(value):
     if value == SCHEMA_EXTRACT:
