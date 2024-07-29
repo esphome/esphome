@@ -135,10 +135,20 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
+lv_images_used = set()
+
+
+def image_validator(value):
+    value = requires_component("image")(value)
+    value = cv.use_id(Image_)(value)
+    lv_images_used.add(value)
+    return value
+
+
 lv_image = LValidator(
-    cv.use_id(Image_),
+    image_validator,
     lv_img_t,
-    retmapper=lambda x: literal(f"lv_img_from({x})"),
+    retmapper=lambda x: lv_expr.img_from(MockObj(x)),
     requires="image",
 )
 lv_bool = LValidator(

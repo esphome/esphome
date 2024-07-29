@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGES,
+    CONF_TYPE,
 )
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
@@ -19,6 +20,7 @@ from . import defines as df, helpers, lv_validation as lvalid
 from .btn import btn_spec
 from .defines import ConstantLiteral
 from .label import label_spec
+from .lv_validation import lv_images_used
 from .lvcode import LvContext
 from .obj import obj_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
@@ -97,6 +99,13 @@ def final_validation(config):
     buffer_frac = config[CONF_BUFFER_SIZE]
     if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
+    for image_id in lv_images_used:
+        path = global_config.get_path_for_id(image_id)[:-1]
+        image_conf = global_config.get_config_for_path(path)
+        if image_conf[CONF_TYPE] in ("RGBA", "RGB24"):
+            raise cv.Invalid(
+                "Using RGBA or RGB24 in image config not compatible with LVGL", path
+            )
 
 
 async def to_code(config):

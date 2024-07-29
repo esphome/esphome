@@ -88,7 +88,7 @@ lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc) {
   img_dsc->header.w = src->get_width();
   img_dsc->header.h = src->get_height();
   img_dsc->data = src->get_data_start();
-  img_dsc->data_size = image::image_type_to_width_stride(img_dsc->header.w * img_dsc->header.h, src->get_type());
+  img_dsc->data_size = image_type_to_width_stride(img_dsc->header.w * img_dsc->header.h, src->get_type());
   switch (src->get_type()) {
     case image::IMAGE_TYPE_BINARY:
       img_dsc->header.cf = LV_IMG_CF_ALPHA_1BIT;
