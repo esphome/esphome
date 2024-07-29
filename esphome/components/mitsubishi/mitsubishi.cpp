@@ -110,7 +110,7 @@ void MitsubishiClimate::transmit_state() {
   // Byte 15: HVAC specfic, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
   // Byte 16: Constant 0x00
   // Byte 17: Checksum: SUM[Byte0...Byte16]
-  uint8_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x08, 0x00, 0x00,
+  uint8_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   switch (this->mode) {
@@ -136,6 +136,12 @@ void MitsubishiClimate::transmit_state() {
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
+      remote_state[6] = MITSUBISHI_MODE_COOL;
+      remote_state[8] = MITSUBISHI_MODE_A_COOL;
+      if (this->supports_heat_) {
+        remote_state[6] = MITSUBISHI_MODE_HEAT;
+        remote_state[8] = MITSUBISHI_MODE_A_HEAT;
+      }
       remote_state[5] = MITSUBISHI_OFF;
       break;
   }
