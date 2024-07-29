@@ -10,7 +10,7 @@ from .defines import (
     CONF_TOUCHSCREENS,
 )
 from .helpers import lvgl_components_required
-from .lvcode import lv, lv_add
+from .lvcode import lv
 from .schemas import PRESS_TIME
 from .types import LVTouchListener
 
@@ -42,4 +42,4 @@ async def touchscreens_to_code(var, config):
         listener = cg.new_Pvariable(tconf[CONF_ID], lpt, lprt)
         await cg.register_parented(listener, var)
         lv.indev_drv_register(listener.get_drv())
-        lv_add(touchscreen.register_listener(listener))
+        cg.add(touchscreen.register_listener(listener))
