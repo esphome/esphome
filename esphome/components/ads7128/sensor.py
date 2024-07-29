@@ -1,15 +1,16 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CHANNEL,
+    CONF_ID,
+    CONF_OVERSAMPLING,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
-    CONF_ID,
-    CONF_CHANNEL,
-    CONF_OVERSAMPLING,
 )
-from . import ads7128_ns, ADS7128Component
+
+from . import ADS7128Component, ads7128_ns
 
 DEPENDENCIES = ["ads7128"]
 
@@ -98,12 +99,11 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ADS7128_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     await sensor.register_sensor(var, config)
     await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_ADS7128_ID])
 
-    cg.add(var.set_parent(parent))
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_cycle_time(config[CONF_CYCLE_TIME]))

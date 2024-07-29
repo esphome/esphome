@@ -308,9 +308,8 @@ class ADS7128Component : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose an ADS7128 pin as a GPIO pin.
-class ADS7128GPIOPin : public GPIOPin {
+class ADS7128GPIOPin : public GPIOPin, public Parented<ADS7128Component> {
  public:
-  void set_parent(ADS7128Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
@@ -324,17 +323,14 @@ class ADS7128GPIOPin : public GPIOPin {
   void digital_write(bool value) override { this->parent_->digital_write(this->pin_, value); }
 
  protected:
-  ADS7128Component *parent_;
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
 };
 
 /// Helper class to expose an ADS7128 pin as an analog sensor
-class ADS7128Sensor : public PollingComponent, public sensor::Sensor {
+class ADS7128Sensor : public PollingComponent, public sensor::Sensor, public Parented<ADS7128Component> {
  public:
-  void set_parent(ADS7128Component *parent) { this->parent_ = parent; }
-
   uint8_t get_channel() { return this->channel_; }
   void set_channel(uint8_t channel) { this->channel_ = channel; }
 
@@ -447,7 +443,6 @@ class ADS7128Sensor : public PollingComponent, public sensor::Sensor {
   void dump_config() override;
 
  protected:
-  ADS7128Component *parent_;
   uint8_t channel_;
   ADS7128CycleTime cycle_time_;
   ADS7128Oversamping oversampling_;
