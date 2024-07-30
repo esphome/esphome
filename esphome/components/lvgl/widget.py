@@ -1,5 +1,5 @@
 import sys
-from typing import Any
+from typing import Any, Union
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
@@ -165,11 +165,18 @@ def get_widget_generator(wid):
         yield
 
 
-async def get_widget(config: dict, id: str = CONF_ID) -> Widget:
-    wid = config[id]
+async def get_widget_(wid: Widget):
     if obj := widget_map.get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
+
+
+async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
+    if not config:
+        return []
+    if not isinstance(config, list):
+        config = [config]
+    return [await get_widget_(c[id]) for c in config if id in c]
 
 
 def collect_props(config):

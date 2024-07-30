@@ -38,11 +38,13 @@ TEXT_SCHEMA = cv.Schema(
     }
 )
 
-ACTION_SCHEMA = cv.maybe_simple_value(
-    {
-        cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
-    },
-    key=CONF_ID,
+LIST_ACTION_SCHEMA = cv.ensure_list(
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
+        },
+        key=CONF_ID,
+    )
 )
 
 PRESS_TIME = cv.All(
@@ -209,7 +211,14 @@ def create_modify_schema(widget_type):
         part_schema(widget_type)
         .extend(
             {
-                cv.Required(CONF_ID): cv.use_id(widget_type),
+                cv.Required(CONF_ID): cv.ensure_list(
+                    cv.maybe_simple_value(
+                        {
+                            cv.Required(CONF_ID): cv.use_id(widget_type),
+                        },
+                        key=CONF_ID,
+                    )
+                ),
                 cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
             }
         )
@@ -250,7 +259,6 @@ ALIGN_TO_SCHEMA = {
         }
     )
 }
-
 
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
