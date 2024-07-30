@@ -182,7 +182,7 @@ class LvglComponent : public PollingComponent {
     lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
   }
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
-    if (this->pages_.empty() || this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_)
+    if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
       return;
     do {
       this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
@@ -191,7 +191,7 @@ class LvglComponent : public PollingComponent {
   }
 
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
-    if (this->pages_.empty() || this->current_page_ == 0 && !this->page_wrap_)
+    if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
       return;
     do {
       this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();

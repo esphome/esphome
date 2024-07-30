@@ -6,22 +6,25 @@ from .defines import (
     CONF_ANIMATED,
     CONF_BAR,
     CONF_INDICATOR,
+    CONF_KNOB,
     CONF_MAIN,
+    CONF_SLIDER,
     literal,
 )
+from .helpers import add_lv_use
 from .lv_validation import animated, get_start_value, lv_float
 from .lvcode import lv
 from .types import LvNumber
 from .widget import Widget, WidgetType
 
-BAR_MODIFY_SCHEMA = cv.Schema(
+SLIDER_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_ANIMATED, default=True): animated,
     }
 )
 
-BAR_SCHEMA = cv.Schema(
+SLIDER_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
@@ -32,24 +35,25 @@ BAR_SCHEMA = cv.Schema(
 )
 
 
-class BarType(WidgetType):
+class SliderType(WidgetType):
     def __init__(self):
         super().__init__(
-            CONF_BAR,
-            LvNumber("lv_bar_t"),
-            parts=(CONF_MAIN, CONF_INDICATOR),
-            schema=BAR_SCHEMA,
-            modify_schema=BAR_MODIFY_SCHEMA,
+            CONF_SLIDER,
+            LvNumber("lv_slider_t"),
+            parts=(CONF_MAIN, CONF_INDICATOR, CONF_KNOB),
+            schema=SLIDER_SCHEMA,
+            modify_schema=SLIDER_MODIFY_SCHEMA,
         )
 
     async def to_code(self, w: Widget, config):
-        var = w.obj
+        add_lv_use(CONF_BAR)
         if CONF_MIN_VALUE in config:
-            lv.bar_set_range(var, config[CONF_MIN_VALUE], config[CONF_MAX_VALUE])
-            lv.bar_set_mode(var, literal(config[CONF_MODE]))
+            # not modify case
+            lv.slider_set_range(w.obj, config[CONF_MIN_VALUE], config[CONF_MAX_VALUE])
+            lv.slider_set_mode(w.obj, literal(config[CONF_MODE]))
         value = await get_start_value(config)
         if value is not None:
-            lv.bar_set_value(var, value, literal(config[CONF_ANIMATED]))
+            lv.slider_set_value(w.obj, value, literal(config[CONF_ANIMATED]))
 
 
-bar_spec = BarType()
+slider_spec = SliderType()

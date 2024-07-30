@@ -37,6 +37,7 @@ from .schemas import (
     create_modify_schema,
     obj_schema,
 )
+from .slider import slider_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -56,7 +57,7 @@ AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
 
-for w_type in (label_spec, obj_spec, btn_spec, bar_spec):
+for w_type in (label_spec, obj_spec, btn_spec, bar_spec, slider_spec):
     WIDGET_TYPES[w_type.name] = w_type
 
 WIDGET_SCHEMA = any_widget_schema()
