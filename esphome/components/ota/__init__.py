@@ -1,9 +1,14 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
+from esphome.const import (
+    CONF_ESPHOME,
+    CONF_ON_ERROR,
+    CONF_OTA,
+    CONF_PLATFORM,
+    CONF_TRIGGER_ID,
+)
 from esphome.core import CORE, coroutine_with_priority
-
-from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["md5", "safe_mode"]
@@ -13,7 +18,6 @@ IS_PLATFORM_COMPONENT = True
 CONF_ON_ABORT = "on_abort"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
-CONF_ON_ERROR = "on_error"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_STATE_CHANGE = "on_state_change"
 

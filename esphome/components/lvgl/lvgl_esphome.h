@@ -18,23 +18,27 @@
 #ifdef USE_LVGL_FONT
 #include "esphome/components/font/font.h"
 #endif
+#ifdef USE_LVGL_TOUCHSCREEN
+#include "esphome/components/touchscreen/touchscreen.h"
+#endif  // USE_LVGL_TOUCHSCREEN
+
 namespace esphome {
 namespace lvgl {
 
 extern lv_event_code_t lv_custom_event;  // NOLINT
 #ifdef USE_LVGL_COLOR
-static lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
-#endif
+inline lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
+#endif  // USE_LVGL_COLOR
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_888;
-#else
+#else   // LV_COLOR_DEPTH
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
-#endif
+#endif  // LV_COLOR_DEPTH
 
 // Parent class for things that wrap an LVGL object
-class LvCompound {
+class LvCompound final {
  public:
   virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
@@ -99,6 +103,14 @@ class LvglComponent : public PollingComponent {
   void set_full_refresh(bool full_refresh) { this->full_refresh_ = full_refresh; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
+  void set_paused(bool paused, bool show_snow) {
+    this->paused_ = paused;
+    if (!paused && lv_scr_act() != nullptr) {
+      lv_disp_trig_activity(this->disp_);  // resets the inactivity time
+      lv_obj_invalidate(lv_scr_act());
+    }
+  }
+  bool is_paused() const { return this->paused_; }
 
  protected:
   void draw_buffer_(const lv_area_t *area, const uint8_t *ptr);
@@ -107,13 +119,48 @@ class LvglComponent : public PollingComponent {
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};
   lv_disp_t *disp_{};
+  bool paused_{};
 
   std::vector<std::function<void(lv_disp_t *)>> init_lambdas_;
   size_t buffer_frac_{1};
   bool full_refresh_{};
 };
 
+#ifdef USE_LVGL_TOUCHSCREEN
+class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglComponent> {
+ public:
+  LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time) {
+    lv_indev_drv_init(&this->drv_);
+    this->drv_.long_press_repeat_time = long_press_repeat_time;
+    this->drv_.long_press_time = long_press_time;
+    this->drv_.type = LV_INDEV_TYPE_POINTER;
+    this->drv_.user_data = this;
+    this->drv_.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
+      auto *l = static_cast<LVTouchListener *>(d->user_data);
+      if (l->touch_pressed_) {
+        data->point.x = l->touch_point_.x;
+        data->point.y = l->touch_point_.y;
+        data->state = LV_INDEV_STATE_PRESSED;
+      } else {
+        data->state = LV_INDEV_STATE_RELEASED;
+      }
+    };
+  }
+  void update(const touchscreen::TouchPoints_t &tpoints) override {
+    this->touch_pressed_ = !this->parent_->is_paused() && !tpoints.empty();
+    if (this->touch_pressed_)
+      this->touch_point_ = tpoints[0];
+  }
+  void release() override { touch_pressed_ = false; }
+  lv_indev_drv_t *get_drv() { return &this->drv_; }
+
+ protected:
+  lv_indev_drv_t drv_{};
+  touchscreen::TouchPoint touch_point_{};
+  bool touch_pressed_{};
+};
+#endif  // USE_LVGL_TOUCHSCREEN
 }  // namespace lvgl
 }  // namespace esphome
 
-#endif
+#endif  // USE_LVGL

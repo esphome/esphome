@@ -38,7 +38,9 @@ void LvglComponent::setup() {
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
   auto *buf = lv_custom_mem_alloc(buf_bytes);
   if (buf == nullptr) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     ESP_LOGE(TAG, "Malloc failed to allocate %zu bytes", buf_bytes);
+#endif
     this->mark_failed();
     this->status_set_error("Memory allocation failure");
     return;
@@ -85,7 +87,9 @@ size_t lv_millis(void) { return esphome::millis(); }
 void *lv_custom_mem_alloc(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     esphome::ESP_LOGE(esphome::lvgl::TAG, "Failed to allocate %zu bytes", size);
+#endif
   }
   return ptr;
 }
@@ -102,7 +106,9 @@ void *lv_custom_mem_alloc(size_t size) {
     ptr = heap_caps_malloc(size, cap_bits);
   }
   if (ptr == nullptr) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     esphome::ESP_LOGE(esphome::lvgl::TAG, "Failed to allocate %zu bytes", size);
+#endif
     return nullptr;
   }
 #ifdef ESPHOME_LOG_HAS_VERBOSE

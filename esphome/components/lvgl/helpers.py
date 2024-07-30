@@ -22,7 +22,6 @@ def add_lv_use(*names):
 
 lv_fonts_used = set()
 esphome_fonts_used = set()
-REQUIRED_COMPONENTS = {}
 lvgl_components_required = set()
 
 

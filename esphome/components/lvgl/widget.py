@@ -21,69 +21,10 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import ConstantLiteral, add_line_marks, lv, lv_add, lv_assign, lv_obj
-from .schemas import ALL_STYLES
-from .types import WIDGET_TYPES, LvCompound, lv_obj_t
+from .schemas import ALL_STYLES, STYLE_REMAP
+from .types import WIDGET_TYPES, WidgetType, lv_obj_t
 
 EVENT_LAMB = "event_lamb__"
-
-
-class WidgetType:
-    """
-    Describes a type of Widget, e.g. "bar" or "line"
-    """
-
-    def __init__(self, name, schema=None, modify_schema=None):
-        """
-        :param name: The widget name, e.g. "bar"
-        :param schema: The config schema for defining a widget
-        :param modify_schema: A schema to update the widget
-        """
-        self.name = name
-        self.schema = schema or {}
-        if modify_schema is None:
-            self.modify_schema = schema
-        else:
-            self.modify_schema = modify_schema
-
-    @property
-    def animated(self):
-        return False
-
-    @property
-    def w_type(self):
-        """
-        Get the type associated with this widget
-        :return:
-        """
-        return lv_obj_t
-
-    def is_compound(self):
-        return self.w_type.inherits_from(LvCompound)
-
-    async def to_code(self, w, config: dict):
-        """
-        Generate code for a given widget
-        :param w: The widget
-        :param config: Its configuration
-        :return: Generated code as a list of text lines
-        """
-        raise NotImplementedError(f"No to_code defined for {self.name}")
-
-    def obj_creator(self, parent: MockObjClass, config: dict):
-        """
-        Create an instance of the widget type
-        :param parent: The parent to which it should be attached
-        :param config:  Its configuration
-        :return: Generated code as a single text line
-        """
-        return f"lv_{self.name}_create({parent})"
-
-    def get_uses(self):
-        """
-        Get a list of other widgets used by this one
-        :return:
-        """
-        return ()
 
 
 class LvScrActType(WidgetType):
@@ -92,7 +33,7 @@ class LvScrActType(WidgetType):
     """
 
     def __init__(self):
-        super().__init__("lv_scr_act()")
+        super().__init__("lv_scr_act()", lv_obj_t, ())
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         return []
@@ -263,7 +204,9 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                w.set_style(prop, value, lv_state)
+                    # Remapping for backwards compatibility of style names
+                prop_r = STYLE_REMAP.get(prop, prop)
+                w.set_style(prop_r, value, lv_state)
     flag_clr = set()
     flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]
@@ -291,10 +234,10 @@ async def set_obj_properties(w: Widget, config):
             else:
                 clears.add(key)
         if adds:
-            adds = ConstantLiteral(join_enums(adds, "LV_STATE_"))
+            adds = join_enums(adds, "LV_STATE_")
             w.add_state(adds)
         if clears:
-            clears = ConstantLiteral(join_enums(clears, "LV_STATE_"))
+            clears = join_enums(clears, "LV_STATE_")
             w.clear_state(clears)
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
