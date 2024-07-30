@@ -5,8 +5,6 @@
 namespace esphome {
 namespace tca9555 {
 
-void CachedGpio::setup() { this->cacheInvalidated = false; }
-
 void CachedGpio::loop() { this->cacheInvalidated = false; }
 
 bool CachedGpio::digital_read(uint8_t pin) {
