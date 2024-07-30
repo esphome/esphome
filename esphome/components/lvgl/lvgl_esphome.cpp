@@ -28,6 +28,26 @@ void LvglComponent::flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv
   lv_disp_flush_ready(disp_drv);
 }
 
+void LvglComponent::write_random_() {
+  // length of 2 lines in 32 bit units
+  // we write 2 lines for the benefit of displays that won't write one line at a time.
+  size_t line_len = this->disp_drv_.hor_res * LV_COLOR_DEPTH / 8 / 4 * 2;
+  for (size_t i = 0; i != line_len; i++) {
+    ((uint32_t *) (this->draw_buf_.buf1))[i] = random_uint32();
+  }
+  lv_area_t area;
+  area.x1 = 0;
+  area.x2 = this->disp_drv_.hor_res - 1;
+  if (this->snow_line_ == this->disp_drv_.ver_res / 2) {
+    area.y1 = random_uint32() % (this->disp_drv_.ver_res / 2) * 2;
+  } else {
+    area.y1 = this->snow_line_++ * 2;
+  }
+  // write 2 lines
+  area.y2 = area.y1 + 1;
+  this->draw_buffer_(&area, (const uint8_t *) this->draw_buf_.buf1);
+}
+
 void LvglComponent::setup() {
   ESP_LOGCONFIG(TAG, "LVGL Setup starts");
 #if LV_USE_LOG

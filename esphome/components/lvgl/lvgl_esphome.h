@@ -126,7 +126,7 @@ class LvglComponent : public PollingComponent {
   void loop() override {
     if (this->paused_) {
       if (this->show_snow_)
-        this->write_random();
+        this->write_random_();
     }
     lv_timer_handler_run_in_period(5);
   }
@@ -160,25 +160,7 @@ class LvglComponent : public PollingComponent {
   bool is_paused() const { return this->paused_; }
 
  protected:
-  void write_random() {
-    // length of 2 lines in 32 bit units
-    // we write 2 lines for the benefit of displays that won't write one line at a time.
-    size_t line_len = this->disp_drv_.hor_res * LV_COLOR_DEPTH / 8 / 4 * 2;
-    for (size_t i = 0; i != line_len; i++) {
-      ((uint32_t *) (this->draw_buf_.buf1))[i] = random_uint32();
-    }
-    lv_area_t area;
-    area.x1 = 0;
-    area.x2 = this->disp_drv_.hor_res - 1;
-    if (this->snow_line_ == this->disp_drv_.ver_res / 2) {
-      area.y1 = random_uint32() % (this->disp_drv_.ver_res / 2) * 2;
-    } else {
-      area.y1 = this->snow_line_++ * 2;
-    }
-    // write 2 lines
-    area.y2 = area.y1 + 1;
-    this->draw_buffer_(&area, (const uint8_t *) this->draw_buf_.buf1);
-  }
+  void write_random_();
   void draw_buffer_(const lv_area_t *area, const uint8_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
   std::vector<display::Display *> displays_{};
@@ -197,7 +179,7 @@ class LvglComponent : public PollingComponent {
 
 class IdleTrigger : public Trigger<> {
  public:
-  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(timeout) {
+  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(std::move(timeout)) {
     parent->add_on_idle_callback([this](uint32_t idle_time) {
       if (!this->is_idle_ && idle_time > this->timeout_.value()) {
         this->is_idle_ = true;
