@@ -6,18 +6,18 @@ namespace esphome {
 namespace tca9555 {
 
 CachedGpio::CachedGpio() {
-  readCacheInvalidated = false;
-  writeCacheInvalidated = false;
+  read_cache_invalidated_ = false;
+  write_cache_invalidated_ = false;
 };
 
 void CachedGpio::loop() {
-  this->readCacheInvalidated = false;
-  this->writeCacheInvalidated = false;
+  this->read_cache_invalidated_ = false;
+  this->write_cache_invalidated_ = false;
 }
 
 bool CachedGpio::digital_read(uint8_t pin) {
-  if (!this->readCacheInvalidated) {
-    this->readCacheInvalidated = true;
+  if (!this->read_cache_invalidated_) {
+    this->read_cache_invalidated_ = true;
     this->read_gpio_hw();
   }
 
@@ -27,8 +27,8 @@ bool CachedGpio::digital_read(uint8_t pin) {
 void CachedGpio::digital_write(uint8_t pin, bool value) {
   this->write_gpio_from_cache(pin, value);
 
-  if (!this->writeCacheInvalidated) {
-    this->writeCacheInvalidated = true;
+  if (!this->write_cache_invalidated_) {
+    this->write_cache_invalidated_ = true;
     this->write_gpio_hw();
   }
 }

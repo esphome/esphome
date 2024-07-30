@@ -17,7 +17,7 @@ static const char *const TAG = "tca9555";
 
 void TCA9555Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TCA9555...");
-  if (!this->read_gpio_current_config()) {
+  if (!this->read_gpio_current_config_()) {
     ESP_LOGE(TAG, "TCA9555 not available under 0x%02X", this->address_);
     this->mark_failed();
     return;
@@ -43,7 +43,7 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   // Write GPIO to enable input mode
   this->write_gpio_hw();
 }
-bool TCA9555Component::read_gpio_current_config() {
+bool TCA9555Component::read_gpio_current_config_() {
   if (this->is_failed())
     return false;
   bool success;

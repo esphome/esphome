@@ -28,13 +28,13 @@ class TCA9555Component : virtual public Component, public i2c::I2CDevice, public
   /// The state read in read_gpio_hw - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
 
-  bool read_gpio_from_cache(uint8_t pin);
-  bool write_gpio_from_cache(uint8_t pin, bool value);
-  bool read_gpio_hw();
-  bool write_gpio_hw();
+  bool read_gpio_from_cache(uint8_t pin) override;
+  bool write_gpio_from_cache(uint8_t pin, bool value) override;
+  bool read_gpio_hw() override;
+  bool write_gpio_hw() override;
 
  private:
-  bool read_gpio_current_config();
+  bool read_gpio_current_config_();
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.

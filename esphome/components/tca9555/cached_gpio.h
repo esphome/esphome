@@ -16,7 +16,7 @@ class CachedGpio : virtual Component {
   /// Helper function to write the value of a pin.
   void digital_write(uint8_t pin, bool value);
 
-  void loop();
+  void loop() override;
 
  protected:
   virtual bool read_gpio_from_cache(uint8_t pin) = 0;
@@ -25,8 +25,8 @@ class CachedGpio : virtual Component {
   virtual bool write_gpio_hw() = 0;
 
  private:
-  bool readCacheInvalidated;
-  bool writeCacheInvalidated;
+  bool read_cache_invalidated_;
+  bool write_cache_invalidated_;
 };
 
 }  // namespace tca9555
