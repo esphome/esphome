@@ -363,6 +363,12 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::Medi
       return "MEDIA_PLAYER_STATE_PLAYING";
     case enums::MEDIA_PLAYER_STATE_PAUSED:
       return "MEDIA_PLAYER_STATE_PAUSED";
+    case enums::MEDIA_PLAYER_STATE_ANNOUNCING:
+      return "MEDIA_PLAYER_STATE_ANNOUNCING";
+    case enums::MEDIA_PLAYER_STATE_OFF:
+      return "MEDIA_PLAYER_STATE_OFF";
+    case enums::MEDIA_PLAYER_STATE_ON:
+      return "MEDIA_PLAYER_STATE_ON";
     default:
       return "UNKNOWN";
   }
@@ -381,6 +387,36 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "MEDIA_PLAYER_COMMAND_MUTE";
     case enums::MEDIA_PLAYER_COMMAND_UNMUTE:
       return "MEDIA_PLAYER_COMMAND_UNMUTE";
+    case enums::MEDIA_PLAYER_COMMAND_TOGGLE:
+      return "MEDIA_PLAYER_COMMAND_TOGGLE";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_UP";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_DOWN";
+    case enums::MEDIA_PLAYER_COMMAND_NEXT_TRACK:
+      return "MEDIA_PLAYER_COMMAND_NEXT_TRACK";
+    case enums::MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK:
+      return "MEDIA_PLAYER_COMMAND_PREVIOUS_TRACK";
+    case enums::MEDIA_PLAYER_COMMAND_TURN_ON:
+      return "MEDIA_PLAYER_COMMAND_TURN_ON";
+    case enums::MEDIA_PLAYER_COMMAND_TURN_OFF:
+      return "MEDIA_PLAYER_COMMAND_TURN_OFF";
+    case enums::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+      return "MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST";
+    case enums::MEDIA_PLAYER_COMMAND_SHUFFLE:
+      return "MEDIA_PLAYER_COMMAND_SHUFFLE";
+    case enums::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+      return "MEDIA_PLAYER_COMMAND_UNSHUFFLE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_OFF";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_ONE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_ALL";
+    case enums::MEDIA_PLAYER_COMMAND_JOIN:
+      return "MEDIA_PLAYER_COMMAND_JOIN";
+    case enums::MEDIA_PLAYER_COMMAND_UNJOIN:
+      return "MEDIA_PLAYER_COMMAND_UNJOIN";
     default:
       return "UNKNOWN";
   }
@@ -5205,17 +5241,14 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
   out.append("  supports_pause: ");
   out.append(YESNO(this->supports_pause));
   out.append("\n");
-  out.append("}");
 
   out.append("  supports_next_previous_track: ");
   out.append(YESNO(this->supports_next_previous_track));
   out.append("\n");
-  out.append("}");
 
   out.append("  supports_turn_off_on: ");
   out.append(YESNO(this->supports_turn_off_on));
   out.append("\n");
-  out.append("}");
 
   out.append("  supports_grouping: ");
   out.append(YESNO(this->supports_grouping));
@@ -5241,28 +5274,6 @@ bool MediaPlayerStateResponse::decode_varint(uint32_t field_id, ProtoVarInt valu
       return false;
   }
 }
-bool MediaPlayerStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1: {
-      this->key = value.as_fixed32();
-      return true;
-    }
-    case 3: {
-      this->volume = value.as_float();
-      return true;
-    }
-    case 10: {
-      this->key = value.as_fixed32();
-      return true;
-    }
-    case 11: {
-      this->key = value.as_fixed32();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
 bool MediaPlayerStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 5: {
@@ -5281,6 +5292,28 @@ bool MediaPlayerStateResponse::decode_length(uint32_t field_id, ProtoLengthDelim
       this->title = value.as_string();
       return true;
     }
+    case 10: {
+      this->duration = value.as_string();
+      return true;
+    }
+    case 11: {
+      this->position = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 3: {
+      this->volume = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -5295,8 +5328,8 @@ void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(7, this->artist);
   buffer.encode_string(8, this->album);
   buffer.encode_string(9, this->title);
-  buffer.encode_int32(10, this->duration);
-  buffer.encode_int32(11, this->position);
+  buffer.encode_string(10, this->duration);
+  buffer.encode_string(11, this->position);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
@@ -5339,17 +5372,13 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
   out.append("  title: ");
   out.append("'").append(this->title).append("'");
   out.append("\n");
-  out.append("}");
 
   out.append("  duration: ");
-  sprintf(buffer, "%d", this->duration);
-  out.append(buffer);
+  out.append("'").append(this->duration).append("'");
   out.append("\n");
-  out.append("}");
 
   out.append("  position: ");
-  sprintf(buffer, "%d", this->position);
-  out.append(buffer);
+  out.append("'").append(this->position).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -5480,7 +5509,6 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   out.append("  announcement: ");
   out.append(YESNO(this->announcement));
   out.append("\n");
-  out.append("}");
 
   out.append("  has_enqueue: ");
   out.append(YESNO(this->has_enqueue));

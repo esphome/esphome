@@ -144,13 +144,13 @@ enum LockCommand : uint32_t {
   LOCK_OPEN = 2,
 };
 enum MediaPlayerState : uint32_t {
-  MEDIA_PLAYER_STATE_OFF = 0,
-  MEDIA_PLAYER_STATE_ON = 1,
-  MEDIA_PLAYER_STATE_NONE = 2,
-  MEDIA_PLAYER_STATE_IDLE = 3,
-  MEDIA_PLAYER_STATE_PLAYING = 4,
-  MEDIA_PLAYER_STATE_PAUSED = 5,
-  MEDIA_PLAYER_STATE_ANNOUNCING = 6,
+  MEDIA_PLAYER_STATE_NONE = 0,
+  MEDIA_PLAYER_STATE_IDLE = 1,
+  MEDIA_PLAYER_STATE_PLAYING = 2,
+  MEDIA_PLAYER_STATE_PAUSED = 3,
+  MEDIA_PLAYER_STATE_ANNOUNCING = 4,
+  MEDIA_PLAYER_STATE_OFF = 5,
+  MEDIA_PLAYER_STATE_ON = 6,
 };
 enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_PLAY = 0,
@@ -1309,11 +1309,11 @@ class MediaPlayerStateResponse : public ProtoMessage {
   bool muted{false};
   std::string repeat{};
   bool shuffle{false};
-  std::string artist{""};
-  std::string album{""};
-  std::string title{""};
-  int duration{0};
-  int position{0};
+  std::string artist{};
+  std::string album{};
+  std::string title{};
+  std::string duration{};
+  std::string position{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1321,8 +1321,8 @@ class MediaPlayerStateResponse : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class MediaPlayerCommandRequest : public ProtoMessage {
  public:
@@ -1336,7 +1336,7 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   bool has_announcement{false};
   bool announcement{false};
   bool has_enqueue{false};
-  std::string enqueue{"play"};
+  std::string enqueue{};
   bool has_group_members{false};
   std::string group_members{};
   void encode(ProtoWriteBuffer buffer) const override;

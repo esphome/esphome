@@ -7,13 +7,13 @@ namespace esphome {
 namespace media_player {
 
 enum MediaPlayerState : uint8_t {
-  MEDIA_PLAYER_STATE_OFF = 0,
-  MEDIA_PLAYER_STATE_ON = 1,
-  MEDIA_PLAYER_STATE_NONE = 2,
-  MEDIA_PLAYER_STATE_IDLE = 3,
-  MEDIA_PLAYER_STATE_PLAYING = 4,
-  MEDIA_PLAYER_STATE_PAUSED = 5,
-  MEDIA_PLAYER_STATE_ANNOUNCING = 6
+  MEDIA_PLAYER_STATE_NONE = 0,
+  MEDIA_PLAYER_STATE_IDLE = 1,
+  MEDIA_PLAYER_STATE_PLAYING = 2,
+  MEDIA_PLAYER_STATE_PAUSED = 3,
+  MEDIA_PLAYER_STATE_ANNOUNCING = 4,
+  MEDIA_PLAYER_STATE_OFF = 5,
+  MEDIA_PLAYER_STATE_ON = 6,
 };
 const char *media_player_state_to_string(MediaPlayerState state);
 
@@ -132,7 +132,7 @@ class MediaPlayerCall {
 
 class MediaPlayer : public EntityBase {
  public:
-  MediaPlayerState state{MEDIA_PLAYER_STATE_OFF};
+  MediaPlayerState state{MEDIA_PLAYER_STATE_NONE};
 
   float volume{1.0f};
 
