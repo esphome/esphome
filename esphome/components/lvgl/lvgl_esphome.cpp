@@ -39,7 +39,7 @@ void LvglComponent::write_random_() {
   area.x1 = 0;
   area.x2 = this->disp_drv_.hor_res - 1;
   if (this->snow_line_ == this->disp_drv_.ver_res / 2) {
-    area.y1 = random_uint32() % (this->disp_drv_.ver_res / 2) * 2;
+    area.y1 = static_cast<lv_coord_t>(random_uint32() % (this->disp_drv_.ver_res / 2) * 2);
   } else {
     area.y1 = this->snow_line_++ * 2;
   }

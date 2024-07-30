@@ -169,7 +169,7 @@ class LvglComponent : public PollingComponent {
   lv_disp_t *disp_{};
   bool paused_{};
   bool show_snow_{};
-  uint32_t snow_line_{};
+  lv_coord_t snow_line_{};
 
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};
