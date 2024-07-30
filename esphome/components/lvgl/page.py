@@ -4,10 +4,10 @@ from esphome.const import CONF_ID, CONF_PAGES, CONF_TIME
 
 from .defines import CONF_ANIMATION, CONF_LVGL_ID, CONF_PAGE, CONF_SKIP, LV_ANIM
 from .lv_validation import lv_bool, lv_milliseconds
-from .lvcode import lv_add
+from .lvcode import LVGL_COMP_ARG, LambdaContext, add_line_marks, lv_add, lvgl_comp
 from .schemas import LVGL_SCHEMA
-from .types import ObjUpdateAction, lv_page_t
-from .widget import Widget, WidgetType, add_widgets, get_widget, set_obj_properties
+from .types import LvglAction, lv_page_t
+from .widget import Widget, WidgetType, add_widgets, set_obj_properties
 
 
 class PageType(WidgetType):
@@ -22,22 +22,7 @@ class PageType(WidgetType):
         )
 
     async def to_code(self, w: Widget, config: dict):
-        """
-        Called with w as the LvComponent, config is the full config
-        :param w:
-        :param config:
-        """
-        for pconf in config.get(CONF_PAGES) or ():
-            id = pconf[CONF_ID]
-            skip = pconf[CONF_SKIP]
-            var = cg.new_Pvariable(id, skip)
-            page = Widget.create(id, var, page_spec, config, f"{var}->page")
-            lv_add(var.setup())
-            # Set outer config first
-            await set_obj_properties(page, config)
-            await set_obj_properties(page, pconf)
-            await add_widgets(page, pconf)
-            lv_add(w.var.add_page(var))
+        return []
 
 
 SHOW_SCHEMA = LVGL_SCHEMA.extend(
@@ -53,33 +38,39 @@ page_spec = PageType()
 
 @automation.register_action(
     "lvgl.page.next",
-    ObjUpdateAction,
+    LvglAction,
     SHOW_SCHEMA,
 )
 async def page_next_to_code(config, action_id, template_arg, args):
-    lv_comp = await get_widget(config[CONF_LVGL_ID])
-    animation = config[CONF_ANIMATION]
+    animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
-    init = [f"{lv_comp.obj}->show_next_page(false, {animation}, {time})"]
-    return await action_to_code(init, action_id, lv_comp, template_arg, args)
+    with LambdaContext([LVGL_COMP_ARG]) as context:
+        add_line_marks(action_id)
+        lv_add(lvgl_comp.show_next_page(animation, time))
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    await cg.register_parented(var, config[CONF_LVGL_ID])
+    return var
 
 
 @automation.register_action(
     "lvgl.page.previous",
-    ObjUpdateAction,
+    LvglAction,
     SHOW_SCHEMA,
 )
 async def page_previous_to_code(config, action_id, template_arg, args):
-    lv_comp = await get_widget(config[CONF_LVGL_ID])
-    animation = config[CONF_ANIMATION]
-    time = config[CONF_TIME].total_milliseconds
-    init = [f"{lv_comp.obj}->show_next_page(true, {animation}, {time})"]
-    return await action_to_code(init, action_id, lv_comp, template_arg, args)
+    animation = await LV_ANIM.process(config[CONF_ANIMATION])
+    time = await lv_milliseconds.process(config[CONF_TIME])
+    with LambdaContext([LVGL_COMP_ARG]) as context:
+        add_line_marks(action_id)
+        lv_add(lvgl_comp.show_prev_page(animation, time))
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    await cg.register_parented(var, config[CONF_LVGL_ID])
+    return var
 
 
 @automation.register_action(
     "lvgl.page.show",
-    ObjUpdateAction,
+    LvglAction,
     cv.maybe_simple_value(
         SHOW_SCHEMA.extend(
             {
@@ -90,9 +81,24 @@ async def page_previous_to_code(config, action_id, template_arg, args):
     ),
 )
 async def page_show_to_code(config, action_id, template_arg, args):
-    widget = await get_widget(config[CONF_ID])
-    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-    animation = config[CONF_ANIMATION]
-    time = config[CONF_TIME].total_milliseconds
-    init = [f"{lv_comp}->show_page({widget.var}->index, {animation}, {time})"]
-    return await action_to_code(init, action_id, widget, template_arg, args)
+    widget = await cg.get_variable(config[CONF_ID])
+    animation = await LV_ANIM.process(config[CONF_ANIMATION])
+    time = await lv_milliseconds.process(config[CONF_TIME])
+    with LambdaContext([LVGL_COMP_ARG]) as context:
+        add_line_marks(action_id)
+        lv_add(lvgl_comp.show_page(widget.index, animation, time))
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    await cg.register_parented(var, config[CONF_LVGL_ID])
+    return var
+
+
+async def add_pages(lv_component, config):
+    for pconf in config.get(CONF_PAGES, ()):
+        id = pconf[CONF_ID]
+        skip = pconf[CONF_SKIP]
+        var = cg.new_Pvariable(id, skip)
+        page = Widget.create(id, var, page_spec, pconf)
+        lv_add(lv_component.add_page(var))
+        # Set outer config first
+        await set_obj_properties(page, config)
+        await add_widgets(page, pconf)

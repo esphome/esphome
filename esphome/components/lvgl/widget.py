@@ -55,7 +55,7 @@ class Widget:
     def set_completed():
         Widget.widgets_completed = True
 
-    def __init__(self, var, wtype: WidgetType, config: dict = None, parent=None):
+    def __init__(self, var, wtype: WidgetType, config: dict = None):
         self.var = var
         self.type = wtype
         self.config = config
@@ -63,11 +63,10 @@ class Widget:
         self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
-        self.parent = parent
 
     @staticmethod
-    def create(name, var, wtype: WidgetType, config: dict = None, parent=None):
-        w = Widget(var, wtype, config, parent)
+    def create(name, var, wtype: WidgetType, config: dict = None):
+        w = Widget(var, wtype, config)
         if name is not None:
             widget_map[name] = w
         return w
@@ -75,7 +74,7 @@ class Widget:
     @property
     def obj(self):
         if self.type.is_compound():
-            return f"{self.var}->obj"
+            return MockObj(f"{self.var}->obj")
         return self.var
 
     def add_state(self, state):
@@ -304,13 +303,11 @@ async def widget_to_code(w_cnfig, w_type, parent):
         CORE.register_variable(wid, var)
         lv_assign(var, creator)
 
-    widget = Widget.create(wid, var, spec, w_cnfig, parent)
+    widget = Widget.create(wid, var, spec, w_cnfig)
     await set_obj_properties(widget, w_cnfig)
     await add_widgets(widget, w_cnfig)
     await spec.to_code(widget, w_cnfig)
 
 
 lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(
-    None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {}, parent=None
-)
+lv_scr_act = Widget.create(None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {})

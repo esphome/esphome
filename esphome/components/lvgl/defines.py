@@ -93,6 +93,7 @@ class LvConstant(LValidator):
             return self.prefix + cv.one_of(*choices, upper=True)(value)
 
         super().__init__(validator, rtype=uint32)
+        self.retmapper = self.mapper
         self.one_of = LValidator(validator, uint32, retmapper=self.mapper)
         self.several_of = LValidator(
             cv.ensure_list(self.one_of), uint32, retmapper=self.mapper
@@ -503,6 +504,7 @@ LV_KEYS = LvConstant(
 
 
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
+LVGL_COMP = "lvgl_comp"  # used as a lambda argument in lvgl_comp()
 
 
 def join_enums(enums, prefix=""):

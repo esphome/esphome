@@ -57,9 +57,12 @@ class LvPageType {
  public:
   LvPageType(bool skip) : skip(skip) {}
 
-  void setup() { this->page = lv_obj_create(nullptr); }
-  void show() {}
-  lv_obj_t *page{};
+  void setup(size_t index) {
+    this->index = index;
+    this->obj = lv_obj_create(nullptr);
+  }
+  lv_obj_t *obj{};
+  size_t index{};
   bool skip;
 };
 
@@ -168,23 +171,32 @@ class LvglComponent : public PollingComponent {
     }
   }
   bool is_paused() const { return this->paused_; }
-  void add_page(LvPageType *page) { this->pages_.push_back(page); }
-  void show_next_page() {
+  void add_page(LvPageType *page) {
+    this->pages_.push_back(page);
+    page->setup(this->pages_.size() - 1);
+  }
+  void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time) {
+    if (index >= this->pages_.size())
+      return;
+    this->current_page_ = index;
+    lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
+  }
+  void show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
     if (this->pages_.empty())
       return;
     do {
       this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
     } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
-    this->pages_[this->current_page_]->show();
+    this->show_page(this->current_page_, anim, time);
   }
 
-  void show_prev_page() {
+  void show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
     if (this->pages_.empty())
       return;
     do {
       this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();
     } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
-    this->pages_[this->current_page_]->show();
+    this->show_page(this->current_page_, anim, time);
   }
 
  protected:

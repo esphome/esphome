@@ -97,6 +97,7 @@ void LvglComponent::setup() {
   this->disp_ = lv_disp_drv_register(&this->disp_drv_);
   for (const auto &v : this->init_lambdas_)
     v(this);
+  this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
   ESP_LOGCONFIG(TAG, "LVGL Setup complete");
 }

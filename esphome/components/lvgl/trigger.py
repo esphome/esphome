@@ -11,7 +11,7 @@ from .defines import (
     LV_EVENT_TRIGGERS,
     literal,
 )
-from .lvcode import LambdaContext, add_line_marks, lv, lv_add
+from .lvcode import LambdaContext, lv, lv_add
 from .widget import widget_map
 
 lv_event_t_ptr = cg.global_ns.namespace("lv_event_t").operator("ptr")
@@ -50,12 +50,10 @@ async def generate_triggers(lv_component):
 
 async def add_trigger(conf, event, lv_component, w):
     tid = conf[CONF_TRIGGER_ID]
-    add_line_marks(tid)
     trigger = cg.new_Pvariable(tid)
     args = w.get_args()
     value = w.get_value()
     await automation.build_automation(trigger, args, conf)
-    with LambdaContext([(lv_event_t_ptr, "event_data")]) as context:
-        add_line_marks(tid)
+    with LambdaContext([(lv_event_t_ptr, "event_data")], where=tid) as context:
         lv_add(trigger.trigger(value))
     lv_add(lv_component.add_event_cb(w.obj, await context.get_lambda(), literal(event)))

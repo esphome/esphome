@@ -19,9 +19,9 @@ from esphome.cpp_generator import (
     statement,
 )
 
-from .defines import ConstantLiteral
+from .defines import LVGL_COMP, ConstantLiteral
 from .helpers import get_line_marks
-from .types import lv_group_t
+from .types import LvglComponentPtr, lv_group_t
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,12 +110,14 @@ class LambdaContext(CodeContext):
         parameters: list[tuple[SafeExpType, str]] = None,
         return_type: SafeExpType = cg.void,
         capture: str = "",
+        where=None,
     ):
         super().__init__()
         self.code_list: list[Statement] = []
         self.parameters = parameters
         self.return_type = return_type
         self.capture = capture
+        add_line_marks(where)
 
     def add(self, expression: Union[Expression, Statement]):
         self.code_list.append(expression)
@@ -228,7 +230,8 @@ lv = MockLv("lv_")
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
 lv_obj = MockLv("lv_obj_")
-lvgl_comp = MockObj("lvgl_comp", "->")
+lvgl_comp = MockObj(LVGL_COMP, "->")
+LVGL_COMP_ARG = (LvglComponentPtr, LVGL_COMP)
 
 
 # equivalent to cg.add() for the lvgl init context

@@ -27,8 +27,14 @@ from .label import label_spec
 from .lv_validation import lv_images_used
 from .lvcode import LvContext
 from .obj import obj_spec
+from .page import add_pages, page_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
-from .schemas import any_widget_schema, create_modify_schema, obj_schema
+from .schemas import (
+    any_widget_schema,
+    container_schema,
+    create_modify_schema,
+    obj_schema,
+)
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -198,6 +204,7 @@ async def to_code(config):
         await rotary_encoders_to_code(lv_component, config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
+        await add_pages(lv_component, config)
         Widget.set_completed()
         await generate_triggers(lv_component)
         for conf in config.get(CONF_ON_IDLE, ()):
@@ -247,7 +254,10 @@ CONFIG_SCHEMA = (
                     ),
                 }
             ),
-            cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
+            cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(WIDGET_SCHEMA),
+            cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
+                container_schema(page_spec)
+            ),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
             cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
             cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
