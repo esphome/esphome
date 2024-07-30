@@ -13,9 +13,6 @@ static const uint8_t READ_COMMAND = 0xAC;
 void NPI19Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up NPI19...");
 
-  // startup device delay
-  delay(10);
-
   uint16_t raw_temperature(0);
   uint16_t raw_pressure(0);
   i2c::ErrorCode err = this->read_(raw_temperature, raw_pressure);
@@ -62,7 +59,7 @@ i2c::ErrorCode NPI19Component::read_(uint16_t &raw_temperature, uint16_t &raw_pr
   return i2c::ERROR_OK;
 }
 
-float NPI19Component::convert_temperature_(uint16_t raw_temperature) {
+inline float convert_temperature(uint16_t raw_temperature) {
   /*
    * Correspondance with Amphenol confirmed the appropriate equation for computing temperature is:
    * T (°C) =(((((Th*8)+Tl)/2048)*200)-50), where Th is the high (third) byte and Tl is the low (fourth) byte.
@@ -98,7 +95,7 @@ void NPI19Component::update() {
     return;
   }
 
-  float temperature = convert_temperature_(raw_temperature);
+  float temperature = convert_temperature(raw_temperature);
 
   ESP_LOGD(TAG, "Got pressure=%draw temperature=%.1f°C", raw_pressure, temperature);
 
