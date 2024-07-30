@@ -7,7 +7,9 @@ from .types import LvBoolean, WidgetType
 
 class BtnType(WidgetType):
     def __init__(self):
-        super().__init__(CONF_BUTTON, LvBoolean("lv_btn_t"), (CONF_MAIN,))
+        super().__init__(
+            CONF_BUTTON, LvBoolean("lv_btn_t"), (CONF_MAIN,), lv_name="btn"
+        )
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         """

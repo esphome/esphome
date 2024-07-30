@@ -92,19 +92,18 @@ class Widget:
     def clear_flag(self, flag):
         return lv_obj.clear_flag(self.obj, literal(flag))
 
-    def set_property(self, prop, value, animated: bool = None, ltype=None):
+    def set_property(self, prop, value, animated: bool = None):
         if isinstance(value, dict):
             value = value.get(prop)
         if value is None:
             return
         if isinstance(value, TimePeriod):
             value = value.total_milliseconds
-        ltype = ltype or self.__type_base()
         if animated is None or self.type.animated is not True:
-            lv.call(f"{ltype}_set_{prop}", self.obj, value)
+            lv.call(f"{self.type.lv_name}_set_{prop}", self.obj, value)
         else:
             lv.call(
-                f"{ltype}_set_{prop}",
+                f"{self.type.lv_name}_set_{prop}",
                 self.obj,
                 value,
                 "LV_ANIM_ON" if animated else "LV_ANIM_OFF",
@@ -138,6 +137,12 @@ class Widget:
         if isinstance(self.type.w_type, LvType):
             return self.type.w_type.value(self)
         return self.obj
+
+    def get_number_value(self):
+        value = self.type.mock_obj.get_value(self.obj)
+        if self.scale == 1.0:
+            return value
+        return value * self.scale
 
 
 # Map of widgets to their config, used for trigger generation

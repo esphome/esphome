@@ -6,7 +6,7 @@ from esphome.components.image import Image_
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT
+from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_VALUE
 from esphome.core import HexInt
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import uint32
@@ -14,7 +14,15 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from . import types as ty
-from .defines import LV_FONTS, ConstantLiteral, LValidator, LvConstant, literal
+from .defines import (
+    CONF_END_VALUE,
+    CONF_START_VALUE,
+    LV_FONTS,
+    ConstantLiteral,
+    LValidator,
+    LvConstant,
+    literal,
+)
 from .helpers import (
     esphome_fonts_used,
     lv_fonts_used,
@@ -227,3 +235,21 @@ class LvFont(LValidator):
 
 
 lv_font = LvFont()
+
+
+def animated(value):
+    if isinstance(value, bool):
+        value = "ON" if value else "OFF"
+    return LvConstant("LV_ANIM_", "OFF", "ON").one_of(value)
+
+
+async def get_end_value(config):
+    return await lv_int.process(config.get(CONF_END_VALUE))
+
+
+async def get_start_value(config):
+    if CONF_START_VALUE in config:
+        value = config[CONF_START_VALUE]
+    else:
+        value = config.get(CONF_VALUE)
+    return await lv_int.process(value)

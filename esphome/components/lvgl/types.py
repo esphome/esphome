@@ -1,7 +1,8 @@
 from esphome import automation, codegen as cg
 from esphome.core import ID
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 
+from ...const import CONF_VALUE
 from .defines import CONF_TEXT
 
 
@@ -16,6 +17,17 @@ class LvType(cg.MockObjClass):
 
     def get_arg_type(self):
         return self.args[0][0] if len(self.args) else None
+
+
+class LvNumber(LvType):
+    def __init__(self, *args):
+        super().__init__(
+            *args,
+            largs=[(cg.float_, "x")],
+            lvalue=lambda w: w.get_number_value(),
+            has_on_value=True,
+        )
+        self.value_property = CONF_VALUE
 
 
 uint16_t_ptr = cg.uint16.operator("ptr")
@@ -81,7 +93,9 @@ class WidgetType:
     Describes a type of Widget, e.g. "bar" or "line"
     """
 
-    def __init__(self, name, w_type, parts, schema=None, modify_schema=None):
+    def __init__(
+        self, name, w_type, parts, schema=None, modify_schema=None, lv_name=None
+    ):
         """
         :param name: The widget name, e.g. "bar"
         :param w_type: The C type of the widget
@@ -90,6 +104,7 @@ class WidgetType:
         :param modify_schema: A schema to update the widget
         """
         self.name = name
+        self.lv_name = lv_name or name
         self.w_type = w_type
         self.parts = parts
         if schema is None:
@@ -99,7 +114,8 @@ class WidgetType:
         if modify_schema is None:
             self.modify_schema = self.schema
         else:
-            self.modify_schema = self.schema
+            self.modify_schema = modify_schema
+        self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
 
     @property
     def animated(self):

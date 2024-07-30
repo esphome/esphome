@@ -25,6 +25,7 @@ from .automation import update_to_code
 from .btn import btn_spec
 from .defines import CONF_SKIP
 from .label import label_spec
+from .lv_bar import bar_spec
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext
 from .obj import obj_spec
@@ -55,7 +56,7 @@ AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
 
-for w_type in (label_spec, obj_spec, btn_spec):
+for w_type in (label_spec, obj_spec, btn_spec, bar_spec):
     WIDGET_TYPES[w_type.name] = w_type
 
 WIDGET_SCHEMA = any_widget_schema()
