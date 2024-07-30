@@ -25,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["network"]
+AUTO_LOAD = ["network", "watchdog"]
 # following should be removed if conflicts are resolved (so we can have a wifi ap using modem)
 CONFLICTS_WITH = ["captive_portal", "ethernet"]
 

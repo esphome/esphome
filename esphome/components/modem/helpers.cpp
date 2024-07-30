@@ -12,31 +12,6 @@
 namespace esphome {
 namespace modem {
 
-Watchdog::Watchdog(u_int32_t timeout_s) {
-  this->timeout_s_ = timeout_s;
-  this->start_time_ms_ = millis();
-  this->set_wdt_(timeout_s);
-  ESP_LOGV(TAG, "Watchog timeout init: %" PRIu32 "s", timeout_s);
-}
-
-Watchdog::~Watchdog() {
-  this->set_wdt_(CONFIG_TASK_WDT_TIMEOUT_S);
-  ESP_LOGV(TAG, "Watchog timeout reset to default after %.1fs", float(millis() - this->start_time_ms_) / 1000);
-}
-
-void Watchdog::set_wdt_(uint32_t timeout_s) {
-#if ESP_IDF_VERSION_MAJOR >= 5
-  esp_task_wdt_config_t wdt_config = {
-      .timeout_ms = timeout_s * 1000,
-      .idle_core_mask = 0x03,
-      .trigger_panic = true,
-  };
-  esp_task_wdt_reconfigure(&wdt_config);
-#else
-  esp_task_wdt_init(timeout_s, true);
-#endif  // ESP_IDF_VERSION_MAJOR
-}
-
 std::string command_result_to_string(command_result err) {
   std::string res = "UNKNOWN";
   switch (err) {

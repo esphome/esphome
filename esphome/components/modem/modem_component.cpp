@@ -6,6 +6,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
 
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
@@ -128,12 +129,14 @@ void ModemComponent::setup() {
 
   this->create_dte_dce_();
 
+  watchdog::WatchdogManager wdt(60000);
+
   if (this->enabled_ && !this->get_power_status()) {
     ESP_LOGI(TAG, "Powering up modem");
 
     this->poweron_();
   }
-
+  App.feed_wdt();
   ESP_LOGV(TAG, "Setup finished");
 }
 
@@ -185,7 +188,7 @@ void ModemComponent::create_dte_dce_() {
   // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
   // No error check done. It can take some times if the commands fail
   // but this allow to recover from a previous session.
-  Watchdog wdt(60);
+  watchdog::WatchdogManager wdt(60000);
   if (this->cmux_) {
     this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE);
     this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND);
@@ -193,6 +196,7 @@ void ModemComponent::create_dte_dce_() {
     this->dce->set_mode(modem_mode::COMMAND_MODE);
   }
 
+  // App.feed_wdt();
   if (this->modem_ready()) {
     ESP_LOGD(TAG, "modem ready after exiting cmux/data mode");
   } else {
@@ -200,6 +204,7 @@ void ModemComponent::create_dte_dce_() {
     // we can be sure of the cause.
     ESP_LOGD(TAG, "modem *not* ready after exiting cmux/data mode");
   }
+  ESP_LOGV(TAG, "DTE and CDE created");
 }
 
 bool ModemComponent::prepare_sim_() {
@@ -233,7 +238,7 @@ bool ModemComponent::prepare_sim_() {
 
 void ModemComponent::send_init_at_() {
   // send initial AT commands from yaml
-  Watchdog wdt(60);
+  watchdog::WatchdogManager wdt(60000);
   for (const auto &cmd : this->init_at_commands_) {
     std::string result = this->send_at(cmd);
     if (result == "ERROR") {
@@ -241,11 +246,12 @@ void ModemComponent::send_init_at_() {
     } else {
       ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
+    yield();
   }
 }
 
 void ModemComponent::start_connect_() {
-  Watchdog wdt(60);
+  watchdog::WatchdogManager wdt(60000);
   this->connect_begin_ = millis();
   this->status_set_warning("Starting connection");
 
@@ -299,6 +305,7 @@ void ModemComponent::loop() {
 
   if (this->power_transition_) {
     // No loop on power transition
+    yield();
     return;
   }
 
@@ -307,7 +314,7 @@ void ModemComponent::loop() {
   switch (this->state_) {
     case ModemComponentState::NOT_RESPONDING:
       if (this->start_) {
-        Watchdog wdt(60);
+        watchdog::WatchdogManager wdt(60000);
         if (this->modem_ready()) {
           ESP_LOGI(TAG, "Modem recovered");
           this->status_clear_warning();
@@ -332,7 +339,7 @@ void ModemComponent::loop() {
     case ModemComponentState::DISCONNECTED:
       if (this->enabled_) {
         if (this->start_) {
-          Watchdog wdt(60);
+          watchdog::WatchdogManager wdt(60000);
           if (this->modem_ready()) {
             this->send_init_at_();
             if (this->prepare_sim_()) {
@@ -384,7 +391,7 @@ void ModemComponent::loop() {
     case ModemComponentState::DISCONNECTING:
       if (this->start_) {
         if (this->connected_) {
-          Watchdog wdt(60);
+          watchdog::WatchdogManager wdt(60000);
           ESP_LOGD(TAG, "Going to hang up...");
           this->dump_connect_params_();
           if (this->cmux_) {
@@ -471,7 +478,7 @@ bool ModemComponent::get_power_status() {
 void ModemComponent::poweron_() {
 #ifdef USE_MODEM_POWER
   if (this->power_pin_) {
-    Watchdog wdt(60);
+    App.feed_wdt();
     ESP_LOGV(TAG, "Powering up modem with power_pin...");
     this->power_transition_ = true;
     this->power_pin_->digital_write(false);
@@ -480,7 +487,7 @@ void ModemComponent::poweron_() {
     // use a timout for long wait delay
     ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
     this->set_timeout("wait_poweron", USE_MODEM_POWER_TONUART, [this]() {
-      Watchdog wdt(60);
+      watchdog::WatchdogManager wdt(60000);
       this->create_dte_dce_();
       delay(500);  // NOLINT
       if (!this->modem_ready()) {
@@ -491,6 +498,12 @@ void ModemComponent::poweron_() {
       this->power_transition_ = false;
     });
   }
+#else
+  if (this->modem_ready()) {
+    ESP_LOGV(TAG, "Modem is already ON");
+  } else {
+    ESP_LOGW(TAG, "No 'power_pin' defined: Not able to poweron the modem");
+  }
 #endif  // USE_MODEM_POWER
 }
 
@@ -499,7 +512,7 @@ void ModemComponent::poweroff_() {
   if (this->power_pin_) {
     ESP_LOGV(TAG, "Powering off modem with power pin...");
     this->power_transition_ = true;
-    Watchdog wdt(60);
+    watchdog::WatchdogManager wdt(60000);
     this->power_pin_->digital_write(true);
     delay(10);
     this->power_pin_->digital_write(false);
@@ -508,7 +521,7 @@ void ModemComponent::poweroff_() {
 
     ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(USE_MODEM_POWER_TOFFUART) / 1000);
     this->set_timeout("wait_poweroff", USE_MODEM_POWER_TOFFUART, [this]() {
-      Watchdog wdt(60);
+      watchdog::WatchdogManager wdt(60000);
 
       if (this->modem_ready()) {
         ESP_LOGE(TAG, "Unable to power off the modem");
