@@ -1,13 +1,13 @@
 """Helpers for config validation using voluptuous."""
 
+from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 import logging
 import os
 import re
-from contextlib import contextmanager
-import uuid as uuid_
-from datetime import datetime
 from string import ascii_letters, digits
+import uuid as uuid_
 
 import voluptuous as vol
 
@@ -17,37 +17,37 @@ from esphome.config_helpers import Extend, Remove
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
-    CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
+    CONF_COMMAND_TOPIC,
+    CONF_DAY,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
+    CONF_HOUR,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MINUTE,
+    CONF_MONTH,
     CONF_NAME,
+    CONF_PASSWORD,
+    CONF_PATH,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
-    CONF_RETAIN,
     CONF_QOS,
+    CONF_REF,
+    CONF_RETAIN,
+    CONF_SECOND,
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_TOPIC,
-    CONF_YEAR,
-    CONF_MONTH,
-    CONF_DAY,
-    CONF_HOUR,
-    CONF_MINUTE,
-    CONF_SECOND,
-    CONF_VALUE,
-    CONF_UPDATE_INTERVAL,
-    CONF_TYPE_ID,
     CONF_TYPE,
-    CONF_REF,
+    CONF_TYPE_ID,
+    CONF_UPDATE_INTERVAL,
     CONF_URL,
-    CONF_PATH,
     CONF_USERNAME,
-    CONF_PASSWORD,
+    CONF_VALUE,
+    CONF_YEAR,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
@@ -71,15 +71,15 @@ from esphome.core import (
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
+    TimePeriodMinutes,
     TimePeriodNanoseconds,
     TimePeriodSeconds,
-    TimePeriodMinutes,
 )
-from esphome.helpers import list_starts_with, add_class_to_obj
+from esphome.helpers import add_class_to_obj, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
-    schema_extractor_list,
     schema_extractor,
+    schema_extractor_list,
     schema_extractor_registry,
     schema_extractor_typed,
 )
@@ -1686,9 +1686,9 @@ class SplitDefault(Optional):
         if CORE.is_esp32:
             from esphome.components.esp32 import get_esp32_variant
             from esphome.components.esp32.const import (
+                VARIANT_ESP32C3,
                 VARIANT_ESP32S2,
                 VARIANT_ESP32S3,
-                VARIANT_ESP32C3,
             )
 
             variant = get_esp32_variant()
