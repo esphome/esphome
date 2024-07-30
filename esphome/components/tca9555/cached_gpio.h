@@ -9,7 +9,7 @@ namespace tca9555 {
 /// @brief A proxy class for forcing one GPIO read/write call to HW per main loop iteration
 class CachedGpio : virtual Component {
  public:
-  CachedGpio() { cacheInvalidated = false; };
+  CachedGpio();
 
   /// Helper function to read the value of a pin.
   bool digital_read(uint8_t pin);
@@ -25,7 +25,8 @@ class CachedGpio : virtual Component {
   virtual bool write_gpio_hw() = 0;
 
  private:
-  bool cacheInvalidated;
+  bool readCacheInvalidated;
+  bool writeCacheInvalidated;
 };
 
 }  // namespace tca9555
