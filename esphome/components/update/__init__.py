@@ -69,7 +69,7 @@ async def setup_update_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
     if web_server_id_config := config.get(CONF_WEB_SERVER_ID):
-        web_server_ = cg.get_variable(web_server_id_config)
+        web_server_ = await cg.get_variable(web_server_id_config)
         web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 

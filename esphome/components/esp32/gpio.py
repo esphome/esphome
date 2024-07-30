@@ -1,22 +1,22 @@
 from dataclasses import dataclass
-from typing import Any
 import logging
+from typing import Any
 
+from esphome import pins
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_IGNORE_PIN_VALIDATION_ERROR,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
-    CONF_IGNORE_PIN_VALIDATION_ERROR,
-    CONF_IGNORE_STRAPPING_WARNING,
     PLATFORM_ESP32,
 )
-from esphome import pins
 from esphome.core import CORE
-import esphome.config_validation as cv
-import esphome.codegen as cg
 
 from . import boards
 from .const import (
@@ -24,22 +24,21 @@ from .const import (
     KEY_ESP32,
     KEY_VARIANT,
     VARIANT_ESP32,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
     VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     esp32_ns,
 )
-
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
-from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
-from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
-from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
 from .gpio_esp32_c2 import esp32_c2_validate_gpio_pin, esp32_c2_validate_supports
+from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
 from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
+from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
+from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
 
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
 
