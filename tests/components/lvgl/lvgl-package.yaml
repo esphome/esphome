@@ -139,6 +139,27 @@ lvgl:
 
     - id: page2
       widgets:
+        - arc:
+            align: left_mid
+            id: lv_arc
+            adjustable: true
+            on_value:
+              then:
+                - logger.log:
+                    format: "Arc value is %f"
+                    args: [x]
+            group: general
+            scroll_on_focus: true
+            value: 75
+            min_value: 1
+            max_value: 100
+            arc_color: 0xFF0000
+            indicator:
+              arc_color: 0xF000FF
+              pressed:
+                arc_color: 0xFFFF00
+              focused:
+                arc_color: 0x808080
         - bar:
             id: bar_id
             align: top_mid

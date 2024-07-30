@@ -21,6 +21,7 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
+from .arc import arc_spec
 from .automation import update_to_code
 from .btn import btn_spec
 from .defines import CONF_SKIP
@@ -57,7 +58,7 @@ AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
 
-for w_type in (label_spec, obj_spec, btn_spec, bar_spec, slider_spec):
+for w_type in (label_spec, obj_spec, btn_spec, bar_spec, slider_spec, arc_spec):
     WIDGET_TYPES[w_type.name] = w_type
 
 WIDGET_SCHEMA = any_widget_schema()

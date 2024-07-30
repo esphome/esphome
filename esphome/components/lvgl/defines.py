@@ -114,6 +114,7 @@ class LvConstant(LValidator):
 
 
 # Widgets
+CONF_ARC = "arc"
 CONF_BAR = "bar"
 CONF_LABEL = "label"
 CONF_SLIDER = "slider"
