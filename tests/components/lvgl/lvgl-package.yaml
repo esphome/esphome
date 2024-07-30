@@ -1,9 +1,10 @@
-color:
-  - id: light_blue
-    hex: "3340FF"
-
 lvgl:
+  log_level: TRACE
   bg_color: light_blue
+  touchscreens:
+    - touchscreen_id: tft_touch
+      long_press_repeat_time: 200ms
+      long_press_time: 500ms
   widgets:
     - label:
         text: Hello world
@@ -17,8 +18,101 @@ lvgl:
         text_color: 0xFFFFFF
         align: bottom_mid
         text_font: space16
+    - obj:
+        align: center
+        arc_opa: COVER
+        arc_color: 0xFF0000
+        arc_rounded: false
+        arc_width: 3
+        anim_time: 1s
+        bg_color: light_blue
+        bg_grad_color: light_blue
+        bg_dither_mode: ordered
+        bg_grad_dir: hor
+        bg_grad_stop: 128
+        bg_image_opa: transp
+        bg_image_recolor: light_blue
+        bg_image_recolor_opa: 50%
+        bg_main_stop: 0
+        bg_opa: 20%
+        border_color: 0x00FF00
+        border_opa: cover
+        border_post: true
+        border_side: [bottom, left]
+        border_width: 4
+        clip_corner: false
+        height: 50%
+        image_recolor: light_blue
+        image_recolor_opa: cover
+        line_width: 10
+        line_dash_width: 10
+        line_dash_gap: 10
+        line_rounded: false
+        line_color: light_blue
+        opa: cover
+        opa_layered: cover
+        outline_color: light_blue
+        outline_opa: cover
+        outline_pad: 10px
+        outline_width: 10px
+        pad_all: 10px
+        pad_bottom: 10px
+        pad_column: 10px
+        pad_left: 10px
+        pad_right: 10px
+        pad_row: 10px
+        pad_top: 10px
+        shadow_color: light_blue
+        shadow_ofs_x: 5
+        shadow_ofs_y: 5
+        shadow_opa: cover
+        shadow_spread: 5
+        shadow_width: 10
+        text_align: auto
+        text_color: light_blue
+        text_decor: [underline, strikethrough]
+        text_font: montserrat_18
+        text_letter_space: 4
+        text_line_space: 4
+        text_opa: cover
+        transform_angle: 180
+        transform_height: 100
+        transform_pivot_x: 50%
+        transform_pivot_y: 50%
+        transform_zoom: 0.5
+        translate_x: 10
+        translate_y: 10
+        max_height: 100
+        max_width: 200
+        min_height: 20%
+        min_width: 20%
+        radius: circle
+        width: 10px
+        x: 100
+        y: 120
+    - button:
+        width: 20%
+        height: 10%
+        pressed:
+          bg_color: light_blue
+        widgets:
+          - label:
+              text: Button
 
 font:
   - file: "gfonts://Roboto"
     id: space16
     bpp: 4
+
+image:
+  - id: cat_img
+    resize: 256x48
+    file: $component_dir/logo-text.svg
+  - id: dog_img
+    file: $component_dir/logo-text.svg
+    resize: 256x48
+    type: TRANSPARENT_BINARY
+
+color:
+  - id: light_blue
+    hex: "3340FF"
