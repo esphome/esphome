@@ -5270,6 +5270,14 @@ bool MediaPlayerStateResponse::decode_varint(uint32_t field_id, ProtoVarInt valu
       this->shuffle = value.as_bool();
       return true;
     }
+    case 10: {
+      this->duration = value.as_int32();
+      return true;
+    }
+    case 11: {
+      this->position = value.as_int32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5290,14 +5298,6 @@ bool MediaPlayerStateResponse::decode_length(uint32_t field_id, ProtoLengthDelim
     }
     case 9: {
       this->title = value.as_string();
-      return true;
-    }
-    case 10: {
-      this->duration = value.as_string();
-      return true;
-    }
-    case 11: {
-      this->position = value.as_string();
       return true;
     }
     default:
@@ -5328,8 +5328,8 @@ void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(7, this->artist);
   buffer.encode_string(8, this->album);
   buffer.encode_string(9, this->title);
-  buffer.encode_string(10, this->duration);
-  buffer.encode_string(11, this->position);
+  buffer.encode_int32(10, this->duration);
+  buffer.encode_int32(11, this->position);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
@@ -5374,11 +5374,13 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  duration: ");
-  out.append("'").append(this->duration).append("'");
+  sprintf(buffer, "%" PRId32, this->duration);
+  out.append(buffer);
   out.append("\n");
 
   out.append("  position: ");
-  out.append("'").append(this->position).append("'");
+  sprintf(buffer, "%" PRId32, this->position);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

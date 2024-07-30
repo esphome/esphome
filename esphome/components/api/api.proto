@@ -1157,8 +1157,8 @@ message MediaPlayerStateResponse {
   string artist = 7;
   string album = 8;
   string title = 9;
-  string duration = 10;
-  string position = 11;
+  int32 duration = 10;
+  int32 position = 11;
 }
 message MediaPlayerCommandRequest {
   option (id) = 65;

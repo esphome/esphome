@@ -1014,8 +1014,8 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
   resp.artist = media_player->artist();
   resp.album = media_player->album();
   resp.title = media_player->title();
-  resp.duration = std::to_string(media_player->duration());
-  resp.position = std::to_string(media_player->position());
+  resp.duration = media_player->duration();
+  resp.position = media_player->position();
   return this->send_media_player_state_response(resp);
 }
 bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {

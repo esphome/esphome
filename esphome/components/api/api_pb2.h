@@ -1312,8 +1312,8 @@ class MediaPlayerStateResponse : public ProtoMessage {
   std::string artist{};
   std::string album{};
   std::string title{};
-  std::string duration{};
-  std::string position{};
+  int32_t duration{0};
+  int32_t position{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
