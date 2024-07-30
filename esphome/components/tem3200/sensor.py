@@ -12,7 +12,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@bakerkj"]
 DEPENDENCIES = ["i2c"]
-CONFIG_MULTI = True
 
 tem3200_ns = cg.esphome_ns.namespace("tem3200")
 
