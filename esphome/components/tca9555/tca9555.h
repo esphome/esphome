@@ -8,7 +8,7 @@
 namespace esphome {
 namespace tca9555 {
 
-class TCA9555Component : virtual public Component, public i2c::I2CDevice, public CachedGpio {
+class TCA9555Component : public Component, public i2c::I2CDevice, public CachedGpioClient {
  public:
   TCA9555Component() = default;
 
@@ -20,6 +20,18 @@ class TCA9555Component : virtual public Component, public i2c::I2CDevice, public
 
   void dump_config() override;
 
+  /// Helper function to read the value of a pin.
+  bool digital_read(uint8_t pin);
+  /// Helper function to write the value of a pin.
+  void digital_write(uint8_t pin, bool value);
+
+  void loop() override;
+
+  bool read_gpio_from_cache(uint8_t pin) override;
+  bool write_gpio_from_cache(uint8_t pin, bool value) override;
+  bool read_gpio_hw() override;
+  bool write_gpio_hw() override;
+
  protected:
   /// Mask for the pin mode - 1 means output, 0 means input
   uint16_t mode_mask_{0x00};
@@ -28,13 +40,9 @@ class TCA9555Component : virtual public Component, public i2c::I2CDevice, public
   /// The state read in read_gpio_hw - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
 
-  bool read_gpio_from_cache(uint8_t pin) override;
-  bool write_gpio_from_cache(uint8_t pin, bool value) override;
-  bool read_gpio_hw() override;
-  bool write_gpio_hw() override;
-
  private:
   bool read_gpio_current_config_();
+  CachedGpio cached_gpio_{this};
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
