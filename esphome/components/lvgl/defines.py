@@ -446,6 +446,7 @@ CONF_TILE_ID = "tile_id"
 CONF_TILES = "tiles"
 CONF_TITLE = "title"
 CONF_TOP_LAYER = "top_layer"
+CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
@@ -474,14 +475,8 @@ LV_KEYS = LvConstant(
 )
 
 
-# list of widgets and the parts allowed
-WIDGET_PARTS = {
-    CONF_LABEL: (CONF_MAIN, CONF_SCROLLBAR, CONF_SELECTED),
-    CONF_OBJ: (CONF_MAIN,),
-}
-
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
 
 def join_enums(enums, prefix=""):
-    return "|".join(f"(int){prefix}{e.upper()}" for e in enums)
+    return ConstantLiteral("|".join(f"(int){prefix}{e.upper()}" for e in enums))

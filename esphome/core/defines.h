@@ -41,6 +41,7 @@
 #define USE_LVGL
 #define USE_LVGL_FONT
 #define USE_LVGL_IMAGE
+#define USE_LVGL_TOUCHSCREEN
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT

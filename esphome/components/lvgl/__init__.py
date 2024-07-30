@@ -16,13 +16,20 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
+from .btn import btn_spec
 from .label import label_spec
 from .lvcode import ConstantLiteral, LvContext
-
-# from .menu import menu_spec
 from .obj import obj_spec
-from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
-from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lv_font_t, lvgl_ns
+from .schemas import any_widget_schema, obj_schema
+from .touchscreens import touchscreen_schema, touchscreens_to_code
+from .types import (
+    WIDGET_TYPES,
+    FontEngine,
+    LvglComponent,
+    lv_disp_t_ptr,
+    lv_font_t,
+    lvgl_ns,
+)
 from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
 
 DOMAIN = "lvgl"
@@ -31,11 +38,8 @@ AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
 
-for widg in (
-    label_spec,
-    obj_spec,
-):
-    WIDGET_TYPES[widg.name] = widg
+for w_type in (label_spec, obj_spec, btn_spec):
+    WIDGET_TYPES[w_type.name] = w_type
 
 lv_scr_act_spec = LvScrActType()
 lv_scr_act = Widget.create(
@@ -93,7 +97,7 @@ def final_validation(config):
                 "Using auto_clear_enabled: true in display config not compatible with LVGL"
             )
     buffer_frac = config[CONF_BUFFER_SIZE]
-    if not CORE.is_host and buffer_frac > 0.5 and "psram" not in global_config:
+    if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
 
 
@@ -132,7 +136,7 @@ async def to_code(config):
     cg.add_global(lvgl_ns.using)
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
-    Widget.create(config[CONF_ID], lv_component, WIDGET_TYPES[df.CONF_OBJ], config)
+    Widget.create(config[CONF_ID], lv_component, obj_spec, config)
     for display in config[df.CONF_DISPLAYS]:
         cg.add(lv_component.add_display(await cg.get_variable(display)))
 
@@ -152,7 +156,7 @@ async def to_code(config):
         await cg.get_variable(font)
         cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
     default_font = config[df.CONF_DEFAULT_FONT]
-    if default_font not in helpers.lv_fonts_used:
+    if not lvalid.is_lv_font(default_font):
         add_define(
             "LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{df.DEFAULT_ESPHOME_FONT})"
         )
@@ -161,12 +165,15 @@ async def to_code(config):
             True,
             type=lv_font_t.operator("ptr").operator("const"),
         )
-        cg.new_variable(globfont_id, MockObj(default_font))
+        cg.new_variable(
+            globfont_id, MockObj(await lvalid.lv_font.process(default_font))
+        )
         add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
-        add_define("LV_FONT_DEFAULT", default_font)
+        add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
 
     with LvContext():
+        await touchscreens_to_code(lv_component, config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
     Widget.set_completed()
@@ -190,7 +197,7 @@ FINAL_VALIDATE_SCHEMA = final_validation
 
 CONFIG_SCHEMA = (
     cv.polling_component_schema("1s")
-    .extend(obj_schema("obj"))
+    .extend(obj_schema(obj_spec))
     .extend(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
@@ -207,6 +214,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
+            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
         }
     )
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))
