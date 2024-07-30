@@ -23,10 +23,9 @@ class ImageDecoder {
   /**
    * @brief Initialize the decoder.
    *
-   * @param stream WiFiClient to read the data from, in case the decoder needs initial data to auto-configure itself.
    * @param download_size The total number of bytes that need to be download for the image.
    */
-  virtual void prepare(uint32_t download_size) { download_size_ = download_size; }
+  virtual void prepare(uint32_t download_size) { this->download_size_ = download_size; }
 
   /**
    * @brief Decode a part of the image. It will try reading from the buffer.
@@ -64,7 +63,7 @@ class ImageDecoder {
    */
   void draw(int x, int y, int w, int h, const Color &color);
 
-  bool is_finished() const { return decoded_bytes_ == download_size_; }
+  bool is_finished() const { return this->decoded_bytes_ == this->download_size_; }
 
  protected:
   OnlineImage *image_;
@@ -78,26 +77,31 @@ class ImageDecoder {
 
 class DownloadBuffer {
  public:
-  DownloadBuffer(size_t size) : buffer_(size) { reset(); }
+  DownloadBuffer(size_t size) : size_(size) {
+    ExternalRAMAllocator<uint8_t> allocator;
+    buffer_ = allocator.allocate(size);
+    this->reset();
+  }
 
   uint8_t *data(size_t offset = 0);
 
-  uint8_t *append() { return data(unread_); }
+  uint8_t *append() { return this->data(this->unread_); }
 
-  size_t unread() const { return unread_; }
-  size_t size() const { return buffer_.size(); }
-  size_t free_capacity() const { return buffer_.size() - unread_; }
+  size_t unread() const { return this->unread_; }
+  size_t size() const { return this->size_; }
+  size_t free_capacity() const { return this->size_ - this->unread_; }
 
   size_t read(size_t len);
   size_t write(size_t len) {
-    unread_ += len;
-    return unread_;
+    this->unread_ += len;
+    return this->unread_;
   }
 
-  void reset() { unread_ = 0; }
+  void reset() { this->unread_ = 0; }
 
- private:
-  std::vector<uint8_t> buffer_;
+ protected:
+  uint8_t *buffer_;
+  size_t size_;
   /** Total number of downloaded bytes not yet read. */
   size_t unread_;
 };

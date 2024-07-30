@@ -1,24 +1,23 @@
 import logging
+
 from esphome import automation
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components.http_request import (
-    CONF_HTTP_REQUEST_ID,
-    HttpRequestComponent,
-)
+from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import (
-    Image_,
-    IMAGE_TYPE,
     CONF_USE_TRANSPARENCY,
+    IMAGE_TYPE,
+    Image_,
     validate_cross_dependencies,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_FORMAT,
     CONF_ID,
+    CONF_ON_ERROR,
+    CONF_RESIZE,
     CONF_TRIGGER_ID,
     CONF_TYPE,
-    CONF_RESIZE,
     CONF_URL,
 )
 
@@ -28,14 +27,16 @@ CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
-CONF_ON_ERROR = "on_error"
 
 _LOGGER = logging.getLogger(__name__)
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
 
 ImageFormat = online_image_ns.enum("ImageFormat")
-IMAGE_FORMAT = {"PNG": ImageFormat.PNG}  # Add new supported formats here
+
+FORMAT_PNG = "PNG"
+
+IMAGE_FORMAT = {FORMAT_PNG: ImageFormat.PNG}  # Add new supported formats here
 
 OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
 
@@ -71,7 +72,7 @@ ONLINE_IMAGE_SCHEMA = cv.Schema(
         # Online Image specific options
         #
         cv.Required(CONF_URL): cv.url,
-        cv.Optional(CONF_FORMAT, default="PNG"): cv.enum(IMAGE_FORMAT, upper=True),
+        cv.Required(CONF_FORMAT): cv.enum(IMAGE_FORMAT, upper=True),
         cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
         cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
             {
@@ -128,10 +129,9 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
-    cg.add_define("USE_ONLINE_IMAGE")
-
-    if config[CONF_FORMAT] in ["PNG"]:
-        cg.add_define("ONLINE_IMAGE_PNG_SUPPORT")
+    format = config[CONF_FORMAT]
+    if format in [FORMAT_PNG]:
+        cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
         cg.add_library("pngle", "1.0.2")
 
     url = config[CONF_URL]
@@ -143,7 +143,7 @@ async def to_code(config):
         url,
         width,
         height,
-        config[CONF_FORMAT],
+        format,
         config[CONF_TYPE],
         config[CONF_BUFFER_SIZE],
     )

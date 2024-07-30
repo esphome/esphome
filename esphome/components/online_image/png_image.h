@@ -1,7 +1,7 @@
 #pragma once
 
 #include "image_decoder.h"
-#ifdef ONLINE_IMAGE_PNG_SUPPORT
+#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 #include <pngle.h>
 
 namespace esphome {
@@ -17,17 +17,17 @@ class PngDecoder : public ImageDecoder {
    *
    * @param display The image to decode the stream into.
    */
-  PngDecoder(OnlineImage *image) : ImageDecoder(image), pngle(pngle_new()) {}
-  virtual ~PngDecoder() { pngle_destroy(pngle); }
+  PngDecoder(OnlineImage *image) : ImageDecoder(image), pngle_(pngle_new()) {}
+  ~PngDecoder() override { pngle_destroy(this->pngle_); }
 
   void prepare(uint32_t download_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
- private:
-  pngle_t *pngle;
+ protected:
+  pngle_t *pngle_;
 };
 
 }  // namespace online_image
 }  // namespace esphome
 
-#endif  // ONLINE_IMAGE_PNG_SUPPORT
+#endif  // USE_ONLINE_IMAGE_PNG_SUPPORT

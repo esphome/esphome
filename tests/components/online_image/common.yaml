@@ -8,6 +8,7 @@ wifi:
 online_image:
   - id: online_binary_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
+    format: PNG
     type: BINARY
     resize: 50x50
   - id: online_binary_transparent_image
@@ -16,9 +17,11 @@ online_image:
     format: png
   - id: online_rgba_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
+    format: PNG
     type: RGBA
   - id: online_rgb24_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
+    format: PNG
     type: RGB24
     use_transparency: true
 

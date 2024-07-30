@@ -11,11 +11,11 @@
 namespace esphome {
 namespace online_image {
 
-typedef enum {
+using t_http_codes = enum {
   HTTP_CODE_OK = 200,
   HTTP_CODE_NOT_MODIFIED = 304,
   HTTP_CODE_NOT_FOUND = 404,
-} t_http_codes;
+};
 
 /**
  * @brief Format that the image is encoded with.
@@ -105,7 +105,7 @@ class OnlineImage : public PollingComponent,
   CallbackManager<void()> download_error_callback_{};
 
   std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
-  std::unique_ptr<ImageDecoder> decoder_;
+  std::unique_ptr<ImageDecoder> decoder_{nullptr};
 
   uint8_t *buffer_;
   DownloadBuffer download_buffer_;

@@ -1,5 +1,5 @@
 #include "png_image.h"
-#ifdef ONLINE_IMAGE_PNG_SUPPORT
+#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/application.h"
@@ -19,7 +19,7 @@ namespace online_image {
  * @param w The width of the image.
  * @param h The height of the image.
  */
-static void initCallback(pngle_t *pngle, uint32_t w, uint32_t h) {
+static void init_callback(pngle_t *pngle, uint32_t w, uint32_t h) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   decoder->set_size(w, h);
 }
@@ -35,7 +35,7 @@ static void initCallback(pngle_t *pngle, uint32_t w, uint32_t h) {
  * @param h The height of the rectangle to draw.
  * @param rgba The color to paint the rectangle in.
  */
-static void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4]) {
+static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4]) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
   decoder->draw(x, y, w, h, color);
@@ -43,21 +43,21 @@ static void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uin
 
 void PngDecoder::prepare(uint32_t download_size) {
   ImageDecoder::prepare(download_size);
-  pngle_set_user_data(pngle, this);
-  pngle_set_init_callback(pngle, initCallback);
-  pngle_set_draw_callback(pngle, drawCallback);
+  pngle_set_user_data(this->pngle_, this);
+  pngle_set_init_callback(this->pngle_, init_callback);
+  pngle_set_draw_callback(this->pngle_, draw_callback);
 }
 
 int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
-  if (size < 256 && size < download_size_ - decoded_bytes_) {
+  if (size < 256 && size < this->download_size_ - this->decoded_bytes_) {
     ESP_LOGD(TAG, "Waiting for data");
     return 0;
   }
-  auto fed = pngle_feed(pngle, buffer, size);
+  auto fed = pngle_feed(this->pngle_, buffer, size);
   if (fed < 0) {
-    ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(pngle));
+    ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(this->pngle_));
   } else {
-    decoded_bytes_ += fed;
+    this->decoded_bytes_ += fed;
   }
   return fed;
 }
@@ -65,4 +65,4 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
 }  // namespace online_image
 }  // namespace esphome
 
-#endif  // ONLINE_IMAGE_PNG_SUPPORT
+#endif  // USE_ONLINE_IMAGE_PNG_SUPPORT

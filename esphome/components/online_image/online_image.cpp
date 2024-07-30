@@ -6,14 +6,13 @@ static const char *const TAG = "online_image";
 
 #include "image_decoder.h"
 
-#ifdef ONLINE_IMAGE_PNG_SUPPORT
+#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 #include "png_image.h"
 #endif
 
 namespace esphome {
 namespace online_image {
 
-using display::Display;
 using image::ImageType;
 
 inline bool is_color_on(const Color &color) {
@@ -39,34 +38,34 @@ OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFor
 void OnlineImage::release() {
   if (this->buffer_) {
     ESP_LOGD(TAG, "Deallocating old buffer...");
-    this->allocator_.deallocate(buffer_, get_buffer_size_());
+    this->allocator_.deallocate(this->buffer_, this->get_buffer_size_());
     this->data_start_ = nullptr;
     this->buffer_ = nullptr;
     this->width_ = 0;
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
-    end_connection_();
+    this->end_connection_();
   }
 }
 
 bool OnlineImage::resize_(int width_in, int height_in) {
   int width = this->fixed_width_;
   int height = this->fixed_height_;
-  if (auto_resize_()) {
+  if (this->auto_resize_()) {
     width = width_in;
     height = height_in;
     if (this->width_ != width && this->height_ != height) {
-      release();
+      this->release();
     }
   }
   if (this->buffer_) {
     return false;
   }
-  auto new_size = get_buffer_size_(width, height);
+  auto new_size = this->get_buffer_size_(width, height);
   ESP_LOGD(TAG, "Allocating new buffer of %d Bytes...", new_size);
   delay_microseconds_safe(2000);
-  this->buffer_ = allocator_.allocate(new_size);
+  this->buffer_ = this->allocator_.allocate(new_size);
   if (this->buffer_) {
     this->buffer_width_ = width;
     this->buffer_height_ = height;
@@ -82,7 +81,7 @@ bool OnlineImage::resize_(int width_in, int height_in) {
     int max_block = -1;
 #endif
     ESP_LOGE(TAG, "allocation failed. Biggest block in heap: %d Bytes", max_block);
-    end_connection_();
+    this->end_connection_();
     return false;
   }
   return true;
@@ -96,50 +95,48 @@ void OnlineImage::update() {
     ESP_LOGI(TAG, "Updating image");
   }
 
-  auto container = this->downloader_ = this->parent_->get(this->url_);
+  this->downloader_ = this->parent_->get(this->url_);
 
-  if (container == nullptr) {
+  if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
-    end_connection_();
+    this->end_connection_();
     this->download_error_callback_.call();
     return;
   }
 
-  int http_code = container->status_code;
+  int http_code = this->downloader_->status_code;
   if (http_code == HTTP_CODE_NOT_MODIFIED) {
     // Image hasn't changed on server. Skip download.
-    end_connection_();
+    this->end_connection_();
     return;
   }
   if (http_code != HTTP_CODE_OK) {
     ESP_LOGE(TAG, "HTTP result: %d", http_code);
-    end_connection_();
+    this->end_connection_();
     this->download_error_callback_.call();
     return;
   }
 
   ESP_LOGD(TAG, "Starting download");
-  size_t total_size = container->content_length;
+  size_t total_size = this->downloader_->content_length;
 
-#ifdef ONLINE_IMAGE_PNG_SUPPORT
-  if (format_ == ImageFormat::PNG) {
-    decoder_ = esphome::make_unique<PngDecoder>(this);
+#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
+  if (this->format_ == ImageFormat::PNG) {
+    this->decoder_ = esphome::make_unique<PngDecoder>(this);
   }
 #endif  // ONLINE_IMAGE_PNG_SUPPORT
 
   if (!this->decoder_) {
     ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported.");
-    end_connection_();
+    this->end_connection_();
     this->download_error_callback_.call();
     return;
   }
-  decoder_->prepare(total_size);
+  this->decoder_->prepare(total_size);
   ESP_LOGI(TAG, "Downloading image");
 }
 
 void OnlineImage::loop() {
-  PollingComponent::loop();
-
   if (!this->decoder_) {
     // Not decoding at the moment => nothing to do.
     return;
@@ -149,24 +146,23 @@ void OnlineImage::loop() {
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
-    end_connection_();
+    this->end_connection_();
     this->download_finished_callback_.call();
     return;
   }
-  auto container = this->downloader_;
-  if (container == nullptr) {
-    ESP_LOGE(TAG, "Container is empty; cannot download");
+  if (this->downloader_ == nullptr) {
+    ESP_LOGE(TAG, "Downloader not instantiated; cannot download");
     return;
   }
   size_t available = this->download_buffer_.free_capacity();
   if (available) {
-    auto len = container->read(this->download_buffer_.append(), available);
+    auto len = this->downloader_->read(this->download_buffer_.append(), available);
     if (len > 0) {
       this->download_buffer_.write(len);
       auto fed = this->decoder_->decode(this->download_buffer_.data(), this->download_buffer_.unread());
       if (fed < 0) {
         ESP_LOGE(TAG, "Error when decoding image.");
-        end_connection_();
+        this->end_connection_();
         this->download_error_callback_.call();
         return;
       }
@@ -176,15 +172,15 @@ void OnlineImage::loop() {
 }
 
 void OnlineImage::draw_pixel_(int x, int y, Color color) {
-  if (!buffer_) {
+  if (!this->buffer_) {
     ESP_LOGE(TAG, "Buffer not allocated!");
     return;
   }
-  if (x < 0 || y < 0 || x >= buffer_width_ || y >= buffer_height_) {
+  if (x < 0 || y < 0 || x >= this->buffer_width_ || y >= this->buffer_height_) {
     ESP_LOGE(TAG, "Tried to paint a pixel (%d,%d) outside the image!", x, y);
     return;
   }
-  uint32_t pos = get_position_(x, y);
+  uint32_t pos = this->get_position_(x, y);
   switch (type_) {
     case ImageType::IMAGE_TYPE_BINARY: {
       const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
@@ -206,7 +202,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
           gray = 1;
         }
       }
-      buffer_[pos] = gray;
+      this->buffer_[pos] = gray;
       break;
     }
     case ImageType::IMAGE_TYPE_RGB565: {
@@ -219,15 +215,15 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
           col565 = 0x0020;
         }
       }
-      buffer_[pos + 0] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
-      buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
+      this->buffer_[pos + 0] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
+      this->buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
       break;
     }
     case ImageType::IMAGE_TYPE_RGBA: {
-      buffer_[pos + 0] = color.r;
-      buffer_[pos + 1] = color.g;
-      buffer_[pos + 2] = color.b;
-      buffer_[pos + 3] = color.w;
+      this->buffer_[pos + 0] = color.r;
+      this->buffer_[pos + 1] = color.g;
+      this->buffer_[pos + 2] = color.b;
+      this->buffer_[pos + 3] = color.w;
       break;
     }
     case ImageType::IMAGE_TYPE_RGB24:
@@ -242,9 +238,9 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
           color.b = 1;
         }
       }
-      buffer_[pos + 0] = color.r;
-      buffer_[pos + 1] = color.g;
-      buffer_[pos + 2] = color.b;
+      this->buffer_[pos + 0] = color.r;
+      this->buffer_[pos + 1] = color.g;
+      this->buffer_[pos + 2] = color.b;
       break;
     }
   }
