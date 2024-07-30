@@ -204,8 +204,8 @@ def automation_schema(typ: ty.LvType):
     }
 
 
-def create_modify_schema(widget_type, extras: dict = None):
-    schema = (
+def create_modify_schema(widget_type):
+    return (
         part_schema(widget_type)
         .extend(
             {
@@ -216,9 +216,6 @@ def create_modify_schema(widget_type, extras: dict = None):
         .extend(FLAG_SCHEMA)
         .extend(widget_type.modify_schema)
     )
-    if extras is not None:
-        return schema.extend(extras)
-    return schema
 
 
 def obj_schema(widget_type: WidgetType):

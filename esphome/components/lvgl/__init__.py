@@ -57,7 +57,7 @@ for w_type in WIDGET_TYPES.values():
     register_action(
         f"lvgl.{w_type.name}.update",
         ObjUpdateAction,
-        create_modify_schema(w_type, extras=w_type.modify_schema),
+        create_modify_schema(w_type),
     )(update_to_code)
 
 
