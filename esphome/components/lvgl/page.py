@@ -2,7 +2,14 @@ from esphome import automation, codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PAGES, CONF_TIME
 
-from .defines import CONF_ANIMATION, CONF_LVGL_ID, CONF_PAGE, CONF_SKIP, LV_ANIM
+from .defines import (
+    CONF_ANIMATION,
+    CONF_LVGL_ID,
+    CONF_PAGE,
+    CONF_PAGE_WRAP,
+    CONF_SKIP,
+    LV_ANIM,
+)
 from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import LVGL_COMP_ARG, LambdaContext, add_line_marks, lv_add, lvgl_comp
 from .schemas import LVGL_SCHEMA
@@ -93,6 +100,7 @@ async def page_show_to_code(config, action_id, template_arg, args):
 
 
 async def add_pages(lv_component, config):
+    lv_add(lv_component.set_page_wrap(config[CONF_PAGE_WRAP]))
     for pconf in config.get(CONF_PAGES, ()):
         id = pconf[CONF_ID]
         skip = pconf[CONF_SKIP]

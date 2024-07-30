@@ -23,8 +23,9 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import update_to_code
 from .btn import btn_spec
+from .defines import CONF_SKIP
 from .label import label_spec
-from .lv_validation import lv_images_used
+from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext
 from .obj import obj_spec
 from .page import add_pages, page_spec
@@ -106,6 +107,9 @@ def generate_lv_conf_h():
 
 
 def final_validation(config):
+    if pages := config[CONF_PAGES]:
+        if all(page[CONF_SKIP] for page in pages):
+            raise cv.Invalid("At least one page must not be skipped")
     global_config = full_config.get()
     for display_id in config[df.CONF_DISPLAYS]:
         path = global_config.get_path_for_id(display_id)[:-1]
@@ -258,6 +262,7 @@ CONFIG_SCHEMA = (
             cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
                 container_schema(page_spec)
             ),
+            cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
             cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
             cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,

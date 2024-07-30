@@ -182,7 +182,7 @@ class LvglComponent : public PollingComponent {
     lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
   }
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
-    if (this->pages_.empty())
+    if (this->pages_.empty() || this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_)
       return;
     do {
       this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
@@ -191,13 +191,15 @@ class LvglComponent : public PollingComponent {
   }
 
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
-    if (this->pages_.empty())
+    if (this->pages_.empty() || this->current_page_ == 0 && !this->page_wrap_)
       return;
     do {
       this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();
     } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
     this->show_page(this->current_page_, anim, time);
   }
+
+  void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
 
  protected:
   void write_random_();
@@ -212,6 +214,7 @@ class LvglComponent : public PollingComponent {
   size_t current_page_{0};
   bool show_snow_{};
   lv_coord_t snow_line_{};
+  bool page_wrap_{true};
 
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};
