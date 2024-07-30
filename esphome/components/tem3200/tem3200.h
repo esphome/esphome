@@ -10,7 +10,7 @@ namespace tem3200 {
 /// This class implements support for the tem3200 pressure and temperature i2c sensors.
 class TEM3200Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_raw_pressure_sensor(sensor::Sensor *raw_pressure_sensor) { raw_pressure_sensor_ = raw_pressure_sensor; }
 
   float get_setup_priority() const override;
