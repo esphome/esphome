@@ -1,12 +1,16 @@
 from esphome import config_validation as cv
+from esphome.automation import Trigger, validate_automation
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
+    CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
 )
+from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid, types as ty
@@ -34,6 +38,16 @@ TEXT_SCHEMA = cv.Schema(
     }
 )
 
+ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
+    },
+    key=CONF_ID,
+)
+
+PRESS_TIME = cv.All(
+    lvalid.lv_milliseconds, cv.Range(max=TimePeriod(milliseconds=65535))
+)
 
 ENCODER_SCHEMA = cv.Schema(
     {
@@ -41,10 +55,8 @@ ENCODER_SCHEMA = cv.Schema(
             cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): lvalid.id_name,
-        cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): lvalid.lv_milliseconds,
-        cv.Optional(
-            df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"
-        ): lvalid.lv_milliseconds,
+        cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
+        cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
 )
 
@@ -61,9 +73,10 @@ STYLE_PROPS = {
     "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
     "bg_grad_dir": df.LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER").one_of,
     "bg_grad_stop": lvalid.stop_value,
-    "bg_img_opa": lvalid.opacity,
-    "bg_img_recolor": lvalid.lv_color,
-    "bg_img_recolor_opa": lvalid.opacity,
+    "bg_image_opa": lvalid.opacity,
+    "bg_image_recolor": lvalid.lv_color,
+    "bg_image_recolor_opa": lvalid.opacity,
+    "bg_image_src": lvalid.lv_image,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
     "border_color": lvalid.lv_color,
@@ -75,8 +88,8 @@ STYLE_PROPS = {
     "border_width": cv.positive_int,
     "clip_corner": lvalid.lv_bool,
     "height": lvalid.size,
-    "img_recolor": lvalid.lv_color,
-    "img_recolor_opa": lvalid.opacity,
+    "image_recolor": lvalid.lv_color,
+    "image_recolor_opa": lvalid.opacity,
     "line_width": cv.positive_int,
     "line_dash_width": cv.positive_int,
     "line_dash_gap": cv.positive_int,
@@ -129,6 +142,15 @@ STYLE_PROPS = {
     "y": lvalid.pixels_or_percent,
 }
 
+STYLE_REMAP = {
+    "bg_image_opa": "bg_img_opa",
+    "bg_image_recolor": "bg_img_recolor",
+    "bg_image_recolor_opa": "bg_img_recolor_opa",
+    "bg_image_src": "bg_img_src",
+    "image_recolor": "img_recolor",
+    "image_recolor_opa": "img_recolor_opa",
+}
+
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
@@ -163,6 +185,39 @@ def part_schema(widget_type: WidgetType):
     )
 
 
+def automation_schema(typ: ty.LvType):
+    if typ.has_on_value:
+        events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
+    else:
+        events = df.LV_EVENT_TRIGGERS
+    if isinstance(typ, ty.LvType):
+        template = Trigger.template(typ.get_arg_type())
+    else:
+        template = Trigger.template()
+    return {
+        cv.Optional(event): validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
+            }
+        )
+        for event in events
+    }
+
+
+def create_modify_schema(widget_type):
+    return (
+        part_schema(widget_type)
+        .extend(
+            {
+                cv.Required(CONF_ID): cv.use_id(widget_type),
+                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+            }
+        )
+        .extend(FLAG_SCHEMA)
+        .extend(widget_type.modify_schema)
+    )
+
+
 def obj_schema(widget_type: WidgetType):
     """
     Create a schema for a widget type itself i.e. no allowance for children
@@ -173,6 +228,7 @@ def obj_schema(widget_type: WidgetType):
         part_schema(widget_type)
         .extend(FLAG_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
+        .extend(automation_schema(widget_type.w_type))
         .extend(
             cv.Schema(
                 {
@@ -201,11 +257,13 @@ STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
     STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
 )
 
+# For use by platform components
 LVGL_SCHEMA = cv.Schema(
     {
         cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
     }
 )
+
 ALL_STYLES = {
     **STYLE_PROPS,
 }

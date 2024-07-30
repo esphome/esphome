@@ -7,6 +7,7 @@ lvgl:
       long_press_time: 500ms
   widgets:
     - label:
+        id: hello_label
         text: Hello world
         text_color: 0xFF8000
         align: center
@@ -30,9 +31,9 @@ lvgl:
         bg_dither_mode: ordered
         bg_grad_dir: hor
         bg_grad_stop: 128
-        bg_img_opa: transp
-        bg_img_recolor: light_blue
-        bg_img_recolor_opa: 50%
+        bg_image_opa: transp
+        bg_image_recolor: light_blue
+        bg_image_recolor_opa: 50%
         bg_main_stop: 0
         bg_opa: 20%
         border_color: 0x00FF00
@@ -42,8 +43,8 @@ lvgl:
         border_width: 4
         clip_corner: false
         height: 50%
-        img_recolor: light_blue
-        img_recolor_opa: cover
+        image_recolor: light_blue
+        image_recolor_opa: cover
         line_width: 10
         line_dash_width: 10
         line_dash_gap: 10
@@ -90,14 +91,48 @@ lvgl:
         width: 10px
         x: 100
         y: 120
-    - btn:
+    - button:
         width: 20%
         height: 10%
         pressed:
           bg_color: light_blue
+        checkable: true
+        checked:
+          bg_color: 0x000000
         widgets:
           - label:
               text: Button
+        on_click:
+          lvgl.label.update:
+            id: hello_label
+            bg_color: 0x123456
+            text: clicked
+        on_value:
+          logger.log:
+            format: "state now %d"
+            args: [x]
+        on_short_click:
+          lvgl.widget.hide: hello_label
+        on_long_press:
+          lvgl.widget.show: hello_label
+        on_cancel:
+          lvgl.widget.enable: hello_label
+        on_ready:
+          lvgl.widget.disable: hello_label
+        on_defocus:
+          lvgl.widget.hide: hello_label
+        on_focus:
+          logger.log: Button clicked
+        on_scroll:
+          logger.log: Button clicked
+        on_scroll_end:
+          logger.log: Button clicked
+        on_scroll_begin:
+          logger.log: Button clicked
+        on_release:
+          logger.log: Button clicked
+        on_long_press_repeat:
+          logger.log: Button clicked
 
 font:
   - file: "gfonts://Roboto"

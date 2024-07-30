@@ -19,6 +19,7 @@
 #define USE_API
 #define USE_API_NOISE
 #define USE_API_PLAINTEXT
+#define USE_BINARY_SENSOR
 #define USE_BUTTON
 #define USE_CLIMATE
 #define USE_COVER
@@ -56,7 +57,6 @@
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
 #define USE_QR_CODE
-#define USE_ROTARY_ENCODER
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_STATUS_LED

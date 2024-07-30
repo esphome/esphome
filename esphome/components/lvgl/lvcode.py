@@ -8,6 +8,7 @@ from esphome.cpp_generator import (
     AssignmentExpression,
     CallExpression,
     Expression,
+    ExpressionStatement,
     LambdaExpression,
     MockObj,
     RawExpression,
@@ -106,29 +107,40 @@ class LambdaContext(CodeContext):
 
     def __init__(
         self,
-        parameters: list[tuple[SafeExpType, str]],
-        return_type: SafeExpType = None,
+        parameters: list[tuple[SafeExpType, str]] = None,
+        return_type: SafeExpType = cg.void,
+        capture: str = "",
     ):
         super().__init__()
         self.code_list: list[Statement] = []
         self.parameters = parameters
         self.return_type = return_type
+        self.capture = capture
 
     def add(self, expression: Union[Expression, Statement]):
         self.code_list.append(expression)
         return expression
 
-    async def code(self) -> LambdaExpression:
+    async def get_lambda(self) -> LambdaExpression:
+        code_text = self.get_code()
+        return await cg.process_lambda(
+            Lambda("\n".join(code_text) + "\n\n"),
+            self.parameters,
+            capture=self.capture,
+            return_type=self.return_type,
+        )
+
+    def get_code(self):
         code_text = []
         for exp in self.code_list:
             text = str(statement(exp))
             text = text.rstrip()
             code_text.append(text)
-        return await cg.process_lambda(
-            Lambda("\n".join(code_text) + "\n\n"),
-            self.parameters,
-            return_type=self.return_type,
-        )
+        return code_text
+
+    def __enter__(self):
+        super().__enter__()
+        return self
 
 
 class LocalVariable(MockObj):
@@ -188,13 +200,18 @@ class MockLv:
         return result
 
     def cond_if(self, expression: Expression):
-        CodeContext.append(RawExpression(f"if({expression}) {{"))
+        CodeContext.append(RawStatement(f"if {expression} {{"))
 
     def cond_else(self):
-        CodeContext.append(RawExpression("} else {"))
+        CodeContext.append(RawStatement("} else {"))
 
     def cond_endif(self):
-        CodeContext.append(RawExpression("}"))
+        CodeContext.append(RawStatement("}"))
+
+
+class ReturnStatement(ExpressionStatement):
+    def __str__(self):
+        return f"return {self.expression};"
 
 
 class LvExpr(MockLv):
@@ -211,6 +228,7 @@ lv = MockLv("lv_")
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
 lv_obj = MockLv("lv_obj_")
+lvgl_comp = MockObj("lvgl_comp", "->")
 
 
 # equivalent to cg.add() for the lvgl init context
