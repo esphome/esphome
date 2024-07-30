@@ -230,16 +230,23 @@ lv = MockLv("lv_")
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
 lv_obj = MockLv("lv_obj_")
+# Operations on the LVGL component
 lvgl_comp = MockObj(LVGL_COMP, "->")
+# Argument tuple for use in lambdas
 LVGL_COMP_ARG = (LvglComponentPtr, LVGL_COMP)
 
 
-# equivalent to cg.add() for the lvgl init context
+# equivalent to cg.add() for the current code context
 def lv_add(expression: Union[Expression, Statement]):
     return CodeContext.append(expression)
 
 
 def add_line_marks(where):
+    """
+    Add line marks for the current code context
+    :param where: An object to identify the source of the line marks
+    :return:
+    """
     for mark in get_line_marks(where):
         lv_add(cg.RawStatement(mark))
 
