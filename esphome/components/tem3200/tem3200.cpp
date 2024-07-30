@@ -97,7 +97,7 @@ i2c::ErrorCode TEM3200Component::read_(uint8_t &status, uint16_t &raw_temperatur
   return i2c::ERROR_OK;
 }
 
-float TEM3200Component::convert_temperature_(uint16_t raw_temperature) {
+inline float convert_temperature(uint16_t raw_temperature) {
   const float temperature_bits_span = 2048;
   const float temperature_max = 150;
   const float temperature_min = -50;
@@ -135,7 +135,7 @@ void TEM3200Component::update() {
       return;
   }
 
-  float temperature = convert_temperature_(raw_temperature);
+  float temperature = convert_temperature(raw_temperature);
 
   ESP_LOGD(TAG, "Got pressure=%draw temperature=%.1f°C", raw_pressure, temperature);
 
