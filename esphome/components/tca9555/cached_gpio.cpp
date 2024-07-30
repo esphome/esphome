@@ -3,7 +3,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-namespace gpio {
+namespace tca9555 {
 
 void CachedGpio::setup() { this->cacheInvalidated = false; }
 
@@ -27,5 +27,5 @@ void CachedGpio::digital_write(uint8_t pin, bool value) {
   }
 }
 
-}  // namespace gpio
+}  // namespace tca9555
 }  // namespace esphome

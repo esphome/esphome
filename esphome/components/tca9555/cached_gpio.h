@@ -4,7 +4,7 @@
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace gpio {
+namespace tca9555 {
 
 /// @brief A proxy class for forcing one GPIO read/write call to HW per main loop iteration
 class CachedGpio : virtual Component {
@@ -29,5 +29,5 @@ class CachedGpio : virtual Component {
   bool cacheInvalidated = false;
 };
 
-}  // namespace gpio
+}  // namespace tca9555
 }  // namespace esphome

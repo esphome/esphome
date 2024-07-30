@@ -8,7 +8,7 @@
 namespace esphome {
 namespace tca9555 {
 
-class TCA9555Component : virtual public Component, public i2c::I2CDevice, public gpio::CachedGpio {
+class TCA9555Component : virtual public Component, public i2c::I2CDevice, public CachedGpio {
  public:
   TCA9555Component() = default;
 
