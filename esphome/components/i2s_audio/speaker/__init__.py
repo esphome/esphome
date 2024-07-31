@@ -91,4 +91,4 @@ async def to_code(config):
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
 
     if CONF_USE_16BIT_MODE in config:
-        cg.add(var.use_16bit_mode(config[CONF_USE_16BIT_MODE]))
+        cg.add(var.set_16bit_mode(config[CONF_USE_16BIT_MODE]))
