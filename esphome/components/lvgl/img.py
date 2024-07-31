@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ANGLE, CONF_MODE
 from esphome.cpp_generator import MockObjClass
 
-from ..display_menu_base import CONF_LABEL
 from .defines import (
     CONF_ANTIALIAS,
     CONF_MAIN,
@@ -15,6 +14,7 @@ from .defines import (
     CONF_ZOOM,
     LvConstant,
 )
+from .label import CONF_LABEL
 from .lv_validation import angle, lv_bool, lv_image, requires_component, size, zoom
 from .lvcode import lv
 from .types import lv_img_t
@@ -22,25 +22,42 @@ from .widget import Widget, WidgetType
 
 CONF_IMAGE = "image"
 
-IMG_SCHEMA = {
-    cv.Required(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
-    cv.Optional(CONF_PIVOT_X, default="50%"): size,
-    cv.Optional(CONF_PIVOT_Y, default="50%"): size,
-    cv.Optional(CONF_ANGLE): angle,
-    cv.Optional(CONF_ZOOM): zoom,
-    cv.Optional(CONF_OFFSET_X): size,
-    cv.Optional(CONF_OFFSET_Y): size,
-    cv.Optional(CONF_ANTIALIAS): lv_bool,
-    cv.Optional(CONF_MODE): LvConstant("LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL").one_of,
-}
+BASE_IMG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PIVOT_X, default="50%"): size,
+        cv.Optional(CONF_PIVOT_Y, default="50%"): size,
+        cv.Optional(CONF_ANGLE): angle,
+        cv.Optional(CONF_ZOOM): zoom,
+        cv.Optional(CONF_OFFSET_X): size,
+        cv.Optional(CONF_OFFSET_Y): size,
+        cv.Optional(CONF_ANTIALIAS): lv_bool,
+        cv.Optional(CONF_MODE): LvConstant(
+            "LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL"
+        ).one_of,
+    }
+)
+
+IMG_SCHEMA = BASE_IMG_SCHEMA.extend(
+    {
+        cv.Required(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
+    }
+)
+
+IMG_MODIFY_SCHEMA = BASE_IMG_SCHEMA.extend(
+    {
+        cv.Optional(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
+    }
+)
 
 
 class ImgType(WidgetType):
     def __init__(self):
-        super().__init__(CONF_IMAGE, lv_img_t, (CONF_MAIN,), IMG_SCHEMA)
+        super().__init__(
+            CONF_IMAGE, lv_img_t, (CONF_MAIN,), IMG_SCHEMA, IMG_MODIFY_SCHEMA
+        )
 
     def get_uses(self):
-        return ("img", CONF_LABEL)
+        return "img", CONF_LABEL
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         return f"lv_img_create({parent})"

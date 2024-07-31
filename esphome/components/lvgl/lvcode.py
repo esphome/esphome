@@ -117,7 +117,7 @@ class LambdaContext(CodeContext):
         self.parameters = parameters
         self.return_type = return_type
         self.capture = capture
-        add_line_marks(where)
+        self.where = where
 
     def add(self, expression: Union[Expression, Statement]):
         self.code_list.append(expression)
@@ -142,6 +142,7 @@ class LambdaContext(CodeContext):
 
     def __enter__(self):
         super().__enter__()
+        add_line_marks(self.where)
         return self
 
 
