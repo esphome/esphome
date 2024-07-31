@@ -113,12 +113,6 @@ class LvConstant(LValidator):
         return LvConstant(self.prefix, *(self.choices + choices))
 
 
-# Widgets
-CONF_ARC = "arc"
-CONF_BAR = "bar"
-CONF_LABEL = "label"
-CONF_SLIDER = "slider"
-
 # Parts
 CONF_MAIN = "main"
 CONF_SCROLLBAR = "scrollbar"
@@ -481,7 +475,6 @@ CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
-CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
 CONF_X = "x"
 CONF_Y = "y"

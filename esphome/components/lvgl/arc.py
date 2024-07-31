@@ -11,7 +11,6 @@ from ...cpp_types import nullptr
 from .defines import (
     ARC_MODES,
     CONF_ADJUSTABLE,
-    CONF_ARC,
     CONF_CHANGE_RATE,
     CONF_END_ANGLE,
     CONF_INDICATOR,
@@ -25,6 +24,7 @@ from .lvcode import lv, lv_obj
 from .types import LvNumber
 from .widget import Widget, WidgetType
 
+CONF_ARC = "arc"
 ARC_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
