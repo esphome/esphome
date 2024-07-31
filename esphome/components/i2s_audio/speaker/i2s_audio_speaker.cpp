@@ -233,7 +233,7 @@ void I2SAudioSpeaker::loop() {
   switch (this->state_) {
     case speaker::STATE_STARTING:
       this->start_();
-      [[fallthrough]]
+      [[fallthrough]];
     case speaker::STATE_RUNNING:
     case speaker::STATE_STOPPING:
       this->watch_();
