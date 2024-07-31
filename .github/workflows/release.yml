@@ -19,7 +19,7 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
       branch_build: ${{ steps.tag.outputs.branch_build }}
     steps:
-      - uses: actions/checkout@v4.1.5
+      - uses: actions/checkout@v4.1.7
       - name: Get tag
         id: tag
         # yamllint disable rule:line-length
@@ -51,7 +51,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4.1.5
+      - uses: actions/checkout@v4.1.7
       - name: Set up Python
         uses: actions/setup-python@v5.1.0
         with:
@@ -61,9 +61,11 @@ jobs:
           ESPHOME_NO_VENV: 1
         run: script/setup
       - name: Build
-        run: python setup.py sdist bdist_wheel
+        run: |-
+          pip3 install build
+          python3 -m build
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@v1.8.14
+        uses: pypa/gh-action-pypi-publish@v1.9.0
 
   deploy-docker:
     name: Build ESPHome ${{ matrix.platform }}
@@ -81,25 +83,25 @@ jobs:
           - linux/arm/v7
           - linux/arm64
     steps:
-      - uses: actions/checkout@v4.1.5
+      - uses: actions/checkout@v4.1.7
       - name: Set up Python
         uses: actions/setup-python@v5.1.0
         with:
           python-version: "3.9"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.3.0
+        uses: docker/setup-buildx-action@v3.6.1
       - name: Set up QEMU
         if: matrix.platform != 'linux/amd64'
-        uses: docker/setup-qemu-action@v3.0.0
+        uses: docker/setup-qemu-action@v3.2.0
 
       - name: Log in to docker hub
-        uses: docker/login-action@v3.1.0
+        uses: docker/login-action@v3.3.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@v3.1.0
+        uses: docker/login-action@v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -132,6 +134,19 @@ jobs:
           suffix: lint
           version: ${{ needs.init.outputs.tag }}
 
+      - name: Sanitize platform name
+        id: sanitize
+        run: |
+          echo "${{ matrix.platform }}" | sed 's|/|-|g' > /tmp/platform
+          echo name=$(cat /tmp/platform) >> $GITHUB_OUTPUT
+
+      - name: Upload digests
+        uses: actions/upload-artifact@v4.3.4
+        with:
+          name: digests-${{ steps.sanitize.outputs.name }}
+          path: /tmp/digests
+          retention-days: 1
+
   deploy-manifest:
     name: Publish ESPHome ${{ matrix.image.title }} to ${{ matrix.registry }}
     runs-on: ubuntu-latest
@@ -159,24 +174,27 @@ jobs:
           - ghcr
           - dockerhub
     steps:
-      - uses: actions/checkout@v4.1.5
+      - uses: actions/checkout@v4.1.7
+
       - name: Download digests
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.8
         with:
-          name: digests-${{ matrix.image.target }}-${{ matrix.registry }}
+          pattern: digests-*
           path: /tmp/digests
+          merge-multiple: true
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.3.0
+        uses: docker/setup-buildx-action@v3.6.1
 
       - name: Log in to docker hub
         if: matrix.registry == 'dockerhub'
-        uses: docker/login-action@v3.1.0
+        uses: docker/login-action@v3.3.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
         if: matrix.registry == 'ghcr'
-        uses: docker/login-action@v3.1.0
+        uses: docker/login-action@v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -195,7 +213,7 @@ jobs:
           done
 
       - name: Create manifest list and push
-        working-directory: /tmp/digests
+        working-directory: /tmp/digests/${{ matrix.image.target }}/${{ matrix.registry }}
         run: |
           docker buildx imagetools create $(jq -Rcnr 'inputs | . / "," | map("-t " + .) | join(" ")' <<< "${{ steps.tags.outputs.tags}}") \
             $(printf '${{ steps.tags.outputs.image }}@sha256:%s ' *)

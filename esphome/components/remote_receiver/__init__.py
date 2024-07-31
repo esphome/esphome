@@ -63,7 +63,13 @@ def validate_tolerance(value):
     if "%" in str(value):
         type_ = TYPE_PERCENTAGE
     else:
-        type_ = TYPE_TIME
+        try:
+            cv.positive_time_period_microseconds(value)
+            type_ = TYPE_TIME
+        except cv.Invalid as exc:
+            raise cv.Invalid(
+                "Tolerance must be a percentage or time. Configurations made before 2024.5.0 treated the value as a percentage."
+            ) from exc
 
     return TOLERANCE_SCHEMA(
         {

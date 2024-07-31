@@ -52,6 +52,7 @@ class StateTrigger : public Trigger<> {
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(IdleTrigger, IDLE)
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PlayTrigger, PLAYING)
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PauseTrigger, PAUSED)
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(AnnouncementTrigger, ANNOUNCING)
 
 template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:

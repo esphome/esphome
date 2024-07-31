@@ -1,6 +1,1 @@
-output:
-  - platform: slow_pwm
-    id: test_slow_pwm
-    pin: 4
-    period: 15s
-    restart_cycle_on_state_change: false
+<<: !include common.yaml

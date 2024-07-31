@@ -10,7 +10,8 @@ enum MediaPlayerState : uint8_t {
   MEDIA_PLAYER_STATE_NONE = 0,
   MEDIA_PLAYER_STATE_IDLE = 1,
   MEDIA_PLAYER_STATE_PLAYING = 2,
-  MEDIA_PLAYER_STATE_PAUSED = 3
+  MEDIA_PLAYER_STATE_PAUSED = 3,
+  MEDIA_PLAYER_STATE_ANNOUNCING = 4
 };
 const char *media_player_state_to_string(MediaPlayerState state);
 
@@ -51,12 +52,14 @@ class MediaPlayerCall {
   MediaPlayerCall &set_media_url(const std::string &url);
 
   MediaPlayerCall &set_volume(float volume);
+  MediaPlayerCall &set_announcement(bool announce);
 
   void perform();
 
   const optional<MediaPlayerCommand> &get_command() const { return command_; }
   const optional<std::string> &get_media_url() const { return media_url_; }
   const optional<float> &get_volume() const { return volume_; }
+  const optional<bool> &get_announcement() const { return announcement_; }
 
  protected:
   void validate_();
@@ -64,6 +67,7 @@ class MediaPlayerCall {
   optional<MediaPlayerCommand> command_;
   optional<std::string> media_url_;
   optional<float> volume_;
+  optional<bool> announcement_;
 };
 
 class MediaPlayer : public EntityBase {

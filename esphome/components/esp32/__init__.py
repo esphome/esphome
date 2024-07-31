@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from typing import Union, Optional
-from pathlib import Path
 import logging
 import os
-import esphome.final_validate as fv
+from pathlib import Path
+from typing import Optional, Union
 
-from esphome.helpers import copy_file_if_changed, write_file_if_changed, mkdir_p
+from esphome import git
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_NAME,
     CONF_PATH,
+    CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
     CONF_REFRESH,
@@ -32,13 +34,12 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     __version__,
-    CONF_PLATFORM_VERSION,
 )
 from esphome.core import CORE, HexInt, TimePeriod
-import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome import git
+import esphome.final_validate as fv
+from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
 
+from .boards import BOARDS
 from .const import (  # noqa
     KEY_BOARD,
     KEY_COMPONENTS,
@@ -54,11 +55,9 @@ from .const import (  # noqa
     VARIANT_FRIENDLY,
     VARIANTS,
 )
-from .boards import BOARDS
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
-
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
@@ -96,16 +95,16 @@ def get_board(core_obj=None):
 def get_download_types(storage_json):
     return [
         {
-            "title": "Modern format",
+            "title": "Factory format (Previously Modern)",
             "description": "For use with ESPHome Web and other tools.",
-            "file": "firmware-factory.bin",
-            "download": f"{storage_json.name}-factory.bin",
+            "file": "firmware.factory.bin",
+            "download": f"{storage_json.name}.factory.bin",
         },
         {
-            "title": "Legacy format",
-            "description": "For use with ESPHome Flasher.",
-            "file": "firmware.bin",
-            "download": f"{storage_json.name}.bin",
+            "title": "OTA format (Previously Legacy)",
+            "description": "For OTA updating a device.",
+            "file": "firmware.ota.bin",
+            "download": f"{storage_json.name}.ota.bin",
         },
     ]
 
@@ -227,7 +226,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 6)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 7)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32

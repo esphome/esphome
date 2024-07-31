@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict
 import logging
 import os
-from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from esphome import const, util
@@ -103,7 +103,7 @@ class DashboardEntries:
 
     def all(self) -> list[DashboardEntry]:
         """Return all entries."""
-        return asyncio.run_coroutine_threadsafe(self._async_all, self._loop).result()
+        return asyncio.run_coroutine_threadsafe(self._async_all(), self._loop).result()
 
     def async_all(self) -> list[DashboardEntry]:
         """Return all entries."""

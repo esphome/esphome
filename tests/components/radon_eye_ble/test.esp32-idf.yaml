@@ -1,3 +1,1 @@
-esp32_ble_tracker:
-
-radon_eye_ble:
+<<: !include common.yaml

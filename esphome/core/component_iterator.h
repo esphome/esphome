@@ -87,6 +87,9 @@ class ComponentIterator {
 #ifdef USE_EVENT
   virtual bool on_event(event::Event *event) = 0;
 #endif
+#ifdef USE_UPDATE
+  virtual bool on_update(update::UpdateEntity *update) = 0;
+#endif
   virtual bool on_end();
 
  protected:
@@ -158,6 +161,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_EVENT
     EVENT,
+#endif
+#ifdef USE_UPDATE
+    UPDATE,
 #endif
     MAX,
   } state_{IteratorState::NONE};

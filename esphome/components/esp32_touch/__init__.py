@@ -150,7 +150,7 @@ TOUCH_PAD_WATERPROOF_SHIELD_DRIVER = {
 
 
 def validate_touch_pad(value):
-    value = gpio.validate_gpio_pin(value)
+    value = gpio.gpio_pin_number_validator(value)
     variant = get_esp32_variant()
     if variant not in TOUCH_PADS:
         raise cv.Invalid(f"ESP32 variant {variant} does not support touch pads.")

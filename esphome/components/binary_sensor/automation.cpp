@@ -98,6 +98,11 @@ void binary_sensor::MultiClickTrigger::schedule_is_not_valid_(uint32_t max_lengt
     this->schedule_cooldown_();
   });
 }
+void binary_sensor::MultiClickTrigger::cancel() {
+  ESP_LOGV(TAG, "Multi Click: Sequence explicitly cancelled.");
+  this->is_valid_ = false;
+  this->schedule_cooldown_();
+}
 void binary_sensor::MultiClickTrigger::trigger_() {
   ESP_LOGV(TAG, "Multi Click: Hooray, multi click is valid. Triggering!");
   this->at_index_.reset();

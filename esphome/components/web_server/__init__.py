@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import gzip
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.const import (
@@ -19,6 +22,8 @@ from esphome.const import (
     CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
+    CONF_WEB_SERVER_ID,
+    CONF_WEB_SERVER_SORTING_WEIGHT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_BK72XX,
@@ -35,19 +40,19 @@ WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 def default_url(config):
     config = config.copy()
     if config[CONF_VERSION] == 1:
-        if not (CONF_CSS_URL in config):
+        if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
-        if not (CONF_JS_URL in config):
+        if CONF_JS_URL not in config:
             config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
-        if not (CONF_CSS_URL in config):
+        if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
-        if not (CONF_JS_URL in config):
+        if CONF_JS_URL not in config:
             config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
     if config[CONF_VERSION] == 3:
-        if not (CONF_CSS_URL in config):
+        if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
-        if not (CONF_JS_URL in config):
+        if CONF_JS_URL not in config:
             config[CONF_JS_URL] = "https://oi.esphome.io/v3/www.js"
     return config
 
@@ -62,6 +67,46 @@ def validate_ota(config):
     if CORE.using_esp_idf and config[CONF_OTA]:
         raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
     return config
+
+
+def _validate_no_sorting_weight(
+    webserver_version: int, config: dict, path: list[str] | None = None
+) -> None:
+    if path is None:
+        path = []
+    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
+        raise cv.FinalExternalInvalid(
+            f"Sorting weight on entities is not supported in web_server version {webserver_version}",
+            path=path + [CONF_WEB_SERVER_SORTING_WEIGHT],
+        )
+    for p, value in config.items():
+        if isinstance(value, dict):
+            _validate_no_sorting_weight(webserver_version, value, path + [p])
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, dict):
+                    _validate_no_sorting_weight(webserver_version, item, path + [p, i])
+
+
+def _final_validate_sorting_weight(config):
+    if (webserver_version := config.get(CONF_VERSION)) != 3:
+        _validate_no_sorting_weight(webserver_version, fv.full_config.get())
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_sorting_weight
+
+
+WEBSERVER_SORTING_SCHEMA = cv.Schema(
+    {
+        cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
+        cv.Optional(CONF_WEB_SERVER_SORTING_WEIGHT): cv.All(
+            cv.requires_component("web_server"),
+            cv.float_,
+        ),
+    }
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -106,6 +151,19 @@ CONFIG_SCHEMA = cv.All(
     validate_local,
     validate_ota,
 )
+
+
+def add_entity_to_sorting_list(web_server, entity, config):
+    sorting_weight = 50
+    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
+        sorting_weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
+
+    cg.add(
+        web_server.add_entity_to_sorting_list(
+            entity,
+            sorting_weight,
+        )
+    )
 
 
 def build_index_html(config) -> str:

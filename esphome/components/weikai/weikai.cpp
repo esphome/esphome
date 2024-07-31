@@ -375,8 +375,8 @@ void WeikaiChannel::set_baudrate_() {
   this->parent_->page1_ = false;  // switch back to page 0
   this->reg(WKREG_SPAGE) = 0;
 
-  ESP_LOGV(TAG, "    Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
-           baud_high, baud_low, baud_dec);
+  ESP_LOGV(TAG, "    Crystal=%" PRId32 " baudrate=%" PRId32 " => registers [%d %d %d]", this->parent_->crystal_,
+           this->baud_rate_, baud_high, baud_low, baud_dec);
 }
 
 inline bool WeikaiChannel::tx_fifo_is_not_empty_() { return this->reg(WKREG_FSR) & FSR_TFDAT; }

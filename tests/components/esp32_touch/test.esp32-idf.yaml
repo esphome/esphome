@@ -1,16 +1,1 @@
-esp32_touch:
-  setup_mode: false
-  iir_filter: 10ms
-  sleep_duration: 27ms
-  measurement_duration: 8ms
-  low_voltage_reference: 0.5V
-  high_voltage_reference: 2.7V
-  voltage_attenuation: 1.5V
-
-binary_sensor:
-  - platform: esp32_touch
-    name: ESP32 Touch Pad
-    pin: 27
-    threshold: 1000
-    on_press:
-      - logger.log: "I'm touched!"
+<<: !include common.yaml
