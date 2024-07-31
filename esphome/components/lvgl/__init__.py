@@ -131,7 +131,7 @@ def generate_lv_conf_h():
 
 
 def final_validation(config):
-    if pages := config[CONF_PAGES]:
+    if pages := config.get(CONF_PAGES):
         if all(page[CONF_SKIP] for page in pages):
             raise cv.Invalid("At least one page must not be skipped")
     global_config = full_config.get()
