@@ -4,12 +4,32 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 """
 
+from typing import Union
+
 from esphome import codegen as cg, config_validation as cv
 from esphome.core import ID, Lambda
+from esphome.cpp_generator import Literal
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
-from .lvcode import ConstantLiteral
+from .helpers import requires_component
+
+
+class ConstantLiteral(Literal):
+    __slots__ = ("constant",)
+
+    def __init__(self, constant: str):
+        super().__init__()
+        self.constant = constant
+
+    def __str__(self):
+        return self.constant
+
+
+def literal(arg: Union[str, ConstantLiteral]):
+    if isinstance(arg, str):
+        return ConstantLiteral(arg)
+    return arg
 
 
 class LValidator:
@@ -18,14 +38,19 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype, idtype=None, idexpr=None, retmapper=None):
+    def __init__(
+        self, validator, rtype, idtype=None, idexpr=None, retmapper=None, requires=None
+    ):
         self.validator = validator
         self.rtype = rtype
         self.idtype = idtype
         self.idexpr = idexpr
         self.retmapper = retmapper
+        self.requires = requires
 
     def __call__(self, value):
+        if self.requires:
+            value = requires_component(self.requires)(value)
         if isinstance(value, cv.Lambda):
             return cv.returning_lambda(value)
         if self.idtype is not None and isinstance(value, ID):
@@ -422,6 +447,7 @@ CONF_RECOLOR = "recolor"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROTARY_ENCODERS = "rotary_encoders"
 CONF_ROWS = "rows"
 CONF_SCALES = "scales"
 CONF_SCALE_LINES = "scale_lines"

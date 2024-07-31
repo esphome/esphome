@@ -7,6 +7,7 @@ lvgl:
       long_press_time: 500ms
   widgets:
     - label:
+        id: hello_label
         text: Hello world
         text_color: 0xFF8000
         align: center
@@ -95,9 +96,43 @@ lvgl:
         height: 10%
         pressed:
           bg_color: light_blue
+        checkable: true
+        checked:
+          bg_color: 0x000000
         widgets:
           - label:
               text: Button
+        on_click:
+          lvgl.label.update:
+            id: hello_label
+            bg_color: 0x123456
+            text: clicked
+        on_value:
+          logger.log:
+            format: "state now %d"
+            args: [x]
+        on_short_click:
+          lvgl.widget.hide: hello_label
+        on_long_press:
+          lvgl.widget.show: hello_label
+        on_cancel:
+          lvgl.widget.enable: hello_label
+        on_ready:
+          lvgl.widget.disable: hello_label
+        on_defocus:
+          lvgl.widget.hide: hello_label
+        on_focus:
+          logger.log: Button clicked
+        on_scroll:
+          logger.log: Button clicked
+        on_scroll_end:
+          logger.log: Button clicked
+        on_scroll_begin:
+          logger.log: Button clicked
+        on_release:
+          logger.log: Button clicked
+        on_long_press_repeat:
+          logger.log: Button clicked
 
 font:
   - file: "gfonts://Roboto"
