@@ -117,11 +117,9 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length) {
   if (this->state_ != speaker::STATE_RUNNING) {
     this->start();
   }
-  uint8_t stepsize = this->use_16bit_mode_ ? 2 : 4;
 
   length = std::min(this->available_space(), length);
-  uint32_t dword = xStreamBufferSend(this->buffer_queue_, data, length, 0);
-  return length;
+  return xStreamBufferSend(this->buffer_queue_, data, length, 0);
 }
 
 void I2SAudioSpeaker::player_task(void *params) {
