@@ -21,12 +21,18 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
+from .animimg import animimg_spec
 from .arc import arc_spec
 from .automation import update_to_code
 from .btn import btn_spec
+from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
+from .img import img_spec
 from .label import label_spec
+from .led import led_spec
+from .line import line_spec
 from .lv_bar import bar_spec
+from .lv_switch import switch_spec
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext
 from .obj import obj_spec
@@ -39,6 +45,7 @@ from .schemas import (
     obj_schema,
 )
 from .slider import slider_spec
+from .spinner import spinner_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -58,7 +65,21 @@ AUTO_LOAD = ("key_provider",)
 CODEOWNERS = ("@clydebarrow",)
 LOGGER = logging.getLogger(__name__)
 
-for w_type in (label_spec, obj_spec, btn_spec, bar_spec, slider_spec, arc_spec):
+for w_type in (
+    label_spec,
+    obj_spec,
+    btn_spec,
+    bar_spec,
+    slider_spec,
+    arc_spec,
+    line_spec,
+    spinner_spec,
+    led_spec,
+    animimg_spec,
+    checkbox_spec,
+    img_spec,
+    switch_spec,
+):
     WIDGET_TYPES[w_type.name] = w_type
 
 WIDGET_SCHEMA = any_widget_schema()

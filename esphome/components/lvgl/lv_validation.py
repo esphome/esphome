@@ -204,6 +204,9 @@ class TextValidator(LValidator):
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_, Sensor, "get_state()")
 lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
+lv_brightness = LValidator(
+    cv.percentage, cg.float_, Sensor, "get_state()", retmapper=lambda x: int(x * 255)
+)
 
 
 def is_lv_font(font):
