@@ -6,8 +6,8 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_VALUE,
 )
+from esphome.cpp_types import nullptr
 
-from ...cpp_types import nullptr
 from .defines import (
     ARC_MODES,
     CONF_ADJUSTABLE,

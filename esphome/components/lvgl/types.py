@@ -1,8 +1,8 @@
 from esphome import automation, codegen as cg
+from esphome.const import CONF_VALUE
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, MockObjClass
 
-from ...const import CONF_VALUE
 from .defines import CONF_TEXT
 
 
