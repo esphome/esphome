@@ -35,7 +35,6 @@ enum class ModemComponentState {
   NOT_RESPONDING,
   DISCONNECTED,
   CONNECTED,
-  DISCONNECTING,
   DISABLED,
 };
 

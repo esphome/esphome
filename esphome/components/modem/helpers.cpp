@@ -39,9 +39,6 @@ std::string state_to_string(ModemComponentState state) {
     case ModemComponentState::CONNECTED:
       str = "CONNECTED";
       break;
-    case ModemComponentState::DISCONNECTING:
-      str = "DISCONNECTING";
-      break;
     case ModemComponentState::DISABLED:
       str = "DISABLED";
       break;

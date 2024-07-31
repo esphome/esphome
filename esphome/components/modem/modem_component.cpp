@@ -364,7 +364,9 @@ void ModemComponent::loop() {
   static ModemComponentState last_state = this->state_;
   static uint32_t next_loop_millis = millis();
   static bool connecting = false;
+  static bool disconnecting = false;
   static uint8_t network_attach_retry = 10;
+  static uint8_t ip_lost_retries = 10;
 
   if (this->power_transition_ || (millis() < next_loop_millis)) {
     // No loop on power transition, or if some commands need some delay
@@ -410,6 +412,7 @@ void ModemComponent::loop() {
               this->watchdog_.reset();
             } else if (millis() - this->connect_begin_ > 15000) {
               ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
+              // TODO: exit data/cmux without error check
               connecting = false;
             } else {
               // Wait for IP from PPP event
@@ -478,57 +481,105 @@ void ModemComponent::loop() {
       //   break;
 
     case ModemComponentState::CONNECTED:
-      if (!this->start_) {
-        this->state_ = ModemComponentState::DISCONNECTED;
-      } else if (!this->connected_) {
-        this->status_set_warning("Connection via Modem lost!");
-        this->state_ = ModemComponentState::DISCONNECTED;
-      }
-      break;
-
-    case ModemComponentState::DISCONNECTING:
-      if (this->start_) {
-        if (this->connected_) {
-          // watchdog::WatchdogManager wdt(60000);
-          ESP_LOGD(TAG, "Going to hang up...");
-          this->dump_connect_params_();
-          if (this->cmux_) {
-            assert(this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND));
-          } else {
-            // assert(this->dce->set_mode(modem_mode::COMMAND_MODE)); // OK on 7600, nok on 7670...
-            this->dce->set_mode(modem_mode::COMMAND_MODE);
-          }
-          delay(200);  // NOLINT
-          ESP_LOGD(TAG, "Hanging up connection after %.1fmin", float(this->connect_begin_) / (1000 * 60));
-          ESPMODEM_ERROR_CHECK(this->dce->hang_up(), "Unable to hang up modem. Trying to continue anyway.");
-          this->dump_connect_params_();
+      if (this->enabled_) {
+        if (!this->connected_) {
+          this->status_set_warning("Connection via Modem lost!");
+          this->state_ = ModemComponentState::DISCONNECTED;
         }
-        this->start_ = false;
-      } else if (!this->connected_) {
-        // ip lost as expected
-        this->cancel_timeout("wait_lost_ip");
-        ESP_LOGI(TAG, "Modem disconnected");
-        this->dump_connect_params_();
-        this->state_ = ModemComponentState::DISCONNECTED;
+        disconnecting = false;
       } else {
-        // Waiting for IP_EVENT_PPP_LOST_IP.
-        // This can take a long time, so we ckeck the IP addr, and trigger the event manualy if it's null.
-        esp_netif_ip_info_t ip_info;
-        esp_netif_get_ip_info(this->ppp_netif_, &ip_info);
-        if (ip_info.ip.addr == 0) {
-          // lost IP
-          esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
+        if (this->connected_) {
+          if (!disconnecting) {
+            disconnecting = true;
+            ip_lost_retries = 10;
+            this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+            ESP_LOGD(TAG, "Disconnecting...");
+            this->dump_connect_params_();
+            if (this->cmux_) {
+              assert(this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND));
+            } else {
+              // assert(this->dce->set_mode(modem_mode::COMMAND_MODE)); // OK on 7600, nok on 7670...
+              this->dce->set_mode(modem_mode::COMMAND_MODE);
+            }
+            delay(200);  // NOLINT
+            ESP_LOGD(TAG, "Hanging up connection after %.1fmin", float(this->connect_begin_) / (1000 * 60));
+            ESPMODEM_ERROR_CHECK(this->dce->hang_up(),
+                                 "Unable to hang up modem. Trying to continue anyway.");  // FIXME: needed ?
+            this->dump_connect_params_();
+          } else {
+            // disconnecting
+            // Waiting for IP_EVENT_PPP_LOST_IP.
+            // This can take a long time, so we ckeck the IP addr, and trigger the event manualy if it's null.
+            esp_netif_ip_info_t ip_info;
+            esp_netif_get_ip_info(this->ppp_netif_, &ip_info);
+            if (ip_info.ip.addr == 0) {
+              // lost IP
+              esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
+            }
+
+            ESP_LOGD(TAG, "Waiting for lost IP... (retries %" PRIu8 ")", ip_lost_retries);
+            ip_lost_retries--;
+            if (ip_lost_retries == 0) {
+              // Something goes wrong, we have still an IP
+              ESP_LOGE(TAG, "No IP lost event recieved. Sending one manually");
+              esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
+            }
+
+            next_loop_millis = millis() + 2000;  // delay for next loop
+          }
+        } else {  // if (this->connected_)
+          // ip lost as expected
+          ESP_LOGI(TAG, "PPPoS disconnected");
+          this->dump_connect_params_();
+          this->state_ = ModemComponentState::DISCONNECTED;
         }
       }
-
       break;
+
+      // case ModemComponentState::DISCONNECTING:
+      //   if (this->start_) {
+      //     if (this->connected_) {
+      //       // watchdog::WatchdogManager wdt(60000);
+      //       ESP_LOGD(TAG, "Going to hang up...");
+      //       this->dump_connect_params_();
+      //       if (this->cmux_) {
+      //         assert(this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND));
+      //       } else {
+      //         // assert(this->dce->set_mode(modem_mode::COMMAND_MODE)); // OK on 7600, nok on 7670...
+      //         this->dce->set_mode(modem_mode::COMMAND_MODE);
+      //       }
+      //       delay(200);  // NOLINT
+      //       ESP_LOGD(TAG, "Hanging up connection after %.1fmin", float(this->connect_begin_) / (1000 * 60));
+      //       ESPMODEM_ERROR_CHECK(this->dce->hang_up(), "Unable to hang up modem. Trying to continue anyway.");
+      //       this->dump_connect_params_();
+      //     }
+      //     this->start_ = false;
+      //   } else if (!this->connected_) {
+      //     // ip lost as expected
+      //     this->cancel_timeout("wait_lost_ip");
+      //     ESP_LOGI(TAG, "Modem disconnected");
+      //     this->dump_connect_params_();
+      //     this->state_ = ModemComponentState::DISCONNECTED;
+      //   } else {
+      //     // Waiting for IP_EVENT_PPP_LOST_IP.
+      //     // This can take a long time, so we ckeck the IP addr, and trigger the event manualy if it's null.
+      //     esp_netif_ip_info_t ip_info;
+      //     esp_netif_get_ip_info(this->ppp_netif_, &ip_info);
+      //     if (ip_info.ip.addr == 0) {
+      //       // lost IP
+      //       esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
+      //     }
+      //   }
+      //
+      //   break;
 
     case ModemComponentState::DISABLED:
       if (this->enabled_) {
         this->state_ = ModemComponentState::DISCONNECTED;
-      } else if (this->get_power_status()) {  // FIXME long time in loop because of get_power_status
-        this->poweroff_();
-      }
+      }  // else if (this->get_power_status()) {  // FIXME long time in loop because of get_power_status
+         // this->poweroff_();
+      //}
+      next_loop_millis = millis() + 2000;  // delay for next loop
       break;
   }
 
@@ -553,9 +604,7 @@ void ModemComponent::enable() {
 void ModemComponent::disable() {
   ESP_LOGD(TAG, "Disabling modem");
   this->enabled_ = false;
-  if (this->state_ == ModemComponentState::CONNECTED) {
-    this->state_ = ModemComponentState::DISCONNECTING;
-  } else {
+  if (this->state_ != ModemComponentState::CONNECTED) {
     this->state_ = ModemComponentState::DISCONNECTED;
   }
 }
