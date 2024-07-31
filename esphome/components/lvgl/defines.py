@@ -125,6 +125,12 @@ CONF_TICK_STYLE = "tick_style"
 CONF_CURSOR = "cursor"
 CONF_TEXTAREA_PLACEHOLDER = "textarea_placeholder"
 
+# Layout types
+
+TYPE_FLEX = "flex"
+TYPE_GRID = "grid"
+TYPE_NONE = "none"
+
 LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "dejavu_16_persian_hebrew",
     "simsun_16_cjk",

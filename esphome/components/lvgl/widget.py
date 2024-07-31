@@ -3,19 +3,30 @@ from typing import Any, Union
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
-from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE
-from esphome.core import CORE, TimePeriod
+from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
+from esphome.core import CORE, ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj, MockObjClass, VariableDeclarationExpression
 
 from .defines import (
     CONF_DEFAULT,
+    CONF_FLEX_ALIGN_CROSS,
+    CONF_FLEX_ALIGN_MAIN,
+    CONF_FLEX_ALIGN_TRACK,
+    CONF_FLEX_FLOW,
+    CONF_GRID_COLUMN_ALIGN,
+    CONF_GRID_COLUMNS,
+    CONF_GRID_ROW_ALIGN,
+    CONF_GRID_ROWS,
+    CONF_LAYOUT,
     CONF_MAIN,
     CONF_SCROLLBAR_MODE,
     CONF_WIDGETS,
     OBJ_FLAGS,
     PARTS,
     STATES,
+    TYPE_FLEX,
+    TYPE_GRID,
     ConstantLiteral,
     LValidator,
     join_enums,
@@ -24,7 +35,7 @@ from .defines import (
 from .helpers import add_lv_use
 from .lvcode import add_group, add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj
 from .schemas import ALL_STYLES, STYLE_REMAP
-from .types import WIDGET_TYPES, LvType, WidgetType, lv_obj_t, lv_obj_t_ptr
+from .types import WIDGET_TYPES, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
 
@@ -111,12 +122,12 @@ class Widget:
 
     def get_property(self, prop, ltype=None):
         ltype = ltype or self.__type_base()
-        return f"lv_{ltype}_get_{prop}({self.obj})"
+        return cg.RawExpression(f"lv_{ltype}_get_{prop}({self.obj})")
 
     def set_style(self, prop, value, state):
         if value is None:
-            return []
-        return lv.call(f"obj_set_style_{prop}", self.obj, value, state)
+            return
+        lv.call(f"obj_set_style_{prop}", self.obj, value, state)
 
     def __type_base(self):
         wtype = self.type.w_type
@@ -220,6 +231,35 @@ def collect_parts(config):
 
 async def set_obj_properties(w: Widget, config):
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
+    if layout := config.get(CONF_LAYOUT):
+        layout_type: str = layout[CONF_TYPE]
+        lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
+        if layout_type == TYPE_GRID:
+            wid = config[CONF_ID]
+            rows = "{" + ",".join(layout[CONF_GRID_ROWS]) + ", LV_GRID_TEMPLATE_LAST}"
+            row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=lv_coord_t)
+            row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
+            w.set_style("grid_row_dsc_array", row_array, 0)
+            columns = (
+                "{" + ",".join(layout[CONF_GRID_COLUMNS]) + ", LV_GRID_TEMPLATE_LAST}"
+            )
+            column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=lv_coord_t)
+            column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
+            w.set_style("grid_column_dsc_array", column_array, 0)
+            w.set_style(
+                CONF_GRID_COLUMN_ALIGN, literal(layout.get(CONF_GRID_COLUMN_ALIGN)), 0
+            )
+            w.set_style(
+                CONF_GRID_ROW_ALIGN, literal(layout.get(CONF_GRID_ROW_ALIGN)), 0
+            )
+        if layout_type == TYPE_FLEX:
+            lv_obj.set_flex_flow(
+                w.obj, literal(f"LV_FLEX_FLOW_{layout[CONF_FLEX_FLOW]}")
+            )
+            main = layout[CONF_FLEX_ALIGN_MAIN]
+            cross = layout[CONF_FLEX_ALIGN_CROSS]
+            track = layout[CONF_FLEX_ALIGN_TRACK]
+            lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
     for part, states in parts.items():
         for state, props in states.items():

@@ -39,6 +39,9 @@ from .obj import obj_spec
 from .page import add_pages, page_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
+    FLEX_OBJ_SCHEMA,
+    GRID_CELL_SCHEMA,
+    LAYOUT_SCHEMAS,
     any_widget_schema,
     container_schema,
     create_modify_schema,
@@ -46,6 +49,7 @@ from .schemas import (
 )
 from .slider import slider_spec
 from .spinner import spinner_spec
+from .tabview import tabview_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -79,11 +83,21 @@ for w_type in (
     checkbox_spec,
     img_spec,
     switch_spec,
+    tabview_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
 WIDGET_SCHEMA = any_widget_schema()
 
+LAYOUT_SCHEMAS[df.TYPE_GRID] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(GRID_CELL_SCHEMA))
+}
+LAYOUT_SCHEMAS[df.TYPE_FLEX] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(FLEX_OBJ_SCHEMA))
+}
+LAYOUT_SCHEMAS[df.TYPE_NONE] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())
+}
 for w_type in WIDGET_TYPES.values():
     register_action(
         f"lvgl.{w_type.name}.update",

@@ -221,6 +221,78 @@ lvgl:
                 - lvgl.slider.update:
                     id: slider_id
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+        - tabview:
+            id: tabview_id
+            width: 100%
+            height: 80%
+            position: top
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return obj == id(tabview_tab_1);
+                    then:
+                      - logger.log: "Dog tab is now showing"
+            tabs:
+              - name: Dog
+                id: tabview_tab_1
+                border_width: 2
+                border_color: 0xff0000
+                width: 100%
+                pad_all: 8
+                layout:
+                  type: grid
+                  grid_row_align: end
+                  grid_rows: [fr(1), fr(1), content]
+                  grid_columns: [fr(1), fr(1), fr(1)]
+                widgets:
+                  - image:
+                      grid_cell_row_pos: 0
+                      grid_cell_column_pos: 0
+                      src: dog_image
+                      on_click:
+                        then:
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              index: 1
+                              animated: true
+                  - label:
+                      #styles: bdr_style
+                      grid_cell_x_align: center
+                      #grid_cell_y_align: stretch
+                      grid_cell_row_pos: 0
+                      grid_cell_column_pos: 1
+                      grid_cell_column_span: 1
+                      text: "Grid cell 0/1"
+                  - label:
+                      grid_cell_x_align: end
+                      #styles: bdr_style
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 0
+                      text: "Grid cell 1/0"
+                  - label:
+                      #styles: bdr_style
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 1
+                      text: "Grid cell 1/1"
+                  - label:
+                      id: cell_1_3
+                      #styles: bdr_style
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 2
+                      text: "Grid cell 1/2"
+              - name: Cat
+                id: tabview_tab_2
+                widgets:
+                  - image:
+                      src: cat_image
+                      on_click:
+                        then:
+                          - logger.log: Cat image clicked
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              index: 0
+                              animated: true
 font:
   - file: "gfonts://Roboto"
     id: space16
@@ -230,7 +302,7 @@ image:
   - id: cat_image
     resize: 256x48
     file: $component_dir/logo-text.svg
-  - id: dog_img
+  - id: dog_image
     file: $component_dir/logo-text.svg
     resize: 256x48
     type: TRANSPARENT_BINARY

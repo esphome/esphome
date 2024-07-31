@@ -1,6 +1,5 @@
 from esphome import automation, codegen as cg
 from esphome.const import CONF_VALUE
-from esphome.core import ID
 from esphome.cpp_generator import MockObj, MockObjClass
 
 from .defines import CONF_TEXT
@@ -34,6 +33,7 @@ uint16_t_ptr = cg.uint16.operator("ptr")
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 char_ptr = cg.global_ns.namespace("char").operator("ptr")
 void_ptr = cg.void.operator("ptr")
+lv_coord_t = cg.global_ns.namespace("lv_coord_t")
 LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
 LvglComponentPtr = LvglComponent.operator("ptr")
 lv_event_code_t = cg.global_ns.namespace("lv_event_code_t")
@@ -68,7 +68,7 @@ class LvText(LvType):
         super().__init__(
             *args,
             largs=[(cg.std_string, "text")],
-            lvalue=lambda w: w.get_property("text")[0],
+            lvalue=lambda w: w.get_property("text"),
             **kwargs,
         )
         self.value_property = CONF_TEXT
@@ -83,9 +83,6 @@ class LvBoolean(LvType):
             has_on_value=True,
             **kwargs,
         )
-
-
-CUSTOM_EVENT = ID("lv_custom_event", False, type=lv_event_code_t)
 
 
 class WidgetType:
