@@ -3,6 +3,8 @@
 #ifdef USE_ESP_IDF
 
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -10,8 +12,6 @@
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 #include "esp_crt_bundle.h"
 #endif
-
-#include "watchdog.h"
 
 namespace esphome {
 namespace http_request {
