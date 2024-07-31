@@ -8,8 +8,8 @@ from esphome.cpp_generator import (
     AssignmentExpression,
     CallExpression,
     Expression,
+    ExpressionStatement,
     LambdaExpression,
-    Literal,
     MockObj,
     RawExpression,
     RawStatement,
@@ -19,7 +19,9 @@ from esphome.cpp_generator import (
     statement,
 )
 
+from .defines import ConstantLiteral
 from .helpers import get_line_marks
+from .types import lv_group_t
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,29 +107,40 @@ class LambdaContext(CodeContext):
 
     def __init__(
         self,
-        parameters: list[tuple[SafeExpType, str]],
-        return_type: SafeExpType = None,
+        parameters: list[tuple[SafeExpType, str]] = None,
+        return_type: SafeExpType = cg.void,
+        capture: str = "",
     ):
         super().__init__()
         self.code_list: list[Statement] = []
         self.parameters = parameters
         self.return_type = return_type
+        self.capture = capture
 
     def add(self, expression: Union[Expression, Statement]):
         self.code_list.append(expression)
         return expression
 
-    async def code(self) -> LambdaExpression:
+    async def get_lambda(self) -> LambdaExpression:
+        code_text = self.get_code()
+        return await cg.process_lambda(
+            Lambda("\n".join(code_text) + "\n\n"),
+            self.parameters,
+            capture=self.capture,
+            return_type=self.return_type,
+        )
+
+    def get_code(self):
         code_text = []
         for exp in self.code_list:
             text = str(statement(exp))
             text = text.rstrip()
             code_text.append(text)
-        return await cg.process_lambda(
-            Lambda("\n".join(code_text) + "\n\n"),
-            self.parameters,
-            return_type=self.return_type,
-        )
+        return code_text
+
+    def __enter__(self):
+        super().__enter__()
+        return self
 
 
 class LocalVariable(MockObj):
@@ -187,13 +200,18 @@ class MockLv:
         return result
 
     def cond_if(self, expression: Expression):
-        CodeContext.append(RawExpression(f"if({expression}) {{"))
+        CodeContext.append(RawStatement(f"if {expression} {{"))
 
     def cond_else(self):
-        CodeContext.append(RawExpression("} else {"))
+        CodeContext.append(RawStatement("} else {"))
 
     def cond_endif(self):
-        CodeContext.append(RawExpression("}"))
+        CodeContext.append(RawStatement("}"))
+
+
+class ReturnStatement(ExpressionStatement):
+    def __str__(self):
+        return f"return {self.expression};"
 
 
 class LvExpr(MockLv):
@@ -210,6 +228,7 @@ lv = MockLv("lv_")
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
 lv_obj = MockLv("lv_obj_")
+lvgl_comp = MockObj("lvgl_comp", "->")
 
 
 # equivalent to cg.add() for the lvgl init context
@@ -226,12 +245,19 @@ def lv_assign(target, expression):
     lv_add(RawExpression(f"{target} = {expression}"))
 
 
-class ConstantLiteral(Literal):
-    __slots__ = ("constant",)
+lv_groups = {}  # Widget group names
 
-    def __init__(self, constant: str):
-        super().__init__()
-        self.constant = constant
 
-    def __str__(self):
-        return self.constant
+def add_group(name):
+    if name is None:
+        return None
+    fullname = f"lv_esp_group_{name}"
+    if name not in lv_groups:
+        gid = ID(fullname, True, type=lv_group_t.operator("ptr"))
+        lv_add(
+            AssignmentExpression(
+                type_=gid.type, modifier="", name=fullname, rhs=lv_expr.group_create()
+            )
+        )
+        lv_groups[name] = ConstantLiteral(fullname)
+    return lv_groups[name]
