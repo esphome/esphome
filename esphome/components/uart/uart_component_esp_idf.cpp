@@ -60,10 +60,30 @@ uart_config_t IDFUARTComponent::get_config_() {
 
 void IDFUARTComponent::setup() {
   static uint8_t next_uart_num = 0;
+
 #ifdef USE_LOGGER
-  if (logger::global_logger->get_uart_num() == next_uart_num)
+  bool logger_uses_hardware_uart = true;
+
+#ifdef USE_LOGGER_USB_CDC
+  if (logger::global_logger->get_uart() == logger::UART_SELECTION_USB_CDC) {
+    // this is not a hardware UART, ignore it
+    logger_uses_hardware_uart = false;
+  }
+#endif  // USE_LOGGER_USB_CDC
+
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
+  if (logger::global_logger->get_uart() == logger::UART_SELECTION_USB_SERIAL_JTAG) {
+    // this is not a hardware UART, ignore it
+    logger_uses_hardware_uart = false;
+  }
+#endif  // USE_LOGGER_USB_SERIAL_JTAG
+
+  if (logger_uses_hardware_uart && logger::global_logger->get_baud_rate() > 0 &&
+      logger::global_logger->get_uart_num() == next_uart_num) {
     next_uart_num++;
-#endif
+  }
+#endif  // USE_LOGGER
+
   if (next_uart_num >= UART_NUM_MAX) {
     ESP_LOGW(TAG, "Maximum number of UART components created already.");
     this->mark_failed();

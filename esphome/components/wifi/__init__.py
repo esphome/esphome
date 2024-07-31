@@ -1,15 +1,19 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome import automation
 from esphome.automation import Condition
+import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.network import IPAddress
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
+    CONF_CERTIFICATE,
+    CONF_CERTIFICATE_AUTHORITY,
     CONF_CHANNEL,
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_EAP,
     CONF_ENABLE_BTM,
     CONF_ENABLE_ON_BOOT,
     CONF_ENABLE_RRM,
@@ -17,29 +21,26 @@ from esphome.const import (
     CONF_GATEWAY,
     CONF_HIDDEN,
     CONF_ID,
+    CONF_IDENTITY,
+    CONF_KEY,
     CONF_MANUAL_IP,
     CONF_NETWORKS,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
     CONF_PASSWORD,
     CONF_POWER_SAVE_MODE,
+    CONF_PRIORITY,
     CONF_REBOOT_TIMEOUT,
     CONF_SSID,
     CONF_STATIC_IP,
     CONF_SUBNET,
-    CONF_USE_ADDRESS,
-    CONF_PRIORITY,
-    CONF_IDENTITY,
-    CONF_CERTIFICATE_AUTHORITY,
-    CONF_CERTIFICATE,
-    CONF_KEY,
-    CONF_USERNAME,
-    CONF_EAP,
     CONF_TTLS_PHASE_2,
-    CONF_ON_CONNECT,
-    CONF_ON_DISCONNECT,
+    CONF_USE_ADDRESS,
+    CONF_USERNAME,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant, const
-from esphome.components.network import IPAddress
+import esphome.final_validate as fv
+
 from . import wpa2_eap
 
 AUTO_LOAD = ["network"]
@@ -114,7 +115,7 @@ EAP_AUTH_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string_strict,
             cv.Optional(CONF_PASSWORD): cv.string_strict,
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
-            cv.Optional(CONF_TTLS_PHASE_2): cv.All(
+            cv.SplitDefault(CONF_TTLS_PHASE_2, esp32_idf="mschapv2"): cv.All(
                 cv.enum(TTLS_PHASE_2), cv.only_with_esp_idf
             ),
             cv.Inclusive(
@@ -350,7 +351,7 @@ def eap_auth(config):
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
-        ("ttls_phase_2", config.get(CONF_TTLS_PHASE_2, TTLS_PHASE_2["mschapv2"])),
+        ("ttls_phase_2", config.get(CONF_TTLS_PHASE_2)),
     )
 
 
