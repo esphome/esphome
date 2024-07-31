@@ -181,7 +181,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
     return;
   }
   uint32_t pos = this->get_position_(x, y);
-  switch (type_) {
+  switch (this->type_) {
     case ImageType::IMAGE_TYPE_BINARY: {
       const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
       const uint32_t pos = x + y * width_8;

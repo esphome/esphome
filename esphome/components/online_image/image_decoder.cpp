@@ -9,17 +9,17 @@ namespace online_image {
 static const char *const TAG = "online_image.decoder";
 
 void ImageDecoder::set_size(int width, int height) {
-  image_->resize_(width, height);
-  this->x_scale_ = static_cast<double>(image_->buffer_width_) / width;
-  this->y_scale_ = static_cast<double>(image_->buffer_height_) / height;
+  this->image_->resize_(width, height);
+  this->x_scale_ = static_cast<double>(this->image_->buffer_width_) / width;
+  this->y_scale_ = static_cast<double>(this->image_->buffer_height_) / height;
 }
 
 void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
-  auto width = std::min(image_->buffer_width_, static_cast<int>(std::ceil((x + w) * this->x_scale_)));
-  auto height = std::min(image_->buffer_height_, static_cast<int>(std::ceil((y + h) * this->y_scale_)));
+  auto width = std::min(this->image_->buffer_width_, static_cast<int>(std::ceil((x + w) * this->x_scale_)));
+  auto height = std::min(this->image_->buffer_height_, static_cast<int>(std::ceil((y + h) * this->y_scale_)));
   for (int i = x * this->x_scale_; i < width; i++) {
     for (int j = y * this->y_scale_; j < height; j++) {
-      image_->draw_pixel_(i, j, color);
+      this->image_->draw_pixel_(i, j, color);
     }
   }
 }

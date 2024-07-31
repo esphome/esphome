@@ -21,8 +21,8 @@ from esphome.const import (
     CONF_URL,
 )
 
-DEPENDENCIES = ["display"]
-AUTO_LOAD = ["http_request", "image"]
+AUTO_LOAD = ["image"]
+DEPENDENCIES = ["display", "http_request"]
 CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
 

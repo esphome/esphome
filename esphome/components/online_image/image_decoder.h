@@ -78,10 +78,11 @@ class ImageDecoder {
 class DownloadBuffer {
  public:
   DownloadBuffer(size_t size) : size_(size) {
-    ExternalRAMAllocator<uint8_t> allocator;
-    buffer_ = allocator.allocate(size);
+    this->buffer_ = this->allocator_.allocate(size);
     this->reset();
   }
+
+  virtual ~DownloadBuffer() { this->allocator_.deallocate(this->buffer_, this->size_); }
 
   uint8_t *data(size_t offset = 0);
 
@@ -100,6 +101,7 @@ class DownloadBuffer {
   void reset() { this->unread_ = 0; }
 
  protected:
+  ExternalRAMAllocator<uint8_t> allocator_;
   uint8_t *buffer_;
   size_t size_;
   /** Total number of downloaded bytes not yet read. */
