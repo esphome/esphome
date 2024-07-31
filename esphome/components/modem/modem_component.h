@@ -71,11 +71,13 @@ class ModemComponent : public Component {
   std::unique_ptr<DCE> dce{nullptr};
 
  protected:
-  void create_dte_dce_();  // (re)create dte and dce
+  void modem_lazy_init_();
+  bool modem_sync_();
   bool prepare_sim_();
   void send_init_at_();
   bool is_network_attached_();
-  bool start_connect_();
+  bool start_ppp_();
+  bool stop_ppp_();
   void poweron_();
   void poweroff_();
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
