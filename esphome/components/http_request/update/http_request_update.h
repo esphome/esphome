@@ -15,7 +15,7 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
   void setup() override;
   void update() override;
 
-  void perform() override;
+  void perform(bool force) override;
 
   void set_source_url(const std::string &source_url) { this->source_url_ = source_url; }
 

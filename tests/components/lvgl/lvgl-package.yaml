@@ -136,6 +136,18 @@ lvgl:
               logger.log: Button clicked
             on_long_press_repeat:
               logger.log: Button clicked
+        - led:
+            color: 0x00FF00
+            brightness: 50%
+            align: right_mid
+        - spinner:
+            arc_length: 120
+            spin_time: 2s
+            align: left_mid
+        - image:
+            src: cat_image
+            align: top_left
+            y: 50
 
     - id: page2
       widgets:
@@ -176,6 +188,21 @@ lvgl:
                 - logger.log:
                     format: "bar value %f"
                     args: [x]
+        - line:
+            align: center
+            points:
+              - 5, 5
+              - 70, 70
+              - 120, 10
+              - 180, 60
+              - 240, 10
+            on_click:
+              lvgl.page.next:
+        - switch:
+            align: right_mid
+        - checkbox:
+            text: Checkbox
+            align: bottom_right
         - slider:
             id: slider_id
             align: top_mid
@@ -200,7 +227,7 @@ font:
     bpp: 4
 
 image:
-  - id: cat_img
+  - id: cat_image
     resize: 256x48
     file: $component_dir/logo-text.svg
   - id: dog_img
