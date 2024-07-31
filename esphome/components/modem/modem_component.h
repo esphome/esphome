@@ -34,7 +34,6 @@ static const char *const TAG = "modem";
 enum class ModemComponentState {
   NOT_RESPONDING,
   DISCONNECTED,
-  CONNECTING,
   CONNECTED,
   DISCONNECTING,
   DISABLED,

@@ -242,11 +242,14 @@ void ModemComponent::create_dte_dce_() {
         }
       } else {
         ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
-        this->send_init_at_();
-        if (!this->prepare_sim_()) {
-          // fatal error
-          this->disable();
-        }
+      }
+    }
+
+    if (this->modem_ready()) {
+      this->send_init_at_();
+      if (!this->prepare_sim_()) {
+        // fatal error
+        this->disable();
       }
     }
   }
@@ -359,8 +362,9 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
 
 void ModemComponent::loop() {
   static ModemComponentState last_state = this->state_;
-
   static uint32_t next_loop_millis = millis();
+  static bool connecting = false;
+  static uint8_t network_attach_retry = 10;
 
   if (this->power_transition_ || (millis() < next_loop_millis)) {
     // No loop on power transition, or if some commands need some delay
@@ -395,19 +399,52 @@ void ModemComponent::loop() {
     case ModemComponentState::DISCONNECTED:
       if (this->enabled_) {
         if (this->start_) {
-          if (is_network_attached_()) {
-            if (this->start_connect_()) {
-              this->state_ = ModemComponentState::CONNECTING;
-            } else if (!this->modem_ready()) {
-              if (this->power_pin_) {
-                this->poweron_();
-              } else {
-                this->state_ = ModemComponentState::NOT_RESPONDING;
-              }
+          if (connecting) {
+            if (this->connected_) {
+              connecting = false;
+              ESP_LOGI(TAG, "Connected via Modem");
+              this->state_ = ModemComponentState::CONNECTED;
+
+              this->dump_connect_params_();
+              this->status_clear_warning();
+              this->watchdog_.reset();
+            } else if (millis() - this->connect_begin_ > 15000) {
+              ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
+              connecting = false;
+            } else {
+              // Wait for IP from PPP event
+              next_loop_millis = millis() + 1000;  // delay for next loop
             }
-          } else
-            ESP_LOGD(TAG, "Waiting for the modem to be attached to a network");
-          next_loop_millis = millis() + 1000;  // delay to retry
+          } else {
+            if (is_network_attached_()) {
+              network_attach_retry = 10;
+              if (this->start_connect_()) {
+                connecting = true;
+                next_loop_millis = millis() + 1000;  // delay for next loop
+                // this->state_ = ModemComponentState::CONNECTING;
+              } else if (!this->modem_ready()) {
+                if (this->power_pin_) {
+                  this->poweron_();
+                } else {
+                  this->state_ = ModemComponentState::NOT_RESPONDING;
+                }
+              }
+            } else {
+              ESP_LOGD(TAG, "Waiting for the modem to be attached to a network (left retries: %" PRIu8 ")",
+                       network_attach_retry);
+              network_attach_retry--;
+              if (network_attach_retry == 0) {
+                ESP_LOGE(TAG, "modem is uanble to attach to a network");
+                if (this->power_pin_) {
+                  this->poweroff_();
+                } else {
+                  // fatal error ?
+                  this->start_ = false;
+                }
+              }
+              next_loop_millis = millis() + 1000;  // delay to retry
+            }
+          }
         } else {
           this->start_ = true;
         }
@@ -417,28 +454,28 @@ void ModemComponent::loop() {
       }
       break;
 
-    case ModemComponentState::CONNECTING:
-      if (!this->start_) {
-        ESP_LOGI(TAG, "Stopped modem connection");
-        this->state_ = ModemComponentState::DISCONNECTED;
-      } else if (this->connected_) {
-        ESP_LOGI(TAG, "Connected via Modem");
-        this->state_ = ModemComponentState::CONNECTED;
+      // case ModemComponentState::CONNECTING:
+      //   if (!this->start_) {
+      //     ESP_LOGI(TAG, "Stopped modem connection");
+      //     this->state_ = ModemComponentState::DISCONNECTED;
+      //   } else if (this->connected_) {
+      //     ESP_LOGI(TAG, "Connected via Modem");
+      //     this->state_ = ModemComponentState::CONNECTED// ;
 
-        this->dump_connect_params_();
-        this->status_clear_warning();
-        this->watchdog_.reset();
+      //     this->dump_connect_params_();
+      //     this->status_clear_warning();
+      //     this->watchdog_.reset()// ;
 
-      } else if (millis() - this->connect_begin_ > 45000) {
-        ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
-        this->state_ = ModemComponentState::DISCONNECTED;
-      } else {
-        // ESP_LOGD(TAG, "Connecting...");
-        App.feed_wdt();
-        App.get_app_state();
-        // yield();
-      }
-      break;
+      //   } else if (millis() - this->connect_begin_ > 15000) {
+      //     ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
+      //     this->state_ = ModemComponentState::DISCONNECTED;
+      //   } else {
+      //     // ESP_LOGD(TAG, "Connecting...");
+      //     App.feed_wdt();
+      //     App.get_app_state();
+      //     // yield();
+      //   }
+      //   break;
 
     case ModemComponentState::CONNECTED:
       if (!this->start_) {
