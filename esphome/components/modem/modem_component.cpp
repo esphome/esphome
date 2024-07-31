@@ -146,6 +146,7 @@ void ModemComponent::setup() {
   //  this->poweron_();
   //}
   // App.feed_wdt();
+
   ESP_LOGV(TAG, "Setup finished");
 }
 
@@ -234,13 +235,18 @@ void ModemComponent::create_dte_dce_() {
       uint32_t elapsed_ms = millis() - start_ms;
 
       if (!status) {
-        ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms");
+        ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms", elapsed_ms);
         if (this->power_pin_) {
           ESP_LOGD(TAG, "Trying to power cycle the modem");
           this->poweroff_();
         }
       } else {
-        ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms");
+        ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
+        this->send_init_at_();
+        if (!this->prepare_sim_()) {
+          // fatal error
+          this->disable();
+        }
       }
     }
   }
@@ -354,13 +360,13 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
 void ModemComponent::loop() {
   static ModemComponentState last_state = this->state_;
 
-  if (this->power_transition_) {
-    // No loop on power transition
+  static uint32_t next_loop_millis = millis();
+
+  if (this->power_transition_ || (millis() < next_loop_millis)) {
+    // No loop on power transition, or if some commands need some delay
     yield();
     return;
   }
-
-  const uint32_t now = millis();
 
   switch (this->state_) {
     case ModemComponentState::NOT_RESPONDING:
@@ -389,22 +395,19 @@ void ModemComponent::loop() {
     case ModemComponentState::DISCONNECTED:
       if (this->enabled_) {
         if (this->start_) {
-          if (this->modem_ready()) {
-            this->send_init_at_();
-            if (this->prepare_sim_()) {
-              ESP_LOGI(TAG, "Starting modem connection");
-              if (this->start_connect_()) {
-                this->state_ = ModemComponentState::CONNECTING;
+          if (is_network_attached_()) {
+            if (this->start_connect_()) {
+              this->state_ = ModemComponentState::CONNECTING;
+            } else if (!this->modem_ready()) {
+              if (this->power_pin_) {
+                this->poweron_();
+              } else {
+                this->state_ = ModemComponentState::NOT_RESPONDING;
               }
-
-            } else {
-              this->disable();
             }
-          } else if (!this->get_power_status()) {
-            this->poweron_();
-          } else {
-            this->state_ = ModemComponentState::NOT_RESPONDING;
-          }
+          } else
+            ESP_LOGD(TAG, "Waiting for the modem to be attached to a network");
+          next_loop_millis = millis() + 1000;  // delay to retry
         } else {
           this->start_ = true;
         }
@@ -426,7 +429,7 @@ void ModemComponent::loop() {
         this->status_clear_warning();
         this->watchdog_.reset();
 
-      } else if (now - this->connect_begin_ > 45000) {
+      } else if (millis() - this->connect_begin_ > 45000) {
         ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
         this->state_ = ModemComponentState::DISCONNECTED;
       } else {
@@ -614,6 +617,15 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS main    : %s", network::IPAddress(dns_main_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(dns_backup_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
+}
+
+bool ModemComponent::is_network_attached_() {
+  int network_attachment_state;
+  command_result err = this->dce->get_network_attachment_state(network_attachment_state);
+  if (err == command_result::OK) {
+    return network_attachment_state;
+  } else
+    return false;
 }
 
 void ModemComponent::dump_dce_status_() {

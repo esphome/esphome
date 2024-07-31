@@ -76,6 +76,7 @@ class ModemComponent : public Component {
   void create_dte_dce_();  // (re)create dte and dce
   bool prepare_sim_();
   void send_init_at_();
+  bool is_network_attached_();
   bool start_connect_();
   void poweron_();
   void poweroff_();
