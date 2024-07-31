@@ -19,10 +19,11 @@ enum State : uint8_t {
   STATE_INIT,
   STATE_STARTING,
   STATE_RUNNING,
+  STATE_STOPPING,
 };
 
 #ifdef USE_SPEAKER
-static const size_t SAMPLE_BUFFER_SIZE = 512;
+static const size_t SAMPLE_BUFFER_SIZE = 2048;
 
 struct SpeakerSample {
   int8_t left{0};
@@ -65,6 +66,7 @@ class Rtttl : public Component {
     return ret;
   }
   void finish_();
+  void set_state_(State state);
 
   std::string rtttl_{""};
   size_t position_{0};
