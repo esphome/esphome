@@ -61,7 +61,7 @@ namespace esphome {
         void OpenthermHub::process_response(unsigned long response, OpenThermResponseStatus status) {
             if (!ot.isValidResponse(response)) {
                 ESP_LOGW(TAG, "Received invalid OpenTherm response: %s, status=%s", String(response, HEX).c_str(),
-                         String(ot.getLastResponseStatus()).c_str());
+                         String(static_cast<int>(ot.getLastResponseStatus())).c_str());
                 return;
             }
 
