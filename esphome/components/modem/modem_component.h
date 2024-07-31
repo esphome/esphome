@@ -7,6 +7,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
 
 // esp_modem will use esphome logger (needed if other components include esphome/core/log.h)
 // We need to do this because "cxx_include/esp_modem_api.hpp" is not a pure C++ header, and use logging.
@@ -75,11 +76,12 @@ class ModemComponent : public Component {
   void create_dte_dce_();  // (re)create dte and dce
   bool prepare_sim_();
   void send_init_at_();
-  void start_connect_();
+  bool start_connect_();
   void poweron_();
   void poweroff_();
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
+  void dump_dce_status_();
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
   GPIOPin *status_pin_{nullptr};
@@ -97,6 +99,7 @@ class ModemComponent : public Component {
   std::shared_ptr<DTE> dte_{nullptr};
   esp_netif_t *ppp_netif_{nullptr};
   ModemComponentState state_{ModemComponentState::DISABLED};
+  std::shared_ptr<watchdog::WatchdogManager> watchdog_;
   bool cmux_{false};
   bool start_{false};
   bool enabled_{false};
