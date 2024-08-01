@@ -51,15 +51,82 @@ ModemComponent::ModemComponent() {
   global_modem_component = this;
 }
 
-void ModemComponent::dump_config() { this->dump_connect_params_(); }
+std::string ModemComponent::send_at(const std::string &cmd) {
+  std::string result;
+  command_result status;
+  ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
+  status = this->dce->at(cmd, result, this->command_delay_ * 5);
+  ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), result.c_str(),
+           command_result_to_string(status).c_str());
+  if (status != esp_modem::command_result::OK) {
+    result = "ERROR";
+  }
+  return result;
+}
 
-float ModemComponent::get_setup_priority() const { return setup_priority::WIFI + 1; }  // just before WIFI
+bool ModemComponent::get_imei(std::string &result) {
+  // wrapper around this->dce->get_imei() that check that the result is valid
+  // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
+  command_result status;
+  status = this->dce->get_imei(result);
+  bool success = true;
 
-bool ModemComponent::can_proceed() {
-  if (!this->enabled_) {
+  if (status == command_result::OK && result.length() == 15) {
+    for (char c : result) {
+      if (!isdigit(static_cast<unsigned char>(c))) {
+        success = false;
+        break;
+      }
+    }
+  } else {
+    success = false;
+  }
+
+  if (!success) {
+    result = "UNAVAILABLE";
+  }
+  return success;
+}
+
+bool ModemComponent::get_power_status() {
+#ifdef USE_MODEM_STATUS
+  // This code is not fully checked. The status pin seems to be flickering on Lilygo T-SIM7600
+  return this->status_pin_->digital_read();
+#else
+  if (!this->cmux_ && this->internal_state_.connected) {
+    // Data mode, connected:  assume power is OK
     return true;
   }
-  return this->is_connected();
+  return this->modem_ready();
+#endif
+}
+
+bool ModemComponent::modem_ready() {
+  // check if the modem is ready to answer AT commands
+  std::string imei;
+  if (this->dce && this->get_imei(imei)) {
+    // we are sure that the modem is on
+    this->internal_state_.powered_on = true;
+    return true;
+  }
+  return false;
+}
+
+void ModemComponent::enable() {
+  ESP_LOGD(TAG, "Enabling modem");
+  if (this->component_state_ == ModemComponentState::DISABLED) {
+    this->component_state_ = ModemComponentState::DISCONNECTED;
+  }
+  this->internal_state_.start = true;
+  this->internal_state_.enabled = true;
+}
+
+void ModemComponent::disable() {
+  ESP_LOGD(TAG, "Disabling modem");
+  this->internal_state_.enabled = false;
+  if (this->component_state_ != ModemComponentState::CONNECTED) {
+    this->component_state_ = ModemComponentState::DISCONNECTED;
+  }
 }
 
 network::IPAddresses ModemComponent::get_ip_addresses() {
@@ -78,9 +145,80 @@ std::string ModemComponent::get_use_address() const {
   return this->use_address_;
 }
 
-void ModemComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+void ModemComponent::dump_dce_status() {
+  bool watchdog = false;
+  if (!this->watchdog_) {
+    this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+    watchdog = true;
+  }
 
-bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
+  if (this->internal_state_.connected && !this->cmux_) {
+    if (!this->dce->set_mode(modem_mode::COMMAND_MODE)) {
+      ESP_LOGW(TAG, "Unable to enter temporary command mode");
+      return;
+    }
+  }
+  if (this->internal_state_.modem_synced && this->modem_ready()) {
+    ESP_LOGCONFIG(TAG, "Modem status:");
+    command_result err;
+    std::string result;
+    // err = this->dce->get_module_name(result);
+    // if (err != command_result::OK) {
+    //   result = "command " + command_result_to_string(err);
+    // }
+    // ESP_LOGCONFIG(TAG, "  Module name        : %s", result.c_str());
+    int rssi;
+    int ber;
+    err = this->dce->get_signal_quality(rssi, ber);
+    if (err != command_result::OK) {
+      result = "command " + command_result_to_string(err);
+    } else {
+      float ber_f;
+      if (ber != 99) {
+        ber_f = float(ber);
+      } else
+        ber_f = {};
+      std::ostringstream oss;
+      oss << "rssi " << rssi << "(" << (rssi * 100) / 31 << "%), ber " << ber << "(" << (ber_f * 100) / 7 << "%)";
+      result = oss.str();
+    }
+    ESP_LOGCONFIG(TAG, "  Signal quality     : %s", result.c_str());
+
+    // int network_attachment_state;
+    // err = this->dce->get_network_attachment_state(network_attachment_state);
+    // if (err == command_result::OK) {
+    //   result = network_attachment_state ? "Yes" : "No";
+    // } else {
+    //   result = "command " + command_result_to_string(err);
+    // }
+    // ESP_LOGCONFIG(TAG, "  Attached to network: %s", result.c_str());
+    //
+    // err = this->dce->get_operator_name(result);
+    // if (err != command_result::OK) {
+    //   result = "command " + command_result_to_string(err);
+    // }
+    // ESP_LOGCONFIG(TAG, "  Operator           : %s", result.c_str());
+    //
+    // int act;
+    // err = this->dce->get_network_system_mode(act);
+    // if (err != command_result::OK) {
+    //   result = "command " + command_result_to_string(err);
+    // } else {
+    //   std::ostringstream oss;
+    //   oss << act;
+    //   result = oss.str();
+    // }
+    // ESP_LOGCONFIG(TAG, "  Access technology   : %s", result.c_str());
+  }
+  if (this->internal_state_.connected && !this->cmux_) {
+    if (this->dce->resume_data_mode() != command_result::OK) {
+      ESP_LOGW(TAG, "Unable to resume data mode. Reconnecting...");
+      this->internal_state_.connected = false;
+    }
+  }
+  if (watchdog)
+    this->watchdog_.reset();
+}
 
 void ModemComponent::setup() {
   ESP_LOGI(TAG, "Setting up Modem...");
@@ -88,14 +226,14 @@ void ModemComponent::setup() {
   if (this->power_pin_) {
     this->power_pin_->setup();
     // as we have a power pin, we assume that the power is off
-    this->powered_on_ = false;
+    this->internal_state_.powered_on = false;
 
-    if (this->enabled_) {
+    if (this->internal_state_.enabled) {
       this->poweron_();
     }
   } else {
     // no status pin, we assume that the power is on
-    this->powered_on_ = true;
+    this->internal_state_.powered_on = true;
   }
 
   if (this->status_pin_) {
@@ -116,7 +254,7 @@ void ModemComponent::setup() {
   } else {
     ESP_LOGCONFIG(TAG, "  Status pin: Not defined");
   }
-  ESP_LOGCONFIG(TAG, "  Enabled   : %s", this->enabled_ ? "Yes" : "No");
+  ESP_LOGCONFIG(TAG, "  Enabled   : %s", this->internal_state_.enabled ? "Yes" : "No");
   ESP_LOGCONFIG(TAG, "  Use CMUX  : %s", this->cmux_ ? "Yes" : "No");
 
   ESP_LOGV(TAG, "PPP netif setup");
@@ -145,6 +283,232 @@ void ModemComponent::setup() {
   this->modem_lazy_init_();
 
   ESP_LOGV(TAG, "Setup finished");
+}
+
+void ModemComponent::loop() {
+  static ModemComponentState last_state = this->component_state_;
+  static uint32_t next_loop_millis = millis();
+  static bool connecting = false;
+  static bool disconnecting = false;
+  static uint8_t network_attach_retry = 10;
+  static uint8_t ip_lost_retries = 10;
+
+  if ((millis() < next_loop_millis)) {
+    // some commands need some delay
+    yield();
+    return;
+  }
+
+#ifdef USE_MODEM_POWER
+  if (this->internal_state_.power_transition) {
+    if (!this->watchdog_)
+      this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+
+    // A power state is used to handle long tonuart/toffuart delay
+    switch (this->internal_state_.power_state) {
+      case ModemPowerState::TON:
+        this->power_pin_->digital_write(false);
+        delay(USE_MODEM_POWER_TON);
+        this->power_pin_->digital_write(true);
+        next_loop_millis = millis() + USE_MODEM_POWER_TONUART;  // delay for next loop
+        this->internal_state_.power_state = ModemPowerState::TONUART;
+        ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
+        break;
+      case ModemPowerState::TONUART:
+        this->internal_state_.power_transition = false;
+        if (!this->modem_sync_()) {
+          ESP_LOGE(TAG, "Unable to power on the modem");
+          this->internal_state_.powered_on = false;
+        } else {
+          ESP_LOGI(TAG, "Modem powered ON");
+          this->internal_state_.powered_on = true;
+          this->internal_state_.modem_synced = false;
+          this->watchdog_.reset();
+        }
+        break;
+      case ModemPowerState::TOFF:
+        delay(10);
+        this->power_pin_->digital_write(false);
+        delay(USE_MODEM_POWER_TOFF);
+        this->power_pin_->digital_write(true);
+        this->internal_state_.power_state = ModemPowerState::TOFFUART;
+        ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(USE_MODEM_POWER_TOFFUART) / 1000);
+        next_loop_millis = millis() + USE_MODEM_POWER_TOFFUART;  // delay for next loop
+        break;
+      case ModemPowerState::TOFFUART:
+        this->internal_state_.power_transition = false;
+        if (this->modem_ready()) {
+          ESP_LOGE(TAG, "Unable to power off the modem");
+          this->internal_state_.powered_on = true;
+        } else {
+          ESP_LOGI(TAG, "Modem powered OFF");
+          this->internal_state_.powered_on = false;
+          this->internal_state_.modem_synced = false;
+          this->watchdog_.reset();
+        }
+        break;
+    }
+    yield();
+    return;
+  }
+#endif  // USE_MODEM_POWER
+
+  switch (this->component_state_) {
+    case ModemComponentState::NOT_RESPONDING:
+      if (this->internal_state_.start) {
+        if (this->modem_ready()) {
+          ESP_LOGI(TAG, "Modem recovered");
+          this->status_clear_warning();
+          this->component_state_ = ModemComponentState::DISCONNECTED;
+        } else {
+          if (!this->internal_state_.powered_on) {
+            this->poweron_();
+          } else if (this->not_responding_cb_) {
+            if (!this->not_responding_cb_->is_action_running()) {
+              ESP_LOGD(TAG, "Calling 'on_not_responding' callback");
+              this->not_responding_cb_->trigger();
+            }
+          } else {
+            ESP_LOGW(TAG, "Modem not responding, and no 'on_not_responding' action defined");
+          }
+        }
+      }
+      break;
+
+    case ModemComponentState::DISCONNECTED:
+      if (this->internal_state_.enabled) {
+        // be sure the modem is on and synced
+        if (!this->internal_state_.powered_on) {
+          this->poweron_();
+          break;
+        } else if (!this->internal_state_.modem_synced) {
+          if (!this->modem_sync_()) {
+            ESP_LOGE(TAG, "Modem not responding");
+            this->component_state_ = ModemComponentState::NOT_RESPONDING;
+          }
+        }
+
+        if (this->internal_state_.start) {
+          // want to connect
+          if (!connecting) {
+            // wait for the modem be attached to a network, start ppp, and set connecting=true
+            if (!this->watchdog_)
+              this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+            if (is_network_attached_()) {
+              network_attach_retry = 10;
+              if (this->start_ppp_()) {
+                connecting = true;
+                next_loop_millis = millis() + 2000;  // delay for next loop
+              }
+            } else {
+              ESP_LOGD(TAG, "Waiting for the modem to be attached to a network (left retries: %" PRIu8 ")",
+                       network_attach_retry);
+              network_attach_retry--;
+              if (network_attach_retry == 0) {
+                ESP_LOGE(TAG, "modem is unable to attach to a network");
+                if (this->power_pin_) {
+                  this->poweroff_();
+                } else {
+                  this->component_state_ = ModemComponentState::NOT_RESPONDING;
+                }
+              }
+              next_loop_millis = millis() + 1000;  // delay to retry
+            }
+          } else {
+            // connecting
+            if (!this->internal_state_.connected) {
+              // wait until this->internal_state_.connected set to true by IP_EVENT_PPP_GOT_IP
+              next_loop_millis = millis() + 1000;  // delay for next loop
+
+              // connecting timeout
+              if (millis() - this->internal_state_.connect_begin > 15000) {
+                ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
+                // TODO: exit data/cmux without error check
+                connecting = false;
+              }
+            } else {
+              connecting = false;
+              ESP_LOGI(TAG, "Connected via Modem");
+              this->component_state_ = ModemComponentState::CONNECTED;
+
+              this->dump_connect_params_();
+              this->status_clear_warning();
+              this->watchdog_.reset();
+            }
+          }
+        } else {
+          this->internal_state_.start = true;
+        }
+      } else {
+        this->component_state_ = ModemComponentState::DISABLED;
+        this->watchdog_.reset();
+      }
+      break;
+
+    case ModemComponentState::CONNECTED:
+      if (this->internal_state_.enabled) {
+        if (!this->internal_state_.connected) {
+          this->status_set_warning("Connection via Modem lost!");
+          this->component_state_ = ModemComponentState::DISCONNECTED;
+        }
+        disconnecting = false;
+      } else {
+        if (this->internal_state_.connected) {
+          // connected but disbled, so disconnect
+          if (!disconnecting) {
+            disconnecting = true;
+            ip_lost_retries = 10;
+            this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+            ESP_LOGD(TAG, "Disconnecting...");
+            this->stop_ppp_();
+            delay(200);  // NOLINT
+            ESP_LOGD(TAG, "Disconnected after %.1fmin", float(this->internal_state_.connect_begin) / (1000 * 60));
+          } else {
+            // disconnecting
+            // Waiting for IP_EVENT_PPP_LOST_IP.
+            // This can take a long time, so we ckeck the IP addr, and trigger the event manualy if it's null.
+            esp_netif_ip_info_t ip_info;
+            esp_netif_get_ip_info(this->ppp_netif_, &ip_info);
+            if (ip_info.ip.addr == 0) {
+              // lost IP
+              esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
+            } else {
+              ESP_LOGD(TAG, "Waiting for lost IP... (retries %" PRIu8 ")", ip_lost_retries);
+              ip_lost_retries--;
+              if (ip_lost_retries == 0) {
+                // Something goes wrong, we have still an IP
+                ESP_LOGE(TAG, "No IP lost event recieved. Sending one manually");
+                esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
+              }
+            }
+            next_loop_millis = millis() + 2000;  // delay for next loop
+          }
+        } else {  // if (this->internal_state_.connected)
+          // ip lost as expected
+          ESP_LOGI(TAG, "PPPoS disconnected");
+          this->component_state_ = ModemComponentState::DISCONNECTED;
+        }
+      }
+      break;
+
+    case ModemComponentState::DISABLED:
+      if (this->internal_state_.enabled) {
+        this->component_state_ = ModemComponentState::DISCONNECTED;
+        ESP_LOGE(TAG, "here");
+      } else if (this->internal_state_.powered_on) {
+        this->poweroff_();
+      }
+      next_loop_millis = millis() + 2000;  // delay for next loop
+      break;
+  }
+
+  if (this->component_state_ != last_state) {
+    ESP_LOGV(TAG, "State changed: %s -> %s", state_to_string(last_state).c_str(),
+             state_to_string(this->component_state_).c_str());
+    this->on_state_callback_.call(last_state, this->component_state_);
+
+    last_state = this->component_state_;
+  }
 }
 
 void ModemComponent::modem_lazy_init_() {
@@ -239,21 +603,22 @@ bool ModemComponent::modem_sync_() {
 
     if (!status) {
       ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms.", elapsed_ms);
-      this->powered_on_ = false;
+      this->internal_state_.powered_on = false;
     }
   }
   if (status) {
     elapsed_ms = millis() - start_ms;
     ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
-    this->send_init_at_();
+
     if (!this->prepare_sim_()) {
       // fatal error
       this->disable();
       status = false;
     }
+    this->send_init_at_();
   }
 
-  this->modem_synced_ = status;
+  this->internal_state_.modem_synced = status;
 
   return status;
 }
@@ -296,19 +661,27 @@ void ModemComponent::send_init_at_() {
     } else {
       ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
+    delay(this->command_delay_);
     yield();
   }
 }
 
+bool ModemComponent::is_network_attached_() {
+  int network_attachment_state;
+  command_result err = this->dce->get_network_attachment_state(network_attachment_state);
+  if (err == command_result::OK) {
+    return network_attachment_state;
+  } else
+    return false;
+}
+
 bool ModemComponent::start_ppp_() {
-  this->connect_begin_ = millis();
+  this->internal_state_.connect_begin = millis();
   this->status_set_warning("Starting connection");
   this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
 
   // will be set to true on event IP_EVENT_PPP_GOT_IP
-  this->got_ipv4_address_ = false;
-
-  this->dump_dce_status_();
+  this->internal_state_.got_ipv4_address = false;
 
   ESP_LOGD(TAG, "Asking the modem to enter PPP");
 
@@ -351,282 +724,25 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
       event = (ip_event_got_ip_t *) event_data;
       ip_info = &event->ip_info;
       ESP_LOGD(TAG, "[IP event] Got IP " IPSTR, IP2STR(&ip_info->ip));
-      global_modem_component->got_ipv4_address_ = true;
-      global_modem_component->connected_ = true;
+      global_modem_component->internal_state_.got_ipv4_address = true;
+      global_modem_component->internal_state_.connected = true;
       break;
 
     case IP_EVENT_PPP_LOST_IP:
-      if (global_modem_component->connected_) {
+      if (global_modem_component->internal_state_.connected) {
         // do not log message if we are not connected
         ESP_LOGD(TAG, "[IP event] Lost IP");
       }
-      global_modem_component->got_ipv4_address_ = false;
-      global_modem_component->connected_ = false;
+      global_modem_component->internal_state_.got_ipv4_address = false;
+      global_modem_component->internal_state_.connected = false;
       break;
   }
-}
-
-void ModemComponent::loop() {
-  static ModemComponentState last_state = this->state_;
-  static uint32_t next_loop_millis = millis();
-  static bool connecting = false;
-  static bool disconnecting = false;
-  static uint8_t network_attach_retry = 10;
-  static uint8_t ip_lost_retries = 10;
-
-  if ((millis() < next_loop_millis)) {
-    // some commands need some delay
-    yield();
-    return;
-  }
-
-#ifdef USE_MODEM_POWER
-  if (this->power_transition_) {
-    if (!this->watchdog_)
-      this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
-
-    // A power state is used to handle long tonuart/toffuart delay
-    switch (this->power_state_) {
-      case ModemPowerState::TON:
-        this->power_pin_->digital_write(false);
-        delay(USE_MODEM_POWER_TON);
-        this->power_pin_->digital_write(true);
-        next_loop_millis = millis() + USE_MODEM_POWER_TONUART;  // delay for next loop
-        this->power_state_ = ModemPowerState::TONUART;
-        ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
-        break;
-      case ModemPowerState::TONUART:
-        this->power_transition_ = false;
-        if (!this->modem_sync_()) {
-          ESP_LOGE(TAG, "Unable to power on the modem");
-          this->powered_on_ = false;
-        } else {
-          ESP_LOGI(TAG, "Modem powered ON");
-          this->powered_on_ = true;
-          this->modem_synced_ = false;
-          this->watchdog_.reset();
-        }
-        break;
-      case ModemPowerState::TOFF:
-        delay(10);
-        this->power_pin_->digital_write(false);
-        delay(USE_MODEM_POWER_TOFF);
-        this->power_pin_->digital_write(true);
-        this->power_state_ = ModemPowerState::TOFFUART;
-        ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(USE_MODEM_POWER_TOFFUART) / 1000);
-        next_loop_millis = millis() + USE_MODEM_POWER_TOFFUART;  // delay for next loop
-        break;
-      case ModemPowerState::TOFFUART:
-        this->power_transition_ = false;
-        if (this->modem_ready()) {
-          ESP_LOGE(TAG, "Unable to power off the modem");
-          this->powered_on_ = true;
-        } else {
-          ESP_LOGI(TAG, "Modem powered OFF");
-          this->powered_on_ = false;
-          this->modem_synced_ = false;
-          this->watchdog_.reset();
-        }
-        break;
-    }
-    yield();
-    return;
-  }
-#endif  // USE_MODEM_POWER
-
-  switch (this->state_) {
-    case ModemComponentState::NOT_RESPONDING:
-      if (this->start_) {
-        if (this->modem_ready()) {
-          ESP_LOGI(TAG, "Modem recovered");
-          this->status_clear_warning();
-          this->state_ = ModemComponentState::DISCONNECTED;
-        } else {
-          if (!this->powered_on_) {
-            this->poweron_();
-          } else if (this->not_responding_cb_) {
-            if (!this->not_responding_cb_->is_action_running()) {
-              ESP_LOGD(TAG, "Calling 'on_not_responding' callback");
-              this->not_responding_cb_->trigger();
-            }
-          } else {
-            ESP_LOGW(TAG, "Modem not responding, and no 'on_not_responding' action defined");
-          }
-        }
-      }
-      break;
-
-    case ModemComponentState::DISCONNECTED:
-      if (this->enabled_) {
-        // be sure the modem is on and synced
-        if (!this->powered_on_) {
-          this->poweron_();
-          break;
-        } else if (!this->modem_synced_) {
-          if (!this->modem_sync_()) {
-            ESP_LOGE(TAG, "Modem not responding");
-            this->state_ = ModemComponentState::NOT_RESPONDING;
-          }
-        }
-
-        if (this->start_) {
-          // want to connect
-          if (!connecting) {
-            // wait for the modem be attached to a network, start ppp, and set connecting=true
-            if (!this->watchdog_)
-              this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
-            if (is_network_attached_()) {
-              network_attach_retry = 10;
-              if (this->start_ppp_()) {
-                connecting = true;
-                next_loop_millis = millis() + 2000;  // delay for next loop
-              }
-            } else {
-              ESP_LOGD(TAG, "Waiting for the modem to be attached to a network (left retries: %" PRIu8 ")",
-                       network_attach_retry);
-              network_attach_retry--;
-              if (network_attach_retry == 0) {
-                ESP_LOGE(TAG, "modem is unable to attach to a network");
-                if (this->power_pin_) {
-                  this->poweroff_();
-                } else {
-                  this->state_ = ModemComponentState::NOT_RESPONDING;
-                }
-              }
-              next_loop_millis = millis() + 1000;  // delay to retry
-            }
-          } else {
-            // connecting
-            if (!this->connected_) {
-              // wait until this->connected_ set to true by IP_EVENT_PPP_GOT_IP
-              next_loop_millis = millis() + 1000;  // delay for next loop
-
-              // connecting timeout
-              if (millis() - this->connect_begin_ > 15000) {
-                ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
-                // TODO: exit data/cmux without error check
-                connecting = false;
-              }
-            } else {
-              connecting = false;
-              ESP_LOGI(TAG, "Connected via Modem");
-              this->state_ = ModemComponentState::CONNECTED;
-
-              this->dump_connect_params_();
-              this->status_clear_warning();
-              this->watchdog_.reset();
-            }
-          }
-        } else {
-          this->start_ = true;
-        }
-      } else {
-        this->state_ = ModemComponentState::DISABLED;
-        this->watchdog_.reset();
-      }
-      break;
-
-    case ModemComponentState::CONNECTED:
-      if (this->enabled_) {
-        if (!this->connected_) {
-          this->status_set_warning("Connection via Modem lost!");
-          this->state_ = ModemComponentState::DISCONNECTED;
-        }
-        disconnecting = false;
-      } else {
-        if (this->connected_) {
-          // connected but disbled, so disconnect
-          if (!disconnecting) {
-            disconnecting = true;
-            ip_lost_retries = 10;
-            this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
-            ESP_LOGD(TAG, "Disconnecting...");
-            this->stop_ppp_();
-            delay(200);  // NOLINT
-            ESP_LOGD(TAG, "Disconnected after %.1fmin", float(this->connect_begin_) / (1000 * 60));
-          } else {
-            // disconnecting
-            // Waiting for IP_EVENT_PPP_LOST_IP.
-            // This can take a long time, so we ckeck the IP addr, and trigger the event manualy if it's null.
-            esp_netif_ip_info_t ip_info;
-            esp_netif_get_ip_info(this->ppp_netif_, &ip_info);
-            if (ip_info.ip.addr == 0) {
-              // lost IP
-              esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
-            } else {
-              ESP_LOGD(TAG, "Waiting for lost IP... (retries %" PRIu8 ")", ip_lost_retries);
-              ip_lost_retries--;
-              if (ip_lost_retries == 0) {
-                // Something goes wrong, we have still an IP
-                ESP_LOGE(TAG, "No IP lost event recieved. Sending one manually");
-                esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
-              }
-            }
-            next_loop_millis = millis() + 2000;  // delay for next loop
-          }
-        } else {  // if (this->connected_)
-          // ip lost as expected
-          ESP_LOGI(TAG, "PPPoS disconnected");
-          this->state_ = ModemComponentState::DISCONNECTED;
-        }
-      }
-      break;
-
-    case ModemComponentState::DISABLED:
-      if (this->enabled_) {
-        this->state_ = ModemComponentState::DISCONNECTED;
-        ESP_LOGE(TAG, "here");
-      } else if (this->powered_on_) {
-        this->poweroff_();
-      }
-      next_loop_millis = millis() + 2000;  // delay for next loop
-      break;
-  }
-
-  if (this->state_ != last_state) {
-    ESP_LOGV(TAG, "State changed: %s -> %s", state_to_string(last_state).c_str(),
-             state_to_string(this->state_).c_str());
-    this->on_state_callback_.call(last_state, this->state_);
-
-    last_state = this->state_;
-  }
-}
-
-void ModemComponent::enable() {
-  ESP_LOGD(TAG, "Enabling modem");
-  if (this->state_ == ModemComponentState::DISABLED) {
-    this->state_ = ModemComponentState::DISCONNECTED;
-  }
-  this->start_ = true;
-  this->enabled_ = true;
-}
-
-void ModemComponent::disable() {
-  ESP_LOGD(TAG, "Disabling modem");
-  this->enabled_ = false;
-  if (this->state_ != ModemComponentState::CONNECTED) {
-    this->state_ = ModemComponentState::DISCONNECTED;
-  }
-}
-
-bool ModemComponent::get_power_status() {
-#ifdef USE_MODEM_STATUS
-  // This code is not fully checked. The status pin seems to be flickering on Lilygo T-SIM7600
-  return this->status_pin_->digital_read();
-#else
-  if (!this->cmux_ && this->connected_) {
-    // Data mode, connected:  assume power is OK
-    return true;
-  }
-  return this->modem_ready();
-#endif
 }
 
 void ModemComponent::poweron_() {
 #ifdef USE_MODEM_POWER
-  this->power_state_ = ModemPowerState::TON;
-  this->power_transition_ = true;
-  return;
+  this->internal_state_.power_state = ModemPowerState::TON;
+  this->internal_state_.power_transition = true;
 #else
   if (this->modem_ready()) {
     ESP_LOGV(TAG, "Modem is already ON");
@@ -638,14 +754,13 @@ void ModemComponent::poweron_() {
 
 void ModemComponent::poweroff_() {
 #ifdef USE_MODEM_POWER
-  this->power_state_ = ModemPowerState::TOFF;
-  this->power_transition_ = true;
-  return;
+  this->internal_state_.power_state = ModemPowerState::TOFF;
+  this->internal_state_.power_transition = true;
 #endif  // USE_MODEM_POWER
 }
 
 void ModemComponent::dump_connect_params_() {
-  if (!this->connected_) {
+  if (!this->internal_state_.connected) {
     ESP_LOGCONFIG(TAG, "Modem connection: Not connected");
     return;
   }
@@ -664,104 +779,6 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS main    : %s", network::IPAddress(dns_main_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(dns_backup_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
-}
-
-bool ModemComponent::is_network_attached_() {
-  int network_attachment_state;
-  command_result err = this->dce->get_network_attachment_state(network_attachment_state);
-  if (err == command_result::OK) {
-    return network_attachment_state;
-  } else
-    return false;
-}
-
-void ModemComponent::dump_dce_status_() {
-  ESP_LOGCONFIG(TAG, "Modem status:");
-  command_result err;
-  std::string result;
-  err = this->dce->get_module_name(result);
-  if (err != command_result::OK) {
-    result = "command " + command_result_to_string(err);
-  }
-  ESP_LOGCONFIG(TAG, "  Module name        : %s", result.c_str());
-
-  int rssi;
-  int ber;
-  err = this->dce->get_signal_quality(rssi, ber);
-  if (err != command_result::OK) {
-    result = "command " + command_result_to_string(err);
-  } else {
-    float ber_f;
-    if (ber != 99) {
-      ber_f = float(ber);
-    } else
-      ber_f = {};
-    std::ostringstream oss;
-    oss << "rssi " << rssi << "(" << (rssi * 100) / 31 << "%), ber " << ber << "(" << (ber_f * 100) / 7 << "%)";
-    result = oss.str();
-  }
-  ESP_LOGCONFIG(TAG, "  Signal quality     : %s", result.c_str());
-
-  int network_attachment_state;
-  err = this->dce->get_network_attachment_state(network_attachment_state);
-  if (err == command_result::OK) {
-    result = network_attachment_state ? "Yes" : "No";
-  } else {
-    result = "command " + command_result_to_string(err);
-  }
-  ESP_LOGCONFIG(TAG, "  Attached to network: %s", result.c_str());
-}
-
-std::string ModemComponent::send_at(const std::string &cmd) {
-  std::string result;
-  command_result status;
-  ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
-  status = this->dce->at(cmd, result, this->command_delay_);
-  ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), result.c_str(),
-           command_result_to_string(status).c_str());
-  if (status != esp_modem::command_result::OK) {
-    result = "ERROR";
-  }
-  return result;
-}
-
-bool ModemComponent::get_imei(std::string &result) {
-  // wrapper around this->dce->get_imei() that check that the result is valid
-  // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
-  command_result status;
-  status = this->dce->get_imei(result);
-  bool success = true;
-
-  if (status == command_result::OK && result.length() == 15) {
-    for (char c : result) {
-      if (!isdigit(static_cast<unsigned char>(c))) {
-        success = false;
-        break;
-      }
-    }
-  } else {
-    success = false;
-  }
-
-  if (!success) {
-    result = "UNAVAILABLE";
-  }
-  return success;
-}
-
-bool ModemComponent::modem_ready() {
-  // check if the modem is ready to answer AT commands
-  std::string imei;
-  if (this->get_imei(imei)) {
-    // we are sure that the modem is on
-    this->powered_on_ = true;
-    return true;
-  }
-  return false;
-}
-
-void ModemComponent::add_on_state_callback(std::function<void(ModemComponentState, ModemComponentState)> &&callback) {
-  this->on_state_callback_.add(std::move(callback));
 }
 
 }  // namespace modem

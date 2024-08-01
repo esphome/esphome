@@ -49,16 +49,7 @@ enum class ModemPowerState {
 
 class ModemComponent : public Component {
  public:
-  ModemComponent();
-  void setup() override;
-  void loop() override;
-  void dump_config() override;
-  bool is_connected();
-  float get_setup_priority() const override;
-  bool can_proceed() override;
-  network::IPAddresses get_ip_addresses();
-  std::string get_use_address() const;
-  void set_use_address(const std::string &use_address);
+  void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
   void set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
@@ -70,13 +61,38 @@ class ModemComponent : public Component {
   void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void enable_cmux() { this->cmux_ = true; }
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
+  bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
   std::string send_at(const std::string &cmd);
   bool get_imei(std::string &result);
   bool get_power_status();
   bool modem_ready();
   void enable();
   void disable();
-  void add_on_state_callback(std::function<void(ModemComponentState, ModemComponentState)> &&callback);
+
+  network::IPAddresses get_ip_addresses();
+  std::string get_use_address() const;
+
+  void dump_dce_status();
+
+  // ========== INTERNAL METHODS ==========
+  // (In most use cases you won't need these)
+
+  ModemComponent();
+  void setup() override;
+  void loop() override;
+  void dump_config() override { this->dump_connect_params_(); }
+  float get_setup_priority() const override { return setup_priority::WIFI + 1; }  // just before WIFI
+  bool can_proceed() override {
+    if (!this->internal_state_.enabled) {
+      return true;
+    }
+    return this->is_connected();
+  };
+  void add_on_state_callback(std::function<void(ModemComponentState, ModemComponentState)> &&callback) {
+    this->on_state_callback_.add(std::move(callback));
+  }
+  // main esp_modem object
+  // https://docs.espressif.com/projects/esp-protocols/esp_modem/docs/latest/internal_docs.html#dce-internal-implementation
   std::unique_ptr<DCE> dce{nullptr};
 
  protected:
@@ -91,7 +107,8 @@ class ModemComponent : public Component {
   void poweroff_();
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
-  void dump_dce_status_();
+
+  // Attributes from yaml config
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
   GPIOPin *status_pin_{nullptr};
@@ -101,38 +118,50 @@ class ModemComponent : public Component {
   std::string password_;
   std::string apn_;
   std::vector<std::string> init_at_commands_;
+  std::string use_address_;
+  bool cmux_{false};
+  // separate handler for `on_not_responding` (we want to know when it's ended)
+  Trigger<> *not_responding_cb_{nullptr};
+  CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
+
+  // Allow changes from yaml ?
   size_t uart_rx_buffer_size_ = 2048;         // 256-2048
   size_t uart_tx_buffer_size_ = 1024;         // 256-2048
   uint8_t uart_event_queue_size_ = 30;        // 10-40
   size_t uart_event_task_stack_size_ = 2048;  // 2000-6000
   uint8_t uart_event_task_priority_ = 5;      // 3-22
+  uint32_t command_delay_ = 500;              // timeout for AT commands
+
+  // Changes will trigger user callback
+  ModemComponentState component_state_{ModemComponentState::DISABLED};
+
+  // the uart DTE
+  // https://docs.espressif.com/projects/esp-protocols/esp_modem/docs/latest/internal_docs.html#_CPPv4N9esp_modem3DCEE
   std::shared_ptr<DTE> dte_{nullptr};
   esp_netif_t *ppp_netif_{nullptr};
-  ModemComponentState state_{ModemComponentState::DISABLED};
+
+  // Many operation blocks a long time.
   std::shared_ptr<watchdog::WatchdogManager> watchdog_;
-  bool cmux_{false};
-  bool start_{false};
-  bool enabled_{false};
-  bool connected_{false};
-  bool got_ipv4_address_{false};
-  // true if modem_sync_ was sucessfull
-  bool modem_synced_{false};
-  // date start (millis())
-  uint32_t connect_begin_;
-  std::string use_address_;
-  // timeout for AT commands
-  uint32_t command_delay_ = 500;
-  // guess power state
-  bool powered_on_{false};
+
+  struct InternalState {
+    bool start{false};
+    bool enabled{false};
+    bool connected{false};
+    bool got_ipv4_address{false};
+    // true if modem_sync_ was sucessfull
+    bool modem_synced{false};
+    // date start (millis())
+    uint32_t connect_begin;
+    // guess power state
+    bool powered_on{false};
 #ifdef USE_MODEM_POWER
-  // Will be true when power transitionning
-  bool power_transition_{false};
-  // states for triggering on/off signals
-  ModemPowerState power_state_{ModemPowerState::TOFFUART};
+    // Will be true when power transitionning
+    bool power_transition{false};
+    // states for triggering on/off signals
+    ModemPowerState power_state{ModemPowerState::TOFFUART};
 #endif  // USE_MODEM_POWER
-  // separate handler for `on_not_responding` (we want to know when it's ended)
-  Trigger<> *not_responding_cb_{nullptr};
-  CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
+  };
+  InternalState internal_state_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
