@@ -30,6 +30,7 @@ from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
 from .dropdown import dropdown_spec
 from .img import img_spec
+from .keyboard import keyboard_spec
 from .label import label_spec
 from .led import led_spec
 from .line import line_spec
@@ -96,6 +97,7 @@ for w_type in (
     roller_spec,
     textarea_spec,
     spinbox_spec,
+    keyboard_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 

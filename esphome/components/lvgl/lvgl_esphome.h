@@ -31,7 +31,7 @@
 #include "esphome/components/touchscreen/touchscreen.h"
 #endif  // USE_LVGL_TOUCHSCREEN
 
-#ifdef USE_LVGL_BUTTONMATRIX
+#if defined(USE_LVGL_BUTTONMATRIX) || defined(USE_LVGL_KEYBOARD)
 #include "esphome/components/key_provider/key_provider.h"
 #endif  // USE_LVGL_BUTTONMATRIX
 
@@ -298,7 +298,7 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 };
 #endif  // USE_LVGL_TOUCHSCREEN
 
-#ifdef USE_LVGL_KEY_LISTENER
+#ifdef USE_LVGL_ROTARY_ENCODER
 class LVEncoderListener : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt) {
@@ -353,7 +353,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int32_t last_count_{};
   int key_{};
 };
-#endif  // USE_LVGL_KEY_LISTENER
+#endif  // USE_LVGL_ROTARY_ENCODER
 #ifdef USE_LVGL_BUTTONMATRIX
 class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
  public:
@@ -395,6 +395,40 @@ class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
   std::map<size_t, uint8_t> key_map_{};
   std::vector<uint16_t *> btn_ids_{};
 };
-#endif
+#endif  // USE_LVGL_BUTTONMATRIX
+
+#ifdef USE_LVGL_KEYBOARD
+static const char *const kb_special_keys[] = {
+    "abc", "ABC", "1#",
+    // maybe add other special keys here
+};
+class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
+ public:
+  void set_obj(lv_obj_t *lv_obj) override {
+    LvCompound::set_obj(lv_obj);
+    lv_obj_add_event_cb(
+        lv_obj,
+        [](lv_event_t *event) {
+          auto *self = (LvKeyboardType *) event->user_data;
+          if (self->key_callback_.size() == 0)
+            return;
+
+          auto key_idx = lv_btnmatrix_get_selected_btn(self->obj);
+          if (key_idx == LV_BTNMATRIX_BTN_NONE)
+            return;
+          const char *txt = lv_btnmatrix_get_btn_text(self->obj, key_idx);
+          if (txt == nullptr)
+            return;
+          for (auto kb_special_key : kb_special_keys) {
+            if (strcmp(txt, kb_special_key) == 0)
+              return;
+          }
+          while (*txt != 0)
+            self->send_key_(*txt++);
+        },
+        LV_EVENT_PRESSED, this);
+  }
+};
+#endif  // USE_LVGL_KEYBOARD
 }  // namespace lvgl
 }  // namespace esphome
