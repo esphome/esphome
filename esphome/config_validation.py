@@ -464,6 +464,7 @@ zero_to_one_float = float_range(min=0, max=1)
 negative_one_to_one_float = float_range(min=-1, max=1)
 positive_int = int_range(min=0)
 positive_not_null_int = int_range(min=0, min_included=False)
+positive_not_null_float = float_range(min=0, min_included=False)
 
 
 def validate_id_name(value):
