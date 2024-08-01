@@ -68,6 +68,13 @@ def color_retmapper(value):
     return lv_expr.color_from(MockObj(value))
 
 
+def option_string(value):
+    value = cv.string(value).strip()
+    if value.find("\n") != -1:
+        raise cv.Invalid("Options strings must not contain newlines")
+    return value
+
+
 lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
 
 

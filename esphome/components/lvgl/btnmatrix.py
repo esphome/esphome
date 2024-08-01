@@ -101,7 +101,7 @@ class MatrixButton(Widget):
         super().__init__(id, btn_btn_spec, config)
         self.parent = parent
         self.index = index
-        self.obj = parent
+        self.obj = parent.obj
 
     def is_selected(self):
         return self.parent.var.get_selected() == MockObj(self.var)
@@ -218,8 +218,8 @@ btnmatrix_spec = BtnmatrixType()
     ),
 )
 async def button_update_to_code(config, action_id, template_arg, args):
-    widget = await get_widgets(config[CONF_ID])
-    assert all(isinstance(w, MatrixButton) for w in widget)
+    widgets = await get_widgets(config[CONF_ID])
+    assert all(isinstance(w, MatrixButton) for w in widgets)
 
     async def do_button_update(w: MatrixButton):
         if (width := config.get(CONF_WIDTH)) is not None:
@@ -245,4 +245,6 @@ async def button_update_to_code(config, action_id, template_arg, args):
                     w.obj, w.index, await BTNMATRIX_CTRLS.process(clrs)
                 )
 
-    return await action_to_code(widget, do_button_update, action_id, template_arg, args)
+    return await action_to_code(
+        widgets, do_button_update, action_id, template_arg, args
+    )

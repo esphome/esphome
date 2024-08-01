@@ -86,6 +86,17 @@ class LvBoolean(LvType):
         )
 
 
+class LvSelect(LvType):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            largs=[(cg.int_, "x")],
+            lvalue=lambda w: w.get_property("selected"),
+            has_on_value=True,
+            **kwargs,
+        )
+
+
 class WidgetType:
     """
     Describes a type of Widget, e.g. "bar" or "line"

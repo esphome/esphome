@@ -28,6 +28,7 @@ from .btn import btn_spec
 from .btnmatrix import btnmatrix_spec
 from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
+from .dropdown import dropdown_spec
 from .img import img_spec
 from .label import label_spec
 from .led import led_spec
@@ -88,6 +89,7 @@ for w_type in (
     tabview_spec,
     btnmatrix_spec,
     meter_spec,
+    dropdown_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
@@ -150,7 +152,7 @@ def generate_lv_conf_h():
 
 def final_validation(config):
     if pages := config.get(CONF_PAGES):
-        if all(page[CONF_SKIP] for page in pages):
+        if all(p[CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
     global_config = full_config.get()
     for display_id in config[df.CONF_DISPLAYS]:
