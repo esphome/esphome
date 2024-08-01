@@ -70,6 +70,7 @@ class LvText(LvType):
             *args,
             largs=[(cg.std_string, "text")],
             lvalue=lambda w: w.get_property("text"),
+            has_on_value=True,
             **kwargs,
         )
         self.value_property = CONF_TEXT

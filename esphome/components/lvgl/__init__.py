@@ -55,6 +55,7 @@ from .schemas import (
 from .slider import slider_spec
 from .spinner import spinner_spec
 from .tabview import tabview_spec
+from .textarea import textarea_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -92,6 +93,7 @@ for w_type in (
     meter_spec,
     dropdown_spec,
     roller_spec,
+    textarea_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
