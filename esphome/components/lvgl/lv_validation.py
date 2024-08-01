@@ -18,7 +18,6 @@ from .defines import (
     CONF_END_VALUE,
     CONF_START_VALUE,
     LV_FONTS,
-    ConstantLiteral,
     LValidator,
     LvConstant,
     literal,
@@ -240,8 +239,8 @@ class LvFont(LValidator):
 
     async def process(self, value, args=()):
         if is_lv_font(value):
-            return ConstantLiteral(f"&lv_font_{value}")
-        return ConstantLiteral(f"{value}_engine->get_lv_font()")
+            return literal(f"&lv_font_{value}")
+        return literal(f"{value}_engine->get_lv_font()")
 
 
 lv_font = LvFont()

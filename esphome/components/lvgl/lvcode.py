@@ -49,7 +49,7 @@ class IndentedStatement(Statement):
         self.indent = indent
 
     def __str__(self):
-        result = " " * self.indent * 4 + str(self.statement)
+        result = " " * self.indent * 4 + str(self.statement).strip()
         if not isinstance(self.statement, RawStatement):
             result += ";"
         return result
@@ -102,7 +102,7 @@ class CodeContext(abc.ABC):
         self.indent_level -= 1
 
     def indented_statement(self, stmt):
-        return IndentedStatement(stmt, self.indent_level) if self.indent_level else stmt
+        return IndentedStatement(stmt, self.indent_level)
 
 
 class MainContext(CodeContext):

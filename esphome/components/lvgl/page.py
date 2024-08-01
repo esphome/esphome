@@ -109,4 +109,5 @@ async def add_pages(lv_component, config):
         lv_add(lv_component.add_page(var))
         # Set outer config first
         await set_obj_properties(page, config)
+        await set_obj_properties(page, pconf)
         await add_widgets(page, pconf)

@@ -40,6 +40,7 @@ from .lvcode import LvContext
 from .meter import meter_spec
 from .obj import obj_spec
 from .page import add_pages, page_spec
+from .roller import roller_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
     FLEX_OBJ_SCHEMA,
@@ -90,6 +91,7 @@ for w_type in (
     btnmatrix_spec,
     meter_spec,
     dropdown_spec,
+    roller_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 

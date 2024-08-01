@@ -4,31 +4,18 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 """
 
-from typing import Union
-
 from esphome import codegen as cg, config_validation as cv
 from esphome.core import ID, Lambda
-from esphome.cpp_generator import Literal
+from esphome.cpp_generator import MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from .helpers import requires_component
 
 
-class ConstantLiteral(Literal):
-    __slots__ = ("constant",)
-
-    def __init__(self, constant: str):
-        super().__init__()
-        self.constant = constant
-
-    def __str__(self):
-        return self.constant
-
-
-def literal(arg: Union[str, ConstantLiteral]):
+def literal(arg):
     if isinstance(arg, str):
-        return ConstantLiteral(arg)
+        return MockObj(arg, "")
     return arg
 
 
@@ -102,7 +89,7 @@ class LvConstant(LValidator):
     def mapper(self, value, args=()):
         if isinstance(value, list):
             value = "|".join(value)
-        return ConstantLiteral(value)
+        return literal(value)
 
     def extend(self, *choices):
         """
@@ -500,4 +487,4 @@ DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
 
 def join_enums(enums, prefix=""):
-    return ConstantLiteral("|".join(f"(int){prefix}{e.upper()}" for e in enums))
+    return literal("|".join(f"(int){prefix}{e.upper()}" for e in enums))

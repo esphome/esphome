@@ -31,7 +31,6 @@ from .defines import (
     STATES,
     TYPE_FLEX,
     TYPE_GRID,
-    ConstantLiteral,
     LValidator,
     join_enums,
     literal,
@@ -260,19 +259,15 @@ async def set_obj_properties(w: Widget, config):
                 CONF_GRID_ROW_ALIGN, literal(layout.get(CONF_GRID_ROW_ALIGN)), 0
             )
         if layout_type == TYPE_FLEX:
-            lv_obj.set_flex_flow(
-                w.obj, literal(f"LV_FLEX_FLOW_{layout[CONF_FLEX_FLOW]}")
-            )
-            main = layout[CONF_FLEX_ALIGN_MAIN]
-            cross = layout[CONF_FLEX_ALIGN_CROSS]
-            track = layout[CONF_FLEX_ALIGN_TRACK]
+            lv_obj.set_flex_flow(w.obj, literal(layout[CONF_FLEX_FLOW]))
+            main = literal(layout[CONF_FLEX_ALIGN_MAIN])
+            cross = literal(layout[CONF_FLEX_ALIGN_CROSS])
+            track = literal(layout[CONF_FLEX_ALIGN_TRACK])
             lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
     for part, states in parts.items():
         for state, props in states.items():
-            lv_state = ConstantLiteral(
-                f"(int)LV_STATE_{state.upper()}|(int)LV_PART_{part.upper()}"
-            )
+            lv_state = join_enums((f"LV_STATE_{state}", f"LV_PART_{part}"))
             for prop, value in {
                 k: v for k, v in props.items() if k in ALL_STYLES
             }.items():
@@ -369,7 +364,7 @@ async def widget_to_code(w_cnfig, w_type, parent):
 
 
 lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {})
+lv_scr_act = Widget.create(None, literal("lv_scr_act()"), lv_scr_act_spec, {})
 
 lv_groups = {}  # Widget group names
 
@@ -385,5 +380,5 @@ def add_group(name):
                 type_=gid.type, modifier="", name=fullname, rhs=lv_expr.group_create()
             )
         )
-        lv_groups[name] = ConstantLiteral(fullname)
+        lv_groups[name] = literal(fullname)
     return lv_groups[name]
