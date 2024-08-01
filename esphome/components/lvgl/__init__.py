@@ -23,7 +23,7 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .animimg import animimg_spec
 from .arc import arc_spec
-from .automation import update_to_code
+from .automation import disp_update, update_to_code
 from .btn import btn_spec
 from .btnmatrix import btnmatrix_spec
 from .checkbox import checkbox_spec
@@ -44,6 +44,7 @@ from .page import add_pages, page_spec
 from .roller import roller_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
+    DISP_BG_SCHEMA,
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
     LAYOUT_SCHEMAS,
@@ -58,7 +59,7 @@ from .schemas import (
 from .slider import slider_spec
 from .spinbox import spinbox_spec
 from .spinner import spinner_spec
-from .styles import styles_to_code, theme_to_code
+from .styles import add_top_layer, styles_to_code, theme_to_code
 from .tabview import tabview_spec
 from .textarea import textarea_spec
 from .tileview import tileview_spec
@@ -269,6 +270,8 @@ async def to_code(config):
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
+        await add_top_layer(config)
+        await disp_update(f"{lv_component}->get_disp()", config)
         Widget.set_completed()
         await generate_triggers(lv_component)
         for conf in config.get(CONF_ON_IDLE, ()):
@@ -333,6 +336,7 @@ CONFIG_SCHEMA = (
                 container_schema(page_spec)
             ),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
@@ -341,4 +345,5 @@ CONFIG_SCHEMA = (
             cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
         }
     )
+    .extend(DISP_BG_SCHEMA)
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))

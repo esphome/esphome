@@ -5,13 +5,19 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIMEOUT
-from esphome.core import Lambda
 from esphome.cpp_types import nullptr
 
-from .defines import CONF_LVGL_ID, CONF_SHOW_SNOW, literal
+from .defines import (
+    CONF_DISP_BG_COLOR,
+    CONF_DISP_BG_IMAGE,
+    CONF_LVGL_ID,
+    CONF_SHOW_SNOW,
+    literal,
+)
 from .lv_validation import lv_bool
 from .lvcode import (
     LambdaContext,
+    LocalVariable,
     ReturnStatement,
     add_line_marks,
     lv,
@@ -19,7 +25,7 @@ from .lvcode import (
     lv_obj,
     lvgl_comp,
 )
-from .schemas import LIST_ACTION_SCHEMA, LVGL_SCHEMA
+from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
     LVGL_COMP_ARG,
     LvglAction,
@@ -66,6 +72,36 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     return var
 
 
+async def disp_update(disp, config: dict):
+    if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
+        return
+    with LocalVariable("lv_disp_tmp", lv_obj_t, "*", disp) as disp_temp:
+        if bg_color := config.get(CONF_DISP_BG_COLOR):
+            lv.disp_set_bg_color(disp_temp, await lv.lv_color.process(bg_color))
+        if bg_image := config.get(CONF_DISP_BG_IMAGE):
+            lv.set_disp_image(disp_temp, await lv.lv_image.process(bg_image))
+
+
+@automation.register_action(
+    "lvgl.update",
+    LvglAction,
+    DISP_BG_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.use_id(LvglComponent),
+        }
+    ).add_extra(cv.has_at_least_one_key(CONF_DISP_BG_COLOR, CONF_DISP_BG_IMAGE)),
+)
+async def lvgl_update_to_code(config, action_id, template_arg, args):
+    widgets = await get_widgets(config)
+    w = widgets[0]
+    disp = f"{w.obj}->get_disp()"
+    with LambdaContext(parameters=args, where=action_id) as context:
+        await disp_update(disp, config)
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    await cg.register_parented(var, w)
+    return var
+
+
 @automation.register_action(
     "lvgl.pause",
     LvglAction,
@@ -105,14 +141,12 @@ async def action_to_code(
     template_arg,
     args,
 ):
-    with LambdaContext(where=action_id) as context:
+    with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             lv.cond_if(widget.obj != nullptr)
             await action(widget)
             lv.cond_endif()
-    code = "\n".join(context.get_code()) + "\n"
-    lamb = await cg.process_lambda(Lambda(code), args)
-    var = cg.new_Pvariable(action_id, template_arg, lamb)
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     return var
 
 

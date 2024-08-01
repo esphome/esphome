@@ -6,7 +6,7 @@ from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import AssignmentExpression, MockObj
+from esphome.cpp_generator import AssignmentExpression, CallExpression, MockObj
 
 from .defines import (
     CONF_DEFAULT,
@@ -38,6 +38,8 @@ from .schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
 from .types import LvType, WidgetType, lv_coord_t, lv_group_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
+
+theme_widget_map = {}
 
 
 class LvScrActType(WidgetType):
@@ -330,7 +332,7 @@ async def add_widgets(parent: Widget, config: dict):
         await widget_to_code(w_cnfig, w_type, parent.obj)
 
 
-async def widget_to_code(w_cnfig, w_type, parent):
+async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     """
     Converts a Widget definition to C code.
     :param w_cnfig: The widget configuration
@@ -351,10 +353,12 @@ async def widget_to_code(w_cnfig, w_type, parent):
         var = lv_Pvariable(lv_obj_t, wid)
         lv_assign(var, creator)
 
-    widget = Widget.create(wid, var, spec, w_cnfig)
-    await set_obj_properties(widget, w_cnfig)
-    await add_widgets(widget, w_cnfig)
-    await spec.to_code(widget, w_cnfig)
+    w = Widget.create(wid, var, spec, w_cnfig)
+    if theme := theme_widget_map.get(w_type.name):
+        lv_add(CallExpression(theme, w.obj))
+    await set_obj_properties(w, w_cnfig)
+    await add_widgets(w, w_cnfig)
+    await spec.to_code(w, w_cnfig)
 
 
 lv_scr_act_spec = LvScrActType()

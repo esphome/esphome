@@ -21,7 +21,7 @@ CONF_SRC_LIST_ID = "src_list_id"
 def lv_repeat_count(value):
     if isinstance(value, str) and value.lower() in ("forever", "infinite"):
         value = 0xFFFF
-    return cv.positive_int(value, max=0xFFFF)
+    return cv.int_range(min=0, max=0xFFFF)(value)
 
 
 ANIMIMG_BASE_SCHEMA = cv.Schema(

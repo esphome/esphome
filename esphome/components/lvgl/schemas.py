@@ -15,7 +15,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid, types as ty
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import id_name, lv_font
+from .lv_validation import id_name, lv_color, lv_font, lv_image
 from .types import WidgetType
 
 # this will be populated later, in __init__.py to avoid circular imports.
@@ -319,6 +319,12 @@ FLEX_OBJ_SCHEMA = {
     cv.Optional(df.CONF_FLEX_GROW): cv.int_,
 }
 
+DISP_BG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(df.CONF_DISP_BG_IMAGE): lv_image,
+        cv.Optional(df.CONF_DISP_BG_COLOR): lv_color,
+    }
+)
 
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(

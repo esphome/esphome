@@ -1,14 +1,18 @@
 import esphome.codegen as cg
 from esphome.const import CONF_ID
 
-from .defines import CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
+from .defines import (
+    CONF_STYLE_DEFINITIONS,
+    CONF_THEME,
+    CONF_TOP_LAYER,
+    LValidator,
+    literal,
+)
 from .helpers import add_lv_use
-from .lvcode import LambdaContext, lv, lv_assign, lv_Pvariable
+from .lvcode import LambdaContext, LocalVariable, lv, lv_assign, lv_Pvariable
 from .schemas import ALL_STYLES
 from .types import lv_lambda_t, lv_obj_t
-from .widget import Widget, set_obj_properties
-
-theme_widget_map = {}
+from .widget import Widget, add_widgets, set_obj_properties, theme_widget_map
 
 
 async def styles_to_code(config):
@@ -38,3 +42,12 @@ async def theme_to_code(config):
             with LambdaContext([(lv_obj_t, "obj")], where=w_name) as context:
                 await set_obj_properties(ow, style)
             lv_assign(apply, context.get_lambda())
+
+
+async def add_top_layer(config):
+    if top_conf := config.get(CONF_TOP_LAYER):
+        with LocalVariable(
+            "top_layer", lv_obj_t, "*", "lv_disp_get_layer_top(lv_component->disp_)"
+        ) as top_layer_obj:
+            await set_obj_properties(top_layer_obj, top_conf)
+            await add_widgets(top_layer_obj, top_conf)

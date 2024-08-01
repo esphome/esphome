@@ -25,6 +25,7 @@ class SpinnerType(WidgetType):
             LvType("lv_spinner_t"),
             (CONF_MAIN, CONF_INDICATOR),
             SPINNER_SCHEMA,
+            {},
         )
 
     async def to_code(self, w: Widget, config):

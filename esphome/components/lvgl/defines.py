@@ -6,7 +6,7 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.core import ID, Lambda
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import RawExpression
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
@@ -15,7 +15,7 @@ from .helpers import requires_component
 
 def literal(arg):
     if isinstance(arg, str):
-        return MockObj(arg, "")
+        return RawExpression(arg)
     return arg
 
 
