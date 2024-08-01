@@ -3,7 +3,7 @@ hybridshiftreg:
   data_out_pin: 13
   data_in_pin: 16
   clock_pin: 14
-  inh_latch_pin: 15
+  inh_latch_pin: 12
   load_oe_pin: 32
   sr_count: 1
 
