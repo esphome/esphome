@@ -47,15 +47,18 @@ from .schemas import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
     LAYOUT_SCHEMAS,
+    STYLE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
     create_modify_schema,
+    grid_alignments,
     obj_schema,
 )
 from .slider import slider_spec
 from .spinbox import spinbox_spec
 from .spinner import spinner_spec
+from .styles import styles_to_code, theme_to_code
 from .tabview import tabview_spec
 from .textarea import textarea_spec
 from .tileview import tileview_spec
@@ -67,6 +70,7 @@ from .types import (
     LvglComponent,
     ObjUpdateAction,
     lv_font_t,
+    lv_style_t,
     lvgl_ns,
 )
 from .widget import Widget, add_widgets, lv_scr_act, set_obj_properties
@@ -260,6 +264,8 @@ async def to_code(config):
     with LvContext():
         await touchscreens_to_code(lv_component, config)
         await rotary_encoders_to_code(lv_component, config)
+        await theme_to_code(config)
+        await styles_to_code(config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
@@ -304,6 +310,16 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
                 "big_endian", "little_endian"
             ),
+            cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
+                cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
+                .extend(STYLE_SCHEMA)
+                .extend(
+                    {
+                        cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+                        cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                    }
+                )
+            ),
             cv.Optional(CONF_ON_IDLE): validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
@@ -318,6 +334,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
+            cv.Optional(df.CONF_THEME): cv.Schema(
+                {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
+            ),
             cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
             cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
         }

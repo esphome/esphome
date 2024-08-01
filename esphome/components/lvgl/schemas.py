@@ -159,6 +159,7 @@ STYLE_REMAP = {
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
+        cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(ty.lv_style_t)),
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,

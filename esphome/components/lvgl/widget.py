@@ -21,6 +21,7 @@ from .defines import (
     CONF_LAYOUT,
     CONF_MAIN,
     CONF_SCROLLBAR_MODE,
+    CONF_STYLES,
     CONF_WIDGETS,
     OBJ_FLAGS,
     PARTS,
@@ -199,7 +200,7 @@ def collect_props(config):
     :return:
     """
     props = {}
-    for prop in [*ALL_STYLES, *OBJ_FLAGS, CONF_GROUP]:
+    for prop in [*ALL_STYLES, *OBJ_FLAGS, CONF_STYLES, CONF_GROUP]:
         if prop in config:
             props[prop] = config[prop]
     return props
