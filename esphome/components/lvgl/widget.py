@@ -75,6 +75,10 @@ class Widget:
         self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
+        if wtype.is_compound():
+            self.obj = MockObj(f"{self.var}->obj")
+        else:
+            self.obj = var
 
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):
@@ -82,12 +86,6 @@ class Widget:
         if name is not None:
             widget_map[name] = w
         return w
-
-    @property
-    def obj(self):
-        if self.type.is_compound():
-            return MockObj(f"{self.var}->obj")
-        return self.var
 
     def add_state(self, state):
         return lv_obj.add_state(self.obj, literal(state))

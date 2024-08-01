@@ -101,16 +101,13 @@ class MatrixButton(Widget):
         super().__init__(id, btn_btn_spec, config)
         self.parent = parent
         self.index = index
+        self.obj = parent
 
     def is_selected(self):
         return self.parent.var.get_selected() == MockObj(self.var)
 
     def get_value(self):
         return self.is_selected() and self.parent.has_state("LV_STATE_CHECKED")
-
-    @property
-    def obj(self):
-        return self.parent.obj
 
     def check_null(self):
         return None

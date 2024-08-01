@@ -36,6 +36,7 @@ from .lv_bar import bar_spec
 from .lv_switch import switch_spec
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext
+from .meter import meter_spec
 from .obj import obj_spec
 from .page import add_pages, page_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
@@ -86,6 +87,7 @@ for w_type in (
     switch_spec,
     tabview_spec,
     btnmatrix_spec,
+    meter_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
