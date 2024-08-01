@@ -38,6 +38,13 @@ enum class ModemComponentState {
   DISABLED,
 };
 
+enum class ModemPowerState {
+  TON,
+  TONUART,
+  TOFF,
+  TOFFUART,
+};
+
 class ModemComponent : public Component {
  public:
   ModemComponent();
@@ -112,7 +119,11 @@ class ModemComponent : public Component {
   // timeout for AT commands
   uint32_t command_delay_ = 500;
   // Will be true when power transitionning
-  bool power_transition_ = false;
+  bool power_transition_{false};
+  // guess power state
+  bool powered_on_{false};
+  // states for triggering on/off signals
+  ModemPowerState power_state_{ModemPowerState::TOFFUART};
   // separate handler for `on_not_responding` (we want to know when it's ended)
   Trigger<> *not_responding_cb_{nullptr};
   CallbackManager<void(ModemComponentState)> on_state_callback_;

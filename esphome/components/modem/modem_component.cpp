@@ -86,10 +86,15 @@ void ModemComponent::setup() {
 
   if (this->power_pin_) {
     this->power_pin_->setup();
+    // as we have a power pin, we assume that the power is off
+    this->powered_on_ = false;
 
     if (this->enabled_) {
       this->poweron_();
     }
+  } else {
+    // no status pin, we assume that the power is on
+    this->powered_on_ = true;
   }
 
   if (this->status_pin_) {
@@ -200,12 +205,14 @@ bool ModemComponent::modem_sync_() {
   if (!this->watchdog_)
     this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
 
+  uint32_t start_ms = millis();
+  uint32_t elapsed_ms;
+
   bool status = this->modem_ready();
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
     ESP_LOGD(TAG, "Connecting to the the modem...");
 
-    uint32_t start_ms = millis();
     std::string result;
 
     auto command_mode_ = [this]() -> bool {
@@ -228,23 +235,23 @@ bool ModemComponent::modem_sync_() {
       status = command_mode_() || (cmux_command_mode_() && command_mode_());
     }
 
-    uint32_t elapsed_ms = millis() - start_ms;
+    elapsed_ms = millis() - start_ms;
 
     if (!status) {
-      ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms", elapsed_ms);
-      if (this->power_pin_) {
-        ESP_LOGD(TAG, "Trying to power cycle the modem");
-        this->poweroff_();
-      }
-    } else {
-      ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
-      this->send_init_at_();
-      if (!this->prepare_sim_()) {
-        // fatal error
-        this->disable();
-      }
+      ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms.", elapsed_ms);
+      this->powered_on_ = false;
     }
   }
+  if (status) {
+    elapsed_ms = millis() - start_ms;
+    ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
+    this->send_init_at_();
+    if (!this->prepare_sim_()) {
+      // fatal error
+      this->disable();
+    }
+  }
+
   return status;
 }
 
@@ -360,11 +367,63 @@ void ModemComponent::loop() {
   static uint8_t network_attach_retry = 10;
   static uint8_t ip_lost_retries = 10;
 
-  if (this->power_transition_ || (millis() < next_loop_millis)) {
-    // No loop on power transition, or if some commands need some delay
+  if ((millis() < next_loop_millis)) {
+    // some commands need some delay
     yield();
     return;
   }
+
+#ifdef USE_MODEM_POWER
+  if (this->power_transition_) {
+    if (!this->watchdog_)
+      this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+
+    // A power state is used to handle long tonuart/toffuart delay
+    switch (this->power_state_) {
+      case ModemPowerState::TON:
+        this->power_pin_->digital_write(false);
+        delay(USE_MODEM_POWER_TON);
+        this->power_pin_->digital_write(true);
+        next_loop_millis = millis() + USE_MODEM_POWER_TONUART;  // delay for next loop
+        this->power_state_ = ModemPowerState::TONUART;
+        ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
+        break;
+      case ModemPowerState::TONUART:
+        this->power_transition_ = false;
+        if (!this->modem_sync_()) {
+          ESP_LOGE(TAG, "Unable to power on the modem");
+          this->powered_on_ = false;
+        } else {
+          ESP_LOGI(TAG, "Modem powered ON");
+          this->powered_on_ = true;
+          this->watchdog_.reset();
+        }
+        break;
+      case ModemPowerState::TOFF:
+        delay(10);
+        this->power_pin_->digital_write(false);
+        delay(USE_MODEM_POWER_TOFF);
+        this->power_pin_->digital_write(true);
+        this->power_state_ = ModemPowerState::TOFFUART;
+        ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(USE_MODEM_POWER_TOFFUART) / 1000);
+        next_loop_millis = millis() + USE_MODEM_POWER_TOFFUART;  // delay for next loop
+        break;
+      case ModemPowerState::TOFFUART:
+        this->power_transition_ = false;
+        if (this->modem_ready()) {
+          ESP_LOGE(TAG, "Unable to power off the modem");
+          this->powered_on_ = true;
+        } else {
+          ESP_LOGI(TAG, "Modem powered OFF");
+          this->powered_on_ = false;
+          this->watchdog_.reset();
+        }
+        break;
+    }
+    yield();
+    return;
+  }
+#endif  // USE_MODEM_POWER
 
   switch (this->state_) {
     case ModemComponentState::NOT_RESPONDING:
@@ -373,10 +432,10 @@ void ModemComponent::loop() {
           ESP_LOGI(TAG, "Modem recovered");
           this->status_clear_warning();
           this->state_ = ModemComponentState::DISCONNECTED;
+          last_state = this->state_;  // disable on_disconnect cb
         } else {
-          if (!this->get_power_status()) {
-            // Modem is OFF. If poweron is needed, disconnect state will handle it.
-            this->state_ = ModemComponentState::DISCONNECTED;
+          if (!this->powered_on_) {
+            this->poweron_();
           } else if (this->not_responding_cb_) {
             if (!this->not_responding_cb_->is_action_running()) {
               ESP_LOGD(TAG, "Calling 'on_not_responding' callback");
@@ -392,6 +451,14 @@ void ModemComponent::loop() {
     // disconnected, want to connect
     case ModemComponentState::DISCONNECTED:
       if (this->enabled_) {
+        if (last_state == ModemComponentState::DISABLED) {
+          last_state = this->state_;  // disable on_disconnect cb
+        }
+        if (!this->powered_on_) {
+          this->poweron_();
+          break;
+        }
+
         if (this->start_) {
           if (connecting) {
             if (this->connected_) {
@@ -503,9 +570,11 @@ void ModemComponent::loop() {
     case ModemComponentState::DISABLED:
       if (this->enabled_) {
         this->state_ = ModemComponentState::DISCONNECTED;
-      }  // else if (this->get_power_status()) {  // FIXME long time in loop because of get_power_status
-         // this->poweroff_();
-      //}
+        last_state = this->state_;  // disable on_disconnect cb
+        ESP_LOGE(TAG, "here");
+      } else if (this->powered_on_) {
+        this->poweroff_();
+      }
       next_loop_millis = millis() + 2000;  // delay for next loop
       break;
   }
@@ -551,30 +620,9 @@ bool ModemComponent::get_power_status() {
 
 void ModemComponent::poweron_() {
 #ifdef USE_MODEM_POWER
-  if (this->power_pin_) {
-    App.feed_wdt();
-    ESP_LOGV(TAG, "Powering up modem with power_pin...");
-    this->power_transition_ = true;
-    this->power_pin_->digital_write(false);
-    delay(USE_MODEM_POWER_TON);
-    this->power_pin_->digital_write(true);
-    // use a timout for long wait delay
-    ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
-    this->set_timeout("wait_poweron", USE_MODEM_POWER_TONUART, [this]() {
-      // TODO: check modem is able to respond
-      // ESP_LOGD(TAG, "DTE/DCE init after poweron");
-      // this->create_dte_dce_();
-      delay(500);  // NOLINT
-      App.feed_wdt();
-      if (!this->modem_ready()) {
-        ESP_LOGE(TAG, "Unable to power on the modem");
-      } else {
-        ESP_LOGD(TAG, "Modem ready after power ON");
-      }
-      this->power_transition_ = false;
-      yield();
-    });
-  }
+  this->power_state_ = ModemPowerState::TON;
+  this->power_transition_ = true;
+  return;
 #else
   if (this->modem_ready()) {
     ESP_LOGV(TAG, "Modem is already ON");
@@ -586,28 +634,9 @@ void ModemComponent::poweron_() {
 
 void ModemComponent::poweroff_() {
 #ifdef USE_MODEM_POWER
-  if (this->power_pin_) {
-    ESP_LOGV(TAG, "Powering off modem with power pin...");
-    App.feed_wdt();
-    this->power_transition_ = true;
-    // watchdog::WatchdogManager wdt(60000);
-    // this->power_pin_->digital_write(true);
-    delay(10);
-    this->power_pin_->digital_write(false);
-    delay(USE_MODEM_POWER_TOFF);
-    this->power_pin_->digital_write(true);
-
-    ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(USE_MODEM_POWER_TOFFUART) / 1000);
-    this->set_timeout("wait_poweroff", USE_MODEM_POWER_TOFFUART, [this]() {
-      if (this->modem_ready()) {
-        ESP_LOGE(TAG, "Unable to power off the modem");
-      } else {
-        ESP_LOGD(TAG, "Modem OFF");
-      }
-
-      this->power_transition_ = false;
-    });
-  }
+  this->power_state_ = ModemPowerState::TOFF;
+  this->power_transition_ = true;
+  return;
 #endif  // USE_MODEM_POWER
 }
 
@@ -701,7 +730,12 @@ bool ModemComponent::get_imei(std::string &result) {
 bool ModemComponent::modem_ready() {
   // check if the modem is ready to answer AT commands
   std::string imei;
-  return this->get_imei(imei);
+  if (this->get_imei(imei)) {
+    // we are sure that the modem is on
+    this->powered_on_ = true;
+    return true;
+  }
+  return false;
 }
 
 void ModemComponent::add_on_state_callback(std::function<void(ModemComponentState)> &&callback) {
