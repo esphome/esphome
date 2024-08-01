@@ -53,6 +53,7 @@ from .schemas import (
     obj_schema,
 )
 from .slider import slider_spec
+from .spinbox import spinbox_spec
 from .spinner import spinner_spec
 from .tabview import tabview_spec
 from .textarea import textarea_spec
@@ -94,6 +95,7 @@ for w_type in (
     dropdown_spec,
     roller_spec,
     textarea_spec,
+    spinbox_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
