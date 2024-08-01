@@ -1,10 +1,21 @@
 from esphome import config_validation as cv
-from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_ID, CONF_STATE, CONF_TYPE
+from esphome.automation import Trigger, validate_automation
+from esphome.const import (
+    CONF_ARGS,
+    CONF_FORMAT,
+    CONF_GROUP,
+    CONF_ID,
+    CONF_ON_VALUE,
+    CONF_STATE,
+    CONF_TRIGGER_ID,
+    CONF_TYPE,
+)
+from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid, types as ty
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import lv_font
+from .lv_validation import id_name, lv_font
 from .types import WIDGET_TYPES, WidgetType
 
 # A schema for text properties
@@ -27,6 +38,28 @@ TEXT_SCHEMA = cv.Schema(
     }
 )
 
+ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
+    },
+    key=CONF_ID,
+)
+
+PRESS_TIME = cv.All(
+    lvalid.lv_milliseconds, cv.Range(max=TimePeriod(milliseconds=65535))
+)
+
+ENCODER_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.All(
+            cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
+        ),
+        cv.Optional(CONF_GROUP): lvalid.id_name,
+        cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
+        cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
+    }
+)
+
 # All LVGL styles and their validators
 STYLE_PROPS = {
     "align": df.CHILD_ALIGNMENTS.one_of,
@@ -43,6 +76,7 @@ STYLE_PROPS = {
     "bg_image_opa": lvalid.opacity,
     "bg_image_recolor": lvalid.lv_color,
     "bg_image_recolor_opa": lvalid.opacity,
+    "bg_image_src": lvalid.lv_image,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
     "border_color": lvalid.lv_color,
@@ -151,6 +185,39 @@ def part_schema(widget_type: WidgetType):
     )
 
 
+def automation_schema(typ: ty.LvType):
+    if typ.has_on_value:
+        events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
+    else:
+        events = df.LV_EVENT_TRIGGERS
+    if isinstance(typ, ty.LvType):
+        template = Trigger.template(typ.get_arg_type())
+    else:
+        template = Trigger.template()
+    return {
+        cv.Optional(event): validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
+            }
+        )
+        for event in events
+    }
+
+
+def create_modify_schema(widget_type):
+    return (
+        part_schema(widget_type)
+        .extend(
+            {
+                cv.Required(CONF_ID): cv.use_id(widget_type),
+                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+            }
+        )
+        .extend(FLAG_SCHEMA)
+        .extend(widget_type.modify_schema)
+    )
+
+
 def obj_schema(widget_type: WidgetType):
     """
     Create a schema for a widget type itself i.e. no allowance for children
@@ -161,10 +228,12 @@ def obj_schema(widget_type: WidgetType):
         part_schema(widget_type)
         .extend(FLAG_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
+        .extend(automation_schema(widget_type.w_type))
         .extend(
             cv.Schema(
                 {
                     cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+                    cv.Optional(CONF_GROUP): id_name,
                 }
             )
         )
@@ -186,6 +255,13 @@ ALIGN_TO_SCHEMA = {
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
     STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
+)
+
+# For use by platform components
+LVGL_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
+    }
 )
 
 ALL_STYLES = {

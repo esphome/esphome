@@ -1,4 +1,4 @@
-from esphome import codegen as cg
+from esphome import automation, codegen as cg
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
 
@@ -23,8 +23,14 @@ lvgl_ns = cg.esphome_ns.namespace("lvgl")
 char_ptr = cg.global_ns.namespace("char").operator("ptr")
 void_ptr = cg.void.operator("ptr")
 LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
+LvglComponentPtr = LvglComponent.operator("ptr")
 lv_event_code_t = cg.global_ns.namespace("lv_event_code_t")
+lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 FontEngine = lvgl_ns.class_("FontEngine")
+IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
+ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
+LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
+LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
 LvCompound = lvgl_ns.class_("LvCompound")
 lv_font_t = cg.global_ns.class_("lv_font_t")
 lv_style_t = cg.global_ns.struct("lv_style_t")
@@ -33,9 +39,11 @@ lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
 lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
 lv_color_t = cg.global_ns.struct("lv_color_t")
+lv_group_t = cg.global_ns.struct("lv_group_t")
 LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
 lv_obj_t = LvType("lv_obj_t")
+lv_img_t = LvType("lv_img_t")
 
 
 # this will be populated later, in __init__.py to avoid circular imports.
@@ -58,7 +66,7 @@ class LvBoolean(LvType):
         super().__init__(
             *args,
             largs=[(cg.bool_, "x")],
-            lvalue=lambda w: w.is_checked(),
+            lvalue=lambda w: w.has_state("LV_STATE_CHECKED"),
             has_on_value=True,
             **kwargs,
         )
@@ -83,11 +91,14 @@ class WidgetType:
         self.name = name
         self.w_type = w_type
         self.parts = parts
-        self.schema = schema or {}
-        if modify_schema is None:
-            self.modify_schema = schema
+        if schema is None:
+            self.schema = {}
         else:
-            self.modify_schema = modify_schema
+            self.schema = schema
+        if modify_schema is None:
+            self.modify_schema = self.schema
+        else:
+            self.modify_schema = self.schema
 
     @property
     def animated(self):

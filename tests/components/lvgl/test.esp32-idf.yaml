@@ -6,6 +6,23 @@ i2c:
   sda: GPIO18
   scl: GPIO19
 
+sensor:
+  - platform: rotary_encoder
+    name: "Rotary Encoder"
+    id: encoder
+    pin_a: 2
+    pin_b: 1
+    internal: true
+
+binary_sensor:
+  - platform: gpio
+    id: pushbutton
+    name: Pushbutton
+    pin:
+      number: 0
+      inverted: true
+      ignore_strapping_warning: true
+
 display:
   - platform: ili9xxx
     model: st7789v
@@ -50,5 +67,9 @@ lvgl:
   displays:
     - tft_display
     - second_display
+  rotary_encoders:
+    sensor: encoder
+    enter_button: pushbutton
+    group: general
 
 <<: !include common.yaml
