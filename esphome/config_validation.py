@@ -2181,3 +2181,13 @@ SOURCE_SCHEMA = Any(
         }
     ),
 )
+
+
+def rename_key(old_key, new_key):
+    def validator(config: dict) -> dict:
+        config = config.copy()
+        if old_key in config:
+            config[new_key] = config.pop(old_key)
+        return config
+
+    return validator
