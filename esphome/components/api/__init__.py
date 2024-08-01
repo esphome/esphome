@@ -1,25 +1,26 @@
 import base64
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACTION,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_EVENT,
     CONF_ID,
     CONF_KEY,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_SERVICE,
-    CONF_VARIABLES,
     CONF_SERVICES,
-    CONF_TRIGGER_ID,
-    CONF_EVENT,
     CONF_TAG,
-    CONF_ON_CLIENT_CONNECTED,
-    CONF_ON_CLIENT_DISCONNECTED,
+    CONF_TRIGGER_ID,
+    CONF_VARIABLES,
 )
 from esphome.core import coroutine_with_priority
 
@@ -152,19 +153,42 @@ async def to_code(config):
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 
-HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(APIServer),
-        cv.Required(CONF_SERVICE): cv.templatable(cv.string),
-        cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
-            {cv.string: cv.returning_lambda}
-        ),
-    }
+
+def _validate_action(config: dict) -> dict:
+    config = config.copy()
+    if service_name := config.get(CONF_SERVICE):
+        config[CONF_ACTION] = service_name
+        del config[CONF_SERVICE]
+    return config
+
+
+HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(APIServer),
+            cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.templatable(
+                cv.string
+            ),
+            cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.templatable(
+                cv.string
+            ),
+            cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
+            cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
+            cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
+                {cv.string: cv.returning_lambda}
+            ),
+        }
+    ),
+    cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
+    _validate_action,
 )
 
 
+@automation.register_action(
+    "homeassistant.action",
+    HomeAssistantServiceCallAction,
+    HOMEASSISTANT_SERVICE_ACTION_SCHEMA,
+)
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
@@ -173,7 +197,7 @@ HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema(
 async def homeassistant_service_to_code(config, action_id, template_arg, args):
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = await cg.templatable(config[CONF_SERVICE], args, None)
+    templ = await cg.templatable(config[CONF_ACTION], args, None)
     cg.add(var.set_service(templ))
     for key, value in config[CONF_DATA].items():
         templ = await cg.templatable(value, args, None)
