@@ -76,8 +76,10 @@ ACTIONS_SCHEMA = automation.validate_automation(
             }
         ),
     },
-    cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
-    cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    cv.All(
+        cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
+        cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    ),
 )
 
 CONFIG_SCHEMA = cv.All(
