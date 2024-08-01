@@ -148,7 +148,7 @@ void ModemComponent::setup() {
 
 void ModemComponent::modem_lazy_init_() {
   // destroy previous dte/dce, and recreate them.
-  // no communication is done with the modem. s
+  // no communication is done with the modem.
 
   this->dte_.reset();
   this->dce.reset();
@@ -201,7 +201,6 @@ void ModemComponent::modem_lazy_init_() {
 bool ModemComponent::modem_sync_() {
   // force command mode, check sim, and send init_at commands
   // close cmux/data if needed, and may reboot the modem.
-  // This is needed at boot.
   if (!this->watchdog_)
     this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
 
@@ -215,13 +214,13 @@ bool ModemComponent::modem_sync_() {
 
     std::string result;
 
-    auto command_mode_ = [this]() -> bool {
+    auto command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying command mode");
       this->dce->set_mode(modem_mode::UNDEF);
       return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->modem_ready();
     };
 
-    auto cmux_command_mode_ = [this]() -> bool {
+    auto cmux_command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying cmux command mode");
       return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) &&
              this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->modem_ready();
@@ -230,9 +229,9 @@ bool ModemComponent::modem_sync_() {
     // The cmux state is supposed to be the same before the reboot. But if it has changed (new firwmare), we will try
     // to fallback to inverted cmux state.
     if (this->cmux_) {
-      status = cmux_command_mode_() || (command_mode_() && cmux_command_mode_());
+      status = cmux_command_mode() || (command_mode() && cmux_command_mode());
     } else {
-      status = command_mode_() || (cmux_command_mode_() && command_mode_());
+      status = command_mode() || (cmux_command_mode() && command_mode());
     }
 
     elapsed_ms = millis() - start_ms;
@@ -481,7 +480,7 @@ void ModemComponent::loop() {
             if (!this->watchdog_)
               this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
             // want to start connect, make sure the modem is ready
-            if (!this->modem_ready() && !this->modem_sync_()) {
+            if (!this->modem_sync_()) {
               ESP_LOGE(TAG, "Modem not responding");
               this->state_ = ModemComponentState::NOT_RESPONDING;
               break;
@@ -490,7 +489,7 @@ void ModemComponent::loop() {
               network_attach_retry = 10;
               if (this->start_ppp_()) {
                 connecting = true;
-                next_loop_millis = millis() + 1000;  // delay for next loop
+                next_loop_millis = millis() + 2000;  // delay for next loop
               }
             } else {
               ESP_LOGD(TAG, "Waiting for the modem to be attached to a network (left retries: %" PRIu8 ")",
@@ -501,8 +500,7 @@ void ModemComponent::loop() {
                 if (this->power_pin_) {
                   this->poweroff_();
                 } else {
-                  // fatal error ?
-                  this->start_ = false;
+                  this->state_ = ModemComponentState::NOT_RESPONDING;
                 }
               }
               next_loop_millis = millis() + 1000;  // delay to retry
@@ -533,10 +531,7 @@ void ModemComponent::loop() {
             ESP_LOGD(TAG, "Disconnecting...");
             this->stop_ppp_();
             delay(200);  // NOLINT
-            ESP_LOGD(TAG, "Hanging up connection after %.1fmin", float(this->connect_begin_) / (1000 * 60));
-            // ESPMODEM_ERROR_CHECK(this->dce->hang_up(),
-            //                     "Unable to hang up modem. Trying to continue anyway.");  // FIXME: needed ?
-            // this->dump_connect_params_();
+            ESP_LOGD(TAG, "Disconnected after %.1fmin", float(this->connect_begin_) / (1000 * 60));
           } else {
             // disconnecting
             // Waiting for IP_EVENT_PPP_LOST_IP.
