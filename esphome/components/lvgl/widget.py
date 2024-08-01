@@ -4,13 +4,9 @@ from typing import Any, Union
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
-from esphome.core import CORE, ID, TimePeriod
+from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import (
-    AssignmentExpression,
-    MockObj,
-    VariableDeclarationExpression,
-)
+from esphome.cpp_generator import AssignmentExpression, MockObj
 
 from .defines import (
     CONF_DEFAULT,
@@ -36,7 +32,7 @@ from .defines import (
     literal,
 )
 from .helpers import add_lv_use
-from .lvcode import add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj
+from .lvcode import add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj, lv_Pvariable
 from .schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
 from .types import LvType, WidgetType, lv_coord_t, lv_group_t, lv_obj_t, lv_obj_t_ptr
 
@@ -351,10 +347,7 @@ async def widget_to_code(w_cnfig, w_type, parent):
         var = cg.new_Pvariable(wid)
         lv_add(var.set_obj(creator))
     else:
-        var = MockObj(wid, "->")
-        decl = VariableDeclarationExpression(lv_obj_t, "*", wid)
-        CORE.add_global(decl)
-        CORE.register_variable(wid, var)
+        var = lv_Pvariable(lv_obj_t, wid)
         lv_assign(var, creator)
 
     widget = Widget.create(wid, var, spec, w_cnfig)

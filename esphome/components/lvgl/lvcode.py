@@ -304,3 +304,17 @@ def add_line_marks(where):
 
 def lv_assign(target, expression):
     lv_add(AssignmentExpression("", "", target, expression))
+
+
+def lv_Pvariable(type, name):
+    """
+    Create but do not initialise a pointer variable
+    :param type: Type of the variable target
+    :param name: name of the variable
+    :return:  A MockObj of the variable
+    """
+    decl = VariableDeclarationExpression(type, "*", name)
+    CORE.add_global(decl)
+    var = MockObj(name, "->")
+    CORE.register_variable(name, var)
+    return var

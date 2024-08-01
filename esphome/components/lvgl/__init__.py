@@ -58,6 +58,7 @@ from .spinbox import spinbox_spec
 from .spinner import spinner_spec
 from .tabview import tabview_spec
 from .textarea import textarea_spec
+from .tileview import tileview_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -98,6 +99,7 @@ for w_type in (
     textarea_spec,
     spinbox_spec,
     keyboard_spec,
+    tileview_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
