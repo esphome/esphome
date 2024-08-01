@@ -11,7 +11,6 @@ from esphome.cpp_types import nullptr
 from .defines import CONF_LVGL_ID, CONF_SHOW_SNOW, literal
 from .lv_validation import lv_bool
 from .lvcode import (
-    LVGL_COMP_ARG,
     LambdaContext,
     ReturnStatement,
     add_line_marks,
@@ -21,7 +20,14 @@ from .lvcode import (
     lvgl_comp,
 )
 from .schemas import LIST_ACTION_SCHEMA, LVGL_SCHEMA
-from .types import LvglAction, LvglComponent, LvglCondition, ObjUpdateAction, lv_obj_t
+from .types import (
+    LVGL_COMP_ARG,
+    LvglAction,
+    LvglComponent,
+    LvglCondition,
+    ObjUpdateAction,
+    lv_obj_t,
+)
 from .widget import Widget, get_widgets, lv_scr_act, set_obj_properties
 
 
@@ -104,7 +110,7 @@ async def action_to_code(
             lv.cond_if(widget.obj != nullptr)
             await action(widget)
             lv.cond_endif()
-    code = "\n".join(context.get_code()) + "\n\n"
+    code = "\n".join(context.get_code()) + "\n"
     lamb = await cg.process_lambda(Lambda(code), args)
     var = cg.new_Pvariable(action_id, template_arg, lamb)
     return var

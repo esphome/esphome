@@ -25,6 +25,7 @@ from .animimg import animimg_spec
 from .arc import arc_spec
 from .automation import update_to_code
 from .btn import btn_spec
+from .btnmatrix import btnmatrix_spec
 from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
 from .img import img_spec
@@ -42,6 +43,7 @@ from .schemas import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
     LAYOUT_SCHEMAS,
+    WIDGET_TYPES,
     any_widget_schema,
     container_schema,
     create_modify_schema,
@@ -53,7 +55,6 @@ from .tabview import tabview_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
-    WIDGET_TYPES,
     FontEngine,
     IdleTrigger,
     LvglComponent,
@@ -84,6 +85,7 @@ for w_type in (
     img_spec,
     switch_spec,
     tabview_spec,
+    btnmatrix_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 

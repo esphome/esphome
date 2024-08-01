@@ -6,7 +6,11 @@ from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.core import CORE, ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObj, MockObjClass, VariableDeclarationExpression
+from esphome.cpp_generator import (
+    AssignmentExpression,
+    MockObj,
+    VariableDeclarationExpression,
+)
 
 from .defines import (
     CONF_DEFAULT,
@@ -33,9 +37,9 @@ from .defines import (
     literal,
 )
 from .helpers import add_lv_use
-from .lvcode import add_group, add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj
-from .schemas import ALL_STYLES, STYLE_REMAP
-from .types import WIDGET_TYPES, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
+from .lvcode import add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj
+from .schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
+from .types import LvType, WidgetType, lv_coord_t, lv_group_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
 
@@ -47,9 +51,6 @@ class LvScrActType(WidgetType):
 
     def __init__(self):
         super().__init__("lv_scr_act()", lv_obj_t, ())
-
-    def obj_creator(self, parent: MockObjClass, config: dict):
-        return []
 
     async def to_code(self, w, config: dict):
         return []
@@ -154,6 +155,14 @@ class Widget:
         if self.scale == 1.0:
             return value
         return value * self.scale
+
+    def is_selected(self):
+        """
+        Overridable property to determine if the widget is selected. Will be None except
+        for matrix buttons
+        :return:
+        """
+        return None
 
 
 # Map of widgets to their config, used for trigger generation
@@ -363,3 +372,20 @@ async def widget_to_code(w_cnfig, w_type, parent):
 
 lv_scr_act_spec = LvScrActType()
 lv_scr_act = Widget.create(None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {})
+
+lv_groups = {}  # Widget group names
+
+
+def add_group(name):
+    if name is None:
+        return None
+    fullname = f"lv_esp_group_{name}"
+    if name not in lv_groups:
+        gid = ID(fullname, True, type=lv_group_t.operator("ptr"))
+        lv_add(
+            AssignmentExpression(
+                type_=gid.type, modifier="", name=fullname, rhs=lv_expr.group_create()
+            )
+        )
+        lv_groups[name] = ConstantLiteral(fullname)
+    return lv_groups[name]

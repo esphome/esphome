@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SIZE,
     CONF_TRIGGER_ID,
 )
+from esphome.cpp_generator import MockObjClass
 
 from .automation import action_to_code
 from .defines import (
@@ -75,9 +76,12 @@ class TabviewType(WidgetType):
             await set_obj_properties(tab_widget, tab_conf)
             await add_widgets(tab_widget, tab_conf)
 
-    def obj_creator(self, parent: LvType, config: dict):
-        return (
-            f"lv_tabview_create({parent}, {config[CONF_POSITION]}, {config[CONF_SIZE]})"
+    def obj_creator(self, parent: MockObjClass, config: dict):
+        return lv_expr.call(
+            "tabview_create",
+            parent,
+            literal(config[CONF_POSITION]),
+            literal(config[CONF_SIZE]),
         )
 
 

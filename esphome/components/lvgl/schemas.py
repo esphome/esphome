@@ -16,7 +16,10 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from . import defines as df, lv_validation as lvalid, types as ty
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import id_name, lv_font
-from .types import WIDGET_TYPES, WidgetType
+from .types import WidgetType
+
+# this will be populated later, in __init__.py to avoid circular imports.
+WIDGET_TYPES: dict = {}
 
 # A schema for text properties
 TEXT_SCHEMA = cv.Schema(

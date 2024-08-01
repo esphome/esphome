@@ -309,7 +309,8 @@ OBJ_FLAGS = (
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
 
-BTNMATRIX_CTRLS = (
+BTNMATRIX_CTRLS = LvConstant(
+    "LV_BTNMATRIX_CTRL_",
     "HIDDEN",
     "NO_REPEAT",
     "DISABLED",
@@ -506,7 +507,6 @@ LV_KEYS = LvConstant(
 
 
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
-LVGL_COMP = "lvgl_comp"  # used as a lambda argument in lvgl_comp()
 
 
 def join_enums(enums, prefix=""):

@@ -3,7 +3,8 @@ import logging
 from typing import Union
 
 from esphome import codegen as cg
-from esphome.core import ID, Lambda
+from esphome.config import Config
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import (
     AssignmentExpression,
     CallExpression,
@@ -18,12 +19,40 @@ from esphome.cpp_generator import (
     VariableDeclarationExpression,
     statement,
 )
-
-from .defines import LVGL_COMP, ConstantLiteral
-from .helpers import get_line_marks
-from .types import LvglComponentPtr, lv_group_t
+from esphome.yaml_util import ESPHomeDataBase
 
 _LOGGER = logging.getLogger(__name__)
+
+LVGL_COMP = "lvgl_comp"  # used as a lambda argument in lvgl_comp()
+
+
+def get_line_marks(value) -> list:
+    """
+    If possible, return a preprocessor directive to identify the line number where the given id was defined.
+    :param value: The id or other token to get the line number for
+    :return: A list containing zero or more line directives
+    """
+    path = None
+    if isinstance(value, ESPHomeDataBase):
+        path = value.esp_range
+    elif isinstance(value, ID) and isinstance(CORE.config, Config):
+        path = CORE.config.get_path_for_id(value)[:-1]
+        path = CORE.config.get_deepest_document_range_for_path(path)
+    if path is None:
+        return []
+    return [path.start_mark.as_line_directive]
+
+
+class IndentedStatement(Statement):
+    def __init__(self, stmt: Statement, indent: int):
+        self.statement = stmt
+        self.indent = indent
+
+    def __str__(self):
+        result = " " * self.indent * 4 + str(self.statement)
+        if not isinstance(self.statement, RawStatement):
+            result += ";"
+        return result
 
 
 class CodeContext(abc.ABC):
@@ -40,6 +69,16 @@ class CodeContext(abc.ABC):
         pass
 
     @staticmethod
+    def start_block():
+        CodeContext.append(RawStatement("{"))
+        CodeContext.code_context.indent()
+
+    @staticmethod
+    def end_block():
+        CodeContext.code_context.detent()
+        CodeContext.append(RawStatement("}"))
+
+    @staticmethod
     def append(expression: Union[Expression, Statement]):
         if CodeContext.code_context is not None:
             CodeContext.code_context.add(expression)
@@ -47,6 +86,7 @@ class CodeContext(abc.ABC):
 
     def __init__(self):
         self.previous: Union[CodeContext | None] = None
+        self.indent_level = 0
 
     def __enter__(self):
         self.previous = CodeContext.code_context
@@ -55,6 +95,15 @@ class CodeContext(abc.ABC):
     def __exit__(self, *args):
         CodeContext.code_context = self.previous
 
+    def indent(self):
+        self.indent_level += 1
+
+    def detent(self):
+        self.indent_level -= 1
+
+    def indented_statement(self, stmt):
+        return IndentedStatement(stmt, self.indent_level) if self.indent_level else stmt
+
 
 class MainContext(CodeContext):
     """
@@ -62,7 +111,7 @@ class MainContext(CodeContext):
     """
 
     def add(self, expression: Union[Expression, Statement]):
-        return cg.add(expression)
+        return cg.add(self.indented_statement(expression))
 
 
 class LvContext(CodeContext):
@@ -91,10 +140,10 @@ class LvContext(CodeContext):
             text = str(statement(exp))
             text = text.rstrip()
             code.append(text)
-        return "\n".join(code) + "\n\n"
+        return "\n".join(code) + "\n"
 
     def add(self, expression: Union[Expression, Statement]):
-        return LvContext.lv_add(expression)
+        return LvContext.lv_add(self.indented_statement(expression))
 
     def set_style(self, prop):
         return MockObj("lv_set_style_{prop}", "")
@@ -120,7 +169,7 @@ class LambdaContext(CodeContext):
         self.where = where
 
     def add(self, expression: Union[Expression, Statement]):
-        self.code_list.append(expression)
+        self.code_list.append(self.indented_statement(expression))
         return expression
 
     async def get_lambda(self) -> LambdaExpression:
@@ -158,7 +207,7 @@ class LocalVariable(MockObj):
         self.rhs = rhs
 
     def __enter__(self):
-        CodeContext.append(RawStatement("{"))
+        CodeContext.start_block()
         CodeContext.append(
             VariableDeclarationExpression(self.base.type, self.modifier, self.base.id)
         )
@@ -167,7 +216,7 @@ class LocalVariable(MockObj):
         return self.base
 
     def __exit__(self, *args):
-        CodeContext.append(RawStatement("}"))
+        CodeContext.end_block()
 
 
 class MockLv:
@@ -204,12 +253,15 @@ class MockLv:
 
     def cond_if(self, expression: Expression):
         CodeContext.append(RawStatement(f"if {expression} {{"))
+        CodeContext.code_context.indent()
 
     def cond_else(self):
+        CodeContext.code_context.detent()
         CodeContext.append(RawStatement("} else {"))
+        CodeContext.code_context.indent()
 
     def cond_endif(self):
-        CodeContext.append(RawStatement("}"))
+        CodeContext.end_block()
 
 
 class ReturnStatement(ExpressionStatement):
@@ -233,8 +285,6 @@ lv_expr = LvExpr("lv_")
 lv_obj = MockLv("lv_obj_")
 # Operations on the LVGL component
 lvgl_comp = MockObj(LVGL_COMP, "->")
-# Argument tuple for use in lambdas
-LVGL_COMP_ARG = (LvglComponentPtr, LVGL_COMP)
 
 
 # equivalent to cg.add() for the current code context
@@ -253,22 +303,4 @@ def add_line_marks(where):
 
 
 def lv_assign(target, expression):
-    lv_add(RawExpression(f"{target} = {expression}"))
-
-
-lv_groups = {}  # Widget group names
-
-
-def add_group(name):
-    if name is None:
-        return None
-    fullname = f"lv_esp_group_{name}"
-    if name not in lv_groups:
-        gid = ID(fullname, True, type=lv_group_t.operator("ptr"))
-        lv_add(
-            AssignmentExpression(
-                type_=gid.type, modifier="", name=fullname, rhs=lv_expr.group_create()
-            )
-        )
-        lv_groups[name] = ConstantLiteral(fullname)
-    return lv_groups[name]
+    lv_add(AssignmentExpression("", "", target, expression))

@@ -246,6 +246,13 @@ def animated(value):
     return LvConstant("LV_ANIM_", "OFF", "ON").one_of(value)
 
 
+def key_code(value):
+    value = cv.Any(cv.All(cv.string_strict, cv.Length(min=1, max=1)), cv.uint8_t)(value)
+    if isinstance(value, str):
+        return ord(value[0])
+    return value
+
+
 async def get_end_value(config):
     return await lv_int.process(config.get(CONF_END_VALUE))
 

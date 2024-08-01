@@ -31,6 +31,10 @@
 #include "esphome/components/touchscreen/touchscreen.h"
 #endif  // USE_LVGL_TOUCHSCREEN
 
+#ifdef USE_LVGL_BUTTONMATRIX
+#include "esphome/components/key_provider/key_provider.h"
+#endif  // USE_LVGL_BUTTONMATRIX
+
 namespace esphome {
 namespace lvgl {
 
@@ -47,9 +51,9 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 #endif  // LV_COLOR_DEPTH
 
 // Parent class for things that wrap an LVGL object
-class LvCompound final {
+class LvCompound {
  public:
-  void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
+  virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
 };
 
@@ -350,5 +354,47 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int key_{};
 };
 #endif  // USE_LVGL_KEY_LISTENER
+#ifdef USE_LVGL_BUTTONMATRIX
+class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
+ public:
+  void set_obj(lv_obj_t *lv_obj) override {
+    LvCompound::set_obj(lv_obj);
+    lv_obj_add_event_cb(
+        lv_obj,
+        [](lv_event_t *event) {
+          auto *self = static_cast<LvBtnmatrixType *>(event->user_data);
+          if (self->key_callback_.size() == 0)
+            return;
+          auto key_idx = lv_btnmatrix_get_selected_btn(self->obj);
+          if (key_idx == LV_BTNMATRIX_BTN_NONE)
+            return;
+          if (self->key_map_.count(key_idx) != 0) {
+            self->send_key_(self->key_map_[key_idx]);
+            return;
+          }
+          auto str = lv_btnmatrix_get_btn_text(self->obj, key_idx);
+          auto len = strlen(str);
+          while (len--)
+            self->send_key_(*str++);
+        },
+        LV_EVENT_PRESSED, this);
+  }
+
+  uint16_t *get_selected() { return this->get_btn(lv_btnmatrix_get_selected_btn(this->obj)); }
+
+  uint16_t *get_btn(uint16_t index) {
+    if (index >= this->btn_ids_.size())
+      return nullptr;
+    return this->btn_ids_[index];
+  }
+
+  void set_key(size_t idx, uint8_t key) { this->key_map_[idx] = key; }
+  void add_btn(uint16_t *id) { this->btn_ids_.push_back(id); }
+
+ protected:
+  std::map<size_t, uint8_t> key_map_{};
+  std::vector<uint16_t *> btn_ids_{};
+};
+#endif
 }  // namespace lvgl
 }  // namespace esphome

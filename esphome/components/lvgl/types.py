@@ -3,6 +3,7 @@ from esphome.const import CONF_VALUE
 from esphome.cpp_generator import MockObj, MockObjClass
 
 from .defines import CONF_TEXT
+from .lvcode import LVGL_COMP, lv_expr
 
 
 class LvType(cg.MockObjClass):
@@ -46,6 +47,7 @@ LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
 LvCompound = lvgl_ns.class_("LvCompound")
 lv_font_t = cg.global_ns.class_("lv_font_t")
 lv_style_t = cg.global_ns.struct("lv_style_t")
+# fake parent class for first class widgets and matrix buttons
 lv_pseudo_button_t = lvgl_ns.class_("LvPseudoButton")
 lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
@@ -58,9 +60,8 @@ lv_obj_t = LvType("lv_obj_t")
 lv_page_t = cg.global_ns.class_("LvPageType", LvCompound)
 lv_img_t = LvType("lv_img_t")
 
-
-# this will be populated later, in __init__.py to avoid circular imports.
-WIDGET_TYPES: dict = {}
+# Argument tuple for use in lambdas
+LVGL_COMP_ARG = (LvglComponentPtr, LVGL_COMP)
 
 
 class LvText(LvType):
@@ -91,7 +92,13 @@ class WidgetType:
     """
 
     def __init__(
-        self, name, w_type, parts, schema=None, modify_schema=None, lv_name=None
+        self,
+        name: str,
+        w_type: LvType,
+        parts: tuple,
+        schema=None,
+        modify_schema=None,
+        lv_name=None,
     ):
         """
         :param name: The widget name, e.g. "bar"
@@ -141,7 +148,7 @@ class WidgetType:
         :param config:  Its configuration
         :return: Generated code as a single text line
         """
-        return f"lv_{self.name}_create({parent})"
+        return lv_expr.call(f"{self.lv_name}_create", parent)
 
     def get_uses(self):
         """

@@ -1,7 +1,6 @@
 from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import CONF_ANGLE, CONF_MODE
-from esphome.cpp_generator import MockObjClass
 
 from .defines import (
     CONF_ANTIALIAS,
@@ -53,14 +52,16 @@ IMG_MODIFY_SCHEMA = BASE_IMG_SCHEMA.extend(
 class ImgType(WidgetType):
     def __init__(self):
         super().__init__(
-            CONF_IMAGE, lv_img_t, (CONF_MAIN,), IMG_SCHEMA, IMG_MODIFY_SCHEMA
+            CONF_IMAGE,
+            lv_img_t,
+            (CONF_MAIN,),
+            IMG_SCHEMA,
+            IMG_MODIFY_SCHEMA,
+            lv_name="img",
         )
 
     def get_uses(self):
         return "img", CONF_LABEL
-
-    def obj_creator(self, parent: MockObjClass, config: dict):
-        return f"lv_img_create({parent})"
 
     async def to_code(self, w: Widget, config):
         if src := config.get(CONF_SRC):

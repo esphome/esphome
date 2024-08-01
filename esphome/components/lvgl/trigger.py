@@ -55,5 +55,9 @@ async def add_trigger(conf, event, lv_component, w):
     value = w.get_value()
     await automation.build_automation(trigger, args, conf)
     with LambdaContext([(lv_event_t_ptr, "event_data")], where=tid) as context:
+        if selected := w.is_selected():
+            lv.cond_if(selected)
         lv_add(trigger.trigger(value))
+        if selected:
+            lv.cond_endif()
     lv_add(lv_component.add_event_cb(w.obj, await context.get_lambda(), literal(event)))

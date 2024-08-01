@@ -11,9 +11,9 @@ from .defines import (
     LV_ANIM,
 )
 from .lv_validation import lv_bool, lv_milliseconds
-from .lvcode import LVGL_COMP_ARG, LambdaContext, add_line_marks, lv_add, lvgl_comp
+from .lvcode import LambdaContext, add_line_marks, lv_add, lvgl_comp
 from .schemas import LVGL_SCHEMA
-from .types import LvglAction, lv_page_t
+from .types import LVGL_COMP_ARG, LvglAction, lv_page_t
 from .widget import Widget, WidgetType, add_widgets, set_obj_properties
 
 
