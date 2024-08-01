@@ -76,7 +76,7 @@ class ModemComponent : public Component {
   bool modem_ready();
   void enable();
   void disable();
-  void add_on_state_callback(std::function<void(ModemComponentState)> &&callback);
+  void add_on_state_callback(std::function<void(ModemComponentState, ModemComponentState)> &&callback);
   std::unique_ptr<DCE> dce{nullptr};
 
  protected:
@@ -115,6 +115,8 @@ class ModemComponent : public Component {
   bool enabled_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
+  // true if modem_sync_ was sucessfull
+  bool modem_synced_{false};
   // date start (millis())
   uint32_t connect_begin_;
   std::string use_address_;
@@ -130,7 +132,7 @@ class ModemComponent : public Component {
 #endif  // USE_MODEM_POWER
   // separate handler for `on_not_responding` (we want to know when it's ended)
   Trigger<> *not_responding_cb_{nullptr};
-  CallbackManager<void(ModemComponentState)> on_state_callback_;
+  CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
