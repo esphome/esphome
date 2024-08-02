@@ -85,7 +85,7 @@ void MICS4514Component::update() {
     if (ox_f < 0.3f) {
       nitrogendioxide = 0.0;
     } else {
-      nitrogendioxide = 0.164 * pow(0x_f, 0.975);
+      nitrogendioxide = 0.164 * pow(ox_f, 0.975);
     }
     this->nitrogen_dioxide_sensor_->publish_state(nitrogendioxide);
   }
