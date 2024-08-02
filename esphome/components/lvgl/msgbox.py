@@ -81,7 +81,9 @@ async def msgbox_to_code(conf):
     msgbox = lv_Pvariable(lv_obj_t, f"{mbid.id}_msgbox")
     outer_w = Widget.create(mbid, outer, obj_spec, conf)
     btnm_widg = Widget.create(str(btnm), btnm, btnmatrix_spec, conf)
-    text_list, ctrl_list, width_list, _, _ = await get_button_data((conf,), btnm_widg)
+    text_list, ctrl_list, width_list, _, btn_id_list = await get_button_data(
+        (conf,), btnm_widg
+    )
     text_id = conf[CONF_BUTTONMATRIX_TEXT_LIST_ID]
     text_list = static_const_array(text_id, text_list)
     if text := conf.get(CONF_BODY):
@@ -103,6 +105,8 @@ async def msgbox_to_code(conf):
     )
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
     lv_add(btnm.set_obj(lv_expr.msgbox_get_btns(msgbox)))
+    for btn in btn_id_list:
+        lv_add(btnm.add_btn(btn))
     await set_obj_properties(outer_w, conf)
     if close_button:
         with LambdaContext([(lv_event_t_ptr, "ev")]) as context:
@@ -119,10 +123,7 @@ async def msgbox_to_code(conf):
             )
 
     if len(ctrl_list) != 0 or len(width_list) != 0:
-        with LocalVariable(
-            "msgbox_btns_", lv_obj_t, "*", lv_expr.msgbox_get_btns(msgbox)
-        ) as buttons:
-            set_btn_data(buttons, ctrl_list, width_list)
+        set_btn_data(btnm.obj, ctrl_list, width_list)
 
 
 async def msgboxes_to_code(config):

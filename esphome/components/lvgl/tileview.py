@@ -75,7 +75,7 @@ class TileviewType(WidgetType):
             lv_assign(
                 tile_obj,
                 lv_expr.tileview_add_tile(
-                    w.obj, tile_conf[CONF_ROW], tile_conf[CONF_COLUMN], literal(dirs)
+                    w.obj, tile_conf[CONF_COLUMN], tile_conf[CONF_ROW], literal(dirs)
                 ),
             )
             await set_obj_properties(tile, tile_conf)
