@@ -141,7 +141,7 @@ jobs:
           echo name=$(cat /tmp/platform) >> $GITHUB_OUTPUT
 
       - name: Upload digests
-        uses: actions/upload-artifact@v4.3.4
+        uses: actions/upload-artifact@v4.3.5
         with:
           name: digests-${{ steps.sanitize.outputs.name }}
           path: /tmp/digests
