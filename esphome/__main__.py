@@ -1039,13 +1039,6 @@ def run_esphome(argv):
         _LOGGER.warning("Please instead use:")
         _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
-    if sys.version_info < (3, 8, 0):
-        _LOGGER.error(
-            "You're running ESPHome with Python <3.8. ESPHome is no longer compatible "
-            "with this Python version. Please reinstall ESPHome with Python 3.8+"
-        )
-        return 1
-
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
