@@ -472,5 +472,13 @@ optional<float> RoundFilter::new_value(float value) {
   return value;
 }
 
+RoundMultipleFilter::RoundMultipleFilter(float multiple) : multiple_(multiple) {}
+optional<float> RoundMultipleFilter::new_value(float value) {
+  if (std::isfinite(value)) {
+    return value - remainderf(value, this->multiple_);
+  }
+  return value;
+}
+
 }  // namespace sensor
 }  // namespace esphome
