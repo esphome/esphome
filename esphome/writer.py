@@ -1,27 +1,27 @@
 import logging
 import os
-import re
 from pathlib import Path
+import re
 from typing import Union
 
-from esphome.config import iter_components, iter_component_configs
+from esphome import loader
+from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
+    ENV_NOGITIGNORE,
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
     __version__,
-    ENV_NOGITIGNORE,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
-    mkdir_p,
-    read_file,
-    write_file_if_changed,
-    walk_files,
     copy_file_if_changed,
     get_bool_env,
+    mkdir_p,
+    read_file,
+    walk_files,
+    write_file_if_changed,
 )
 from esphome.storage_json import StorageJSON, storage_path
-from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
 
