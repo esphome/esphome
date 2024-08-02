@@ -31,17 +31,19 @@ def validate_instruction_list():
 
 
 CONFIG_SCHEMA = (
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(ES8388Component),
-        cv.Optional(CONF_PRESET): cv.enum(ES8388_PRESETS, lower=True),
-        cv.Optional(CONF_INIT_INSTRUCTIONS): validate_instruction_list(),
-        cv.Optional(CONF_MACROS): cv.ensure_list(
-            {
-                cv.Required(CONF_ID): cv.string,
-                cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
-            }
-        ),
-    })
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ES8388Component),
+            cv.Optional(CONF_PRESET): cv.enum(ES8388_PRESETS, lower=True),
+            cv.Optional(CONF_INIT_INSTRUCTIONS): validate_instruction_list(),
+            cv.Optional(CONF_MACROS): cv.ensure_list(
+                {
+                    cv.Required(CONF_ID): cv.string,
+                    cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
+                }
+            ),
+        }
+    )
     .extend(i2c.i2c_device_schema(0x10))
     .extend(cv.COMPONENT_SCHEMA)
 )
@@ -63,7 +65,7 @@ async def to_code(config):
                 {
                     cv.Required(CONF_ID): cv.declare_id(Macro),
                     cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
-                }
+                },
             )
             cg.add(var.register_macro(macro[CONF_ID], macro[CONF_INSTRUCTIONS]))
 
