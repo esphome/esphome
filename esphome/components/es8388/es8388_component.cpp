@@ -214,10 +214,10 @@ void ES8388Component::setup_raspiaudio_radio() {
   // unmute
   error = error || not this->write_byte(25, 0x00);
   // amp validation
-  error = error || not this->write_byte(46, 30);
-  error = error || not this->write_byte(47, 30);
-  error = error || not this->write_byte(48, 33);
-  error = error || not this->write_byte(49, 33);
+  error = error || not this->write_byte(46, 24);
+  error = error || not this->write_byte(47, 24);
+  error = error || not this->write_byte(48, 24);
+  error = error || not this->write_byte(49, 24);
 
   if (error) {
     ESP_LOGE(TAG, "Error writing I2C registers for preset Raspiaudio Radio");
