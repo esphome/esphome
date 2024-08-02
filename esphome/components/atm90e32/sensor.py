@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import (
-    CONF_ID,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
     CONF_CURRENT,
@@ -37,6 +36,8 @@ from esphome.const import (
     UNIT_WATT_HOURS,
 )
 
+from . import CONF_ATM90E32_ID, ATM90E32Component
+
 CONF_LINE_FREQUENCY = "line_frequency"
 CONF_CHIP_TEMPERATURE = "chip_temperature"
 CONF_GAIN_PGA = "gain_pga"
@@ -46,6 +47,7 @@ CONF_GAIN_CT = "gain_ct"
 CONF_HARMONIC_POWER = "harmonic_power"
 CONF_PEAK_CURRENT = "peak_current"
 CONF_PEAK_CURRENT_SIGNED = "peak_current_signed"
+CONF_ENABLE_OFFSET_CALIBRATION = "enable_offset_calibration"
 UNIT_DEG = "degrees"
 LINE_FREQS = {
     "50HZ": 50,
@@ -61,10 +63,7 @@ PGA_GAINS = {
     "4X": 0x2A,
 }
 
-atm90e32_ns = cg.esphome_ns.namespace("atm90e32")
-ATM90E32Component = atm90e32_ns.class_(
-    "ATM90E32Component", cg.PollingComponent, spi.SPIDevice
-)
+CODEOWNERS = ["@circuitsetup", "@descipher"]
 
 ATM90E32_PHASE_SCHEMA = cv.Schema(
     {
@@ -141,7 +140,7 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ATM90E32Component),
+            cv.GenerateID(CONF_ATM90E32_ID): cv.declare_id(ATM90E32Component),
             cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
@@ -164,6 +163,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_GAIN_PGA, default="2X"): cv.enum(PGA_GAINS, upper=True),
             cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_OFFSET_CALIBRATION, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -172,7 +172,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ATM90E32_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
@@ -227,3 +227,4 @@ async def to_code(config):
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
     cg.add(var.set_peak_current_signed(config[CONF_PEAK_CURRENT_SIGNED]))
+    cg.add(var.set_enable_offset_calibration(config[CONF_ENABLE_OFFSET_CALIBRATION]))
