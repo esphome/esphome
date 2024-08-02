@@ -201,7 +201,7 @@ class LocalVariable(MockObj):
     """
 
     def __init__(self, name, type, modifier=None, rhs=None):
-        base = ID(name, True, type)
+        base = ID(name + "_VAR_", True, type)
         super().__init__(base, "")
         self.modifier = modifier
         self.rhs = rhs
@@ -213,7 +213,7 @@ class LocalVariable(MockObj):
         )
         if self.rhs is not None:
             CodeContext.append(AssignmentExpression(None, "", self.base, self.rhs))
-        return self.base
+        return MockObj(self.base)
 
     def __exit__(self, *args):
         CodeContext.end_block()
@@ -251,17 +251,26 @@ class MockLv:
         self.append(result)
         return result
 
-    def cond_if(self, expression: Expression):
-        CodeContext.append(RawStatement(f"if {expression} {{"))
-        CodeContext.code_context.indent()
 
-    def cond_else(self):
+class LvConditional:
+    def __init__(self, condition):
+        self.condition = condition
+
+    def __enter__(self):
+        if self.condition is not None:
+            CodeContext.append(RawStatement(f"if {self.condition} {{"))
+            CodeContext.code_context.indent()
+
+    def __exit__(self, *args):
+        if self.condition is not None:
+            CodeContext.code_context.detent()
+            CodeContext.append(RawStatement("}"))
+
+    def else_(self):
+        assert self.condition is not None
         CodeContext.code_context.detent()
         CodeContext.append(RawStatement("} else {"))
         CodeContext.code_context.indent()
-
-    def cond_endif(self):
-        CodeContext.end_block()
 
 
 class ReturnStatement(ExpressionStatement):
@@ -310,11 +319,29 @@ def lv_Pvariable(type, name):
     """
     Create but do not initialise a pointer variable
     :param type: Type of the variable target
-    :param name: name of the variable
+    :param name: name of the variable, or an ID
     :return:  A MockObj of the variable
     """
+    if isinstance(name, str):
+        name = ID(name, True, type)
     decl = VariableDeclarationExpression(type, "*", name)
     CORE.add_global(decl)
     var = MockObj(name, "->")
+    CORE.register_variable(name, var)
+    return var
+
+
+def lv_variable(type, name):
+    """
+    Create but do not initialise a variable
+    :param type: Type of the variable target
+    :param name: name of the variable, or an ID
+    :return:  A MockObj of the variable
+    """
+    if isinstance(name, str):
+        name = ID(name, True, type)
+    decl = VariableDeclarationExpression(type, "", name)
+    CORE.add_global(decl)
+    var = MockObj(name, ".")
     CORE.register_variable(name, var)
     return var

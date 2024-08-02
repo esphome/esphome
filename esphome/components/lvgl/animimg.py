@@ -59,6 +59,7 @@ class AnimimgType(WidgetType):
 
     async def to_code(self, w: Widget, config):
         lvgl_components_required.add(CONF_IMAGE)
+        lvgl_components_required.add(CONF_ANIMIMG)
         if CONF_SRC in config:
             for x in config[CONF_SRC]:
                 await cg.get_variable(x)

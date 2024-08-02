@@ -39,6 +39,7 @@ from .lv_switch import switch_spec
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext
 from .meter import meter_spec
+from .msgbox import MSGBOX_SCHEMA, msgboxes_to_code
 from .obj import obj_spec
 from .page import add_pages, page_spec
 from .roller import roller_spec
@@ -271,6 +272,7 @@ async def to_code(config):
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
         await add_top_layer(config)
+        await msgboxes_to_code(config)
         await disp_update(f"{lv_component}->get_disp()", config)
         Widget.set_completed()
         await generate_triggers(lv_component)
@@ -335,6 +337,7 @@ CONFIG_SCHEMA = (
             cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
                 container_schema(page_spec)
             ),
+            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,

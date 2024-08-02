@@ -106,6 +106,16 @@ class FontEngine {
 lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc = nullptr);
 #endif  // USE_LVGL_IMAGE
 
+#ifdef USE_LVGL_ANIMIMG
+static void lv_animimg_stop(lv_obj_t *obj) {
+  lv_animimg_t *animg = (lv_animimg_t *) obj;
+  int32_t duration = animg->anim.time;
+  lv_animimg_set_duration(obj, 0);
+  lv_animimg_start(obj);
+  lv_animimg_set_duration(obj, duration);
+}
+#endif  // USE_LVGL_ANIMIMG
+
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 

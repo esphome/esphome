@@ -61,7 +61,7 @@ class RollerType(WidgetType):
             if selected := config[CONF_SELECTED_INDEX]:
                 value = await lv_int.process(selected)
                 lv.roller_set_selected(w.obj, value, animopt)
-        w.set_property(
+        await w.set_property(
             CONF_VISIBLE_ROW_COUNT,
             await lv_int.process(config.get(CONF_VISIBLE_ROW_COUNT)),
         )

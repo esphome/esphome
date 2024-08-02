@@ -326,6 +326,7 @@ DISP_BG_SCHEMA = cv.Schema(
     }
 )
 
+
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
     STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
@@ -361,9 +362,6 @@ def container_validator(schema, widget_type: WidgetType):
             if not ltype:
                 raise (cv.Invalid("Layout schema requires type:"))
             add_lv_use(ltype)
-        result = result.extend(
-            {cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())}
-        )
         if value == SCHEMA_EXTRACT:
             return result
         result = result.extend(LAYOUT_SCHEMAS[ltype.lower()])

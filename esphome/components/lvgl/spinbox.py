@@ -96,8 +96,8 @@ class SpinboxType(WidgetType):
             w.range_to = range_to
             w.range_from = range_from
             lv.spinbox_set_range(w.obj, range_from, range_to)
-            w.set_property(CONF_STEP, step * scale)
-            w.set_property(CONF_ROLLOVER, config)
+            await w.set_property(CONF_STEP, step * scale)
+            await w.set_property(CONF_ROLLOVER, config)
             lv.spinbox_set_digit_format(
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
             )

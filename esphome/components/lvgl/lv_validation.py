@@ -1,3 +1,5 @@
+from typing import Union
+
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
@@ -168,6 +170,12 @@ lv_image = LValidator(
 lv_bool = LValidator(
     cv.boolean, cg.bool_, BinarySensor, "get_state()", retmapper=literal
 )
+
+
+def lv_pct(value: Union[int, float]):
+    if isinstance(value, float):
+        value = int(value * 100)
+    return literal(f"lv_pct({value})")
 
 
 def lvms_validator_(value):

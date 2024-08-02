@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 
-from ...cpp_generator import MockObj
 from .arc import CONF_ARC
 from .automation import action_to_code
 from .defines import (
@@ -180,10 +179,9 @@ class MeterType(WidgetType):
             with LocalVariable(
                 "meter_var", "lv_meter_scale_t", "*", lv_expr.meter_add_scale(var)
             ) as meter_var:
-                mvobj = MockObj(meter_var)
                 lv.meter_set_scale_range(
                     var,
-                    mvobj,
+                    meter_var,
                     scale_conf[CONF_RANGE_FROM],
                     scale_conf[CONF_RANGE_TO],
                     scale_conf[CONF_ANGLE_RANGE],
@@ -193,7 +191,7 @@ class MeterType(WidgetType):
                     color = await lv_color.process(ticks[CONF_COLOR])
                     lv.meter_set_scale_ticks(
                         var,
-                        mvobj,
+                        meter_var,
                         ticks[CONF_COUNT],
                         ticks[CONF_WIDTH],
                         ticks[CONF_LENGTH],
@@ -204,7 +202,7 @@ class MeterType(WidgetType):
                         color = await lv_color.process(major[CONF_COLOR])
                         lv.meter_set_scale_major_ticks(
                             var,
-                            mvobj,
+                            meter_var,
                             major[CONF_STRIDE],
                             major[CONF_WIDTH],
                             major[CONF_LENGTH],
@@ -225,7 +223,7 @@ class MeterType(WidgetType):
                         lv_assign(
                             ivar,
                             lv_expr.meter_add_needle_line(
-                                var, mvobj, v[CONF_WIDTH], color, v[CONF_R_MOD]
+                                var, meter_var, v[CONF_WIDTH], color, v[CONF_R_MOD]
                             ),
                         )
                     if t == CONF_ARC:
@@ -233,7 +231,7 @@ class MeterType(WidgetType):
                         lv_assign(
                             ivar,
                             lv_expr.meter_add_needle_arc(
-                                var, mvobj, v[CONF_WIDTH], color, v[CONF_R_MOD]
+                                var, meter_var, v[CONF_WIDTH], color, v[CONF_R_MOD]
                             ),
                         )
                     if t == CONF_TICK_STYLE:
@@ -245,7 +243,7 @@ class MeterType(WidgetType):
                             ivar,
                             lv_expr.meter_add_scale_lines(
                                 var,
-                                mvobj,
+                                meter_var,
                                 color_start,
                                 color_end,
                                 v[CONF_LOCAL],
@@ -258,7 +256,7 @@ class MeterType(WidgetType):
                             ivar,
                             lv_expr.meter_add_needle_img(
                                 var,
-                                mvobj,
+                                meter_var,
                                 await lv_image.process(v[CONF_SRC]),
                                 v[CONF_PIVOT_X],
                                 v[CONF_PIVOT_Y],

@@ -39,6 +39,7 @@
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LVGL
+#define USE_LVGL_ANIMIMG
 #define USE_LVGL_BINARY_SENSOR
 #define USE_LVGL_BUTTONMATRIX
 #define USE_LVGL_FONT

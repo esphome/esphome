@@ -51,15 +51,17 @@ class TextareaType(WidgetType):
     async def to_code(self, w: Widget, config: dict):
         for prop in (CONF_TEXT, CONF_PLACEHOLDER_TEXT, CONF_ACCEPTED_CHARS):
             if value := config.get(prop):
-                w.set_property(prop, await lv_text.process(value))
-        w.set_property(
+                await w.set_property(prop, await lv_text.process(value))
+        await w.set_property(
             CONF_MAX_LENGTH, await lv_int.process(config.get(CONF_MAX_LENGTH))
         )
-        w.set_property(
+        await w.set_property(
             CONF_PASSWORD_MODE,
             await lv_bool.process(config.get(CONF_PASSWORD_MODE)),
         )
-        w.set_property(CONF_ONE_LINE, await lv_bool.process(config.get(CONF_ONE_LINE)))
+        await w.set_property(
+            CONF_ONE_LINE, await lv_bool.process(config.get(CONF_ONE_LINE))
+        )
 
 
 textarea_spec = TextareaType()

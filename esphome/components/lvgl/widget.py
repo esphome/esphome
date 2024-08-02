@@ -33,7 +33,16 @@ from .defines import (
     literal,
 )
 from .helpers import add_lv_use
-from .lvcode import add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj, lv_Pvariable
+from .lvcode import (
+    LvConditional,
+    add_line_marks,
+    lv,
+    lv_add,
+    lv_assign,
+    lv_expr,
+    lv_obj,
+    lv_Pvariable,
+)
 from .schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
 from .types import LvType, WidgetType, lv_coord_t, lv_group_t, lv_obj_t, lv_obj_t_ptr
 
@@ -100,9 +109,13 @@ class Widget:
     def clear_flag(self, flag):
         return lv_obj.clear_flag(self.obj, literal(flag))
 
-    def set_property(self, prop, value, animated: bool = None):
+    async def set_property(self, prop, value, animated: bool = None):
         if isinstance(value, dict):
             value = value.get(prop)
+            if isinstance(ALL_STYLES.get(prop), LValidator):
+                value = await ALL_STYLES[prop].process(value)
+            else:
+                value = literal(value)
         if value is None:
             return
         if isinstance(value, TimePeriod):
@@ -267,6 +280,8 @@ async def set_obj_properties(w: Widget, config):
     for part, states in parts.items():
         for state, props in states.items():
             lv_state = join_enums((f"LV_STATE_{state}", f"LV_PART_{part}"))
+            for style_id in props.get(CONF_STYLES, ()):
+                lv_obj.add_style(w.obj, MockObj(style_id), lv_state)
             for prop, value in {
                 k: v for k, v in props.items() if k in ALL_STYLES
             }.items():
@@ -311,13 +326,11 @@ async def set_obj_properties(w: Widget, config):
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
             state = f"LV_STATE_{key.upper}"
-            lv.cond_if(lamb)
-            w.add_state(state)
-            lv.cond_else()
-            w.clear_state(state)
-            lv.cond_endif()
-    if scrollbar_mode := config.get(CONF_SCROLLBAR_MODE):
-        lv_obj.set_scrollbar_mode(w.obj, scrollbar_mode)
+            with LvConditional(lamb) as cond:
+                w.add_state(state)
+                cond.else_()
+                w.clear_state(state)
+    await w.set_property(CONF_SCROLLBAR_MODE, config)
 
 
 async def add_widgets(parent: Widget, config: dict):
@@ -354,7 +367,7 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
         lv_assign(var, creator)
 
     w = Widget.create(wid, var, spec, w_cnfig)
-    if theme := theme_widget_map.get(w_type.name):
+    if theme := theme_widget_map.get(w_type):
         lv_add(CallExpression(theme, w.obj))
     await set_obj_properties(w, w_cnfig)
     await add_widgets(w, w_cnfig)

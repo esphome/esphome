@@ -173,10 +173,7 @@ class BtnmatrixType(WidgetType):
         text_id = config[CONF_BUTTONMATRIX_TEXT_LIST_ID]
         text_id = cg.static_const_array(text_id, text_list)
         lv.btnmatrix_set_map(w.obj, text_id)
-        for index, ctrl in enumerate(ctrl_list):
-            lv.btnmatrix_set_btn_ctrl(w.obj, index, ctrl)
-        for index, width in enumerate(width_list):
-            lv.btnmatrix_set_btn_width(w.obj, index, width)
+        set_btn_data(w.obj, ctrl_list, width_list)
         lv.btnmatrix_set_one_checked(w.obj, config[CONF_ONE_CHECKED])
         for index, key in enumerate(key_list):
             if key != 0:
@@ -186,6 +183,13 @@ class BtnmatrixType(WidgetType):
 
     def get_uses(self):
         return ("btnmatrix",)
+
+
+def set_btn_data(obj, ctrl_list, width_list):
+    for index, ctrl in enumerate(ctrl_list):
+        lv.btnmatrix_set_btn_ctrl(obj, index, ctrl)
+    for index, width in enumerate(width_list):
+        lv.btnmatrix_set_btn_width(obj, index, width)
 
 
 btnmatrix_spec = BtnmatrixType()

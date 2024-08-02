@@ -14,10 +14,11 @@ from .defines import (
     CONF_SHOW_SNOW,
     literal,
 )
-from .lv_validation import lv_bool
+from .lv_validation import lv_bool, lv_color, lv_image
 from .lvcode import (
     LambdaContext,
     LocalVariable,
+    LvConditional,
     ReturnStatement,
     add_line_marks,
     lv,
@@ -32,6 +33,7 @@ from .types import (
     LvglComponent,
     LvglCondition,
     ObjUpdateAction,
+    lv_disp_t,
     lv_obj_t,
 )
 from .widget import Widget, get_widgets, lv_scr_act, set_obj_properties
@@ -75,11 +77,11 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
 async def disp_update(disp, config: dict):
     if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
         return
-    with LocalVariable("lv_disp_tmp", lv_obj_t, "*", disp) as disp_temp:
+    with LocalVariable("lv_disp_tmp", lv_disp_t, "*", literal(disp)) as disp_temp:
         if bg_color := config.get(CONF_DISP_BG_COLOR):
-            lv.disp_set_bg_color(disp_temp, await lv.lv_color.process(bg_color))
+            lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):
-            lv.set_disp_image(disp_temp, await lv.lv_image.process(bg_image))
+            lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
 
 
 @automation.register_action(
@@ -98,7 +100,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     with LambdaContext(parameters=args, where=action_id) as context:
         await disp_update(disp, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, w)
+    await cg.register_parented(var, w.var)
     return var
 
 
@@ -143,9 +145,8 @@ async def action_to_code(
 ):
     with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
-            lv.cond_if(widget.obj != nullptr)
-            await action(widget)
-            lv.cond_endif()
+            with LvConditional(widget.obj != nullptr):
+                await action(widget)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     return var
 

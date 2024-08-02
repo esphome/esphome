@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
-from esphome.cpp_generator import MockObj
 
 from .defines import (
     CONF_DIR,
@@ -67,7 +66,7 @@ class DropdownType(WidgetType):
             with LocalVariable(
                 "dropdown_list", lv_obj_t, "*", lv_expr.dropdown_get_list(w.obj)
             ) as dlist_obj:
-                dwid = Widget(MockObj(dlist_obj), dropdown_list_spec, dlist)
+                dwid = Widget(dlist_obj, dropdown_list_spec, dlist)
                 await set_obj_properties(dwid, dlist)
 
     def get_uses(self):

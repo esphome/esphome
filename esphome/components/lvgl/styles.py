@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 from esphome.const import CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
 
 from .defines import (
     CONF_STYLE_DEFINITIONS,
@@ -9,10 +11,13 @@ from .defines import (
     literal,
 )
 from .helpers import add_lv_use
-from .lvcode import LambdaContext, LocalVariable, lv, lv_assign, lv_Pvariable
+from .lvcode import LambdaContext, LocalVariable, lv, lv_assign, lv_variable
+from .obj import obj_spec
 from .schemas import ALL_STYLES
-from .types import lv_lambda_t, lv_obj_t
+from .types import lv_lambda_t, lv_obj_t, lv_obj_t_ptr
 from .widget import Widget, add_widgets, set_obj_properties, theme_widget_map
+
+TOP_LAYER = literal("lv_disp_get_layer_top(lv_component->get_disp())")
 
 
 async def styles_to_code(config):
@@ -26,7 +31,7 @@ async def styles_to_code(config):
                     value = await validator.process(value)
                 if isinstance(value, list):
                     value = "|".join(value)
-                lv.call(svar, f"style_set_{prop}", literal(value))
+                lv.call(f"style_set_{prop}", svar, literal(value))
 
 
 async def theme_to_code(config):
@@ -36,18 +41,18 @@ async def theme_to_code(config):
             if not isinstance(style, dict):
                 continue
 
-            ow = Widget.create("obj", lv_obj_t, w_name.type)
-            apply = lv_Pvariable(lv_lambda_t, f"lv_theme_apply_{w_name}")
+            lname = "lv_theme_apply_" + w_name
+            apply = lv_variable(lv_lambda_t, lname)
             theme_widget_map[w_name] = apply
-            with LambdaContext([(lv_obj_t, "obj")], where=w_name) as context:
+            ow = Widget.create("obj", MockObj(ID("obj")), obj_spec)
+            with LambdaContext([(lv_obj_t_ptr, "obj")], where=w_name) as context:
                 await set_obj_properties(ow, style)
-            lv_assign(apply, context.get_lambda())
+            lv_assign(apply, await context.get_lambda())
 
 
 async def add_top_layer(config):
     if top_conf := config.get(CONF_TOP_LAYER):
-        with LocalVariable(
-            "top_layer", lv_obj_t, "*", "lv_disp_get_layer_top(lv_component->disp_)"
-        ) as top_layer_obj:
-            await set_obj_properties(top_layer_obj, top_conf)
-            await add_widgets(top_layer_obj, top_conf)
+        with LocalVariable("top_layer", lv_obj_t, "*", TOP_LAYER) as top_layer_obj:
+            top_w = Widget(top_layer_obj, obj_spec, top_conf)
+            await set_obj_properties(top_w, top_conf)
+            await add_widgets(top_w, top_conf)
