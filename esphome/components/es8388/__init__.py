@@ -26,6 +26,7 @@ ES8388_PRESETS = {
     "raspiaudio_radio": Presets.RASPIAUDIO_RADIO,
 }
 
+
 def validate_instruction_list():
     return cv.ensure_list(
         cv.Length(min=2, max=2),
@@ -63,6 +64,7 @@ async def to_code(config):
                 cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
             })
             cg.add(var.register_macro(macro[CONF_ID], macro[CONF_INSTRUCTIONS]))
+
 
 @automation.register_action(
     "es8388.execute_macro",
