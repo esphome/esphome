@@ -140,7 +140,11 @@ void WiFiComponent::wifi_pre_setup_() {
 
   esp_err_t err;
 #ifdef USE_WIFI_AP
+#if (ESP_IDF_VERSION_MAJOR >= 5)
+  s_gw_netif = esp_netif_next_unsafe(nullptr);
+#else
   s_gw_netif = esp_netif_next(nullptr);
+#endif
   if (s_gw_netif && this->has_sta()) {
     ESP_LOGE(TAG, "Only WiFi AP can be used when a network interface (%s) already exists",
              esp_netif_get_ifkey(s_gw_netif));
