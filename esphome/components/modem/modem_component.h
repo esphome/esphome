@@ -62,6 +62,7 @@ class ModemComponent : public Component {
   void enable_cmux() { this->cmux_ = true; }
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
+  bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED; }
   std::string send_at(const std::string &cmd);
   float get_signal_strength();
   bool get_imei(std::string &result);
