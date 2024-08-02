@@ -3,12 +3,11 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_PRESET
 from esphome.util import Registry
 
 CONF_ES8388_ID = "es8388_id"
 
-CONF_PRESET = "preset"
 CONF_INIT_INSTRUCTIONS = "init_instructions"
 CONF_MACROS = "macros"
 CONF_INSTRUCTIONS = "instructions"

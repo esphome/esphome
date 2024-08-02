@@ -9,9 +9,6 @@ namespace es8388 {
 
 static const char *const TAG = "es8388";
 
-#define ES8388_CLK_MODE_SLAVE 0
-#define ES8388_CLK_MODE_MASTER 1
-
 void ES8388Component::setup() {
   switch (this->preset_) {
     case ES8388Preset::RASPIAUDIO_MUSE_LUXE:
@@ -132,7 +129,7 @@ void ES8388Component::setup_raspiaudio_radio() {
   error = error || not this->write_byte(1, 0x50);
   // powerup
   error = error || not this->write_byte(2, 0x00);
-  // slave mode
+  // follower mode
   error = error || not this->write_byte(8, 0x00);
   // DAC powerdown
   error = error || not this->write_byte(4, 0xC0);
