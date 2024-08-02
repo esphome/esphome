@@ -20,7 +20,7 @@
 
 #include <cstring>
 #include <iostream>
-#include <sstream>
+#include <cmath>
 
 #ifndef USE_MODEM_MODEL
 #define USE_MODEM_MODEL "GENERIC"
@@ -62,6 +62,14 @@ std::string ModemComponent::send_at(const std::string &cmd) {
     result = "ERROR";
   }
   return result;
+}
+
+float ModemComponent::get_signal_strength() {
+  // signal strength from rssi in percent
+  float rssi = float(this->modem_status_.rssi);
+  if (rssi >= 99.)
+    return std::nanf("");
+  return (rssi * 100) / 31;
 }
 
 bool ModemComponent::get_imei(std::string &result) {
@@ -129,6 +137,13 @@ void ModemComponent::disable() {
   }
 }
 
+void ModemComponent::dump_modem_status() {
+  ESP_LOGI(TAG, "Modem status:");
+  ESP_LOGI(TAG, "  Signal strength     : %.0f%%", this->get_signal_strength());
+  ESP_LOGI(TAG, "  Network type        : %s", get_network_type_name(this->modem_status_.network_system_mode).c_str());
+  ESP_LOGI(TAG, "  Attached to network : %s", this->modem_status_.network_attached ? "Yes" : "No");
+}
+
 network::IPAddresses ModemComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
@@ -143,81 +158,6 @@ std::string ModemComponent::get_use_address() const {
     return App.get_name() + ".local";
   }
   return this->use_address_;
-}
-
-void ModemComponent::dump_dce_status() {
-  bool watchdog = false;
-  if (!this->watchdog_) {
-    this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
-    watchdog = true;
-  }
-
-  if (this->internal_state_.connected && !this->cmux_) {
-    if (!this->dce->set_mode(modem_mode::COMMAND_MODE)) {
-      ESP_LOGW(TAG, "Unable to enter temporary command mode");
-      return;
-    }
-  }
-  if (this->internal_state_.modem_synced && this->modem_ready()) {
-    ESP_LOGCONFIG(TAG, "Modem status:");
-    command_result err;
-    std::string result;
-    // err = this->dce->get_module_name(result);
-    // if (err != command_result::OK) {
-    //   result = "command " + command_result_to_string(err);
-    // }
-    // ESP_LOGCONFIG(TAG, "  Module name        : %s", result.c_str());
-    int rssi;
-    int ber;
-    err = this->dce->get_signal_quality(rssi, ber);
-    if (err != command_result::OK) {
-      result = "command " + command_result_to_string(err);
-    } else {
-      float ber_f;
-      if (ber != 99) {
-        ber_f = float(ber);
-      } else
-        ber_f = {};
-      std::ostringstream oss;
-      oss << "rssi " << rssi << "(" << (rssi * 100) / 31 << "%), ber " << ber << "(" << (ber_f * 100) / 7 << "%)";
-      result = oss.str();
-    }
-    ESP_LOGCONFIG(TAG, "  Signal quality     : %s", result.c_str());
-
-    // int network_attachment_state;
-    // err = this->dce->get_network_attachment_state(network_attachment_state);
-    // if (err == command_result::OK) {
-    //   result = network_attachment_state ? "Yes" : "No";
-    // } else {
-    //   result = "command " + command_result_to_string(err);
-    // }
-    // ESP_LOGCONFIG(TAG, "  Attached to network: %s", result.c_str());
-    //
-    // err = this->dce->get_operator_name(result);
-    // if (err != command_result::OK) {
-    //   result = "command " + command_result_to_string(err);
-    // }
-    // ESP_LOGCONFIG(TAG, "  Operator           : %s", result.c_str());
-    //
-    // int act;
-    // err = this->dce->get_network_system_mode(act);
-    // if (err != command_result::OK) {
-    //   result = "command " + command_result_to_string(err);
-    // } else {
-    //   std::ostringstream oss;
-    //   oss << act;
-    //   result = oss.str();
-    // }
-    // ESP_LOGCONFIG(TAG, "  Access technology   : %s", result.c_str());
-  }
-  if (this->internal_state_.connected && !this->cmux_) {
-    if (this->dce->resume_data_mode() != command_result::OK) {
-      ESP_LOGW(TAG, "Unable to resume data mode. Reconnecting...");
-      this->internal_state_.connected = false;
-    }
-  }
-  if (watchdog)
-    this->watchdog_.reset();
 }
 
 void ModemComponent::setup() {
@@ -292,6 +232,8 @@ void ModemComponent::loop() {
   static bool disconnecting = false;
   static uint8_t network_attach_retry = 10;
   static uint8_t ip_lost_retries = 10;
+
+  this->update_();
 
   if ((millis() < next_loop_millis)) {
     // some commands need some delay
@@ -396,6 +338,8 @@ void ModemComponent::loop() {
               this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
             if (is_network_attached_()) {
               network_attach_retry = 10;
+              this->update_(true);
+              this->dump_modem_status();
               if (this->start_ppp_()) {
                 connecting = true;
                 next_loop_millis = millis() + 2000;  // delay for next loop
@@ -406,6 +350,7 @@ void ModemComponent::loop() {
               network_attach_retry--;
               if (network_attach_retry == 0) {
                 ESP_LOGE(TAG, "modem is unable to attach to a network");
+                this->dump_modem_status();
                 if (this->power_pin_) {
                   this->poweroff_();
                 } else {
@@ -511,6 +456,40 @@ void ModemComponent::loop() {
   }
 }
 
+void ModemComponent::update_(bool force) {
+  static uint32_t last_update_ms = millis();
+  if (force || ((millis() - last_update_ms) > this->update_interval_)) {
+    if (this->internal_state_.modem_synced) {
+      if (!this->cmux_ && this->internal_state_.connected) {
+        // In data mode, we can't send AT commands while connected.
+        // set_mode(modem_mode::COMMAND_MODE) / this->dce->resume_data_mode() seems to be broken
+        return;
+      }
+      if (this->modem_ready()) {
+        this->update_signal_quality_();
+        this->update_network_attachment_state_();
+        this->update_network_system_mode_();
+      }
+    }
+    last_update_ms = millis();
+  }
+}
+
+void ModemComponent::update_signal_quality_() {
+  this->dce->get_signal_quality(this->modem_status_.rssi, this->modem_status_.ber);
+}
+
+void ModemComponent::update_network_attachment_state_() {
+  int attached = 99;
+  this->dce->get_network_attachment_state(attached);
+  if (attached != 99)
+    this->modem_status_.network_attached = (bool) attached;
+}
+
+void ModemComponent::update_network_system_mode_() {
+  this->dce->get_network_system_mode(this->modem_status_.network_system_mode);
+}
+
 void ModemComponent::modem_lazy_init_() {
   // destroy previous dte/dce, and recreate them.
   // no communication is done with the modem.
@@ -572,6 +551,8 @@ bool ModemComponent::modem_sync_() {
   uint32_t start_ms = millis();
   uint32_t elapsed_ms;
 
+  bool was_synced = this->internal_state_.modem_synced;
+
   bool status = this->modem_ready();
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
@@ -604,18 +585,24 @@ bool ModemComponent::modem_sync_() {
     if (!status) {
       ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms.", elapsed_ms);
       this->internal_state_.powered_on = false;
+    } else {
+      ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
     }
   }
-  if (status) {
-    elapsed_ms = millis() - start_ms;
-    ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
 
+  if (status && !was_synced) {
+    // First time the modem is synced, or modem recovered
     if (!this->prepare_sim_()) {
       // fatal error
       this->disable();
       status = false;
     }
     this->send_init_at_();
+
+    ESP_LOGI(TAG, "Modem infos:");
+    std::string result;
+    ESPMODEM_ERROR_CHECK(this->dce->get_module_name(result), "get_module_name");
+    ESP_LOGI(TAG, "  Module name: %s", result.c_str());
   }
 
   this->internal_state_.modem_synced = status;
@@ -667,12 +654,8 @@ void ModemComponent::send_init_at_() {
 }
 
 bool ModemComponent::is_network_attached_() {
-  int network_attachment_state;
-  command_result err = this->dce->get_network_attachment_state(network_attachment_state);
-  if (err == command_result::OK) {
-    return network_attachment_state;
-  } else
-    return false;
+  update_network_attachment_state_();
+  return this->modem_status_.network_attached;
 }
 
 bool ModemComponent::start_ppp_() {

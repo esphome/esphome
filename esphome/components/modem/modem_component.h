@@ -63,16 +63,16 @@ class ModemComponent : public Component {
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
   std::string send_at(const std::string &cmd);
+  float get_signal_strength();
   bool get_imei(std::string &result);
   bool get_power_status();
   bool modem_ready();
   void enable();
   void disable();
+  void dump_modem_status();
 
   network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
-
-  void dump_dce_status();
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -96,6 +96,11 @@ class ModemComponent : public Component {
   std::unique_ptr<DCE> dce{nullptr};
 
  protected:
+  void update_() { this->update_(false); };
+  void update_(bool force);
+  void update_signal_quality_();
+  void update_network_attachment_state_();
+  void update_network_system_mode_();
   void modem_lazy_init_();
   bool modem_sync_();
   bool prepare_sim_();
@@ -131,6 +136,7 @@ class ModemComponent : public Component {
   size_t uart_event_task_stack_size_ = 2048;  // 2000-6000
   uint8_t uart_event_task_priority_ = 5;      // 3-22
   uint32_t command_delay_ = 500;              // timeout for AT commands
+  uint32_t update_interval_ = 60 * 1000;
 
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::DISABLED};
@@ -162,6 +168,14 @@ class ModemComponent : public Component {
 #endif  // USE_MODEM_POWER
   };
   InternalState internal_state_;
+
+  struct ModemStatus {
+    int rssi = 99;
+    int ber = 99;
+    bool network_attached{false};
+    int network_system_mode = 0;
+  };
+  ModemStatus modem_status_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
