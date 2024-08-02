@@ -15,7 +15,11 @@
 #include <cinttypes>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#include <esp_eap_client.h>
+#else
 #include <esp_wpa2.h>
+#endif
 #endif
 
 #ifdef USE_WIFI_AP
@@ -364,48 +368,78 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_eap().has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
     EAPAuth eap = ap.get_eap().value();
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+    err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+#else
     err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+#endif
     if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", err);
+      ESP_LOGV(TAG, "set_identity failed %d", err);
     }
     int ca_cert_len = strlen(eap.ca_cert);
     int client_cert_len = strlen(eap.client_cert);
     int client_key_len = strlen(eap.client_key);
     if (ca_cert_len) {
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+#else
       err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
+        ESP_LOGV(TAG, "set_ca_cert failed %d", err);
       }
     }
     // workout what type of EAP this is
     // validation is not required as the config tool has already validated it
     if (client_cert_len && client_key_len) {
       // if we have certs, this must be EAP-TLS
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_certificate_and_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                                   (uint8_t *) eap.client_key, client_key_len + 1,
+                                                   (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+#else
       err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                (uint8_t *) eap.client_key, client_key_len + 1,
                                                (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
+        ESP_LOGV(TAG, "set_cert_key failed %d", err);
       }
     } else {
       // in the absence of certs, assume this is username/password based
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+#else
       err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", err);
+        ESP_LOGV(TAG, "set_username failed %d", err);
       }
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+#else
       err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
+        ESP_LOGV(TAG, "set_password failed %d", err);
       }
       // set TTLS Phase 2, defaults to MSCHAPV2
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_ttls_phase2_method(eap.ttls_phase_2);
+#else
       err = esp_wifi_sta_wpa2_ent_set_ttls_phase2_method(eap.ttls_phase_2);
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ttls_phase2_method failed! %d", err);
+        ESP_LOGV(TAG, "set_ttls_phase2_method failed %d", err);
       }
     }
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+    err = esp_wifi_sta_enterprise_enable();
+#else
     err = esp_wifi_sta_wpa2_ent_enable();
+#endif
     if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
+      ESP_LOGV(TAG, "enterprise_enable failed %d", err);
     }
   }
 #endif  // USE_WIFI_WPA2_EAP

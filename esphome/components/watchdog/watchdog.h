@@ -5,7 +5,6 @@
 #include <cstdint>
 
 namespace esphome {
-namespace http_request {
 namespace watchdog {
 
 class WatchdogManager {
@@ -22,5 +21,4 @@ class WatchdogManager {
 };
 
 }  // namespace watchdog
-}  // namespace http_request
 }  // namespace esphome
