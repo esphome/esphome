@@ -140,7 +140,7 @@ void WiFiComponent::wifi_pre_setup_() {
 
   esp_err_t err;
 #ifdef USE_WIFI_AP
-#if (ESP_IDF_VERSION_MAJOR >= 5)
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 2)
   s_gw_netif = esp_netif_next_unsafe(nullptr);
 #else
   s_gw_netif = esp_netif_next(nullptr);
