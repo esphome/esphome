@@ -27,10 +27,7 @@ ES8388_PRESETS = {
 
 
 def validate_instruction_list():
-    return cv.ensure_list(
-        cv.Length(min=2, max=2),
-        cv.ensure_list(int)
-    )
+    return cv.ensure_list(cv.Length(min=2, max=2), cv.ensure_list(int))
 
 
 CONFIG_SCHEMA = (
@@ -38,10 +35,12 @@ CONFIG_SCHEMA = (
         cv.GenerateID(): cv.declare_id(ES8388Component),
         cv.Optional(CONF_PRESET): cv.enum(ES8388_PRESETS, lower=True),
         cv.Optional(CONF_INIT_INSTRUCTIONS): validate_instruction_list(),
-        cv.Optional(CONF_MACROS): cv.ensure_list({
-            cv.Required(CONF_ID): cv.string,
-            cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
-        }),
+        cv.Optional(CONF_MACROS): cv.ensure_list(
+            {
+                cv.Required(CONF_ID): cv.string,
+                cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
+            }
+        ),
     })
     .extend(i2c.i2c_device_schema(0x10))
     .extend(cv.COMPONENT_SCHEMA)
@@ -58,10 +57,14 @@ async def to_code(config):
         cg.add(var.set_init_instructions(config[CONF_INIT_INSTRUCTIONS]))
     if CONF_MACROS in config:
         for macro in config[CONF_MACROS]:
-            ES8388_MACROS.register(macro[CONF_ID], Macro, {
-                cv.Required(CONF_ID): cv.declare_id(Macro),
-                cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
-            })
+            ES8388_MACROS.register(
+                macro[CONF_ID],
+                Macro,
+                {
+                    cv.Required(CONF_ID): cv.declare_id(Macro),
+                    cv.Required(CONF_INSTRUCTIONS): validate_instruction_list(),
+                }
+            )
             cg.add(var.register_macro(macro[CONF_ID], macro[CONF_INSTRUCTIONS]))
 
 
