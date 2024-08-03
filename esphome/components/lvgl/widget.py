@@ -4,9 +4,9 @@ from typing import Any
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE
-from esphome.core import ID, TimePeriod
+from esphome.core import CORE, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, VariableDeclarationExpression
 
 from .defines import (
     CONF_DEFAULT,
@@ -16,13 +16,15 @@ from .defines import (
     OBJ_FLAGS,
     PARTS,
     STATES,
+    ConstantLiteral,
     LValidator,
     join_enums,
+    literal,
 )
 from .helpers import add_lv_use
-from .lvcode import ConstantLiteral, add_line_marks, lv, lv_add, lv_assign, lv_obj
+from .lvcode import add_group, add_line_marks, lv, lv_add, lv_assign, lv_expr, lv_obj
 from .schemas import ALL_STYLES, STYLE_REMAP
-from .types import WIDGET_TYPES, WidgetType, lv_obj_t
+from .types import WIDGET_TYPES, LvType, WidgetType, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
 
@@ -76,17 +78,20 @@ class Widget:
             return f"{self.var}->obj"
         return self.var
 
-    def add_state(self, *args):
-        return lv_obj.add_state(self.obj, *args)
+    def add_state(self, state):
+        return lv_obj.add_state(self.obj, literal(state))
 
-    def clear_state(self, *args):
-        return lv_obj.clear_state(self.obj, *args)
+    def clear_state(self, state):
+        return lv_obj.clear_state(self.obj, literal(state))
 
-    def add_flag(self, *args):
-        return lv_obj.add_flag(self.obj, *args)
+    def has_state(self, state):
+        return lv_expr.obj_get_state(self.obj) & literal(state) != 0
 
-    def clear_flag(self, *args):
-        return lv_obj.clear_flag(self.obj, *args)
+    def add_flag(self, flag):
+        return lv_obj.add_flag(self.obj, literal(flag))
+
+    def clear_flag(self, flag):
+        return lv_obj.clear_flag(self.obj, literal(flag))
 
     def set_property(self, prop, value, animated: bool = None, ltype=None):
         if isinstance(value, dict):
@@ -125,6 +130,16 @@ class Widget:
     def __str__(self):
         return f"({self.var}, {self.type})"
 
+    def get_args(self):
+        if isinstance(self.type.w_type, LvType):
+            return self.type.w_type.args
+        return [(lv_obj_t_ptr, "obj")]
+
+    def get_value(self):
+        if isinstance(self.type.w_type, LvType):
+            return self.type.w_type.value(self)
+        return self.obj
+
 
 # Map of widgets to their config, used for trigger generation
 widget_map: dict[Any, Widget] = {}
@@ -146,7 +161,8 @@ def get_widget_generator(wid):
         yield
 
 
-async def get_widget(wid: ID) -> Widget:
+async def get_widget(config: dict, id: str = CONF_ID) -> Widget:
+    wid = config[id]
     if obj := widget_map.get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
@@ -204,9 +220,10 @@ async def set_obj_properties(w: Widget, config):
             }.items():
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
-                    # Remapping for backwards compatibility of style names
                 prop_r = STYLE_REMAP.get(prop, prop)
                 w.set_style(prop_r, value, lv_state)
+    if group := add_group(config.get(CONF_GROUP)):
+        lv.group_add_obj(group, w.obj)
     flag_clr = set()
     flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]
@@ -241,7 +258,7 @@ async def set_obj_properties(w: Widget, config):
             w.clear_state(clears)
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
-            state = ConstantLiteral(f"LV_STATE_{key.upper}")
+            state = f"LV_STATE_{key.upper}"
             lv.cond_if(lamb)
             w.add_state(state)
             lv.cond_else()
@@ -281,10 +298,19 @@ async def widget_to_code(w_cnfig, w_type, parent):
         var = cg.new_Pvariable(wid)
         lv_add(var.set_obj(creator))
     else:
-        var = cg.Pvariable(wid, cg.nullptr, type_=lv_obj_t)
+        var = MockObj(wid, "->")
+        decl = VariableDeclarationExpression(lv_obj_t, "*", wid)
+        CORE.add_global(decl)
+        CORE.register_variable(wid, var)
         lv_assign(var, creator)
 
     widget = Widget.create(wid, var, spec, w_cnfig, parent)
     await set_obj_properties(widget, w_cnfig)
     await add_widgets(widget, w_cnfig)
     await spec.to_code(widget, w_cnfig)
+
+
+lv_scr_act_spec = LvScrActType()
+lv_scr_act = Widget.create(
+    None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {}, parent=None
+)

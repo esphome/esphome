@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
 from esphome.components.font import Font
+from esphome.components.image import Image_
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
@@ -13,22 +14,15 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from . import types as ty
-from .defines import LV_FONTS, LValidator, LvConstant
+from .defines import LV_FONTS, ConstantLiteral, LValidator, LvConstant, literal
 from .helpers import (
     esphome_fonts_used,
     lv_fonts_used,
     lvgl_components_required,
     requires_component,
 )
-from .lvcode import ConstantLiteral, lv_expr
-from .types import lv_font_t
-
-
-def literal_mapper(value, args=()):
-    if isinstance(value, str):
-        return ConstantLiteral(value)
-    return value
-
+from .lvcode import lv_expr
+from .types import lv_font_t, lv_img_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -43,7 +37,7 @@ def opacity_validator(value):
     return value
 
 
-opacity = LValidator(opacity_validator, uint32, retmapper=literal_mapper)
+opacity = LValidator(opacity_validator, uint32, retmapper=literal)
 
 
 @schema_extractor("one_of")
@@ -79,9 +73,7 @@ def pixels_or_percent_validator(value):
     return f"lv_pct({int(cv.percentage(value) * 100)})"
 
 
-pixels_or_percent = LValidator(
-    pixels_or_percent_validator, uint32, retmapper=literal_mapper
-)
+pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
 
 
 def zoom(value):
@@ -115,7 +107,7 @@ def size_validator(value):
     return f"lv_pct({int(cv.percentage(value) * 100)})"
 
 
-size = LValidator(size_validator, uint32, retmapper=literal_mapper)
+size = LValidator(size_validator, uint32, retmapper=literal)
 
 radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 
@@ -130,21 +122,37 @@ def radius_validator(value):
     return value
 
 
+radius = LValidator(radius_validator, uint32, retmapper=literal)
+
+
 def id_name(value):
     if value == SCHEMA_EXTRACT:
         return "id"
     return cv.validate_id_name(value)
 
 
-radius = LValidator(radius_validator, uint32, retmapper=literal_mapper)
-
-
 def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
+lv_images_used = set()
+
+
+def image_validator(value):
+    value = requires_component("image")(value)
+    value = cv.use_id(Image_)(value)
+    lv_images_used.add(value)
+    return value
+
+
+lv_image = LValidator(
+    image_validator,
+    lv_img_t,
+    retmapper=lambda x: lv_expr.img_from(MockObj(x)),
+    requires="image",
+)
 lv_bool = LValidator(
-    cv.boolean, cg.bool_, BinarySensor, "get_state()", retmapper=literal_mapper
+    cv.boolean, cg.bool_, BinarySensor, "get_state()", retmapper=literal
 )
 
 
