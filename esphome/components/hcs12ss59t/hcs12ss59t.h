@@ -33,7 +33,7 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
 
   float get_setup_priority() const override;
 
-  display::DisplayType get_display_type() { return display::DisplayType::DISPLAY_TYPE_BINARY; }
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
   void display();
 
@@ -42,7 +42,7 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
   void printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
   void print(const char *str);
   void strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
-  char getCode(char c);
+  char get_code(char c);
 
   void scroll_left() { scroll(1); };
   void scroll_right() { scroll(-1); };

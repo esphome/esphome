@@ -42,7 +42,7 @@ void HCS12SS59TComponent::display() {
   for (uint8_t offset = 0; offset < HCS12SS59T_NUMDIGITS; offset++) {
     char c = offset < size ? buffer_[(scroll_) % size] : ' ';
 
-    this->write_byte(this->getCode(c));
+    this->write_byte(this->get_code(c));
   }
 
   this->disable();
@@ -90,15 +90,16 @@ void HCS12SS59TComponent::set_enabled(bool enabled) {
   this->enabled_ = enabled;
 }
 
-char HCS12SS59TComponent::getCode(char c) {
-  if (c >= '@' && c <= '_')
+char HCS12SS59TComponent::get_code(char c) {
+  if (c >= '@' && c <= '_') {
     c -= 48;
-  else if (c >= ' ' && c <= '?')
+  } else if (c >= ' ' && c <= '?') {
     c += 16;
-  else if (c >= 'a' && c <= 'z')
+  } else if (c >= 'a' && c <= 'z') {
     c -= 80;
-  else  // Invalid character
-    c = this->getCode('?');
+  } else {  // Invalid character
+    c = this->get_code('?');
+  }
 
   return c;
 }
