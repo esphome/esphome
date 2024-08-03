@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER
 
 from .. import (
-    CONF_I2S_AUDIO_ID,
     CONF_I2S_DIN_PIN,
     INTERNAL_ADC_VARIANTS,
     PDM_VARIANTS,
@@ -74,7 +73,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_i2saudio(var, config)
     await microphone.register_microphone(var, config)
-    await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
 
     if config[CONF_ADC_TYPE] == "internal":
         variant = esp32.get_esp32_variant()

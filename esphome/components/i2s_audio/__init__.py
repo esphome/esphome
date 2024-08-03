@@ -8,7 +8,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_INTERNAL, CONF_SAMPLE_RATE
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@jesserockz"]
@@ -82,7 +82,7 @@ def I2SAudioSchema(component_id, sample_rate, channels, bits_per_sample):
             cv.Optional(CONF_BITS_PER_SAMPLE, default=bits_per_sample): cv.All(
                 _validate_bits, cv.enum(BITS_PER_SAMPLE)
             ),
-            cv.Optional(CONF_I2S_MODE, default=CONF_INTERNAL): cv.enum(
+            cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.enum(
                 I2S_MODE_OPTIONS, lower=True
             ),
         }
@@ -91,6 +91,8 @@ def I2SAudioSchema(component_id, sample_rate, channels, bits_per_sample):
 
 async def register_i2saudio(var, config):
     await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
+
     cg.add(var.set_i2s_mode(config[CONF_I2S_MODE]))
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
