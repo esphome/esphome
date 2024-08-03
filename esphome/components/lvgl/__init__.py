@@ -77,9 +77,9 @@ from .types import (
 from .widget import Widget, add_widgets, lv_scr_act, set_obj_properties
 
 DOMAIN = "lvgl"
-DEPENDENCIES = ("display",)
-AUTO_LOAD = ("key_provider",)
-CODEOWNERS = ("@clydebarrow",)
+DEPENDENCIES = ["display"]
+AUTO_LOAD = ["key_provider"]
+CODEOWNERS = ["@clydebarrow"]
 LOGGER = logging.getLogger(__name__)
 
 for w_type in (
