@@ -1,0 +1,21 @@
+spi:
+  - id: spi_hcs12ss59t
+    clk_pin: 2
+    mosi_pin: 3
+    miso_pin: 4
+
+display:
+  - platform: hcs12ss59t
+    cs_pin: 6
+    enable_pin: 13
+    intensity: 10
+    id: my_matrix
+    lambda: |-
+      it.set_intensity(4);
+      it.printf("%d", 123);
+      it.set_enabled(false);
+      it.set_enabled(true);
+      it.set_scroll_speed(-100);
+      it.set_scroll(false);
+      it.scroll_left();
+      it.print("Hello World!");
