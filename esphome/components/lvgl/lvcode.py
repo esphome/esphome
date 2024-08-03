@@ -20,7 +20,7 @@ from esphome.cpp_generator import (
 )
 from esphome.yaml_util import ESPHomeDataBase
 
-from .defines import lvgl_ns
+from .defines import literal, lvgl_ns
 
 LVGL_COMP = "lv_component"  # used as a lambda argument in lvgl_comp()
 
@@ -29,6 +29,7 @@ LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
 LVGL_COMP_ARG = [(LvglComponent.operator("ptr"), LVGL_COMP)]
 lv_event_t_ptr = cg.global_ns.namespace("lv_event_t").operator("ptr")
 EVENT_ARG = [(lv_event_t_ptr, "ev")]
+CUSTOM_EVENT = literal("lvgl::lv_custom_event")
 
 
 def get_line_marks(value) -> list:
