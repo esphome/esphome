@@ -31,7 +31,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SCROLL_SPEED, default="300ms"
             ): cv.positive_time_period_milliseconds,
         }
-    ).extend(spi.spi_device_schema()),
+    )
+    .extend(spi.spi_device_schema())
+    .extend(cv.polling_component_schema("500ms")),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 
