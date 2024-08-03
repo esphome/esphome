@@ -386,7 +386,7 @@ class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
             self->send_key_(self->key_map_[key_idx]);
             return;
           }
-          auto str = lv_btnmatrix_get_btn_text(self->obj, key_idx);
+          const auto *str = lv_btnmatrix_get_btn_text(self->obj, key_idx);
           auto len = strlen(str);
           while (len--)
             self->send_key_(*str++);
@@ -404,7 +404,7 @@ class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
 #endif  // USE_LVGL_BUTTONMATRIX
 
 #ifdef USE_LVGL_KEYBOARD
-static const char *const kb_special_keys[] = {
+static const char *const KB_SPECIAL_KEYS[] = {
     "abc", "ABC", "1#",
     // maybe add other special keys here
 };
@@ -425,7 +425,7 @@ class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
           const char *txt = lv_btnmatrix_get_btn_text(self->obj, key_idx);
           if (txt == nullptr)
             return;
-          for (auto kb_special_key : kb_special_keys) {
+          for (const auto *kb_special_key : KB_SPECIAL_KEYS) {
             if (strcmp(txt, kb_special_key) == 0)
               return;
           }
