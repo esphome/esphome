@@ -1,5 +1,7 @@
+import sys
+
 from esphome import automation, codegen as cg
-from esphome.const import CONF_VALUE
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_VALUE
 from esphome.cpp_generator import MockObj, MockObjClass
 
 from .defines import CONF_TEXT, lvgl_ns
@@ -149,7 +151,7 @@ class WidgetType:
         :param config: Its configuration
         :return: Generated code as a list of text lines
         """
-        raise NotImplementedError(f"No to_code defined for {self.name}")
+        return []
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         """
@@ -166,3 +168,23 @@ class WidgetType:
         :return:
         """
         return ()
+
+    def get_max(self, config: dict):
+        return sys.maxsize
+
+    def get_min(self, config: dict):
+        return -sys.maxsize
+
+    def get_step(self, config: dict):
+        return 1
+
+    def get_scale(self, config: dict):
+        return 1.0
+
+
+class NumberType(WidgetType):
+    def get_max(self, config: dict):
+        return int(config[CONF_MAX_VALUE] or 100)
+
+    def get_min(self, config: dict):
+        return int(config[CONF_MIN_VALUE] or 0)

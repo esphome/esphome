@@ -13,8 +13,8 @@ from .helpers import add_lv_use
 from .lv_bar import CONF_BAR
 from .lv_validation import animated, get_start_value, lv_float
 from .lvcode import lv
-from .types import LvNumber
-from .widget import Widget, WidgetType
+from .types import LvNumber, NumberType
+from .widget import Widget
 
 CONF_SLIDER = "slider"
 SLIDER_MODIFY_SCHEMA = cv.Schema(
@@ -35,7 +35,7 @@ SLIDER_SCHEMA = cv.Schema(
 )
 
 
-class SliderType(WidgetType):
+class SliderType(NumberType):
     def __init__(self):
         super().__init__(
             CONF_SLIDER,
@@ -44,6 +44,10 @@ class SliderType(WidgetType):
             schema=SLIDER_SCHEMA,
             modify_schema=SLIDER_MODIFY_SCHEMA,
         )
+
+    @property
+    def animated(self):
+        return True
 
     async def to_code(self, w: Widget, config):
         add_lv_use(CONF_BAR)

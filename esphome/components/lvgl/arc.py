@@ -21,8 +21,8 @@ from .defines import (
 )
 from .lv_validation import angle, get_start_value, lv_float
 from .lvcode import lv, lv_obj
-from .types import LvNumber
-from .widget import Widget, WidgetType
+from .types import LvNumber, NumberType
+from .widget import Widget
 
 CONF_ARC = "arc"
 ARC_SCHEMA = cv.Schema(
@@ -46,7 +46,7 @@ ARC_MODIFY_SCHEMA = cv.Schema(
 )
 
 
-class ArcType(WidgetType):
+class ArcType(NumberType):
     def __init__(self):
         super().__init__(
             CONF_ARC,

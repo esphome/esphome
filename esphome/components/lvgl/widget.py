@@ -141,7 +141,7 @@ class Widget:
                 f"{self.type.lv_name}_set_{prop}",
                 self.obj,
                 value,
-                "LV_ANIM_ON" if animated else "LV_ANIM_OFF",
+                literal("LV_ANIM_ON" if animated else "LV_ANIM_OFF"),
             )
 
     def get_property(self, prop, ltype=None):
@@ -177,7 +177,7 @@ class Widget:
         value = self.type.mock_obj.get_value(self.obj)
         if self.scale == 1.0:
             return value
-        return value * self.scale
+        return value / float(self.scale)
 
     def is_selected(self):
         """
@@ -186,6 +186,18 @@ class Widget:
         :return:
         """
         return None
+
+    def get_max(self):
+        return self.type.get_max(self.config)
+
+    def get_min(self):
+        return self.type.get_min(self.config)
+
+    def get_step(self):
+        return self.type.get_step(self.config)
+
+    def get_scale(self):
+        return self.type.get_scale(self.config)
 
 
 # Map of widgets to their config, used for trigger generation

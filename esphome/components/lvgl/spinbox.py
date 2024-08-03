@@ -50,10 +50,9 @@ SPINBOX_MODIFY_SCHEMA = {
 def validate_spinbox(config):
     max_val = 2**31 - 1
     min_val = -1 - max_val
-    scale = 10 ** config[CONF_DECIMAL_PLACES]
-    range_from = int(config[CONF_RANGE_FROM] * scale)
-    range_to = int(config[CONF_RANGE_TO] * scale)
-    step = int(config[CONF_STEP] * scale)
+    range_from = int(config[CONF_RANGE_FROM])
+    range_to = int(config[CONF_RANGE_TO])
+    step = int(config[CONF_STEP])
     if (
         range_from > max_val
         or range_from < min_val
@@ -88,15 +87,15 @@ class SpinboxType(WidgetType):
         if CONF_DIGITS in config:
             digits = config[CONF_DIGITS]
             scale = 10 ** config[CONF_DECIMAL_PLACES]
-            range_from = int(config[CONF_RANGE_FROM])
-            range_to = int(config[CONF_RANGE_TO])
-            step = int(config[CONF_STEP])
+            range_from = int(config[CONF_RANGE_FROM]) * scale
+            range_to = int(config[CONF_RANGE_TO]) * scale
+            step = int(config[CONF_STEP]) * scale
             w.scale = scale
             w.step = step
             w.range_to = range_to
             w.range_from = range_from
             lv.spinbox_set_range(w.obj, range_from, range_to)
-            await w.set_property(CONF_STEP, step * scale)
+            await w.set_property(CONF_STEP, step)
             await w.set_property(CONF_ROLLOVER, config)
             lv.spinbox_set_digit_format(
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
@@ -104,8 +103,20 @@ class SpinboxType(WidgetType):
         if value := config.get(CONF_VALUE):
             lv.spinbox_set_value(w.obj, await lv_float.process(value))
 
+    def get_scale(self, config):
+        return 10 ** config[CONF_DECIMAL_PLACES]
+
     def get_uses(self):
         return CONF_TEXTAREA, CONF_LABEL
+
+    def get_max(self, config: dict):
+        return config[CONF_RANGE_TO]
+
+    def get_min(self, config: dict):
+        return config[CONF_RANGE_FROM]
+
+    def get_step(self, config: dict):
+        return config[CONF_STEP]
 
 
 spinbox_spec = SpinboxType()
