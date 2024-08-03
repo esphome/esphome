@@ -14,6 +14,7 @@ CONF_SCROLL_ENABLE = "scroll_enable"
 CONF_SCROLL_SPEED = "scroll_speed"
 
 DEPENDENCIES = ["spi"]
+CODEOWNERS = ["@Mechazawa"]
 
 hcs12ss59t_ns = cg.esphome_ns.namespace("hcs12ss59t")
 HCS12SS59TComponent = hcs12ss59t_ns.class_(
