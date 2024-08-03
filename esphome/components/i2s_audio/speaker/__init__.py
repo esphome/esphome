@@ -2,7 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, speaker
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MODE
+from esphome.const import CONF_CHANNEL, CONF_ID
 
 from .. import (
     CONF_I2S_DOUT_PIN,
@@ -49,11 +49,7 @@ BASE_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "internal": BASE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_MODE): cv.enum(INTERNAL_DAC_OPTIONS, lower=True),
-                }
-            ),
+            "internal": BASE_SCHEMA.extend({}),
             "external": BASE_SCHEMA.extend(
                 {
                     cv.Required(
@@ -74,6 +70,6 @@ async def to_code(config):
     await speaker.register_speaker(var, config)
 
     if config[CONF_DAC_TYPE] == "internal":
-        cg.add(var.set_internal_dac_mode(config[CONF_MODE]))
+        cg.add(var.set_internal_dac_mode(config[CONF_CHANNEL]))
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
