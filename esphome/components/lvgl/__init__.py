@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
-from esphome.core import CORE, ID, Lambda
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
@@ -37,7 +37,7 @@ from .line import line_spec
 from .lv_bar import bar_spec
 from .lv_switch import switch_spec
 from .lv_validation import lv_bool, lv_images_used
-from .lvcode import LvContext
+from .lvcode import LvContext, LvglComponent
 from .meter import meter_spec
 from .msgbox import MSGBOX_SCHEMA, msgboxes_to_code
 from .obj import obj_spec
@@ -69,7 +69,6 @@ from .trigger import generate_triggers
 from .types import (
     FontEngine,
     IdleTrigger,
-    LvglComponent,
     ObjUpdateAction,
     lv_font_t,
     lv_style_t,
@@ -126,14 +125,6 @@ for w_type in WIDGET_TYPES.values():
         ObjUpdateAction,
         create_modify_schema(w_type),
     )(update_to_code)
-
-
-async def add_init_lambda(lv_component, init):
-    if init:
-        lamb = await cg.process_lambda(
-            Lambda(init), [(LvglComponent.operator("ptr"), "lv_component")]
-        )
-        cg.add(lv_component.add_init_lambda(lamb))
 
 
 lv_defines = {}  # Dict of #defines to provide as build flags
@@ -263,7 +254,7 @@ async def to_code(config):
     else:
         add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
 
-    with LvContext():
+    async with LvContext(lv_component):
         await touchscreens_to_code(lv_component, config)
         await rotary_encoders_to_code(lv_component, config)
         await theme_to_code(config)
@@ -280,7 +271,7 @@ async def to_code(config):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
-    await add_init_lambda(lv_component, LvContext.get_code())
+
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
     for use in helpers.lv_uses:

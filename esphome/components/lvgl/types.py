@@ -2,8 +2,8 @@ from esphome import automation, codegen as cg
 from esphome.const import CONF_VALUE
 from esphome.cpp_generator import MockObj, MockObjClass
 
-from .defines import CONF_TEXT
-from .lvcode import LVGL_COMP, lv_expr
+from .defines import CONF_TEXT, lvgl_ns
+from .lvcode import lv_expr
 
 
 class LvType(cg.MockObjClass):
@@ -31,13 +31,10 @@ class LvNumber(LvType):
 
 
 uint16_t_ptr = cg.uint16.operator("ptr")
-lvgl_ns = cg.esphome_ns.namespace("lvgl")
 char_ptr = cg.global_ns.namespace("char").operator("ptr")
 void_ptr = cg.void.operator("ptr")
 lv_coord_t = cg.global_ns.namespace("lv_coord_t")
-LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
-LvglComponentPtr = LvglComponent.operator("ptr")
-lv_event_code_t = cg.global_ns.namespace("lv_event_code_t")
+lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 FontEngine = lvgl_ns.class_("FontEngine")
 IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
@@ -61,8 +58,8 @@ lv_obj_t = LvType("lv_obj_t")
 lv_page_t = cg.global_ns.class_("LvPageType", LvCompound)
 lv_img_t = LvType("lv_img_t")
 
-# Argument tuple for use in lambdas
-LVGL_COMP_ARG = (LvglComponentPtr, LVGL_COMP)
+LV_EVENT = MockObj(base="LV_EVENT_", op="")
+LV_STATE = MockObj(base="LV_STATE_", op="")
 
 
 class LvText(LvType):
@@ -82,7 +79,7 @@ class LvBoolean(LvType):
         super().__init__(
             *args,
             largs=[(cg.bool_, "x")],
-            lvalue=lambda w: w.has_state("LV_STATE_CHECKED"),
+            lvalue=lambda w: w.is_checked(),
             has_on_value=True,
             **kwargs,
         )

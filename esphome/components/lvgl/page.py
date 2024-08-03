@@ -11,9 +11,9 @@ from .defines import (
     LV_ANIM,
 )
 from .lv_validation import lv_bool, lv_milliseconds
-from .lvcode import LambdaContext, add_line_marks, lv_add, lvgl_comp
+from .lvcode import LVGL_COMP_ARG, LambdaContext, add_line_marks, lv_add, lvgl_comp
 from .schemas import LVGL_SCHEMA
-from .types import LVGL_COMP_ARG, LvglAction, lv_page_t
+from .types import LvglAction, lv_page_t
 from .widget import Widget, WidgetType, add_widgets, set_obj_properties
 
 
@@ -51,7 +51,7 @@ page_spec = PageType()
 async def page_next_to_code(config, action_id, template_arg, args):
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
-    with LambdaContext([LVGL_COMP_ARG]) as context:
+    async with LambdaContext(LVGL_COMP_ARG) as context:
         add_line_marks(action_id)
         lv_add(lvgl_comp.show_next_page(animation, time))
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
@@ -67,7 +67,7 @@ async def page_next_to_code(config, action_id, template_arg, args):
 async def page_previous_to_code(config, action_id, template_arg, args):
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
-    with LambdaContext([LVGL_COMP_ARG]) as context:
+    async with LambdaContext(LVGL_COMP_ARG) as context:
         add_line_marks(action_id)
         lv_add(lvgl_comp.show_prev_page(animation, time))
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
@@ -91,7 +91,7 @@ async def page_show_to_code(config, action_id, template_arg, args):
     widget = await cg.get_variable(config[CONF_ID])
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
-    with LambdaContext([LVGL_COMP_ARG]) as context:
+    async with LambdaContext(LVGL_COMP_ARG) as context:
         add_line_marks(action_id)
         lv_add(lvgl_comp.show_page(widget.index, animation, time))
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())

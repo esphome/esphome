@@ -27,7 +27,7 @@ from .lv_validation import animated, lv_int, size
 from .lvcode import lv, lv_assign, lv_expr
 from .obj import obj_spec
 from .schemas import container_schema
-from .types import LvType, ObjUpdateAction, lv_obj_t_ptr
+from .types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t_ptr
 from .widget import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_TABVIEW = "tabview"
@@ -105,6 +105,6 @@ async def tabview_select(config, action_id, template_arg, args):
 
     async def do_select(w: Widget):
         lv.tabview_set_act(w.obj, index, literal(config[CONF_ANIMATED]))
-        lv.event_send(w.obj, literal("LV_EVENT_VALUE_CHANGED"), cg.nullptr)
+        lv.event_send(w.obj, LV_EVENT.VALUE_CHANGED, cg.nullptr)
 
     return await action_to_code(widget, do_select, action_id, template_arg, args)

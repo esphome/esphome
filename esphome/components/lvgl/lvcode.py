@@ -1,5 +1,4 @@
 import abc
-import logging
 from typing import Union
 
 from esphome import codegen as cg
@@ -21,9 +20,15 @@ from esphome.cpp_generator import (
 )
 from esphome.yaml_util import ESPHomeDataBase
 
-_LOGGER = logging.getLogger(__name__)
+from .defines import lvgl_ns
 
-LVGL_COMP = "lvgl_comp"  # used as a lambda argument in lvgl_comp()
+LVGL_COMP = "lv_component"  # used as a lambda argument in lvgl_comp()
+
+# Argument tuple for use in lambdas
+LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
+LVGL_COMP_ARG = [(LvglComponent.operator("ptr"), LVGL_COMP)]
+lv_event_t_ptr = cg.global_ns.namespace("lv_event_t").operator("ptr")
+EVENT_ARG = [(lv_event_t_ptr, "ev")]
 
 
 def get_line_marks(value) -> list:
@@ -88,11 +93,12 @@ class CodeContext(abc.ABC):
         self.previous: Union[CodeContext | None] = None
         self.indent_level = 0
 
-    def __enter__(self):
+    async def __aenter__(self):
         self.previous = CodeContext.code_context
         CodeContext.code_context = self
+        return self
 
-    def __exit__(self, *args):
+    async def __aexit__(self, *args):
         CodeContext.code_context = self.previous
 
     def indent(self):
@@ -114,41 +120,6 @@ class MainContext(CodeContext):
         return cg.add(self.indented_statement(expression))
 
 
-class LvContext(CodeContext):
-    """
-    Code generation into the LVGL initialisation code (called in `setup()`)
-    """
-
-    lv_init_code: list["Statement"] = []
-
-    @staticmethod
-    def lv_add(expression: Union[Expression, Statement]):
-        if isinstance(expression, Expression):
-            expression = statement(expression)
-        if not isinstance(expression, Statement):
-            raise ValueError(
-                f"Add '{expression}' must be expression or statement, not {type(expression)}"
-            )
-        LvContext.lv_init_code.append(expression)
-        _LOGGER.debug("LV Adding: %s", expression)
-        return expression
-
-    @staticmethod
-    def get_code():
-        code = []
-        for exp in LvContext.lv_init_code:
-            text = str(statement(exp))
-            text = text.rstrip()
-            code.append(text)
-        return "\n".join(code) + "\n"
-
-    def add(self, expression: Union[Expression, Statement]):
-        return LvContext.lv_add(self.indented_statement(expression))
-
-    def set_style(self, prop):
-        return MockObj("lv_set_style_{prop}", "")
-
-
 class LambdaContext(CodeContext):
     """
     A context that will accumlate code for use in a lambda.
@@ -163,7 +134,7 @@ class LambdaContext(CodeContext):
     ):
         super().__init__()
         self.code_list: list[Statement] = []
-        self.parameters = parameters
+        self.parameters = parameters or []
         self.return_type = return_type
         self.capture = capture
         self.where = where
@@ -175,7 +146,7 @@ class LambdaContext(CodeContext):
     async def get_lambda(self) -> LambdaExpression:
         code_text = self.get_code()
         return await cg.process_lambda(
-            Lambda("\n".join(code_text) + "\n\n"),
+            Lambda("\n".join(code_text) + "\n"),
             self.parameters,
             capture=self.capture,
             return_type=self.return_type,
@@ -189,10 +160,35 @@ class LambdaContext(CodeContext):
             code_text.append(text)
         return code_text
 
-    def __enter__(self):
-        super().__enter__()
+    async def __aenter__(self):
+        await super().__aenter__()
         add_line_marks(self.where)
         return self
+
+
+class LvContext(LambdaContext):
+    """
+    Code generation into the LVGL initialisation code (called in `setup()`)
+    """
+
+    def __init__(self, lv_component, args=None):
+        self.args = args or LVGL_COMP_ARG
+        super().__init__(parameters=self.args)
+        self.lv_component = lv_component
+
+    async def add_init_lambda(self):
+        cg.add(self.lv_component.add_init_lambda(await self.get_lambda()))
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await super().__aexit__(exc_type, exc_val, exc_tb)
+        await self.add_init_lambda()
+
+    def add(self, expression: Union[Expression, Statement]):
+        self.code_list.append(self.indented_statement(expression))
+        return expression
+
+    def __call__(self, *args):
+        return self.add(*args)
 
 
 class LocalVariable(MockObj):
@@ -258,8 +254,9 @@ class LvConditional:
 
     def __enter__(self):
         if self.condition is not None:
-            CodeContext.append(RawStatement(f"if {self.condition} {{"))
+            CodeContext.append(RawStatement(f"if ({self.condition}) {{"))
             CodeContext.code_context.indent()
+        return self
 
     def __exit__(self, *args):
         if self.condition is not None:

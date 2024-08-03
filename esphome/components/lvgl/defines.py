@@ -12,6 +12,8 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from .helpers import requires_component
 
+lvgl_ns = cg.esphome_ns.namespace("lvgl")
+
 
 def literal(arg):
     if isinstance(arg, str):
@@ -124,7 +126,7 @@ LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "unscii_16",
 ]
 
-LV_EVENT = {
+LV_EVENT_MAP = {
     "PRESS": "PRESSED",
     "SHORT_CLICK": "SHORT_CLICKED",
     "LONG_PRESS": "LONG_PRESSED",
@@ -140,7 +142,7 @@ LV_EVENT = {
     "CANCEL": "CANCEL",
 }
 
-LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT)
+LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)
 
 
 LV_ANIM = LvConstant(
@@ -461,6 +463,7 @@ CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
+CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
 CONF_X = "x"
 CONF_Y = "y"

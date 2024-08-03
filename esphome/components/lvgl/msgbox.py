@@ -1,9 +1,9 @@
 from esphome import config_validation as cv
 from esphome.const import CONF_BUTTON, CONF_ID
+from esphome.core import ID
 from esphome.cpp_generator import new_Pvariable, static_const_array
 from esphome.cpp_types import nullptr
 
-from ...core import ID
 from .btn import btn_spec
 from .btnmatrix import (
     BTNM_BTN_SCHEMA,
@@ -27,6 +27,7 @@ from .helpers import add_lv_use
 from .label import CONF_LABEL
 from .lv_validation import lv_bool, lv_pct, lv_text
 from .lvcode import (
+    EVENT_ARG,
     LambdaContext,
     LocalVariable,
     lv_add,
@@ -38,8 +39,7 @@ from .lvcode import (
 from .obj import obj_spec
 from .schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema
 from .styles import TOP_LAYER
-from .trigger import lv_event_t_ptr
-from .types import char_ptr, lv_obj_t
+from .types import LV_EVENT, char_ptr, lv_obj_t
 from .widget import Widget, set_obj_properties
 
 CONF_MSGBOX = "msgbox"
@@ -81,9 +81,7 @@ async def msgbox_to_code(conf):
     msgbox = lv_Pvariable(lv_obj_t, f"{mbid.id}_msgbox")
     outer_w = Widget.create(mbid, outer, obj_spec, conf)
     btnm_widg = Widget.create(str(btnm), btnm, btnmatrix_spec, conf)
-    text_list, ctrl_list, width_list, _, btn_id_list = await get_button_data(
-        (conf,), btnm_widg
-    )
+    text_list, ctrl_list, width_list, _ = await get_button_data((conf,), btnm_widg)
     text_id = conf[CONF_BUTTONMATRIX_TEXT_LIST_ID]
     text_list = static_const_array(text_id, text_list)
     if text := conf.get(CONF_BODY):
@@ -105,11 +103,9 @@ async def msgbox_to_code(conf):
     )
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
     lv_add(btnm.set_obj(lv_expr.msgbox_get_btns(msgbox)))
-    for btn in btn_id_list:
-        lv_add(btnm.add_btn(btn))
     await set_obj_properties(outer_w, conf)
     if close_button:
-        with LambdaContext([(lv_event_t_ptr, "ev")]) as context:
+        async with LambdaContext(EVENT_ARG, where=mbid) as context:
             outer_w.add_flag("LV_OBJ_FLAG_HIDDEN")
         with LocalVariable(
             "close_btn_", lv_obj_t, "*", lv_expr.msgbox_get_close_btn(msgbox)
@@ -118,7 +114,7 @@ async def msgbox_to_code(conf):
             lv_obj.add_event_cb(
                 close_btn,
                 await context.get_lambda(),
-                literal("LV_EVENT_CLICKED"),
+                LV_EVENT.CLICKED,
                 nullptr,
             )
 

@@ -16,9 +16,11 @@ from .defines import (
 )
 from .lv_validation import lv_bool, lv_color, lv_image
 from .lvcode import (
+    LVGL_COMP_ARG,
     LambdaContext,
     LocalVariable,
     LvConditional,
+    LvglComponent,
     ReturnStatement,
     add_line_marks,
     lv,
@@ -28,9 +30,8 @@ from .lvcode import (
 )
 from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
-    LVGL_COMP_ARG,
+    LV_EVENT,
     LvglAction,
-    LvglComponent,
     LvglCondition,
     ObjUpdateAction,
     lv_disp_t,
@@ -46,7 +47,7 @@ from .widget import Widget, get_widgets, lv_scr_act, set_obj_properties
 )
 async def lvgl_is_paused(config, condition_id, template_arg, args):
     lvgl = config[CONF_LVGL_ID]
-    with LambdaContext([LVGL_COMP_ARG], return_type=cg.bool_) as context:
+    async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
         lv_add(ReturnStatement(lvgl_comp.is_paused()))
     var = cg.new_Pvariable(condition_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, lvgl)
@@ -67,7 +68,7 @@ async def lvgl_is_paused(config, condition_id, template_arg, args):
 async def lvgl_is_idle(config, condition_id, template_arg, args):
     lvgl = config[CONF_LVGL_ID]
     timeout = await cg.templatable(config[CONF_TIMEOUT], [], cg.uint32)
-    with LambdaContext([LVGL_COMP_ARG], return_type=cg.bool_) as context:
+    async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
         lv_add(ReturnStatement(lvgl_comp.is_idle(timeout)))
     var = cg.new_Pvariable(condition_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, lvgl)
@@ -97,7 +98,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
     w = widgets[0]
     disp = f"{w.obj}->get_disp()"
-    with LambdaContext(parameters=args, where=action_id) as context:
+    async with LambdaContext(parameters=args, where=action_id) as context:
         await disp_update(disp, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
@@ -113,7 +114,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     },
 )
 async def pause_action_to_code(config, action_id, template_arg, args):
-    with LambdaContext([LVGL_COMP_ARG]) as context:
+    async with LambdaContext(LVGL_COMP_ARG) as context:
         add_line_marks(where=action_id)
         lv_add(lvgl_comp.set_paused(True, config[CONF_SHOW_SNOW]))
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
@@ -129,7 +130,7 @@ async def pause_action_to_code(config, action_id, template_arg, args):
     },
 )
 async def resume_action_to_code(config, action_id, template_arg, args):
-    with LambdaContext([LVGL_COMP_ARG], where=action_id) as context:
+    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
         lv_add(lvgl_comp.set_paused(False, False))
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, config[CONF_ID])
@@ -143,7 +144,7 @@ async def action_to_code(
     template_arg,
     args,
 ):
-    with LambdaContext(parameters=args, where=action_id) as context:
+    async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             with LvConditional(widget.obj != nullptr):
                 await action(widget)
@@ -159,7 +160,7 @@ async def update_to_code(config, action_id, template_arg, args):
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
         ):
-            lv.event_send(widget.obj, literal("LV_EVENT_VALUE_CHANGED"), nullptr)
+            lv.event_send(widget.obj, LV_EVENT.VALUE_CHANGED, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(widgets, do_update, action_id, template_arg, args)

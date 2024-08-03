@@ -44,7 +44,15 @@ from .lvcode import (
     lv_Pvariable,
 )
 from .schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
-from .types import LvType, WidgetType, lv_coord_t, lv_group_t, lv_obj_t, lv_obj_t_ptr
+from .types import (
+    LV_STATE,
+    LvType,
+    WidgetType,
+    lv_coord_t,
+    lv_group_t,
+    lv_obj_t,
+    lv_obj_t_ptr,
+)
 
 EVENT_LAMB = "event_lamb__"
 
@@ -101,7 +109,13 @@ class Widget:
         return lv_obj.clear_state(self.obj, literal(state))
 
     def has_state(self, state):
-        return lv_expr.obj_get_state(self.obj) & literal(state) != 0
+        return (lv_expr.obj_get_state(self.obj) & literal(state)) != 0
+
+    def is_pressed(self):
+        return self.has_state(LV_STATE.PRESSED)
+
+    def is_checked(self):
+        return self.has_state(LV_STATE.CHECKED)
 
     def add_flag(self, flag):
         return lv_obj.add_flag(self.obj, literal(flag))
@@ -325,8 +339,8 @@ async def set_obj_properties(w: Widget, config):
             w.clear_state(clears)
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
-            state = f"LV_STATE_{key.upper}"
-            with LvConditional(lamb) as cond:
+            state = f"LV_STATE_{key.upper()}"
+            with LvConditional(f"{lamb}()") as cond:
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)

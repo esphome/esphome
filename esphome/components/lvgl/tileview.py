@@ -18,7 +18,7 @@ from .lv_validation import animated, lv_int
 from .lvcode import lv, lv_assign, lv_expr, lv_obj, lv_Pvariable
 from .obj import obj_spec
 from .schemas import container_schema
-from .types import LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
+from .types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
 from .widget import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_TILEVIEW = "tileview"
@@ -120,6 +120,6 @@ async def tileview_select(config, action_id, template_arg, args):
             lv_obj.set_tile_id(
                 widgets[0].obj, column, row, literal(config[CONF_ANIMATED])
             )
-        lv.event_send(w.obj, literal("LV_EVENT_VALUE_CHANGED"), cg.nullptr)
+        lv.event_send(w.obj, LV_EVENT.VALUE_CHANGED, cg.nullptr)
 
     return await action_to_code(widgets, do_select, action_id, template_arg, args)

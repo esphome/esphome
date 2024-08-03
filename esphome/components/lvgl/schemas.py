@@ -16,6 +16,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from . import defines as df, lv_validation as lvalid, types as ty
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import id_name, lv_color, lv_font, lv_image
+from .lvcode import LvglComponent
 from .types import WidgetType
 
 # this will be populated later, in __init__.py to avoid circular imports.
@@ -335,7 +336,7 @@ STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
 # For use by platform components
 LVGL_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
+        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(LvglComponent),
     }
 )
 

@@ -18,7 +18,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include <lvgl.h>
-#include <utility>
 #include <vector>
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
@@ -184,6 +183,11 @@ class LvglComponent : public PollingComponent {
       lv_obj_add_event_cb(obj, callback, lv_custom_event, this);
     }
   }
+  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2) {
+    this->add_event_cb(obj, callback, event1);
+    this->add_event_cb(obj, callback, event2);
+  }
+
   bool is_paused() const { return this->paused_; }
   void add_page(LvPageType *page) {
     this->pages_.push_back(page);
@@ -390,20 +394,12 @@ class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
         LV_EVENT_PRESSED, this);
   }
 
-  uint16_t *get_selected() { return this->get_btn(lv_btnmatrix_get_selected_btn(this->obj)); }
-
-  uint16_t *get_btn(uint16_t index) {
-    if (index >= this->btn_ids_.size())
-      return nullptr;
-    return this->btn_ids_[index];
-  }
+  uint16_t get_selected() { return lv_btnmatrix_get_selected_btn(this->obj); }
 
   void set_key(size_t idx, uint8_t key) { this->key_map_[idx] = key; }
-  void add_btn(uint16_t *id) { this->btn_ids_.push_back(id); }
 
  protected:
   std::map<size_t, uint8_t> key_map_{};
-  std::vector<uint16_t *> btn_ids_{};
 };
 #endif  // USE_LVGL_BUTTONMATRIX
 

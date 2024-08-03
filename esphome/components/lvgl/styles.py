@@ -45,7 +45,7 @@ async def theme_to_code(config):
             apply = lv_variable(lv_lambda_t, lname)
             theme_widget_map[w_name] = apply
             ow = Widget.create("obj", MockObj(ID("obj")), obj_spec)
-            with LambdaContext([(lv_obj_t_ptr, "obj")], where=w_name) as context:
+            async with LambdaContext([(lv_obj_t_ptr, "obj")], where=w_name) as context:
                 await set_obj_properties(ow, style)
             lv_assign(apply, await context.get_lambda())
 
