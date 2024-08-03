@@ -39,17 +39,13 @@ void MDNSComponent::setup() {
   }
 }
 
-std::vector<network::IPAddress> MDNSComponent::resolve(const std::string &servicename) {
-  std::vector<network::IPAddress> resolved;
-  uint8_t n = MDNS.queryService(servicename.c_str(), "tcp");
-  for (uint8_t i = 0; i < n; i++) {
-    network::IPAddress ip_addr_ = network::IPAddress(MDNS.IP(i));
-    if (std::count(resolved.begin(), resolved.end(), ip_addr_) == 0) {
-      resolved.push_back(ip_addr_);
-    }
+network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
+  if (MDNS.queryService(servicename.c_str(), "tcp") > 0) {
+    auto ip_addr_ = network::IPAddress(MDNS.IP(0));
     ESP_LOGVV(TAG, "Found mDNS %s", ip_addr_.str().c_str());
+    return ip_addr_;
   }
-  return resolved;
+  return network::IPAddress();
 }
 
 void MDNSComponent::loop() { MDNS.update(); }
@@ -59,7 +55,7 @@ void MDNSComponent::on_shutdown() {
   delay(40);
 }
 
-MDNSComponent *global_mdns = nullptr;
+MDNSComponent *global_mdns = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace mdns
 }  // namespace esphome
 

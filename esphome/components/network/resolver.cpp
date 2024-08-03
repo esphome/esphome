@@ -24,24 +24,19 @@ namespace network {
 static const char *const TAG = "resolver";
 
 Resolver::Resolver() { global_resolver = this; }
-Resolver::Resolver(std::multimap<std::string, network::IPAddress> hosts) : hosts_(std::move(hosts)) {
+Resolver::Resolver(std::map<std::string, network::IPAddress> hosts) : hosts_(std::move(hosts)) {
   global_resolver = this;
 }
-// TODO(HeMan): resolve needs to return multiple IP addresses
-std::vector<network::IPAddress> Resolver::resolve(const std::string &hostname) {
+
+network::IPAddress Resolver::resolve(const std::string &hostname) {
   if (this->hosts_.count(hostname) > 0) {
-    std::vector<network::IPAddress> resolved;
-    for (auto a = hosts_.find(hostname); a != hosts_.end(); a++) {
-      resolved.push_back(a->second);
-      ESP_LOGVV(TAG, "Found %s in hosts section", hostname.c_str());
-    }
-    return resolved;
+    return hosts_[hostname];
   }
 #ifdef USE_MDNS
   ESP_LOGV(TAG, "Looking for %s with mDNS", hostname.c_str());
-  std::vector<network::IPAddress> resolved_mdns = mdns::global_mdns->resolve(hostname);
-  if (!resolved_mdns.empty()) {
-    ESP_LOGVV(TAG, "Found %s in mDNS", hostname.c_str());
+  network::IPAddress resolved_mdns = mdns::global_mdns->resolve(hostname);
+  if (resolved_mdns != network::IPAddress()) {
+    ESP_LOGVV(TAG, "Found %s in mDNS", resolved_mdns.str().c_str());
     return resolved_mdns;
   }
 #endif
@@ -84,7 +79,7 @@ std::vector<network::IPAddress> Resolver::resolve(const std::string &hostname) {
     ESP_LOGVV(TAG, "Not resolved");
   }
 #endif
-  return {this->ip_};
+  return this->ip_;
 }
 
 void Resolver::dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {

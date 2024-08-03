@@ -38,17 +38,13 @@ void MDNSComponent::setup() {
     }
   }
 }
-std::vector<network::IPAddress> MDNSComponent::resolve(const std::string &servicename) {
-  std::vector<network::IPAddress> resolved;
-  uint8_t n = MDNS.queryService(servicename.c_str(), "tcp");
-  for (uint8_t i = 0; i < n; i++) {
-    network::IPAddress ip_addr = network::IPAddress(MDNS.IP(i));
-    if (std::count(resolved.begin(), resolved.end(), ip_addr) == 0) {
-      resolved.push_back(ip_addr);
-    }
+network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
+  if (MDNS.queryService(servicename.c_str(), "tcp") > 0) {
+    auto ip_addr = network::IPAddress(MDNS.IP(0));
     ESP_LOGVV(TAG, "Found mDNS %s", ip_addr.str().c_str());
+    return ip_addr;
   }
-  return resolved;
+  return network::IPAddress();
 }
 
 void MDNSComponent::loop() { MDNS.update(); }

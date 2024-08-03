@@ -12,9 +12,7 @@ namespace mdns {
 void MDNSComponent::setup() { this->compile_records_(); }
 
 void MDNSComponent::on_shutdown() {}
-std::vector<network::IPAddress> MDNSComponent::resolve(const std::string &) {
-  return std::vector<network::IPAddress>{};
-}
+network::IPAddress MDNSComponent::resolve(const std::string &) { return network::IPAddress(); }
 
 MDNSComponent *global_mdns = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace mdns

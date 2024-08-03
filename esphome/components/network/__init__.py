@@ -93,5 +93,5 @@ async def to_code(config):
         )
         hosts.extend(parse_hosts_file(hosts_contents))
 
-    map_ = cg.std_ns.class_("multimap").template(cg.std_string, IPAddress)
+    map_ = cg.std_ns.class_("map").template(cg.std_string, IPAddress)
     cg.new_Pvariable(config[CONF_NETWORK_ID], map_(hosts))

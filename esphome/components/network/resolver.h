@@ -10,13 +10,13 @@ namespace network {
 class Resolver {
  public:
   Resolver();
-  explicit Resolver(std::multimap<std::string, network::IPAddress> hosts);
-  ~Resolver();
-  std::vector<network::IPAddress> resolve(const std::string &hostname);
+  explicit Resolver(std::map<std::string, network::IPAddress> hosts);
+
+  network::IPAddress resolve(const std::string &hostname);
 
  protected:
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
-  std::multimap<std::string, network::IPAddress> hosts_;
+  std::map<std::string, network::IPAddress> hosts_;
   network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
