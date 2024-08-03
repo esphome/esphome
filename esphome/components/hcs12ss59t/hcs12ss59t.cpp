@@ -28,7 +28,7 @@ void HCS12SS59TComponent::dump_config() {
   LOG_PIN("  Enable Pin: ", this->enable_pin_.value());
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
   ESP_LOGCONFIG(TAG, "  Scroll Position: %u", this->scroll_);
-  ESP_LOGCONFIG(TAG, "  Scroll Position: %u", this->scroll_speed_);
+  ESP_LOGCONFIG(TAG, "  Scroll Position: %lu", this->scroll_speed_);
   ESP_LOGCONFIG(TAG, "  Buffer Size: %u", this->buffer_.size());
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
