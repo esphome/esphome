@@ -18,13 +18,13 @@ from .defines import (
     CONF_ROWS,
     CONF_SELECTED,
     CONF_TEXT,
-    literal,
 )
 from .helpers import lvgl_components_required
 from .lv_validation import key_code, lv_bool
 from .lvcode import lv, lv_add, lv_expr
 from .schemas import automation_schema
 from .types import (
+    LV_BTNMATRIX_CTRL,
     LV_STATE,
     LvBoolean,
     LvCompound,
@@ -107,17 +107,22 @@ class MatrixButton(Widget):
         return self.parent.var.get_selected() == MockObj(self.var)
 
     @staticmethod
-    def map_ctrls(ctrls):
-        clist = []
-        for item in ctrls:
-            assert item in BTNMATRIX_CTRLS.choices
-            clist.append(f"(int)LV_BTNMATRIX_CTRL_{item}")
-        return literal("|".join(clist))
+    def map_ctrls(state):
+        state = str(state).upper().removeprefix("LV_STATE_")
+        assert state in BTNMATRIX_CTRLS.choices
+        return getattr(LV_BTNMATRIX_CTRL, state)
 
     def has_state(self, state):
-        state = str(state).upper().removeprefix("LV_STATE_")
-        state = self.map_ctrls([state])
+        state = self.map_ctrls(state)
         return lv_expr.btnmatrix_has_btn_ctrl(self.obj, self.index, state)
+
+    def add_state(self, state):
+        state = self.map_ctrls(state)
+        return lv.btnmatrix_set_btn_ctrl(self.obj, self.index, state)
+
+    def clear_state(self, state):
+        state = self.map_ctrls(state)
+        return lv.btnmatrix_clear_btn_ctrl(self.obj, self.index, state)
 
     def is_pressed(self):
         return self.is_selected() & self.parent.has_state(LV_STATE.PRESSED)
@@ -152,10 +157,10 @@ async def get_button_data(config, btnm: Widget):
             text_list.append(btnconf.get(CONF_TEXT) or "")
             key_list.append(btnconf.get(CONF_KEY_CODE) or 0)
             width_list.append(btnconf[CONF_WIDTH])
-            ctrl = ["CLICK_TRIG"]
-            if controls := btnconf.get(CONF_CONTROL):
-                for item in controls:
-                    ctrl.extend([k for k, v in item.items() if v])
+            ctrl = ["LV_BTNMATRIX_CTRL_CLICK_TRIG"]
+            for item in btnconf.get(CONF_CONTROL, ()):
+                ctrl.extend([k for k, v in item.items() if v])
+            ctrl_list.append(await BTNMATRIX_CTRLS.process(ctrl))
         text_list.append("\n")
     text_list = text_list[:-1]
     text_list.append(cg.nullptr)

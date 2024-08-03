@@ -62,6 +62,7 @@ lv_img_t = LvType("lv_img_t")
 
 LV_EVENT = MockObj(base="LV_EVENT_", op="")
 LV_STATE = MockObj(base="LV_STATE_", op="")
+LV_BTNMATRIX_CTRL = MockObj(base="LV_BTNMATRIX_CTRL_", op="")
 
 
 class LvText(LvType):

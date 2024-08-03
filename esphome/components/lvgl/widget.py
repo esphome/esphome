@@ -134,6 +134,8 @@ class Widget:
             return
         if isinstance(value, TimePeriod):
             value = value.total_milliseconds
+        if isinstance(value, str):
+            value = literal(value)
         if animated is None or self.type.animated is not True:
             lv.call(f"{self.type.lv_name}_set_{prop}", self.obj, value)
         else:

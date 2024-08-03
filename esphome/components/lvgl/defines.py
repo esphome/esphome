@@ -89,9 +89,16 @@ class LvConstant(LValidator):
         )
 
     def mapper(self, value, args=()):
-        if isinstance(value, list):
-            value = "|".join(value)
-        return literal(value)
+        if not isinstance(value, list):
+            value = [value]
+        return literal(
+            "|".join(
+                [
+                    str(v) if str(v).startswith(self.prefix) else self.prefix + str(v)
+                    for v in value
+                ]
+            ).upper()
+        )
 
     def extend(self, *choices):
         """

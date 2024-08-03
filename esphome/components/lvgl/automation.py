@@ -31,6 +31,7 @@ from .lvcode import (
 from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
     LV_EVENT,
+    LV_STATE,
     LvglAction,
     LvglCondition,
     ObjUpdateAction,
@@ -188,7 +189,7 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
 @automation.register_action("lvgl.widget.disable", ObjUpdateAction, LIST_ACTION_SCHEMA)
 async def obj_disable_to_code(config, action_id, template_arg, args):
     async def do_disable(widget: Widget):
-        widget.add_state("LV_STATE_DISABLED")
+        widget.add_state(LV_STATE.DISABLED)
 
     return await action_to_code(
         await get_widgets(config), do_disable, action_id, template_arg, args
@@ -198,7 +199,7 @@ async def obj_disable_to_code(config, action_id, template_arg, args):
 @automation.register_action("lvgl.widget.enable", ObjUpdateAction, LIST_ACTION_SCHEMA)
 async def obj_enable_to_code(config, action_id, template_arg, args):
     async def do_enable(widget: Widget):
-        widget.clear_state("LV_STATE_DISABLED")
+        widget.clear_state(LV_STATE.DISABLED)
 
     return await action_to_code(
         await get_widgets(config), do_enable, action_id, template_arg, args

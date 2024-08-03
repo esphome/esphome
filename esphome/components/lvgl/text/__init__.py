@@ -3,7 +3,7 @@ from esphome.components import text
 from esphome.components.text import new_text
 import esphome.config_validation as cv
 
-from ..defines import CONF_LVGL_ID, CONF_WIDGET, literal
+from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lv_validation import requires_component
 from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
@@ -29,7 +29,7 @@ async def to_code(config):
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
     async with LambdaContext([(cg.std_string, "text_value")]) as control:
-        await widget.set_property("text", literal("text_value.c_str())"))
+        await widget.set_property("text", "text_value.c_str())")
         lv.event_send(widget.obj, CUSTOM_EVENT, None)
     async with LambdaContext(EVENT_ARG) as lamb:
         lv_add(textvar.publish_state(widget.get_value()))
@@ -40,3 +40,4 @@ async def to_code(config):
                 widget.obj, await lamb.get_lambda(), LV_EVENT.VALUE_CHANGED
             )
         )
+        lv_add(textvar.publish_state(widget.get_value()))

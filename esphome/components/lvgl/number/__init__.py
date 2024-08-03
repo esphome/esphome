@@ -50,3 +50,4 @@ async def to_code(config):
                 widget.obj, await event.get_lambda(), LV_EVENT.VALUE_CHANGED
             )
         )
+        lv_add(var.publish_state(widget.get_value()))
