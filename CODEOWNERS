@@ -162,6 +162,7 @@ esphome/components/haier/text_sensor/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
+esphome/components/hcs12ss59t/* @Mechazawa
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
