@@ -10,7 +10,7 @@ namespace network {
 class Resolver {
  public:
   Resolver();
-  Resolver(std::multimap<std::string, network::IPAddress> hosts);
+  explicit Resolver(std::multimap<std::string, network::IPAddress> hosts);
   ~Resolver();
   std::vector<network::IPAddress> resolve(const std::string &hostname);
 

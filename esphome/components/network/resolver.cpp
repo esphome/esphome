@@ -1,4 +1,5 @@
 #include <vector>
+#include <utility>
 #include "resolver.h"
 #if !defined(USE_HOST)
 #include "lwip/dns.h"
@@ -87,7 +88,7 @@ std::vector<network::IPAddress> Resolver::resolve(const std::string &hostname) {
 }
 
 void Resolver::dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
-  auto *a_this = (Resolver *) callback_arg;
+  auto *a_this = reinterpret_cast<Resolver *>(callback_arg);
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
