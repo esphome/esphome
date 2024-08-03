@@ -7,7 +7,7 @@ spi:
 display:
   - platform: hcs12ss59t
     cs_pin: 15
-    enable_pin: 11
+    enable_pin: 13
     intensity: 10
     id: my_matrix
     lambda: |-

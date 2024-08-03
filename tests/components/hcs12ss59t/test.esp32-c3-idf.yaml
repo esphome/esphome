@@ -7,8 +7,7 @@ spi:
 display:
   - platform: hcs12ss59t
     cs_pin: 8
-    num_chips: 4
-    rotate_chip: 0
+    enable_pin: 9
     intensity: 10
     scroll_mode: STOP
     id: my_matrix
