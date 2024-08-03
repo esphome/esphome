@@ -8,7 +8,7 @@ display:
   - platform: hcs12ss59t
     cs_pin: 15
     enable_pin: 5
-    intensity: 16
+    intensity: 10
     scroll_speed: 300ms
     id: my_matrix
     lambda: |-
