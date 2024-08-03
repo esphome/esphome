@@ -204,6 +204,30 @@ SENSORS: Schema[SensorSchema] = Schema(
                 "message_data": "s16",
             }
         ),
+        "fan_speed": SensorSchema(
+            {
+                "description": "Boiler fan speed",
+                "unit_of_measurement": UNIT_REVOLUTIONS_PER_MINUTE,
+                "accuracy_decimals": 0,
+                "device_class": DEVICE_CLASS_EMPTY,
+                "state_class": STATE_CLASS_MEASUREMENT,
+                "message": "FAN_SPEED",
+                "keep_updated": True,
+                "message_data": "u16",
+            }
+        ),
+        "flame_current": SensorSchema(
+            {
+                "description": "Boiler flame current",
+                "unit_of_measurement": UNIT_MICROAMP,
+                "accuracy_decimals": 0,
+                "device_class": DEVICE_CLASS_CURRENT,
+                "state_class": STATE_CLASS_MEASUREMENT,
+                "message": "FLAME_CURRENT",
+                "keep_updated": True,
+                "message_data": "f88",
+            }
+        ),
         "burner_starts": SensorSchema(
             {
                 "description": "Number of starts burner",

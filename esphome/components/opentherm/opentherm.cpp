@@ -472,6 +472,8 @@ const char *OpenTherm::message_id_to_str(MessageId id) {
     TO_STRING_MEMBER(FEED_TEMP_CH2)
     TO_STRING_MEMBER(DHW2_TEMP)
     TO_STRING_MEMBER(EXHAUST_TEMP)
+    TO_STRING_MEMBER(FAN_SPEED)
+    TO_STRING_MEMBER(FLAME_CURRENT)
     TO_STRING_MEMBER(DHW_BOUNDS)
     TO_STRING_MEMBER(CH_BOUNDS)
     TO_STRING_MEMBER(OTC_CURVE_BOUNDS)
@@ -533,20 +535,11 @@ std::string OpenTherm::debug_error(OpenThermError &error) {
 }
 
 float OpenthermData::f88() {
-  float const value = (int8_t) valueHB;
-  return value + (float) valueLB / 256.0;
+  return ((float) s16()) / 256.0;
 }
 
 void OpenthermData::f88(float value) {
-  if (value >= 0) {
-    valueHB = (uint8_t) value;
-    float const fraction = (value - valueHB);
-    valueLB = fraction * 256.0;
-  } else {
-    valueHB = (uint8_t) (value - 1);
-    float const fraction = (value - valueHB - 1);
-    valueLB = fraction * 256.0;
-  }
+  s16((int16_t) (value * 256));
 }
 
 uint16_t OpenthermData::u16() {
