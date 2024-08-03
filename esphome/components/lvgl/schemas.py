@@ -119,8 +119,11 @@ STYLE_PROPS = {
 
 STYLE_REMAP = {
     "bg_image_opa": "bg_img_opa",
+    "bg_image_recolor": "bg_img_recolor",
     "bg_image_recolor_opa": "bg_img_recolor_opa",
     "bg_image_src": "bg_img_src",
+    "image_recolor": "img_recolor",
+    "image_recolor_opa": "img_recolor_opa",
 }
 
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
