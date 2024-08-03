@@ -46,7 +46,9 @@ async def to_code(config):
 
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     cg.add(var.set_scroll_speed(config[CONF_SCROLL_SPEED]))
-    cg.add(var.set_enable_pin(config[CONF_ENABLE_PIN]))
+
+    enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
+    cg.add(var.set_enable_pin(enable))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
