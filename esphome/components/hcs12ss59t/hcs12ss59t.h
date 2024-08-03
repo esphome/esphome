@@ -44,7 +44,7 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
   void scroll_right() { scroll(-1); };
   void scroll(uint16_t steps);
 
-  void set_scroll(boolean enabled);
+  void set_scroll(bool enabled);
   void set_scroll_speed(uint32_t ms);
 
   void set_enable_pin(GPIOPin *pin);

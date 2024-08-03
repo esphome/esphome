@@ -107,7 +107,7 @@ void HCS12SS59TComponent::scroll(uint16_t steps) {
   this->scroll_ = (this->buffer_.size() + steps + this->scroll_) % this->buffer_.size();
 }
 
-void HCS12SS59TComponent::set_scroll(boolean enabled) {
+void HCS12SS59TComponent::set_scroll(bool enabled) {
   this->cancel_interval("scroll");
 
   if (enabled) {
