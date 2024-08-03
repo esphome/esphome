@@ -27,9 +27,13 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
 
   void setup() override;
 
+  void update() override{};
+
   void dump_config() override;
 
   float get_setup_priority() const override;
+
+  display::DisplayType get_display_type() { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
   void display();
 
@@ -51,6 +55,10 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
   void set_enabled(bool enabled);
 
  protected:
+  int get_width_internal() override { return HCS12SS59T_NUMDIGITS; };
+  int get_height_internal() override { return 1; };
+  void draw_absolute_pixel_internal(int x, int y, Color color) override{};
+
   void send_command_(uint8_t a_register, uint8_t data);
 
   uint8_t intensity_{15};  // Intensity of the display from 0 to 15 (most)
