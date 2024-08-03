@@ -5,15 +5,7 @@ import esphome.config_validation as cv
 
 from ..defines import CONF_LVGL_ID, CONF_WIDGET, literal
 from ..lv_validation import requires_component
-from ..lvcode import (
-    CUSTOM_EVENT,
-    EVENT_ARG,
-    LVGL_COMP_ARG,
-    LambdaContext,
-    LvContext,
-    lv,
-    lv_add,
-)
+from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvText, lvgl_ns
 from ..widget import get_widgets
@@ -41,7 +33,7 @@ async def to_code(config):
         lv.event_send(widget.obj, CUSTOM_EVENT, None)
     async with LambdaContext(EVENT_ARG) as lamb:
         lv_add(textvar.publish_state(widget.get_value()))
-    async with LvContext(paren, LVGL_COMP_ARG):
+    async with LvContext(paren):
         widget.var.set_control_lambda(await control.get_lambda())
         lv_add(
             paren.add_event_cb(
