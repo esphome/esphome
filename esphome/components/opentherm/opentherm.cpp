@@ -534,13 +534,9 @@ std::string OpenTherm::debug_error(OpenThermError &error) {
   return result.str();
 }
 
-float OpenthermData::f88() {
-  return ((float) s16()) / 256.0;
-}
+float OpenthermData::f88() { return ((float) s16()) / 256.0; }
 
-void OpenthermData::f88(float value) {
-  s16((int16_t) (value * 256));
-}
+void OpenthermData::f88(float value) { s16((int16_t) (value * 256)); }
 
 uint16_t OpenthermData::u16() {
   uint16_t const value = valueHB;
