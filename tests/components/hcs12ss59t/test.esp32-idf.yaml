@@ -9,6 +9,7 @@ display:
     cs_pin: 12
     enable_pin: 13
     intensity: 10
+    scroll_speed: 300ms
     id: my_matrix
     lambda: |-
       it.set_intensity(4);
