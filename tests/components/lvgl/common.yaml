@@ -8,3 +8,49 @@ touchscreen:
       x_max: 240
       y_max: 320
 
+font:
+  - file: "$component_dir/roboto.ttf"
+    id: roboto20
+    size: 20
+    extras:
+      - file: '$component_dir/materialdesignicons-webfont.ttf'
+        glyphs: [
+          "\U000F004B",
+          "\U0000f0ed",
+          "\U000F006E",
+          "\U000F012C",
+          "\U000F179B",
+          "\U000F0748",
+          "\U000F1A1B",
+          "\U000F02DC",
+          "\U000F0A02",
+          "\U000F035F",
+          "\U000F0156",
+          "\U000F0C5F",
+          "\U000f0084",
+          "\U000f0091",
+        ]
+  - file: "$component_dir/helvetica.ttf"
+    id: helvetica20
+  - file: "$component_dir/roboto.ttf"
+    id: roboto10
+    size: 10
+    bpp: 4
+    extras:
+      - file: '$component_dir/materialdesignicons-webfont.ttf'
+        glyphs: [
+          "\U000F004B",
+          "\U0000f0ed",
+          "\U000F006E",
+          "\U000F012C",
+          "\U000F179B",
+          "\U000F0748",
+          "\U000F1A1B",
+          "\U000F02DC",
+          "\U000F0A02",
+          "\U000F035F",
+          "\U000F0156",
+          "\U000F0C5F",
+          "\U000f0084",
+          "\U000f0091",
+        ]
