@@ -54,8 +54,6 @@ i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
 CHANNELS = {
     "left": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
     "right": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
-    "all_left": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ALL_LEFT,
-    "all_right": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ALL_RIGHT,
     "stereo": i2s_channel_fmt_t.I2S_CHANNEL_FMT_RIGHT_LEFT,
 }
 
