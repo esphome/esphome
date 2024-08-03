@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_MDNS
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
@@ -51,3 +52,4 @@ extern MDNSComponent *global_mdns;  // NOLINT(cppcoreguidelines-avoid-non-const-
 
 }  // namespace mdns
 }  // namespace esphome
+#endif

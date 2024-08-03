@@ -112,11 +112,18 @@ HARDWARE_UART_TO_UART_SELECTION = {
 }
 
 HARDWARE_UART_TO_SERIAL = {
-    UART0: cg.global_ns.Serial,
-    UART0_SWAP: cg.global_ns.Serial,
-    UART1: cg.global_ns.Serial1,
-    UART2: cg.global_ns.Serial2,
-    DEFAULT: cg.global_ns.Serial,
+    PLATFORM_ESP8266: {
+        UART0: cg.global_ns.Serial,
+        UART0_SWAP: cg.global_ns.Serial,
+        UART1: cg.global_ns.Serial1,
+        UART2: cg.global_ns.Serial2,
+        DEFAULT: cg.global_ns.Serial,
+    },
+    PLATFORM_RP2040: {
+        UART0: cg.global_ns.Serial1,
+        UART1: cg.global_ns.Serial2,
+        USB_CDC: cg.global_ns.Serial,
+    },
 }
 
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
@@ -244,8 +251,14 @@ async def to_code(config):
     is_at_least_very_verbose = this_severity >= very_verbose_severity
     has_serial_logging = baud_rate != 0
 
-    if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
-        debug_serial_port = HARDWARE_UART_TO_SERIAL[config.get(CONF_HARDWARE_UART)]
+    if (
+        (CORE.is_esp8266 or CORE.is_rp2040)
+        and has_serial_logging
+        and is_at_least_verbose
+    ):
+        debug_serial_port = HARDWARE_UART_TO_SERIAL[CORE.target_platform][
+            config.get(CONF_HARDWARE_UART)
+        ]
         cg.add_build_flag(f"-DDEBUG_ESP_PORT={debug_serial_port}")
         cg.add_build_flag("-DLWIP_DEBUG")
         DEBUG_COMPONENTS = {

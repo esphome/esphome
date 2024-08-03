@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import helpers
+import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
-    CONF_MIN_IPV6_ADDR_COUNT,
-    PLATFORM_ESP32,
-    PLATFORM_ESP8266,
-    PLATFORM_RP2040,
     CONF_HOSTS,
     CONF_HOSTSFILE,
     CONF_IP_ADDRESS,
+    CONF_MIN_IPV6_ADDR_COUNT,
     CONF_NAME,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
 )
 from esphome.core import CORE
 
@@ -27,7 +27,12 @@ CONF_NETWORK_ID = "network_id"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.SplitDefault(CONF_ENABLE_IPV6): cv.All(
+        cv.SplitDefault(
+            CONF_ENABLE_IPV6,
+            esp8266=False,
+            esp32=False,
+            rp2040=False,
+        ): cv.All(
             cv.boolean, cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040])
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
@@ -60,24 +65,22 @@ def parse_hosts_file(hosts_contents: str) -> list[tuple[str, IPAddress]]:
 
 
 async def to_code(config):
-    if CONF_ENABLE_IPV6 in config:
-        cg.add_define("USE_NETWORK_IPV6", config[CONF_ENABLE_IPV6])
-        cg.add_define(
-            "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-        )
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
-            add_idf_sdkconfig_option(
-                "CONFIG_LWIP_IPV6_AUTOCONFIG", config[CONF_ENABLE_IPV6]
+    if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
+        cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
+        if enable_ipv6:
+            cg.add_define(
+                "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
             )
-        else:
-            if config[CONF_ENABLE_IPV6]:
-                cg.add_build_flag("-DCONFIG_LWIP_IPV6")
-                cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
-                if CORE.is_rp2040:
-                    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-                if CORE.is_esp8266:
-                    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+        if CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
+        elif enable_ipv6:
+            cg.add_build_flag("-DCONFIG_LWIP_IPV6")
+            cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
+            if CORE.is_rp2040:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+            if CORE.is_esp8266:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
     hosts = []
     if CONF_HOSTS in config:
         hosts = [
