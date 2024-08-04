@@ -52,7 +52,7 @@ async def theme_to_code(config):
 
 async def add_top_layer(config):
     if top_conf := config.get(CONF_TOP_LAYER):
-        with LocalVariable("top_layer", lv_obj_t, "*", TOP_LAYER) as top_layer_obj:
+        with LocalVariable("top_layer", lv_obj_t, TOP_LAYER) as top_layer_obj:
             top_w = Widget(top_layer_obj, obj_spec, top_conf)
             await set_obj_properties(top_w, top_conf)
             await add_widgets(top_w, top_conf)
