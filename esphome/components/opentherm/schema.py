@@ -566,7 +566,7 @@ SWITCHES: Schema[SwitchSchema] = Schema(
                 "message": "STATUS",
                 "keep_updated": True,
                 "message_data": "flag8_hb_0",
-                "default_mode": "restore_default_off"
+                "default_mode": "restore_default_off",
             }
         ),
         "dhw_enable": SwitchSchema(
@@ -575,7 +575,7 @@ SWITCHES: Schema[SwitchSchema] = Schema(
                 "message": "STATUS",
                 "keep_updated": True,
                 "message_data": "flag8_hb_1",
-                "default_mode": "restore_default_off"
+                "default_mode": "restore_default_off",
             }
         ),
         "cooling_enable": SwitchSchema(
@@ -584,7 +584,7 @@ SWITCHES: Schema[SwitchSchema] = Schema(
                 "message": "STATUS",
                 "keep_updated": True,
                 "message_data": "flag8_hb_2",
-                "default_mode": "restore_default_off"
+                "default_mode": "restore_default_off",
             }
         ),
         "otc_active": SwitchSchema(
@@ -593,7 +593,7 @@ SWITCHES: Schema[SwitchSchema] = Schema(
                 "message": "STATUS",
                 "keep_updated": True,
                 "message_data": "flag8_hb_3",
-                "default_mode": "restore_default_off"
+                "default_mode": "restore_default_off",
             }
         ),
         "ch2_active": SwitchSchema(
@@ -602,7 +602,7 @@ SWITCHES: Schema[SwitchSchema] = Schema(
                 "message": "STATUS",
                 "keep_updated": True,
                 "message_data": "flag8_hb_4",
-                "default_mode": "restore_default_off"
+                "default_mode": "restore_default_off",
             }
         ),
     }
