@@ -285,7 +285,7 @@ lvgl:
               then:
                 - if:
                     condition:
-                      lambda: return obj == id(tabview_tab_1);
+                      lambda: return tab == id(tabview_tab_1);
                     then:
                       - logger.log: "Dog tab is now showing"
             tabs:
