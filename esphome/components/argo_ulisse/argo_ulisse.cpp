@@ -128,11 +128,11 @@ void ArgoUlisseClimate::transmit_ifeel_() {
   ifeel_packet.IrChannel = 0;  // Assume channel 0, adjust if needed
   ifeel_packet.IrCommandType = ArgoIRMessageType_IFEEL_TEMP_REPORT;
 
-  ifeel_packet.ifeel.SensorT = this->sensor_temperature_();
+  ifeel_packet.ifeelreport.SensorT = this->sensor_temperature_();
 
   // Calculate checksum
   ESP_LOGV(TAG, "  Calculating iFeel checksum..");
-  ifeel_packet.ifeel.CheckHi = this->calc_checksum_(&ifeel_packet, ArgoIRMessageLength_IFEEL_TEMP_REPORT);
+  ifeel_packet.ifeelreport.CheckHi = this->calc_checksum_(&ifeel_packet, ArgoIRMessageLength_IFEEL_TEMP_REPORT);
 
   // Transmit the IR signal
   auto transmit = this->transmitter_->transmit();

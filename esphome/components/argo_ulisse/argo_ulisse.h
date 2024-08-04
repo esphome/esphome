@@ -84,13 +84,13 @@ union ArgoProtocolWREM3 {
     // Byte5
     uint8_t Sum : 8;  /// Checksum
   };
-  struct iFeel {
+  struct iFeelReport {
     // Byte 0 (same definition across the union)
     uint8_t : 8;  // {Pre1 | IrChannel | IrCommandType}
     // Byte 1
     uint8_t SensorT : 5;  // in Celsius, range:  4..35 (offset by -4[*C])
     uint8_t CheckHi : 3;  // Checksum (short)
-  } ifeel;
+  } ifeelreport;
   struct Timer {
     // Byte 0 (same definition across the union)
     uint8_t : 8;  // {Pre1 | IrChannel | IrCommandType}
