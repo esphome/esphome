@@ -18,12 +18,12 @@ void HCS12SS59TComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HCS-12SS59T...");
 
   this->spi_setup();
-  this->initialised_ = true;
+  // this->initialised_ = true;
 
-  this->set_enabled(this->enabled_);
-  this->set_intensity(this->intensity_);
+  // this->set_enabled(this->enabled_);
+  // this->set_intensity(this->intensity_);
 
-  this->display();
+  // this->display();
 }
 void HCS12SS59TComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HCS12SS59T:");
