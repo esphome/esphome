@@ -70,7 +70,9 @@ lvgl:
             align: center
             text_font: montserrat_40
             border_post: true
-
+            on_click:
+              then:
+                - lvgl.animimg.stop: anim_img
         - label:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
