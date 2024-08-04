@@ -118,6 +118,7 @@ button:
     on_press:
       remote_transmitter.transmit_aeha:
         address: 0x8008
+        carrier_frequency: 36700Hz
         data:
           [
             0x00,

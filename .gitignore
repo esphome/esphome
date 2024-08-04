@@ -138,3 +138,5 @@ sdkconfig.*
 .tests/
 
 /components
+/managed_components
+

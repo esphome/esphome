@@ -1,17 +1,17 @@
-import logging
-from typing import Callable, Optional, Any, ContextManager
-from types import ModuleType
-import importlib
-import importlib.util
-import importlib.resources
-import importlib.abc
-import sys
-from pathlib import Path
 from dataclasses import dataclass
+import importlib
+import importlib.abc
+import importlib.resources
+import importlib.util
+import logging
+from pathlib import Path
+import sys
+from types import ModuleType
+from typing import Any, Callable, ContextManager, Optional
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
-import esphome.core.config
 from esphome.core import CORE
+import esphome.core.config
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -175,7 +175,11 @@ def _lookup_module(domain):
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
-        if "No module named" not in str(e):
+        if "No module named" in str(e):
+            _LOGGER.error(
+                "Unable to import component %s: %s", domain, str(e), exc_info=False
+            )
+        else:
             _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
         return None
     except Exception:  # pylint: disable=broad-except

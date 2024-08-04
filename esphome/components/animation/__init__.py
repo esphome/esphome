@@ -3,7 +3,13 @@ import logging
 from esphome import automation, core
 from esphome.components import font
 import esphome.components.image as espImage
-from esphome.components.image import CONF_USE_TRANSPARENCY
+from esphome.components.image import (
+    CONF_USE_TRANSPARENCY,
+    LOCAL_SCHEMA,
+    WEB_SCHEMA,
+    SOURCE_WEB,
+    SOURCE_LOCAL,
+)
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
@@ -13,6 +19,9 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_RESIZE,
     CONF_TYPE,
+    CONF_SOURCE,
+    CONF_PATH,
+    CONF_URL,
 )
 from esphome.core import CORE, HexInt
 
@@ -43,6 +52,40 @@ SetFrameAction = animation_ns.class_(
     "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
 
+TYPED_FILE_SCHEMA = cv.typed_schema(
+    {
+        SOURCE_LOCAL: LOCAL_SCHEMA,
+        SOURCE_WEB: WEB_SCHEMA,
+    },
+    key=CONF_SOURCE,
+)
+
+
+def _file_schema(value):
+    if isinstance(value, str):
+        return validate_file_shorthand(value)
+    return TYPED_FILE_SCHEMA(value)
+
+
+FILE_SCHEMA = cv.Schema(_file_schema)
+
+
+def validate_file_shorthand(value):
+    value = cv.string_strict(value)
+    if value.startswith("http://") or value.startswith("https://"):
+        return FILE_SCHEMA(
+            {
+                CONF_SOURCE: SOURCE_WEB,
+                CONF_URL: value,
+            }
+        )
+    return FILE_SCHEMA(
+        {
+            CONF_SOURCE: SOURCE_LOCAL,
+            CONF_PATH: value,
+        }
+    )
+
 
 def validate_cross_dependencies(config):
     """
@@ -67,7 +110,7 @@ ANIMATION_SCHEMA = cv.Schema(
     cv.All(
         {
             cv.Required(CONF_ID): cv.declare_id(Animation_),
-            cv.Required(CONF_FILE): cv.file_,
+            cv.Required(CONF_FILE): FILE_SCHEMA,
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
                 espImage.IMAGE_TYPE, upper=True
@@ -124,7 +167,11 @@ async def animation_action_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     from PIL import Image
 
-    path = CORE.relative_config_path(config[CONF_FILE])
+    conf_file = config[CONF_FILE]
+    if conf_file[CONF_SOURCE] == SOURCE_LOCAL:
+        path = CORE.relative_config_path(conf_file[CONF_PATH])
+    elif conf_file[CONF_SOURCE] == SOURCE_WEB:
+        path = espImage.compute_local_image_path(conf_file).as_posix()
     try:
         image = Image.open(path)
     except Exception as e:
