@@ -34,7 +34,7 @@ uint8_t ArgoUlisseClimate::calc_checksum_(const ArgoProtocolWREM3 *data, size_t 
     return 0;  // Changed from -1 to 0 as the return type is uint8_t
   }
 
-  size_t payloadSizeBits = (length - 1) * 8;  // Last byte carries checksum
+  size_t payload_size_bits = (length - 1) * 8;  // Last byte carries checksum
 
   uint8_t checksum = 0;            // Initialize checksum
   const uint8_t *ptr = data->raw;  // Point to the start of the raw data
@@ -45,11 +45,11 @@ uint8_t ArgoUlisseClimate::calc_checksum_(const ArgoProtocolWREM3 *data, size_t 
   }
 
   // Add stray bits from last byte to the checksum (if any)
-  const uint8_t maskPayload = 0xFF >> (8 - (payloadSizeBits % 8));
-  checksum += (ptr[length - 1] & maskPayload);
+  const uint8_t mask_payload = 0xFF >> (8 - (payload_size_bits % 8));
+  checksum += (ptr[length - 1] & mask_payload);
 
-  const uint8_t maskChecksum = 0xFF >> (payloadSizeBits % 8);
-  return checksum & maskChecksum;
+  const uint8_t mask_checksum = 0xFF >> (payload_size_bits % 8);
+  return checksum & mask_checksum;
 }
 
 void ArgoUlisseClimate::transmit_state() {
@@ -61,7 +61,7 @@ void ArgoUlisseClimate::transmit_state() {
   // Set up the header
   ac_packet.Pre1 = ARGO_PREAMBLE;
   ac_packet.IrChannel = 0;  // Assume channel 0, adjust if needed
-  ac_packet.IrCommandType = ArgoIRMessageType_AC_CONTROL;
+  ac_packet.IrCommandType = ARGO_IR_MESSAGE_TYPE_AC_CONTROL;
 
   // Set default HA clima features
   ESP_LOGV(TAG, "  Setting default HA climate features..");
@@ -90,7 +90,7 @@ void ArgoUlisseClimate::transmit_state() {
 
   // Calculate checksum
   ESP_LOGV(TAG, "  Calculating AC checksum..");
-  ac_packet.Sum = this->calc_checksum_(&ac_packet, ArgoIRMessageLength_AC_CONTROL);
+  ac_packet.Sum = this->calc_checksum_(&ac_packet, ARGO_IR_MESSAGE_LENGTH_AC_CONTROL);
 
   // Transmit the IR signal
   auto transmit = this->transmitter_->transmit();
@@ -102,7 +102,7 @@ void ArgoUlisseClimate::transmit_state() {
   data->space(ARGO_HEADER_SPACE);
 
   // Transmit the data
-  for (uint8_t i = 0; i < ArgoIRMessageLength_AC_CONTROL; i++) {
+  for (uint8_t i = 0; i < ARGO_IR_MESSAGE_LENGTH_AC_CONTROL; i++) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {
       data->mark(ARGO_BIT_MARK);
       bool bit = ac_packet.raw[i] & mask;
@@ -126,13 +126,13 @@ void ArgoUlisseClimate::transmit_ifeel_() {
   // Set up the header
   ifeel_packet.Pre1 = ARGO_PREAMBLE;
   ifeel_packet.IrChannel = 0;  // Assume channel 0, adjust if needed
-  ifeel_packet.IrCommandType = ArgoIRMessageType_IFEEL_TEMP_REPORT;
+  ifeel_packet.IrCommandType = ARGO_IR_MESSAGE_TYPE_IFEEL_TEMP_REPORT;
 
   ifeel_packet.ifeelreport.SensorT = this->sensor_temperature_();
 
   // Calculate checksum
   ESP_LOGV(TAG, "  Calculating iFeel checksum..");
-  ifeel_packet.ifeelreport.CheckHi = this->calc_checksum_(&ifeel_packet, ArgoIRMessageLength_IFEEL_TEMP_REPORT);
+  ifeel_packet.ifeelreport.CheckHi = this->calc_checksum_(&ifeel_packet, ARGO_IR_MESSAGE_LENGTH_IFEEL_TEMP_REPORT);
 
   // Transmit the IR signal
   auto transmit = this->transmitter_->transmit();
@@ -144,7 +144,7 @@ void ArgoUlisseClimate::transmit_ifeel_() {
   data->space(ARGO_HEADER_SPACE);
 
   // Transmit the data
-  for (uint8_t i = 0; i < ArgoIRMessageLength_IFEEL_TEMP_REPORT; i++) {
+  for (uint8_t i = 0; i < ARGO_IR_MESSAGE_LENGTH_IFEEL_TEMP_REPORT; i++) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {
       data->mark(ARGO_BIT_MARK);
       bool bit = ifeel_packet.raw[i] & mask;

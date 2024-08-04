@@ -84,7 +84,7 @@ union ArgoProtocolWREM3 {
     // Byte5
     uint8_t Sum : 8;  /// Checksum
   };
-  struct iFeelReport {
+  struct IFeelReport {
     // Byte 0 (same definition across the union)
     uint8_t : 8;  // {Pre1 | IrChannel | IrCommandType}
     // Byte 1
@@ -128,20 +128,20 @@ union ArgoProtocolWREM3 {
 };
 #pragma pack(pop)
 
-typedef enum _ArgoIRMessageType {
-  ArgoIRMessageType_AC_CONTROL = 0,
-  ArgoIRMessageType_IFEEL_TEMP_REPORT = 1,
-  ArgoIRMessageType_TIMER_COMMAND = 2,
-  ArgoIRMessageType_CONFIG_PARAM_SET = 3,
-} ArgoIRMessageType;
+using ArgoIRMessageType = enum _ArgoIRMessageType {
+  ARGO_IR_MESSAGE_TYPE_AC_CONTROL = 0,
+  ARGO_IR_MESSAGE_TYPE_IFEEL_TEMP_REPORT = 1,
+  ARGO_IR_MESSAGE_TYPE_TIMER_COMMAND = 2,
+  ARGO_IR_MESSAGE_TYPE_CONFIG_PARAM_SET = 3,
+};
 
 // raw byte length depends on message type
-typedef enum _ArgoIRMessageLength {
-  ArgoIRMessageLength_AC_CONTROL = 6,
-  ArgoIRMessageLength_IFEEL_TEMP_REPORT = 2,
-  ArgoIRMessageLength_TIMER_COMMAND = 9,
-  ArgoIRMessageLength_CONFIG_PARAM_SET = 4,
-} ArgoIRMessageLength;
+using ArgoIRMessageLength = enum _ArgoIRMessageLength {
+  ARGO_IR_MESSAGE_LENGTH_AC_CONTROL = 6,
+  ARGO_IR_MESSAGE_LENGTH_IFEEL_TEMP_REPORT = 2,
+  ARGO_IR_MESSAGE_LENGTH_TIMER_COMMAND = 9,
+  ARGO_IR_MESSAGE_LENGTH_CONFIG_PARAM_SET = 4,
+};
 
 class ArgoUlisseClimate : public climate_ir::ClimateIR {
  public:
@@ -184,7 +184,7 @@ class ArgoUlisseClimate : public climate_ir::ClimateIR {
   int32_t last_transmit_time_{};
   void transmit_state() override;
   void transmit_ifeel_();
-  uint8_t calc_checksum_(const ArgoProtocolWREM3 *data, size_t size);
+  uint8_t calc_checksum_(const ArgoProtocolWREM3 *data, size_t length);
   climate::ClimateTraits traits() override;
   uint8_t operation_mode_();
   uint8_t fan_speed_();
