@@ -41,6 +41,35 @@ from .types import (
 from .widget import Widget, get_widgets, lv_scr_act, set_obj_properties
 
 
+async def action_to_code(
+    widgets: list[Widget],
+    action: Callable[[Widget], Awaitable[None]],
+    action_id,
+    template_arg,
+    args,
+):
+    async with LambdaContext(parameters=args, where=action_id) as context:
+        for widget in widgets:
+            with LvConditional(widget.obj != nullptr):
+                await action(widget)
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    return var
+
+
+async def update_to_code(config, action_id, template_arg, args):
+    async def do_update(widget: Widget):
+        await set_obj_properties(widget, config)
+        await widget.type.to_code(widget, config)
+        if (
+            widget.type.w_type.value_property is not None
+            and widget.type.w_type.value_property in config
+        ):
+            lv.event_send(widget.obj, LV_EVENT.VALUE_CHANGED, nullptr)
+
+    widgets = await get_widgets(config[CONF_ID])
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)
+
+
 @automation.register_condition(
     "lvgl.is_paused",
     LvglCondition,
@@ -84,6 +113,25 @@ async def disp_update(disp, config: dict):
             lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):
             lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
+
+
+@automation.register_action(
+    "lvgl.widget.redraw",
+    ObjUpdateAction,
+    cv.Schema(
+        {
+            cv.Optional(CONF_ID): cv.use_id(lv_obj_t),
+            cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
+        }
+    ),
+)
+async def obj_invalidate_to_code(config, action_id, template_arg, args):
+    widgets = await get_widgets(config) or [lv_scr_act]
+
+    async def do_invalidate(widget: Widget):
+        lv_obj.invalidate(widget.obj)
+
+    return await action_to_code(widgets, do_invalidate, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -136,54 +184,6 @@ async def resume_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, config[CONF_ID])
     return var
-
-
-async def action_to_code(
-    widgets: list[Widget],
-    action: Callable[[Widget], Awaitable[None]],
-    action_id,
-    template_arg,
-    args,
-):
-    async with LambdaContext(parameters=args, where=action_id) as context:
-        for widget in widgets:
-            with LvConditional(widget.obj != nullptr):
-                await action(widget)
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    return var
-
-
-async def update_to_code(config, action_id, template_arg, args):
-    async def do_update(widget: Widget):
-        await set_obj_properties(widget, config)
-        await widget.type.to_code(widget, config)
-        if (
-            widget.type.w_type.value_property is not None
-            and widget.type.w_type.value_property in config
-        ):
-            lv.event_send(widget.obj, LV_EVENT.VALUE_CHANGED, nullptr)
-
-    widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(widgets, do_update, action_id, template_arg, args)
-
-
-@automation.register_action(
-    "lvgl.widget.redraw",
-    ObjUpdateAction,
-    cv.Schema(
-        {
-            cv.Optional(CONF_ID): cv.use_id(lv_obj_t),
-            cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
-        }
-    ),
-)
-async def obj_invalidate_to_code(config, action_id, template_arg, args):
-    widgets = await get_widgets(config) or [lv_scr_act]
-
-    async def do_invalidate(widget: Widget):
-        lv_obj.invalidate(widget.obj)
-
-    return await action_to_code(widgets, do_invalidate, action_id, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.disable", ObjUpdateAction, LIST_ACTION_SCHEMA)
