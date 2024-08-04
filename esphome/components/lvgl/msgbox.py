@@ -108,7 +108,7 @@ async def msgbox_to_code(conf):
         async with LambdaContext(EVENT_ARG, where=mbid) as context:
             outer_w.add_flag("LV_OBJ_FLAG_HIDDEN")
         with LocalVariable(
-            "close_btn_", lv_obj_t, "*", lv_expr.msgbox_get_close_btn(msgbox)
+            "close_btn_", lv_obj_t, lv_expr.msgbox_get_close_btn(msgbox)
         ) as close_btn:
             lv_obj.remove_event_cb(close_btn, nullptr)
             lv_obj.add_event_cb(

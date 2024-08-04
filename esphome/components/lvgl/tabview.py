@@ -1,18 +1,10 @@
 from esphome import automation
-from esphome.automation import Trigger, validate_automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_INDEX,
-    CONF_NAME,
-    CONF_ON_VALUE,
-    CONF_POSITION,
-    CONF_SIZE,
-    CONF_TRIGGER_ID,
-)
+from esphome.const import CONF_ID, CONF_INDEX, CONF_NAME, CONF_POSITION, CONF_SIZE
 from esphome.cpp_generator import MockObjClass
 
+from . import btnmatrix_spec
 from .automation import action_to_code
 from .defines import (
     CONF_ANIMATED,
@@ -24,13 +16,14 @@ from .defines import (
     literal,
 )
 from .lv_validation import animated, lv_int, size
-from .lvcode import lv, lv_assign, lv_expr
+from .lvcode import LocalVariable, lv, lv_assign, lv_expr
 from .obj import obj_spec
-from .schemas import container_schema
-from .types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t_ptr
+from .schemas import container_schema, part_schema
+from .types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
 from .widget import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_TABVIEW = "tabview"
+CONF_TAB_STYLE = "tab_style"
 
 lv_tab_t = LvType("lv_obj_t")
 
@@ -39,7 +32,15 @@ class TabviewType(WidgetType):
     def __init__(self):
         super().__init__(
             CONF_TABVIEW,
-            LvType("lv_tabview_t"),
+            LvType(
+                "lv_tabview_t",
+                largs=[(lv_obj_t_ptr, "tab")],
+                lvalue=lambda w: lv_expr.obj_get_child(
+                    lv_expr.tabview_get_content(w.obj),
+                    lv_expr.tabview_get_tab_act(w.obj),
+                ),
+                has_on_value=True,
+            ),
             parts=(CONF_MAIN,),
             schema={
                 cv.Required(CONF_TABS): cv.ensure_list(
@@ -51,15 +52,9 @@ class TabviewType(WidgetType):
                         },
                     )
                 ),
+                cv.Optional(CONF_TAB_STYLE): part_schema(btnmatrix_spec),
                 cv.Optional(CONF_POSITION, default="top"): DIRECTIONS.one_of,
                 cv.Optional(CONF_SIZE, default="10%"): size,
-                cv.Optional(CONF_ON_VALUE): validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            Trigger.template(lv_obj_t_ptr)
-                        )
-                    }
-                ),
             },
             modify_schema={},
         )
@@ -75,6 +70,11 @@ class TabviewType(WidgetType):
             lv_assign(tab_obj, lv_expr.tabview_add_tab(w.obj, tab_conf[CONF_NAME]))
             await set_obj_properties(tab_widget, tab_conf)
             await add_widgets(tab_widget, tab_conf)
+        if button_style := config.get(CONF_TAB_STYLE):
+            with LocalVariable(
+                "tabview_btnmatrix", lv_obj_t, rhs=lv_expr.tabview_get_tab_btns(w.obj)
+            ) as btnmatrix_obj:
+                await set_obj_properties(Widget(btnmatrix_obj, obj_spec), button_style)
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         return lv_expr.call(

@@ -108,7 +108,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
 async def disp_update(disp, config: dict):
     if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
         return
-    with LocalVariable("lv_disp_tmp", lv_disp_t, "*", literal(disp)) as disp_temp:
+    with LocalVariable("lv_disp_tmp", lv_disp_t, literal(disp)) as disp_temp:
         if bg_color := config.get(CONF_DISP_BG_COLOR):
             lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):

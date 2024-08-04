@@ -197,7 +197,7 @@ class LocalVariable(MockObj):
     Create a local variable and enclose the code using it within a block.
     """
 
-    def __init__(self, name, type, modifier=None, rhs=None):
+    def __init__(self, name, type, rhs=None, modifier="*"):
         base = ID(name + "_VAR_", True, type)
         super().__init__(base, "")
         self.modifier = modifier

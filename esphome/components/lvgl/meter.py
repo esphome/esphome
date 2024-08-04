@@ -176,7 +176,7 @@ class MeterType(WidgetType):
             if CONF_ROTATION in scale_conf:
                 rotation = scale_conf[CONF_ROTATION] // 10
             with LocalVariable(
-                "meter_var", "lv_meter_scale_t", "*", lv_expr.meter_add_scale(var)
+                "meter_var", "lv_meter_scale_t", lv_expr.meter_add_scale(var)
             ) as meter_var:
                 lv.meter_set_scale_range(
                     var,

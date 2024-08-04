@@ -64,7 +64,7 @@ class DropdownType(WidgetType):
             lv.dropdown_set_dir(w.obj, literal(dirn))
         if dlist := config.get(CONF_DROPDOWN_LIST):
             with LocalVariable(
-                "dropdown_list", lv_obj_t, "*", lv_expr.dropdown_get_list(w.obj)
+                "dropdown_list", lv_obj_t, lv_expr.dropdown_get_list(w.obj)
             ) as dlist_obj:
                 dwid = Widget(dlist_obj, dropdown_list_spec, dlist)
                 await set_obj_properties(dwid, dlist)
