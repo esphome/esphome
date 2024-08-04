@@ -1,12 +1,12 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_IBEACON_MAJOR,
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
-    CONF_SERVICE_UUID,
     CONF_MAC_ADDRESS,
+    CONF_SERVICE_UUID,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,

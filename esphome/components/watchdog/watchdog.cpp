@@ -15,7 +15,6 @@
 #endif
 
 namespace esphome {
-namespace http_request {
 namespace watchdog {
 
 static const char *const TAG = "http_request.watchdog";
@@ -72,5 +71,4 @@ uint32_t WatchdogManager::get_timeout_() {
 }
 
 }  // namespace watchdog
-}  // namespace http_request
 }  // namespace esphome

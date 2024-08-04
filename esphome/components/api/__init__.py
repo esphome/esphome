@@ -1,25 +1,27 @@
 import base64
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACTION,
+    CONF_ACTIONS,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_EVENT,
     CONF_ID,
     CONF_KEY,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_SERVICE,
-    CONF_VARIABLES,
     CONF_SERVICES,
-    CONF_TRIGGER_ID,
-    CONF_EVENT,
     CONF_TAG,
-    CONF_ON_CLIENT_CONNECTED,
-    CONF_ON_CLIENT_DISCONNECTED,
+    CONF_TRIGGER_ID,
+    CONF_VARIABLES,
 )
 from esphome.core import coroutine_with_priority
 
@@ -63,40 +65,51 @@ def validate_encryption_key(value):
     return value
 
 
-CONFIG_SCHEMA = cv.Schema(
+ACTIONS_SCHEMA = automation.validate_automation(
     {
-        cv.GenerateID(): cv.declare_id(APIServer),
-        cv.Optional(CONF_PORT, default=6053): cv.port,
-        cv.Optional(CONF_PASSWORD, default=""): cv.string_strict,
-        cv.Optional(
-            CONF_REBOOT_TIMEOUT, default="15min"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_SERVICES): automation.validate_automation(
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
+        cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.valid_name,
+        cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.valid_name,
+        cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
-                cv.Required(CONF_SERVICE): cv.valid_name,
-                cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
-                    {
-                        cv.validate_id_name: cv.one_of(
-                            *SERVICE_ARG_NATIVE_TYPES, lower=True
-                        ),
-                    }
-                ),
+                cv.validate_id_name: cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
             }
         ),
-        cv.Optional(CONF_ENCRYPTION): cv.Schema(
-            {
-                cv.Required(CONF_KEY): validate_encryption_key,
-            }
-        ),
-        cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
-            single=True
-        ),
-        cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
-            single=True
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+    },
+    cv.All(
+        cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
+        cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    ),
+)
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(APIServer),
+            cv.Optional(CONF_PORT, default=6053): cv.port,
+            cv.Optional(CONF_PASSWORD, default=""): cv.string_strict,
+            cv.Optional(
+                CONF_REBOOT_TIMEOUT, default="15min"
+            ): cv.positive_time_period_milliseconds,
+            cv.Exclusive(
+                CONF_SERVICES, group_of_exclusion=CONF_ACTIONS
+            ): ACTIONS_SCHEMA,
+            cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
+            cv.Optional(CONF_ENCRYPTION): cv.Schema(
+                {
+                    cv.Required(CONF_KEY): validate_encryption_key,
+                }
+            ),
+            cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
+                single=True
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+)
 
 
 @coroutine_with_priority(40.0)
@@ -108,7 +121,7 @@ async def to_code(config):
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
-    for conf in config.get(CONF_SERVICES, []):
+    for conf in config.get(CONF_ACTIONS, []):
         template_args = []
         func_args = []
         service_arg_names = []
@@ -119,7 +132,7 @@ async def to_code(config):
             service_arg_names.append(name)
         templ = cg.TemplateArguments(*template_args)
         trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], templ, conf[CONF_SERVICE], service_arg_names
+            conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
         )
         cg.add(var.register_user_service(trigger))
         await automation.build_automation(trigger, func_args, conf)
@@ -152,28 +165,43 @@ async def to_code(config):
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 
-HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(APIServer),
-        cv.Required(CONF_SERVICE): cv.templatable(cv.string),
-        cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
-            {cv.string: cv.returning_lambda}
-        ),
-    }
+
+HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(APIServer),
+            cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.templatable(
+                cv.string
+            ),
+            cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.templatable(
+                cv.string
+            ),
+            cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
+            cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
+            cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
+                {cv.string: cv.returning_lambda}
+            ),
+        }
+    ),
+    cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
+    cv.rename_key(CONF_SERVICE, CONF_ACTION),
 )
 
 
 @automation.register_action(
+    "homeassistant.action",
+    HomeAssistantServiceCallAction,
+    HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+)
+@automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
-    HOMEASSISTANT_SERVICE_ACTION_SCHEMA,
+    HOMEASSISTANT_ACTION_ACTION_SCHEMA,
 )
 async def homeassistant_service_to_code(config, action_id, template_arg, args):
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = await cg.templatable(config[CONF_SERVICE], args, None)
+    templ = await cg.templatable(config[CONF_ACTION], args, None)
     cg.add(var.set_service(templ))
     for key, value in config[CONF_DATA].items():
         templ = await cg.templatable(value, args, None)

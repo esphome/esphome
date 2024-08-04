@@ -44,6 +44,8 @@ class PIDClimate : public climate::Climate, public Component {
   float get_kp() { return controller_.kp_; }
   float get_ki() { return controller_.ki_; }
   float get_kd() { return controller_.kd_; }
+  float get_min_integral() { return controller_.min_integral_; }
+  float get_max_integral() { return controller_.max_integral_; }
   float get_proportional_term() const { return controller_.proportional_term_; }
   float get_integral_term() const { return controller_.integral_term_; }
   float get_derivative_term() const { return controller_.derivative_term_; }
