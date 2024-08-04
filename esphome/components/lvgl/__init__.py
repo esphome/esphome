@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
-from esphome.core import CORE, ID, Lambda
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
@@ -23,7 +23,7 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .animimg import animimg_spec
 from .arc import arc_spec
-from .automation import update_to_code
+from .automation import disp_update, update_to_code
 from .btn import btn_spec
 from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
@@ -34,35 +34,42 @@ from .line import line_spec
 from .lv_bar import bar_spec
 from .lv_switch import switch_spec
 from .lv_validation import lv_bool, lv_images_used
-from .lvcode import LvContext
+from .lvcode import LvContext, LvglComponent
 from .obj import obj_spec
 from .page import add_pages, page_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
+    DISP_BG_SCHEMA,
+    FLEX_OBJ_SCHEMA,
+    GRID_CELL_SCHEMA,
+    LAYOUT_SCHEMAS,
+    STYLE_SCHEMA,
+    WIDGET_TYPES,
     any_widget_schema,
     container_schema,
     create_modify_schema,
+    grid_alignments,
     obj_schema,
 )
 from .slider import slider_spec
 from .spinner import spinner_spec
+from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
-    WIDGET_TYPES,
     FontEngine,
     IdleTrigger,
-    LvglComponent,
     ObjUpdateAction,
     lv_font_t,
+    lv_style_t,
     lvgl_ns,
 )
 from .widget import Widget, add_widgets, lv_scr_act, set_obj_properties
 
 DOMAIN = "lvgl"
-DEPENDENCIES = ("display",)
-AUTO_LOAD = ("key_provider",)
-CODEOWNERS = ("@clydebarrow",)
+DEPENDENCIES = ["display"]
+AUTO_LOAD = ["key_provider"]
+CODEOWNERS = ["@clydebarrow"]
 LOGGER = logging.getLogger(__name__)
 
 for w_type in (
@@ -84,20 +91,21 @@ for w_type in (
 
 WIDGET_SCHEMA = any_widget_schema()
 
+LAYOUT_SCHEMAS[df.TYPE_GRID] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(GRID_CELL_SCHEMA))
+}
+LAYOUT_SCHEMAS[df.TYPE_FLEX] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(FLEX_OBJ_SCHEMA))
+}
+LAYOUT_SCHEMAS[df.TYPE_NONE] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())
+}
 for w_type in WIDGET_TYPES.values():
     register_action(
         f"lvgl.{w_type.name}.update",
         ObjUpdateAction,
         create_modify_schema(w_type),
     )(update_to_code)
-
-
-async def add_init_lambda(lv_component, init):
-    if init:
-        lamb = await cg.process_lambda(
-            Lambda(init), [(LvglComponent.operator("ptr"), "lv_component")]
-        )
-        cg.add(lv_component.add_init_lambda(lamb))
 
 
 lv_defines = {}  # Dict of #defines to provide as build flags
@@ -132,7 +140,7 @@ def generate_lv_conf_h():
 
 def final_validation(config):
     if pages := config.get(CONF_PAGES):
-        if all(page[CONF_SKIP] for page in pages):
+        if all(p[CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
     global_config = full_config.get()
     for display_id in config[df.CONF_DISPLAYS]:
@@ -227,19 +235,23 @@ async def to_code(config):
     else:
         add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
 
-    with LvContext():
+    async with LvContext(lv_component):
         await touchscreens_to_code(lv_component, config)
         await rotary_encoders_to_code(lv_component, config)
+        await theme_to_code(config)
+        await styles_to_code(config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
+        await add_top_layer(config)
+        await disp_update(f"{lv_component}->get_disp()", config)
         Widget.set_completed()
         await generate_triggers(lv_component)
         for conf in config.get(CONF_ON_IDLE, ()):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
-    await add_init_lambda(lv_component, LvContext.get_code())
+
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
     for use in helpers.lv_uses:
@@ -274,6 +286,16 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
                 "big_endian", "little_endian"
             ),
+            cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
+                cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
+                .extend(STYLE_SCHEMA)
+                .extend(
+                    {
+                        cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+                        cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                    }
+                )
+            ),
             cv.Optional(CONF_ON_IDLE): validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
@@ -287,9 +309,14 @@ CONFIG_SCHEMA = (
                 container_schema(page_spec)
             ),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
+            cv.Optional(df.CONF_THEME): cv.Schema(
+                {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
+            ),
             cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
             cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
         }
     )
+    .extend(DISP_BG_SCHEMA)
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))

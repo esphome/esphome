@@ -2,7 +2,7 @@ from .defines import CONF_INDICATOR, CONF_MAIN, CONF_TEXT
 from .lv_validation import lv_text
 from .lvcode import lv
 from .schemas import TEXT_SCHEMA
-from .types import LvType
+from .types import LvBoolean
 from .widget import Widget, WidgetType
 
 CONF_CHECKBOX = "checkbox"
@@ -12,7 +12,7 @@ class CheckboxType(WidgetType):
     def __init__(self):
         super().__init__(
             CONF_CHECKBOX,
-            LvType("lv_checkbox_t"),
+            LvBoolean("lv_checkbox_t"),
             (CONF_MAIN, CONF_INDICATOR),
             TEXT_SCHEMA,
         )

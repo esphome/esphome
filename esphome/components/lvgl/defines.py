@@ -4,31 +4,20 @@ Constants already defined in esphome.const are not duplicated here and must be i
 
 """
 
-from typing import Union
-
 from esphome import codegen as cg, config_validation as cv
 from esphome.core import ID, Lambda
-from esphome.cpp_generator import Literal
+from esphome.cpp_generator import MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from .helpers import requires_component
 
-
-class ConstantLiteral(Literal):
-    __slots__ = ("constant",)
-
-    def __init__(self, constant: str):
-        super().__init__()
-        self.constant = constant
-
-    def __str__(self):
-        return self.constant
+lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 
-def literal(arg: Union[str, ConstantLiteral]):
+def literal(arg):
     if isinstance(arg, str):
-        return ConstantLiteral(arg)
+        return MockObj(arg)
     return arg
 
 
@@ -100,9 +89,16 @@ class LvConstant(LValidator):
         )
 
     def mapper(self, value, args=()):
-        if isinstance(value, list):
-            value = "|".join(value)
-        return ConstantLiteral(value)
+        if not isinstance(value, list):
+            value = [value]
+        return literal(
+            "|".join(
+                [
+                    str(v) if str(v).startswith(self.prefix) else self.prefix + str(v)
+                    for v in value
+                ]
+            ).upper()
+        )
 
     def extend(self, *choices):
         """
@@ -121,9 +117,14 @@ CONF_KNOB = "knob"
 CONF_SELECTED = "selected"
 CONF_ITEMS = "items"
 CONF_TICKS = "ticks"
-CONF_TICK_STYLE = "tick_style"
 CONF_CURSOR = "cursor"
 CONF_TEXTAREA_PLACEHOLDER = "textarea_placeholder"
+
+# Layout types
+
+TYPE_FLEX = "flex"
+TYPE_GRID = "grid"
+TYPE_NONE = "none"
 
 LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "dejavu_16_persian_hebrew",
@@ -132,7 +133,7 @@ LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "unscii_16",
 ]
 
-LV_EVENT = {
+LV_EVENT_MAP = {
     "PRESS": "PRESSED",
     "SHORT_CLICK": "SHORT_CLICKED",
     "LONG_PRESS": "LONG_PRESSED",
@@ -148,7 +149,7 @@ LV_EVENT = {
     "CANCEL": "CANCEL",
 }
 
-LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT)
+LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)
 
 
 LV_ANIM = LvConstant(
@@ -303,7 +304,8 @@ OBJ_FLAGS = (
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
 
-BTNMATRIX_CTRLS = (
+BTNMATRIX_CTRLS = LvConstant(
+    "LV_BTNMATRIX_CTRL_",
     "HIDDEN",
     "NO_REPEAT",
     "DISABLED",
@@ -364,7 +366,6 @@ CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
-CONF_ANGLE_RANGE = "angle_range"
 CONF_ANIMATED = "animated"
 CONF_ANIMATION = "animation"
 CONF_ANTIALIAS = "antialias"
@@ -382,8 +383,6 @@ CONF_BYTE_ORDER = "byte_order"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_DEPTH = "color_depth"
-CONF_COLOR_END = "color_end"
-CONF_COLOR_START = "color_start"
 CONF_CONTROL = "control"
 CONF_DEFAULT = "default"
 CONF_DEFAULT_FONT = "default_font"
@@ -412,9 +411,7 @@ CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
-CONF_INDICATORS = "indicators"
 CONF_KEY_CODE = "key_code"
-CONF_LABEL_GAP = "label_gap"
 CONF_LAYOUT = "layout"
 CONF_LEFT_BUTTON = "left_button"
 CONF_LINE_WIDTH = "line_width"
@@ -423,7 +420,6 @@ CONF_LONG_PRESS_TIME = "long_press_time"
 CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
-CONF_MAJOR = "major"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_OFFSET_X = "offset_x"
@@ -441,14 +437,12 @@ CONF_PLACEHOLDER_TEXT = "placeholder_text"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_REPEAT_COUNT = "repeat_count"
-CONF_R_MOD = "r_mod"
 CONF_RECOLOR = "recolor"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
 CONF_ROTARY_ENCODERS = "rotary_encoders"
 CONF_ROWS = "rows"
-CONF_SCALES = "scales"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SELECTED_INDEX = "selected_index"
@@ -458,8 +452,9 @@ CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"
 CONF_START_VALUE = "start_value"
 CONF_STATES = "states"
-CONF_STRIDE = "stride"
 CONF_STYLE = "style"
+CONF_STYLES = "styles"
+CONF_STYLE_DEFINITIONS = "style_definitions"
 CONF_STYLE_ID = "style_id"
 CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
@@ -475,6 +470,7 @@ CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
+CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
 CONF_X = "x"
 CONF_Y = "y"
@@ -500,8 +496,7 @@ LV_KEYS = LvConstant(
 
 
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
-LVGL_COMP = "lvgl_comp"  # used as a lambda argument in lvgl_comp()
 
 
 def join_enums(enums, prefix=""):
-    return ConstantLiteral("|".join(f"(int){prefix}{e.upper()}" for e in enums))
+    return literal("|".join(f"(int){prefix}{e.upper()}" for e in enums))

@@ -1,7 +1,5 @@
-from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import CONF_ANGLE, CONF_MODE
-from esphome.cpp_generator import MockObjClass
 
 from .defines import (
     CONF_ANTIALIAS,
@@ -15,7 +13,7 @@ from .defines import (
     LvConstant,
 )
 from .label import CONF_LABEL
-from .lv_validation import angle, lv_bool, lv_image, requires_component, size, zoom
+from .lv_validation import angle, lv_bool, lv_image, size, zoom
 from .lvcode import lv
 from .types import lv_img_t
 from .widget import Widget, WidgetType
@@ -39,13 +37,13 @@ BASE_IMG_SCHEMA = cv.Schema(
 
 IMG_SCHEMA = BASE_IMG_SCHEMA.extend(
     {
-        cv.Required(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
+        cv.Required(CONF_SRC): lv_image,
     }
 )
 
 IMG_MODIFY_SCHEMA = BASE_IMG_SCHEMA.extend(
     {
-        cv.Optional(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
+        cv.Optional(CONF_SRC): lv_image,
     }
 )
 
@@ -53,14 +51,16 @@ IMG_MODIFY_SCHEMA = BASE_IMG_SCHEMA.extend(
 class ImgType(WidgetType):
     def __init__(self):
         super().__init__(
-            CONF_IMAGE, lv_img_t, (CONF_MAIN,), IMG_SCHEMA, IMG_MODIFY_SCHEMA
+            CONF_IMAGE,
+            lv_img_t,
+            (CONF_MAIN,),
+            IMG_SCHEMA,
+            IMG_MODIFY_SCHEMA,
+            lv_name="img",
         )
 
     def get_uses(self):
         return "img", CONF_LABEL
-
-    def obj_creator(self, parent: MockObjClass, config: dict):
-        return f"lv_img_create({parent})"
 
     async def to_code(self, w: Widget, config):
         if src := config.get(CONF_SRC):

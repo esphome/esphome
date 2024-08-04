@@ -1,3 +1,5 @@
+from typing import Union
+
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
@@ -18,7 +20,6 @@ from .defines import (
     CONF_END_VALUE,
     CONF_START_VALUE,
     LV_FONTS,
-    ConstantLiteral,
     LValidator,
     LvConstant,
     literal,
@@ -66,6 +67,13 @@ def color_retmapper(value):
     # Must be an id
     lvgl_components_required.add(CONF_COLOR)
     return lv_expr.color_from(MockObj(value))
+
+
+def option_string(value):
+    value = cv.string(value).strip()
+    if value.find("\n") != -1:
+        raise cv.Invalid("Options strings must not contain newlines")
+    return value
 
 
 lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper)
@@ -164,6 +172,12 @@ lv_bool = LValidator(
 )
 
 
+def lv_pct(value: Union[int, float]):
+    if isinstance(value, float):
+        value = int(value * 100)
+    return literal(f"lv_pct({value})")
+
+
 def lvms_validator_(value):
     if value == "never":
         value = "2147483647ms"
@@ -197,7 +211,7 @@ class TextValidator(LValidator):
             args = [str(x) for x in value[CONF_ARGS]]
             arg_expr = cg.RawExpression(",".join(args))
             format_str = cpp_string_escape(value[CONF_FORMAT])
-            return f"str_sprintf({format_str}, {arg_expr}).c_str()"
+            return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
         return await super().process(value, args)
 
 
@@ -233,8 +247,8 @@ class LvFont(LValidator):
 
     async def process(self, value, args=()):
         if is_lv_font(value):
-            return ConstantLiteral(f"&lv_font_{value}")
-        return ConstantLiteral(f"{value}_engine->get_lv_font()")
+            return literal(f"&lv_font_{value}")
+        return literal(f"{value}_engine->get_lv_font()")
 
 
 lv_font = LvFont()
@@ -244,6 +258,13 @@ def animated(value):
     if isinstance(value, bool):
         value = "ON" if value else "OFF"
     return LvConstant("LV_ANIM_", "OFF", "ON").one_of(value)
+
+
+def key_code(value):
+    value = cv.Any(cv.All(cv.string_strict, cv.Length(min=1, max=1)), cv.uint8_t)(value)
+    if isinstance(value, str):
+        return ord(value[0])
+    return value
 
 
 async def get_end_value(config):
