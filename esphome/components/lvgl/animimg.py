@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID
 
@@ -9,7 +8,7 @@ from .defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
 from .helpers import lvgl_components_required
 from .img import CONF_IMAGE
 from .label import CONF_LABEL
-from .lv_validation import lv_milliseconds
+from .lv_validation import lv_image, lv_milliseconds
 from .lvcode import lv
 from .types import LvType, ObjUpdateAction, void_ptr
 from .widget import Widget, WidgetType, get_widgets
@@ -33,7 +32,7 @@ ANIMIMG_BASE_SCHEMA = cv.Schema(
 ANIMIMG_SCHEMA = ANIMIMG_BASE_SCHEMA.extend(
     {
         cv.Required(CONF_DURATION): lv_milliseconds,
-        cv.Required(CONF_SRC): cv.ensure_list(cv.use_id(Image_)),
+        cv.Required(CONF_SRC): cv.ensure_list(lv_image),
         cv.GenerateID(CONF_SRC_LIST_ID): cv.declare_id(void_ptr),
     }
 )

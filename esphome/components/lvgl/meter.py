@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -79,7 +78,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
 )
 INDICATOR_IMG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
+        cv.Required(CONF_SRC): lv_image,
         cv.Required(CONF_PIVOT_X): pixels,
         cv.Required(CONF_PIVOT_Y): pixels,
         cv.Optional(CONF_VALUE): lv_float,

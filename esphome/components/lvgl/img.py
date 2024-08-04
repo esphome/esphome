@@ -1,4 +1,3 @@
-from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import CONF_ANGLE, CONF_MODE
 
@@ -14,7 +13,7 @@ from .defines import (
     LvConstant,
 )
 from .label import CONF_LABEL
-from .lv_validation import angle, lv_bool, lv_image, requires_component, size, zoom
+from .lv_validation import angle, lv_bool, lv_image, size, zoom
 from .lvcode import lv
 from .types import lv_img_t
 from .widget import Widget, WidgetType
@@ -38,13 +37,13 @@ BASE_IMG_SCHEMA = cv.Schema(
 
 IMG_SCHEMA = BASE_IMG_SCHEMA.extend(
     {
-        cv.Required(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
+        cv.Required(CONF_SRC): lv_image,
     }
 )
 
 IMG_MODIFY_SCHEMA = BASE_IMG_SCHEMA.extend(
     {
-        cv.Optional(CONF_SRC): cv.All(cv.use_id(Image_), requires_component("image")),
+        cv.Optional(CONF_SRC): lv_image,
     }
 )
 
