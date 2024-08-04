@@ -9,7 +9,7 @@ namespace esphome {
 namespace lvgl {
 static const char *const TAG = "lvgl";
 
-#ifdef LV_USE_LOG
+#if LV_USE_LOG
 static void log_cb(const char *buf) {
   esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
 }
