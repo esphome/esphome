@@ -67,6 +67,7 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
   std::string buffer_{""};
   optional<GPIOPin *> enable_pin_{};
   bool enabled_{true};
+  bool initialised_{false};
   optional<hcs12ss59t_writer_t> writer_{};
 };
 
