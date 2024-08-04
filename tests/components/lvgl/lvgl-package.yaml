@@ -56,6 +56,13 @@ lvgl:
     - id: page1
       skip: true
       widgets:
+        - animimg:
+            height: 60
+            id: anim_img
+            src: [cat_image, dog_image]
+            repeat_count: 10
+            duration: 1s
+            auto_start: true
         - label:
             id: hello_label
             text: Hello world
