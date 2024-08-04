@@ -20,6 +20,7 @@ void HCS12SS59TComponent::setup() {
   this->spi_setup();
   this->initialised_ = true;
 
+  this->set_enabled(this->enabled_);
   this->set_intensity(this->intensity_);
 
   this->display();
@@ -92,7 +93,7 @@ void HCS12SS59TComponent::strftime(const char *format, ESPTime time) {
 }
 
 void HCS12SS59TComponent::set_enabled(bool enabled) {
-  if (this->enable_pin_.has_value()) {
+  if (this->enable_pin_.has_value() && this->initialised_) {
     this->enable_pin_.value()->digital_write(enabled);
   }
 
