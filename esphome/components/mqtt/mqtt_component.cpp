@@ -150,12 +150,29 @@ bool MQTTComponent::send_discovery_() {
         const std::string &node_area = App.get_area();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
-        device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
+        const auto mac = get_mac_address();
+        device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
         device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
+#ifdef ESPHOME_PROJECT_NAME
+        const char *model = std::strchr(ESPHOME_PROJECT_NAME, '.');
+        if (model) {
+          device_info[MQTT_DEVICE_MODEL] = model + 1;
+          device_info[MQTT_DEVICE_MANUFACTURER] = std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
+        } else {
+          device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
+          device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
+        }
+#else
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
         device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
+#endif
         device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
+#ifdef ESPHOME_PROJECT_VERSION
+        device_info[MQTT_DEVICE_HW_VERSION] = ESPHOME_PROJECT_VERSION;
+#endif
+        device_info[MQTT_DEVICE_CONNECTIONS][0][0] = "mac";
+        device_info[MQTT_DEVICE_CONNECTIONS][0][1] = mac;
       },
       this->qos_, discovery_info.retain);
 }
