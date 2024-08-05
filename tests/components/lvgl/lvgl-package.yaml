@@ -150,7 +150,60 @@ lvgl:
             width: 10px
             x: 100
             y: 120
+        - buttonmatrix:
+            on_press:
+              logger.log:
+                format: "matrix button pressed: %d"
+                args: ["x"]
+            on_click:
+              logger.log:
+                format: "matrix button clicked: %d, is button_a = %u"
+                args: ["x", "id(button_a) == x"]
+            items:
+              checked:
+                bg_color: 0xFFFF00
+            id: b_matrix
+
+            rows:
+              - buttons:
+                  - id: button_a
+                    text: home icon
+                    width: 2
+                    control:
+                      checkable: true
+                    on_value:
+                      logger.log:
+                        format: "button_a value %d"
+                        args: [x]
+                  - id: button_b
+                    text: B
+                    width: 1
+                    on_value:
+                      logger.log:
+                        format: "button_b value %d"
+                        args: [x]
+                    on_click:
+                      then:
+                        - lvgl.page.previous:
+                    control:
+                      hidden: false
+              - buttons:
+                  - id: button_c
+                    text: C
+                    control:
+                      checkable: false
+                  - id: button_d
+                    text: menu left
+                    on_long_press:
+                      then:
+                        logger.log: Long pressed
+                    on_long_press_repeat:
+                      then:
+                        logger.log: Long pressed repeated
+              - buttons:
+                  - id: button_e
         - button:
+            id: button_button
             width: 20%
             height: 10%
             pressed:
@@ -193,6 +246,7 @@ lvgl:
             on_long_press_repeat:
               logger.log: Button clicked
         - led:
+            id: lv_led
             color: 0x00FF00
             brightness: 50%
             align: right_mid
@@ -207,6 +261,41 @@ lvgl:
 
     - id: page2
       widgets:
+        - button:
+            styles: spin_button
+            id: spin_up
+            on_click:
+              - lvgl.spinbox.increment: spinbox_id
+            widgets:
+              - label:
+                  styles: spin_label
+                  text: "+"
+        - spinbox:
+            text_font: space16
+            id: spinbox_id
+            align: center
+            width: 120
+            range_from: -10
+            range_to: 1000
+            step: 5.0
+            rollover: false
+            digits: 6
+            decimal_places: 2
+            value: 15
+            on_value:
+              then:
+                - logger.log:
+                    format: "Spinbox value is %f"
+                    args: [x]
+        - button:
+            styles: spin_button
+            id: spin_down
+            on_click:
+              - lvgl.spinbox.decrement: spinbox_id
+            widgets:
+              - label:
+                  styles: spin_label
+                  text: "-"
         - arc:
             align: left_mid
             id: lv_arc
@@ -256,6 +345,7 @@ lvgl:
         - switch:
             align: right_mid
         - checkbox:
+            id: checkbox_id
             text: Checkbox
             align: bottom_right
         - slider:
