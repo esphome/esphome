@@ -72,6 +72,7 @@ PROTOCOLS = {
     "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
     "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     "r51m": Protocol.PROTOCOL_R51M,
+    "trotec3550": Protocol.PROTOCOL_TROTEC3550,
 }
 
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"

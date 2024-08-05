@@ -66,6 +66,7 @@ enum Protocol {
   PROTOCOL_PANASONIC_ALTDKE,
   PROTOCOL_VAILLANTVAI8,
   PROTOCOL_R51M,
+  PROTOCOL_TROTEC3550,
 };
 
 // Simple enum to represent horizontal directios

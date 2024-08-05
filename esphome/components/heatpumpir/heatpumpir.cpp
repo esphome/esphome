@@ -66,6 +66,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_PANASONIC_ALTDKE, []() { return new PanasonicAltDKEHeatpumpIR(); }},           // NOLINT
     {PROTOCOL_VAILLANTVAI8, []() { return new VaillantHeatpumpIR(); }},                      // NOLINT
     {PROTOCOL_R51M, []() { return new R51MHeatpumpIR(); }},                                  // NOLINT
+    {PROTOCOL_TROTEC3550, []() { return new Trotec3550HeatpumpIR(); }},                      // NOLINT
 };
 
 void HeatpumpIRClimate::setup() {
