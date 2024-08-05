@@ -1,8 +1,8 @@
 from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
 from esphome.const import CONF_MODE
+from esphome.cpp_types import std_string
 
-from ...cpp_types import std_string
 from .defines import CONF_ITEMS, CONF_MAIN, KEYBOARD_MODES, literal
 from .helpers import add_lv_use, lvgl_components_required
 from .textarea import CONF_TEXTAREA, lv_textarea_t

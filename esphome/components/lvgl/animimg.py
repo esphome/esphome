@@ -2,8 +2,8 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID
+from esphome.cpp_generator import MockObj
 
-from ...cpp_generator import MockObj
 from .automation import action_to_code
 from .defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
 from .helpers import lvgl_components_required
