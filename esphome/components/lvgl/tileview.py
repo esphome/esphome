@@ -33,6 +33,29 @@ lv_tileview_t = LvType(
 
 tile_spec = WidgetType("lv_tileview_tile_t", lv_tile_t, (CONF_MAIN,), {})
 
+TILEVIEW_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TILES): cv.ensure_list(
+            container_schema(
+                obj_spec,
+                {
+                    cv.Required(CONF_ROW): lv_int,
+                    cv.Required(CONF_COLUMN): lv_int,
+                    cv.GenerateID(): cv.declare_id(lv_tile_t),
+                    cv.Optional(CONF_DIR, default="ALL"): TILE_DIRECTIONS.several_of,
+                },
+            )
+        ),
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    automation.Trigger.template(lv_obj_t_ptr)
+                )
+            }
+        ),
+    }
+)
+
 
 class TileviewType(WidgetType):
     def __init__(self):
@@ -40,28 +63,8 @@ class TileviewType(WidgetType):
             CONF_TILEVIEW,
             lv_tileview_t,
             (CONF_MAIN,),
-            {
-                cv.Required(CONF_TILES): cv.ensure_list(
-                    container_schema(
-                        obj_spec,
-                        {
-                            cv.Required(CONF_ROW): lv_int,
-                            cv.Required(CONF_COLUMN): lv_int,
-                            cv.GenerateID(): cv.declare_id(lv_tile_t),
-                            cv.Optional(
-                                CONF_DIR, default="ALL"
-                            ): TILE_DIRECTIONS.several_of,
-                        },
-                    )
-                ),
-                cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            automation.Trigger.template(lv_obj_t_ptr)
-                        )
-                    }
-                ),
-            },
+            schema=TILEVIEW_SCHEMA,
+            modify_schema={},
         )
 
     async def to_code(self, w: Widget, config: dict):

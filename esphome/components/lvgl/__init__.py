@@ -24,8 +24,8 @@ from . import defines as df, helpers, lv_validation as lvalid
 from .animimg import animimg_spec
 from .arc import arc_spec
 from .automation import disp_update, update_to_code
-from .btn import btn_spec
-from .btnmatrix import btnmatrix_spec
+from .button import button_spec
+from .buttonmatrix import buttonmatrix_spec
 from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
 from .dropdown import dropdown_spec
@@ -85,7 +85,7 @@ LOGGER = logging.getLogger(__name__)
 for w_type in (
     label_spec,
     obj_spec,
-    btn_spec,
+    button_spec,
     bar_spec,
     slider_spec,
     arc_spec,
@@ -97,7 +97,7 @@ for w_type in (
     img_spec,
     switch_spec,
     tabview_spec,
-    btnmatrix_spec,
+    buttonmatrix_spec,
     meter_spec,
     dropdown_spec,
     roller_spec,

@@ -4,13 +4,13 @@ from esphome.core import ID
 from esphome.cpp_generator import new_Pvariable, static_const_array
 from esphome.cpp_types import nullptr
 
-from .btn import btn_spec
-from .btnmatrix import (
-    BTNM_BTN_SCHEMA,
-    CONF_BUTTONMATRIX_TEXT_LIST_ID,
-    btnmatrix_spec,
+from .button import button_spec
+from .buttonmatrix import (
+    BUTTONMATRIX_BUTTON_SCHEMA,
+    CONF_BUTTON_TEXT_LIST_ID,
+    buttonmatrix_spec,
     get_button_data,
-    lv_btnmatrix_t,
+    lv_buttonmatrix_t,
     set_btn_data,
 )
 from .defines import (
@@ -50,9 +50,9 @@ MSGBOX_SCHEMA = container_schema(
             cv.GenerateID(CONF_ID): cv.declare_id(lv_obj_t),
             cv.Required(CONF_TITLE): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BODY): STYLED_TEXT_SCHEMA,
-            cv.Optional(CONF_BUTTONS): cv.ensure_list(BTNM_BTN_SCHEMA),
+            cv.Optional(CONF_BUTTONS): cv.ensure_list(BUTTONMATRIX_BUTTON_SCHEMA),
             cv.Optional(CONF_CLOSE_BUTTON): lv_bool,
-            cv.GenerateID(CONF_BUTTONMATRIX_TEXT_LIST_ID): cv.declare_id(char_ptr),
+            cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         }
     ),
 )
@@ -70,19 +70,19 @@ async def msgbox_to_code(conf):
         CONF_BUTTON,
         CONF_LABEL,
         CONF_MSGBOX,
-        *btnmatrix_spec.get_uses(),
-        *btn_spec.get_uses(),
+        *buttonmatrix_spec.get_uses(),
+        *button_spec.get_uses(),
     )
     mbid = conf[CONF_ID]
     outer = lv_Pvariable(lv_obj_t, mbid.id)
     btnm = new_Pvariable(
-        ID(f"{mbid.id}_btnm_", is_declaration=True, type=lv_btnmatrix_t)
+        ID(f"{mbid.id}_btnm_", is_declaration=True, type=lv_buttonmatrix_t)
     )
     msgbox = lv_Pvariable(lv_obj_t, f"{mbid.id}_msgbox")
     outer_w = Widget.create(mbid, outer, obj_spec, conf)
-    btnm_widg = Widget.create(str(btnm), btnm, btnmatrix_spec, conf)
+    btnm_widg = Widget.create(str(btnm), btnm, buttonmatrix_spec, conf)
     text_list, ctrl_list, width_list, _ = await get_button_data((conf,), btnm_widg)
-    text_id = conf[CONF_BUTTONMATRIX_TEXT_LIST_ID]
+    text_id = conf[CONF_BUTTON_TEXT_LIST_ID]
     text_list = static_const_array(text_id, text_list)
     if (text := conf.get(CONF_BODY)) is not None:
         text = await lv_text.process(text.get(CONF_TEXT))

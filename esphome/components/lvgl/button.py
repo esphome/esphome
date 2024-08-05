@@ -3,12 +3,12 @@ from esphome.const import CONF_BUTTON
 from .defines import CONF_MAIN
 from .types import LvBoolean, WidgetType
 
-lv_btn_t = LvBoolean("lv_btn_t")
+lv_button_t = LvBoolean("lv_btn_t")
 
 
-class BtnType(WidgetType):
+class ButtonType(WidgetType):
     def __init__(self):
-        super().__init__(CONF_BUTTON, lv_btn_t, (CONF_MAIN,), lv_name="btn")
+        super().__init__(CONF_BUTTON, lv_button_t, (CONF_MAIN,), lv_name="btn")
 
     def get_uses(self):
         return ("btn",)
@@ -17,4 +17,4 @@ class BtnType(WidgetType):
         return []
 
 
-btn_spec = BtnType()
+button_spec = ButtonType()
