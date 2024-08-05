@@ -13,12 +13,12 @@ esphome:
             message: The humidity is {{ my_variable }}%.
           variables:
             my_variable: "return id(ha_hello_world_temperature).state;"
-      - homeassistant.service:
-          service: notify.html5
+      - homeassistant.action:
+          action: notify.html5
           data:
             message: Button was pressed
-      - homeassistant.service:
-          service: notify.html5
+      - homeassistant.action:
+          action: notify.html5
           data:
             title: New Humidity
           data_template:

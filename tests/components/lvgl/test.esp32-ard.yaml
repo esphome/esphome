@@ -1,0 +1,30 @@
+spi:
+  clk_pin: 14
+  mosi_pin: 13
+
+i2c:
+  sda: GPIO18
+  scl: GPIO19
+
+display:
+  - platform: ili9xxx
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    transform:
+      swap_xy: false
+      mirror_x: true
+      mirror_y: true
+    data_rate: 80MHz
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+packages:
+  lvgl: !include lvgl-package.yaml
+
+<<: !include common.yaml
