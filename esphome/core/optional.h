@@ -48,6 +48,8 @@ template<typename T> class optional {  // NOLINT
 
   template<class U> optional(optional<U> const &other) : has_value_(other.has_value()), value_(other.value()) {}
 
+  template<class U = T> constexpr optional(U &&value) : has_value_(true), value_(std::forward<U>(value)) {}
+
   optional &operator=(nullopt_t) {
     reset();
     return *this;
