@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INDEX, CONF_NAME, CONF_POSITION, CONF_SIZE
 from esphome.cpp_generator import MockObjClass
 
-from . import btnmatrix_spec
+from . import buttonmatrix_spec
 from .automation import action_to_code
 from .defines import (
     CONF_ANIMATED,
@@ -27,6 +27,23 @@ CONF_TAB_STYLE = "tab_style"
 
 lv_tab_t = LvType("lv_obj_t")
 
+TABVIEW_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TABS): cv.ensure_list(
+            container_schema(
+                obj_spec,
+                {
+                    cv.Required(CONF_NAME): cv.string,
+                    cv.GenerateID(): cv.declare_id(lv_tab_t),
+                },
+            )
+        ),
+        cv.Optional(CONF_TAB_STYLE): part_schema(buttonmatrix_spec),
+        cv.Optional(CONF_POSITION, default="top"): DIRECTIONS.one_of,
+        cv.Optional(CONF_SIZE, default="10%"): size,
+    }
+)
+
 
 class TabviewType(WidgetType):
     def __init__(self):
@@ -42,20 +59,7 @@ class TabviewType(WidgetType):
                 has_on_value=True,
             ),
             parts=(CONF_MAIN,),
-            schema={
-                cv.Required(CONF_TABS): cv.ensure_list(
-                    container_schema(
-                        obj_spec,
-                        {
-                            cv.Required(CONF_NAME): cv.string,
-                            cv.GenerateID(): cv.declare_id(lv_tab_t),
-                        },
-                    )
-                ),
-                cv.Optional(CONF_TAB_STYLE): part_schema(btnmatrix_spec),
-                cv.Optional(CONF_POSITION, default="top"): DIRECTIONS.one_of,
-                cv.Optional(CONF_SIZE, default="10%"): size,
-            },
+            schema=TABVIEW_SCHEMA,
             modify_schema={},
         )
 
