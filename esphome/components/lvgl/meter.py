@@ -229,7 +229,7 @@ class MeterType(WidgetType):
                         color = await lv_color.process(v[CONF_COLOR])
                         lv_assign(
                             ivar,
-                            lv_expr.meter_add_needle_arc(
+                            lv_expr.meter_add_arc(
                                 var, meter_var, v[CONF_WIDTH], color, v[CONF_R_MOD]
                             ),
                         )
