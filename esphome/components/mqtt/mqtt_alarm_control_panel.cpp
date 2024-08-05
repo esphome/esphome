@@ -51,7 +51,26 @@ void MQTTAlarmControlPanelComponent::dump_config() {
 }
 
 void MQTTAlarmControlPanelComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  root[MQTT_SUPPORTED_FEATURES] = this->alarm_control_panel_->get_supported_features();
+  JsonArray supported_features = root.createNestedArray(MQTT_SUPPORTED_FEATURES);
+  const uint32_t acp_supported_features = this->alarm_control_panel_->get_supported_features();
+  if (acp_supported_features & ACP_FEAT_ARM_AWAY) {
+    supported_features.add("arm_away");
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_HOME) {
+    supported_features.add("arm_home");
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_NIGHT) {
+    supported_features.add("arm_night");
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_VACATION) {
+    supported_features.add("arm_vacation");
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_CUSTOM_BYPASS) {
+    supported_features.add("arm_custom_bypass");
+  }
+  if (acp_supported_features & ACP_FEAT_TRIGGER) {
+    supported_features.add("trigger");
+  }
   root[MQTT_CODE_DISARM_REQUIRED] = this->alarm_control_panel_->get_requires_code();
   root[MQTT_CODE_ARM_REQUIRED] = this->alarm_control_panel_->get_requires_code_to_arm();
 }
