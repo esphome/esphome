@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_USERNAME,
 )
 from esphome.core import coroutine_with_priority
+import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ AUTO_LOAD = ["network", "watchdog"]
 # following should be removed if conflicts are resolved (so we can have a wifi ap using modem)
 CONFLICTS_WITH = ["captive_portal", "ethernet"]
 
+CONF_MODEM = "modem"
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
 CONF_DTR_PIN = "dtr_pin"
@@ -37,6 +39,7 @@ CONF_POWER_PIN = "power_pin"
 CONF_INIT_AT = "init_at"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
 CONF_ENABLE_CMUX = "enable_cmux"
+CONF_ENABLE_GNSS = "enable_gnss"
 
 MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7600", "GENERIC"]
 MODEM_MODELS_POWER = {
@@ -78,6 +81,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_CMUX, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_GNSS, default=False): cv.boolean,
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -101,6 +105,15 @@ CONFIG_SCHEMA = cv.All(
         esp_idf=cv.Version(4, 0, 0),  # 5.2.0 OK
     ),
 )
+
+
+def final_validate_platform(config):
+    if modem_config := fv.full_config.get().get(CONF_MODEM, None):
+        if not modem_config[CONF_ENABLE_CMUX]:
+            raise cv.Invalid(
+                f"'{CONF_MODEM}' platform require '{CONF_ENABLE_CMUX}' to be 'true'."
+            )
+    return config
 
 
 def _final_validate(config):
@@ -169,6 +182,9 @@ async def to_code(config):
 
     if config[CONF_ENABLE_CMUX]:
         cg.add(var.enable_cmux())
+
+    if config[CONF_ENABLE_GNSS]:
+        cg.add(var.enable_gnss())
 
     if init_at := config.get(CONF_INIT_AT, None):
         for cmd in init_at:
