@@ -100,7 +100,7 @@ class SpinboxType(WidgetType):
             lv.spinbox_set_digit_format(
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
             )
-        if value := config.get(CONF_VALUE):
+        if (value := config.get(CONF_VALUE)) is not None:
             lv.spinbox_set_value(w.obj, await lv_float.process(value))
 
     def get_scale(self, config):

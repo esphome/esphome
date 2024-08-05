@@ -65,16 +65,16 @@ class ImgType(WidgetType):
     async def to_code(self, w: Widget, config):
         if src := config.get(CONF_SRC):
             lv.img_set_src(w.obj, await lv_image.process(src))
-        if cf_angle := config.get(CONF_ANGLE):
+        if (cf_angle := config.get(CONF_ANGLE)) is not None:
             pivot_x = config[CONF_PIVOT_X]
             pivot_y = config[CONF_PIVOT_Y]
             lv.img_set_pivot(w.obj, pivot_x, pivot_y)
             lv.img_set_angle(w.obj, cf_angle)
-        if img_zoom := config.get(CONF_ZOOM):
+        if (img_zoom := config.get(CONF_ZOOM)) is not None:
             lv.img_set_zoom(w.obj, img_zoom)
-        if offset := config.get(CONF_OFFSET_X):
+        if (offset := config.get(CONF_OFFSET_X)) is not None:
             lv.img_set_offset_x(w.obj, offset)
-        if offset := config.get(CONF_OFFSET_Y):
+        if (offset := config.get(CONF_OFFSET_Y)) is not None:
             lv.img_set_offset_y(w.obj, offset)
         if CONF_ANTIALIAS in config:
             lv.img_set_antialias(w.obj, config[CONF_ANTIALIAS])

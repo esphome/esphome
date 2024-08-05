@@ -84,9 +84,9 @@ async def msgbox_to_code(conf):
     text_list, ctrl_list, width_list, _ = await get_button_data((conf,), btnm_widg)
     text_id = conf[CONF_BUTTONMATRIX_TEXT_LIST_ID]
     text_list = static_const_array(text_id, text_list)
-    if text := conf.get(CONF_BODY):
+    if (text := conf.get(CONF_BODY)) is not None:
         text = await lv_text.process(text.get(CONF_TEXT))
-    if title := conf.get(CONF_TITLE):
+    if (title := conf.get(CONF_TITLE)) is not None:
         title = await lv_text.process(title.get(CONF_TEXT))
     close_button = conf[CONF_CLOSE_BUTTON]
     lv_assign(outer, lv_expr.obj_create(TOP_LAYER))

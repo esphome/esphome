@@ -23,10 +23,11 @@ TOP_LAYER = literal("lv_disp_get_layer_top(lv_component->get_disp())")
 async def styles_to_code(config):
     """Convert styles to C__ code."""
     for style in config.get(CONF_STYLE_DEFINITIONS, ()):
+        print(style)
         svar = cg.new_Pvariable(style[CONF_ID])
         lv.style_init(svar)
         for prop, validator in ALL_STYLES.items():
-            if value := style.get(prop):
+            if (value := style.get(prop)) is not None:
                 if isinstance(validator, LValidator):
                     value = await validator.process(value)
                 if isinstance(value, list):
