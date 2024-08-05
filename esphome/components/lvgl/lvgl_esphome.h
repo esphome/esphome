@@ -18,7 +18,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include <lvgl.h>
-#include <utility>
 #include <vector>
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
@@ -30,6 +29,10 @@
 #ifdef USE_LVGL_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
 #endif  // USE_LVGL_TOUCHSCREEN
+
+#if defined(USE_LVGL_BUTTONMATRIX) || defined(USE_LVGL_KEYBOARD)
+#include "esphome/components/key_provider/key_provider.h"
+#endif  // USE_LVGL_BUTTONMATRIX
 
 namespace esphome {
 namespace lvgl {
@@ -47,10 +50,23 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 #endif  // LV_COLOR_DEPTH
 
 // Parent class for things that wrap an LVGL object
-class LvCompound final {
+class LvCompound {
  public:
-  void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
+  virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
+};
+
+class LvPageType {
+ public:
+  LvPageType(bool skip) : skip(skip) {}
+
+  void setup(size_t index) {
+    this->index = index;
+    this->obj = lv_obj_create(nullptr);
+  }
+  lv_obj_t *obj{};
+  size_t index{};
+  bool skip;
 };
 
 using LvLambdaType = std::function<void(lv_obj_t *)>;
@@ -89,48 +105,20 @@ class FontEngine {
 lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc = nullptr);
 #endif  // USE_LVGL_IMAGE
 
+#ifdef USE_LVGL_ANIMIMG
+void lv_animimg_stop(lv_obj_t *obj);
+#endif  // USE_LVGL_ANIMIMG
+
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
-  static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
-    reinterpret_cast<LvglComponent *>(disp_drv->user_data)->flush_cb_(disp_drv, area, color_p);
-  }
+  static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
-  static void log_cb(const char *buf) {
-    esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
-  }
-  static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
-    // make sure all coordinates are even
-    if (area->x1 & 1)
-      area->x1--;
-    if (!(area->x2 & 1))
-      area->x2++;
-    if (area->y1 & 1)
-      area->y1--;
-    if (!(area->y2 & 1))
-      area->y2++;
-  }
-
   void setup() override;
-
-  void update() override {
-    // update indicators
-    if (this->paused_) {
-      return;
-    }
-    this->idle_callbacks_.call(lv_disp_get_inactive_time(this->disp_));
-  }
-
-  void loop() override {
-    if (this->paused_) {
-      if (this->show_snow_)
-        this->write_random_();
-    }
-    lv_timer_handler_run_in_period(5);
-  }
-
+  void update() override;
+  void loop() override;
   void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
     this->idle_callbacks_.add(std::move(callback));
   }
@@ -141,23 +129,15 @@ class LvglComponent : public PollingComponent {
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   void set_buffer_frac(size_t frac) { this->buffer_frac_ = frac; }
   lv_disp_t *get_disp() { return this->disp_; }
-  void set_paused(bool paused, bool show_snow) {
-    this->paused_ = paused;
-    this->show_snow_ = show_snow;
-    this->snow_line_ = 0;
-    if (!paused && lv_scr_act() != nullptr) {
-      lv_disp_trig_activity(this->disp_);  // resets the inactivity time
-      lv_obj_invalidate(lv_scr_act());
-    }
-  }
-
-  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
-    lv_obj_add_event_cb(obj, callback, event, this);
-    if (event == LV_EVENT_VALUE_CHANGED) {
-      lv_obj_add_event_cb(obj, callback, lv_custom_event, this);
-    }
-  }
+  void set_paused(bool paused, bool show_snow);
+  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
+  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
   bool is_paused() const { return this->paused_; }
+  void add_page(LvPageType *page);
+  void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
+  void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
+  void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
+  void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
 
  protected:
   void write_random_();
@@ -168,8 +148,11 @@ class LvglComponent : public PollingComponent {
   lv_disp_drv_t disp_drv_{};
   lv_disp_t *disp_{};
   bool paused_{};
+  std::vector<LvPageType *> pages_{};
+  size_t current_page_{0};
   bool show_snow_{};
   lv_coord_t snow_line_{};
+  bool page_wrap_{true};
 
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};
@@ -179,16 +162,7 @@ class LvglComponent : public PollingComponent {
 
 class IdleTrigger : public Trigger<> {
  public:
-  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(std::move(timeout)) {
-    parent->add_on_idle_callback([this](uint32_t idle_time) {
-      if (!this->is_idle_ && idle_time > this->timeout_.value()) {
-        this->is_idle_ = true;
-        this->trigger();
-      } else if (this->is_idle_ && idle_time < this->timeout_.value()) {
-        this->is_idle_ = false;
-      }
-    });
-  }
+  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout);
 
  protected:
   TemplatableValue<uint32_t> timeout_;
@@ -217,28 +191,8 @@ template<typename... Ts> class LvglCondition : public Condition<Ts...>, public P
 #ifdef USE_LVGL_TOUCHSCREEN
 class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglComponent> {
  public:
-  LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time) {
-    lv_indev_drv_init(&this->drv_);
-    this->drv_.long_press_repeat_time = long_press_repeat_time;
-    this->drv_.long_press_time = long_press_time;
-    this->drv_.type = LV_INDEV_TYPE_POINTER;
-    this->drv_.user_data = this;
-    this->drv_.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
-      auto *l = static_cast<LVTouchListener *>(d->user_data);
-      if (l->touch_pressed_) {
-        data->point.x = l->touch_point_.x;
-        data->point.y = l->touch_point_.y;
-        data->state = LV_INDEV_STATE_PRESSED;
-      } else {
-        data->state = LV_INDEV_STATE_RELEASED;
-      }
-    };
-  }
-  void update(const touchscreen::TouchPoints_t &tpoints) override {
-    this->touch_pressed_ = !this->parent_->is_paused() && !tpoints.empty();
-    if (this->touch_pressed_)
-      this->touch_point_ = tpoints[0];
-  }
+  LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time);
+  void update(const touchscreen::TouchPoints_t &tpoints) override;
   void release() override { touch_pressed_ = false; }
   lv_indev_drv_t *get_drv() { return &this->drv_; }
 
@@ -249,24 +203,10 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 };
 #endif  // USE_LVGL_TOUCHSCREEN
 
-#ifdef USE_LVGL_KEY_LISTENER
+#ifdef USE_LVGL_ROTARY_ENCODER
 class LVEncoderListener : public Parented<LvglComponent> {
  public:
-  LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt) {
-    lv_indev_drv_init(&this->drv_);
-    this->drv_.type = type;
-    this->drv_.user_data = this;
-    this->drv_.long_press_time = lpt;
-    this->drv_.long_press_repeat_time = lprt;
-    this->drv_.read_cb = [](lv_indev_drv_t *d, lv_indev_data_t *data) {
-      auto *l = static_cast<LVEncoderListener *>(d->user_data);
-      data->state = l->pressed_ ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-      data->key = l->key_;
-      data->enc_diff = (int16_t) (l->count_ - l->last_count_);
-      l->last_count_ = l->count_;
-      data->continue_reading = false;
-    };
-  }
+  LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
 
   void set_left_button(binary_sensor::BinarySensor *left_button) {
     left_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_LEFT, state); });
@@ -304,6 +244,24 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int32_t last_count_{};
   int key_{};
 };
-#endif  // USE_LVGL_KEY_LISTENER
+#endif  // USE_LVGL_ROTARY_ENCODER
+#ifdef USE_LVGL_BUTTONMATRIX
+class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
+ public:
+  void set_obj(lv_obj_t *lv_obj) override;
+  uint16_t get_selected() { return lv_btnmatrix_get_selected_btn(this->obj); }
+  void set_key(size_t idx, uint8_t key) { this->key_map_[idx] = key; }
+
+ protected:
+  std::map<size_t, uint8_t> key_map_{};
+};
+#endif  // USE_LVGL_BUTTONMATRIX
+
+#ifdef USE_LVGL_KEYBOARD
+class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
+ public:
+  void set_obj(lv_obj_t *lv_obj) override;
+};
+#endif  // USE_LVGL_KEYBOARD
 }  // namespace lvgl
 }  // namespace esphome
