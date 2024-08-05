@@ -82,7 +82,8 @@ bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish
 bool MQTTAlarmControlPanelComponent::publish_state() {
   bool success = true;
   const auto state = this->alarm_control_panel_->get_state();
-  const char *state_s = str_lower_case(LOG_STR_ARG(alarm_control_panel_state_to_string(state))).c_str();
+  const std::string state_lower = str_lower_case(LOG_STR_ARG(alarm_control_panel_state_to_string(state)));
+  const char *state_s = state_lower.c_str();
   if (!this->publish(this->get_state_topic_(), state_s))
     success = false;
   return success;
