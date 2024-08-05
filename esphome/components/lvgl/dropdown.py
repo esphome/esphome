@@ -57,7 +57,7 @@ class DropdownType(WidgetType):
             lv.dropdown_set_options(w.obj, text)
         if symbol := config.get(CONF_SYMBOL):
             lv.dropdown_set_symbol(w.obj, await lv_text.process(symbol))
-        if selected := config.get(CONF_SELECTED_INDEX):
+        if (selected := config.get(CONF_SELECTED_INDEX)) is not None:
             value = await lv_int.process(selected)
             lv.dropdown_set_selected(w.obj, value)
         if dirn := config.get(CONF_DIR):

@@ -50,7 +50,7 @@ class TextareaType(WidgetType):
 
     async def to_code(self, w: Widget, config: dict):
         for prop in (CONF_TEXT, CONF_PLACEHOLDER_TEXT, CONF_ACCEPTED_CHARS):
-            if value := config.get(prop):
+            if (value := config.get(prop)) is not None:
                 await w.set_property(prop, await lv_text.process(value))
         await w.set_property(
             CONF_MAX_LENGTH, await lv_int.process(config.get(CONF_MAX_LENGTH))
