@@ -715,4 +715,22 @@ std::string hexencode(const T &data) {
 
 ///@}
 
+namespace detail {
+
+// Helper struct to get the index of a type T in a parameter pack
+template<typename T, typename... Args> struct index_of;
+
+template<typename T, typename... Args> struct index_of<T, T, Args...> {
+  static constexpr size_t value = 0;  // NOLINT(readability-identifier-naming)
+};
+
+template<typename T, typename U, typename... Args> struct index_of<T, U, Args...> {
+  static constexpr size_t value = 1 + index_of<T, Args...>::value;  // NOLINT(readability-identifier-naming)
+};
+}  // end namespace detail
+
+template<typename T, typename... Args> T &get_by_type(std::tuple<Args...> &tup) {
+  return std::get<detail::index_of<T, Args...>::value>(tup);
+}
+
 }  // namespace esphome

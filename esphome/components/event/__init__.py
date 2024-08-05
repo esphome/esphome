@@ -1,24 +1,24 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
+    CONF_EVENT_TYPE,
     CONF_ICON,
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_EVENT,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
-    CONF_EVENT_TYPE,
     DEVICE_CLASS_BUTTON,
     DEVICE_CLASS_DOORBELL,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@nohat"]
 IS_PLATFORM_COMPONENT = True
@@ -101,7 +101,7 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
 async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_event(var))
+    cg.add_entity(Event, var)
     await setup_event_core_(var, config, event_types=event_types)
 
 
@@ -132,3 +132,4 @@ async def event_fire_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_EVENT")
     cg.add_global(event_ns.using)
+    cg.register_entity(Event)

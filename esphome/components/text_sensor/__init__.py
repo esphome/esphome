@@ -1,21 +1,21 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
+    CONF_FROM,
     CONF_ICON,
     CONF_ID,
-    CONF_ON_VALUE,
-    CONF_ON_RAW_VALUE,
-    CONF_TRIGGER_ID,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
+    CONF_ON_RAW_VALUE,
+    CONF_ON_VALUE,
     CONF_STATE,
-    CONF_FROM,
     CONF_TO,
+    CONF_TRIGGER_ID,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
@@ -220,7 +220,7 @@ async def setup_text_sensor_core_(var, config):
 async def register_text_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_text_sensor(var))
+    cg.add_entity(TextSensor, var)
     await setup_text_sensor_core_(var, config)
 
 
@@ -234,6 +234,7 @@ async def new_text_sensor(config, *args):
 async def to_code(config):
     cg.add_define("USE_TEXT_SENSOR")
     cg.add_global(text_sensor_ns.using)
+    cg.register_entity(TextSensor)
 
 
 @automation.register_condition(

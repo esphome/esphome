@@ -1,31 +1,29 @@
-import esphome.codegen as cg
-
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt, web_server, time
+import esphome.codegen as cg
+from esphome.components import mqtt, time, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DATE,
+    CONF_DATETIME,
+    CONF_DAY,
+    CONF_HOUR,
     CONF_ID,
+    CONF_MINUTE,
+    CONF_MONTH,
+    CONF_MQTT_ID,
     CONF_ON_TIME,
     CONF_ON_VALUE,
+    CONF_SECOND,
+    CONF_TIME,
     CONF_TIME_ID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
-    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
-    CONF_DATE,
-    CONF_DATETIME,
-    CONF_TIME,
     CONF_YEAR,
-    CONF_MONTH,
-    CONF_DAY,
-    CONF_SECOND,
-    CONF_HOUR,
-    CONF_MINUTE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
-
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
 DEPENDENCIES = ["time"]
@@ -153,9 +151,12 @@ async def setup_datetime_core_(var, config):
 async def register_datetime(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(getattr(cg.App, f"register_{config[CONF_TYPE].lower()}")(var))
+    entity = f"datetime::{str(config[CONF_ID].type).split('Template')[1]}Entity"
+    print(entity)
+    cg.add_entity(entity, var)
     await setup_datetime_core_(var, config)
     cg.add_define(f"USE_DATETIME_{config[CONF_TYPE]}")
+    cg.register_entity(entity)
 
 
 async def new_datetime(config, *args):

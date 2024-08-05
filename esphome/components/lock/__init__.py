@@ -1,14 +1,14 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_LOCK,
     CONF_ON_UNLOCK,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -74,7 +74,7 @@ async def setup_lock_core_(var, config):
 async def register_lock(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_lock(var))
+    cg.add_entity(Lock, var)
     await setup_lock_core_(var, config)
 
 
@@ -109,3 +109,4 @@ async def lock_is_off_to_code(config, condition_id, template_arg, args):
 async def to_code(config):
     cg.add_global(lock_ns.using)
     cg.add_define("USE_LOCK")
+    cg.register_entity(Lock)

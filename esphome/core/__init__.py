@@ -336,7 +336,7 @@ class ID:
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type: Optional["MockObjClass"] = type
+        self.type: Optional[MockObjClass] = type
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -500,7 +500,7 @@ class EsphomeCore:
         # The relative path to where all build files are stored
         self.build_path: Optional[str] = None
         # The validated configuration, this is None until the config has been validated
-        self.config: Optional["ConfigType"] = None
+        self.config: Optional[ConfigType] = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -508,17 +508,17 @@ class EsphomeCore:
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables: dict[str, "MockObj"] = {}
+        self.variables: dict[str, MockObj] = {}
         # A list of statements that go in the main setup() block
-        self.main_statements: list["Statement"] = []
+        self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements: list["Statement"] = []
+        self.global_statements: list[Statement] = []
         # A set of platformio libraries to add to the project
         self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines: set["Define"] = set()
+        self.defines: set[Define] = set()
         # A map of all platformio options to apply
         self.platformio_options: dict[str, Union[str, list[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
@@ -529,6 +529,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # A set of available entities
+        self.entities: set[str] = set()
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -553,6 +555,7 @@ class EsphomeCore:
         self.loaded_integrations = set()
         self.component_ids = set()
         PIN_SCHEMA_REGISTRY.reset()
+        self.entities = set()
 
     @property
     def address(self) -> Optional[str]:
@@ -778,6 +781,9 @@ class EsphomeCore:
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
+
+    def register_entity(self, class_):
+        self.entities.add(class_)
 
     def add_platformio_option(self, key: str, value: Union[str, list[str]]) -> None:
         new_val = value

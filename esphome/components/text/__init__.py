@@ -1,18 +1,18 @@
 from typing import Optional
-import esphome.codegen as cg
-import esphome.config_validation as cv
+
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_MODE,
+    CONF_MQTT_ID,
     CONF_ON_VALUE,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
     CONF_VALUE,
+    CONF_WEB_SERVER_ID,
 )
-
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
@@ -97,7 +97,7 @@ async def register_text(
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_text(var))
+    cg.add_entity(Text, var)
     await setup_text_core_(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
     )
@@ -121,6 +121,7 @@ async def new_text(
 async def to_code(config):
     cg.add_define("USE_TEXT")
     cg.add_global(text_ns.using)
+    cg.register_entity(Text)
 
 
 OPERATION_BASE_SCHEMA = cv.Schema(

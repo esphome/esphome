@@ -1,16 +1,16 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import web_server
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.core import CORE, coroutine_with_priority
+import esphome.codegen as cg
+from esphome.components import web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CODE,
     CONF_ID,
     CONF_ON_STATE,
     CONF_TRIGGER_ID,
-    CONF_CODE,
     CONF_WEB_SERVER_ID,
 )
+from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@grahambrown11", "@hwstar"]
@@ -197,7 +197,7 @@ async def setup_alarm_control_panel_core_(var, config):
 async def register_alarm_control_panel(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_alarm_control_panel(var))
+    cg.add_entity(AlarmControlPanel, var)
     await setup_alarm_control_panel_core_(var, config)
 
 
@@ -306,3 +306,4 @@ async def alarm_control_panel_is_armed_to_code(
 async def to_code(config):
     cg.add_global(alarm_control_panel_ns.using)
     cg.add_define("USE_ALARM_CONTROL_PANEL")
+    cg.register_entity(AlarmControlPanel)

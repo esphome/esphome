@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
@@ -10,11 +10,11 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_RESTORE_MODE,
     CONF_TRIGGER_ID,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
@@ -169,7 +169,7 @@ async def setup_switch_core_(var, config):
 async def register_switch(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_switch(var))
+    cg.add_entity(Switch, var)
     await setup_switch_core_(var, config)
 
 
@@ -210,3 +210,4 @@ async def switch_is_off_to_code(config, condition_id, template_arg, args):
 async def to_code(config):
     cg.add_global(switch_ns.using)
     cg.add_define("USE_SWITCH")
+    cg.register_entity(Switch)

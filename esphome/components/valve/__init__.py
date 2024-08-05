@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import maybe_simple_id, Condition
+from esphome.automation import Condition, maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ID,
@@ -132,7 +132,7 @@ async def setup_valve_core_(var, config):
 async def register_valve(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_valve(var))
+    cg.add_entity(Valve, var)
     await setup_valve_core_(var, config)
 
 
@@ -203,3 +203,4 @@ async def valve_control_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_VALVE")
     cg.add_global(valve_ns.using)
+    cg.register_entity(Valve)
