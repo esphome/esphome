@@ -128,7 +128,7 @@ union ArgoProtocolWREM3 {
 };
 #pragma pack(pop)
 
-using ArgoIRMessageType = enum _ArgoIRMessageType {
+using ArgoIRMessageTypeEnum = enum ArgoIRMessageType {
   ARGO_IR_MESSAGE_TYPE_AC_CONTROL = 0,
   ARGO_IR_MESSAGE_TYPE_IFEEL_TEMP_REPORT = 1,
   ARGO_IR_MESSAGE_TYPE_TIMER_COMMAND = 2,
@@ -136,7 +136,7 @@ using ArgoIRMessageType = enum _ArgoIRMessageType {
 };
 
 // raw byte length depends on message type
-using ArgoIRMessageLength = enum _ArgoIRMessageLength {
+using ArgoIRMessageLengthEnum = enum ArgoIRMessageLength {
   ARGO_IR_MESSAGE_LENGTH_AC_CONTROL = 6,
   ARGO_IR_MESSAGE_LENGTH_IFEEL_TEMP_REPORT = 2,
   ARGO_IR_MESSAGE_LENGTH_TIMER_COMMAND = 9,
