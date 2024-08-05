@@ -1,19 +1,14 @@
 from esphome.const import CONF_BUTTON
-from esphome.cpp_generator import MockObjClass
 
 from .defines import CONF_MAIN
 from .types import LvBoolean, WidgetType
 
+lv_btn_t = LvBoolean("lv_btn_t")
+
 
 class BtnType(WidgetType):
     def __init__(self):
-        super().__init__(CONF_BUTTON, LvBoolean("lv_btn_t"), (CONF_MAIN,))
-
-    def obj_creator(self, parent: MockObjClass, config: dict):
-        """
-        LVGL 8 calls buttons `btn`
-        """
-        return f"lv_btn_create({parent})"
+        super().__init__(CONF_BUTTON, lv_btn_t, (CONF_MAIN,), lv_name="btn")
 
     def get_uses(self):
         return ("btn",)
