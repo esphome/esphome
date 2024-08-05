@@ -298,8 +298,8 @@ lvgl:
                 layout:
                   type: grid
                   grid_row_align: end
-                  grid_rows: [fr(1), fr(1), content]
-                  grid_columns: [fr(1), fr(1), fr(1)]
+                  grid_rows: [25px, fr(1), content]
+                  grid_columns: [40, fr(1), fr(1)]
                 widgets:
                   - image:
                       grid_cell_row_pos: 0
