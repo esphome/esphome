@@ -66,14 +66,6 @@ std::string ModemComponent::send_at(const std::string &cmd) {
   return result;
 }
 
-// float ModemComponent::get_signal_strength() {
-//   // signal strength from rssi in percent
-//   float rssi = float(this->modem_status_.rssi);
-//   if (rssi >= 99.)
-//     return std::nanf("");
-//   return (rssi * 100) / 31;
-// }
-
 bool ModemComponent::get_imei(std::string &result) {
   // wrapper around this->dce->get_imei() that check that the result is valid
   // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
@@ -131,9 +123,8 @@ bool ModemComponent::modem_ready(bool force_check) {
     }
     std::string imei;
     if (this->get_imei(imei)) {
-      // we are sure that the modem is on and synced
+      // we are sure that the modem is on
       this->internal_state_.powered_on = true;
-      this->internal_state_.modem_synced = true;
       return true;
     }
   }
@@ -271,13 +262,14 @@ void ModemComponent::loop() {
         break;
       case ModemPowerState::TONUART:
         this->internal_state_.power_transition = false;
+        ESP_LOGD(TAG, "TONUART check sync");
         if (!this->modem_sync_()) {
           ESP_LOGE(TAG, "Unable to power on the modem");
           this->internal_state_.powered_on = false;
         } else {
           ESP_LOGI(TAG, "Modem powered ON");
           this->internal_state_.powered_on = true;
-          this->internal_state_.modem_synced = false;
+          // this->internal_state_.modem_synced = false;
           this->watchdog_.reset();
         }
         break;
@@ -527,8 +519,7 @@ bool ModemComponent::modem_sync_() {
   uint32_t start_ms = millis();
   uint32_t elapsed_ms;
 
-  bool was_synced = this->internal_state_.modem_synced;
-
+  ESP_LOGV(TAG, "Checking if the modem is synced...");
   bool status = this->modem_ready(true);
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
@@ -566,8 +557,9 @@ bool ModemComponent::modem_sync_() {
     }
   }
 
-  if (status && !was_synced) {
+  if (status && !this->internal_state_.modem_synced) {
     // First time the modem is synced, or modem recovered
+    this->internal_state_.modem_synced = true;
     if (!this->prepare_sim_()) {
       // fatal error
       this->disable();
@@ -582,6 +574,8 @@ bool ModemComponent::modem_sync_() {
   }
 
   this->internal_state_.modem_synced = status;
+
+  ESP_LOGVV(TAG, "Sync end status: %d", this->internal_state_.modem_synced);
 
   return status;
 }
@@ -625,7 +619,7 @@ void ModemComponent::send_init_at_() {
       ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
     delay(this->command_delay_);
-    yield();
+    App.feed_wdt();
   }
 }
 
