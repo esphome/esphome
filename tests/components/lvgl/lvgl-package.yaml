@@ -155,6 +155,11 @@ lvgl:
               logger.log:
                 format: "matrix button pressed: %d"
                 args: ["x"]
+            on_long_press:
+              lvgl.matrix.button.update:
+                id: [button_a, button_e, button_c]
+                control:
+                  disabled: true
             on_click:
               logger.log:
                 format: "matrix button clicked: %d, is button_a = %u"
