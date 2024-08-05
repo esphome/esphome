@@ -54,3 +54,75 @@ font:
           "\U000f0084",
           "\U000f0091",
         ]
+
+sensor:
+  - platform: lvgl
+    id: lvgl_sensor_id
+    name: "LVGL Arc Sensor"
+    widget: lv_arc
+  - platform: lvgl
+    widget: slider_id
+    name: LVGL Slider
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_sensor
+    name: LVGL Bar
+  - platform: lvgl
+    widget: spinbox_id
+    name: LVGL Spinbox
+
+number:
+  - platform: lvgl
+    widget: slider_id
+    name: LVGL Slider
+  - platform: lvgl
+    widget: lv_arc
+    id: lvgl_arc_number
+    name: LVGL Arc
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_number
+    name: LVGL Bar
+  - platform: lvgl
+    widget: spinbox_id
+    id: lvgl_spinbox_number
+    name: LVGL Spinbox
+
+light:
+  - platform: lvgl
+    name: LVGL LED
+    id: lv_light
+    led: lv_led
+
+binary_sensor:
+  - platform: lvgl
+    id: lvgl_pressbutton
+    name: Pressbutton
+    widget: spin_up
+    publish_initial_state: true
+  - platform: lvgl
+    name: ButtonMatrix button
+    widget: button_a
+  - platform: lvgl
+    id: switch_d
+    name: Matrix switch D
+    widget: button_d
+    on_click:
+      then:
+        - lvgl.page.previous:
+            animation: move_right
+            time: 600ms
+  - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: spin_up
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda return x;
+            text: Unchecked
+  - platform: lvgl
+    name: LVGL checkbox
+    widget: checkbox_id
