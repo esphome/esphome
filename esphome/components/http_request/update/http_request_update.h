@@ -25,10 +25,15 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+  void set_check_update(std::function<bool(const update::UpdateInfo &)> &&check_update) {
+    this->check_update_ = std::move(check_update);
+  }
+
  protected:
   HttpRequestComponent *request_parent_;
   OtaHttpRequestComponent *ota_parent_;
   std::string source_url_;
+  std::function<bool(const update::UpdateInfo &)> check_update_{[](const update::UpdateInfo &) { return true; }};
 };
 
 }  // namespace http_request
