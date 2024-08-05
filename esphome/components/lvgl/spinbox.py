@@ -53,20 +53,18 @@ def validate_spinbox(config):
     return config
 
 
-SPINBOX_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_VALUE): lv_float,
-            cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
-            cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
-            cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
-            cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
-            cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
-            cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
-        }
-    ),
-    validate_spinbox,
-)
+SPINBOX_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
+        cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
+        cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
+        cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
+        cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
+        cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
+    }
+).add_extra(validate_spinbox)
+
 
 SPINBOX_MODIFY_SCHEMA = {
     cv.Required(CONF_VALUE): lv_float,
