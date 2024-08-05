@@ -5,8 +5,8 @@ esphome:
           event: esphome.button_pressed
           data:
             message: Button was pressed
-      - homeassistant.service:
-          service: notify.html5
+      - homeassistant.action:
+          action: notify.html5
           data:
             message: Button was pressed
       - homeassistant.tag_scanned: pulse
@@ -21,8 +21,8 @@ api:
   reboot_timeout: 0min
   encryption:
     key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
-  services:
-    - service: hello_world
+  actions:
+    - action: hello_world
       variables:
         name: string
       then:
@@ -30,10 +30,10 @@ api:
             format: Hello World %s!
             args:
               - name.c_str()
-    - service: empty_service
+    - action: empty_action
       then:
-        - logger.log: Service Called
-    - service: all_types
+        - logger.log: Action Called
+    - action: all_types
       variables:
         bool_: bool
         int_: int
@@ -41,7 +41,7 @@ api:
         string_: string
       then:
         - logger.log: Something happened
-    - service: array_types
+    - action: array_types
       variables:
         bool_arr: bool[]
         int_arr: int[]
