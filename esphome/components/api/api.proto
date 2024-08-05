@@ -1872,6 +1872,11 @@ message UpdateStateResponse {
   string release_summary = 9;
   string release_url = 10;
 }
+enum UpdateCommand {
+  UPDATE_COMMAND_NONE = 0;
+  UPDATE_COMMAND_UPDATE = 1;
+  UPDATE_COMMAND_CHECK = 2;
+}
 message UpdateCommandRequest {
   option (id) = 118;
   option (source) = SOURCE_CLIENT;
@@ -1879,5 +1884,5 @@ message UpdateCommandRequest {
   option (no_delay) = true;
 
   fixed32 key = 1;
-  bool install = 2;
+  UpdateCommand command = 2;
 }
