@@ -49,30 +49,6 @@ std::string state_to_string(ModemComponentState state) {
   return str;
 }
 
-// Access Technology from AT+CNSMOD?
-// see https://www.waveshare.com/w/upload/a/af/SIM7500_SIM7600_Series_AT_Command_Manual_V3.00.pdf, page 109
-static const std::unordered_map<int, std::string> ACT_MAP = {{0, "No service"},
-                                                             {1, "GSM"},
-                                                             {2, "GPRS"},
-                                                             {3, "EGPRS (EDGE)"},
-                                                             {4, "WCDMA"},
-                                                             {5, "HSDPA only (WCDMA)"},
-                                                             {6, "HSUPA only (WCDMA)"},
-                                                             {7, "HSPA (HSDPA and HSUPA, WCDMA)"},
-                                                             {8, "LTE"},
-                                                             {9, "TDS-CDMA"},
-                                                             {10, "TDS-HSDPA only"},
-                                                             {11, "TDS-HSUPA only"},
-                                                             {12, "TDS-HSPA (HSDPA and HSUPA)"},
-                                                             {13, "CDMA"},
-                                                             {14, "EVDO"},
-                                                             {15, "HYBRID (CDMA and EVDO)"},
-                                                             {16, "1XLTE (CDMA and LTE)"},
-                                                             {23, "EHRPD"},
-                                                             {24, "HYBRID (CDMA and EHRPD)"}};
-
-std::string get_network_type_name(int act) { return ACT_MAP.at(act); }
-
 }  // namespace modem
 }  // namespace esphome
 #endif  // USE_ESP_IDF

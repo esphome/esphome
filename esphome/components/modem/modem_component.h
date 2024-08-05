@@ -64,13 +64,12 @@ class ModemComponent : public Component {
   bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
   bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED; }
   std::string send_at(const std::string &cmd);
-  float get_signal_strength();
   bool get_imei(std::string &result);
   bool get_power_status();
   bool modem_ready();
+  bool modem_ready(bool force_check);
   void enable();
   void disable();
-  void dump_modem_status();
 
   network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
@@ -97,11 +96,6 @@ class ModemComponent : public Component {
   std::unique_ptr<DCE> dce{nullptr};
 
  protected:
-  void update_() { this->update_(false); };
-  void update_(bool force);
-  void update_signal_quality_();
-  void update_network_attachment_state_();
-  void update_network_system_mode_();
   void modem_lazy_init_();
   bool modem_sync_();
   bool prepare_sim_();
@@ -169,14 +163,6 @@ class ModemComponent : public Component {
 #endif  // USE_MODEM_POWER
   };
   InternalState internal_state_;
-
-  struct ModemStatus {
-    int rssi = 99;
-    int ber = 99;
-    bool network_attached{false};
-    int network_system_mode = 0;
-  };
-  ModemStatus modem_status_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

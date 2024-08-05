@@ -53,41 +53,46 @@ ModemComponent::ModemComponent() {
 
 std::string ModemComponent::send_at(const std::string &cmd) {
   std::string result;
-  command_result status;
+  command_result status = command_result::FAIL;
   ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
-  status = this->dce->at(cmd, result, this->command_delay_ * 5);
-  ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), result.c_str(),
-           command_result_to_string(status).c_str());
+  if (this->modem_ready()) {
+    status = this->dce->at(cmd, result, this->command_delay_);
+    ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), result.c_str(),
+             command_result_to_string(status).c_str());
+  }
   if (status != esp_modem::command_result::OK) {
     result = "ERROR";
   }
   return result;
 }
 
-float ModemComponent::get_signal_strength() {
-  // signal strength from rssi in percent
-  float rssi = float(this->modem_status_.rssi);
-  if (rssi >= 99.)
-    return std::nanf("");
-  return (rssi * 100) / 31;
-}
+// float ModemComponent::get_signal_strength() {
+//   // signal strength from rssi in percent
+//   float rssi = float(this->modem_status_.rssi);
+//   if (rssi >= 99.)
+//     return std::nanf("");
+//   return (rssi * 100) / 31;
+// }
 
 bool ModemComponent::get_imei(std::string &result) {
   // wrapper around this->dce->get_imei() that check that the result is valid
   // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
-  command_result status;
-  status = this->dce->get_imei(result);
-  bool success = true;
 
-  if (status == command_result::OK && result.length() == 15) {
-    for (char c : result) {
-      if (!isdigit(static_cast<unsigned char>(c))) {
-        success = false;
-        break;
+  bool success = false;
+  if (this->dce) {
+    command_result status;
+    status = this->dce->get_imei(result);
+    success = true;
+    if (status == command_result::OK && result.length() == 15) {
+      for (char c : result) {
+        if (!isdigit(static_cast<unsigned char>(c))) {
+          success = false;
+          break;
+        }
       }
+    } else {
+      success = false;
     }
-  } else {
-    success = false;
   }
 
   if (!success) {
@@ -109,16 +114,33 @@ bool ModemComponent::get_power_status() {
 #endif
 }
 
-bool ModemComponent::modem_ready() {
+bool ModemComponent::modem_ready(bool force_check) {
   // check if the modem is ready to answer AT commands
-  std::string imei;
-  if (this->dce && this->get_imei(imei)) {
-    // we are sure that the modem is on
-    this->internal_state_.powered_on = true;
-    return true;
+  if (this->dce) {
+    if (!force_check) {
+      if (!this->internal_state_.modem_synced)
+        return false;
+      if (!this->cmux_ && this->internal_state_.connected)
+        return false;
+      if (!this->internal_state_.powered_on)
+        return false;
+#ifdef USE_MODEM_POWER
+      if (this->internal_state_.power_transition)
+        return false;
+#endif
+    }
+    std::string imei;
+    if (this->get_imei(imei)) {
+      // we are sure that the modem is on and synced
+      this->internal_state_.powered_on = true;
+      this->internal_state_.modem_synced = true;
+      return true;
+    }
   }
   return false;
 }
+
+bool ModemComponent::modem_ready() { return this->modem_ready(false); }
 
 void ModemComponent::enable() {
   ESP_LOGD(TAG, "Enabling modem");
@@ -135,13 +157,6 @@ void ModemComponent::disable() {
   if (this->component_state_ != ModemComponentState::CONNECTED) {
     this->component_state_ = ModemComponentState::DISCONNECTED;
   }
-}
-
-void ModemComponent::dump_modem_status() {
-  ESP_LOGI(TAG, "Modem status:");
-  ESP_LOGI(TAG, "  Signal strength     : %.0f%%", this->get_signal_strength());
-  ESP_LOGI(TAG, "  Network type        : %s", get_network_type_name(this->modem_status_.network_system_mode).c_str());
-  ESP_LOGI(TAG, "  Attached to network : %s", this->modem_status_.network_attached ? "Yes" : "No");
 }
 
 network::IPAddresses ModemComponent::get_ip_addresses() {
@@ -233,8 +248,6 @@ void ModemComponent::loop() {
   static uint8_t network_attach_retry = 10;
   static uint8_t ip_lost_retries = 10;
 
-  this->update_();
-
   if ((millis() < next_loop_millis)) {
     // some commands need some delay
     yield();
@@ -298,7 +311,7 @@ void ModemComponent::loop() {
   switch (this->component_state_) {
     case ModemComponentState::NOT_RESPONDING:
       if (this->internal_state_.start) {
-        if (this->modem_ready()) {
+        if (this->modem_ready(true)) {
           ESP_LOGI(TAG, "Modem recovered");
           this->status_clear_warning();
           this->component_state_ = ModemComponentState::DISCONNECTED;
@@ -338,8 +351,6 @@ void ModemComponent::loop() {
               this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
             if (is_network_attached_()) {
               network_attach_retry = 10;
-              this->update_(true);
-              this->dump_modem_status();
               if (this->start_ppp_()) {
                 connecting = true;
                 next_loop_millis = millis() + 2000;  // delay for next loop
@@ -350,7 +361,6 @@ void ModemComponent::loop() {
               network_attach_retry--;
               if (network_attach_retry == 0) {
                 ESP_LOGE(TAG, "modem is unable to attach to a network");
-                this->dump_modem_status();
                 if (this->power_pin_) {
                   this->poweroff_();
                 } else {
@@ -456,40 +466,6 @@ void ModemComponent::loop() {
   }
 }
 
-void ModemComponent::update_(bool force) {
-  static uint32_t last_update_ms = millis();
-  if (force || ((millis() - last_update_ms) > this->update_interval_)) {
-    if (this->internal_state_.modem_synced) {
-      if (!this->cmux_ && this->internal_state_.connected) {
-        // In data mode, we can't send AT commands while connected.
-        // set_mode(modem_mode::COMMAND_MODE) / this->dce->resume_data_mode() seems to be broken
-        return;
-      }
-      if (this->modem_ready()) {
-        this->update_signal_quality_();
-        this->update_network_attachment_state_();
-        this->update_network_system_mode_();
-      }
-    }
-    last_update_ms = millis();
-  }
-}
-
-void ModemComponent::update_signal_quality_() {
-  this->dce->get_signal_quality(this->modem_status_.rssi, this->modem_status_.ber);
-}
-
-void ModemComponent::update_network_attachment_state_() {
-  int attached = 99;
-  this->dce->get_network_attachment_state(attached);
-  if (attached != 99)
-    this->modem_status_.network_attached = (bool) attached;
-}
-
-void ModemComponent::update_network_system_mode_() {
-  this->dce->get_network_system_mode(this->modem_status_.network_system_mode);
-}
-
 void ModemComponent::modem_lazy_init_() {
   // destroy previous dte/dce, and recreate them.
   // no communication is done with the modem.
@@ -553,7 +529,7 @@ bool ModemComponent::modem_sync_() {
 
   bool was_synced = this->internal_state_.modem_synced;
 
-  bool status = this->modem_ready();
+  bool status = this->modem_ready(true);
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
     ESP_LOGD(TAG, "Connecting to the the modem...");
@@ -563,13 +539,13 @@ bool ModemComponent::modem_sync_() {
     auto command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying command mode");
       this->dce->set_mode(modem_mode::UNDEF);
-      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->modem_ready();
+      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->modem_ready(true);
     };
 
     auto cmux_command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying cmux command mode");
       return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) &&
-             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->modem_ready();
+             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->modem_ready(true);
     };
 
     // The cmux state is supposed to be the same before the reboot. But if it has changed (new firwmare), we will try
@@ -654,8 +630,15 @@ void ModemComponent::send_init_at_() {
 }
 
 bool ModemComponent::is_network_attached_() {
-  update_network_attachment_state_();
-  return this->modem_status_.network_attached;
+  if (this->internal_state_.connected)
+    return true;
+  if (this->modem_ready()) {
+    int attached = 99;
+    this->dce->get_network_attachment_state(attached);
+    if (attached != 99)
+      return (bool) attached;
+  }
+  return false;
 }
 
 bool ModemComponent::start_ppp_() {
