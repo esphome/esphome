@@ -38,7 +38,7 @@ from .types import (
     lv_disp_t,
     lv_obj_t,
 )
-from .widget import Widget, get_widgets, lv_scr_act, set_obj_properties
+from .widgets import Widget, get_widgets, lv_scr_act, set_obj_properties
 
 
 async def action_to_code(
