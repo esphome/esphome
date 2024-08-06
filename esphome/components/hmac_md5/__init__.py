@@ -1,0 +1,2 @@
+CODEOWNERS = ["@dwmw2"]
+DEPENDENCIES = ["md5"]
