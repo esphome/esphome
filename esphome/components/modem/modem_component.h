@@ -58,9 +58,9 @@ class ModemComponent : public Component {
   void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
   void set_apn(const std::string &apn) { this->apn_ = apn; }
+  void set_gnss_power_command(const std::string &at_command) { this->gnss_power_command_ = at_command; }
   void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void enable_cmux() { this->cmux_ = true; }
-  void enable_gnss() { this->gnss_ = true; }
   void enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
@@ -122,7 +122,7 @@ class ModemComponent : public Component {
   std::vector<std::string> init_at_commands_;
   std::string use_address_;
   bool cmux_{false};
-  bool gnss_{false};
+  std::string gnss_power_command_;
   // separate handler for `on_not_responding` (we want to know when it's ended)
   Trigger<> *not_responding_cb_{nullptr};
   CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;

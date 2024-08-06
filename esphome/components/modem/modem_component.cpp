@@ -473,7 +473,6 @@ void ModemComponent::modem_lazy_init_() {
   if (this->dte_->set_mode(modem_mode::COMMAND_MODE)) {
     ESP_LOGD(TAG, "dte in command mode");
   }
-
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
 
 #if defined(USE_MODEM_MODEL_GENERIC)
@@ -484,12 +483,11 @@ void ModemComponent::modem_lazy_init_() {
   this->dce = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
 #elif defined(USE_MODEM_MODEL_SIM7000)
   this->dce = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
-#elif defined(USE_MODEM_MODEL_SIM7600)
+#elif defined(USE_MODEM_MODEL_SIM7600) || defined(USE_MODEM_MODEL_SIM7670)
   this->dce = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
 #else
 #error Modem model not known
 #endif
-
   // flow control not fully implemented, but kept here for future work
   // if (dte_config.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
   //   if (command_result::OK != this->dce->set_flow_control(2, 2)) {
@@ -508,6 +506,7 @@ bool ModemComponent::modem_sync_() {
 
   uint32_t start_ms = millis();
   uint32_t elapsed_ms;
+  std::string result;
 
   ESP_LOGV(TAG, "Checking if the modem is synced...");
   bool status = this->modem_ready(true);
@@ -515,8 +514,6 @@ bool ModemComponent::modem_sync_() {
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
     ESP_LOGD(TAG, "Connecting to the the modem...");
-
-    std::string result;
 
     auto command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying command mode");
@@ -553,16 +550,15 @@ bool ModemComponent::modem_sync_() {
     // First time the modem is synced, or modem recovered
     this->internal_state_.modem_synced = true;
 
-    // Fail on 7600, because esp_modem use internally AT+CGNSPWR? that is unsupported (should be AT+CGPS?)
-    // int gnss_power;
-    // ESPMODEM_ERROR_CHECK(this->dce->get_gnss_power_mode(gnss_power), "Getting GNSS power state");
-    // ESP_LOGD(TAG, "GNSS power mode: %d", gnss_power);
-
-    // enabling GNSS seems to return an error, if already enabled
-    // Fail on 7670, because esp_modem use internally AT+CGPS=1 that is unsupported (should be AT+CGNSSPWR=1 not
-    // (AT+CGNSPWR?))
-    // So SIM7670 should add AT+CGNSSPWR=1 to init_at
-    ESPMODEM_ERROR_CHECK(this->dce->set_gnss_power_mode(this->gnss_), "Enabling/disabling GNSS");
+    if (!this->gnss_power_command_.empty()) {
+      command_result err;
+      ESP_LOGD(TAG, "Enabling GNSS with command: %s", this->gnss_power_command_.c_str());
+      err = this->dce->at(this->gnss_power_command_, result, this->command_delay_);
+      if (err == command_result::FAIL) {
+        // AT+CGPS=1 for SIM7600 or AT+CGNSSPWR=1 for SIM7670 often fail, but seems to be working anyway
+        ESP_LOGD(TAG, "GNSS power command failed. Ignoring, as the status is often FAIL, while it works later.");
+      }
+    }
     // ESPMODEM_ERROR_CHECK(this->dce->set_gnss_power_mode(0), "Enabling/disabling GNSS");
 
     // delay(200);  // NOLINT
@@ -678,7 +674,6 @@ bool ModemComponent::stop_ppp_() {
   if (this->cmux_) {
     status = this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND);
   } else {
-    // assert(this->dce->set_mode(modem_mode::COMMAND_MODE)); // OK on 7600, nok on 7670...
     status = this->dce->set_mode(modem_mode::COMMAND_MODE);
   }
   if (!status) {

@@ -39,6 +39,7 @@ void ModemSensor::update() {
   ESP_LOGD(TAG, "Modem sensor update");
   if (modem::global_modem_component->dce && modem::global_modem_component->modem_ready()) {
     this->update_signal_sensors_();
+    App.feed_wdt();
     this->update_gnss_sensors_();
   }
 }
@@ -182,7 +183,7 @@ void ModemSensor::update_gnss_sensors_() {
       float alt = std::stof(parts["altitude"]);
       float speed_knots = std::stof(parts["speed"]);
       float speed_kmh = speed_knots * 1.852;  // Convert speed from knots to km/h
-      float cog = std::stof(parts["cog"]);
+      float cog = parts["cog"].empty() ? NAN : std::stof(parts["cog"]);
       float pdop = std::stof(parts["pdop"]);
       float hdop = std::stof(parts["hdop"]);
       float vdop = std::stof(parts["vdop"]);

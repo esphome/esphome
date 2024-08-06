@@ -42,13 +42,19 @@ CONF_ON_NOT_RESPONDING = "on_not_responding"
 CONF_ENABLE_CMUX = "enable_cmux"
 CONF_ENABLE_GNSS = "enable_gnss"
 
-MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7600", "GENERIC"]
+MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7600", "SIM7670", "GENERIC"]
 MODEM_MODELS_POWER = {
     "BG96": {"ton": 600, "tonuart": 4900, "toff": 650, "toffuart": 2000},
     "SIM800": {"ton": 1300, "tonuart": 3000, "toff": 200, "toffuart": 3000},
     "SIM7000": {"ton": 1100, "tonuart": 4500, "toff": 1300, "toffuart": 1800},
     "SIM7600": {"ton": 500, "tonuart": 12000, "toff": 2800, "toffuart": 25000},
 }
+
+MODEM_MODELS_POWER["SIM7670"] = MODEM_MODELS_POWER["SIM7600"]
+
+# SIM70xx doesn't support AT+CGNSSINFO, so gnss is not available
+MODEM_MODELS_GNSS_POWER = {"SIM7600": "AT+CGPS=1", "SIM7670": "AT+CGNSSPWR=1"}
+
 
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
@@ -119,25 +125,23 @@ def final_validate_platform(config):
 
 
 def _final_validate(config):
-    # if config.get(CONF_POWER_PIN, None) and not config.get(CONF_STATUS_PIN, None):
-    #     raise cv.Invalid(
-    #         f"'{CONF_STATUS_PIN}' must be declared if using '{CONF_POWER_PIN}'"
-    #     )
-
     # uncomment after PR#4091 merged
     # if wifi_config := fv.full_config.get().get(CONF_WIFI, None):
     #     if wifi_has_sta(wifi_config):
     #         raise cv.Invalid("Wifi must be AP only when using ethernet")
     if config.get(CONF_STATUS_PIN, None):
         _LOGGER.warning("Using '%s' is experimental", CONF_STATUS_PIN)
-    if config[CONF_ENABLE_CMUX]:
-        _LOGGER.warning("Using '%s: True' is experimental", CONF_ENABLE_CMUX)
     if not config[CONF_ENABLE_ON_BOOT]:
         _LOGGER.warning("Using '%s: False' is experimental", CONF_ENABLE_ON_BOOT)
     if config.get(CONF_POWER_PIN, None):
         if config[CONF_MODEL] not in MODEM_MODELS_POWER:
             raise cv.Invalid(
                 f"Modem model '{config[CONF_MODEL]}' has no power power specs."
+            )
+    if config.get(CONF_ENABLE_GNSS, None):
+        if config[CONF_MODEL] not in MODEM_MODELS_GNSS_POWER:
+            raise cv.Invalid(
+                f"Modem model '{config[CONF_MODEL]}' has no GNSS support with AT+CGNSSINFO."
             )
 
 
@@ -185,10 +189,6 @@ async def to_code(config):
     if config[CONF_ENABLE_CMUX]:
         cg.add(var.enable_cmux())
 
-    if config[CONF_ENABLE_GNSS]:
-        cg.add_define("USE_MODEM_GNSS")
-        cg.add(var.enable_gnss())
-
     if config[CONF_DEBUG]:
         cg.add(var.enable_debug())
 
@@ -199,6 +199,10 @@ async def to_code(config):
     modem_model = config[CONF_MODEL]
     cg.add_define("USE_MODEM_MODEL", modem_model)
     cg.add_define(f"USE_MODEM_MODEL_{modem_model}")
+
+    if config[CONF_ENABLE_GNSS]:
+        cg.add_define("USE_MODEM_GNSS")
+        cg.add(var.set_gnss_power_command(MODEM_MODELS_GNSS_POWER[modem_model]))
 
     if power_spec := MODEM_MODELS_POWER.get(modem_model, None):
         cg.add_define("USE_MODEM_POWER")
