@@ -24,7 +24,7 @@ void set_bit(uint8_t *const data, const uint8_t position, const bool on) {
   }
 }
 
-boolean get_bit(const uint8_t data, const uint8_t position) { return (data & (1 << position)) != 0; }
+bool get_bit(const uint8_t data, const uint8_t position) { return (data & (1 << position)) != 0; }
 
 void HitachiClimate::set_checksum_() {
   uint8_t sum = 62;
