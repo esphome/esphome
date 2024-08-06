@@ -16,7 +16,7 @@ from ..lvcode import (
 )
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
-from ..widget import get_widgets
+from ..widgets import get_widgets
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch)
 BASE_SCHEMA = switch_schema(LVGLSwitch).extend(LVGL_SCHEMA)

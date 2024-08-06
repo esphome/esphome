@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
 
-from .defines import (
+from ..defines import (
     CONF_DIR,
     CONF_INDICATOR,
     CONF_MAIN,
@@ -11,12 +11,12 @@ from .defines import (
     DIRECTIONS,
     literal,
 )
+from ..lv_validation import lv_int, lv_text, option_string
+from ..lvcode import LocalVariable, lv, lv_expr
+from ..schemas import part_schema
+from ..types import LvSelect, LvType, lv_obj_t
+from . import Widget, WidgetType, set_obj_properties
 from .label import CONF_LABEL
-from .lv_validation import lv_int, lv_text, option_string
-from .lvcode import LocalVariable, lv, lv_expr
-from .schemas import part_schema
-from .types import LvSelect, LvType, lv_obj_t
-from .widget import Widget, WidgetType, set_obj_properties
 
 CONF_DROPDOWN = "dropdown"
 CONF_DROPDOWN_LIST = "dropdown_list"

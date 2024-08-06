@@ -2,7 +2,7 @@ from esphome import automation, codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PAGES, CONF_TIME
 
-from .defines import (
+from ..defines import (
     CONF_ANIMATION,
     CONF_LVGL_ID,
     CONF_PAGE,
@@ -10,11 +10,11 @@ from .defines import (
     CONF_SKIP,
     LV_ANIM,
 )
-from .lv_validation import lv_bool, lv_milliseconds
-from .lvcode import LVGL_COMP_ARG, LambdaContext, add_line_marks, lv_add, lvgl_comp
-from .schemas import LVGL_SCHEMA
-from .types import LvglAction, lv_page_t
-from .widget import Widget, WidgetType, add_widgets, set_obj_properties
+from ..lv_validation import lv_bool, lv_milliseconds
+from ..lvcode import LVGL_COMP_ARG, LambdaContext, add_line_marks, lv_add, lvgl_comp
+from ..schemas import LVGL_SCHEMA
+from ..types import LvglAction, lv_page_t
+from . import Widget, WidgetType, add_widgets, set_obj_properties
 
 
 class PageType(WidgetType):

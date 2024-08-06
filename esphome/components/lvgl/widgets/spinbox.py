@@ -2,8 +2,8 @@ from esphome import automation
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RANGE_FROM, CONF_RANGE_TO, CONF_STEP, CONF_VALUE
 
-from .automation import action_to_code, update_to_code
-from .defines import (
+from ..automation import action_to_code, update_to_code
+from ..defines import (
     CONF_CURSOR,
     CONF_DECIMAL_PLACES,
     CONF_DIGITS,
@@ -13,12 +13,12 @@ from .defines import (
     CONF_SELECTED,
     CONF_TEXTAREA_PLACEHOLDER,
 )
+from ..lv_validation import lv_bool, lv_float
+from ..lvcode import lv
+from ..types import LvNumber, ObjUpdateAction
+from . import Widget, WidgetType, get_widgets
 from .label import CONF_LABEL
-from .lv_validation import lv_bool, lv_float
-from .lvcode import lv
 from .textarea import CONF_TEXTAREA
-from .types import LvNumber, ObjUpdateAction
-from .widget import Widget, WidgetType, get_widgets
 
 CONF_SPINBOX = "spinbox"
 

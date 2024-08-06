@@ -1,11 +1,13 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_MODE, CONF_VALUE
 
-from .defines import BAR_MODES, CONF_ANIMATED, CONF_INDICATOR, CONF_MAIN, literal
-from .lv_validation import animated, get_start_value, lv_float
-from .lvcode import lv
-from .types import LvNumber, NumberType
-from .widget import Widget
+from ..defines import BAR_MODES, CONF_ANIMATED, CONF_INDICATOR, CONF_MAIN, literal
+from ..lv_validation import animated, get_start_value, lv_float
+from ..lvcode import lv
+from ..types import LvNumber, NumberType
+from . import Widget
+
+# Note this file cannot be called "bar.py" because that name is disallowed.
 
 CONF_BAR = "bar"
 BAR_MODIFY_SCHEMA = cv.Schema(

@@ -5,9 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WIDTH
 from esphome.cpp_generator import MockObj
 
-from .automation import action_to_code
-from .button import lv_button_t
-from .defines import (
+from ..automation import action_to_code
+from ..defines import (
     BUTTONMATRIX_CTRLS,
     CONF_BUTTONS,
     CONF_CONTROL,
@@ -19,11 +18,11 @@ from .defines import (
     CONF_SELECTED,
     CONF_TEXT,
 )
-from .helpers import lvgl_components_required
-from .lv_validation import key_code, lv_bool
-from .lvcode import lv, lv_add, lv_expr
-from .schemas import automation_schema
-from .types import (
+from ..helpers import lvgl_components_required
+from ..lv_validation import key_code, lv_bool
+from ..lvcode import lv, lv_add, lv_expr
+from ..schemas import automation_schema
+from ..types import (
     LV_BTNMATRIX_CTRL,
     LV_STATE,
     LvBoolean,
@@ -33,7 +32,8 @@ from .types import (
     char_ptr,
     lv_pseudo_button_t,
 )
-from .widget import Widget, WidgetType, get_widgets, widget_map
+from . import Widget, WidgetType, get_widgets, widget_map
+from .button import lv_button_t
 
 CONF_BUTTONMATRIX = "buttonmatrix"
 CONF_BUTTON_TEXT_LIST_ID = "button_text_list_id"

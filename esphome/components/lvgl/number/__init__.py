@@ -8,7 +8,7 @@ from ..lv_validation import animated, requires_component
 from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvNumber, lvgl_ns
-from ..widget import get_widgets
+from ..widgets import get_widgets
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number)
 

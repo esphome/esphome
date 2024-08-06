@@ -4,9 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INDEX, CONF_NAME, CONF_POSITION, CONF_SIZE
 from esphome.cpp_generator import MockObjClass
 
-from . import buttonmatrix_spec
-from .automation import action_to_code
-from .defines import (
+from ..automation import action_to_code
+from ..defines import (
     CONF_ANIMATED,
     CONF_MAIN,
     CONF_TAB_ID,
@@ -15,12 +14,13 @@ from .defines import (
     TYPE_FLEX,
     literal,
 )
-from .lv_validation import animated, lv_int, size
-from .lvcode import LocalVariable, lv, lv_assign, lv_expr
+from ..lv_validation import animated, lv_int, size
+from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
+from ..schemas import container_schema, part_schema
+from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
+from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
+from .buttonmatrix import buttonmatrix_spec
 from .obj import obj_spec
-from .schemas import container_schema, part_schema
-from .types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
-from .widget import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_TABVIEW = "tabview"
 CONF_TAB_STYLE = "tab_style"

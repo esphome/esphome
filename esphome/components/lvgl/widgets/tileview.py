@@ -3,8 +3,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_VALUE, CONF_ROW, CONF_TRIGGER_ID
 
-from .automation import action_to_code
-from .defines import (
+from ..automation import action_to_code
+from ..defines import (
     CONF_ANIMATED,
     CONF_COLUMN,
     CONF_DIR,
@@ -14,12 +14,12 @@ from .defines import (
     TILE_DIRECTIONS,
     literal,
 )
-from .lv_validation import animated, lv_int
-from .lvcode import lv, lv_assign, lv_expr, lv_obj, lv_Pvariable
+from ..lv_validation import animated, lv_int
+from ..lvcode import lv, lv_assign, lv_expr, lv_obj, lv_Pvariable
+from ..schemas import container_schema
+from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
+from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 from .obj import obj_spec
-from .schemas import container_schema
-from .types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
-from .widget import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_TILEVIEW = "tileview"
 

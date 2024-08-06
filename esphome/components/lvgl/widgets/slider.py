@@ -1,7 +1,7 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_MODE, CONF_VALUE
 
-from .defines import (
+from ..defines import (
     BAR_MODES,
     CONF_ANIMATED,
     CONF_INDICATOR,
@@ -9,12 +9,12 @@ from .defines import (
     CONF_MAIN,
     literal,
 )
-from .helpers import add_lv_use
+from ..helpers import add_lv_use
+from ..lv_validation import animated, get_start_value, lv_float
+from ..lvcode import lv
+from ..types import LvNumber, NumberType
+from . import Widget
 from .lv_bar import CONF_BAR
-from .lv_validation import animated, get_start_value, lv_float
-from .lvcode import lv
-from .types import LvNumber, NumberType
-from .widget import Widget
 
 CONF_SLIDER = "slider"
 SLIDER_MODIFY_SCHEMA = cv.Schema(

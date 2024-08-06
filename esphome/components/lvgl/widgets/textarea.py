@@ -1,7 +1,7 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_MAX_LENGTH
 
-from .defines import (
+from ..defines import (
     CONF_ACCEPTED_CHARS,
     CONF_CURSOR,
     CONF_MAIN,
@@ -13,10 +13,10 @@ from .defines import (
     CONF_TEXT,
     CONF_TEXTAREA_PLACEHOLDER,
 )
-from .lv_validation import lv_bool, lv_int, lv_text
-from .schemas import TEXT_SCHEMA
-from .types import LvText
-from .widget import Widget, WidgetType
+from ..lv_validation import lv_bool, lv_int, lv_text
+from ..schemas import TEXT_SCHEMA
+from ..types import LvText
+from . import Widget, WidgetType
 
 CONF_TEXTAREA = "textarea"
 

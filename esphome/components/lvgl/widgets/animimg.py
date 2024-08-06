@@ -4,15 +4,15 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID
 from esphome.cpp_generator import MockObj
 
-from .automation import action_to_code
-from .defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
-from .helpers import lvgl_components_required
+from ..automation import action_to_code
+from ..defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
+from ..helpers import lvgl_components_required
+from ..lv_validation import lv_image, lv_milliseconds
+from ..lvcode import lv, lv_expr
+from ..types import LvType, ObjUpdateAction, void_ptr
+from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 from .label import CONF_LABEL
-from .lv_validation import lv_image, lv_milliseconds
-from .lvcode import lv, lv_expr
-from .types import LvType, ObjUpdateAction, void_ptr
-from .widget import Widget, WidgetType, get_widgets
 
 CONF_ANIMIMG = "animimg"
 CONF_SRC_LIST_ID = "src_list_id"

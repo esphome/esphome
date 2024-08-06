@@ -11,7 +11,7 @@ from ..lv_validation import requires_component
 from ..lvcode import EVENT_ARG, LambdaContext, LvContext
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvText
-from ..widget import get_widgets
+from ..widgets import get_widgets
 
 BASE_SCHEMA = text_sensor_schema(TextSensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(

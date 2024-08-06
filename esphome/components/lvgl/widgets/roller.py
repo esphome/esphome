@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_MODE, CONF_OPTIONS
 
-from .defines import (
+from ..defines import (
     CONF_ANIMATED,
     CONF_MAIN,
     CONF_SELECTED,
@@ -11,11 +11,11 @@ from .defines import (
     ROLLER_MODES,
     literal,
 )
+from ..lv_validation import animated, lv_int, option_string
+from ..lvcode import lv
+from ..types import LvSelect
+from . import WidgetType
 from .label import CONF_LABEL
-from .lv_validation import animated, lv_int, option_string
-from .lvcode import lv
-from .types import LvSelect
-from .widget import WidgetType
 
 CONF_ROLLER = "roller"
 lv_roller_t = LvSelect("lv_roller_t")

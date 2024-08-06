@@ -8,7 +8,7 @@ from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import AssignmentExpression, CallExpression, MockObj
 
-from .defines import (
+from ..defines import (
     CONF_DEFAULT,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
@@ -32,8 +32,8 @@ from .defines import (
     join_enums,
     literal,
 )
-from .helpers import add_lv_use
-from .lvcode import (
+from ..helpers import add_lv_use
+from ..lvcode import (
     LvConditional,
     add_line_marks,
     lv,
@@ -43,8 +43,8 @@ from .lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from .schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
-from .types import (
+from ..schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
+from ..types import (
     LV_STATE,
     LvType,
     WidgetType,

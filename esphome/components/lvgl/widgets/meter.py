@@ -14,9 +14,8 @@ from esphome.const import (
     CONF_WIDTH,
 )
 
-from .arc import CONF_ARC
-from .automation import action_to_code
-from .defines import (
+from ..automation import action_to_code
+from ..defines import (
     CONF_END_VALUE,
     CONF_MAIN,
     CONF_PIVOT_X,
@@ -25,10 +24,8 @@ from .defines import (
     CONF_START_VALUE,
     CONF_TICKS,
 )
-from .helpers import add_lv_use
-from .img import CONF_IMAGE
-from .line import CONF_LINE
-from .lv_validation import (
+from ..helpers import add_lv_use
+from ..lv_validation import (
     angle,
     get_end_value,
     get_start_value,
@@ -39,10 +36,13 @@ from .lv_validation import (
     requires_component,
     size,
 )
-from .lvcode import LocalVariable, lv, lv_assign, lv_expr
+from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
+from ..types import LvType, ObjUpdateAction
+from . import Widget, WidgetType, get_widgets
+from .arc import CONF_ARC
+from .img import CONF_IMAGE
+from .line import CONF_LINE
 from .obj import obj_spec
-from .types import LvType, ObjUpdateAction
-from .widget import Widget, WidgetType, get_widgets
 
 CONF_ANGLE_RANGE = "angle_range"
 CONF_COLOR_END = "color_end"

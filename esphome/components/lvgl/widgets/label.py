@@ -1,6 +1,6 @@
 import esphome.config_validation as cv
 
-from .defines import (
+from ..defines import (
     CONF_LONG_MODE,
     CONF_MAIN,
     CONF_RECOLOR,
@@ -9,10 +9,10 @@ from .defines import (
     CONF_TEXT,
     LV_LONG_MODES,
 )
-from .lv_validation import lv_bool, lv_text
-from .schemas import TEXT_SCHEMA
-from .types import LvText, WidgetType
-from .widget import Widget
+from ..lv_validation import lv_bool, lv_text
+from ..schemas import TEXT_SCHEMA
+from ..types import LvText, WidgetType
+from . import Widget
 
 CONF_LABEL = "label"
 

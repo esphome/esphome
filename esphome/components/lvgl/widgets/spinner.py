@@ -1,12 +1,12 @@
 import esphome.config_validation as cv
 from esphome.cpp_generator import MockObjClass
 
+from ..defines import CONF_ARC_LENGTH, CONF_INDICATOR, CONF_MAIN, CONF_SPIN_TIME
+from ..lv_validation import angle
+from ..lvcode import lv_expr
+from ..types import LvType
+from . import Widget, WidgetType
 from .arc import CONF_ARC
-from .defines import CONF_ARC_LENGTH, CONF_INDICATOR, CONF_MAIN, CONF_SPIN_TIME
-from .lv_validation import angle
-from .lvcode import lv_expr
-from .types import LvType
-from .widget import Widget, WidgetType
 
 CONF_SPINNER = "spinner"
 

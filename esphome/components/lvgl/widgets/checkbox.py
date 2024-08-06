@@ -1,9 +1,9 @@
-from .defines import CONF_INDICATOR, CONF_MAIN, CONF_TEXT
-from .lv_validation import lv_text
-from .lvcode import lv
-from .schemas import TEXT_SCHEMA
-from .types import LvBoolean
-from .widget import Widget, WidgetType
+from ..defines import CONF_INDICATOR, CONF_MAIN, CONF_TEXT
+from ..lv_validation import lv_text
+from ..lvcode import lv
+from ..schemas import TEXT_SCHEMA
+from ..types import LvBoolean
+from . import Widget, WidgetType
 
 CONF_CHECKBOX = "checkbox"
 

@@ -1,7 +1,7 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_ANGLE, CONF_MODE
 
-from .defines import (
+from ..defines import (
     CONF_ANTIALIAS,
     CONF_MAIN,
     CONF_OFFSET_X,
@@ -12,11 +12,11 @@ from .defines import (
     CONF_ZOOM,
     LvConstant,
 )
+from ..lv_validation import angle, lv_bool, lv_image, size, zoom
+from ..lvcode import lv
+from ..types import lv_img_t
+from . import Widget, WidgetType
 from .label import CONF_LABEL
-from .lv_validation import angle, lv_bool, lv_image, size, zoom
-from .lvcode import lv
-from .types import lv_img_t
-from .widget import Widget, WidgetType
 
 CONF_IMAGE = "image"
 

@@ -21,28 +21,10 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .animimg import animimg_spec
-from .arc import arc_spec
 from .automation import disp_update, update_to_code
-from .button import button_spec
-from .buttonmatrix import buttonmatrix_spec
-from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
-from .dropdown import dropdown_spec
-from .img import img_spec
-from .keyboard import keyboard_spec
-from .label import label_spec
-from .led import led_spec
-from .line import line_spec
-from .lv_bar import bar_spec
-from .lv_switch import switch_spec
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
-from .meter import meter_spec
-from .msgbox import MSGBOX_SCHEMA, msgboxes_to_code
-from .obj import obj_spec
-from .page import add_pages, page_spec
-from .roller import roller_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
     DISP_BG_SCHEMA,
@@ -57,13 +39,7 @@ from .schemas import (
     grid_alignments,
     obj_schema,
 )
-from .slider import slider_spec
-from .spinbox import spinbox_spec
-from .spinner import spinner_spec
 from .styles import add_top_layer, styles_to_code, theme_to_code
-from .tabview import tabview_spec
-from .textarea import textarea_spec
-from .tileview import tileview_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -74,7 +50,31 @@ from .types import (
     lv_style_t,
     lvgl_ns,
 )
-from .widget import Widget, add_widgets, lv_scr_act, set_obj_properties
+from .widgets import Widget, add_widgets, lv_scr_act, set_obj_properties
+from .widgets.animimg import animimg_spec
+from .widgets.arc import arc_spec
+from .widgets.button import button_spec
+from .widgets.buttonmatrix import buttonmatrix_spec
+from .widgets.checkbox import checkbox_spec
+from .widgets.dropdown import dropdown_spec
+from .widgets.img import img_spec
+from .widgets.keyboard import keyboard_spec
+from .widgets.label import label_spec
+from .widgets.led import led_spec
+from .widgets.line import line_spec
+from .widgets.lv_bar import bar_spec
+from .widgets.meter import meter_spec
+from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
+from .widgets.obj import obj_spec
+from .widgets.page import add_pages, page_spec
+from .widgets.roller import roller_spec
+from .widgets.slider import slider_spec
+from .widgets.spinbox import spinbox_spec
+from .widgets.spinner import spinner_spec
+from .widgets.switch import switch_spec
+from .widgets.tabview import tabview_spec
+from .widgets.textarea import textarea_spec
+from .widgets.tileview import tileview_spec
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]

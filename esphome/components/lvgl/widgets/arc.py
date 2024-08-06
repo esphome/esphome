@@ -8,7 +8,7 @@ from esphome.const import (
 )
 from esphome.cpp_types import nullptr
 
-from .defines import (
+from ..defines import (
     ARC_MODES,
     CONF_ADJUSTABLE,
     CONF_CHANGE_RATE,
@@ -19,10 +19,10 @@ from .defines import (
     CONF_START_ANGLE,
     literal,
 )
-from .lv_validation import angle, get_start_value, lv_float
-from .lvcode import lv, lv_obj
-from .types import LvNumber, NumberType
-from .widget import Widget
+from ..lv_validation import angle, get_start_value, lv_float
+from ..lvcode import lv, lv_obj
+from ..types import LvNumber, NumberType
+from . import Widget
 
 CONF_ARC = "arc"
 ARC_SCHEMA = cv.Schema(

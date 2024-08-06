@@ -9,7 +9,7 @@ from ..lv_validation import requires_component
 from ..lvcode import LvContext
 from ..schemas import LVGL_SCHEMA
 from ..types import LvType, lvgl_ns
-from ..widget import get_widgets
+from ..widgets import get_widgets
 
 lv_led_t = LvType("lv_led_t")
 LVLight = lvgl_ns.class_("LVLight", LightOutput)

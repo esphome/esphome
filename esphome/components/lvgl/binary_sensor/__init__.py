@@ -11,7 +11,7 @@ from ..lv_validation import requires_component
 from ..lvcode import EVENT_ARG, LambdaContext, LvContext
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, lv_pseudo_button_t
-from ..widget import Widget, get_widgets
+from ..widgets import Widget, get_widgets
 
 BASE_SCHEMA = binary_sensor_schema(BinarySensor).extend(LVGL_SCHEMA)
 CONFIG_SCHEMA = cv.All(

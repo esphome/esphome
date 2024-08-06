@@ -3,11 +3,10 @@ import functools
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
-from . import defines as df
-from .defines import CONF_MAIN, literal
-from .lvcode import lv
-from .types import LvType
-from .widget import Widget, WidgetType
+from ..defines import CONF_MAIN, literal
+from ..lvcode import lv
+from ..types import LvType
+from . import Widget, WidgetType
 
 CONF_LINE = "line"
 CONF_POINTS = "points"
@@ -32,7 +31,7 @@ def cv_point_list(value):
 
 
 LINE_SCHEMA = {
-    cv.Required(df.CONF_POINTS): cv_point_list,
+    cv.Required(CONF_POINTS): cv_point_list,
     cv.GenerateID(CONF_POINT_LIST_ID): cv.declare_id(lv_point_t),
 }
 

@@ -8,7 +8,7 @@ from ..lv_validation import requires_component
 from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvText, lvgl_ns
-from ..widget import get_widgets
+from ..widgets import get_widgets
 
 LVGLText = lvgl_ns.class_("LVGLText", text.Text)
 

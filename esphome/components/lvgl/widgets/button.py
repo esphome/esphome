@@ -1,7 +1,7 @@
 from esphome.const import CONF_BUTTON
 
-from .defines import CONF_MAIN
-from .types import LvBoolean, WidgetType
+from ..defines import CONF_MAIN
+from ..types import LvBoolean, WidgetType
 
 lv_button_t = LvBoolean("lv_btn_t")
 
