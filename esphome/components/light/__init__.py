@@ -188,7 +188,7 @@ async def setup_light_core_(light_var, output_var, config):
 
 async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], output_var)
-    cg.add_entity(LightState, output_var)
+    cg.add_entity(LightState, light_var)
     await cg.register_component(light_var, config)
     await setup_light_core_(light_var, output_var, config)
 
