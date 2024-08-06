@@ -81,9 +81,41 @@ const EntityBase *MQTTAlarmControlPanelComponent::get_entity() const { return th
 bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTAlarmControlPanelComponent::publish_state() {
   bool success = true;
-  const auto state = this->alarm_control_panel_->get_state();
-  const std::string state_lower = str_lower_case(LOG_STR_ARG(alarm_control_panel_state_to_string(state)));
-  const char *state_s = state_lower.c_str();
+  const char *state_s = "";
+  switch (this->alarm_control_panel_->get_state()) {
+    case ACP_STATE_DISARMED:
+      state_s = "disarmed";
+      break;
+    case ACP_STATE_ARMED_HOME:
+      state_s = "armed_home";
+      break;
+    case ACP_STATE_ARMED_AWAY:
+      state_s = "armed_away";
+      break;
+    case ACP_STATE_ARMED_NIGHT:
+      state_s = "armed_night";
+      break;
+    case ACP_STATE_ARMED_VACATION:
+      state_s = "armed_vacation";
+      break;
+    case ACP_STATE_ARMED_CUSTOM_BYPASS:
+      state_s = "armed_custom_bypass";
+      break;
+    case ACP_STATE_PENDING:
+      state_s = "pending";
+      break;
+    case ACP_STATE_ARMING:
+      state_s = "arming";
+      break;
+    case ACP_STATE_DISARMING:
+      state_s = "disarming";
+      break;
+    case ACP_STATE_TRIGGERED:
+      state_s = "triggered";
+      break;
+    default:
+      state_s = "unknown";
+  }
   if (!this->publish(this->get_state_topic_(), state_s))
     success = false;
   return success;
