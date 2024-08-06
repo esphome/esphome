@@ -14,19 +14,22 @@ class SHT3XDComponent : public PollingComponent, public sensirion_common::Sensir
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
+  void set_heater_state(bool heater_enabled) { heater_enabled_ = heater_enabled; }
 
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-  void set_heater_enabled(bool heater_enabled) { heater_enabled_ = heater_enabled; }
+
+  void set_heater_enabled(bool new_state);
+  bool is_heater_enabled();
 
  protected:
   enum ErrorCode {
     NONE = 0,
     READ_SERIAL_STRETCHED_FAILED,
     READ_SERIAL_FAILED,
-    WRITE_HEATER_MODE_FAILED,
+    WRITE_HEATER_COMMAND_FAILED,
   } error_code_{NONE};
 
   sensor::Sensor *temperature_sensor_{nullptr};

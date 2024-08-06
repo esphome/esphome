@@ -5,13 +5,8 @@ namespace esphome {
 namespace sht3xd {
 
 static const char *const TAG = "sht3xd";
-
-// https://sensirion.com/media/documents/E5762713/63D103C2/Sensirion_electronic_identification_code_SHT3x.pdf
-// indicates two possible read serial number registers either with clock stretching enabled or disabled.
-// Other SHT3XD_COMMAND registers use the clock stretching disabled register.
-// To ensure compatibility, reading serial number using the register with clock stretching register enabled
-// (used originally in this component) is tried first and if that fails the alternate register address
-// with clock stretching disabled is read.
+static const char *const ENABLED = "Enabled";
+static const char *const DISABLED = "Disabled";
 
 static const uint16_t SHT3XD_COMMAND_READ_SERIAL_NUMBER_CLOCK_STRETCHING = 0x3780;
 static const uint16_t SHT3XD_COMMAND_READ_SERIAL_NUMBER = 0x3682;
@@ -23,6 +18,15 @@ static const uint16_t SHT3XD_COMMAND_HEATER_DISABLE = 0x3066;
 static const uint16_t SHT3XD_COMMAND_SOFT_RESET = 0x30A2;
 static const uint16_t SHT3XD_COMMAND_POLLING_H = 0x2400;
 static const uint16_t SHT3XD_COMMAND_FETCH_DATA = 0xE000;
+
+static const uint16_t SHT3XD_HEATER_STATUS_BIT = 0x2000;
+
+// https://sensirion.com/media/documents/E5762713/63D103C2/Sensirion_electronic_identification_code_SHT3x.pdf
+// indicates two possible read serial number registers either with clock stretching enabled or disabled.
+// Other SHT3XD_COMMAND registers use the clock stretching disabled register.
+// To ensure compatibility, reading serial number using the register with clock stretching register enabled
+// (used originally in this component) is tried first and if that fails the alternate register address
+// with clock stretching disabled is read.
 
 void SHT3XDComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SHT3xD...");
@@ -38,8 +42,8 @@ void SHT3XDComponent::setup() {
 
   this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
 
-  if (!this->write_command(heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
-    this->error_code_ = WRITE_HEATER_MODE_FAILED;
+  if (!this->write_command(this->heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
+    this->error_code_ = WRITE_HEATER_COMMAND_FAILED;
     this->mark_failed();
     return;
   }
@@ -51,8 +55,8 @@ void SHT3XDComponent::dump_config() {
     case READ_SERIAL_FAILED:
       ESP_LOGD(TAG, "  Error reading serial number");
       break;
-    case WRITE_HEATER_MODE_FAILED:
-      ESP_LOGD(TAG, "  Error writing heater mode");
+    case WRITE_HEATER_COMMAND_FAILED:
+      ESP_LOGD(TAG, "  Error writing heater command");
       break;
     default:
       break;
@@ -63,7 +67,7 @@ void SHT3XDComponent::dump_config() {
   }
   ESP_LOGD(TAG, "  Setup successful");
   ESP_LOGD(TAG, "  Serial Number: 0x%08" PRIX32, this->serial_number_);
-  ESP_LOGD(TAG, "  Heater Enabled: %s", this->heater_enabled_ ? "true" : "false");
+  ESP_LOGD(TAG, "  Heater state: %s", this->heater_enabled_ ? ENABLED : DISABLED);
 
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
@@ -76,7 +80,7 @@ float SHT3XDComponent::get_setup_priority() const { return setup_priority::DATA;
 
 void SHT3XDComponent::update() {
   if (this->status_has_warning()) {
-    ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
+    ESP_LOGD(TAG, "Retrying to reconnect the sensor");
     this->write_command(SHT3XD_COMMAND_SOFT_RESET);
   }
   if (!this->write_command(SHT3XD_COMMAND_POLLING_H)) {
@@ -101,6 +105,35 @@ void SHT3XDComponent::update() {
       this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   });
+}
+
+void SHT3XDComponent::set_heater_enabled(bool new_state) {
+  uint16_t current_heater_state;
+
+  if (this->heater_enabled_ == new_state) {
+    ESP_LOGD(TAG, "No change in heater required - Heater state: %s", this->heater_enabled_ ? ENABLED : DISABLED);
+    return;
+  }
+
+  if (!this->write_command(new_state ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
+    this->status_set_warning();
+    ESP_LOGW(TAG, "Error writing heater command - Heater state: %s", this->heater_enabled_ ? ENABLED : DISABLED);
+    return;
+  }
+
+  if (!this->get_register(SHT3XD_COMMAND_READ_STATUS, current_heater_state)) {
+    this->heater_enabled_ = new_state; // assume heater state was changed as there was no error in writing new heater state
+    this->status_set_warning();
+    ESP_LOGW(TAG, "Error reading heater state - Assumed heater state: %s", this->heater_enabled_ ? ENABLED : DISABLED);
+    return;
+  }
+
+  this->heater_enabled_ = ((SHT3XD_HEATER_STATUS_BIT & current_heater_state) == SHT3XD_HEATER_STATUS_BIT);
+  ESP_LOGD(TAG, "New heater state: %s", this->heater_enabled_ ? ENABLED : DISABLED);
+}
+
+bool SHT3XDComponent::is_heater_enabled() {
+  return this->heater_enabled_;
 }
 
 }  // namespace sht3xd
