@@ -15,6 +15,8 @@ class UserServiceDescriptor {
   virtual ListEntitiesServicesResponse encode_list_service_response() = 0;
 
   virtual bool execute_service(const ExecuteServiceRequest &req) = 0;
+
+  bool is_internal() { return false; }
 };
 
 template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
