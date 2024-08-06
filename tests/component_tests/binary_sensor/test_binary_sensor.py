@@ -14,7 +14,7 @@ def test_binary_sensor_is_setup(generate_main):
 
     # Then
     assert "new gpio::GPIOBinarySensor();" in main_cpp
-    assert "App.register_binary_sensor" in main_cpp
+    assert "App.register_entity<binary_sensor::BinarySensor>" in main_cpp
 
 
 def test_binary_sensor_sets_mandatory_fields(generate_main):
