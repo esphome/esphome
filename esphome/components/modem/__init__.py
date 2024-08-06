@@ -7,6 +7,7 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 # from esphome.components.wifi import wifi_has_sta  # uncomment after PR#4091 merged
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEBUG,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
     CONF_MODEL,
@@ -81,6 +82,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_CMUX, default=False): cv.boolean,
+            cv.Optional(CONF_DEBUG, default=False): cv.boolean,  # needs also
             cv.Optional(CONF_ENABLE_GNSS, default=False): cv.boolean,
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
@@ -185,6 +187,9 @@ async def to_code(config):
 
     if config[CONF_ENABLE_GNSS]:
         cg.add(var.enable_gnss())
+
+    if config[CONF_DEBUG]:
+        cg.add(var.enable_debug())
 
     if init_at := config.get(CONF_INIT_AT, None):
         for cmd in init_at:

@@ -60,6 +60,8 @@ class ModemComponent : public Component {
   void set_apn(const std::string &apn) { this->apn_ = apn; }
   void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void enable_cmux() { this->cmux_ = true; }
+  void enable_gnss() { this->gnss_ = true; }
+  void enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
   bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED; }
@@ -120,6 +122,7 @@ class ModemComponent : public Component {
   std::vector<std::string> init_at_commands_;
   std::string use_address_;
   bool cmux_{false};
+  bool gnss_{false};
   // separate handler for `on_not_responding` (we want to know when it's ended)
   Trigger<> *not_responding_cb_{nullptr};
   CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
@@ -130,7 +133,7 @@ class ModemComponent : public Component {
   uint8_t uart_event_queue_size_ = 30;        // 10-40
   size_t uart_event_task_stack_size_ = 2048;  // 2000-6000
   uint8_t uart_event_task_priority_ = 5;      // 3-22
-  uint32_t command_delay_ = 500;              // timeout for AT commands
+  uint32_t command_delay_ = 10000;            // timeout for AT commands
   uint32_t update_interval_ = 60 * 1000;
 
   // Changes will trigger user callback
@@ -140,9 +143,6 @@ class ModemComponent : public Component {
   // https://docs.espressif.com/projects/esp-protocols/esp_modem/docs/latest/internal_docs.html#_CPPv4N9esp_modem3DCEE
   std::shared_ptr<DTE> dte_{nullptr};
   esp_netif_t *ppp_netif_{nullptr};
-
-  // Many operation blocks a long time.
-  std::shared_ptr<watchdog::WatchdogManager> watchdog_;
 
   struct InternalState {
     bool start{false};
