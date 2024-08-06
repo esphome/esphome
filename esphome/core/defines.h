@@ -32,6 +32,7 @@
 #define USE_FAN
 #define USE_GRAPH
 #define USE_GRAPHICAL_DISPLAY_MENU
+#define USE_GRAPHICAL_LAYOUT
 #define USE_HOMEASSISTANT_TIME
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_JSON
@@ -73,8 +74,6 @@
 #define USE_VALVE
 #define USE_WIFI
 #define USE_WIFI_AP
-#define USE_GRAPHICAL_DISPLAY_MENU
-#define USE_GRAPHICAL_LAYOUT
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
