@@ -1,13 +1,16 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE, CONF_BORDER
 from esphome.components import color
-from . import horizontal_stack
-from . import vertical_stack
-from . import text_panel
-from . import display_rendering_panel
-from . import fixed_dimension_panel
-from . import text_run_panel
+import esphome.config_validation as cv
+from esphome.const import CONF_BORDER, CONF_ID, CONF_TYPE
+
+from . import (
+    display_rendering_panel,
+    fixed_dimension_panel,
+    horizontal_stack,
+    text_panel,
+    text_run_panel,
+    vertical_stack,
+)
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 RootLayoutComponent = graphical_layout_ns.class_("RootLayoutComponent", cg.Component)

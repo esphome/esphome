@@ -1,19 +1,18 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import display, font, color
-from esphome.const import (
-    CONF_ID,
-    CONF_DISPLAY,
-    CONF_TRIGGER_ID,
-    CONF_FOREGROUND_COLOR,
-    CONF_BACKGROUND_COLOR,
-)
 from esphome import automation, core
-
+import esphome.codegen as cg
+from esphome.components import color, display, font
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
     DisplayMenuComponent,
     display_menu_to_code,
+)
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BACKGROUND_COLOR,
+    CONF_DISPLAY,
+    CONF_FOREGROUND_COLOR,
+    CONF_ID,
+    CONF_TRIGGER_ID,
 )
 
 CONF_FONT = "font"

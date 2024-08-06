@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE, CONF_WIDTH, CONF_HEIGHT
+from esphome.const import CONF_HEIGHT, CONF_TYPE, CONF_WIDTH
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 FixedDimensionPanel = graphical_layout_ns.class_("FixedDimensionPanel")

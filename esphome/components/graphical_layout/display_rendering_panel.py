@@ -1,7 +1,7 @@
 import esphome.codegen as cg
+from esphome.components.display import DisplayRef, display_ns
 import esphome.config_validation as cv
-from esphome.const import CONF_WIDTH, CONF_HEIGHT, CONF_LAMBDA
-from esphome.components.display import display_ns, DisplayRef
+from esphome.const import CONF_HEIGHT, CONF_LAMBDA, CONF_WIDTH
 
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
 Rect = display_ns.class_("Rect")

@@ -1,14 +1,11 @@
 from string import ascii_letters, digits
-import esphome.config_validation as cv
+
 import esphome.codegen as cg
 from esphome.components import color
-from esphome.const import (
-    CONF_VISIBLE,
-    CONF_FOREGROUND_COLOR,
-    CONF_BACKGROUND_COLOR,
-)
-from . import CONF_NEXTION_ID
-from . import Nextion
+import esphome.config_validation as cv
+from esphome.const import CONF_BACKGROUND_COLOR, CONF_FOREGROUND_COLOR, CONF_VISIBLE
+
+from . import CONF_NEXTION_ID, Nextion
 
 CONF_VARIABLE_NAME = "variable_name"
 CONF_COMPONENT_NAME = "component_name"

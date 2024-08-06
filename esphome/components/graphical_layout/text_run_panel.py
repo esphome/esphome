@@ -1,17 +1,16 @@
 import esphome.codegen as cg
-from esphome.cpp_generator import CallExpression, MockObjClass, MockObj
-from esphome.core import ID
-import esphome.config_validation as cv
-from esphome.components import font, color, sensor, text_sensor, time
+from esphome.components import color, font, sensor, text_sensor, time
 from esphome.components.display import display_ns
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_FOREGROUND_COLOR,
     CONF_BACKGROUND_COLOR,
+    CONF_FOREGROUND_COLOR,
+    CONF_ID,
     CONF_SENSOR,
     CONF_TIME_ID,
 )
-
+from esphome.core import ID
+from esphome.cpp_generator import CallExpression, MockObj, MockObjClass
 
 SharedPtr = cg.std_ns.class_("shared_ptr")
 graphical_layout_ns = cg.esphome_ns.namespace("graphical_layout")
