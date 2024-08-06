@@ -18,7 +18,6 @@ registry_schemas = {}
 hidden_schemas = {}
 typed_schemas = {}
 
-
 # This key is used to generate schema files of Esphome configuration.
 SCHEMA_EXTRACT = object()
 
