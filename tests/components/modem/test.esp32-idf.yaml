@@ -12,8 +12,8 @@ modem:
   apn: orange
   pin_code: "0000"
   enable_on_boot: True
-  enable_cmux: False
-  enable_gnss: False
+  enable_cmux: True
+  enable_gnss: True
   init_at:
     - AT
   on_not_responding:
@@ -23,3 +23,20 @@ modem:
   on_disconnect:
     logger.log: "lost IP"
 
+text_sensor:
+  - platform: modem
+    network_type:
+      name: network type
+
+sensor:
+  - platform: modem
+    rssi:
+      name: rssi
+    ber:
+      name: ber
+    latitude:
+      name: Latitude
+    longitude:
+      name: Longitude
+    altitude:
+      name: Altitude
