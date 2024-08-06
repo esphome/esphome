@@ -282,13 +282,13 @@ async def set_obj_properties(w: Widget, config):
         lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
-            rows = "{" + ",".join(layout[CONF_GRID_ROWS]) + ", LV_GRID_TEMPLATE_LAST}"
+            rows = [str(x) for x in layout[CONF_GRID_ROWS]]
+            rows = "{" + ",".join(rows) + ", LV_GRID_TEMPLATE_LAST}"
             row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=lv_coord_t)
             row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
             w.set_style("grid_row_dsc_array", row_array, 0)
-            columns = (
-                "{" + ",".join(layout[CONF_GRID_COLUMNS]) + ", LV_GRID_TEMPLATE_LAST}"
-            )
+            columns = [str(x) for x in layout[CONF_GRID_COLUMNS]]
+            columns = "{" + ",".join(columns) + ", LV_GRID_TEMPLATE_LAST}"
             column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=lv_coord_t)
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
             w.set_style("grid_column_dsc_array", column_array, 0)

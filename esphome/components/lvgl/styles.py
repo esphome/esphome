@@ -26,7 +26,7 @@ async def styles_to_code(config):
         svar = cg.new_Pvariable(style[CONF_ID])
         lv.style_init(svar)
         for prop, validator in ALL_STYLES.items():
-            if value := style.get(prop):
+            if (value := style.get(prop)) is not None:
                 if isinstance(validator, LValidator):
                     value = await validator.process(value)
                 if isinstance(value, list):

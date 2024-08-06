@@ -20,9 +20,9 @@ class LedType(WidgetType):
         super().__init__(CONF_LED, LvType("lv_led_t"), (CONF_MAIN,), LED_SCHEMA)
 
     async def to_code(self, w: Widget, config):
-        if color := config.get(CONF_COLOR):
+        if (color := config.get(CONF_COLOR)) is not None:
             lv.led_set_color(w.obj, await lv_color.process(color))
-        if brightness := config.get(CONF_BRIGHTNESS):
+        if (brightness := config.get(CONF_BRIGHTNESS)) is not None:
             lv.led_set_brightness(w.obj, await lv_brightness.process(brightness))
 
 

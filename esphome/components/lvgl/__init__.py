@@ -24,10 +24,13 @@ from . import defines as df, helpers, lv_validation as lvalid
 from .animimg import animimg_spec
 from .arc import arc_spec
 from .automation import disp_update, update_to_code
-from .btn import btn_spec
+from .button import button_spec
+from .buttonmatrix import buttonmatrix_spec
 from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
+from .dropdown import dropdown_spec
 from .img import img_spec
+from .keyboard import keyboard_spec
 from .label import label_spec
 from .led import led_spec
 from .line import line_spec
@@ -35,8 +38,11 @@ from .lv_bar import bar_spec
 from .lv_switch import switch_spec
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
+from .meter import meter_spec
+from .msgbox import MSGBOX_SCHEMA, msgboxes_to_code
 from .obj import obj_spec
 from .page import add_pages, page_spec
+from .roller import roller_spec
 from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
     DISP_BG_SCHEMA,
@@ -52,8 +58,12 @@ from .schemas import (
     obj_schema,
 )
 from .slider import slider_spec
+from .spinbox import spinbox_spec
 from .spinner import spinner_spec
 from .styles import add_top_layer, styles_to_code, theme_to_code
+from .tabview import tabview_spec
+from .textarea import textarea_spec
+from .tileview import tileview_spec
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
 from .types import (
@@ -75,7 +85,7 @@ LOGGER = logging.getLogger(__name__)
 for w_type in (
     label_spec,
     obj_spec,
-    btn_spec,
+    button_spec,
     bar_spec,
     slider_spec,
     arc_spec,
@@ -86,6 +96,15 @@ for w_type in (
     checkbox_spec,
     img_spec,
     switch_spec,
+    tabview_spec,
+    buttonmatrix_spec,
+    meter_spec,
+    dropdown_spec,
+    roller_spec,
+    textarea_spec,
+    spinbox_spec,
+    keyboard_spec,
+    tileview_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
@@ -244,6 +263,7 @@ async def to_code(config):
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
         await add_top_layer(config)
+        await msgboxes_to_code(config)
         await disp_update(f"{lv_component}->get_disp()", config)
         Widget.set_completed()
         await generate_triggers(lv_component)
@@ -308,6 +328,7 @@ CONFIG_SCHEMA = (
             cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
                 container_schema(page_spec)
             ),
+            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,

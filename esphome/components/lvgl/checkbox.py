@@ -18,7 +18,7 @@ class CheckboxType(WidgetType):
         )
 
     async def to_code(self, w: Widget, config):
-        if value := config.get(CONF_TEXT):
+        if (value := config.get(CONF_TEXT)) is not None:
             lv.checkbox_set_text(w.obj, await lv_text.process(value))
 
 

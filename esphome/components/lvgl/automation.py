@@ -109,7 +109,7 @@ async def disp_update(disp, config: dict):
     if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
         return
     with LocalVariable("lv_disp_tmp", lv_disp_t, literal(disp)) as disp_temp:
-        if bg_color := config.get(CONF_DISP_BG_COLOR):
+        if (bg_color := config.get(CONF_DISP_BG_COLOR)) is not None:
             lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):
             lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
