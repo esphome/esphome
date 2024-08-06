@@ -1,0 +1,5 @@
+optolink:
+  protocol: P300
+  logger: true
+
+<<: !include common.yaml

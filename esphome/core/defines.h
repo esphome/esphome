@@ -81,6 +81,7 @@
 #define USE_WEBSERVER
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WIFI_WPA2_EAP
+#define USE_OPTOLINK_VITOWIFI_PROTOCOL P300
 #endif
 
 // IDF-specific feature flags
