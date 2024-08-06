@@ -13,10 +13,9 @@ from .defines import (
     CONF_RIGHT_BUTTON,
 )
 from .helpers import lvgl_components_required, requires_component
-from .lvcode import lv, lv_add, lv_expr
+from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
-from .types import lv_indev_type_t
-from .widgets import add_group
+from .types import lv_group_t, lv_indev_type_t
 
 ENCODERS_CONFIG = cv.ensure_list(
     ENCODER_SCHEMA.extend(
@@ -58,7 +57,9 @@ async def encoders_to_code(var, config):
                 lv_add(listener.set_sensor(sensor_config))
         b_sensor = await cg.get_variable(enc_conf[CONF_ENTER_BUTTON])
         cg.add(listener.set_enter_button(b_sensor))
-        if group := add_group(enc_conf.get(CONF_GROUP)):
+        if group := enc_conf.get(CONF_GROUP):
+            group = lv_Pvariable(lv_group_t, group)
+            lv_assign(group, lv_expr.group_create())
             lv.indev_set_group(lv_expr.indev_drv_register(listener.get_drv()), group)
         else:
             lv.indev_drv_register(listener.get_drv())
