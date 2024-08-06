@@ -186,6 +186,7 @@ async def to_code(config):
         cg.add(var.enable_cmux())
 
     if config[CONF_ENABLE_GNSS]:
+        cg.add_define("USE_MODEM_GNSS")
         cg.add(var.enable_gnss())
 
     if config[CONF_DEBUG]:
