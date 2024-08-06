@@ -5,6 +5,7 @@ Constants already defined in esphome.const are not duplicated here and must be i
 """
 
 from esphome import codegen as cg, config_validation as cv
+from esphome.const import CONF_ITEMS
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import uint32
@@ -115,7 +116,6 @@ CONF_SCROLLBAR = "scrollbar"
 CONF_INDICATOR = "indicator"
 CONF_KNOB = "knob"
 CONF_SELECTED = "selected"
-CONF_ITEMS = "items"
 CONF_TICKS = "ticks"
 CONF_CURSOR = "cursor"
 CONF_TEXTAREA_PLACEHOLDER = "textarea_placeholder"
@@ -460,7 +460,6 @@ CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TAB_ID = "tab_id"
 CONF_TABS = "tabs"
-CONF_TEXT = "text"
 CONF_TILE = "tile"
 CONF_TILE_ID = "tile_id"
 CONF_TILES = "tiles"

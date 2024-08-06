@@ -1,5 +1,5 @@
 import esphome.config_validation as cv
-from esphome.const import CONF_MAX_LENGTH
+from esphome.const import CONF_MAX_LENGTH, CONF_TEXT
 
 from ..defines import (
     CONF_ACCEPTED_CHARS,
@@ -10,7 +10,6 @@ from ..defines import (
     CONF_PLACEHOLDER_TEXT,
     CONF_SCROLLBAR,
     CONF_SELECTED,
-    CONF_TEXT,
     CONF_TEXTAREA_PLACEHOLDER,
 )
 from ..lv_validation import lv_bool, lv_int, lv_text
