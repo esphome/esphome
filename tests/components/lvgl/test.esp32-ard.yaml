@@ -44,7 +44,7 @@ binary_sensor:
       number: GPIO39
       inverted: true
 lvgl:
-  rotary_encoders:
+  encoders:
     group: switches
     enter_button: select_button
     sensor:
