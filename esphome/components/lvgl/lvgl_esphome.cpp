@@ -127,7 +127,7 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 }
 #endif  // USE_LVGL_TOUCHSCREEN
 
-#ifdef USE_LVGL_ROTARY_ENCODER
+#ifdef USE_LVGL_KEY_LISTENER
 LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt) {
   lv_indev_drv_init(&this->drv_);
   this->drv_.type = type;
@@ -143,7 +143,7 @@ LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_
     data->continue_reading = false;
   };
 }
-#endif  // USE_LVGL_ROTARY_ENCODER
+#endif  // USE_LVGL_KEY_LISTENER
 
 #ifdef USE_LVGL_BUTTONMATRIX
 void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
