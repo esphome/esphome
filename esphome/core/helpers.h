@@ -686,7 +686,7 @@ template<class T> class ExternalRAMAllocator {
   }
 
  private:
-  Flags flags_{Flags::NONE};
+  Flags flags_{Flags::ALLOW_FAILURE};
 };
 
 /// @}

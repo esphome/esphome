@@ -16,7 +16,7 @@ from .helpers import lvgl_components_required
 from .lvcode import lv, lv_add, lv_expr
 from .schemas import ENCODER_SCHEMA
 from .types import lv_indev_type_t
-from .widget import add_group
+from .widgets import add_group
 
 ROTARY_ENCODER_CONFIG = cv.ensure_list(
     ENCODER_SCHEMA.extend(

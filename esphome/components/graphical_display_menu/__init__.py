@@ -1,19 +1,22 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import display, font, color
-from esphome.const import CONF_DISPLAY, CONF_ID, CONF_TRIGGER_ID
 from esphome import automation, core
-
+import esphome.codegen as cg
+from esphome.components import color, display, font
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
     DisplayMenuComponent,
     display_menu_to_code,
 )
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BACKGROUND_COLOR,
+    CONF_DISPLAY,
+    CONF_FOREGROUND_COLOR,
+    CONF_ID,
+    CONF_TRIGGER_ID,
+)
 
 CONF_FONT = "font"
 CONF_MENU_ITEM_VALUE = "menu_item_value"
-CONF_FOREGROUND_COLOR = "foreground_color"
-CONF_BACKGROUND_COLOR = "background_color"
 CONF_ON_REDRAW = "on_redraw"
 
 graphical_display_menu_ns = cg.esphome_ns.namespace("graphical_display_menu")
