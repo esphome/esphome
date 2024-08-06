@@ -12,7 +12,7 @@ from .defines import (
     CONF_RIGHT_BUTTON,
     CONF_ROTARY_ENCODERS,
 )
-from .helpers import lvgl_components_required
+from .helpers import lvgl_components_required, requires_component
 from .lvcode import lv, lv_add, lv_expr
 from .schemas import ENCODER_SCHEMA
 from .types import lv_indev_type_t
@@ -23,7 +23,9 @@ ROTARY_ENCODER_CONFIG = cv.ensure_list(
         {
             cv.Required(CONF_ENTER_BUTTON): cv.use_id(BinarySensor),
             cv.Required(CONF_SENSOR): cv.Any(
-                cv.use_id(RotaryEncoderSensor),
+                cv.All(
+                    cv.use_id(RotaryEncoderSensor), requires_component("rotary_encoder")
+                ),
                 cv.Schema(
                     {
                         cv.Required(CONF_LEFT_BUTTON): cv.use_id(BinarySensor),
@@ -39,7 +41,6 @@ ROTARY_ENCODER_CONFIG = cv.ensure_list(
 async def rotary_encoders_to_code(var, config):
     for enc_conf in config.get(CONF_ROTARY_ENCODERS, ()):
         lvgl_components_required.add("KEY_LISTENER")
-        lvgl_components_required.add("ROTARY_ENCODER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(
