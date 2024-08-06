@@ -4,7 +4,6 @@ from esphome.components.text import new_text
 import esphome.config_validation as cv
 
 from ..defines import CONF_LVGL_ID, CONF_WIDGET
-from ..lv_validation import requires_component
 from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvText, lvgl_ns
@@ -12,14 +11,11 @@ from ..widgets import get_widgets
 
 LVGLText = lvgl_ns.class_("LVGLText", text.Text)
 
-CONFIG_SCHEMA = cv.All(
-    text.TEXT_SCHEMA.extend(LVGL_SCHEMA).extend(
-        {
-            cv.GenerateID(): cv.declare_id(LVGLText),
-            cv.Required(CONF_WIDGET): cv.use_id(LvText),
-        }
-    ),
-    requires_component("text"),
+CONFIG_SCHEMA = text.TEXT_SCHEMA.extend(LVGL_SCHEMA).extend(
+    {
+        cv.GenerateID(): cv.declare_id(LVGLText),
+        cv.Required(CONF_WIDGET): cv.use_id(LvText),
+    }
 )
 
 

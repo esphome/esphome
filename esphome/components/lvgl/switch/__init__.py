@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.cpp_generator import MockObj
 
 from ..defines import CONF_LVGL_ID, CONF_WIDGET
-from ..lv_validation import requires_component
 from ..lvcode import (
     CUSTOM_EVENT,
     EVENT_ARG,
@@ -19,14 +18,14 @@ from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
 from ..widgets import get_widgets
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch)
-BASE_SCHEMA = switch_schema(LVGLSwitch).extend(LVGL_SCHEMA)
-CONFIG_SCHEMA = cv.All(
-    BASE_SCHEMA.extend(
+CONFIG_SCHEMA = (
+    switch_schema(LVGLSwitch)
+    .extend(LVGL_SCHEMA)
+    .extend(
         {
             cv.Required(CONF_WIDGET): cv.use_id(lv_pseudo_button_t),
         }
-    ),
-    requires_component("switch"),
+    )
 )
 
 

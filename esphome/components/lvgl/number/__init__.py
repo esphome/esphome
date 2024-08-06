@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.cpp_generator import MockObj
 
 from ..defines import CONF_ANIMATED, CONF_LVGL_ID, CONF_WIDGET
-from ..lv_validation import animated, requires_component
+from ..lv_validation import animated
 from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvNumber, lvgl_ns
@@ -12,7 +12,7 @@ from ..widgets import get_widgets
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number)
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     number.number_schema(LVGLNumber)
     .extend(LVGL_SCHEMA)
     .extend(
@@ -20,8 +20,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_WIDGET): cv.use_id(LvNumber),
             cv.Optional(CONF_ANIMATED, default=True): animated,
         }
-    ),
-    requires_component("number"),
+    )
 )
 
 

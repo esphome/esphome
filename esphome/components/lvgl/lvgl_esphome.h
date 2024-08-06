@@ -1,13 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
 
-#ifdef USE_LVGL_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif  // USE_LVGL_BINARY_SENSOR
-#ifdef USE_LVGL_ROTARY_ENCODER
-#include "esphome/components/rotary_encoder/rotary_encoder.h"
-#endif  // USE_LVGL_ROTARY_ENCODER
-
 // required for clang-tidy
 #ifndef LV_CONF_H
 #define LV_CONF_SKIP 1  // NOLINT
@@ -19,6 +12,12 @@
 #include "esphome/core/log.h"
 #include <lvgl.h>
 #include <vector>
+
+#ifdef USE_LVGL_ROTARY_ENCODER
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/rotary_encoder/rotary_encoder.h"
+#endif  // USE_LVGL_ROTARY_ENCODER
+
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
 #endif  // USE_LVGL_IMAGE

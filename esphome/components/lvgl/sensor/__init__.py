@@ -3,20 +3,19 @@ from esphome.components.sensor import Sensor, new_sensor, sensor_schema
 import esphome.config_validation as cv
 
 from ..defines import CONF_LVGL_ID, CONF_WIDGET
-from ..lv_validation import requires_component
 from ..lvcode import EVENT_ARG, LVGL_COMP_ARG, LambdaContext, LvContext, lv_add
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvNumber
 from ..widgets import Widget, get_widgets
 
-BASE_SCHEMA = sensor_schema(Sensor).extend(LVGL_SCHEMA)
-CONFIG_SCHEMA = cv.All(
-    BASE_SCHEMA.extend(
+CONFIG_SCHEMA = (
+    sensor_schema(Sensor)
+    .extend(LVGL_SCHEMA)
+    .extend(
         {
             cv.Required(CONF_WIDGET): cv.use_id(LvNumber),
         }
-    ),
-    requires_component("sensor"),
+    )
 )
 
 

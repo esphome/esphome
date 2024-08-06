@@ -7,20 +7,19 @@ from esphome.components.binary_sensor import (
 import esphome.config_validation as cv
 
 from ..defines import CONF_LVGL_ID, CONF_WIDGET
-from ..lv_validation import requires_component
 from ..lvcode import EVENT_ARG, LambdaContext, LvContext
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, lv_pseudo_button_t
 from ..widgets import Widget, get_widgets
 
-BASE_SCHEMA = binary_sensor_schema(BinarySensor).extend(LVGL_SCHEMA)
-CONFIG_SCHEMA = cv.All(
-    BASE_SCHEMA.extend(
+CONFIG_SCHEMA = (
+    binary_sensor_schema(BinarySensor)
+    .extend(LVGL_SCHEMA)
+    .extend(
         {
             cv.Required(CONF_WIDGET): cv.use_id(lv_pseudo_button_t),
         }
-    ),
-    requires_component("binary_sensor"),
+    )
 )
 
 

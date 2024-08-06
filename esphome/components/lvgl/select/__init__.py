@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
 
 from ..defines import CONF_ANIMATED, CONF_LVGL_ID, CONF_WIDGET
-from ..lv_validation import requires_component
 from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvSelect, lvgl_ns
@@ -12,7 +11,7 @@ from ..widgets import get_widgets
 
 LVGLSelect = lvgl_ns.class_("LVGLSelect", select.Select)
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     select.select_schema(LVGLSelect)
     .extend(LVGL_SCHEMA)
     .extend(
@@ -20,8 +19,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_WIDGET): cv.use_id(LvSelect),
             cv.Optional(CONF_ANIMATED, default=False): cv.boolean,
         }
-    ),
-    requires_component("select"),
+    )
 )
 
 
