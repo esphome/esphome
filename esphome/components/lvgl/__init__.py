@@ -23,9 +23,9 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, update_to_code
 from .defines import CONF_SKIP
+from .encoders import ENCODERS_CONFIG, encoders_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
-from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
     DISP_BG_SCHEMA,
     FLEX_OBJ_SCHEMA,
@@ -256,7 +256,7 @@ async def to_code(config):
 
     async with LvContext(lv_component):
         await touchscreens_to_code(lv_component, config)
-        await rotary_encoders_to_code(lv_component, config)
+        await encoders_to_code(lv_component, config)
         await theme_to_code(config)
         await styles_to_code(config)
         await set_obj_properties(lv_scr_act, config)
@@ -336,7 +336,7 @@ CONFIG_SCHEMA = (
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
             cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
-            cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
+            cv.GenerateID(df.CONF_ENCODERS): ENCODERS_CONFIG,
         }
     )
     .extend(DISP_BG_SCHEMA)

@@ -1,4 +1,6 @@
-from ..defines import CONF_INDICATOR, CONF_MAIN, CONF_TEXT
+from esphome.const import CONF_TEXT
+
+from ..defines import CONF_INDICATOR, CONF_MAIN
 from ..lv_validation import lv_text
 from ..lvcode import lv
 from ..schemas import TEXT_SCHEMA
