@@ -11,7 +11,7 @@ static const char *const TAG = "gt911.touchscreen";
 static const uint8_t GET_TOUCH_STATE[2] = {0x81, 0x4E};
 static const uint8_t CLEAR_TOUCH_STATE[3] = {0x81, 0x4E, 0x00};
 static const uint8_t GET_TOUCHES[2] = {0x81, 0x4F};
-static const uint8_t get_entities<switch_::Switch>[2] = {0x80, 0x4D};
+static const uint8_t GET_SWITCHES[2] = {0x80, 0x4D};
 static const uint8_t GET_MAX_VALUES[2] = {0x80, 0x48};
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
@@ -29,7 +29,7 @@ void GT911Touchscreen::setup() {
 
   // check the configuration of the int line.
   uint8_t data[4];
-  err = this->write(get_entities<switch_::Switch>, 2);
+  err = this->write(GET_SWITCHES, 2);
   if (err == i2c::ERROR_OK) {
     err = this->read(data, 1);
     if (err == i2c::ERROR_OK) {
