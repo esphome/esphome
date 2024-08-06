@@ -10,12 +10,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BACKGROUND_COLOR,
     CONF_DISPLAY,
+    CONF_FONT,
     CONF_FOREGROUND_COLOR,
     CONF_ID,
     CONF_TRIGGER_ID,
 )
 
-CONF_FONT = "font"
 CONF_MENU_ITEM_VALUE = "menu_item_value"
 CONF_ON_REDRAW = "on_redraw"
 

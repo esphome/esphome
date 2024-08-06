@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TEXT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
@@ -25,7 +26,7 @@ WIDGET_TYPES: dict = {}
 # A schema for text properties
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Optional(df.CONF_TEXT): cv.Any(
+        cv.Optional(CONF_TEXT): cv.Any(
             cv.All(
                 cv.Schema(
                     {
@@ -330,7 +331,7 @@ DISP_BG_SCHEMA = cv.Schema(
 
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
-    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
+    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=CONF_TEXT
 )
 
 # For use by platform components
