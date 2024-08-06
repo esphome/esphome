@@ -6,85 +6,85 @@ namespace esphome {
 
 void Controller::setup_controller(bool include_internal) {
 #ifdef USE_BINARY_SENSOR
-  for (auto *obj : App.get_binary_sensors()) {
+  for (auto *obj : App.get_entities<binary_sensor::BinarySensor>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](bool state) { this->on_binary_sensor_update(obj, state); });
   }
 #endif
 #ifdef USE_FAN
-  for (auto *obj : App.get_fans()) {
+  for (auto *obj : App.get_entities<fan::Fan>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_fan_update(obj); });
   }
 #endif
 #ifdef USE_LIGHT
-  for (auto *obj : App.get_lights()) {
+  for (auto *obj : App.get_entities<light::LightState>()) {
     if (include_internal || !obj->is_internal())
       obj->add_new_remote_values_callback([this, obj]() { this->on_light_update(obj); });
   }
 #endif
 #ifdef USE_SENSOR
-  for (auto *obj : App.get_sensors()) {
+  for (auto *obj : App.get_entities<sensor::Sensor>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](float state) { this->on_sensor_update(obj, state); });
   }
 #endif
 #ifdef USE_SWITCH
-  for (auto *obj : App.get_switches()) {
+  for (auto *obj : App.get_entities<switch_::Switch>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](bool state) { this->on_switch_update(obj, state); });
   }
 #endif
 #ifdef USE_COVER
-  for (auto *obj : App.get_covers()) {
+  for (auto *obj : App.get_entities<cover::Cover>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_cover_update(obj); });
   }
 #endif
 #ifdef USE_TEXT_SENSOR
-  for (auto *obj : App.get_text_sensors()) {
+  for (auto *obj : App.get_entities<text_sensor::TextSensor>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](const std::string &state) { this->on_text_sensor_update(obj, state); });
   }
 #endif
 #ifdef USE_CLIMATE
-  for (auto *obj : App.get_climates()) {
+  for (auto *obj : App.get_entities<climate::Climate>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](climate::Climate & /*unused*/) { this->on_climate_update(obj); });
   }
 #endif
 #ifdef USE_NUMBER
-  for (auto *obj : App.get_numbers()) {
+  for (auto *obj : App.get_entities<number::Number>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](float state) { this->on_number_update(obj, state); });
   }
 #endif
 #ifdef USE_DATETIME_DATE
-  for (auto *obj : App.get_dates()) {
+  for (auto *obj : App.get_entities<datetime::DateEntity>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_date_update(obj); });
   }
 #endif
 #ifdef USE_DATETIME_TIME
-  for (auto *obj : App.get_times()) {
+  for (auto *obj : App.get_entities<datetime::TimeEntity>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_time_update(obj); });
   }
 #endif
 #ifdef USE_DATETIME_DATETIME
-  for (auto *obj : App.get_datetimes()) {
+  for (auto *obj : App.get_entities<datetime::DateTimeEntity>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_datetime_update(obj); });
   }
 #endif
 #ifdef USE_TEXT
-  for (auto *obj : App.get_texts()) {
+  for (auto *obj : App.get_entities<text::Text>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj](const std::string &state) { this->on_text_update(obj, state); });
   }
 #endif
 #ifdef USE_SELECT
-  for (auto *obj : App.get_selects()) {
+  for (auto *obj : App.get_entities<select::Select>()) {
     if (include_internal || !obj->is_internal()) {
       obj->add_on_state_callback(
           [this, obj](const std::string &state, size_t index) { this->on_select_update(obj, state, index); });
@@ -92,37 +92,37 @@ void Controller::setup_controller(bool include_internal) {
   }
 #endif
 #ifdef USE_LOCK
-  for (auto *obj : App.get_locks()) {
+  for (auto *obj : App.get_entities<lock::Lock>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_lock_update(obj); });
   }
 #endif
 #ifdef USE_VALVE
-  for (auto *obj : App.get_valves()) {
+  for (auto *obj : App.get_entities<valve::Valve>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_valve_update(obj); });
   }
 #endif
 #ifdef USE_MEDIA_PLAYER
-  for (auto *obj : App.get_media_players()) {
+  for (auto *obj : App.get_entities<media_player::MediaPlayer>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_media_player_update(obj); });
   }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  for (auto *obj : App.get_alarm_control_panels()) {
+  for (auto *obj : App.get_entities<alarm_control_panel::AlarmControlPanel>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_alarm_control_panel_update(obj); });
   }
 #endif
 #ifdef USE_EVENT
-  for (auto *obj : App.get_events()) {
+  for (auto *obj : App.get_entities<event::Event>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_event_callback([this, obj](const std::string &event_type) { this->on_event(obj, event_type); });
   }
 #endif
 #ifdef USE_UPDATE
-  for (auto *obj : App.get_updates()) {
+  for (auto *obj : App.get_entities<update::UpdateEntity>()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_update(obj); });
   }

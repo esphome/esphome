@@ -216,7 +216,7 @@ void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
   this->events_.send(this->sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (sensor::Sensor *obj : App.get_sensors()) {
+  for (sensor::Sensor *obj : App.get_entities<sensor::Sensor>()) {
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state, DETAIL_STATE);
@@ -254,7 +254,7 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
   this->events_.send(this->text_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
+  for (text_sensor::TextSensor *obj : App.get_entities<text_sensor::TextSensor>()) {
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state, DETAIL_STATE);
@@ -283,7 +283,7 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   this->events_.send(this->switch_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (switch_::Switch *obj : App.get_switches()) {
+  for (switch_::Switch *obj : App.get_entities<switch_::Switch>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -321,7 +321,7 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail 
 
 #ifdef USE_BUTTON
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (button::Button *obj : App.get_buttons()) {
+  for (button::Button *obj : App.get_entities<button::Button>()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (match.method == "press") {
@@ -354,7 +354,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
   this->events_.send(this->binary_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
+  for (binary_sensor::BinarySensor *obj : App.get_entities<binary_sensor::BinarySensor>()) {
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
@@ -383,7 +383,7 @@ void WebServer::on_fan_update(fan::Fan *obj) {
   this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (fan::Fan *obj : App.get_fans()) {
+  for (fan::Fan *obj : App.get_entities<fan::Fan>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -461,7 +461,7 @@ void WebServer::on_light_update(light::LightState *obj) {
   this->events_.send(this->light_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (light::LightState *obj : App.get_lights()) {
+  for (light::LightState *obj : App.get_entities<light::LightState>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -572,7 +572,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
   this->events_.send(this->cover_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (cover::Cover *obj : App.get_covers()) {
+  for (cover::Cover *obj : App.get_entities<cover::Cover>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -648,7 +648,7 @@ void WebServer::on_number_update(number::Number *obj, float state) {
   this->events_.send(this->number_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_numbers()) {
+  for (auto *obj : App.get_entities<number::Number>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -714,7 +714,7 @@ void WebServer::on_date_update(datetime::DateEntity *obj) {
   this->events_.send(this->date_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_dates()) {
+  for (auto *obj : App.get_entities<datetime::DateEntity>()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET) {
@@ -768,7 +768,7 @@ void WebServer::on_time_update(datetime::TimeEntity *obj) {
   this->events_.send(this->time_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_times()) {
+  for (auto *obj : App.get_entities<datetime::TimeEntity>()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET && match.method.empty()) {
@@ -821,7 +821,7 @@ void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
   this->events_.send(this->datetime_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_datetimes()) {
+  for (auto *obj : App.get_entities<datetime::DateTimeEntity>()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET && match.method.empty()) {
@@ -875,7 +875,7 @@ void WebServer::on_text_update(text::Text *obj, const std::string &state) {
   this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_texts()) {
+  for (auto *obj : App.get_entities<text::Text>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -931,7 +931,7 @@ void WebServer::on_select_update(select::Select *obj, const std::string &state, 
   this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_selects()) {
+  for (auto *obj : App.get_entities<select::Select>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -990,7 +990,7 @@ void WebServer::on_climate_update(climate::Climate *obj) {
   this->events_.send(this->climate_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_climates()) {
+  for (auto *obj : App.get_entities<climate::Climate>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -1134,7 +1134,7 @@ void WebServer::on_lock_update(lock::Lock *obj) {
   this->events_.send(this->lock_json(obj, obj->state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (lock::Lock *obj : App.get_locks()) {
+  for (lock::Lock *obj : App.get_entities<lock::Lock>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -1177,7 +1177,7 @@ void WebServer::on_valve_update(valve::Valve *obj) {
   this->events_.send(this->valve_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (valve::Valve *obj : App.get_valves()) {
+  for (valve::Valve *obj : App.get_entities<valve::Valve>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -1242,7 +1242,7 @@ void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
   this->events_.send(this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
+  for (alarm_control_panel::AlarmControlPanel *obj : App.get_entities<alarm_control_panel::AlarmControlPanel>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -1299,7 +1299,7 @@ void WebServer::on_update(update::UpdateEntity *obj) {
   this->events_.send(this->update_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (update::UpdateEntity *obj : App.get_updates()) {
+  for (update::UpdateEntity *obj : App.get_entities<update::UpdateEntity>()) {
     if (obj->get_object_id() != match.id)
       continue;
 

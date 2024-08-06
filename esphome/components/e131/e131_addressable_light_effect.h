@@ -20,7 +20,7 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
   void apply(light::AddressableLight &it, const Color &current_color) override;
 
   int get_data_per_universe() const;
-  int get_lights_per_universe() const;
+  int get_entities<light::LightState> _per_universe() const;
   int get_first_universe() const;
   int get_last_universe() const;
   int get_universe_count() const;

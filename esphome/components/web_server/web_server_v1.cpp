@@ -53,61 +53,61 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("<h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
 
 #ifdef USE_SENSOR
-  for (auto *obj : App.get_sensors()) {
+  for (auto *obj : App.get_entities<sensor::Sensor>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "sensor", "");
   }
 #endif
 
 #ifdef USE_SWITCH
-  for (auto *obj : App.get_switches()) {
+  for (auto *obj : App.get_entities<switch_::Switch>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "switch", "<button>Toggle</button>");
   }
 #endif
 
 #ifdef USE_BUTTON
-  for (auto *obj : App.get_buttons())
+  for (auto *obj : App.get_entities<button::Button>())
     write_row(stream, obj, "button", "<button>Press</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  for (auto *obj : App.get_binary_sensors()) {
+  for (auto *obj : App.get_entities<binary_sensor::BinarySensor>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "binary_sensor", "");
   }
 #endif
 
 #ifdef USE_FAN
-  for (auto *obj : App.get_fans()) {
+  for (auto *obj : App.get_entities<fan::Fan>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "fan", "<button>Toggle</button>");
   }
 #endif
 
 #ifdef USE_LIGHT
-  for (auto *obj : App.get_lights()) {
+  for (auto *obj : App.get_entities<light::LightState>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "light", "<button>Toggle</button>");
   }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  for (auto *obj : App.get_text_sensors()) {
+  for (auto *obj : App.get_entities<text_sensor::TextSensor>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "text_sensor", "");
   }
 #endif
 
 #ifdef USE_COVER
-  for (auto *obj : App.get_covers()) {
+  for (auto *obj : App.get_entities<cover::Cover>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
   }
 #endif
 
 #ifdef USE_NUMBER
-  for (auto *obj : App.get_numbers()) {
+  for (auto *obj : App.get_entities<number::Number>()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "number", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         number::Number *number = (number::Number *) obj;
@@ -126,7 +126,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_TEXT
-  for (auto *obj : App.get_texts()) {
+  for (auto *obj : App.get_entities<text::Text>()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "text", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         text::Text *text = (text::Text *) obj;
@@ -152,7 +152,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_SELECT
-  for (auto *obj : App.get_selects()) {
+  for (auto *obj : App.get_entities<select::Select>()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         select::Select *select = (select::Select *) obj;
@@ -170,7 +170,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_LOCK
-  for (auto *obj : App.get_locks()) {
+  for (auto *obj : App.get_entities<lock::Lock>()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         lock::Lock *lock = (lock::Lock *) obj;
@@ -184,7 +184,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_CLIMATE
-  for (auto *obj : App.get_climates()) {
+  for (auto *obj : App.get_entities<climate::Climate>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "climate", "");
   }
