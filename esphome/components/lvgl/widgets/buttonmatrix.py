@@ -151,7 +151,7 @@ async def get_button_data(config, buttonmatrix: Widget):
     width_list = []
     key_list = []
     for row in config:
-        for button_conf in row.get(CONF_BUTTONS) or ():
+        for button_conf in row.get(CONF_BUTTONS, ()):
             bid = button_conf[CONF_ID]
             index = len(width_list)
             MatrixButton.create_button(bid, buttonmatrix, button_conf, index)

@@ -68,7 +68,7 @@ class TileviewType(WidgetType):
         )
 
     async def to_code(self, w: Widget, config: dict):
-        for tile_conf in config.get(CONF_TILES) or ():
+        for tile_conf in config.get(CONF_TILES, ()):
             w_id = tile_conf[CONF_ID]
             tile_obj = lv_Pvariable(lv_obj_t, w_id)
             tile = Widget.create(w_id, tile_obj, tile_spec, tile_conf)

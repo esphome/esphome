@@ -171,7 +171,7 @@ class MeterType(WidgetType):
         """For a meter object, create and set parameters"""
 
         var = w.obj
-        for scale_conf in config.get(CONF_SCALES) or ():
+        for scale_conf in config.get(CONF_SCALES, ()):
             rotation = 90 + (360 - scale_conf[CONF_ANGLE_RANGE]) / 2
             if CONF_ROTATION in scale_conf:
                 rotation = scale_conf[CONF_ROTATION] // 10
@@ -208,7 +208,7 @@ class MeterType(WidgetType):
                             color,
                             major[CONF_LABEL_GAP],
                         )
-                for indicator in scale_conf.get(CONF_INDICATORS) or ():
+                for indicator in scale_conf.get(CONF_INDICATORS, ()):
                     (t, v) = next(iter(indicator.items()))
                     iid = v[CONF_ID]
                     ivar = cg.new_variable(

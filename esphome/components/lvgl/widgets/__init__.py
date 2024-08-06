@@ -368,7 +368,7 @@ async def add_widgets(parent: Widget, config: dict):
     :param config: The configuration
     :return:
     """
-    for w in config.get(CONF_WIDGETS) or ():
+    for w in config.get(CONF_WIDGETS, ()):
         w_type, w_cnfig = next(iter(w.items()))
         await widget_to_code(w_cnfig, w_type, parent.obj)
 
