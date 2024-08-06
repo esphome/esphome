@@ -52,7 +52,7 @@ void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
   // Encrypted field
   out_data = data.encrypted;
 
-  ESP_LOGV(TAG, "Send Keeloq: Encrypted data %04x", out_data);
+  ESP_LOGV(TAG, "Send Keeloq: Encrypted data %04" PRIx32, out_data);
 
   for (uint32_t mask = 1, cnt = 0; cnt < NBITS_ENCRYPTED_DATA; cnt++, mask <<= 1) {
     if (out_data & mask) {
@@ -68,7 +68,7 @@ void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
   out_data = (data.command & 0x0f);
   out_data <<= NBITS_SERIAL;
   out_data |= data.address;
-  ESP_LOGV(TAG, "Send Keeloq: Fixed data %04x", out_data);
+  ESP_LOGV(TAG, "Send Keeloq: Fixed data %04" PRIx32, out_data);
 
   for (uint32_t mask = 1, cnt = 0; cnt < (NBITS_FIXED_DATA - 2); cnt++, mask <<= 1) {
     if (out_data & mask) {
@@ -111,21 +111,24 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
-  ESP_LOGVV(TAG, "%2d: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.size(), src.peek(0),
-            src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7), src.peek(8),
-            src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14), src.peek(15),
-            src.peek(16), src.peek(17), src.peek(18), src.peek(19));
+  ESP_LOGVV(TAG,
+            "%2" PRId32 ": %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+            " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+            " %" PRId32 " %" PRId32 " %" PRId32,
+            src.size(), src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6),
+            src.peek(7), src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
+            src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
 
   // Check preamble bits
   int8_t bit = NBITS_PREAMBLE - 1;
   while (--bit >= 0) {
     if (!src.expect_mark(BIT_TIME_US) || !src.expect_space(BIT_TIME_US)) {
-      ESP_LOGV(TAG, "Decode KeeLoq: Fail 1, %d %d", bit + 1, src.peek());
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 1, %d %" PRId32, bit + 1, src.peek());
       return {};
     }
   }
   if (!src.expect_mark(BIT_TIME_US) || !src.expect_space(10 * BIT_TIME_US)) {
-    ESP_LOGV(TAG, "Decode KeeLoq: Fail 1, %d %d", bit + 1, src.peek());
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 1, %d %" PRId32, bit + 1, src.peek());
     return {};
   }
 
@@ -137,11 +140,11 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode KeeLoq: Fail 2, %d %d", src.get_index(), src.peek());
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 2, %" PRIu32 " %" PRId32, src.get_index(), src.peek());
       return {};
     }
   }
-  ESP_LOGVV(TAG, "Decode KeeLoq: Data, %d %08x", bit, out_data);
+  ESP_LOGVV(TAG, "Decode KeeLoq: Data, %d %08" PRIx32, bit, out_data);
   out.encrypted = out_data;
 
   // Read Serial Number and Button Status
@@ -152,11 +155,11 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode KeeLoq: Fail 3, %d %d", src.get_index(), src.peek());
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 3, %" PRIu32 " %" PRId32, src.get_index(), src.peek());
       return {};
     }
   }
-  ESP_LOGVV(TAG, "Decode KeeLoq: Data, %2d %08x", bit, out_data);
+  ESP_LOGVV(TAG, "Decode KeeLoq: Data, %2d %08" PRIx32, bit, out_data);
   out.command = (out_data >> 28) & 0xf;
   out.address = out_data & 0xfffffff;
 
@@ -166,7 +169,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
   } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
     out.vlow = true;
   } else {
-    ESP_LOGV(TAG, "Decode KeeLoq: Fail 4, %08x", src.peek());
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 4, %" PRId32, src.peek());
     return {};
   }
 
@@ -176,7 +179,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
   } else if (src.expect_mark(BIT_TIME_US) && src.peek_space_at_least(2 * BIT_TIME_US)) {
     out.repeat = true;
   } else {
-    ESP_LOGV(TAG, "Decode KeeLoq: Fail 5, %08x", src.peek());
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 5, %" PRId32, src.peek());
     return {};
   }
 

@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ID,
     CONF_DEVICE_CLASS,
@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_TILT_STATE_TOPIC,
     CONF_STOP,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     CONF_TRIGGER_ID,
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
@@ -88,34 +89,38 @@ CoverClosedTrigger = cover_ns.class_(
 
 CONF_ON_CLOSED = "on_closed"
 
-COVER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(Cover),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
-        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
-        cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_TILT_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
-            }
-        ),
-    }
+COVER_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(Cover),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
+            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_TILT_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
+                }
+            ),
+        }
+    )
 )
 
 
@@ -131,6 +136,10 @@ async def setup_cover_core_(var, config):
     for conf in config.get(CONF_ON_CLOSED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

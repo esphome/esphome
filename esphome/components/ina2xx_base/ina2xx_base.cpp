@@ -483,7 +483,7 @@ bool INA2XX::read_power_w_(float &power_out) {
   uint64_t power_reading{0};
   auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_POWER, 3, power_reading);
 
-  ESP_LOGV(TAG, "read_power_w_ ret=%s, reading_lsb=%d", OKFAILED(ret), (uint32_t) power_reading);
+  ESP_LOGV(TAG, "read_power_w_ ret=%s, reading_lsb=%" PRIu32, OKFAILED(ret), (uint32_t) power_reading);
   if (ret) {
     power_out = this->cfg_.power_coeff * this->current_lsb_ * (float) power_reading;
   }
@@ -503,8 +503,8 @@ bool INA2XX::read_energy_(double &joules_out, double &watt_hours_out) {
   uint64_t previous_energy = this->energy_overflows_count_ * (((uint64_t) 1) << 40);
   auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_ENERGY, 5, joules_reading);
 
-  ESP_LOGV(TAG, "read_energy_j_ ret=%s, reading_lsb=0x%" PRIX64 ", current_lsb=%f, overflow_cnt=%d", OKFAILED(ret),
-           joules_reading, this->current_lsb_, this->energy_overflows_count_);
+  ESP_LOGV(TAG, "read_energy_j_ ret=%s, reading_lsb=0x%" PRIX64 ", current_lsb=%f, overflow_cnt=%" PRIu32,
+           OKFAILED(ret), joules_reading, this->current_lsb_, this->energy_overflows_count_);
   if (ret) {
     joules_out = this->cfg_.energy_coeff * this->current_lsb_ * (double) joules_reading + (double) previous_energy;
     watt_hours_out = joules_out / 3600.0;
@@ -528,7 +528,7 @@ bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
   auto ret = this->read_unsigned_((uint8_t) RegisterMap::REG_CHARGE, 5, raw);
   coulombs_reading = this->two_complement_(raw, 40);
 
-  ESP_LOGV(TAG, "read_charge_c_ ret=%d, curr_charge=%f + 39-bit overflow_cnt=%d", ret, coulombs_reading,
+  ESP_LOGV(TAG, "read_charge_c_ ret=%d, curr_charge=%f + 39-bit overflow_cnt=%" PRIu32, ret, coulombs_reading,
            this->charge_overflows_count_);
   if (ret) {
     coulombs_out = this->current_lsb_ * (double) coulombs_reading + (double) previous_charge;

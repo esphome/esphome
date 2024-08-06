@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ID,
@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_STOP,
     CONF_TRIGGER_ID,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
@@ -70,28 +71,32 @@ ValveClosedTrigger = valve_ns.class_(
 
 CONF_ON_CLOSED = "on_closed"
 
-VALVE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(Valve),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
-        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
-        cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.subscribe_topic
-        ),
-        cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveOpenTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveClosedTrigger),
-            }
-        ),
-    }
+VALVE_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(Valve),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
+            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveOpenTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveClosedTrigger),
+                }
+            ),
+        }
+    )
 )
 
 
@@ -118,6 +123,10 @@ async def setup_valve_core_(var, config):
             cg.add(
                 mqtt_.set_custom_position_command_topic(position_command_topic_config)
             )
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_valve(var, config):

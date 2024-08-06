@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.cpp_helpers import setup_entity
 from esphome import automation
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_ACTION_STATE_TOPIC,
     CONF_AWAY,
@@ -44,6 +44,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VISUAL,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -150,93 +151,97 @@ VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Any(
     ),
 )
 
-CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(Climate),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
-        cv.Optional(CONF_VISUAL, default={}): cv.Schema(
-            {
-                cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_TEMPERATURE_STEP): VISUAL_TEMPERATURE_STEP_SCHEMA,
-                cv.Optional(CONF_MIN_HUMIDITY): cv.percentage_int,
-                cv.Optional(CONF_MAX_HUMIDITY): cv.percentage_int,
-            }
-        ),
-        cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_AWAY_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_AWAY_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_CURRENT_TEMPERATURE_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_CURRENT_HUMIDITY_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_FAN_MODE_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_FAN_MODE_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_MODE_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_MODE_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_PRESET_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_PRESET_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_SWING_MODE_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_SWING_MODE_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_TEMPERATURE_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_TEMPERATURE_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_HUMIDITY_COMMAND_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
-            cv.requires_component("mqtt"), cv.publish_topic
-        ),
-        cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_STATE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-            }
-        ),
-    }
+CLIMATE_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(Climate),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
+            cv.Optional(CONF_VISUAL, default={}): cv.Schema(
+                {
+                    cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
+                    cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
+                    cv.Optional(CONF_TEMPERATURE_STEP): VISUAL_TEMPERATURE_STEP_SCHEMA,
+                    cv.Optional(CONF_MIN_HUMIDITY): cv.percentage_int,
+                    cv.Optional(CONF_MAX_HUMIDITY): cv.percentage_int,
+                }
+            ),
+            cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_AWAY_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_AWAY_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_CURRENT_TEMPERATURE_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_CURRENT_HUMIDITY_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_FAN_MODE_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_FAN_MODE_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_MODE_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_MODE_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_PRESET_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_PRESET_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_SWING_MODE_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_SWING_MODE_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_HUMIDITY_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 
@@ -402,6 +407,10 @@ async def setup_climate_core_(var, config):
         await automation.build_automation(
             trigger, [(ClimateCall.operator("ref"), "x")], conf
         )
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_climate(var, config):

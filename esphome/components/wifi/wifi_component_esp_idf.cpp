@@ -15,7 +15,11 @@
 #include <cinttypes>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#include <esp_eap_client.h>
+#else
 #include <esp_wpa2.h>
+#endif
 #endif
 
 #ifdef USE_WIFI_AP
@@ -364,48 +368,78 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_eap().has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
     EAPAuth eap = ap.get_eap().value();
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+    err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+#else
     err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+#endif
     if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", err);
+      ESP_LOGV(TAG, "set_identity failed %d", err);
     }
     int ca_cert_len = strlen(eap.ca_cert);
     int client_cert_len = strlen(eap.client_cert);
     int client_key_len = strlen(eap.client_key);
     if (ca_cert_len) {
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+#else
       err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
+        ESP_LOGV(TAG, "set_ca_cert failed %d", err);
       }
     }
     // workout what type of EAP this is
     // validation is not required as the config tool has already validated it
     if (client_cert_len && client_key_len) {
       // if we have certs, this must be EAP-TLS
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_certificate_and_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                                   (uint8_t *) eap.client_key, client_key_len + 1,
+                                                   (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+#else
       err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                (uint8_t *) eap.client_key, client_key_len + 1,
                                                (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
+        ESP_LOGV(TAG, "set_cert_key failed %d", err);
       }
     } else {
       // in the absence of certs, assume this is username/password based
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+#else
       err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", err);
+        ESP_LOGV(TAG, "set_username failed %d", err);
       }
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+#else
       err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
+        ESP_LOGV(TAG, "set_password failed %d", err);
       }
       // set TTLS Phase 2, defaults to MSCHAPV2
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+      err = esp_eap_client_set_ttls_phase2_method(eap.ttls_phase_2);
+#else
       err = esp_wifi_sta_wpa2_ent_set_ttls_phase2_method(eap.ttls_phase_2);
+#endif
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ttls_phase2_method failed! %d", err);
+        ESP_LOGV(TAG, "set_ttls_phase2_method failed %d", err);
       }
     }
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+    err = esp_wifi_sta_enterprise_enable();
+#else
     err = esp_wifi_sta_wpa2_ent_enable();
+#endif
     if (err != ESP_OK) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
+      ESP_LOGV(TAG, "enterprise_enable failed %d", err);
     }
   }
 #endif  // USE_WIFI_WPA2_EAP
@@ -757,7 +791,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   if (s_sta_connected && this->got_ipv4_address_) {
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
       return WiFiSTAConnectStatus::CONNECTED;
     }
@@ -823,15 +857,15 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.netmask = network::IPAddress(255, 255, 255, 0);
   }
 
-  err = esp_netif_dhcpc_stop(s_ap_netif);
+  err = esp_netif_dhcps_stop(s_ap_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGV(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_netif_dhcps_stop failed: %s", esp_err_to_name(err));
     return false;
   }
 
   err = esp_netif_set_ip_info(s_ap_netif, &info);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_set_ip_info failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_set_ip_info failed! %d", err);
     return false;
   }
 
@@ -841,20 +875,20 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   start_address += 99;
   lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
-  start_address += 100;
+  start_address += 10;
   lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_dhcps_option failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_option failed! %d", err);
     return false;
   }
 
   err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_dhcps_start failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_start failed! %d", err);
     return false;
   }
 
@@ -887,12 +921,12 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_wifi_set_config failed! %d", err);
+    ESP_LOGE(TAG, "esp_wifi_set_config failed! %d", err);
     return false;
   }
 
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
-    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed!");
+    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed!");
     return false;
   }
 

@@ -24,6 +24,9 @@
 #include <esp_vad.h>
 #endif
 
+#include <unordered_map>
+#include <vector>
+
 namespace esphome {
 namespace voice_assistant {
 
@@ -36,6 +39,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_VOICE_ASSISTANT = 1 << 0,
   FEATURE_SPEAKER = 1 << 1,
   FEATURE_API_AUDIO = 1 << 2,
+  FEATURE_TIMERS = 1 << 3,
 };
 
 enum class State {
@@ -57,6 +61,20 @@ enum class State {
 enum AudioMode : uint8_t {
   AUDIO_MODE_UDP,
   AUDIO_MODE_API,
+};
+
+struct Timer {
+  std::string id;
+  std::string name;
+  uint32_t total_seconds;
+  uint32_t seconds_left;
+  bool is_active;
+
+  std::string to_string() const {
+    return str_sprintf("Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
+                       this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left,
+                       YESNO(this->is_active));
+  }
 };
 
 class VoiceAssistant : public Component {
@@ -100,6 +118,11 @@ class VoiceAssistant : public Component {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
     }
 #endif
+
+    if (this->has_timers_) {
+      flags |= VoiceAssistantFeature::FEATURE_TIMERS;
+    }
+
     return flags;
   }
 
@@ -108,6 +131,7 @@ class VoiceAssistant : public Component {
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
   void on_audio(const api::VoiceAssistantAudio &msg);
+  void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -150,6 +174,14 @@ class VoiceAssistant : public Component {
 
   void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
 
+  Trigger<Timer> *get_timer_started_trigger() const { return this->timer_started_trigger_; }
+  Trigger<Timer> *get_timer_updated_trigger() const { return this->timer_updated_trigger_; }
+  Trigger<Timer> *get_timer_cancelled_trigger() const { return this->timer_cancelled_trigger_; }
+  Trigger<Timer> *get_timer_finished_trigger() const { return this->timer_finished_trigger_; }
+  Trigger<std::vector<Timer>> *get_timer_tick_trigger() const { return this->timer_tick_trigger_; }
+  void set_has_timers(bool has_timers) { this->has_timers_ = has_timers; }
+  const std::unordered_map<std::string, Timer> &get_timers() const { return this->timers_; }
+
  protected:
   bool allocate_buffers_();
   void clear_buffers_();
@@ -185,6 +217,16 @@ class VoiceAssistant : public Component {
   Trigger<> *client_disconnected_trigger_ = new Trigger<>();
 
   api::APIConnection *api_client_{nullptr};
+
+  std::unordered_map<std::string, Timer> timers_;
+  void timer_tick_();
+  Trigger<Timer> *timer_started_trigger_ = new Trigger<Timer>();
+  Trigger<Timer> *timer_finished_trigger_ = new Trigger<Timer>();
+  Trigger<Timer> *timer_updated_trigger_ = new Trigger<Timer>();
+  Trigger<Timer> *timer_cancelled_trigger_ = new Trigger<Timer>();
+  Trigger<std::vector<Timer>> *timer_tick_trigger_ = new Trigger<std::vector<Timer>>();
+  bool has_timers_{false};
+  bool timer_tick_running_{false};
 
   microphone::Microphone *mic_{nullptr};
 #ifdef USE_SPEAKER

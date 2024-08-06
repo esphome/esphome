@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
-from esphome.components import mqtt
+from esphome.components import mqtt, web_server
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
+    CONF_WEB_SERVER_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_RESTORE_MODE,
@@ -64,22 +65,26 @@ SwitchTurnOffTrigger = switch_ns.class_(
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
-_SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
-        cv.Optional(CONF_INVERTED): cv.boolean,
-        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOnTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
-            }
-        ),
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-    }
+_SWITCH_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
+            cv.Optional(CONF_INVERTED): cv.boolean,
+            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOnTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
+                }
+            ),
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+        }
+    )
 )
 
 _UNDEF = object()
@@ -150,6 +155,10 @@ async def setup_switch_core_(var, config):
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))

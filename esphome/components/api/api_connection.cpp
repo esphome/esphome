@@ -1193,6 +1193,15 @@ void APIConnection::on_voice_assistant_audio(const VoiceAssistantAudio &msg) {
     voice_assistant::global_voice_assistant->on_audio(msg);
   }
 };
+void APIConnection::on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_timer_event(msg);
+  }
+};
 
 #endif
 
@@ -1275,6 +1284,61 @@ bool APIConnection::send_event_info(event::Event *event) {
   for (const auto &event_type : event->get_event_types())
     msg.event_types.push_back(event_type);
   return this->send_list_entities_event_response(msg);
+}
+#endif
+
+#ifdef USE_UPDATE
+bool APIConnection::send_update_state(update::UpdateEntity *update) {
+  if (!this->state_subscription_)
+    return false;
+
+  UpdateStateResponse resp{};
+  resp.key = update->get_object_id_hash();
+  resp.missing_state = !update->has_state();
+  if (update->has_state()) {
+    resp.in_progress = update->state == update::UpdateState::UPDATE_STATE_INSTALLING;
+    if (update->update_info.has_progress) {
+      resp.has_progress = true;
+      resp.progress = update->update_info.progress;
+    }
+    resp.current_version = update->update_info.current_version;
+    resp.latest_version = update->update_info.latest_version;
+    resp.title = update->update_info.title;
+    resp.release_summary = update->update_info.summary;
+    resp.release_url = update->update_info.release_url;
+  }
+
+  return this->send_update_state_response(resp);
+}
+bool APIConnection::send_update_info(update::UpdateEntity *update) {
+  ListEntitiesUpdateResponse msg;
+  msg.key = update->get_object_id_hash();
+  msg.object_id = update->get_object_id();
+  if (update->has_own_name())
+    msg.name = update->get_name();
+  msg.unique_id = get_default_unique_id("update", update);
+  msg.icon = update->get_icon();
+  msg.disabled_by_default = update->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(update->get_entity_category());
+  msg.device_class = update->get_device_class();
+  return this->send_list_entities_update_response(msg);
+}
+void APIConnection::update_command(const UpdateCommandRequest &msg) {
+  update::UpdateEntity *update = App.get_update_by_key(msg.key);
+  if (update == nullptr)
+    return;
+
+  switch (msg.command) {
+    case enums::UPDATE_COMMAND_UPDATE:
+      update->perform();
+      break;
+    case enums::UPDATE_COMMAND_CHECK:
+      update->check();
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown update command: %d", msg.command);
+      break;
+  }
 }
 #endif
 

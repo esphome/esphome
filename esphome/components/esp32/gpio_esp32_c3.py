@@ -1,11 +1,7 @@
 import logging
 
-from esphome.const import (
-    CONF_INPUT,
-    CONF_MODE,
-    CONF_NUMBER,
-)
 import esphome.config_validation as cv
+from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
 _ESP32C3_SPI_PSRAM_PINS = {
