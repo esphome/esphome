@@ -567,6 +567,20 @@ template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveO
   }
 }
 #endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::UpdateCommand>(enums::UpdateCommand value) {
+  switch (value) {
+    case enums::UPDATE_COMMAND_NONE:
+      return "UPDATE_COMMAND_NONE";
+    case enums::UPDATE_COMMAND_UPDATE:
+      return "UPDATE_COMMAND_UPDATE";
+    case enums::UPDATE_COMMAND_CHECK:
+      return "UPDATE_COMMAND_CHECK";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -8596,7 +8610,7 @@ void UpdateStateResponse::dump_to(std::string &out) const {
 bool UpdateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
-      this->install = value.as_bool();
+      this->command = value.as_enum<enums::UpdateCommand>();
       return true;
     }
     default:
@@ -8615,7 +8629,7 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void UpdateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_bool(2, this->install);
+  buffer.encode_enum<enums::UpdateCommand>(2, this->command);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void UpdateCommandRequest::dump_to(std::string &out) const {
@@ -8626,8 +8640,8 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  install: ");
-  out.append(YESNO(this->install));
+  out.append("  command: ");
+  out.append(proto_enum_to_string<enums::UpdateCommand>(this->command));
   out.append("\n");
   out.append("}");
 }
