@@ -1,5 +1,5 @@
-#include <cinttypes>
 #include "led_strip.h"
+#include <cinttypes>
 
 #ifdef USE_ESP32
 
@@ -84,7 +84,7 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   // protect from refreshing too often
   uint32_t now = micros();
-  if (*this->max_refresh_rate_ != 0 && (now - this->last_refresh_) < *this->max_refresh_rate_) {
+  if (this->max_refresh_rate_.has_value() && (now - this->last_refresh_) < this->max_refresh_rate_.value()) {
     // try again next loop iteration, so that this change won't get lost
     this->schedule_show();
     return;
