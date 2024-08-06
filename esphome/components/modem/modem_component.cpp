@@ -70,7 +70,8 @@ bool ModemComponent::get_imei(std::string &result) {
   bool success = false;
   if (this->dce) {
     command_result status;
-    status = this->dce->get_imei(result);
+    // status = this->dce->get_imei(result);
+    status = this->dce->at("AT+CGSN", result, 3000);
     success = true;
     if (status == command_result::OK && result.length() == 15) {
       for (char c : result) {
@@ -119,6 +120,7 @@ bool ModemComponent::modem_ready(bool force_check) {
 #endif
     }
     std::string imei;
+    watchdog::WatchdogManager wdt(10000);
     if (this->get_imei(imei)) {
       // we are sure that the modem is on
       this->internal_state_.powered_on = true;
@@ -244,8 +246,7 @@ void ModemComponent::loop() {
 
 #ifdef USE_MODEM_POWER
   if (this->internal_state_.power_transition) {
-    if (!this->watchdog_)
-      this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+    watchdog::WatchdogManager wdt(30000);
 
     // A power state is used to handle long tonuart/toffuart delay
     switch (this->internal_state_.power_state) {
@@ -266,8 +267,6 @@ void ModemComponent::loop() {
         } else {
           ESP_LOGI(TAG, "Modem powered ON");
           this->internal_state_.powered_on = true;
-          // this->internal_state_.modem_synced = false;
-          this->watchdog_.reset();
         }
         break;
       case ModemPowerState::TOFF:
@@ -288,10 +287,10 @@ void ModemComponent::loop() {
           ESP_LOGI(TAG, "Modem powered OFF");
           this->internal_state_.powered_on = false;
           this->internal_state_.modem_synced = false;
-          this->watchdog_.reset();
         }
         break;
     }
+    App.feed_wdt();
     yield();
     return;
   }
@@ -336,8 +335,6 @@ void ModemComponent::loop() {
           // want to connect
           if (!connecting) {
             // wait for the modem be attached to a network, start ppp, and set connecting=true
-            if (!this->watchdog_)
-              this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
             if (is_network_attached_()) {
               network_attach_retry = 10;
               if (this->start_ppp_()) {
@@ -353,6 +350,7 @@ void ModemComponent::loop() {
                 if (this->power_pin_) {
                   this->poweroff_();
                 } else {
+                  network_attach_retry = 10;
                   this->component_state_ = ModemComponentState::NOT_RESPONDING;
                 }
               }
@@ -377,7 +375,6 @@ void ModemComponent::loop() {
 
               this->dump_connect_params_();
               this->status_clear_warning();
-              this->watchdog_.reset();
             }
           }
         } else {
@@ -385,7 +382,6 @@ void ModemComponent::loop() {
         }
       } else {
         this->component_state_ = ModemComponentState::DISABLED;
-        this->watchdog_.reset();
       }
       break;
 
@@ -402,7 +398,6 @@ void ModemComponent::loop() {
           if (!disconnecting) {
             disconnecting = true;
             ip_lost_retries = 10;
-            this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
             ESP_LOGD(TAG, "Disconnecting...");
             this->stop_ppp_();
             delay(200);  // NOLINT
@@ -510,14 +505,13 @@ void ModemComponent::modem_lazy_init_() {
 bool ModemComponent::modem_sync_() {
   // force command mode, check sim, and send init_at commands
   // close cmux/data if needed, and may reboot the modem.
-  if (!this->watchdog_)
-    this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
 
   uint32_t start_ms = millis();
   uint32_t elapsed_ms;
 
   ESP_LOGV(TAG, "Checking if the modem is synced...");
   bool status = this->modem_ready(true);
+  watchdog::WatchdogManager wdt(30000);
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
     ESP_LOGD(TAG, "Connecting to the the modem...");
@@ -555,10 +549,23 @@ bool ModemComponent::modem_sync_() {
   }
 
   if (status && !this->internal_state_.modem_synced) {
+    App.feed_wdt();
     // First time the modem is synced, or modem recovered
     this->internal_state_.modem_synced = true;
 
+    // Fail on 7600, because esp_modem use internally AT+CGNSPWR? that is unsupported (should be AT+CGPS?)
+    // int gnss_power;
+    // ESPMODEM_ERROR_CHECK(this->dce->get_gnss_power_mode(gnss_power), "Getting GNSS power state");
+    // ESP_LOGD(TAG, "GNSS power mode: %d", gnss_power);
+
+    // enabling GNSS seems to return an error, if already enabled
+    // Fail on 7670, because esp_modem use internally AT+CGPS=1 that is unsupported (should be AT+CGNSSPWR=1 not
+    // (AT+CGNSPWR?))
+    // So SIM7670 should add AT+CGNSSPWR=1 to init_at
     ESPMODEM_ERROR_CHECK(this->dce->set_gnss_power_mode(this->gnss_), "Enabling/disabling GNSS");
+    // ESPMODEM_ERROR_CHECK(this->dce->set_gnss_power_mode(0), "Enabling/disabling GNSS");
+
+    // delay(200);  // NOLINT
 
     if (!this->prepare_sim_()) {
       // fatal error
@@ -566,6 +573,8 @@ bool ModemComponent::modem_sync_() {
       status = false;
     }
     this->send_init_at_();
+
+    // ESPMODEM_ERROR_CHECK(this->dce->set_gnss_power_mode(this->gnss_), "Enabling/disabling GNSS");
 
     ESP_LOGI(TAG, "Modem infos:");
     std::string result;
@@ -611,15 +620,16 @@ bool ModemComponent::prepare_sim_() {
 
 void ModemComponent::send_init_at_() {
   // send initial AT commands from yaml
+  // watchdog::WatchdogManager wdt(20000);
   for (const auto &cmd : this->init_at_commands_) {
+    App.feed_wdt();
     std::string result = this->send_at(cmd);
     if (result == "ERROR") {
       ESP_LOGE(TAG, "Error while executing 'init_at' '%s' command", cmd.c_str());
     } else {
       ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
     }
-    delay(this->command_delay_);
-    App.feed_wdt();
+    delay(200);  // NOLINT
   }
 }
 
@@ -638,7 +648,7 @@ bool ModemComponent::is_network_attached_() {
 bool ModemComponent::start_ppp_() {
   this->internal_state_.connect_begin = millis();
   this->status_set_warning("Starting connection");
-  this->watchdog_ = std::make_shared<watchdog::WatchdogManager>(60000);
+  watchdog::WatchdogManager wdt(10000);
 
   // will be set to true on event IP_EVENT_PPP_GOT_IP
   this->internal_state_.got_ipv4_address = false;
@@ -664,6 +674,7 @@ bool ModemComponent::start_ppp_() {
 
 bool ModemComponent::stop_ppp_() {
   bool status = false;
+  watchdog::WatchdogManager wdt(10000);
   if (this->cmux_) {
     status = this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND);
   } else {
