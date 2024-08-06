@@ -1,6 +1,53 @@
 lvgl:
   log_level: TRACE
   bg_color: light_blue
+  theme:
+    obj:
+      border_width: 1
+
+  style_definitions:
+    - id: style_test
+      bg_color: 0x2F8CD8
+    - id: header_footer
+      bg_color: 0x20214F
+      bg_grad_color: 0x005782
+      bg_grad_dir: VER
+      bg_opa: cover
+      border_width: 0
+      radius: 0
+      pad_all: 0
+      pad_row: 0
+      pad_column: 0
+      border_color: 0x0077b3
+      text_color: 0xFFFFFF
+      width: 100%
+      height: 30
+      border_side: [left, top]
+      text_decor: [underline, strikethrough]
+    - id: style_line
+      line_color: light_blue
+      line_width: 8
+      line_rounded: true
+    - id: date_style
+      text_font: roboto10
+      align: center
+      text_color: 0x000000
+      bg_opa: cover
+      radius: 4
+      pad_all: 2
+    - id: spin_button
+      height: 40
+      width: 40
+    - id: spin_label
+      align: center
+      text_align: center
+      text_font: space16
+    - id: bdr_style
+      border_color: 0x808080
+      border_width: 2
+      pad_all: 4
+      align: center
+
   touchscreens:
     - touchscreen_id: tft_touch
       long_press_repeat_time: 200ms
@@ -9,6 +56,13 @@ lvgl:
     - id: page1
       skip: true
       widgets:
+        - animimg:
+            height: 60
+            id: anim_img
+            src: [cat_image, dog_image]
+            repeat_count: 10
+            duration: 1s
+            auto_start: true
         - label:
             id: hello_label
             text: Hello world
@@ -16,7 +70,9 @@ lvgl:
             align: center
             text_font: montserrat_40
             border_post: true
-
+            on_click:
+              then:
+                - lvgl.animimg.stop: anim_img
         - label:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
@@ -94,7 +150,65 @@ lvgl:
             width: 10px
             x: 100
             y: 120
+        - buttonmatrix:
+            on_press:
+              logger.log:
+                format: "matrix button pressed: %d"
+                args: ["x"]
+            on_long_press:
+              lvgl.matrix.button.update:
+                id: [button_a, button_e, button_c]
+                control:
+                  disabled: true
+            on_click:
+              logger.log:
+                format: "matrix button clicked: %d, is button_a = %u"
+                args: ["x", "id(button_a) == x"]
+            items:
+              checked:
+                bg_color: 0xFFFF00
+            id: b_matrix
+
+            rows:
+              - buttons:
+                  - id: button_a
+                    text: home icon
+                    width: 2
+                    control:
+                      checkable: true
+                    on_value:
+                      logger.log:
+                        format: "button_a value %d"
+                        args: [x]
+                  - id: button_b
+                    text: B
+                    width: 1
+                    on_value:
+                      logger.log:
+                        format: "button_b value %d"
+                        args: [x]
+                    on_click:
+                      then:
+                        - lvgl.page.previous:
+                    control:
+                      hidden: false
+              - buttons:
+                  - id: button_c
+                    text: C
+                    control:
+                      checkable: false
+                  - id: button_d
+                    text: menu left
+                    on_long_press:
+                      then:
+                        logger.log: Long pressed
+                    on_long_press_repeat:
+                      then:
+                        logger.log: Long pressed repeated
+              - buttons:
+                  - id: button_e
         - button:
+            id: button_button
             width: 20%
             height: 10%
             pressed:
@@ -137,6 +251,7 @@ lvgl:
             on_long_press_repeat:
               logger.log: Button clicked
         - led:
+            id: lv_led
             color: 0x00FF00
             brightness: 50%
             align: right_mid
@@ -151,6 +266,41 @@ lvgl:
 
     - id: page2
       widgets:
+        - button:
+            styles: spin_button
+            id: spin_up
+            on_click:
+              - lvgl.spinbox.increment: spinbox_id
+            widgets:
+              - label:
+                  styles: spin_label
+                  text: "+"
+        - spinbox:
+            text_font: space16
+            id: spinbox_id
+            align: center
+            width: 120
+            range_from: -10
+            range_to: 1000
+            step: 5.0
+            rollover: false
+            digits: 6
+            decimal_places: 2
+            value: 15
+            on_value:
+              then:
+                - logger.log:
+                    format: "Spinbox value is %f"
+                    args: [x]
+        - button:
+            styles: spin_button
+            id: spin_down
+            on_click:
+              - lvgl.spinbox.decrement: spinbox_id
+            widgets:
+              - label:
+                  styles: spin_label
+                  text: "-"
         - arc:
             align: left_mid
             id: lv_arc
@@ -160,7 +310,6 @@ lvgl:
                 - logger.log:
                     format: "Arc value is %f"
                     args: [x]
-            group: general
             scroll_on_focus: true
             value: 75
             min_value: 1
@@ -201,6 +350,7 @@ lvgl:
         - switch:
             align: right_mid
         - checkbox:
+            id: checkbox_id
             text: Checkbox
             align: bottom_right
         - slider:
@@ -221,6 +371,78 @@ lvgl:
                 - lvgl.slider.update:
                     id: slider_id
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+        - tabview:
+            id: tabview_id
+            width: 100%
+            height: 80%
+            position: top
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tab == id(tabview_tab_1);
+                    then:
+                      - logger.log: "Dog tab is now showing"
+            tabs:
+              - name: Dog
+                id: tabview_tab_1
+                border_width: 2
+                border_color: 0xff0000
+                width: 100%
+                pad_all: 8
+                layout:
+                  type: grid
+                  grid_row_align: end
+                  grid_rows: [25px, fr(1), content]
+                  grid_columns: [40, fr(1), fr(1)]
+                widgets:
+                  - image:
+                      grid_cell_row_pos: 0
+                      grid_cell_column_pos: 0
+                      src: dog_image
+                      on_click:
+                        then:
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              index: 1
+                              animated: true
+                  - label:
+                      styles: bdr_style
+                      grid_cell_x_align: center
+                      grid_cell_y_align: stretch
+                      grid_cell_row_pos: 0
+                      grid_cell_column_pos: 1
+                      grid_cell_column_span: 1
+                      text: "Grid cell 0/1"
+                  - label:
+                      grid_cell_x_align: end
+                      styles: bdr_style
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 0
+                      text: "Grid cell 1/0"
+                  - label:
+                      styles: bdr_style
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 1
+                      text: "Grid cell 1/1"
+                  - label:
+                      id: cell_1_3
+                      styles: bdr_style
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 2
+                      text: "Grid cell 1/2"
+              - name: Cat
+                id: tabview_tab_2
+                widgets:
+                  - image:
+                      src: cat_image
+                      on_click:
+                        then:
+                          - logger.log: Cat image clicked
+                          - lvgl.tabview.select:
+                              id: tabview_id
+                              index: 0
+                              animated: true
 font:
   - file: "gfonts://Roboto"
     id: space16
@@ -230,7 +452,7 @@ image:
   - id: cat_image
     resize: 256x48
     file: $component_dir/logo-text.svg
-  - id: dog_img
+  - id: dog_image
     file: $component_dir/logo-text.svg
     resize: 256x48
     type: TRANSPARENT_BINARY

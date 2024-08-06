@@ -12,10 +12,10 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, LocalVariable, lv, lv_assign, lv_variable
-from .obj import obj_spec
 from .schemas import ALL_STYLES
 from .types import lv_lambda_t, lv_obj_t, lv_obj_t_ptr
-from .widget import Widget, add_widgets, set_obj_properties, theme_widget_map
+from .widgets import Widget, add_widgets, set_obj_properties, theme_widget_map
+from .widgets.obj import obj_spec
 
 TOP_LAYER = literal("lv_disp_get_layer_top(lv_component->get_disp())")
 
@@ -26,7 +26,7 @@ async def styles_to_code(config):
         svar = cg.new_Pvariable(style[CONF_ID])
         lv.style_init(svar)
         for prop, validator in ALL_STYLES.items():
-            if value := style.get(prop):
+            if (value := style.get(prop)) is not None:
                 if isinstance(validator, LValidator):
                     value = await validator.process(value)
                 if isinstance(value, list):

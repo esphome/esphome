@@ -1,10 +1,11 @@
 import re
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+import esphome.codegen as cg
 from esphome.components import logger
+from esphome.components.esp32 import add_idf_sdkconfig_option
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
     CONF_BIRTH_MESSAGE,
@@ -13,21 +14,21 @@ from esphome.const import (
     CONF_CLIENT_CERTIFICATE,
     CONF_CLIENT_CERTIFICATE_KEY,
     CONF_CLIENT_ID,
-    CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
+    CONF_COMMAND_TOPIC,
     CONF_DISCOVERY,
+    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
-    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
-    CONF_ON_JSON_MESSAGE,
-    CONF_ON_MESSAGE,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_ON_JSON_MESSAGE,
+    CONF_ON_MESSAGE,
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
@@ -45,12 +46,11 @@ from esphome.const import (
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
 )
-from esphome.core import coroutine_with_priority, CORE
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ["network"]
 
@@ -110,6 +110,9 @@ MQTTDisconnectTrigger = mqtt_ns.class_(
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
 
+MQTTAlarmControlPanelComponent = mqtt_ns.class_(
+    "MQTTAlarmControlPanelComponent", MQTTComponent
+)
 MQTTBinarySensorComponent = mqtt_ns.class_("MQTTBinarySensorComponent", MQTTComponent)
 MQTTClimateComponent = mqtt_ns.class_("MQTTClimateComponent", MQTTComponent)
 MQTTCoverComponent = mqtt_ns.class_("MQTTCoverComponent", MQTTComponent)
