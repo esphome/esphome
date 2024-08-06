@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
-from esphome.components.modem import final_validate_platform
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY
+
+from .. import final_validate_platform
 
 CODEOWNERS = ["@oarcher"]
 

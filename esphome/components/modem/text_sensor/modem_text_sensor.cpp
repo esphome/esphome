@@ -10,8 +10,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-// #include "esphome/components/watchdog/watchdog.h"
-#include "esphome/components/modem/modem_component.h"
+#include "../modem_component.h"
 
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \

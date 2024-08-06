@@ -10,7 +10,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#include "esphome/components/modem/modem_component.h"
+#include "../modem_component.h"
 
 #include <string>
 #include <vector>

@@ -51,6 +51,8 @@ ModemComponent::ModemComponent() {
   global_modem_component = this;
 }
 
+void ModemComponent::enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
+
 std::string ModemComponent::send_at(const std::string &cmd) {
   std::string result = "ERROR";
   command_result status = command_result::FAIL;
