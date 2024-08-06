@@ -1,13 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, esp32_ble_tracker
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_MAC_ADDRESS,
-    CONF_SERVICE_UUID,
     CONF_IBEACON_MAJOR,
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
+    CONF_MAC_ADDRESS,
     CONF_MIN_RSSI,
+    CONF_SERVICE_UUID,
     CONF_TIMEOUT,
 )
 

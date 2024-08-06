@@ -66,7 +66,7 @@ void MQTTClientComponent::setup() {
   }
 #endif
 
-  if (this->is_discovery_enabled()) {
+  if (this->is_discovery_ip_enabled()) {
     this->subscribe(
         "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
         2);
@@ -82,7 +82,7 @@ void MQTTClientComponent::setup() {
 }
 
 void MQTTClientComponent::send_device_info_() {
-  if (!this->is_connected() or !this->is_discovery_enabled()) {
+  if (!this->is_connected() or !this->is_discovery_ip_enabled()) {
     return;
   }
   std::string topic = "esphome/discover/";
@@ -99,6 +99,9 @@ void MQTTClientComponent::send_device_info_() {
           }
         }
         root["name"] = App.get_name();
+        if (!App.get_friendly_name().empty()) {
+          root["friendly_name"] = App.get_friendly_name();
+        }
 #ifdef USE_API
         root["port"] = api::global_api_server->get_port();
 #endif
@@ -130,6 +133,10 @@ void MQTTClientComponent::send_device_info_() {
 #ifdef USE_DASHBOARD_IMPORT
         root["package_import_url"] = dashboard_import::get_package_import_url();
 #endif
+
+#ifdef USE_API_NOISE
+        root["api_encryption"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
+#endif
       },
       2, this->discovery_info_.retain);
 }
@@ -140,6 +147,9 @@ void MQTTClientComponent::dump_config() {
                 this->ip_.str().c_str());
   ESP_LOGCONFIG(TAG, "  Username: " LOG_SECRET("'%s'"), this->credentials_.username.c_str());
   ESP_LOGCONFIG(TAG, "  Client ID: " LOG_SECRET("'%s'"), this->credentials_.client_id.c_str());
+  if (this->is_discovery_ip_enabled()) {
+    ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
+  }
   if (!this->discovery_info_.prefix.empty()) {
     ESP_LOGCONFIG(TAG, "  Discovery prefix: '%s'", this->discovery_info_.prefix.c_str());
     ESP_LOGCONFIG(TAG, "  Discovery retain: %s", YESNO(this->discovery_info_.retain));
@@ -581,6 +591,7 @@ void MQTTClientComponent::disable_shutdown_message() {
   this->recalculate_availability_();
 }
 bool MQTTClientComponent::is_discovery_enabled() const { return !this->discovery_info_.prefix.empty(); }
+bool MQTTClientComponent::is_discovery_ip_enabled() const { return this->discovery_info_.discover_ip; }
 const Availability &MQTTClientComponent::get_availability() { return this->availability_; }
 void MQTTClientComponent::recalculate_availability_() {
   if (this->birth_message_.topic.empty() || this->birth_message_.topic != this->last_will_.topic) {
@@ -606,8 +617,9 @@ void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->sh
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
-                                             bool clean) {
+                                             bool discover_ip, bool clean) {
   this->discovery_info_.prefix = std::move(prefix);
+  this->discovery_info_.discover_ip = discover_ip;
   this->discovery_info_.unique_id_generator = unique_id_generator;
   this->discovery_info_.object_id_generator = object_id_generator;
   this->discovery_info_.retain = retain;
