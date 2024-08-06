@@ -10,13 +10,9 @@ static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
 
 E131AddressableLightEffect::E131AddressableLightEffect(const std::string &name) : AddressableLightEffect(name) {}
 
-int E131AddressableLightEffect::get_data_per_universe() const {
-  return get_entities<light::LightState> _per_universe() * channels_;
-}
+int E131AddressableLightEffect::get_data_per_universe() const { return get_lights_per_universe() * channels_; }
 
-int E131AddressableLightEffect::get_entities<light::LightState> _per_universe() const {
-  return MAX_DATA_SIZE / channels_;
-}
+int E131AddressableLightEffect::get_lights_per_universe() const { return MAX_DATA_SIZE / channels_; }
 
 int E131AddressableLightEffect::get_first_universe() const { return first_universe_; }
 
@@ -24,7 +20,7 @@ int E131AddressableLightEffect::get_last_universe() const { return first_univers
 
 int E131AddressableLightEffect::get_universe_count() const {
   // Round up to lights_per_universe
-  auto lights = get_entities<light::LightState> _per_universe();
+  auto lights = get_lights_per_universe();
   return (get_addressable_()->size() + lights - 1) / lights;
 }
 
@@ -55,10 +51,10 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   if (universe < first_universe_ || universe > get_last_universe())
     return false;
 
-  int32_t output_offset = (universe - first_universe_) * get_entities<light::LightState> _per_universe();
+  int32_t output_offset = (universe - first_universe_) * get_lights_per_universe();
   // limit amount of lights per universe and received
-  int output_end = std::min(it->size(), std::min(output_offset + get_entities<light::LightState> _per_universe(),
-                                                 output_offset + packet.count - 1));
+  int output_end =
+      std::min(it->size(), std::min(output_offset + get_lights_per_universe(), output_offset + packet.count - 1));
   auto *input_data = packet.values + 1;
 
   ESP_LOGV(TAG, "Applying data for '%s' on %d universe, for %" PRId32 "-%d.", get_name().c_str(), universe,
