@@ -66,10 +66,13 @@ class Valve;
 namespace button {
 class Button;
 }
+namespace media_player {
+class MediaPlayer;
+}
 using entities_t =
     std::tuple<update::UpdateEntity *, alarm_control_panel::AlarmControlPanel *, number::Number *, light::LightState *,
                switch_::Switch *, climate::Climate *, fan::Fan *, datetime::DateTimeEntity *,
                binary_sensor::BinarySensor *, datetime::TimeEntity *, text::Text *, lock::Lock *, event::Event *,
                text_sensor::TextSensor *, datetime::DateEntity *, cover::Cover *, sensor::Sensor *, select::Select *,
-               valve::Valve *, button::Button *>;
+               valve::Valve *, button::Button *, media_player::MediaPlayer *>;
 }  // namespace esphome
