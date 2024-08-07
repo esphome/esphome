@@ -37,7 +37,7 @@ void HCS12SS59TComponent::setup() {
 
   this->display();
 
-  ESP_LOGCONFIG(TAG, "Finished HCS-12SS59T setup");
+  this->print("Hello World");
 }
 void HCS12SS59TComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HCS12SS59T:");
