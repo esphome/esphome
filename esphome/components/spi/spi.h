@@ -248,7 +248,6 @@ class SPIDelegate {
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::NULL_PIN};
-  static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 /**
@@ -366,7 +365,7 @@ class SPIClient {
 
   virtual void spi_teardown() {
     this->parent_->unregister_device(this);
-    this->delegate_ = SPIDelegate::NULL_DELEGATE;
+    this->delegate_ = nullptr;
   }
 
   bool spi_is_ready() { return this->delegate_->is_ready(); }
@@ -377,7 +376,7 @@ class SPIClient {
   uint32_t data_rate_{1000000};
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
-  SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
+  SPIDelegate *delegate_{nullptr};
 };
 
 /**
