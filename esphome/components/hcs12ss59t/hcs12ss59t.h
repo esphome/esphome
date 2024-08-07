@@ -22,7 +22,7 @@ using hcs12ss59t_writer_t = std::function<void(HCS12SS59TComponent &)>;
 
 class HCS12SS59TComponent : public display::DisplayBuffer,
                             public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
+                                                  spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_2MHZ> {
  public:
   void set_writer(hcs12ss59t_writer_t &&writer);
 
