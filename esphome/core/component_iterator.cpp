@@ -19,7 +19,7 @@ template<typename Entity>
 void ComponentIterator::process_entity_(const std::vector<Entity *> &items,
                                         bool (ComponentIterator::*on_item)(Entity *)) {
   if (this->at_ >= items.size()) {
-    advance_platform_();
+    this->advance_platform_();
   } else {
     Entity *entity = items[this->at_];
     if (entity->is_internal() && !this->include_internal_) {
