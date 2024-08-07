@@ -7,10 +7,6 @@ namespace spi {
 
 const char *const TAG = "spi";
 
-SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    new SPIDelegateDummy();
-// https://bugs.llvm.org/show_bug.cgi?id=48040
-
 bool SPIDelegate::is_ready() { return true; }
 
 GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -78,8 +74,6 @@ void SPIComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Using software SPI");
   }
 }
-
-void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
 
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) { return this->transfer_(data, 8); }
 
