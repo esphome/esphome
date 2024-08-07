@@ -50,7 +50,7 @@ void ComponentIterator::advance() {
 
 #ifdef USE_BINARY_SENSOR
     case IteratorState::BINARY_SENSOR:
-      process_entity_(App.get_binary_sensors(), &ComponentIterator::on_binary_sensor);
+      this->process_entity_(App.get_binary_sensors(), &ComponentIterator::on_binary_sensor);
       break;
 #endif
 
