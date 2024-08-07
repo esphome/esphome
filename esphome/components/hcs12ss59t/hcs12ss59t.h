@@ -51,6 +51,7 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
   void set_scroll(bool enabled);
   void set_scroll_speed(uint32_t ms);
 
+  void set_reset_pin(GPIOPin *pin);
   void set_enable_pin(GPIOPin *pin);
   void set_enabled(bool enabled);
 
@@ -65,7 +66,8 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
   uint16_t scroll_{0};
   uint32_t scroll_speed_{300};
   std::string buffer_{""};
-  optional<GPIOPin *> enable_pin_{};
+  GPIOPin *enable_pin_{nullptr};
+  GPIOPin *reset_pin_{nullptr};
   bool enabled_{true};
   bool initialised_{false};
   optional<hcs12ss59t_writer_t> writer_{};

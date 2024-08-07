@@ -18,16 +18,25 @@ void HCS12SS59TComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HCS-12SS59T...");
 
   this->spi_setup();
-  // this->initialised_ = true;
+  this->reset_pin_->setup();
+  this->enable_pin_->setup();
 
-  // this->set_enabled(this->enabled_);
-  // this->set_intensity(this->intensity_);
+  this->initialised_ = true;
 
-  // this->display();
+  this->reset_pin_->digital_write(true);
+
+  this->set_enabled(this->enabled_);
+
+  this->reset_pin_->digital_write(false);
+
+  this->set_intensity(this->intensity_);
+
+  this->display();
 }
 void HCS12SS59TComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HCS12SS59T:");
-  LOG_PIN("  Enable Pin: ", this->enable_pin_.value());
+  LOG_PIN("  Enable Pin: ", this->enable_pin_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
   ESP_LOGCONFIG(TAG, "  Scroll Position: %u", this->scroll_);
   // ESP_LOGCONFIG(TAG, "  Scroll Speed: %lu", this->scroll_speed_);
@@ -93,8 +102,8 @@ void HCS12SS59TComponent::strftime(const char *format, ESPTime time) {
 }
 
 void HCS12SS59TComponent::set_enabled(bool enabled) {
-  if (this->enable_pin_.has_value() && this->initialised_) {
-    this->enable_pin_.value()->digital_write(enabled);
+  if (this->initialised_) {
+    this->enable_pin_->digital_write(enabled);
   }
 
   this->enabled_ = enabled;
@@ -143,6 +152,8 @@ void HCS12SS59TComponent::set_enable_pin(GPIOPin *pin) {
 
   this->set_enabled(enabled);
 }
+
+void HCS12SS59TComponent::set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
 
 }  // namespace hcs12ss59t
 }  // namespace esphome

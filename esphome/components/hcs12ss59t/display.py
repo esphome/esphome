@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_INTENSITY,
     CONF_LAMBDA,
     CONF_PAGES,
+    CONF_RESET_PIN,
 )
 
 CONF_SCROLL_ENABLE = "scroll_enable"
@@ -27,6 +28,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(HCS12SS59TComponent),
             cv.Required(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
             cv.Optional(
                 CONF_SCROLL_SPEED, default="300ms"
@@ -47,8 +49,11 @@ async def to_code(config):
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     cg.add(var.set_scroll_speed(config[CONF_SCROLL_SPEED]))
 
-    enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
-    cg.add(var.set_enable_pin(enable))
+    reset_pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    cg.add(var.set_reset_pin(reset_pin))
+
+    enable_pin = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
+    cg.add(var.set_enable_pin(enable_pin))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
