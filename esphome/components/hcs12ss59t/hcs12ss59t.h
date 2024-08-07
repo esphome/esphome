@@ -8,6 +8,7 @@
 
 static const char HCS12SS59T_UNKNOWN_CHAR = '?';
 static const size_t HCS12SS59T_NUMDIGITS = 12;
+static const size_t HCS12SS59T_BUFFER_SIZE = HCS12SS59T_NUMDIGITS * 6;
 static const uint8_t HCS12SS59T_LIGHT_NORMAL = 0x00;
 static const uint8_t HCS12SS59T_LIGHT_OFF = 0x01;
 static const uint8_t HCS12SS59T_LIGHT_ON = 0x02;
@@ -61,10 +62,11 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
 
   void send_command_(uint8_t a_register, uint8_t data);
 
-  uint8_t intensity_{15};  // Intensity of the display from 0 to 15 (most)
+  uint8_t intensity_{13};
   uint16_t scroll_{0};
   uint32_t scroll_speed_{300};
-  std::string buffer_{""};
+  char buffer_[HCS12SS59T_BUFFER_SIZE];
+  uint16_t buffer_size_{0};
   GPIOPin *enable_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   bool enabled_{true};

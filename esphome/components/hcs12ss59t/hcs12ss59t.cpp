@@ -46,7 +46,7 @@ void HCS12SS59TComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
   ESP_LOGCONFIG(TAG, "  Scroll Position: %u", this->scroll_);
   // ESP_LOGCONFIG(TAG, "  Scroll Speed: %lu", this->scroll_speed_);
-  ESP_LOGCONFIG(TAG, "  Buffer Size: %u", this->buffer_.size());
+  ESP_LOGCONFIG(TAG, "  Buffer Size: %u", this->buffer_size_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }
@@ -56,7 +56,7 @@ void HCS12SS59TComponent::display() {
     return;
   }
 
-  const uint8_t size = buffer_.size();
+  const uint8_t size = buffer_size_;
 
   this->enable();
 
@@ -73,13 +73,21 @@ void HCS12SS59TComponent::send_command_(uint8_t a_register, uint8_t data) {
   delayMicroseconds(8);
 }
 void HCS12SS59TComponent::print(const char *str) {
-  this->buffer_ = str;
+  int index = 0;
+
+  while (str[index] && index < HCS12SS59T_BUFFER_SIZE) {
+    this->buffer_[index] = str[index];
+    index++;
+  }
+
+  this->buffer_size_ = index;
+
   this->display();
 }
 void HCS12SS59TComponent::printf(const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  char buffer[64];
+  char buffer[HCS12SS59T_BUFFER_SIZE];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
   va_end(arg);
   if (ret > 0)
@@ -101,7 +109,7 @@ void HCS12SS59TComponent::set_intensity(uint8_t intensity, uint8_t light) {
   this->intensity_ = intensity;
 }
 void HCS12SS59TComponent::strftime(const char *format, ESPTime time) {
-  char buffer[64];
+  char buffer[HCS12SS59T_BUFFER_SIZE];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     this->print(buffer);
@@ -122,7 +130,7 @@ char HCS12SS59TComponent::get_code(char c) {
 }
 
 void HCS12SS59TComponent::scroll(uint16_t steps) {
-  this->scroll_ = (this->buffer_.size() + steps + this->scroll_) % this->buffer_.size();
+  this->scroll_ = (this->buffer_size_ + steps + this->scroll_) % this->buffer_size_;
 }
 
 void HCS12SS59TComponent::set_scroll(bool enabled) {
