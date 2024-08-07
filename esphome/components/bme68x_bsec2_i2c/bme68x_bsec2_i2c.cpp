@@ -27,6 +27,7 @@ void BME68xBSEC2I2CComponent::setup() {
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
+    ESP_LOGE(TAG, "bsec_init_m failed: status %d", this->bsec_status_);
     return;
   }
 
@@ -40,12 +41,14 @@ void BME68xBSEC2I2CComponent::setup() {
   this->bme68x_status_ = bme68x_init(&this->bme68x_);
   if (this->bme68x_status_ != BME68X_OK) {
     this->mark_failed();
+    ESP_LOGE(TAG, "bme68x_init failed: status %d", this->bsec_status_);
     return;
   }
   if (this->bsec2_configuration_ != nullptr && this->bsec2_configuration_length_) {
     this->set_config_(this->bsec2_configuration_, this->bsec2_configuration_length_);
     if (this->bsec_status_ != BSEC_OK) {
       this->mark_failed();
+      ESP_LOGE(TAG, "bsec_set_configuration_m failed: status %d", this->bsec_status_);
       return;
     }
   }
@@ -53,6 +56,7 @@ void BME68xBSEC2I2CComponent::setup() {
   this->update_subscription_();
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
+    ESP_LOGE(TAG, "bsec_update_subscription_m failed: status %d", this->bsec_status_);
     return;
   }
 
