@@ -1,20 +1,22 @@
-import time
 import asyncio
 import logging
 import re
+import time
 from typing import Final
+
+from bleak import BleakClient, BleakScanner
+from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
 from rich.pretty import pprint
-from bleak import BleakScanner, BleakClient
-from bleak.exc import BleakDeviceNotFoundError, BleakDBusError
-from smpclient.transport.ble import SMPBLETransport
-from smpclient.transport import SMPTransportDisconnected
-from smpclient.transport.serial import SMPSerialTransport
+from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
-from smpclient.mcuboot import IMAGE_TLV, ImageInfo, TLVNotFound, MCUBootImageError
+from smpclient.generics import error, success
+from smpclient.mcuboot import IMAGE_TLV, ImageInfo, MCUBootImageError, TLVNotFound
 from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
 from smpclient.requests.os_management import ResetWrite
-from smpclient.generics import error, success
-from smp.exceptions import SMPBadStartDelimiter
+from smpclient.transport import SMPTransportDisconnected
+from smpclient.transport.ble import SMPBLETransport
+from smpclient.transport.serial import SMPSerialTransport
+
 from esphome.espota2 import ProgressBar
 
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
