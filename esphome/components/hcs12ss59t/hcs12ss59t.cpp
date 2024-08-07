@@ -71,11 +71,16 @@ void HCS12SS59TComponent::display() {
   delayMicroseconds(8);
 
   for (uint8_t offset = 0; offset < HCS12SS59T_NUMDIGITS; offset++) {
-    char c = offset < size ? buffer_[(scroll_) % size] : ' ';
-
-    this->transfer_byte(this->get_code('a'));
+    this->transfer_byte(this->get_code('a' + offset));
     delayMicroseconds(8);
   }
+
+  // for (uint8_t offset = 0; offset < HCS12SS59T_NUMDIGITS; offset++) {
+  //   char c = offset < size ? buffer_[(scroll_) % size] : ' ';
+
+  //   this->transfer_byte(this->get_code('a'));
+  //   delayMicroseconds(8);
+  // }
 
   this->disable();
 }
@@ -112,12 +117,10 @@ void HCS12SS59TComponent::set_intensity(uint8_t intensity, uint8_t light) {
     return;
   }
 
-  this->enable();
-
-  this->send_command_(HCS12SS59T_REGISTER_INTENSITY, clamp(intensity, (uint8_t) 0, (uint8_t) 15));
-  this->send_command_(HCS12SS59T_REGISTER_LIGHTS, clamp(light, (uint8_t) 0, (uint8_t) 2));
-
-  this->disable();
+  // this->send_command_(HCS12SS59T_REGISTER_INTENSITY, clamp(intensity, (uint8_t) 0, (uint8_t) 15));
+  // this->send_command_(HCS12SS59T_REGISTER_LIGHTS, clamp(light, (uint8_t) 0, (uint8_t) 2));
+  this->send_command_(HCS12SS59T_REGISTER_INTENSITY, 13);
+  this->send_command_(HCS12SS59T_REGISTER_LIGHTS, 0);
 
   this->intensity_ = intensity;
 }
