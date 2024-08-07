@@ -1,6 +1,13 @@
 #pragma once
 #include "esphome/core/defines.h"
 
+#ifdef USE_LVGL_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif  // USE_LVGL_BINARY_SENSOR
+#ifdef USE_LVGL_ROTARY_ENCODER
+#include "esphome/components/rotary_encoder/rotary_encoder.h"
+#endif  // USE_LVGL_ROTARY_ENCODER
+
 // required for clang-tidy
 #ifndef LV_CONF_H
 #define LV_CONF_SKIP 1  // NOLINT
@@ -12,12 +19,7 @@
 #include "esphome/core/log.h"
 #include <lvgl.h>
 #include <vector>
-
-#ifdef USE_LVGL_ROTARY_ENCODER
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/rotary_encoder/rotary_encoder.h"
-#endif  // USE_LVGL_ROTARY_ENCODER
-
+#include <map>
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
 #endif  // USE_LVGL_IMAGE
@@ -202,7 +204,7 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 };
 #endif  // USE_LVGL_TOUCHSCREEN
 
-#ifdef USE_LVGL_ROTARY_ENCODER
+#ifdef USE_LVGL_KEY_LISTENER
 class LVEncoderListener : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
@@ -218,9 +220,11 @@ class LVEncoderListener : public Parented<LvglComponent> {
     enter_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_ENTER, state); });
   }
 
+#ifdef USE_LVGL_ROTARY_ENCODER
   void set_sensor(rotary_encoder::RotaryEncoderSensor *sensor) {
     sensor->register_listener([this](int32_t count) { this->set_count(count); });
   }
+#endif  // USE_LVGL_ROTARY_ENCODER
 
   void event(int key, bool pressed) {
     if (!this->parent_->is_paused()) {
@@ -243,7 +247,8 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int32_t last_count_{};
   int key_{};
 };
-#endif  // USE_LVGL_ROTARY_ENCODER
+#endif  //  USE_LVGL_KEY_LISTENER
+
 #ifdef USE_LVGL_BUTTONMATRIX
 class LvButtonMatrixType : public key_provider::KeyProvider, public LvCompound {
  public:

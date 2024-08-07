@@ -1,4 +1,5 @@
 import esphome.config_validation as cv
+from esphome.const import CONF_TEXT
 
 from ..defines import (
     CONF_LONG_MODE,
@@ -6,7 +7,6 @@ from ..defines import (
     CONF_RECOLOR,
     CONF_SCROLLBAR,
     CONF_SELECTED,
-    CONF_TEXT,
     LV_LONG_MODES,
 )
 from ..lv_validation import lv_bool, lv_text
