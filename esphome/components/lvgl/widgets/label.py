@@ -1,19 +1,20 @@
 import esphome.config_validation as cv
+from esphome.const import CONF_TEXT
 
-from .defines import (
-    CONF_LABEL,
+from ..defines import (
     CONF_LONG_MODE,
     CONF_MAIN,
     CONF_RECOLOR,
     CONF_SCROLLBAR,
     CONF_SELECTED,
-    CONF_TEXT,
     LV_LONG_MODES,
 )
-from .lv_validation import lv_bool, lv_text
-from .schemas import TEXT_SCHEMA
-from .types import LvText, WidgetType
-from .widget import Widget
+from ..lv_validation import lv_bool, lv_text
+from ..schemas import TEXT_SCHEMA
+from ..types import LvText, WidgetType
+from . import Widget
+
+CONF_LABEL = "label"
 
 
 class LabelType(WidgetType):
@@ -33,9 +34,9 @@ class LabelType(WidgetType):
     async def to_code(self, w: Widget, config):
         """For a text object, create and set text"""
         if value := config.get(CONF_TEXT):
-            w.set_property(CONF_TEXT, await lv_text.process(value))
-        w.set_property(CONF_LONG_MODE, config)
-        w.set_property(CONF_RECOLOR, config)
+            await w.set_property(CONF_TEXT, await lv_text.process(value))
+        await w.set_property(CONF_LONG_MODE, config)
+        await w.set_property(CONF_RECOLOR, config)
 
 
 label_spec = LabelType()

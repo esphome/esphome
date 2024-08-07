@@ -24,6 +24,33 @@ display:
     invert_colors: false
     update_interval: never
 
+binary_sensor:
+  - platform: gpio
+    internal: true
+    id: up_button
+    pin:
+      number: GPIO38
+      inverted: true
+  - platform: gpio
+    internal: true
+    id: down_button
+    pin:
+      number: GPIO37
+      inverted: true
+  - platform: gpio
+    internal: true
+    id: select_button
+    pin:
+      number: GPIO39
+      inverted: true
+lvgl:
+  encoders:
+    group: switches
+    enter_button: select_button
+    sensor:
+      left_button: up_button
+      right_button: down_button
+
 packages:
   lvgl: !include lvgl-package.yaml
 

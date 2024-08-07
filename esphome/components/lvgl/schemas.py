@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TEXT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
@@ -15,13 +16,17 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid, types as ty
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import id_name, lv_font
-from .types import WIDGET_TYPES, WidgetType
+from .lv_validation import lv_color, lv_font, lv_image
+from .lvcode import LvglComponent
+from .types import WidgetType, lv_group_t
+
+# this will be populated later, in __init__.py to avoid circular imports.
+WIDGET_TYPES: dict = {}
 
 # A schema for text properties
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Optional(df.CONF_TEXT): cv.Any(
+        cv.Optional(CONF_TEXT): cv.Any(
             cv.All(
                 cv.Schema(
                     {
@@ -38,11 +43,13 @@ TEXT_SCHEMA = cv.Schema(
     }
 )
 
-ACTION_SCHEMA = cv.maybe_simple_value(
-    {
-        cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
-    },
-    key=CONF_ID,
+LIST_ACTION_SCHEMA = cv.ensure_list(
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
+        },
+        key=CONF_ID,
+    )
 )
 
 PRESS_TIME = cv.All(
@@ -54,7 +61,7 @@ ENCODER_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.All(
             cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
         ),
-        cv.Optional(CONF_GROUP): lvalid.id_name,
+        cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
@@ -154,6 +161,7 @@ STYLE_REMAP = {
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
+        cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(ty.lv_style_t)),
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
@@ -209,7 +217,14 @@ def create_modify_schema(widget_type):
         part_schema(widget_type)
         .extend(
             {
-                cv.Required(CONF_ID): cv.use_id(widget_type),
+                cv.Required(CONF_ID): cv.ensure_list(
+                    cv.maybe_simple_value(
+                        {
+                            cv.Required(CONF_ID): cv.use_id(widget_type),
+                        },
+                        key=CONF_ID,
+                    )
+                ),
                 cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
             }
         )
@@ -227,18 +242,21 @@ def obj_schema(widget_type: WidgetType):
     return (
         part_schema(widget_type)
         .extend(FLAG_SCHEMA)
+        .extend(LAYOUT_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
         .extend(automation_schema(widget_type.w_type))
         .extend(
             cv.Schema(
                 {
                     cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                    cv.Optional(CONF_GROUP): id_name,
+                    cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
                 }
             )
         )
     )
 
+
+LAYOUT_SCHEMAS = {}
 
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
@@ -252,21 +270,78 @@ ALIGN_TO_SCHEMA = {
 }
 
 
+def grid_free_space(value):
+    value = cv.Upper(value)
+    if value.startswith("FR(") and value.endswith(")"):
+        value = value.removesuffix(")").removeprefix("FR(")
+        return f"LV_GRID_FR({cv.positive_int(value)})"
+    raise cv.Invalid("must be a size in pixels, CONTENT or FR(nn)")
+
+
+grid_spec = cv.Any(
+    lvalid.size, df.LvConstant("LV_GRID_", "CONTENT").one_of, grid_free_space
+)
+
+cell_alignments = df.LV_CELL_ALIGNMENTS.one_of
+grid_alignments = df.LV_GRID_ALIGNMENTS.one_of
+flex_alignments = df.LV_FLEX_ALIGNMENTS.one_of
+
+LAYOUT_SCHEMA = {
+    cv.Optional(df.CONF_LAYOUT): cv.typed_schema(
+        {
+            df.TYPE_GRID: {
+                cv.Required(df.CONF_GRID_ROWS): [grid_spec],
+                cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
+                cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
+                cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
+            },
+            df.TYPE_FLEX: {
+                cv.Optional(
+                    df.CONF_FLEX_FLOW, default="row_wrap"
+                ): df.FLEX_FLOWS.one_of,
+                cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
+                cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
+                cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
+            },
+        },
+        lower=True,
+    )
+}
+
+GRID_CELL_SCHEMA = {
+    cv.Required(df.CONF_GRID_CELL_ROW_POS): cv.positive_int,
+    cv.Required(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+    cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+}
+
+FLEX_OBJ_SCHEMA = {
+    cv.Optional(df.CONF_FLEX_GROW): cv.int_,
+}
+
+DISP_BG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(df.CONF_DISP_BG_IMAGE): lv_image,
+        cv.Optional(df.CONF_DISP_BG_COLOR): lv_color,
+    }
+)
+
+
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
-    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
+    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=CONF_TEXT
 )
 
 # For use by platform components
 LVGL_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(ty.LvglComponent),
+        cv.GenerateID(df.CONF_LVGL_ID): cv.use_id(LvglComponent),
     }
 )
 
-ALL_STYLES = {
-    **STYLE_PROPS,
-}
+ALL_STYLES = {**STYLE_PROPS, **GRID_CELL_SCHEMA, **FLEX_OBJ_SCHEMA}
 
 
 def container_validator(schema, widget_type: WidgetType):
@@ -281,16 +356,17 @@ def container_validator(schema, widget_type: WidgetType):
         result = schema
         if w_sch := widget_type.schema:
             result = result.extend(w_sch)
+        ltype = df.TYPE_NONE
         if value and (layout := value.get(df.CONF_LAYOUT)):
             if not isinstance(layout, dict):
                 raise cv.Invalid("Layout value must be a dict")
             ltype = layout.get(CONF_TYPE)
+            if not ltype:
+                raise (cv.Invalid("Layout schema requires type:"))
             add_lv_use(ltype)
-        result = result.extend(
-            {cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())}
-        )
         if value == SCHEMA_EXTRACT:
             return result
+        result = result.extend(LAYOUT_SCHEMAS[ltype.lower()])
         return result(value)
 
     return validator
