@@ -26,7 +26,7 @@ void HCS12SS59TComponent::setup() {
   this->reset_pin_->digital_write(true);
   this->enable_pin_->digital_write(true);
 
-  this->set_mode(MODE3);
+  this->set_mode(esphome::spi::MODE3);
   this->spi_setup();
   this->initialised_ = true;
 
