@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/spi/spi.h"
 
 namespace esphome {
 namespace hcs12ss59t {
@@ -25,6 +26,7 @@ void HCS12SS59TComponent::setup() {
   this->reset_pin_->digital_write(true);
   this->enable_pin_->digital_write(true);
 
+  this->set_mode(MODE3);
   this->spi_setup();
   this->initialised_ = true;
 
@@ -66,9 +68,9 @@ void HCS12SS59TComponent::display() {
 
   const uint8_t size = buffer_size_;
 
-  this->send_command_(HCS12SS59T_REGISTER_SEEK, 0);
-
   this->enable();
+
+  this->send_command_(HCS12SS59T_REGISTER_SEEK, 0);
 
   for (uint8_t offset = 0; offset < HCS12SS59T_NUMDIGITS; offset++) {
     char c = offset < size ? buffer_[(scroll_) % size] : ' ';
