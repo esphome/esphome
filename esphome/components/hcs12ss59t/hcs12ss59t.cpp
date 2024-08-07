@@ -17,6 +17,8 @@ float HCS12SS59TComponent::get_setup_priority() const { return setup_priority::P
 void HCS12SS59TComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HCS-12SS59T...");
 
+  this->dump_config();
+
   this->spi_setup();
   this->reset_pin_->setup();
   this->enable_pin_->setup();
