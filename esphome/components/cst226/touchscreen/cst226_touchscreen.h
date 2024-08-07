@@ -35,7 +35,7 @@ class CST226Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   void continue_setup_();
 
   InternalGPIOPin *interrupt_pin_{};
-  GPIOPin *reset_pin_{NULL_PIN};
+  GPIOPin *reset_pin_{};
   uint8_t chip_id_{};
   bool setup_complete_{};
 };

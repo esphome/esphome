@@ -13,7 +13,7 @@ from .defines import (
 )
 from .lvcode import EVENT_ARG, LambdaContext, LvConditional, lv, lv_add
 from .types import LV_EVENT
-from .widget import widget_map
+from .widgets import widget_map
 
 
 async def generate_triggers(lv_component):
