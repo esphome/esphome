@@ -889,7 +889,7 @@ def parse_args(argv):
         "--port",
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
-        default=6052,
+        default=0,
     )
     parser_dashboard.add_argument(
         "--address",

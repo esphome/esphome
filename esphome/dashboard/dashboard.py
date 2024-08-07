@@ -137,9 +137,10 @@ async def async_start(args) -> None:
     await dashboard.async_setup()
     sock: socket.socket | None = args.socket
     address: str | None = args.address
-    port: int | None = args.port
 
-    start_web_server(make_app(args.verbose), sock, address, port, settings.config_dir)
+    start_web_server(
+        make_app(args.verbose), sock, address, settings.port, settings.config_dir
+    )
 
     if args.open_ui:
         import webbrowser
