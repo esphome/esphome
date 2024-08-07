@@ -26,16 +26,16 @@ void HCS12SS59TComponent::setup() {
   this->enable_pin_->digital_write(true);
 
   this->spi_setup();
-  // this->initialised_ = true;
+  this->initialised_ = true;
 
   delayMicroseconds(1);
   this->reset_pin_->digital_write(false);
   delayMicroseconds(1);
   this->reset_pin_->digital_write(true);
 
-  // this->set_intensity(this->intensity_);
+  this->set_intensity(this->intensity_);
 
-  // this->display();
+  this->display();
 
   ESP_LOGCONFIG(TAG, "Finished HCS-12SS59T setup");
 }
