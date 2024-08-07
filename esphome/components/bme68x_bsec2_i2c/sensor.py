@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
     CONF_HUMIDITY,
@@ -22,11 +22,8 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from . import (
-    BME68xBSEC2I2CComponent,
-    CONF_BME68X_BSEC2_I2C_ID,
-    SAMPLE_RATE_OPTIONS,
-)
+
+from . import CONF_BME68X_BSEC2_I2C_ID, SAMPLE_RATE_OPTIONS, BME68xBSEC2I2CComponent
 
 DEPENDENCIES = ["bme68x_bsec2_i2c"]
 
@@ -120,8 +117,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def setup_conf(config, key, hub):
-    if key in config:
-        conf = config[key]
+    if conf := config.get(key):
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
         if CONF_SAMPLE_RATE in conf:
