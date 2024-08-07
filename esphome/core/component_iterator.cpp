@@ -56,49 +56,49 @@ void ComponentIterator::advance() {
 
 #ifdef USE_COVER
     case IteratorState::COVER:
-      process_entity_(App.get_covers(), &ComponentIterator::on_cover);
+      this->process_entity_(App.get_covers(), &ComponentIterator::on_cover);
       break;
 #endif
 
 #ifdef USE_FAN
     case IteratorState::FAN:
-      process_entity_(App.get_fans(), &ComponentIterator::on_fan);
+      this->process_entity_(App.get_fans(), &ComponentIterator::on_fan);
       break;
 #endif
 
 #ifdef USE_LIGHT
     case IteratorState::LIGHT:
-      process_entity_(App.get_lights(), &ComponentIterator::on_light);
+      this->process_entity_(App.get_lights(), &ComponentIterator::on_light);
       break;
 #endif
 
 #ifdef USE_SENSOR
     case IteratorState::SENSOR:
-      process_entity_(App.get_sensors(), &ComponentIterator::on_sensor);
+      this->process_entity_(App.get_sensors(), &ComponentIterator::on_sensor);
       break;
 #endif
 
 #ifdef USE_SWITCH
     case IteratorState::SWITCH:
-      process_entity_(App.get_switches(), &ComponentIterator::on_switch);
+      this->process_entity_(App.get_switches(), &ComponentIterator::on_switch);
       break;
 #endif
 
 #ifdef USE_BUTTON
     case IteratorState::BUTTON:
-      process_entity_(App.get_buttons(), &ComponentIterator::on_button);
+      this->process_entity_(App.get_buttons(), &ComponentIterator::on_button);
       break;
 #endif
 
 #ifdef USE_TEXT_SENSOR
     case IteratorState::TEXT_SENSOR:
-      process_entity_(App.get_text_sensors(), &ComponentIterator::on_text_sensor);
+      this->process_entity_(App.get_text_sensors(), &ComponentIterator::on_text_sensor);
       break;
 #endif
 
 #ifdef USE_API
     case IteratorState::SERVICE:
-      process_entity_(api::global_api_server->get_user_services(), &ComponentIterator::on_service);
+      this->process_entity_(api::global_api_server->get_user_services(), &ComponentIterator::on_service);
       break;
 #endif
 
@@ -108,85 +108,85 @@ void ComponentIterator::advance() {
       if (esp32_camera::global_esp32_camera) {
         cameras.push_back(esp32_camera::global_esp32_camera);
       }
-      process_entity_(cameras, &ComponentIterator::on_camera);
+      this->process_entity_(cameras, &ComponentIterator::on_camera);
     } break;
 #endif
 
 #ifdef USE_CLIMATE
     case IteratorState::CLIMATE:
-      process_entity_(App.get_climates(), &ComponentIterator::on_climate);
+      this->process_entity_(App.get_climates(), &ComponentIterator::on_climate);
       break;
 #endif
 
 #ifdef USE_NUMBER
     case IteratorState::NUMBER:
-      process_entity_(App.get_numbers(), &ComponentIterator::on_number);
+      this->process_entity_(App.get_numbers(), &ComponentIterator::on_number);
       break;
 #endif
 
 #ifdef USE_DATETIME_DATE
     case IteratorState::DATETIME_DATE:
-      process_entity_(App.get_dates(), &ComponentIterator::on_date);
+      this->process_entity_(App.get_dates(), &ComponentIterator::on_date);
       break;
 #endif
 
 #ifdef USE_DATETIME_TIME
     case IteratorState::DATETIME_TIME:
-      process_entity_(App.get_times(), &ComponentIterator::on_time);
+      this->process_entity_(App.get_times(), &ComponentIterator::on_time);
       break;
 #endif
 
 #ifdef USE_DATETIME_DATETIME
     case IteratorState::DATETIME_DATETIME:
-      process_entity_(App.get_datetimes(), &ComponentIterator::on_datetime);
+      this->process_entity_(App.get_datetimes(), &ComponentIterator::on_datetime);
       break;
 #endif
 
 #ifdef USE_TEXT
     case IteratorState::TEXT:
-      process_entity_(App.get_texts(), &ComponentIterator::on_text);
+      this->process_entity_(App.get_texts(), &ComponentIterator::on_text);
       break;
 #endif
 
 #ifdef USE_SELECT
     case IteratorState::SELECT:
-      process_entity_(App.get_selects(), &ComponentIterator::on_select);
+      this->process_entity_(App.get_selects(), &ComponentIterator::on_select);
       break;
 #endif
 
 #ifdef USE_LOCK
     case IteratorState::LOCK:
-      process_entity_(App.get_locks(), &ComponentIterator::on_lock);
+      this->process_entity_(App.get_locks(), &ComponentIterator::on_lock);
       break;
 #endif
 
 #ifdef USE_VALVE
     case IteratorState::VALVE:
-      process_entity_(App.get_valves(), &ComponentIterator::on_valve);
+      this->process_entity_(App.get_valves(), &ComponentIterator::on_valve);
       break;
 #endif
 
 #ifdef USE_MEDIA_PLAYER
     case IteratorState::MEDIA_PLAYER:
-      process_entity_(App.get_media_players(), &ComponentIterator::on_media_player);
+      this->process_entity_(App.get_media_players(), &ComponentIterator::on_media_player);
       break;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
     case IteratorState::ALARM_CONTROL_PANEL:
-      process_entity_(App.get_alarm_control_panels(), &ComponentIterator::on_alarm_control_panel);
+      this->process_entity_(App.get_alarm_control_panels(), &ComponentIterator::on_alarm_control_panel);
       break;
 #endif
 
 #ifdef USE_EVENT
     case IteratorState::EVENT:
-      process_entity_(App.get_events(), &ComponentIterator::on_event);
+      this->process_entity_(App.get_events(), &ComponentIterator::on_event);
       break;
 #endif
 
 #ifdef USE_UPDATE
     case IteratorState::UPDATE:
-      process_entity_(App.get_updates(), &ComponentIterator::on_update);
+      this->process_entity_(App.get_updates(), &ComponentIterator::on_update);
       break;
 #endif
 
