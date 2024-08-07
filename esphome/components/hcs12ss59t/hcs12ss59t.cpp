@@ -35,6 +35,10 @@ void HCS12SS59TComponent::setup() {
   delayMicroseconds(1);
   this->reset_pin_->digital_write(true);
 
+  this->enable();
+  this->send_command_(HCS12SS59T_REGISTER_DIGIT_COUNT, HCS12SS59T_NUMDIGITS);
+  this->disable();
+
   this->set_intensity(this->intensity_);
 
   this->display();
