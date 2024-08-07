@@ -24,20 +24,19 @@ void HCS12SS59TComponent::setup() {
 
   this->reset_pin_->digital_write(true);
   this->enable_pin_->digital_write(true);
+  delayMicroseconds(1);
 
   this->spi_setup();
   this->initialised_ = true;
 
-  delayMicroseconds(1);
   this->enable_pin_->digital_write(false);
-  delayMicroseconds(1);
+  delay(1);
   this->reset_pin_->digital_write(false);
   delayMicroseconds(1);
   this->reset_pin_->digital_write(true);
+  delayMicroseconds(1);
 
-  this->enable();
   this->send_command_(HCS12SS59T_REGISTER_DIGIT_COUNT, HCS12SS59T_NUMDIGITS);
-  this->disable();
 
   this->set_intensity(this->intensity_);
 
@@ -68,7 +67,8 @@ void HCS12SS59TComponent::display() {
 
   this->enable();
 
-  this->send_command_(HCS12SS59T_REGISTER_SEEK, 0);
+  this->transfer_byte(HCS12SS59T_REGISTER_SEEK | 0);
+  delayMicroseconds(8);
 
   for (uint8_t offset = 0; offset < HCS12SS59T_NUMDIGITS; offset++) {
     char c = offset < size ? buffer_[(scroll_) % size] : ' ';
@@ -80,8 +80,10 @@ void HCS12SS59TComponent::display() {
   this->disable();
 }
 void HCS12SS59TComponent::send_command_(uint8_t a_register, uint8_t data) {
+  this->enable();
   this->transfer_byte(a_register | data);
   delayMicroseconds(8);
+  this->disable();
 }
 void HCS12SS59TComponent::print(const char *str) {
   int index = 0;
