@@ -19,17 +19,19 @@ void HCS12SS59TComponent::setup() {
 
   this->dump_config();
 
-  this->spi_setup();
   this->reset_pin_->setup();
   this->enable_pin_->setup();
 
+  this->reset_pin_->digital_write(true);
+  this->enable_pin_->digital_write(true);
+
+  this->spi_setup();
   this->initialised_ = true;
 
-  this->reset_pin_->digital_write(true);
-
-  this->set_enabled(this->enabled_);
-
+  delayMicroseconds(1);
   this->reset_pin_->digital_write(false);
+  delayMicroseconds(1);
+  this->reset_pin_->digital_write(true);
 
   // this->set_intensity(this->intensity_);
 
@@ -91,8 +93,8 @@ void HCS12SS59TComponent::set_intensity(uint8_t intensity, uint8_t light) {
 
   this->enable();
 
-  this->send_command_(HCS12SS59T_REGISTER_INTENSITY, intensity);
-  this->send_command_(HCS12SS59T_REGISTER_LIGHTS, light);
+  this->send_command_(HCS12SS59T_REGISTER_INTENSITY, clamp(intensity, (uint8_t) 0, (uint8_t) 15));
+  this->send_command_(HCS12SS59T_REGISTER_LIGHTS, clamp(light, (uint8_t) 0, (uint8_t) 2));
 
   this->disable();
 
@@ -103,14 +105,6 @@ void HCS12SS59TComponent::strftime(const char *format, ESPTime time) {
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     this->print(buffer);
-}
-
-void HCS12SS59TComponent::set_enabled(bool enabled) {
-  if (this->initialised_) {
-    this->enable_pin_->digital_write(enabled);
-  }
-
-  this->enabled_ = enabled;
 }
 
 char HCS12SS59TComponent::get_code(char c) {
@@ -147,15 +141,7 @@ void HCS12SS59TComponent::set_scroll_speed(uint32_t ms) {
   this->set_scroll(ms > 0);
 }
 
-void HCS12SS59TComponent::set_enable_pin(GPIOPin *pin) {
-  const bool enabled = this->enabled_;
-
-  this->set_enabled(false);
-
-  this->enable_pin_ = pin;
-
-  this->set_enabled(enabled);
-}
+void HCS12SS59TComponent::set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
 
 void HCS12SS59TComponent::set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
 

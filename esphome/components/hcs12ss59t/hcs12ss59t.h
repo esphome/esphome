@@ -53,7 +53,6 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
 
   void set_reset_pin(GPIOPin *pin);
   void set_enable_pin(GPIOPin *pin);
-  void set_enabled(bool enabled);
 
  protected:
   int get_width_internal() override { return HCS12SS59T_NUMDIGITS; };
