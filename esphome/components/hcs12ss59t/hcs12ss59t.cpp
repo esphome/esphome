@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/spi/spi.h"
 
 namespace esphome {
 namespace hcs12ss59t {
@@ -26,7 +25,6 @@ void HCS12SS59TComponent::setup() {
   this->reset_pin_->digital_write(true);
   this->enable_pin_->digital_write(true);
 
-  this->set_mode(esphome::spi::MODE3);
   this->spi_setup();
   this->initialised_ = true;
 
