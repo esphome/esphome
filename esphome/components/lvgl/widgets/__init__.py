@@ -334,7 +334,7 @@ async def set_obj_properties(w: Widget, config):
         for key, value in states.items():
             if isinstance(value, cv.Lambda):
                 lambs[key] = value
-            elif value == "true":
+            elif value:
                 adds.add(key)
             else:
                 clears.add(key)
