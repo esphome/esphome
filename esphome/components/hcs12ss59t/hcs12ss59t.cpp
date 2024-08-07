@@ -31,9 +31,11 @@ void HCS12SS59TComponent::setup() {
 
   this->reset_pin_->digital_write(false);
 
-  this->set_intensity(this->intensity_);
+  // this->set_intensity(this->intensity_);
 
-  this->display();
+  // this->display();
+
+  ESP_LOGCONFIG(TAG, "Finished HCS-12SS59T setup");
 }
 void HCS12SS59TComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HCS12SS59T:");
