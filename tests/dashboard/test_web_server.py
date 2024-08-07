@@ -41,6 +41,7 @@ async def fixture_dashboard() -> DashboardTestHelper:
     args = Mock(
         ha_addon=True,
         configuration=get_fixture_path("conf"),
+        port=0,
     )
     os.environ["ESPHOME_DASHBOARD_PORT"] = str(port)
     DASHBOARD.settings.parse_args(args)
@@ -52,7 +53,7 @@ async def fixture_dashboard() -> DashboardTestHelper:
     assert DASHBOARD.settings.using_password is False
     assert DASHBOARD.settings.on_ha_addon is True
     assert DASHBOARD.settings.using_auth is False
-    assert DASHBOARD.settings.port is port
+    assert int(DASHBOARD.settings.port) == port
     task = asyncio.create_task(DASHBOARD.async_run())
     client = AsyncHTTPClient()
     io_loop = IOLoop(make_current=False)
