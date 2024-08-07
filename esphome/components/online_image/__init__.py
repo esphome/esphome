@@ -154,7 +154,7 @@ async def to_code(config):
 
     cg.add(var.set_transparency(transparent))
 
-    if placeholder_id := config.get(CONF_PLACEHOLDER)
+    if placeholder_id := config.get(CONF_PLACEHOLDER):
         placeholder = await cg.get_variable(placeholder_id)
         cg.add(var.set_placeholder(placeholder))
 
