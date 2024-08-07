@@ -32,6 +32,26 @@ void MAX31856Sensor::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  Mains Filter: %s",
                 (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
+  if (thermocouple_type_ == TYPE_B) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: B");
+  } else if (thermocouple_type_ == TYPE_E) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: E");
+  } else if (thermocouple_type_ == TYPE_J) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: J");
+  } else if (thermocouple_type_ == TYPE_K) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: K");
+  } else if (thermocouple_type_ == TYPE_N) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: N");
+  } else if (thermocouple_type_ == TYPE_R) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: R");
+  } else if (thermocouple_type_ == TYPE_S) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: S");
+  } else if (thermocouple_type_ == TYPE_T) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: T");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: Unknown");
+  }
+
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -130,6 +150,23 @@ void MAX31856Sensor::clear_fault_() {
 
 void MAX31856Sensor::set_thermocouple_type_() {
   MAX31856ThermocoupleType type = MAX31856_TCTYPE_K;
+  if (thermocouple_type_ == TYPE_B) {
+    type = MAX31856_TCTYPE_B;
+  } else if (thermocouple_type_ == TYPE_E) {
+    type = MAX31856_TCTYPE_E;
+  } else if (thermocouple_type_ == TYPE_J) {
+    type = MAX31856_TCTYPE_J;
+  } else if (thermocouple_type_ == TYPE_N) {
+    type = MAX31856_TCTYPE_N;
+  } else if (thermocouple_type_ == TYPE_R) {
+    type = MAX31856_TCTYPE_R;
+  } else if (thermocouple_type_ == TYPE_S) {
+    type = MAX31856_TCTYPE_S;
+  } else if (thermocouple_type_ == TYPE_T) {
+    type = MAX31856_TCTYPE_T;
+  } else {
+    type = MAX31856_TCTYPE_K;
+  }
   ESP_LOGCONFIG(TAG, "set_thermocouple_type_: 0x%02X", type);
   uint8_t t = this->read_register_(MAX31856_CR1_REG);
   t &= 0xF0;  // mask off bottom 4 bits

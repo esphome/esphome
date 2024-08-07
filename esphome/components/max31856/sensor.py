@@ -3,6 +3,7 @@ from esphome.components import sensor, spi
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAINS_FILTER,
+    CONF_THERMOCOUPLE_TYPE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -17,6 +18,17 @@ MAX31865ConfigFilter = max31856_ns.enum("MAX31856ConfigFilter")
 FILTER = {
     50: MAX31865ConfigFilter.FILTER_50HZ,
     60: MAX31865ConfigFilter.FILTER_60HZ,
+}
+MAX31865ConfigThermocoupleType = max31856_ns.enum("MAX31856ConfigThermocoupleType")
+THERMOCOUPLE_TYPE = {
+    "B": MAX31865ConfigThermocoupleType.TYPE_B,
+    "E": MAX31865ConfigThermocoupleType.TYPE_E,
+    "J": MAX31865ConfigThermocoupleType.TYPE_J,
+    "K": MAX31865ConfigThermocoupleType.TYPE_K,
+    "N": MAX31865ConfigThermocoupleType.TYPE_N,
+    "R": MAX31865ConfigThermocoupleType.TYPE_R,
+    "S": MAX31865ConfigThermocoupleType.TYPE_S,
+    "T": MAX31865ConfigThermocoupleType.TYPE_T,
 }
 
 CONFIG_SCHEMA = (
@@ -34,6 +46,13 @@ CONFIG_SCHEMA = (
             ),
         }
     )
+    .extend(
+        {
+            cv.Optional(CONF_THERMOCOUPLE_TYPE, default="K"): cv.enum(
+                THERMOCOUPLE_TYPE, upper=True, space=""
+            ),
+        }
+    )
     .extend(cv.polling_component_schema("60s"))
     .extend(spi.spi_device_schema())
 )
@@ -44,3 +63,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
     cg.add(var.set_filter(config[CONF_MAINS_FILTER]))
+    cg.add(var.set_thermocouple_type(config[CONF_THERMOCOUPLE_TYPE]))

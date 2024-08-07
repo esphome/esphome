@@ -50,7 +50,6 @@ enum MAX31856Registers {
 
 /**
  * Multiple types of thermocouples supported by the chip.
- * Currently only K type implemented here.
  */
 enum MAX31856ThermocoupleType {
   MAX31856_TCTYPE_B = 0b0000,   // 0x00
@@ -70,6 +69,17 @@ enum MAX31856ConfigFilter {
   FILTER_50HZ = 1,
 };
 
+enum MAX31856ConfigThermocoupleType {
+  TYPE_B = 0,
+  TYPE_E = 1,
+  TYPE_J = 2,
+  TYPE_K = 3,
+  TYPE_N = 4,
+  TYPE_R = 5,
+  TYPE_S = 6,
+  TYPE_T = 7,
+};
+
 class MAX31856Sensor : public sensor::Sensor,
                        public PollingComponent,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -79,10 +89,14 @@ class MAX31856Sensor : public sensor::Sensor,
   void dump_config() override;
   float get_setup_priority() const override;
   void set_filter(MAX31856ConfigFilter filter) { filter_ = filter; }
+  void set_thermocouple_type(MAX31856ConfigThermocoupleType thermocouple_type) {
+    thermocouple_type_ = thermocouple_type;
+  }
   void update() override;
 
  protected:
   MAX31856ConfigFilter filter_;
+  MAX31856ConfigThermocoupleType thermocouple_type_;
 
   uint8_t read_register_(uint8_t reg);
   uint32_t read_register24_(uint8_t reg);
