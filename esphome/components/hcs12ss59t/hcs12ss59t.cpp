@@ -73,7 +73,7 @@ void HCS12SS59TComponent::display() {
   for (uint8_t offset = 0; offset < HCS12SS59T_NUMDIGITS; offset++) {
     char c = offset < size ? buffer_[(scroll_) % size] : ' ';
 
-    this->transfer_byte(this->get_code('A'));
+    this->transfer_byte(this->get_code('a'));
     delayMicroseconds(8);
   }
 
