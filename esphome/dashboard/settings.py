@@ -31,6 +31,7 @@ class DashboardSettings:
         self.password_hash: str = ""
         self.username: str = ""
         self.using_password: bool = False
+        self.port: int = 6052
         self.on_ha_addon: bool = False
         self.cookie_secret: str | None = None
         self.absolute_config_dir: Path | None = None
@@ -45,6 +46,7 @@ class DashboardSettings:
             self.using_password = bool(password)
         if self.using_password:
             self.password_hash = password_hash(password)
+        self.port = args.port or os.getenv("ESPHOME_DASHBOARD_PORT") or ""
         self.config_dir = args.configuration
         self.absolute_config_dir = Path(self.config_dir).resolve()
         self.verbose = args.verbose
