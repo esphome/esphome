@@ -41,7 +41,7 @@ void BME68xBSEC2I2CComponent::setup() {
   this->bme68x_status_ = bme68x_init(&this->bme68x_);
   if (this->bme68x_status_ != BME68X_OK) {
     this->mark_failed();
-    ESP_LOGE(TAG, "bme68x_init failed: status %d", this->bsec_status_);
+    ESP_LOGE(TAG, "bme68x_init failed: status %d", this->bme68x_status_);
     return;
   }
   if (this->bsec2_configuration_ != nullptr && this->bsec2_configuration_length_) {
