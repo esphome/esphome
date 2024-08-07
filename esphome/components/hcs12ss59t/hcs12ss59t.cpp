@@ -66,12 +66,15 @@ void HCS12SS59TComponent::display() {
 
   const uint8_t size = buffer_size_;
 
+  this->send_command_(HCS12SS59T_REGISTER_SEEK, 0);
+
   this->enable();
 
   for (uint8_t offset = 0; offset < HCS12SS59T_NUMDIGITS; offset++) {
     char c = offset < size ? buffer_[(scroll_) % size] : ' ';
 
-    this->write_byte(this->get_code('A'));
+    this->transfer_byte(this->get_code('A'));
+    delayMicroseconds(8);
   }
 
   this->disable();
