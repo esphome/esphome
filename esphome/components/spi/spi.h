@@ -163,8 +163,6 @@ class Utility {
   }
 };
 
-class SPIDelegateDummy;
-
 // represents a device attached to an SPI bus, with a defined clock rate, mode and bit order. On Arduino this is
 // a thin wrapper over SPIClass.
 class SPIDelegate {
@@ -251,20 +249,6 @@ class SPIDelegate {
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::NULL_PIN};
   static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-};
-
-/**
- * A dummy SPIDelegate that complains if it's used.
- */
-
-class SPIDelegateDummy : public SPIDelegate {
- public:
-  SPIDelegateDummy() = default;
-
-  uint8_t transfer(uint8_t data) override { return 0; }
-  void end_transaction() override{};
-
-  void begin_transaction() override;
 };
 
 /**
