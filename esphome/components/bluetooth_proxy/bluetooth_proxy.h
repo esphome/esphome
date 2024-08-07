@@ -47,11 +47,13 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   BluetoothProxy();
+  bool check_bda_matches(esp_ble_gap_cb_param_t::ble_scan_result_evt_param &adv);
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) override;
   void dump_config() override;
   void loop() override;
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
+  void set_addresses(const std::vector<uint64_t> &addresses) { this->address_vec_ = addresses; }
 
   void register_connection(BluetoothConnection *connection) {
     this->connections_.push_back(connection);
@@ -124,6 +126,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   std::vector<BluetoothConnection *> connections_{};
   api::APIConnection *api_connection_{nullptr};
   bool raw_advertisements_{false};
+  std::vector<uint64_t> address_vec_;
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

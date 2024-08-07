@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import esp32_ble_client, esp32_ble_tracker
 from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTIVE, CONF_ID
+from esphome.const import CONF_ACTIVE, CONF_ID, CONF_MAC_ADDRESS
 
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["api", "esp32"]
@@ -56,6 +56,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(CONNECTION_SCHEMA),
                 cv.Length(min=1, max=MAX_CONNECTIONS),
             ),
+            cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -76,6 +77,13 @@ async def to_code(config):
         await cg.register_component(connection_var, connection_conf)
         cg.add(var.register_connection(connection_var))
         await esp32_ble_tracker.register_client(connection_var, connection_conf)
+
+    if CONF_MAC_ADDRESS in config:
+        cg.add_define("BLUETOOTH_PROXY_MAC_FILTER")
+        addr_list = []
+        for it in config[CONF_MAC_ADDRESS]:
+            addr_list.append(it.as_hex)
+        cg.add(var.set_addresses(addr_list))
 
     if config.get(CONF_CACHE_SERVICES):
         add_idf_sdkconfig_option("CONFIG_BT_GATTC_CACHE_NVS_FLASH", True)
