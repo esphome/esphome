@@ -29,6 +29,8 @@ void HCS12SS59TComponent::setup() {
   this->initialised_ = true;
 
   delayMicroseconds(1);
+  this->enable_pin_->digital_write(false);
+  delayMicroseconds(1);
   this->reset_pin_->digital_write(false);
   delayMicroseconds(1);
   this->reset_pin_->digital_write(true);
