@@ -75,7 +75,7 @@ enum MessageId {
   FHB_SIZE = 12,
   FHB_COMMAND = 13,
   MAX_MODULATION_LEVEL = 14,
-  MAX_BOILER_CAPACITY = 15,
+  MAX_BOILER_CAPACITY = 15,  // u8_hb - u8_lb gives min modulation level
   ROOM_SETPOINT = 16,
   MODULATION_LEVEL = 17,
   CH_WATER_PRESSURE = 18,

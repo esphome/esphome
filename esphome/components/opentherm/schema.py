@@ -5,6 +5,8 @@ from typing import Generic, TypeVar, TypedDict, Optional
 
 from esphome.const import (
     UNIT_CELSIUS,
+    UNIT_EMPTY,
+    UNIT_KILOWATT,
     UNIT_MICROAMP,
     UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
@@ -16,6 +18,7 @@ from esphome.const import (
     DEVICE_CLASS_PROBLEM,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     STATE_CLASS_TOTAL_INCREASING,
 )
 
@@ -392,6 +395,101 @@ SENSORS: Schema[SensorSchema] = Schema(
                 "message_data": "f88",
             }
         ),
+        "oem_fault_code": SensorSchema(
+            {
+                "description": "OEM fault code",
+                "unit_of_measurement": UNIT_EMPTY,
+                "accuracy_decimals": 0,
+                "state_class": STATE_CLASS_NONE,
+                "message": "FAULT_FLAGS",
+                "keep_updated": True,
+                "message_data": "u8_lb",
+            }
+        ),
+        "oem_diagnostic_code": SensorSchema(
+            {
+                "description": "OEM diagnostic code",
+                "unit_of_measurement": UNIT_EMPTY,
+                "accuracy_decimals": 0,
+                "state_class": STATE_CLASS_NONE,
+                "message": "OEM_DIAGNOSTIC",
+                "keep_updated": True,
+                "message_data": "u16",
+            }
+        ),
+        "max_capacity": SensorSchema(
+            {
+                "description": "Maximum boiler capacity (KW)",
+                "unit_of_measurement": UNIT_KILOWATT,
+                "accuracy_decimals": 0,
+                "state_class": STATE_CLASS_MEASUREMENT,
+                "disabled_by_default": True,
+                "message": "MAX_BOILER_CAPACITY",
+                "keep_updated": False,
+                "message_data": "u8_hb",
+            }
+        ),
+        "min_mod_level": SensorSchema(
+            {
+                "description": "Minimum modulation level",
+                "unit_of_measurement": UNIT_PERCENT,
+                "accuracy_decimals": 0,
+                "icon": "mdi:percent",
+                "disabled_by_default": True,
+                "state_class": STATE_CLASS_MEASUREMENT,
+                "message": "MAX_BOILER_CAPACITY",
+                "keep_updated": False,
+                "message_data": "u8_lb",
+            }
+        ),
+        "opentherm_version_device": SensorSchema(
+            {
+                "description": "Version of OpenTherm implemented by device",
+                "unit_of_measurement": UNIT_EMPTY,
+                "accuracy_decimals": 0,
+                "state_class": STATE_CLASS_NONE,
+                "disabled_by_default": True,
+                "message": "OT_VERSION_DEVICE",
+                "keep_updated": False,
+                "message_data": "f88",
+            }
+        ),
+        "device_type": SensorSchema(
+            {
+                "description": "Device product type",
+                "unit_of_measurement": UNIT_EMPTY,
+                "accuracy_decimals": 0,
+                "state_class": STATE_CLASS_NONE,
+                "disabled_by_default": True,
+                "message": "VERSION_DEVICE",
+                "keep_updated": False,
+                "message_data": "u8_hb",
+            }
+        ),
+        "device_version": SensorSchema(
+            {
+                "description": "Device product version",
+                "unit_of_measurement": UNIT_EMPTY,
+                "accuracy_decimals": 0,
+                "state_class": STATE_CLASS_NONE,
+                "disabled_by_default": True,
+                "message": "VERSION_DEVICE",
+                "keep_updated": False,
+                "message_data": "u8_lb",
+            }
+        ),
+        "device_id": SensorSchema(
+            {
+                "description": "Device ID code",
+                "unit_of_measurement": UNIT_EMPTY,
+                "accuracy_decimals": 0,
+                "state_class": STATE_CLASS_NONE,
+                "disabled_by_default": True,
+                "message": "DEVICE_CONFIG",
+                "keep_updated": False,
+                "message_data": "u8_lb",
+            }
+        ),
     }
 )
 
@@ -728,6 +826,22 @@ INPUTS: Schema[InputSchema] = Schema(
                 "keep_updated": True,
                 "message_data": "f88",
                 "range": (-40, 127),
+            }
+        ),
+        "max_rel_mod_level": InputSchema(
+            {
+                "description": "Maximum relative modulation level",
+                "unit_of_measurement": UNIT_PERCENT,
+                "step": 0.1,
+                "icon": "mdi:percent",
+                "message": "MAX_MODULATION_LEVEL",
+                "keep_updated": True,
+                "message_data": "f88",
+                "range": (0, 127),
+                "auto_min_value": {
+                    "message": "MaxCapacityMinModLevel",
+                    "message_data": "u8_lb",
+                },
             }
         ),
     }
