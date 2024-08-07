@@ -1,10 +1,10 @@
 import sys
 
 from esphome import automation, codegen as cg
-from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_VALUE
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj, MockObjClass
 
-from .defines import CONF_TEXT, lvgl_ns
+from .defines import lvgl_ns
 from .lvcode import lv_expr
 
 
