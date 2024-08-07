@@ -183,6 +183,8 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config):
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
         return
+    if not CORE.using_esp_idf:
+        raise cv.Invalid("SPI ethernet requires ESP-IDF")
     if spi_configs := fv.full_config.get().get(CONF_SPI):
         variant = get_esp32_variant()
         if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
@@ -239,9 +241,8 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-            add_idf_sdkconfig_option("CONFIG_ETH_SPI_ETHERNET_W5500", True)
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+        add_idf_sdkconfig_option("CONFIG_ETH_SPI_ETHERNET_W5500", True)
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
