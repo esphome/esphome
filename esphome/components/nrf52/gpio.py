@@ -1,16 +1,8 @@
 from esphome import pins
-
 import esphome.codegen as cg
+from esphome.components.zephyr.const import zephyr_ns
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
-)
-from esphome.components.zephyr.const import (
-    zephyr_ns,
-)
+from esphome.const import CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
 
 ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
 

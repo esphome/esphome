@@ -1,4 +1,10 @@
 import esphome.codegen as cg
+from esphome.components.zephyr import zephyr_set_core_data, zephyr_to_code
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    KEY_ZEPHYR,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -12,15 +18,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
-from esphome.components.zephyr import (
-    zephyr_set_core_data,
-    zephyr_to_code,
-)
-from esphome.components.zephyr.const import (
-    BOOTLOADER_MCUBOOT,
-    KEY_BOOTLOADER,
-    KEY_ZEPHYR,
-)
 from .boards_zephyr import BOARDS_ZEPHYR
 from .const import BOOTLOADER_ADAFRUIT
 
@@ -58,11 +55,10 @@ def _detect_bootloader(value):
         if bootloader is None:
             bootloader = BOOTLOADER_MCUBOOT
         value[KEY_BOOTLOADER] = bootloader
-    else:
-        if bootloader is not None and bootloader != value[KEY_BOOTLOADER]:
-            raise cv.Invalid(
-                f"{value[CONF_FRAMEWORK][CONF_TYPE]} does not support '{bootloader}' bootloader for {value[CONF_BOARD]}"
-            )
+    elif bootloader is not None and bootloader != value[KEY_BOOTLOADER]:
+        raise cv.Invalid(
+            f"{value[CONF_FRAMEWORK][CONF_TYPE]} does not support '{bootloader}' bootloader for {value[CONF_BOARD]}"
+        )
     return value
 
 
