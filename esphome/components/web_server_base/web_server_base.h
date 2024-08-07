@@ -31,6 +31,7 @@ class MiddlewareHandler : public AsyncWebHandler {
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
     next_->handleBody(request, data, len, index, total);
   }
+  // NOLINTNEXTLINE(readability-identifier-naming)
   bool isRequestHandlerTrivial() override { return next_->isRequestHandlerTrivial(); }
 
  protected:
@@ -104,8 +105,8 @@ class WebServerBase : public Component {
   std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
   float get_setup_priority() const override;
 
-  void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
-  void set_auth_password(std::string auth_password) { credentials_.password = std::move(auth_password); }
+  void set_auth_username(std::string &&auth_username) { credentials_.username = std::move(auth_username); }
+  void set_auth_password(std::string &&auth_password) { credentials_.password = std::move(auth_password); }
 
   void add_handler(AsyncWebHandler *handler);
 
@@ -133,7 +134,7 @@ class OTARequestHandler : public AsyncWebHandler {
   bool canHandle(AsyncWebServerRequest *request) override {
     return request->url() == "/update" && request->method() == HTTP_POST;
   }
-
+  // NOLINTNEXTLINE(readability-identifier-naming)
   bool isRequestHandlerTrivial() override { return false; }
 
  protected:
