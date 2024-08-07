@@ -168,21 +168,21 @@ class ClimateTraits {
 
  protected:
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
-    if (supported) {  // NOLINT(bugprone-branch-clone)
+    if (supported) {
       supported_modes_.insert(mode);
     } else {
       supported_modes_.erase(mode);
     }
   }
   void set_fan_mode_support_(climate::ClimateFanMode mode, bool supported) {
-    if (supported) {  // NOLINT(bugprone-branch-clone)
+    if (supported) {
       supported_fan_modes_.insert(mode);
     } else {
       supported_fan_modes_.erase(mode);
     }
   }
   void set_swing_mode_support_(climate::ClimateSwingMode mode, bool supported) {
-    if (supported) {  // NOLINT(bugprone-branch-clone)
+    if (supported) {
       supported_swing_modes_.insert(mode);
     } else {
       supported_swing_modes_.erase(mode);
