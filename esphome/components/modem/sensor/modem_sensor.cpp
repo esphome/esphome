@@ -76,7 +76,7 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
   std::map<std::string, std::string> gnss_data;
 
   if (data.find(",,,,,,") != std::string::npos) {
-    // no data recieved
+    ESP_LOGW(TAG, "No GNSS location available");
     return gnss_data;
   }
 
@@ -202,19 +202,19 @@ void ModemSensor::update_gnss_sensors_() {
       int minute = std::stoi(parts["time"].substr(2, 2));
       int second = std::stoi(parts["time"].substr(4, 2));
 
-      ESP_LOGD(TAG, "Latitude: %f, Longitude: %f", lat, lon);
-      ESP_LOGD(TAG, "Altitude: %f m", alt);
-      ESP_LOGD(TAG, "Speed: %f km/h", speed_kmh);
-      ESP_LOGD(TAG, "COG: %f degrees", cog);
-      ESP_LOGD(TAG, "PDOP: %f", pdop);
-      ESP_LOGD(TAG, "HDOP: %f", hdop);
-      ESP_LOGD(TAG, "VDOP: %f", vdop);
-      ESP_LOGD(TAG, "GPS SVs: %d", gps_svs);
-      ESP_LOGD(TAG, "GLONASS SVs: %d", glonass_svs);
-      ESP_LOGD(TAG, "BEIDOU SVs: %d", beidou_svs);
-      ESP_LOGD(TAG, "Fix mode: %d", mode);
-      ESP_LOGD(TAG, "Date: %04d-%02d-%02d", year, month, day);
-      ESP_LOGD(TAG, "Time: %02d:%02d:%02d", hour, minute, second);
+      ESP_LOGV(TAG, "Latitude: %f, Longitude: %f", lat, lon);
+      ESP_LOGV(TAG, "Altitude: %f m", alt);
+      ESP_LOGV(TAG, "Speed: %f km/h", speed_kmh);
+      ESP_LOGV(TAG, "COG: %f degrees", cog);
+      ESP_LOGV(TAG, "PDOP: %f", pdop);
+      ESP_LOGV(TAG, "HDOP: %f", hdop);
+      ESP_LOGV(TAG, "VDOP: %f", vdop);
+      ESP_LOGV(TAG, "GPS SVs: %d", gps_svs);
+      ESP_LOGV(TAG, "GLONASS SVs: %d", glonass_svs);
+      ESP_LOGV(TAG, "BEIDOU SVs: %d", beidou_svs);
+      ESP_LOGV(TAG, "Fix mode: %d", mode);
+      ESP_LOGV(TAG, "Date: %04d-%02d-%02d", year, month, day);
+      ESP_LOGV(TAG, "Time: %02d:%02d:%02d", hour, minute, second);
 
       // Sensors update
       if (this->gnss_latitude_sensor_)
@@ -225,16 +225,10 @@ void ModemSensor::update_gnss_sensors_() {
         this->gnss_altitude_sensor_->publish_state(alt);
       if (this->gnss_speed_sensor_)
         this->gnss_speed_sensor_->publish_state(speed_kmh);
-      if (this->gnss_cog_sensor_)
-        this->gnss_cog_sensor_->publish_state(speed_kmh);
-      if (this->gnss_pdop_sensor_)
-        this->gnss_pdop_sensor_->publish_state(pdop);
-      if (this->gnss_hdop_sensor_)
-        this->gnss_hdop_sensor_->publish_state(hdop);
-      if (this->gnss_vdop_sensor_)
-        this->gnss_vdop_sensor_->publish_state(vdop);
-      if (this->gnss_mode_sensor_)
-        this->gnss_mode_sensor_->publish_state(mode);
+      if (this->gnss_course_sensor_)
+        this->gnss_course_sensor_->publish_state(cog);
+      if (this->gnss_accuracy_sensor_)
+        this->gnss_accuracy_sensor_->publish_state(hdop * 5);
     }
   }
 }
