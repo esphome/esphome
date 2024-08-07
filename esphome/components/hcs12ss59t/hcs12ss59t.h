@@ -55,11 +55,11 @@ class HCS12SS59TComponent : public display::DisplayBuffer,
   void set_reset_pin(GPIOPin *pin);
   void set_enable_pin(GPIOPin *pin);
 
- protected:
   int get_width_internal() override { return HCS12SS59T_NUMDIGITS; };
   int get_height_internal() override { return 1; };
   void draw_absolute_pixel_internal(int x, int y, Color color) override{};
 
+ protected:
   void send_command_(uint8_t a_register, uint8_t data);
 
   uint8_t intensity_{13};

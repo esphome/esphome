@@ -56,6 +56,8 @@ void HCS12SS59TComponent::display() {
     return;
   }
 
+  ESP_LOGCONFIG(TAG, "Display");
+
   const uint8_t size = buffer_size_;
 
   this->enable();
@@ -134,14 +136,14 @@ void HCS12SS59TComponent::scroll(uint16_t steps) {
 }
 
 void HCS12SS59TComponent::set_scroll(bool enabled) {
-  this->cancel_interval("scroll");
+  // this->cancel_interval("scroll");
 
-  if (enabled) {
-    this->set_interval("scroll", this->scroll_speed_, [this]() {
-      this->scroll(this->scroll_speed_ > 0 ? 1 : -1);
-      this->display();
-    });
-  }
+  // if (enabled) {
+  //   this->set_interval("scroll", this->scroll_speed_, [this]() {
+  //     this->scroll(this->scroll_speed_ > 0 ? 1 : -1);
+  //     this->display();
+  //   });
+  // }
 }
 void HCS12SS59TComponent::set_scroll_speed(uint32_t ms) {
   this->scroll_speed_ = ms;
