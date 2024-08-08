@@ -228,7 +228,7 @@ void MitsubishiUART::process_packet(const CurrentTempGetResponsePacket &packet) 
 
   publish_on_update_ |= (old_current_temperature != current_temperature);
 
-  if (!std::isnan(packet.get_outdoor_temp())) {
+  if (outdoor_temperature_sensor_ && !std::isnan(packet.get_outdoor_temp())) {
     const float old_outdoor_temperature = outdoor_temperature_sensor_->raw_state;
     outdoor_temperature_sensor_->raw_state = packet.get_outdoor_temp();
     publish_on_update_ |= (old_outdoor_temperature != outdoor_temperature_sensor_->raw_state);
@@ -336,23 +336,27 @@ void MitsubishiUART::process_packet(const ErrorStateGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
 
-  std::string old_error_code = error_code_sensor_->raw_state;
+  // Only worry about this if we have error_code_sensor_ defined
+  // TODO: Should we log a warning with error codes even if no sensor?
+  if (error_code_sensor_) {
+    std::string old_error_code = error_code_sensor_->raw_state;
 
-  // TODO: Include friendly text from JSON, somehow.
-  if (!packet.error_present()) {
-    error_code_sensor_->raw_state = "No Error Reported";
-  } else if (auto raw_code = packet.get_raw_short_code() != 0x00) {
-    // Not that it matters, but good for validation I guess.
-    if ((raw_code & 0x1F) > 0x15) {
-      ESP_LOGW(TAG, "Error short code %x had invalid low bits. This is an IT protocol violation!", raw_code);
+    // TODO: Include friendly text from JSON, somehow.
+    if (!packet.error_present()) {
+      error_code_sensor_->raw_state = "No Error Reported";
+    } else if (auto raw_code = packet.get_raw_short_code() != 0x00) {
+      // Not that it matters, but good for validation I guess.
+      if ((raw_code & 0x1F) > 0x15) {
+        ESP_LOGW(TAG, "Error short code %x had invalid low bits. This is an IT protocol violation!", raw_code);
+      }
+
+      error_code_sensor_->raw_state = "Error " + packet.get_short_code();
+    } else {
+      error_code_sensor_->raw_state = "Error " + to_string(packet.get_error_code());
     }
 
-    error_code_sensor_->raw_state = "Error " + packet.get_short_code();
-  } else {
-    error_code_sensor_->raw_state = "Error " + to_string(packet.get_error_code());
+    publish_on_update_ |= (old_error_code != error_code_sensor_->raw_state);
   }
-
-  publish_on_update_ |= (old_error_code != error_code_sensor_->raw_state);
 }
 
 void MitsubishiUART::process_packet(const SettingsSetRequestPacket &packet) {

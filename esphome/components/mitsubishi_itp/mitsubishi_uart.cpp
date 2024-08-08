@@ -230,11 +230,21 @@ void MitsubishiUART::do_publish_() {
   }
 
   // Binary sensors automatically dedup publishes (I think) and so will only actually publish on change
-  filter_status_sensor_->publish_state(filter_status_sensor_->state);
-  defrost_sensor_->publish_state(defrost_sensor_->state);
-  preheat_sensor_->publish_state(preheat_sensor_->state);
-  standby_sensor_->publish_state(standby_sensor_->state);
-  isee_status_sensor_->publish_state(isee_status_sensor_->state);
+  if (filter_status_sensor_) {
+    filter_status_sensor_->publish_state(filter_status_sensor_->state);
+  }
+  if (defrost_sensor_) {
+    defrost_sensor_->publish_state(defrost_sensor_->state);
+  }
+  if (preheat_sensor_) {
+    preheat_sensor_->publish_state(preheat_sensor_->state);
+  }
+  if (standby_sensor_) {
+    standby_sensor_->publish_state(standby_sensor_->state);
+  }
+  if (isee_status_sensor_) {
+    isee_status_sensor_->publish_state(isee_status_sensor_->state);
+  }
 }
 
 bool MitsubishiUART::select_temperature_source(const std::string &state) {
