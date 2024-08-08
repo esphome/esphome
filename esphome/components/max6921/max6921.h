@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include <esp32-hal-gpio.h>
 #include <string>
 #include "esphome/core/automation.h"
@@ -56,3 +58,5 @@ class MAX6921Component : public PollingComponent,
 
 }  // namespace max6921
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

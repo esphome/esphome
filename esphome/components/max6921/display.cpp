@@ -1,3 +1,4 @@
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -829,3 +830,5 @@ void DisplayMode::set_mode(display_mode_t mode, uint32_t duration_ms) {
 
 }  // namespace max6921
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

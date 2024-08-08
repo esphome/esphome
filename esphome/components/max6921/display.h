@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include <esp32-hal-gpio.h>
 #include <string>
 #include <vector>
@@ -121,3 +123,5 @@ class Display : public DisplayBrightness, public DisplayMode {
 
 }  // namespace max6921
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
