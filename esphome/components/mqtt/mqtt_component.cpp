@@ -166,7 +166,17 @@ bool MQTTComponent::send_discovery_() {
 #else
         device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_VERSION " (" + App.get_compilation_time() + ")";
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
-        device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+		    device_info[MQTT_DEVICE_MANUFACTURER] = "Espressif";
+#elif defined(USE_RP2040)
+		    device_info[MQTT_DEVICE_MANUFACTURER] = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+		    device_info[MQTT_DEVICE_MANUFACTURER] = "Beken";
+#elif defined(USE_RTL87XX)
+		    device_info[MQTT_DEVICE_MANUFACTURER] = "Realtek";
+#elif defined(USE_HOST)
+		    device_info[MQTT_DEVICE_MANUFACTURER] = "Host";
+#endif
 #endif
         if (!node_area.empty()) {
           device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
