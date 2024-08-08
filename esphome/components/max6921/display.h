@@ -118,7 +118,7 @@ class Display : public DisplayBrightness, public DisplayMode {
   int update_out_buf_();
 
  private:
-  void init_font__();
+  void init_font_();
 };
 
 }  // namespace max6921

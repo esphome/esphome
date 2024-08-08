@@ -23,7 +23,7 @@ class MAX6921Component : public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
  public:
-  Display *display_;
+  std::unique_ptr<Display> display_;
   void dump_config() override;
   float get_setup_priority() const override;
   uint8_t print(uint8_t pos, const char *str);
@@ -31,8 +31,8 @@ class MAX6921Component : public PollingComponent,
   void set_blank_pin(InternalGPIOPin *pin) { blank_pin_ = pin; }
   void set_brightness(float brightness);
   void set_load_pin(GPIOPin *load) { this->load_pin_ = load; }
-  void set_seg_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->seg_to_out_map__ = pin_map; }
-  void set_pos_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->pos_to_out_map__ = pin_map; }
+  void set_seg_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->seg_to_out_map_ = pin_map; }
+  void set_pos_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->pos_to_out_map_ = pin_map; }
   void set_writer(max6921_writer_t &&writer);
   void setup() override;
   uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
@@ -52,8 +52,8 @@ class MAX6921Component : public PollingComponent,
   optional<max6921_writer_t> writer_{};
 
  private:
-  std::vector<uint8_t> seg_to_out_map__;  // mapping of display segments to MAX6921 OUT pins
-  std::vector<uint8_t> pos_to_out_map__;  // mapping of display positions to MAX6921 OUT pins
+  std::vector<uint8_t> seg_to_out_map_;  // mapping of display segments to MAX6921 OUT pins
+  std::vector<uint8_t> pos_to_out_map_;  // mapping of display positions to MAX6921 OUT pins
 };
 
 }  // namespace max6921

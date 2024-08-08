@@ -129,7 +129,7 @@ void Display::setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &
   ESP_LOGCONFIG(TAG, "Display digits: %u", this->num_digits_);
 
   // setup font...
-  init_font__();
+  init_font_();
 
   // display output buffer...
   this->out_buf_size_ = this->num_digits_ * 3;
@@ -229,7 +229,7 @@ void Display::dump_config() {
  */
 bool Display::is_point_seg_only(char c) { return ((c == ',') || (c == '.')); }
 
-void Display::init_font__() {
+void Display::init_font_() {
   uint8_t seg_data;
 
   this->ascii_out_data_ = new uint8_t[ARRAY_ELEM_COUNT(ASCII_TO_SEG)];  // NOLINT
@@ -554,7 +554,7 @@ DisplayText::DisplayText() {
 int DisplayText::set_text(uint start_pos, uint max_pos, const std::string &text) {
   // check start position...
   if (start_pos >= max_pos) {
-    ESP_LOGW(TAG, "Invalid start position: %u");
+    ESP_LOGW(TAG, "Invalid start position: %u", start_pos);
     this->start_pos = 0;
   } else
     this->start_pos = start_pos;
@@ -577,11 +577,12 @@ void DisplayText::init_text_align_() {
     case TEXT_ALIGN_LEFT:
       this->start_pos = 0;
       break;
-    case TEXT_ALIGN_CENTER:
-      this->start_pos = ((this->max_pos + 1) - this->visible_len) / 2;
-      break;
     case TEXT_ALIGN_RIGHT:
       this->start_pos = (this->max_pos + 1) - this->visible_len;
+      break;
+    case TEXT_ALIGN_CENTER:
+    default:
+      this->start_pos = ((this->max_pos + 1) - this->visible_len) / 2;
       break;
   }
 }
@@ -638,7 +639,7 @@ void DisplayText::set_text_align(const std::string &align) {
     } else if (str_equals_case_insensitive(align, "right")) {
       text_align = TEXT_ALIGN_RIGHT;
     } else {
-      ESP_LOGW(TAG, "Invalid text align: %s", align);
+      ESP_LOGW(TAG, "Invalid text align: %s", align.c_str());
     }
   } else
     ESP_LOGW(TAG, "No text align given");
@@ -687,7 +688,7 @@ void DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num) 
     } else if (str_equals_case_insensitive(effect, "scroll_left")) {
       text_effect = TEXT_EFFECT_SCROLL_LEFT;
     } else {
-      ESP_LOGW(TAG, "Invalid text effect: %s", effect);
+      ESP_LOGW(TAG, "Invalid text effect: %s", effect.c_str());
     }
   } else
     ESP_LOGW(TAG, "No text effect given");
