@@ -46,6 +46,8 @@ CONF_POS_12_PIN = "pos_12_pin"
 CONF_TEXT = "text"
 CONF_ALIGN = "align"
 CONF_CYCLE_NUM = "cycle_num"
+CONF_OFF = "off"
+CONF_SCROLL_FONT = "scroll_font"
 
 
 max6921_ns = cg.esphome_ns.namespace("max6921")
@@ -59,13 +61,11 @@ SetTextAction = max6921_ns.class_("SetTextAction", automation.Action)
 
 
 # optional "demo_mode" configuration
-CONF_DEMO_MODE_OFF = "off"
-CONF_DEMO_MODE_SCROLL_FONT = "scroll_font"
-DemoMode = max6921_ns.enum("DemoMode")
-DEMO_MODES = {
-    CONF_DEMO_MODE_OFF: DemoMode.DEMO_MODE_OFF,
-    CONF_DEMO_MODE_SCROLL_FONT: DemoMode.DEMO_MODE_SCROLL_FONT,
-}
+# DemoMode = max6921_ns.enum("DemoMode")
+# DEMO_MODES = {
+#     CONF_OFF: DemoMode.OFF,
+#     CONF_SCROLL_FONT: DemoMode.SCROLL_FONT,
+# }
 
 
 def validate_out_pin_mapping(value):

@@ -10,8 +10,7 @@
 namespace esphome {
 namespace max6921 {
 
-#define ARRAY_ELEM_COUNT(array)  (sizeof(array)/sizeof(array[0]))
-
+#define ARRAY_ELEM_COUNT(array) (sizeof(array) / sizeof(array[0]))
 
 class MAX6921Component;
 class Display;
@@ -41,20 +40,19 @@ class MAX6921Component : public PollingComponent,
 
  protected:
   GPIOPin *load_pin_{};
-  InternalGPIOPin *blank_pin_;
+  InternalGPIOPin *blank_pin_{};
   bool setup_finished{false};
-  void disable_blank_() { digitalWrite(this->blank_pin_->get_pin(), LOW); }  // display on
+  void disable_blank_() { this->blank_pin_->digital_write(false); }  // display on
   void IRAM_ATTR HOT disable_load_() { this->load_pin_->digital_write(false); }
-  void enable_blank_() { digitalWrite(this->blank_pin_->get_pin(), HIGH); }  // display off
+  void enable_blank_() { this->blank_pin_->digital_write(true); }  // display off
   void IRAM_ATTR HOT enable_load_() { this->load_pin_->digital_write(true); }
   void update_demo_mode_scroll_font_(void);
   optional<max6921_writer_t> writer_{};
 
  private:
-  std::vector<uint8_t> seg_to_out_map__;                    // mapping of display segments to MAX6921 OUT pins
-  std::vector<uint8_t> pos_to_out_map__;                    // mapping of display positions to MAX6921 OUT pins
+  std::vector<uint8_t> seg_to_out_map__;  // mapping of display segments to MAX6921 OUT pins
+  std::vector<uint8_t> pos_to_out_map__;  // mapping of display positions to MAX6921 OUT pins
 };
-
 
 }  // namespace max6921
 }  // namespace esphome

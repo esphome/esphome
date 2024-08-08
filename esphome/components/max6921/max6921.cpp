@@ -12,7 +12,6 @@ namespace max6921 {
 
 static const char *const TAG = "max6921";
 
-
 float MAX6921Component::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void MAX6921Component::setup() {
@@ -25,17 +24,17 @@ void MAX6921Component::setup() {
   this->spi_setup();
   this->load_pin_->setup();
   this->load_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  this->disable_load_();                                                         // disable output latch
+  this->disable_load_();  // disable output latch
 
   this->display_ = new Display(this);
   this->display_->setup(this->seg_to_out_map__, this->pos_to_out_map__);
 
   // setup display brightness (PWM for BLANK pin)...
-  if (this->display_->config_brightness_pwm(this->blank_pin_->get_pin(), 0,
-                                            PWM_RESOLUTION, PWM_FREQ_WANTED) == 0) {
+  if (this->display_->config_brightness_pwm(this->blank_pin_->get_pin(), 0, PWM_RESOLUTION, PWM_FREQ_WANTED) == 0) {
     ESP_LOGE(TAG, "Failed to configure PWM -> set to max. brightness");
-    pinMode(this->blank_pin_->get_pin(), OUTPUT);
-    this->disable_blank_();      // enable display (max. brightness)
+    this->blank_pin_->pin_mode(gpio::FLAG_OUTPUT);
+    this->blank_pin_->setup();
+    this->disable_blank_();  // enable display (max. brightness)
   }
 
   this->setup_finished = true;
@@ -71,13 +70,13 @@ void HOT MAX6921Component::write_data(uint8_t *ptr, size_t length) {
   static bool first_call_logged = false;
 
   assert(length == 3);
-  this->disable_load_();                   // set LOAD to low
-  memcpy(data, ptr, sizeof(data));        // make copy of data, because transfer buffer will be overwritten with SPI answer
+  this->disable_load_();            // set LOAD to low
+  memcpy(data, ptr, sizeof(data));  // make copy of data, because transfer buffer will be overwritten with SPI answer
   if (!first_call_logged)
     ESP_LOGVV(TAG, "SPI(%u): 0x%02x%02x%02x", length, data[0], data[1], data[2]);
-    first_call_logged = true;
+  first_call_logged = true;
   this->transfer_array(data, sizeof(data));
-  this->enable_load_();                    // set LOAD to high to update output latch
+  this->enable_load_();  // set LOAD to high to update output latch
 }
 
 void MAX6921Component::update() {
@@ -87,15 +86,14 @@ void MAX6921Component::update() {
     (*this->writer_)(*this);
 }
 
-
 /*
  * Evaluates lambda function
  *   start_pos: 0..n = left..right display position
  *   vi_text      : display text
  */
 uint8_t MAX6921Component::print(uint8_t start_pos, const char *str) {
-  if (this->display_->mode != DISP_MODE_PRINT)                                  // not in "it.print" mode?
-    return strlen(str);                                                         // yes -> abort
+  if (this->display_->mode != DISP_MODE_PRINT)  // not in "it.print" mode?
+    return strlen(str);                         // yes -> abort
   return this->display_->set_text(str, start_pos);
 }
 

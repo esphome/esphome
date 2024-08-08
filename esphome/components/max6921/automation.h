@@ -16,7 +16,6 @@ template<typename... Ts> class SetBrightnessAction : public Action<Ts...>, publi
   void play(Ts... x) override { this->parent_->set_brightness(this->brightness_.value(x...)); }
 };
 
-
 template<typename... Ts> class SetTextAction : public Action<Ts...> {
  public:
   explicit SetTextAction(MAX6921Component *max9621) : max9621_(max9621) {}
@@ -34,19 +33,13 @@ template<typename... Ts> class SetTextAction : public Action<Ts...> {
     auto cycle_num = this->text_effect_cycle_num_.value(x...);
     auto duration = this->text_effect_duration_.value(x...);
     auto update_interval = this->text_effect_update_interval_.value(x...);
-    this->max9621_->display_->set_text(this->text_.value(x...),
-                                       pos,
-                                       this->text_align_.value(x...),
-                                       duration,
-                                       this->text_effect_.value(x...),
-                                       update_interval,
-                                       cycle_num);
+    this->max9621_->display_->set_text(this->text_.value(x...), pos, this->text_align_.value(x...), duration,
+                                       this->text_effect_.value(x...), update_interval, cycle_num);
   }
 
  protected:
   MAX6921Component *max9621_;
 };
-
 
 #if 0
 template<typename... Ts> class SetDemoModeAction : public Action<Ts...>, public Parented<MAX6921Component> {
@@ -59,7 +52,6 @@ template<typename... Ts> class SetDemoModeAction : public Action<Ts...>, public 
   }
 };
 #endif
-
 
 template<typename... Ts> class SetDemoModeAction : public Action<Ts...> {
  public:
@@ -76,17 +68,15 @@ template<typename... Ts> class SetDemoModeAction : public Action<Ts...> {
   //     this->set_mode(DEMO_MODE_OFF);
   //   } else if (str_equals_case_insensitive(mode, "scroll_font")) {
   //     this->set_mode(DEMO_MODE_SCROLL_FONT);
-    // } else {
-    //   ESP_LOGW(TAG, "Invalid demo mode %s", mode.c_str());
-    // }
+  //   } else {
+  //     output log message (TAG, "Invalid demo mode %s", mode.c_str());
+  //   }
   // }
 
   void play(Ts... x) override {
     auto update_interval = this->demo_update_interval_.value(x...);
     auto cycle_num = this->demo_cycle_num_.value(x...);
-    this->max9621_->display_->set_demo_mode(this->mode_.value(x...),
-                                            update_interval,
-                                            cycle_num);
+    this->max9621_->display_->set_demo_mode(this->mode_.value(x...), update_interval, cycle_num);
   }
 
  protected:
@@ -95,6 +85,5 @@ template<typename... Ts> class SetDemoModeAction : public Action<Ts...> {
   // DemoMode mode_;
 };
 
-
-}  // namespace max9621
+}  // namespace max6921
 }  // namespace esphome
