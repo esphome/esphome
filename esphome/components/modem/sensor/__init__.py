@@ -148,7 +148,7 @@ async def to_code(config):
 
     if speed := config.get(CONF_SPEED, None):
         speed_sensor = await sensor.new_sensor(speed)
-        cg.add(var.set_altitude_sensor(speed_sensor))
+        cg.add(var.set_speed_sensor(speed_sensor))
 
     if course := config.get(CONF_COURSE, None):
         course_sensor = await sensor.new_sensor(course)
