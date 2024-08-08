@@ -132,7 +132,7 @@ void ATM90E32Component::update() {
   this->status_clear_warning();
 }
 
-void ATM90E32Component::restore_calibrations() {
+void ATM90E32Component::restore_calibrations_() {
   if (enable_offset_calibration_ == true) {
     this->pref_.load(&this->offset_phase_);
   }
@@ -201,7 +201,7 @@ void ATM90E32Component::setup() {
   if (this->enable_offset_calibration_) {
     uint32_t hash = fnv1_hash(App.get_friendly_name());
     this->pref_ = global_preferences->make_preference<Calibration[3]>(hash, true);
-    this->restore_calibrations();
+    this->restore_calibrations_();
   }
   uint16_t mmode0 = 0x87;  // 3P4W 50Hz
   if (line_freq_ == 60) {
