@@ -1,18 +1,18 @@
-from esphome import pins, automation
+from esphome import automation, pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_BRIGHTNESS,
+    CONF_DURATION,
+    CONF_EFFECT,
+    CONF_ID,
     CONF_LAMBDA,
     CONF_MODE,
     CONF_POSITION,
-    CONF_EFFECT,
-    CONF_DURATION,
+    CONF_TEXT,
     CONF_UPDATE_INTERVAL,
 )
-
 
 DEPENDENCIES = ["spi", "esp32"]
 CODEOWNERS = ["@endym"]
@@ -43,7 +43,6 @@ CONF_POS_10_PIN = "pos_10_pin"
 CONF_POS_11_PIN = "pos_11_pin"
 CONF_POS_12_PIN = "pos_12_pin"
 # CONF_DEMO_MODE = "demo_mode"
-CONF_TEXT = "text"
 CONF_ALIGN = "align"
 CONF_CYCLE_NUM = "cycle_num"
 CONF_OFF = "off"
