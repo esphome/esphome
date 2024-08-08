@@ -5,28 +5,17 @@ from esphome.components import (
     uart,
     time,
     sensor,
-    binary_sensor,
     button,
-    text_sensor,
     select,
 )
 from esphome.const import (
     CONF_CUSTOM_FAN_MODES,
     CONF_ID,
-    CONF_OUTDOOR_TEMPERATURE,
-    CONF_SENSORS,
     CONF_SUPPORTED_FAN_MODES,
     CONF_SUPPORTED_MODES,
     CONF_TIME_ID,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_FREQUENCY,
-    DEVICE_CLASS_HUMIDITY,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_NONE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HERTZ,
-    UNIT_PERCENT,
 )
 from esphome.core import coroutine
 
@@ -47,12 +36,6 @@ DEPENDENCIES = [
 
 CONF_UART_HEATPUMP = "uart_heatpump"
 CONF_UART_THERMOSTAT = "uart_thermostat"
-
-CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
-CONF_THERMOSTAT_HUMIDITY = "thermostat_humidity"
-CONF_THERMOSTAT_BATTERY = "thermostat_battery"
-CONF_ERROR_CODE = "error_code"
-CONF_ISEE_STATUS = "isee_status"
 
 CONF_SELECTS = "selects"
 CONF_TEMPERATURE_SOURCE_SELECT = "temperature_source_select"  # This is to create a Select object for selecting a source
@@ -77,6 +60,7 @@ mitsubishi_itp_ns = cg.esphome_ns.namespace("mitsubishi_itp")
 MitsubishiUART = mitsubishi_itp_ns.class_(
     "MitsubishiUART", cg.PollingComponent, climate.Climate
 )
+CONF_MITSUBISHI_IPT_ID = "mitsuibishi_itp_id"
 
 TemperatureSourceSelect = mitsubishi_itp_ns.class_(
     "TemperatureSourceSelect", select.Select
@@ -125,112 +109,6 @@ BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
     }
 ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
-# TODO Storing the registration function here seems weird, but I can't figure out how to determine schema type later
-SENSORS = dict[str, tuple[str, cv.Schema, callable]](
-    {
-        CONF_THERMOSTAT_TEMPERATURE: (
-            "Thermostat Temperature",
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-                accuracy_decimals=1,
-            ),
-            sensor.register_sensor,
-        ),
-        CONF_OUTDOOR_TEMPERATURE: (
-            "Outdoor Temperature",
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-                accuracy_decimals=1,
-                icon="mdi:sun-thermometer-outline",
-            ),
-            sensor.register_sensor,
-        ),
-        CONF_THERMOSTAT_HUMIDITY: (
-            "Thermostat Humidity",
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                accuracy_decimals=0,
-            ),
-            sensor.register_sensor,
-        ),
-        CONF_THERMOSTAT_BATTERY: (
-            "Thermostat Battery",
-            text_sensor.text_sensor_schema(
-                icon="mdi:battery",
-            ),
-            text_sensor.register_text_sensor,
-        ),
-        "compressor_frequency": (
-            "Compressor Frequency",
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_HERTZ,
-                device_class=DEVICE_CLASS_FREQUENCY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            sensor.register_sensor,
-        ),
-        "actual_fan": (
-            "Actual Fan Speed",
-            text_sensor.text_sensor_schema(
-                icon="mdi:fan",
-            ),
-            text_sensor.register_text_sensor,
-        ),
-        "filter_status": (
-            "Filter Status",
-            binary_sensor.binary_sensor_schema(
-                device_class="problem", icon="mdi:air-filter"
-            ),
-            binary_sensor.register_binary_sensor,
-        ),
-        "defrost": (
-            "Defrost",
-            binary_sensor.binary_sensor_schema(icon="mdi:snowflake-melt"),
-            binary_sensor.register_binary_sensor,
-        ),
-        "preheat": (
-            "Preheat",
-            binary_sensor.binary_sensor_schema(icon="mdi:heating-coil"),
-            binary_sensor.register_binary_sensor,
-        ),
-        "standby": (
-            "Standby",
-            binary_sensor.binary_sensor_schema(icon="mdi:pause-circle-outline"),
-            binary_sensor.register_binary_sensor,
-        ),
-        CONF_ISEE_STATUS: (
-            "i-see Status",
-            binary_sensor.binary_sensor_schema(icon="mdi:eye"),
-            binary_sensor.register_binary_sensor,
-        ),
-        CONF_ERROR_CODE: (
-            "Error Code",
-            text_sensor.text_sensor_schema(icon="mdi:alert-circle-outline"),
-            text_sensor.register_text_sensor,
-        ),
-    }
-)
-
-SENSORS_SCHEMA = cv.All(
-    {
-        cv.Optional(
-            sensor_designator,
-            default={"name": f"{sensor_name}", "disabled_by_default": "true"},
-        ): sensor_schema
-        for sensor_designator, (
-            sensor_name,
-            sensor_schema,
-            registration_function,
-        ) in SENSORS.items()
-    }
-)
-
 SELECTS = {
     CONF_TEMPERATURE_SOURCE_SELECT: (
         "Temperature Source",
@@ -269,7 +147,7 @@ SELECTS_SCHEMA = cv.All(
         for select_designator, (
             select_name,
             select_schema,
-            select_options,
+            _,
         ) in SELECTS.items()
     }
 )
@@ -297,7 +175,6 @@ BUTTONS_SCHEMA = cv.All(
 
 CONFIG_SCHEMA = BASE_SCHEMA.extend(
     {
-        cv.Optional(CONF_SENSORS, default={}): SENSORS_SCHEMA,
         cv.Optional(CONF_SELECTS, default={}): SELECTS_SCHEMA,
         cv.Optional(CONF_BUTTONS, default={}): BUTTONS_SCHEMA,
     }
@@ -368,35 +245,6 @@ async def to_code(config):
 
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(traits.set_supported_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
-
-    # Sensors
-
-    for sensor_designator, (
-        _,
-        _,
-        registration_function,
-    ) in SENSORS.items():
-        # Only add the thermostat temp if we have a TS_UART
-        if (CONF_UART_THERMOSTAT not in config) and (
-            sensor_designator
-            in [
-                CONF_THERMOSTAT_TEMPERATURE,
-                CONF_THERMOSTAT_HUMIDITY,
-                CONF_THERMOSTAT_BATTERY,
-            ]
-        ):
-            continue
-
-        sensor_conf = config[CONF_SENSORS][sensor_designator]
-        sensor_component = cg.new_Pvariable(sensor_conf[CONF_ID])
-
-        await registration_function(sensor_component, sensor_conf)
-
-        cg.add(
-            getattr(muart_component, f"set_{sensor_designator}_sensor")(
-                sensor_component
-            )
-        )
 
     # Selects
 
