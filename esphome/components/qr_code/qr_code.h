@@ -4,6 +4,7 @@
 
 #include <cstdint>
 
+#ifndef USE_ZEPHYR
 #include "qrcodegen.h"
 
 namespace esphome {
@@ -34,3 +35,4 @@ class QrCode : public Component {
 };
 }  // namespace qr_code
 }  // namespace esphome
+#endif
