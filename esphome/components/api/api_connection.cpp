@@ -1336,7 +1336,7 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
       update->check();
       break;
     default:
-      ESP_LOGW(TAG, "Unknown update command: %d", msg.command);
+      ESP_LOGW(TAG, "Unknown update command: %lu", msg.command);
       break;
   }
 }
