@@ -19,7 +19,7 @@ class LVGLText : public text::Text {
   }
 
  protected:
-  void control(const std::string &value) {
+  void control(const std::string &value) override {
     if (this->control_lambda_ != nullptr)
       this->control_lambda_(value);
     else
