@@ -13,11 +13,11 @@ from esphome.components import (
 from esphome.const import (
     CONF_CUSTOM_FAN_MODES,
     CONF_ID,
-    CONF_NAME,
     CONF_OUTDOOR_TEMPERATURE,
     CONF_SENSORS,
     CONF_SUPPORTED_FAN_MODES,
     CONF_SUPPORTED_MODES,
+    CONF_TIME_ID,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_HUMIDITY,
@@ -43,12 +43,10 @@ AUTO_LOAD = [
 ]
 DEPENDENCIES = [
     "uart",
-    "climate",
 ]
 
 CONF_UART_HEATPUMP = "uart_heatpump"
 CONF_UART_THERMOSTAT = "uart_thermostat"
-CONF_TIME_SOURCE = "time_source"
 
 CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
 CONF_THERMOSTAT_HUMIDITY = "thermostat_humidity"
@@ -109,17 +107,7 @@ BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
         cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
         cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
         cv.Optional(CONF_UART_THERMOSTAT): cv.use_id(uart.UARTComponent),
-        cv.Optional(CONF_TIME_SOURCE): cv.use_id(time.RealTimeClock),
-        # Overwrite name from ENTITY_BASE_SCHEMA with "Climate" as default
-        cv.Optional(CONF_NAME, default="Climate"): cv.Any(
-            cv.All(
-                cv.none,
-                cv.requires_friendly_name(
-                    "Name cannot be None when esphome->friendly_name is not set!"
-                ),
-            ),
-            cv.string,
-        ),
+        cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         cv.Optional(
             CONF_SUPPORTED_MODES, default=DEFAULT_CLIMATE_MODES
         ): cv.ensure_list(climate.validate_climate_mode),
@@ -361,12 +349,12 @@ async def to_code(config):
         SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2].append("Thermostat")
 
     # If RTC defined
-    if CONF_TIME_SOURCE in config:
-        rtc_component = await cg.get_variable(config[CONF_TIME_SOURCE])
+    if CONF_TIME_ID in config:
+        rtc_component = await cg.get_variable(config[CONF_TIME_ID])
         cg.add(getattr(muart_component, "set_time_source")(rtc_component))
     elif CONF_UART_THERMOSTAT in config and config.get(CONF_ENHANCED_MHK_SUPPORT):
         raise cv.RequiredFieldInvalid(
-            f"{CONF_TIME_SOURCE} is required if {CONF_ENHANCED_MHK_SUPPORT} is set."
+            f"{CONF_TIME_ID} is required if {CONF_ENHANCED_MHK_SUPPORT} is set."
         )
 
     # Traits
