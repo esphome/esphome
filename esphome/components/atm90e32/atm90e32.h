@@ -1,15 +1,12 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/preferences.h"
+#include "atm90e32_reg.h"
 #include "esphome/components/sensor/sensor.h"
-#ifdef USE_BUTTON
-#include "esphome/components/button/button.h"
-#endif
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/application.h"
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "atm90e32_reg.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome {
 namespace atm90e32 {
@@ -53,10 +50,6 @@ class ATM90E32Component : public PollingComponent,
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
-#ifdef USE_BUTTON
-  void set_run_offset_calibration(button::Button *button) { this->run_offset_calibration_ = button; };
-  void set_clear_offset_calibration(button::Button *button) { this->clear_offset_calibration_ = button; };
-#endif
   void run_offset_calibrations();
   void clear_offset_calibrations();
   void set_enable_offset_calibration(bool flag) { enable_offset_calibration_ = flag; }
@@ -135,10 +128,6 @@ class ATM90E32Component : public PollingComponent,
 
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *chip_temperature_sensor_{nullptr};
-#ifdef USE_BUTTON
-  button::Button *run_offset_calibration_{nullptr};
-  button::Button *clear_offset_calibration_{nullptr};
-#endif
   uint16_t pga_gain_{0x15};
   int line_freq_{60};
   int current_phases_{3};

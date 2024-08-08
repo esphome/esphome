@@ -1,20 +1,21 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, spi
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_REACTIVE_POWER,
-    CONF_VOLTAGE,
+    CONF_APPARENT_POWER,
     CONF_CURRENT,
+    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_FREQUENCY,
+    CONF_ID,
     CONF_PHASE_A,
+    CONF_PHASE_ANGLE,
     CONF_PHASE_B,
     CONF_PHASE_C,
-    CONF_PHASE_ANGLE,
     CONF_POWER,
     CONF_POWER_FACTOR,
-    CONF_APPARENT_POWER,
-    CONF_FREQUENCY,
-    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_REACTIVE_POWER,
     CONF_REVERSE_ACTIVE_ENERGY,
+    CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
@@ -22,13 +23,13 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_LIGHTBULB,
     ICON_CURRENT_AC,
+    ICON_LIGHTBULB,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
-    UNIT_DEGREES,
     UNIT_CELSIUS,
+    UNIT_DEGREES,
     UNIT_HERTZ,
     UNIT_VOLT,
     UNIT_VOLT_AMPS_REACTIVE,
@@ -36,7 +37,7 @@ from esphome.const import (
     UNIT_WATT_HOURS,
 )
 
-from . import CONF_ATM90E32_ID, ATM90E32Component
+from . import atm90e32_ns
 
 CONF_LINE_FREQUENCY = "line_frequency"
 CONF_CHIP_TEMPERATURE = "chip_temperature"
@@ -63,7 +64,9 @@ PGA_GAINS = {
     "4X": 0x2A,
 }
 
-CODEOWNERS = ["@circuitsetup", "@descipher"]
+ATM90E32Component = atm90e32_ns.class_(
+    "ATM90E32Component", cg.PollingComponent, spi.SPIDevice
+)
 
 ATM90E32_PHASE_SCHEMA = cv.Schema(
     {
@@ -140,7 +143,7 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(CONF_ATM90E32_ID): cv.declare_id(ATM90E32Component),
+            cv.GenerateID(): cv.declare_id(ATM90E32Component),
             cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
@@ -172,7 +175,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ATM90E32_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
