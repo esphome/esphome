@@ -7,7 +7,7 @@ from .. import CONF_ATM90E32_ID, ATM90E32Component, atm90e32_ns
 CONF_RUN_OFFSET_CALIBRATION = "run_offset_calibration"
 CONF_CLEAR_OFFSET_CALIBRATION = "clear_offset_calibration"
 
-CODEOWNERS = ["@descipher"]
+CODEOWNERS = ["@circuitsetup", "@descipher"]
 
 ATM90E32CalibrationButton = atm90e32_ns.class_(
     "ATM90E32CalibrationButton",

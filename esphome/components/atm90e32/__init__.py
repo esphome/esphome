@@ -6,7 +6,7 @@ from esphome.const import CONF_ID
 MULTI_CONF = True
 CONF_ATM90E32_ID = "atm90e32_id"
 
-CODEOWNERS = ["@descipher"]
+CODEOWNERS = ["@circuitsetup", "@descipher"]
 
 atm90e32_ns = cg.esphome_ns.namespace("atm90e32")
 ATM90E32Component = atm90e32_ns.class_(
