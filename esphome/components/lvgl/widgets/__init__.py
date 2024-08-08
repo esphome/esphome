@@ -6,7 +6,7 @@ from esphome.config_validation import Invalid
 from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import AssignmentExpression, CallExpression, MockObj
+from esphome.cpp_generator import CallExpression, MockObj
 
 from ..defines import (
     CONF_DEFAULT,
@@ -44,15 +44,7 @@ from ..lvcode import (
     lv_Pvariable,
 )
 from ..schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
-from ..types import (
-    LV_STATE,
-    LvType,
-    WidgetType,
-    lv_coord_t,
-    lv_group_t,
-    lv_obj_t,
-    lv_obj_t_ptr,
-)
+from ..types import LV_STATE, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
 
@@ -317,7 +309,8 @@ async def set_obj_properties(w: Widget, config):
                     value = await ALL_STYLES[prop].process(value)
                 prop_r = STYLE_REMAP.get(prop, prop)
                 w.set_style(prop_r, value, lv_state)
-    if group := add_group(config.get(CONF_GROUP)):
+    if group := config.get(CONF_GROUP):
+        group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)
     flag_clr = set()
     flag_set = set()
@@ -404,20 +397,3 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
 
 lv_scr_act_spec = LvScrActType()
 lv_scr_act = Widget.create(None, literal("lv_scr_act()"), lv_scr_act_spec, {})
-
-lv_groups = {}  # Widget group names
-
-
-def add_group(name):
-    if name is None:
-        return None
-    fullname = f"lv_esp_group_{name}"
-    if name not in lv_groups:
-        gid = ID(fullname, True, type=lv_group_t.operator("ptr"))
-        lv_add(
-            AssignmentExpression(
-                type_=gid.type, modifier="", name=fullname, rhs=lv_expr.group_create()
-            )
-        )
-        lv_groups[name] = literal(fullname)
-    return lv_groups[name]

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TEXT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
@@ -15,9 +16,9 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid, types as ty
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import id_name, lv_color, lv_font, lv_image
+from .lv_validation import lv_color, lv_font, lv_image
 from .lvcode import LvglComponent
-from .types import WidgetType
+from .types import WidgetType, lv_group_t
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
@@ -25,7 +26,7 @@ WIDGET_TYPES: dict = {}
 # A schema for text properties
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Optional(df.CONF_TEXT): cv.Any(
+        cv.Optional(CONF_TEXT): cv.Any(
             cv.All(
                 cv.Schema(
                     {
@@ -60,7 +61,7 @@ ENCODER_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.All(
             cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
         ),
-        cv.Optional(CONF_GROUP): lvalid.id_name,
+        cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
@@ -248,7 +249,7 @@ def obj_schema(widget_type: WidgetType):
             cv.Schema(
                 {
                     cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                    cv.Optional(CONF_GROUP): id_name,
+                    cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
                 }
             )
         )
@@ -330,7 +331,7 @@ DISP_BG_SCHEMA = cv.Schema(
 
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
-    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
+    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=CONF_TEXT
 )
 
 # For use by platform components
