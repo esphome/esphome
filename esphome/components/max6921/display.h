@@ -15,15 +15,15 @@ class MAX6921Component;
 static const uint FONT_SIZE = 95;
 static const uint DISPLAY_TEXT_LEN = FONT_SIZE;  // at least font size for demo mode "scroll font"
 
-enum display_mode_t {
+enum DisplayModeT {
   DISP_MODE_PRINT,  // input by it-functions
   DISP_MODE_OTHER,  // input by actions
   DISP_MODE_LAST_ENUM
 };
 
-enum text_align_t { TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT, TEXT_ALIGN_LAST_ENUM };
+enum TextAlignT { TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT, TEXT_ALIGN_LAST_ENUM };
 
-enum text_effect_t {
+enum TextEffectT {
   TEXT_EFFECT_NONE,         // show text at given position, cut if too long
   TEXT_EFFECT_BLINK,        // blink
   TEXT_EFFECT_SCROLL_LEFT,  // scroll left, start with 1st char at right position
@@ -31,7 +31,7 @@ enum text_effect_t {
   TEXT_EFFECT_LAST_ENUM
 };
 
-enum demo_mode_t {
+enum DemoModeT {
   DEMO_MODE_OFF,
   DEMO_MODE_SCROLL_FONT,
 };
@@ -39,7 +39,7 @@ enum demo_mode_t {
 class DisplayBrightness {
  public:
   uint32_t config_brightness_pwm(uint8_t pwm_pin_no, uint8_t channel, uint8_t resolution, uint32_t freq_wanted);
-  float get_brightness(void) { return this->brightness_cfg_value_; }
+  float get_brightness() { return this->brightness_cfg_value_; }
   void set_brightness(float percent);
 
  protected:
@@ -51,10 +51,10 @@ class DisplayBrightness {
 
 class DisplayMode {
  public:
-  display_mode_t mode;
+  DisplayModeT mode;
   uint32_t duration_ms;
   DisplayMode();
-  void set_mode(display_mode_t mode, uint32_t duration_ms = 0);
+  void set_mode(DisplayModeT mode, uint32_t duration_ms = 0);
 
  protected:
   uint32_t duration_ms_start_;
@@ -68,22 +68,22 @@ class DisplayText {
   char text[DISPLAY_TEXT_LEN + 1];  // current text to display (may be larger then display)
   uint visible_idx;                 // current index of start of visible part
   uint visible_len;                 // current length of visible text
-  text_align_t align;
-  text_effect_t effect;
+  TextAlignT align;
+  TextEffectT effect;
   uint8_t cycle_num;
   DisplayText();
-  void blink(void);
-  void scroll_left(void);
+  void blink();
+  void scroll_left();
   int set_text(uint start_pos, uint max_pos, const std::string &text);
-  void set_text_align(text_align_t align);
+  void set_text_align(TextAlignT align);
   void set_text_align(const std::string &align);
-  void set_text_effect(text_effect_t effect, uint8_t cycle_num = 0);
+  void set_text_effect(TextEffectT effect, uint8_t cycle_num = 0);
   void set_text_effect(const std::string &effect, uint8_t cycle_num = 0);
 
  protected:
   int effect_change_count_;
-  void init_text_align_(void);
-  void init_text_effect_(void);
+  void init_text_align_();
+  void init_text_effect_();
 };
 
 class Display : public DisplayBrightness, public DisplayMode {
@@ -91,16 +91,16 @@ class Display : public DisplayBrightness, public DisplayMode {
   Display(MAX6921Component *max6921) { max6921_ = max6921; }
   void clear(int pos = -1);
   void dump_config();
-  bool isPointSegOnly(char c);
-  void restore_update_interval(void);
+  bool is_point_seg_only(char c);
+  void restore_update_interval();
   void setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &pos_to_out_map);
-  void set_demo_mode(demo_mode_t mode, uint32_t interval, uint8_t cycle_num);
+  void set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num);
   void set_demo_mode(const std::string &mode, uint32_t interval, uint8_t cycle_num);
   int set_text(const char *text, uint8_t start_pos);
   int set_text(const std::string &text, uint8_t start_pos, const std::string &align, uint32_t duration,
                const std::string &effect, uint32_t interval, uint8_t cycle_num);
   void set_update_interval(uint32_t interval_ms);
-  void update(void);
+  void update();
 
  protected:
   MAX6921Component *max6921_;
@@ -114,11 +114,11 @@ class Display : public DisplayBrightness, public DisplayMode {
   uint32_t refresh_period_us_;
   DisplayText disp_text_;
   uint32_t default_update_interval_;
-  static void display_refresh_task_(void *pv);
-  int update_out_buf_(void);
+  static void display_refresh_task(void *pv);
+  int update_out_buf_();
 
  private:
-  void init_font__(void);
+  void init_font__();
 };
 
 }  // namespace max6921

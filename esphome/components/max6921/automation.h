@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include "display.h"
 #include "esphome/core/automation.h"
 #include "max6921.h"
@@ -87,3 +89,5 @@ template<typename... Ts> class SetDemoModeAction : public Action<Ts...> {
 
 }  // namespace max6921
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

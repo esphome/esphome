@@ -17,8 +17,8 @@ static const char *const TAG = "max6921";
 float MAX6921Component::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void MAX6921Component::setup() {
-  const uint32_t PWM_FREQ_WANTED = 5000;
-  const uint8_t PWM_RESOLUTION = 8;
+  const uint32_t pwm_freq_wanted = 5000;
+  const uint8_t pwm_resolution = 8;
 
   ESP_LOGCONFIG(TAG, "Setting up MAX6921...");
   // global_max6921 = this;
@@ -32,14 +32,14 @@ void MAX6921Component::setup() {
   this->display_->setup(this->seg_to_out_map__, this->pos_to_out_map__);
 
   // setup display brightness (PWM for BLANK pin)...
-  if (this->display_->config_brightness_pwm(this->blank_pin_->get_pin(), 0, PWM_RESOLUTION, PWM_FREQ_WANTED) == 0) {
+  if (this->display_->config_brightness_pwm(this->blank_pin_->get_pin(), 0, pwm_resolution, pwm_freq_wanted) == 0) {
     ESP_LOGE(TAG, "Failed to configure PWM -> set to max. brightness");
     this->blank_pin_->pin_mode(gpio::FLAG_OUTPUT);
     this->blank_pin_->setup();
     this->disable_blank_();  // enable display (max. brightness)
   }
 
-  this->setup_finished = true;
+  this->setup_finished_ = true;
 }
 
 void MAX6921Component::dump_config() {
@@ -50,7 +50,7 @@ void MAX6921Component::dump_config() {
 }
 
 void MAX6921Component::set_brightness(float brightness) {
-  if (!this->setup_finished) {
+  if (!this->setup_finished_) {
     ESP_LOGD(TAG, "Set brightness: setup not finished -> discard brightness value");
     return;
   }
