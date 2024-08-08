@@ -87,7 +87,7 @@ class ATM90E32Component : public PollingComponent,
   float get_chip_temperature_();
   bool get_publish_interval_flag_() { return publish_interval_flag_; };
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
-  void restore_calibrations();
+  void restore_calibrations_();
 
   struct ATM90E32Phase {
     uint16_t voltage_gain_{0};
