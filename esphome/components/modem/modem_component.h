@@ -11,7 +11,6 @@
 
 // esp_modem will use esphome logger (needed if other components include esphome/core/log.h)
 // We need to do this because "cxx_include/esp_modem_api.hpp" is not a pure C++ header, and use logging.
-// FIXME: Find another workaround ?.
 // error: using declarations in the global namespace in headers are prohibited
 // [google-global-names-in-headers,-warnings-as-errors]
 using esphome::esp_log_printf_;  // NOLINT(google-global-names-in-headers):
@@ -38,27 +37,31 @@ enum class ModemComponentState {
   DISABLED,
 };
 
-#ifdef USE_MODEM_POWER
 enum class ModemPowerState {
   TON,
   TONUART,
   TOFF,
   TOFFUART,
 };
-#endif  // USE_MODEM_POWER
 
 class ModemComponent : public Component {
  public:
   void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
+  void set_model(const std::string model) { this->model_ = model; }
   void set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
+  void set_power_ton(int ton) { this->power_ton_ = ton; }
+  void set_power_tonuart(int tonuart) { this->power_tonuart_ = tonuart; }
+  void set_power_toff(int toff) { this->power_toff_ = toff; }
+  void set_power_toffuart(int toffuart) { this->power_toffuart_ = toffuart; }
   void set_status_pin(GPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void set_username(const std::string &username) { this->username_ = username; }
   void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
   void set_apn(const std::string &apn) { this->apn_ = apn; }
   void set_gnss_power_command(const std::string &at_command) { this->gnss_power_command_ = at_command; }
+  std::string get_gnss_power_command() { return this->gnss_power_command_; }
   void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void enable_cmux() { this->cmux_ = true; }
   void enable_debug();
@@ -113,7 +116,12 @@ class ModemComponent : public Component {
   // Attributes from yaml config
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
+  std::string model_;
   GPIOPin *status_pin_{nullptr};
+  int power_ton_;
+  int power_tonuart_;
+  int power_toff_;
+  int power_toffuart_;
   GPIOPin *power_pin_{nullptr};
   std::string pin_code_;
   std::string username_;
@@ -155,12 +163,10 @@ class ModemComponent : public Component {
     uint32_t connect_begin;
     // guess power state
     bool powered_on{false};
-#ifdef USE_MODEM_POWER
     // Will be true when power transitionning
     bool power_transition{false};
     // states for triggering on/off signals
     ModemPowerState power_state{ModemPowerState::TOFFUART};
-#endif  // USE_MODEM_POWER
   };
   InternalState internal_state_;
 };

@@ -197,17 +197,16 @@ async def to_code(config):
             cg.add(var.add_init_at_command(cmd))
 
     modem_model = config[CONF_MODEL]
-    cg.add_define("USE_MODEM_MODEL", modem_model)
-    cg.add_define(f"USE_MODEM_MODEL_{modem_model}")
+    cg.add(var.set_model(modem_model))
 
     if config[CONF_ENABLE_GNSS]:
-        cg.add_define("USE_MODEM_GNSS")
         cg.add(var.set_gnss_power_command(MODEM_MODELS_GNSS_POWER[modem_model]))
 
     if power_spec := MODEM_MODELS_POWER.get(modem_model, None):
-        cg.add_define("USE_MODEM_POWER")
-        for spec, value in power_spec.items():
-            cg.add_define(f"USE_MODEM_POWER_{spec.upper()}", value)
+        cg.add(var.set_power_ton(power_spec["ton"]))
+        cg.add(var.set_power_tonuart(power_spec["tonuart"]))
+        cg.add(var.set_power_toff(power_spec["toff"]))
+        cg.add(var.set_power_toffuart(power_spec["toffuart"]))
 
     cg.add(var.set_apn(config[CONF_APN]))
 
@@ -220,7 +219,6 @@ async def to_code(config):
     if status_pin := config.get(CONF_STATUS_PIN, None):
         pin = await cg.gpio_pin_expression(status_pin)
         cg.add(var.set_status_pin(pin))
-        cg.add_define("USE_MODEM_STATUS")
 
     if power_pin := config.get(CONF_POWER_PIN, None):
         pin = await cg.gpio_pin_expression(power_pin)

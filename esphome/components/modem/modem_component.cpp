@@ -22,11 +22,6 @@
 #include <iostream>
 #include <cmath>
 
-#ifndef USE_MODEM_MODEL
-#define USE_MODEM_MODEL "GENERIC"
-#define USE_MODEM_MODEL_GENERIC
-#endif
-
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \
     ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
@@ -188,7 +183,7 @@ void ModemComponent::setup() {
   }
 
   ESP_LOGCONFIG(TAG, "Config Modem:");
-  ESP_LOGCONFIG(TAG, "  Model     : %s", USE_MODEM_MODEL);
+  ESP_LOGCONFIG(TAG, "  Model     : %s", this->model_.c_str());
   ESP_LOGCONFIG(TAG, "  APN       : %s", this->apn_.c_str());
   ESP_LOGCONFIG(TAG, "  PIN code  : %s", (this->pin_code_.empty()) ? "No" : "Yes (not shown)");
   ESP_LOGCONFIG(TAG, "  Tx Pin    : GPIO%u", this->tx_pin_->get_pin());
@@ -246,7 +241,6 @@ void ModemComponent::loop() {
     return;
   }
 
-#ifdef USE_MODEM_POWER
   if (this->internal_state_.power_transition) {
     watchdog::WatchdogManager wdt(30000);
 
@@ -254,11 +248,11 @@ void ModemComponent::loop() {
     switch (this->internal_state_.power_state) {
       case ModemPowerState::TON:
         this->power_pin_->digital_write(false);
-        delay(USE_MODEM_POWER_TON);
+        delay(this->power_ton_);
         this->power_pin_->digital_write(true);
-        next_loop_millis = millis() + USE_MODEM_POWER_TONUART;  // delay for next loop
+        next_loop_millis = millis() + this->power_tonuart_;  // delay for next loop
         this->internal_state_.power_state = ModemPowerState::TONUART;
-        ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(USE_MODEM_POWER_TONUART) / 1000);
+        ESP_LOGD(TAG, "Will check that the modem is on in %.1fs...", float(this->power_tonuart_) / 1000);
         break;
       case ModemPowerState::TONUART:
         this->internal_state_.power_transition = false;
@@ -274,11 +268,11 @@ void ModemComponent::loop() {
       case ModemPowerState::TOFF:
         delay(10);
         this->power_pin_->digital_write(false);
-        delay(USE_MODEM_POWER_TOFF);
+        delay(this->power_toff_);
         this->power_pin_->digital_write(true);
         this->internal_state_.power_state = ModemPowerState::TOFFUART;
-        ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(USE_MODEM_POWER_TOFFUART) / 1000);
-        next_loop_millis = millis() + USE_MODEM_POWER_TOFFUART;  // delay for next loop
+        ESP_LOGD(TAG, "Will check that the modem is off in %.1fs...", float(this->power_toffuart_) / 1000);
+        next_loop_millis = millis() + this->power_toffuart_;  // delay for next loop
         break;
       case ModemPowerState::TOFFUART:
         this->internal_state_.power_transition = false;
@@ -296,7 +290,6 @@ void ModemComponent::loop() {
     yield();
     return;
   }
-#endif  // USE_MODEM_POWER
 
   switch (this->component_state_) {
     case ModemComponentState::NOT_RESPONDING:
@@ -477,19 +470,21 @@ void ModemComponent::modem_lazy_init_() {
   }
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
 
-#if defined(USE_MODEM_MODEL_GENERIC)
-  this->dce = create_generic_dce(&dce_config, this->dte_, this->ppp_netif_);
-#elif defined(USE_MODEM_MODEL_BG96)
-  this->dce = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
-#elif defined(USE_MODEM_MODEL_SIM800)
-  this->dce = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
-#elif defined(USE_MODEM_MODEL_SIM7000)
-  this->dce = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
-#elif defined(USE_MODEM_MODEL_SIM7600) || defined(USE_MODEM_MODEL_SIM7670)
-  this->dce = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
-#else
-#error Modem model not known
-#endif
+  if (this->model_ == "GENERIC") {
+    this->dce = create_generic_dce(&dce_config, this->dte_, this->ppp_netif_);
+  } else if (this->model_ == "BG96") {
+    this->dce = create_BG96_dce(&dce_config, this->dte_, this->ppp_netif_);
+  } else if (this->model_ == "SIM800") {
+    this->dce = create_SIM800_dce(&dce_config, this->dte_, this->ppp_netif_);
+  } else if (this->model_ == "SIM7000") {
+    this->dce = create_SIM7000_dce(&dce_config, this->dte_, this->ppp_netif_);
+  } else if (this->model_ == "SIM7600" || this->model_ == "SIM7670") {
+    this->dce = create_SIM7600_dce(&dce_config, this->dte_, this->ppp_netif_);
+  } else {
+    ESP_LOGE(TAG, "Invalid model %s", this->model_.c_str());
+    return;
+  }
+
   // flow control not fully implemented, but kept here for future work
   // if (dte_config.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW) {
   //   if (command_result::OK != this->dce->set_flow_control(2, 2)) {
@@ -708,23 +703,23 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
 }
 
 void ModemComponent::poweron_() {
-#ifdef USE_MODEM_POWER
-  this->internal_state_.power_state = ModemPowerState::TON;
-  this->internal_state_.power_transition = true;
-#else
-  if (this->modem_ready()) {
-    ESP_LOGV(TAG, "Modem is already ON");
+  if (this->power_pin_) {
+    this->internal_state_.power_state = ModemPowerState::TON;
+    this->internal_state_.power_transition = true;
   } else {
-    ESP_LOGW(TAG, "No 'power_pin' defined: Not able to poweron the modem");
+    if (this->modem_ready()) {
+      ESP_LOGV(TAG, "Modem is already ON");
+    } else {
+      ESP_LOGW(TAG, "No 'power_pin' defined: Not able to poweron the modem");
+    }
   }
-#endif  // USE_MODEM_POWER
 }
 
 void ModemComponent::poweroff_() {
-#ifdef USE_MODEM_POWER
-  this->internal_state_.power_state = ModemPowerState::TOFF;
-  this->internal_state_.power_transition = true;
-#endif  // USE_MODEM_POWER
+  if (this->power_pin_) {
+    this->internal_state_.power_state = ModemPowerState::TOFF;
+    this->internal_state_.power_transition = true;
+  }
 }
 
 void ModemComponent::dump_connect_params_() {

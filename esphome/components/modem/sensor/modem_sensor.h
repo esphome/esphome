@@ -20,14 +20,12 @@ class ModemSensor : public PollingComponent {
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { this->rssi_sensor_ = rssi_sensor; }
   void set_ber_sensor(sensor::Sensor *ber_sensor) { this->ber_sensor_ = ber_sensor; }
 
-#ifdef USE_MODEM_GNSS
   void set_latitude_sensor(sensor::Sensor *latitude_sensor) { this->gnss_latitude_sensor_ = latitude_sensor; }
   void set_longitude_sensor(sensor::Sensor *longitude_sensor) { this->gnss_longitude_sensor_ = longitude_sensor; }
   void set_altitude_sensor(sensor::Sensor *altitude_sensor) { this->gnss_altitude_sensor_ = altitude_sensor; }
   void set_course_sensor(sensor::Sensor *course_sensor) { this->gnss_course_sensor_ = course_sensor; }
   void set_speed_sensor(sensor::Sensor *speed_sensor) { this->gnss_speed_sensor_ = speed_sensor; }
   void set_accuracy_sensor(sensor::Sensor *accuracy_sensor) { this->gnss_accuracy_sensor_ = accuracy_sensor; }
-#endif  // USE_MODEM_GNSS
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -42,7 +40,6 @@ class ModemSensor : public PollingComponent {
   sensor::Sensor *ber_sensor_{nullptr};
   void update_signal_sensors_();
 
-#ifdef USE_MODEM_GNSS
   sensor::Sensor *gnss_latitude_sensor_{nullptr};
   sensor::Sensor *gnss_longitude_sensor_{nullptr};
   sensor::Sensor *gnss_altitude_sensor_{nullptr};
@@ -50,7 +47,6 @@ class ModemSensor : public PollingComponent {
   sensor::Sensor *gnss_course_sensor_{nullptr};
   sensor::Sensor *gnss_accuracy_sensor_{nullptr};
   void update_gnss_sensors_();
-#endif  // USE_MODEM_GNSS
 };
 
 }  // namespace modem_sensor

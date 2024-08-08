@@ -40,7 +40,9 @@ void ModemSensor::update() {
   if (modem::global_modem_component->dce && modem::global_modem_component->modem_ready()) {
     this->update_signal_sensors_();
     App.feed_wdt();
-    this->update_gnss_sensors_();
+    if (!modem::global_modem_component->get_gnss_power_command().empty()) {
+      this->update_gnss_sensors_();
+    }
   }
 }
 
@@ -64,7 +66,6 @@ void ModemSensor::update_signal_sensors_() {
   }
 }
 
-#ifdef USE_MODEM_GNSS
 std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_info, const std::string &module) {
   // for 7670 (18 tokens):
   //    +CGNSSINFO: 3,12,,04,00,48.6167297,N,4.5600739,W,060824,101218.00,75.7,0.000,234.10,2.52,1.88,1.68,08
@@ -232,8 +233,6 @@ void ModemSensor::update_gnss_sensors_() {
     }
   }
 }
-
-#endif  // USE_MODEM_GNSS
 
 }  // namespace modem_sensor
 }  // namespace esphome
