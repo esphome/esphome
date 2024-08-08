@@ -133,7 +133,7 @@ void ATM90E32Component::update() {
 }
 
 void ATM90E32Component::restore_calibrations_() {
-  if (enable_offset_calibration_ == true) {
+  if (enable_offset_calibration_) {
     this->pref_.load(&this->offset_phase_);
   }
 };
