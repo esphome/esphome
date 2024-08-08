@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
+import argparse
 from pathlib import Path
 import sys
-import argparse
 
-from helpers import git_ls_files, changed_files
-from esphome.loader import get_component, get_platform
-from esphome.core import CORE
+from helpers import changed_files, git_ls_files
+
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -13,6 +12,8 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
+from esphome.core import CORE
+from esphome.loader import get_component, get_platform
 
 
 def filter_component_files(str):
@@ -140,7 +141,10 @@ def get_components(files: list[str], get_dependencies: bool = False):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-c", "--changed", action="store_true", help="Only run on changed files"
+        "-c",
+        "--changed",
+        action="store_true",
+        help="List all components required for testing based on changes",
     )
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
@@ -158,7 +162,9 @@ def main():
             changed = changed_files(args.branch)
         else:
             changed = changed_files()
-        files = [f for f in files if f in changed]
+        # If any base test file(s) changed, there's no need to filter out components
+        if not any("tests/test_build_components" in file for file in changed):
+            files = [f for f in files if f in changed]
 
     for c in get_components(files, args.changed):
         print(c)
