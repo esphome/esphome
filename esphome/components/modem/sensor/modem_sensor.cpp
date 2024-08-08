@@ -78,7 +78,6 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
 
   if (data.find(",,,,,,") != std::string::npos) {
     ESP_LOGW(TAG, "No GNSS location available");
-    return gnss_data;
   }
 
   std::vector<std::string> parts;
@@ -90,6 +89,8 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
   }
 
   switch (parts.size()) {
+    case 15:
+      parts.push_back("");
     case 16:
       gnss_data["mode"] = parts[0];
       gnss_data["sat_used_count"] = parts[1];
@@ -110,6 +111,8 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
       gnss_data["lon_lat_format"] = "DDMM.MM";  // decimal degrees, float minutes
       break;
 
+    case 17:
+      parts.push_back("");
     case 18:
       gnss_data["mode"] = parts[0];
       gnss_data["sat_used_count"] = parts[1];
@@ -151,57 +154,52 @@ void ModemSensor::update_gnss_sensors_() {
     if (gnss_info != "ERROR") {
       std::map<std::string, std::string> parts = get_gnssinfo_tokens(gnss_info, "SIM7600");
 
-      if (parts["latitude"].empty() || parts["lat_dir"].empty() || parts["longitude"].empty() ||
-          parts["lon_dir"].empty()) {
-        return;
-      }
-
       float lat = NAN;
       float lon = NAN;
 
       if (parts["lon_lat_format"] == "DDMM.MM") {
-        float lat_deg = std::stof(parts["latitude"].substr(0, 2));
-        float lat_min = std::stof(parts["latitude"].substr(2));
+        float lat_deg = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"].substr(0, 2));
+        float lat_min = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"].substr(2));
         lat = lat_deg + (lat_min / 60.0);
         if (parts["lat_dir"] == "S")
           lat = -lat;
 
-        float lon_deg = std::stof(parts["longitude"].substr(0, 3));
-        float lon_min = std::stof(parts["longitude"].substr(3));
+        float lon_deg = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"].substr(0, 3));
+        float lon_min = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"].substr(3));
         lon = lon_deg + (lon_min / 60.0);
         if (parts["lon_dir"] == "W")
           lon = -lon;
       } else if (parts["lon_lat_format"] == "DD.DD") {
-        lat = std::stof(parts["latitude"]);
+        lat = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"]);
         if (parts["lat_dir"] == "S")
           lat = -lat;
 
-        lon = std::stof(parts["longitude"]);
+        lon = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"]);
         if (parts["lon_dir"] == "W")
           lon = -lon;
       }
 
-      float alt = std::stof(parts["altitude"]);
-      float speed_knots = std::stof(parts["speed"]);
+      float alt = parts["altitude"].empty() ? NAN : std::stof(parts["altitude"]);
+      float speed_knots = parts["speed"].empty() ? NAN : std::stof(parts["speed"]);
       float speed_kmh = speed_knots * 1.852;  // Convert speed from knots to km/h
       float cog = parts["cog"].empty() ? NAN : std::stof(parts["cog"]);
-      float pdop = std::stof(parts["pdop"]);
-      float hdop = std::stof(parts["hdop"]);
-      float vdop = std::stof(parts["vdop"]);
-      int mode = std::stoi(parts["mode"]);
-      int gps_svs = std::stoi(parts["sat_used_count"]);
-      int glonass_svs = std::stoi(parts["sat_view_count"]);
+      float pdop = parts["pdop"].empty() ? NAN : std::stof(parts["pdop"]);
+      float hdop = parts["hdop"].empty() ? NAN : std::stof(parts["hdop"]);
+      float vdop = parts["vdop"].empty() ? NAN : std::stof(parts["vdop"]);
+      int mode = parts["mode"].empty() ? 0 : std::stoi(parts["mode"]);
+      int gps_svs = parts["sat_used_count"].empty() ? 0 : std::stoi(parts["sat_used_count"]);
+      int glonass_svs = parts["sat_view_count"].empty() ? NAN : std::stoi(parts["sat_view_count"]);
       int beidou_svs = parts["sat_view_count_2"].empty() ? 0 : std::stoi(parts["sat_view_count_2"]);
 
       // Parsing date
-      int day = std::stoi(parts["date"].substr(0, 2));
-      int month = std::stoi(parts["date"].substr(2, 2));
-      int year = std::stoi(parts["date"].substr(4, 2)) + 2000;
+      int day = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(0, 2));
+      int month = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(2, 2));
+      int year = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(4, 2)) + 2000;
 
       // Parsing time
-      int hour = std::stoi(parts["time"].substr(0, 2));
-      int minute = std::stoi(parts["time"].substr(2, 2));
-      int second = std::stoi(parts["time"].substr(4, 2));
+      int hour = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(0, 2));
+      int minute = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(2, 2));
+      int second = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(4, 2));
 
       ESP_LOGV(TAG, "Latitude: %f, Longitude: %f", lat, lon);
       ESP_LOGV(TAG, "Altitude: %f m", alt);
