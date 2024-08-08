@@ -87,6 +87,7 @@ Checks: >-
   -readability-use-anyofallof,
   -readability-named-parameter,
   -readability-braces-around-statements,
+  -performance-unnecessary-value-param,
 WarningsAsErrors: '*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google
