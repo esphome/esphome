@@ -8,22 +8,27 @@ namespace esphome {
 namespace media_player {
 
 #define MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(ACTION_CLASS, ACTION_COMMAND) \
-  template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<MediaPlayer> { \
-    void play(Ts... x) override { \
-      this->parent_->make_call().set_command(MediaPlayerCommand::MEDIA_PLAYER_COMMAND_##ACTION_COMMAND).perform(); \
-    } \
-  };
+  template<typename... Ts> \
+  class(ACTION_CLASS) \
+      : public Action<Ts...>, \
+        public Parented<MediaPlayer>{ \
+            void play(Ts... x) override{this->parent_->make_call() \
+                                            .set_command(MediaPlayerCommand::MEDIA_PLAYER_COMMAND_##ACTION_COMMAND) \
+                                            .perform(); \
+  } \
+  } \
+  ;
 
 #define MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(TRIGGER_CLASS, TRIGGER_STATE) \
-  class TRIGGER_CLASS : public Trigger<> { \
-   public: \
-    explicit TRIGGER_CLASS(MediaPlayer *player) { \
-      player->add_on_state_callback([this, player]() { \
-        if (player->state == MediaPlayerState::MEDIA_PLAYER_STATE_##TRIGGER_STATE) \
-          this->trigger(); \
-      }); \
-    } \
-  };
+  class(TRIGGER_CLASS) \
+      : public Trigger<>{ \
+          public: explicit TRIGGER_CLASS(MediaPlayer * player){player->add_on_state_callback([this, player]() { \
+            if (player->state == MediaPlayerState::MEDIA_PLAYER_STATE_##TRIGGER_STATE) \
+              this->trigger(); \
+          }); \
+  } \
+  } \
+  ;
 
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PlayAction, PLAY)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PauseAction, PAUSE)
