@@ -248,7 +248,7 @@ def main():
                 "homeassistant",
                 "http_request",
                 "improv_base",
-                "improv_serial",  # FIXME
+                "improv_serial",
                 "md5",  # FIXME
                 "mlx90393",  # FIXME
                 "online_image",
@@ -261,8 +261,6 @@ def main():
                 "wake_on_lan",
                 "web_server",
                 "web_server_base",
-                "wifi_info",
-                "wifi_signal",
                 "wireguard",
             ]
         build_all_include(exclude_components)
