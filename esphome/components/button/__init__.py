@@ -1,16 +1,16 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_PRESS,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_IDENTIFY,
@@ -18,8 +18,8 @@ from esphome.const import (
     DEVICE_CLASS_UPDATE,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
