@@ -12,7 +12,7 @@ bme68x_bsec2_i2c:
   supply_voltage: 3.3V
 
 sensor:
-  - platform: bme68x_bsec2_i2c
+  - platform: bme68x_bsec2
     temperature:
       name: BME68X Temperature
     pressure:
@@ -29,6 +29,6 @@ sensor:
       name: BME68X Breath eVOC
 
 text_sensor:
-  - platform: bme68x_bsec2_i2c
+  - platform: bme68x_bsec2
     iaq_accuracy:
       name: BME68X Accuracy
