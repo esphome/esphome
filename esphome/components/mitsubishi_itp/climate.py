@@ -3,10 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import (
     climate,
     uart,
-    time,
-    sensor,
-    button,
     select,
+    sensor,
+    time,
 )
 from esphome.const import (
     CONF_CUSTOM_FAN_MODES,
@@ -42,9 +41,6 @@ CONF_TEMPERATURE_SOURCE_SELECT = "temperature_source_select"  # This is to creat
 CONF_VANE_POSITION_SELECT = "vane_position_select"
 CONF_HORIZONTAL_VANE_POSITION_SELECT = "horizontal_vane_position_select"
 
-CONF_BUTTONS = "buttons"
-CONF_FILTER_RESET_BUTTON = "filter_reset_button"
-
 CONF_TEMPERATURE_SOURCES = (
     "temperature_sources"  # This is for specifying additional sources
 )
@@ -68,10 +64,6 @@ TemperatureSourceSelect = mitsubishi_itp_ns.class_(
 VanePositionSelect = mitsubishi_itp_ns.class_("VanePositionSelect", select.Select)
 HorizontalVanePositionSelect = mitsubishi_itp_ns.class_(
     "HorizontalVanePositionSelect", select.Select
-)
-
-FilterResetButton = mitsubishi_itp_ns.class_(
-    "FilterResetButton", button.Button, cg.Component
 )
 
 DEFAULT_CLIMATE_MODES = ["OFF", "HEAT", "DRY", "COOL", "FAN_ONLY", "HEAT_COOL"]
@@ -152,31 +144,10 @@ SELECTS_SCHEMA = cv.All(
     }
 )
 
-BUTTONS = {
-    CONF_FILTER_RESET_BUTTON: (
-        "Filter Reset",
-        button.button_schema(
-            FilterResetButton,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:restore",
-        ),
-    )
-}
-
-BUTTONS_SCHEMA = cv.All(
-    {
-        cv.Optional(
-            button_designator, default={"name": f"{button_name}"}
-        ): button_schema
-        for button_designator, (button_name, button_schema) in BUTTONS.items()
-    }
-)
-
 
 CONFIG_SCHEMA = BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_SELECTS, default={}): SELECTS_SCHEMA,
-        cv.Optional(CONF_BUTTONS, default={}): BUTTONS_SCHEMA,
     }
 )
 
@@ -280,13 +251,6 @@ async def to_code(config):
         await select.register_select(
             select_component, select_conf, options=select_options
         )
-
-    # Buttons
-    for button_designator, (_, _) in BUTTONS.items():
-        button_conf = config[CONF_BUTTONS][button_designator]
-        button_component = await button.new_button(button_conf)
-        await cg.register_component(button_component, button_conf)
-        await cg.register_parented(button_component, muart_component)
 
     # Debug Settings
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
