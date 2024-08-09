@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import (
     climate,
     uart,
-    select,
     sensor,
     time,
 )
@@ -13,8 +12,6 @@ from esphome.const import (
     CONF_SUPPORTED_FAN_MODES,
     CONF_SUPPORTED_MODES,
     CONF_TIME_ID,
-    ENTITY_CATEGORY_CONFIG,
-    ENTITY_CATEGORY_NONE,
 )
 from esphome.core import coroutine
 
@@ -36,11 +33,6 @@ DEPENDENCIES = [
 CONF_UART_HEATPUMP = "uart_heatpump"
 CONF_UART_THERMOSTAT = "uart_thermostat"
 
-CONF_SELECTS = "selects"
-CONF_TEMPERATURE_SOURCE_SELECT = "temperature_source_select"  # This is to create a Select object for selecting a source
-CONF_VANE_POSITION_SELECT = "vane_position_select"
-CONF_HORIZONTAL_VANE_POSITION_SELECT = "horizontal_vane_position_select"
-
 CONF_TEMPERATURE_SOURCES = (
     "temperature_sources"  # This is for specifying additional sources
 )
@@ -58,27 +50,13 @@ MitsubishiUART = mitsubishi_itp_ns.class_(
 )
 CONF_MITSUBISHI_IPT_ID = "mitsuibishi_itp_id"
 
-TemperatureSourceSelect = mitsubishi_itp_ns.class_(
-    "TemperatureSourceSelect", select.Select
-)
-VanePositionSelect = mitsubishi_itp_ns.class_("VanePositionSelect", select.Select)
-HorizontalVanePositionSelect = mitsubishi_itp_ns.class_(
-    "HorizontalVanePositionSelect", select.Select
-)
-
 DEFAULT_CLIMATE_MODES = ["OFF", "HEAT", "DRY", "COOL", "FAN_ONLY", "HEAT_COOL"]
 DEFAULT_FAN_MODES = ["AUTO", "QUIET", "LOW", "MEDIUM", "HIGH"]
 CUSTOM_FAN_MODES = {"VERYHIGH": mitsubishi_itp_ns.FAN_MODE_VERYHIGH}
-VANE_POSITIONS = ["Auto", "1", "2", "3", "4", "5", "Swing"]
-HORIZONTAL_VANE_POSITIONS = ["Auto", "<<", "<", "|", ">", ">>", "<>", "Swing"]
-
-INTERNAL_TEMPERATURE_SOURCE_OPTIONS = [
-    mitsubishi_itp_ns.TEMPERATURE_SOURCE_INTERNAL
-]  # These will always be available
 
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 
-BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
+CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(MitsubishiUART),
         cv.Required(CONF_UART_HEATPUMP): cv.use_id(uart.UARTComponent),
@@ -100,56 +78,6 @@ BASE_SCHEMA = climate.CLIMATE_SCHEMA.extend(
         cv.Optional(CONF_ENHANCED_MHK_SUPPORT, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
-
-SELECTS = {
-    CONF_TEMPERATURE_SOURCE_SELECT: (
-        "Temperature Source",
-        select.select_schema(
-            TemperatureSourceSelect,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:thermometer-check",
-        ),
-        INTERNAL_TEMPERATURE_SOURCE_OPTIONS,
-    ),
-    CONF_VANE_POSITION_SELECT: (
-        "Vane Position",
-        select.select_schema(
-            VanePositionSelect,
-            entity_category=ENTITY_CATEGORY_NONE,
-            icon="mdi:arrow-expand-vertical",
-        ),
-        VANE_POSITIONS,
-    ),
-    CONF_HORIZONTAL_VANE_POSITION_SELECT: (
-        "Horizontal Vane Position",
-        select.select_schema(
-            HorizontalVanePositionSelect,
-            entity_category=ENTITY_CATEGORY_NONE,
-            icon="mdi:arrow-expand-horizontal",
-        ),
-        HORIZONTAL_VANE_POSITIONS,
-    ),
-}
-
-SELECTS_SCHEMA = cv.All(
-    {
-        cv.Optional(
-            select_designator, default={"name": f"{select_name}"}
-        ): select_schema
-        for select_designator, (
-            select_name,
-            select_schema,
-            _,
-        ) in SELECTS.items()
-    }
-)
-
-
-CONFIG_SCHEMA = BASE_SCHEMA.extend(
-    {
-        cv.Optional(CONF_SELECTS, default={}): SELECTS_SCHEMA,
-    }
-)
 
 
 def final_validate(config):
@@ -193,8 +121,6 @@ async def to_code(config):
         # Register thermostat with MUART
         ts_uart_component = await cg.get_variable(config[CONF_UART_THERMOSTAT])
         cg.add(getattr(muart_component, "set_thermostat_uart")(ts_uart_component))
-        # Add sensor as source
-        SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2].append("Thermostat")
 
     # If RTC defined
     if CONF_TIME_ID in config:
@@ -217,40 +143,18 @@ async def to_code(config):
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(traits.set_supported_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
 
-    # Selects
-
-    # Add additional configured temperature sensors to the select menu
-    for ts_id in config[CONF_TEMPERATURE_SOURCES]:
-        ts = await cg.get_variable(ts_id)
-        SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2].append(ts.get_name())
-        cg.add(
-            getattr(ts, "add_on_state_callback")(
-                # TODO: Is there anyway to do this without a raw expression?
-                cg.RawExpression(
-                    f"[](float v){{{getattr(muart_component, 'temperature_source_report')}({ts.get_name()}, v);}}"
-                )
-            )
-        )
-
-    # Register selects
-    for select_designator, (
-        _,
-        _,
-        select_options,
-    ) in SELECTS.items():
-        select_conf = config[CONF_SELECTS][select_designator]
-        select_component = cg.new_Pvariable(select_conf[CONF_ID])
-        cg.add(getattr(muart_component, f"set_{select_designator}")(select_component))
-        await cg.register_parented(select_component, muart_component)
-
-        # For temperature source select, skip registration if there are less than two sources
-        if select_designator == CONF_TEMPERATURE_SOURCE_SELECT:
-            if len(SELECTS[CONF_TEMPERATURE_SOURCE_SELECT][2]) < 2:
-                continue
-
-        await select.register_select(
-            select_component, select_conf, options=select_options
-        )
+    # # Add additional configured temperature sensors to the select menu
+    # for ts_id in config[CONF_TEMPERATURE_SOURCES]:
+    #     ts = await cg.get_variable(ts_id)
+    #     TEMPERATURE_SOURCE_OPTIONS.append(ts.get_name())
+    #     cg.add(
+    #         getattr(ts, "add_on_state_callback")(
+    #             # TODO: Is there anyway to do this without a raw expression?
+    #             cg.RawExpression(
+    #                 f"[](float v){{{getattr(muart_component, 'temperature_source_report')}({ts.get_name()}, v);}}"
+    #             )
+    #         )
+    #     )
 
     # Debug Settings
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):

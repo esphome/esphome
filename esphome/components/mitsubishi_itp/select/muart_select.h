@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/components/select/select.h"
-#include "mitsubishi_uart.h"
+#include "../mitsubishi_uart.h"
 
 namespace esphome {
 namespace mitsubishi_itp {

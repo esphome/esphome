@@ -25,9 +25,9 @@ const float MUART_TEMPERATURE_STEP = 0.5;
 const std::string FAN_MODE_VERYHIGH = "Very High";
 
 const std::string TEMPERATURE_SOURCE_INTERNAL = "Internal";
-const uint32_t TEMPERATURE_SOURCE_TIMEOUT_MS = 420000;  // (7min) The heatpump will revert on its own in ~10min
-
 const std::string TEMPERATURE_SOURCE_THERMOSTAT = "Thermostat";
+
+const uint32_t TEMPERATURE_SOURCE_TIMEOUT_MS = 420000;  // (7min) The heatpump will revert on its own in ~10min
 
 // These are named to match with set fan speeds where possible.  "Very Low" is a special speed
 // for e.g. preheating or thermal off
@@ -198,9 +198,9 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   text_sensor::TextSensor *thermostat_battery_sensor_ = nullptr;
 
   // Selects
-  select::Select *temperature_source_select_;
-  select::Select *vane_position_select_;
-  select::Select *horizontal_vane_position_select_;
+  select::Select *temperature_source_select_ = nullptr;
+  select::Select *vane_position_select_ = nullptr;
+  select::Select *horizontal_vane_position_select_ = nullptr;
 
   // Temperature select extras
   std::map<std::string, size_t> temp_select_map_;  // Used to map strings to indexes for preference storage

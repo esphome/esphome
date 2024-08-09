@@ -1,13 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import button
-from esphome.const import (
-    ENTITY_CATEGORY_CONFIG,
-)
 from esphome.components.mitsubishi_itp.climate import (
     CONF_MITSUBISHI_IPT_ID,
     mitsubishi_itp_ns,
     MitsubishiUART,
+)
+from esphome.const import (
+    ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import coroutine
 
