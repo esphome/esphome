@@ -53,8 +53,8 @@ class PulseLightEffect : public LightEffect {
   uint32_t transition_on_length_{};
   uint32_t transition_off_length_{};
   uint32_t update_interval_{};
-  float min_brightness{0.0};
-  float max_brightness{1.0};
+  float min_brightness{0.0};  // NOLINT(readability-identifier-naming)
+  float max_brightness{1.0};  // NOLINT(readability-identifier-naming)
 };
 
 /// Random effect. Sets random colors every 10 seconds and slowly transitions between them.
