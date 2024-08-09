@@ -3,17 +3,17 @@ import esphome.config_validation as cv
 from esphome.components import (
     select,
 )
-from esphome.components.mitsubishi_itp.climate import (
-    CONF_MITSUBISHI_IPT_ID,
-    mitsubishi_itp_ns,
-    MitsubishiUART,
-)
 from esphome.const import (
     CONF_ID,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_NONE,
 )
 from esphome.core import coroutine
+from ...mitsubishi_itp.climate import (
+    CONF_MITSUBISHI_ITP_ID,
+    mitsubishi_itp_ns,
+    MitsubishiUART,
+)
 
 CONF_TEMPERATURE_SOURCE = (
     "temperature_source"  # This is to create a Select object for selecting a source
@@ -61,7 +61,7 @@ SELECTS = {
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_MITSUBISHI_IPT_ID): cv.use_id(MitsubishiUART),
+        cv.GenerateID(CONF_MITSUBISHI_ITP_ID): cv.use_id(MitsubishiUART),
     }
 ).extend(
     {
@@ -76,7 +76,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 @coroutine
 async def to_code(config):
-    muart_component = await cg.get_variable(config[CONF_MITSUBISHI_IPT_ID])
+    muart_component = await cg.get_variable(config[CONF_MITSUBISHI_ITP_ID])
 
     # Register selects
     for select_designator, (

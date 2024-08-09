@@ -5,6 +5,10 @@ from esphome.components import (
     binary_sensor,
     text_sensor,
 )
+from esphome.components.mitsubishi_itp.climate import (
+    CONF_MITSUBISHI_ITP_ID,
+    MitsubishiUART,
+)
 from esphome.const import (
     CONF_ID,
     CONF_OUTDOOR_TEMPERATURE,
@@ -15,10 +19,6 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_HERTZ,
     UNIT_PERCENT,
-)
-from esphome.components.mitsubishi_itp.climate import (
-    CONF_MITSUBISHI_IPT_ID,
-    MitsubishiUART,
 )
 from esphome.core import coroutine
 
@@ -112,7 +112,7 @@ SENSORS = dict[str, tuple[cv.Schema, callable]](
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_MITSUBISHI_IPT_ID): cv.use_id(MitsubishiUART),
+        cv.GenerateID(CONF_MITSUBISHI_ITP_ID): cv.use_id(MitsubishiUART),
     }
 ).extend(
     {
@@ -127,7 +127,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 @coroutine
 async def to_code(config):
-    muart_component = await cg.get_variable(config[CONF_MITSUBISHI_IPT_ID])
+    muart_component = await cg.get_variable(config[CONF_MITSUBISHI_ITP_ID])
 
     # Sensors
 
