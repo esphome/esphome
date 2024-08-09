@@ -236,7 +236,44 @@ def main():
         files = split_list(files, args.split_num)[args.split_at - 1]
 
     if args.all_headers and args.split_at in (None, 1):
-        build_all_include()
+        triplet = os.path.basename(idedata["cxx_path"])[:-4]
+        exclude_components = []
+        if "zephyr" in triplet:
+            exclude_components = [
+                "api",
+                "web_server_base",
+                "web_server",
+                "prometheus",
+                "captive_portal",
+                "socket",
+                "voice_assistant",
+                "homeassistant",
+                "bluetooth_proxy",
+                "wake_on_lan",
+                "esphome",
+                "e131",
+                "haier",
+                "improv_serial",
+                "lvgl",
+                "fingerprint_grow",
+                "md5",
+                "mlx90393",
+                "mqtt",
+                "online_image",
+                "sgp4x",
+                "wireguard",
+                "tuya",
+                "status",
+                "nextion",
+                "mqtt",
+                "improv_base",
+                "http_request",
+                "ota",
+                "wifi_info",
+                "wifi_signal",
+                "bedjet",
+            ]
+        build_all_include(exclude_components)
         files.insert(0, temp_header_file)
 
     tmpdir = None

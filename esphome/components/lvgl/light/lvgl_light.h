@@ -18,7 +18,7 @@ class LVLight : public light::LightOutput {
     float red, green, blue;
     state->current_values_as_rgb(&red, &green, &blue, false);
     auto color = lv_color_make(red * 255, green * 255, blue * 255);
-    if (this->obj_ != nullptr) {
+    if (this->obj_ != nullptr) {  // NOLINT(bugprone-branch-clone)
       this->set_value_(color);
     } else {
       this->initial_value_ = color;

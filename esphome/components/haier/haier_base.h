@@ -47,7 +47,7 @@ class HaierClimateBase : public esphome::Component,
   void set_supported_presets(const std::set<esphome::climate::ClimatePreset> &presets);
   bool valid_connection() const { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
-  size_t read_array(uint8_t *data, size_t len) noexcept override {
+  size_t read_array(uint8_t *data, size_t len) noexcept override {  // NOLINT(readability-non-const-parameter)
     return esphome::uart::UARTDevice::read_array(data, len) ? len : 0;
   };
   void write_array(const uint8_t *data, size_t len) noexcept override {

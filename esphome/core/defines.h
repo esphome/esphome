@@ -50,7 +50,6 @@
 #define USE_LVGL_ROTARY_ENCODER
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
-#define USE_MQTT
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_ONLINE_IMAGE_PNG_SUPPORT
@@ -72,8 +71,14 @@
 #define USE_UART_DEBUGGER
 #define USE_UPDATE
 #define USE_VALVE
+
+// Things which do not work for zephyr
+#ifndef USE_ZEPHYR
+#define USE_MQTT
+#define USE_NETWORK
 #define USE_WIFI
 #define USE_WIFI_AP
+#endif
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO

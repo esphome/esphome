@@ -29,7 +29,7 @@ def print_error_for_file(file, body):
         print()
 
 
-def build_all_include():
+def build_all_include(exclude_components):
     # Build a cpp file that includes all header files in this repo.
     # Otherwise header-only integrations would not be tested by clang-tidy
     headers = []
@@ -37,6 +37,9 @@ def build_all_include():
         filetypes = (".h",)
         ext = os.path.splitext(path)[1]
         if ext in filetypes:
+            parts = path.split("/components/")
+            if len(parts) > 1 and parts[1].split("/")[0] in exclude_components:
+                continue
             path = os.path.relpath(path, root_path)
             include_p = path.replace(os.path.sep, "/")
             headers.append(f'#include "{include_p}"')
