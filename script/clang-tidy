@@ -254,8 +254,6 @@ def main():
                 "e131",
                 "haier",
                 "improv_serial",
-                "lvgl",
-                "fingerprint_grow",
                 "md5",
                 "mlx90393",
                 "online_image",
