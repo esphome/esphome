@@ -1,5 +1,4 @@
 #pragma once
-
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -28,8 +27,8 @@ using SPIInterface = spi_host_device_t;
 
 #endif  // USE_ESP_IDF
 
-#ifdef USE_ZEPHYR
-// FIXME just to silent clang-tidy
+#ifndef USE_SPI
+// supprse clang-tidy on platform that do not support SPI
 using SPIInterface = void *;
 #endif
 
