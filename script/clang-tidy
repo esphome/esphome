@@ -241,33 +241,29 @@ def main():
         if "zephyr" in triplet:
             exclude_components = [
                 "api",
-                "web_server_base",
-                "web_server",
-                "prometheus",
-                "captive_portal",
-                "socket",
-                "voice_assistant",
-                "homeassistant",
                 "bluetooth_proxy",
-                "wake_on_lan",
-                "esphome",
+                "captive_portal",
                 "e131",
-                "haier",
-                "improv_serial",
-                "md5",
-                "mlx90393",
-                "online_image",
-                "sgp4x",
-                "wireguard",
-                "tuya",
-                "status",
-                "nextion",
-                "improv_base",
+                "esphome",
+                "homeassistant",
                 "http_request",
+                "improv_base",
+                "improv_serial",  # FIXME
+                "md5",  # FIXME
+                "mlx90393",  # FIXME
+                "online_image",
                 "ota",
+                "prometheus",
+                "sgp4x",  # FIXME
+                "socket",
+                "status",
+                "voice_assistant",
+                "wake_on_lan",
+                "web_server",
+                "web_server_base",
                 "wifi_info",
                 "wifi_signal",
-                "bedjet",
+                "wireguard",
             ]
         build_all_include(exclude_components)
         files.insert(0, temp_header_file)
