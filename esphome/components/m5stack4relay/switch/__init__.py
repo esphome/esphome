@@ -18,8 +18,6 @@ CONF_Relay_2 = 2
 CONF_Relay_3 = 3
 CONF_Relay_4 = 4
 
-CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
-
 RelayBit_ = m5stack4relay_ns.enum("RelayBit", is_class=True)
 
 SWITCH_MAP = {
