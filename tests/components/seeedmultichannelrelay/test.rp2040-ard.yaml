@@ -1,3 +1,8 @@
+i2c:
+  - id: i2c_seeedmultichannelrelay
+    scl: 16
+    sda: 17
+
 seeedmultichannelrelay:
   id: SeeedMultiChannelRelay_ID
   change_address_to: 0x01 # changes the address of the seeedmultichannelrelay (only runs once to update into the EPROM) then you have to change the i2c_address
