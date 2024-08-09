@@ -22,17 +22,12 @@ MitsubishiUART::MitsubishiUART(uart::UARTComponent *hp_uart_comp)
 // Used to restore state of previous MUART-specific settings (like temperature source or pass-thru mode)
 // Most other climate-state is preserved by the heatpump itself and will be retrieved after connection
 void MitsubishiUART::setup() {
-  if (temperature_source_select_) {
-    if (ts_uart_) {
-      auto options = temperature_source_select_->traits.get_options();
-      options.push_back(TEMPERATURE_SOURCE_THERMOSTAT);
-      temperature_source_select_->traits.set_options(options);
-    }
+  if (ts_uart_) {
+    temp_select_options_.push_back(TEMPERATURE_SOURCE_THERMOSTAT);
+  }
 
-    // Populate select map for preferences
-    for (size_t index = 0; index < temperature_source_select_->traits.get_options().size(); index++) {
-      temp_select_map_[temperature_source_select_->traits.get_options()[index]] = index;
-    }
+  if (temperature_source_select_) {
+    temperature_source_select_->traits.set_options(temp_select_options_);
   }
 
   // Using App.get_compilation_time() means these will get reset each time the firmware is updated, but this
@@ -47,9 +42,9 @@ void MitsubishiUART::save_preferences_() {
 
   // currentTemperatureSource
   // Save the index of the value stored in currentTemperatureSource just in case we're temporarily using Internal
-  auto index = temp_select_map_.find(current_temperature_source_);
-  if (index != temp_select_map_.end()) {
-    prefs.currentTemperatureSourceIndex = index->second;
+  auto index = find(temp_select_options_.begin(), temp_select_options_.end(), current_temperature_source_);
+  if (index != temp_select_options_.end()) {
+    prefs.currentTemperatureSourceIndex = index - temp_select_options_.begin();
   }
 
   preferences_.save(&prefs);
@@ -342,6 +337,10 @@ bool MitsubishiUART::select_horizontal_vane_position(const std::string &state) {
 
   hp_bridge_.send_packet(SettingsSetRequestPacket().set_horizontal_vane(position_byte));
   return true;
+}
+
+void MitsubishiUART::register_temperature_source(std::string temperature_source_name) {
+  temp_select_options_.push_back(temperature_source_name);
 }
 
 // Called by temperature_source sensors to report values.  Will only take action if the currentTemperatureSource

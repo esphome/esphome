@@ -143,18 +143,20 @@ async def to_code(config):
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(traits.set_supported_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
 
-    # # Add additional configured temperature sensors to the select menu
-    # for ts_id in config[CONF_TEMPERATURE_SOURCES]:
-    #     ts = await cg.get_variable(ts_id)
-    #     TEMPERATURE_SOURCE_OPTIONS.append(ts.get_name())
-    #     cg.add(
-    #         getattr(ts, "add_on_state_callback")(
-    #             # TODO: Is there anyway to do this without a raw expression?
-    #             cg.RawExpression(
-    #                 f"[](float v){{{getattr(muart_component, 'temperature_source_report')}({ts.get_name()}, v);}}"
-    #             )
-    #         )
-    #     )
+    # Add additional configured temperature sensors to the select menu
+    for ts_id in config[CONF_TEMPERATURE_SOURCES]:
+        ts = await cg.get_variable(ts_id)
+        cg.add(
+            getattr(muart_component, "register_temperature_source")(ts.get_name().str())
+        )
+        cg.add(
+            getattr(ts, "add_on_state_callback")(
+                # TODO: Is there anyway to do this without a raw expression?
+                cg.RawExpression(
+                    f"[](float v){{{getattr(muart_component, 'temperature_source_report')}({ts.get_name()}, v);}}"
+                )
+            )
+        )
 
     # Debug Settings
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
