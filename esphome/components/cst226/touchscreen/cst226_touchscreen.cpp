@@ -5,13 +5,17 @@ namespace cst226 {
 
 void CST226Touchscreen::setup() {
   esph_log_config(TAG, "Setting up CST226 Touchscreen...");
-  this->reset_pin_->setup();
-  this->reset_pin_->digital_write(true);
-  delay(5);
-  this->reset_pin_->digital_write(false);
-  delay(5);
-  this->reset_pin_->digital_write(true);
-  this->set_timeout(30, [this] { this->continue_setup_(); });
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->setup();
+    this->reset_pin_->digital_write(true);
+    delay(5);
+    this->reset_pin_->digital_write(false);
+    delay(5);
+    this->reset_pin_->digital_write(true);
+    this->set_timeout(30, [this] { this->continue_setup_(); });
+  } else {
+    this->continue_setup_();
+  }
 }
 
 void CST226Touchscreen::update_touches() {

@@ -1,21 +1,6 @@
 #!/usr/bin/env python3
 
-from helpers import (
-    print_error_for_file,
-    get_output,
-    filter_grep,
-    build_all_include,
-    temp_header_file,
-    git_ls_files,
-    filter_changed,
-    load_idedata,
-    root_path,
-    basepath,
-    get_binary,
-)
 import argparse
-import click
-import colorama
 import multiprocessing
 import os
 import queue
@@ -26,6 +11,20 @@ import sys
 import tempfile
 import threading
 
+import click
+import colorama
+from helpers import (
+    basepath,
+    build_all_include,
+    filter_changed,
+    filter_grep,
+    get_binary,
+    git_ls_files,
+    load_idedata,
+    print_error_for_file,
+    root_path,
+    temp_header_file,
+)
 
 
 def clang_options(idedata):

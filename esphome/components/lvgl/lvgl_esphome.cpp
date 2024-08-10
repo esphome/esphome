@@ -127,7 +127,7 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 }
 #endif  // USE_LVGL_TOUCHSCREEN
 
-#ifdef USE_LVGL_ROTARY_ENCODER
+#ifdef USE_LVGL_KEY_LISTENER
 LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt) {
   lv_indev_drv_init(&this->drv_);
   this->drv_.type = type;
@@ -143,15 +143,15 @@ LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_
     data->continue_reading = false;
   };
 }
-#endif  // USE_LVGL_ROTARY_ENCODER
+#endif  // USE_LVGL_KEY_LISTENER
 
 #ifdef USE_LVGL_BUTTONMATRIX
-void LvBtnmatrixType::set_obj(lv_obj_t *lv_obj) {
+void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
   LvCompound::set_obj(lv_obj);
   lv_obj_add_event_cb(
       lv_obj,
       [](lv_event_t *event) {
-        auto *self = static_cast<LvBtnmatrixType *>(event->user_data);
+        auto *self = static_cast<LvButtonMatrixType *>(event->user_data);
         if (self->key_callback_.size() == 0)
           return;
         auto key_idx = lv_btnmatrix_get_selected_btn(self->obj);
