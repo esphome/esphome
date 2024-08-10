@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import (
     climate,
     uart,
-    sensor,
     time,
 )
 from esphome.const import (
@@ -16,10 +15,7 @@ from esphome.const import (
 from esphome.core import coroutine
 from . import mitsubishi_itp_ns, MitsubishiUART
 
-CODEOWNERS = ["@Sammy1Am", "@KazWolfe"]
-
 AUTO_LOAD = [
-    "select",
     "time",
 ]
 DEPENDENCIES = [
@@ -28,10 +24,6 @@ DEPENDENCIES = [
 
 CONF_UART_HEATPUMP = "uart_heatpump"
 CONF_UART_THERMOSTAT = "uart_thermostat"
-
-CONF_TEMPERATURE_SOURCES = (
-    "temperature_sources"  # This is for specifying additional sources
-)
 
 CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
 CONF_ENHANCED_MHK_SUPPORT = (
@@ -60,9 +52,6 @@ CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
         ): cv.ensure_list(climate.validate_climate_fan_mode),
         cv.Optional(CONF_CUSTOM_FAN_MODES, default=["VERYHIGH"]): cv.ensure_list(
             validate_custom_fan_modes
-        ),
-        cv.Optional(CONF_TEMPERATURE_SOURCES, default=[]): cv.ensure_list(
-            cv.use_id(sensor.Sensor)
         ),
         cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
         cv.Optional(CONF_ENHANCED_MHK_SUPPORT, default=False): cv.boolean,
@@ -132,21 +121,6 @@ async def to_code(config):
 
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(traits.set_supported_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
-
-    # Add additional configured temperature sensors to the select menu
-    for ts_id in config[CONF_TEMPERATURE_SOURCES]:
-        ts = await cg.get_variable(ts_id)
-        cg.add(
-            getattr(muart_component, "register_temperature_source")(ts.get_name().str())
-        )
-        cg.add(
-            getattr(ts, "add_on_state_callback")(
-                # TODO: Is there anyway to do this without a raw expression?
-                cg.RawExpression(
-                    f"[](float v){{{getattr(muart_component, 'temperature_source_report')}({ts.get_name()}, v);}}"
-                )
-            )
-        )
 
     # Debug Settings
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):

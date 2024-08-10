@@ -2,7 +2,6 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#include "esphome/core/preferences.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/components/climate/climate.h"
@@ -65,19 +64,12 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Listener-sensors
   void register_listener(MITPListener *listener) { this->listeners_.push_back(listener); }
 
-  // Select setters
-  void set_temperature_source_select(select::Select *select) { temperature_source_select_ = select; };
-  void set_vane_position_select(select::Select *select) { vane_position_select_ = select; };
-  void set_horizontal_vane_position_select(select::Select *select) { horizontal_vane_position_select_ = select; };
-
   // Returns true if select was valid (even if not yet successful) to indicate select component
   // should optimistically publish
   bool select_temperature_source(const std::string &state);
   bool select_vane_position(const std::string &state);
   bool select_horizontal_vane_position(const std::string &state);
 
-  // Adds an option to temperature_source_select_
-  void register_temperature_source(std::string temperature_source_name);
   // Used by external sources to report a temperature
   void temperature_source_report(const std::string &temperature_source, const float &v);
 
@@ -157,28 +149,16 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Have we received at least one RunState response?
   bool run_state_received_ = false;
 
-  // Preferences
-  void save_preferences_();
-  void restore_preferences_();
-
-  ESPPreferenceObject preferences_;
-
   // Time Source
   time::RealTimeClock *time_source_ = nullptr;
 
   // Listener-sensors
   std::vector<MITPListener *> listeners_{};
 
-  // Selects
-  select::Select *temperature_source_select_ = nullptr;
-  select::Select *vane_position_select_ = nullptr;
-  select::Select *horizontal_vane_position_select_ = nullptr;
-
   // Temperature select extras
-  std::vector<std::string> temp_select_options_ = {
-      TEMPERATURE_SOURCE_INTERNAL};  // Used to map strings to indexes for preference storage
   std::string current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
   uint32_t last_received_temperature_ = millis();
+  bool temperature_source_timeout_ = false;  // Has the current source timed out?
 
   void send_if_active_(const Packet &packet);
   bool active_mode_ = true;
@@ -187,12 +167,6 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   bool enhanced_mhk_support_ = false;
 
   MHKState mhk_state_;
-};
-
-struct MUARTPreferences {
-  optional<size_t> currentTemperatureSourceIndex = nullopt;  // Index of selected value
-  // optional<uint32_t> currentTemperatureSourceHash = nullopt; // Hash of selected value (to make sure it hasn't
-  // changed since last save)
 };
 
 }  // namespace mitsubishi_itp

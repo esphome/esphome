@@ -22,60 +22,8 @@ MitsubishiUART::MitsubishiUART(uart::UARTComponent *hp_uart_comp)
 // Used to restore state of previous MUART-specific settings (like temperature source or pass-thru mode)
 // Most other climate-state is preserved by the heatpump itself and will be retrieved after connection
 void MitsubishiUART::setup() {
-  if (ts_uart_) {
-    temp_select_options_.push_back(TEMPERATURE_SOURCE_THERMOSTAT);
-  }
-
-  if (temperature_source_select_) {
-    temperature_source_select_->traits.set_options(temp_select_options_);
-  }
-
-  // Using App.get_compilation_time() means these will get reset each time the firmware is updated, but this
-  // is an easy way to prevent wierd conflicts if e.g. select options change.
-  preferences_ = global_preferences->make_preference<MUARTPreferences>(get_object_id_hash() ^
-                                                                       fnv1_hash(App.get_compilation_time()));
-  restore_preferences_();
-}
-
-void MitsubishiUART::save_preferences_() {
-  MUARTPreferences prefs{};
-
-  // currentTemperatureSource
-  // Save the index of the value stored in currentTemperatureSource just in case we're temporarily using Internal
-  auto index = find(temp_select_options_.begin(), temp_select_options_.end(), current_temperature_source_);
-  if (index != temp_select_options_.end()) {
-    prefs.currentTemperatureSourceIndex = index - temp_select_options_.begin();
-  }
-
-  preferences_.save(&prefs);
-}
-
-// Restores previously set values, or sets sane defaults
-void MitsubishiUART::restore_preferences_() {
-  MUARTPreferences prefs;
-  if (preferences_.load(&prefs)) {
-    // currentTemperatureSource
-    if (temperature_source_select_) {
-      if (prefs.currentTemperatureSourceIndex.has_value() &&
-          temperature_source_select_->has_index(prefs.currentTemperatureSourceIndex.value()) &&
-          temperature_source_select_->at(prefs.currentTemperatureSourceIndex.value()).has_value()) {
-        current_temperature_source_ =
-            temperature_source_select_->at(prefs.currentTemperatureSourceIndex.value()).value();
-        temperature_source_select_->publish_state(current_temperature_source_);
-        ESP_LOGCONFIG(TAG, "Preferences loaded.");
-      } else {
-        ESP_LOGCONFIG(TAG, "Preferences loaded, but unsuitable values.");
-        current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
-        temperature_source_select_->publish_state(TEMPERATURE_SOURCE_INTERNAL);
-      }
-    }
-  } else {
-    // TODO: Shouldn't need to define setting all these defaults twice
-    ESP_LOGCONFIG(TAG, "Preferences not loaded.");
-    current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
-    if (temperature_source_select_) {
-      temperature_source_select_->publish_state(TEMPERATURE_SOURCE_INTERNAL);
-    }
+  for (auto *listener : listeners_) {
+    listener->setup(bool(ts_uart_));
   }
 }
 
@@ -103,19 +51,19 @@ void MitsubishiUART::loop() {
   if (ts_bridge_)
     ts_bridge_->loop();
 
-  // If no temperature_source_select_ has been defined, Internal will always be used, no need to check on this
-  if (temperature_source_select_) {
-    // If it's been too long since we received a temperature update (and we're not set to Internal)
-    if (((millis() - last_received_temperature_) > TEMPERATURE_SOURCE_TIMEOUT_MS) &&
-        (temperature_source_select_->has_option(TEMPERATURE_SOURCE_INTERNAL)) &&
-        (temperature_source_select_->state != TEMPERATURE_SOURCE_INTERNAL)) {
-      ESP_LOGW(TAG, "No temperature received from %s for %lu milliseconds, reverting to Internal source",
-               current_temperature_source_.c_str(), (unsigned long) TEMPERATURE_SOURCE_TIMEOUT_MS);
-      // Set the select to show Internal (but do not change currentTemperatureSource)
-      temperature_source_select_->publish_state(TEMPERATURE_SOURCE_INTERNAL);
-      // Send a packet to the heat pump to tell it to switch to internal temperature sensing
-      IFACTIVE(hp_bridge_.send_packet(RemoteTemperatureSetRequestPacket().use_internal_temperature());)
+  // If it's been too long since we received a temperature update (and we're not set to Internal)
+  if (((millis() - last_received_temperature_) > TEMPERATURE_SOURCE_TIMEOUT_MS) &&
+      current_temperature_source_ != TEMPERATURE_SOURCE_INTERNAL && !temperature_source_timeout_) {
+    ESP_LOGW(TAG, "No temperature received from %s for %lu milliseconds, reverting to Internal source",
+             current_temperature_source_.c_str(), (unsigned long) TEMPERATURE_SOURCE_TIMEOUT_MS);
+    // Let listeners know we've changed to the Internal temperature source (but do not change
+    // currentTemperatureSource)
+    for (auto *listener : listeners_) {
+      listener->temperature_source_change(TEMPERATURE_SOURCE_INTERNAL);
     }
+    temperature_source_timeout_ = true;
+    // Send a packet to the heat pump to tell it to switch to internal temperature sensing
+    IFACTIVE(hp_bridge_.send_packet(RemoteTemperatureSetRequestPacket().use_internal_temperature());)
   }
 }
 
@@ -177,7 +125,8 @@ void MitsubishiUART::update() {
 
   IFACTIVE(
       // Request an update from the heatpump
-      // TODO: This isn't a problem *yet*, but sending all these packets every loop might start to cause some issues in
+      // TODO: This isn't a problem *yet*, but sending all these packets every loop might start to cause some issues
+      // in
       //       certain configurations or setups. We may want to consider only asking for certain packets on a rarer
       //       cadence, depending on their utility (e.g. we dont need to check for errors every loop).
       hp_bridge_.send_packet(
@@ -202,17 +151,7 @@ void MitsubishiUART::update() {
   }
 }
 
-void MitsubishiUART::do_publish_() {
-  publish_state();
-  if (vane_position_select_) {
-    vane_position_select_->publish_state(vane_position_select_->state);
-  }
-
-  if (horizontal_vane_position_select_) {
-    horizontal_vane_position_select_->publish_state(horizontal_vane_position_select_->state);
-  }
-  save_preferences_();  // We can save this every time we publish as writes to flash are by default collected and
-}
+void MitsubishiUART::do_publish_() { publish_state(); }
 
 bool MitsubishiUART::select_temperature_source(const std::string &state) {
   // TODO: Possibly check to see if state is available from the select options?  (Might be a bit redundant)
@@ -292,10 +231,6 @@ bool MitsubishiUART::select_horizontal_vane_position(const std::string &state) {
   return true;
 }
 
-void MitsubishiUART::register_temperature_source(std::string temperature_source_name) {
-  temp_select_options_.push_back(temperature_source_name);
-}
-
 // Called by temperature_source sensors to report values.  Will only take action if the currentTemperatureSource
 // matches the incoming source.  Specifically this means that we are not storing any values
 // for sensors other than the current source, and selecting a different source won't have any
@@ -310,6 +245,7 @@ void MitsubishiUART::temperature_source_report(const std::string &temperature_so
   if (current_temperature_source_ == temperature_source) {
     // Reset the timeout for received temperature
     last_received_temperature_ = millis();
+    temperature_source_timeout_ = false;
 
     // Tell the heat pump about the temperature asap, but don't worry about setting it locally, the next update() will
     // get it
@@ -317,9 +253,8 @@ void MitsubishiUART::temperature_source_report(const std::string &temperature_so
              hp_bridge_.send_packet(pkt);)
 
     // If we've changed the select to reflect a temporary reversion to a different source, change it back.
-    if (temperature_source_select_ && temperature_source_select_->state != temperature_source) {
-      ESP_LOGI(TAG, "Temperature received, switching back to %s as source.", temperature_source.c_str());
-      temperature_source_select_->publish_state(temperature_source);
+    for (auto *listener : listeners_) {
+      listener->temperature_source_change(current_temperature_source_);
     }
   }
 }

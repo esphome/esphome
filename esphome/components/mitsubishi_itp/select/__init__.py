@@ -1,8 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import (
-    select,
-)
+from esphome.components import select, sensor
 from esphome.const import (
     CONF_ID,
     ENTITY_CATEGORY_CONFIG,
@@ -18,6 +16,7 @@ from ...mitsubishi_itp import (
 CONF_TEMPERATURE_SOURCE = (
     "temperature_source"  # This is to create a Select object for selecting a source
 )
+CONF_SOURCES = "sources"  # This is for specifying additional sources
 CONF_VANE_POSITION = "vane_position"
 CONF_HORIZONTAL_VANE_POSITION = "horizontal_vane_position"
 
@@ -38,6 +37,12 @@ SELECTS = {
             TemperatureSourceSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:thermometer-check",
+        ).extend(
+            {
+                cv.Optional(CONF_SOURCES, default=[]): cv.ensure_list(
+                    cv.use_id(sensor.Sensor)
+                )
+            }
         ),
         [mitsubishi_itp_ns.TEMPERATURE_SOURCE_INTERNAL],
     ),
@@ -85,11 +90,26 @@ async def to_code(config):
     ) in SELECTS.items():
         if select_conf := config.get(select_designator):
             select_component = cg.new_Pvariable(select_conf[CONF_ID])
-            cg.add(
-                getattr(muart_component, f"set_{select_designator}_select")(
-                    select_component
-                )
-            )
+            cg.add(getattr(muart_component, "register_listener")(select_component))
+
+            if select_designator == CONF_TEMPERATURE_SOURCE:
+                # Add additional configured temperature sensors to the select menu
+                for ts_id in select_conf[CONF_SOURCES]:
+                    ts = await cg.get_variable(ts_id)
+                    cg.add(
+                        getattr(select_component, "register_temperature_source")(
+                            ts.get_name().str()
+                        )
+                    )
+                    cg.add(
+                        getattr(ts, "add_on_state_callback")(
+                            # TODO: Is there anyway to do this without a raw expression?
+                            cg.RawExpression(
+                                f"[](float v){{{getattr(muart_component, 'temperature_source_report')}({ts.get_name()}, v);}}"
+                            )
+                        )
+                    )
+
             await cg.register_parented(select_component, muart_component)
 
             await select.register_select(
