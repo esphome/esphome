@@ -1508,6 +1508,281 @@ void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every)
 }
 
 // ========================================================
+//     Good Display 7.5in black/white/red
+// ========================================================
+
+void GDEY075Z08::calculate_CRCs_(bool fullSync) {
+  uint16_t width_b = this->get_width_internal() / (this->seg_x_ * 8);  // width of individual segments in bytes
+  uint16_t height_px = this->get_height_internal() / this->seg_x_;     // height of individual segments in pixel
+  uint16_t segment_size = width_b * height_px;
+  uint32_t buffer_half_size = this->get_width_internal() * this->get_height_internal() / 2;
+  uint8_t seg_x, seg_y, x, y;
+  boolean found_change = false;
+  for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {       // vertically iterate through the number of lines (px)
+    for (seg_x = 0; seg_x < this->seg_x_; seg_x++) {     // horizontally iterate through number of columns (px)
+      uint8_t *segment = new uint8_t[segment_size * 2];  // create segment array (muliply by 2 since we need 2 byte per
+                                                         // 8 pixel, 1 for black and 1 for red)
+      for (y = 0; y < height_px; y++) {
+        for (x = 0; x < width_b; x++) {
+          uint16_t segment_position = x + y * width_b;  // linear position inside the segment in bytes
+          uint16_t global_position = seg_y * height_px * this->get_width_internal() / 8 +
+                                     y * this->get_width_internal() / 8 + seg_x * width_b + x;
+          segment[segment_position] = buffer_[global_position];                                    // copy black data
+          segment[segment_position + segment_size] = buffer_[global_position + buffer_half_size];  // copy red data
+        }
+      }
+      // now calculate a CRC16_checksum and compare it against the stored value.
+      uint16_t segment_crc = crc16(segment, segment_size * 2, 65535U, 40961U, false, false);
+      if (fullSync) {
+        // no need to compare, we're in the first run, just place it. This is called by full refresh only
+        checksums_[seg_x + seg_y * width_b] = segment_crc;
+      } else {
+        boolean changed = checksums_[seg_x + seg_y * width_b] != segment_crc;
+        checksums_[seg_x + seg_y * width_b] = segment_crc;
+        if (changed && !found_change) {
+          found_change = true;
+          first_segment_ = seg_x + seg_y * width_b;
+        } else if (changed) {
+          // Segment changed but we already found a change before, so
+          last_segment_ = seg_x + seg_y * width_b;
+        } else {
+          // do nothing, segment didn't change.
+        }
+      }
+    }
+  }
+}
+void GDEY075Z08::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+
+void GDEY075Z08::init_fast() {
+  this->reset_();       // Module reset
+  this->command(0x00);  // PANNEL SETTING
+  this->data(0x0F);     // KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
+
+  this->command(0x04);
+  delay(100);
+  this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
+
+  // Enhanced display drive(Add 0x06 command)
+  this->command(0x06);  // Booster Soft Start
+  this->data(0x27);
+  this->data(0x27);
+  this->data(0x18);
+  this->data(0x17);
+
+  this->command(0xE0);
+  this->data(0x02);
+  this->command(0xE5);
+  this->data(0x5A);
+
+  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->data(0x11);
+  this->data(0x07);
+}
+void GDEY075Z08::initialize() {
+  this->reset_();
+  this->at_update_ = 0;
+  checksums_ =
+      new uint16_t[seg_x_ *
+                   seg_y_];  // initialize the checksums array. Will be filed and maintained by calculate_CRCs_()
+
+  ESP_LOGE(TAG, "Before Powerup, after Reset");
+  this->command(0x01);  // POWER SETTING
+  this->data(0x07);
+  this->data(0x07);  // VGH=20V,VGL=-20V
+  this->data(0x3f);  // VDH=15V
+  this->data(0x3f);  // VDL=-15V
+
+  // Enhanced display drive(Add 0x06 command)
+  this->command(0x06);  // Booster Soft Start
+  this->data(0x17);
+  this->data(0x17);
+  this->data(0x28);
+  this->data(0x17);
+
+  ESP_LOGD(TAG, "Powering up now.");
+  this->command(0x04);  // POWER ON
+  wait_until_idle_();   // waiting for the electronic paper IC to release the idle signal
+
+  this->command(0X00);  // PANNEL SETTING
+  this->data(0x0F);     // KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
+
+  this->command(0x61);  // resolution setting
+  this->data(this->get_width_internal() / 256);
+  this->data(this->get_width_internal() % 256);
+  this->data(this->get_height_internal() / 256);
+  this->data(this->get_height_internal() % 256);
+
+  this->command(0X15);
+  this->data(0x00);
+
+  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->data(0x11);     // 0x10  --------------
+  this->data(0x07);
+
+  this->command(0X60);  // TCON SETTING
+  this->data(0x22);
+  ESP_LOGE(TAG, "Initialization finished");
+}
+void GDEY075Z08::loop() {
+  if (this->waiting_for_idle && this->busy_pin_) {
+    // reset waiting_for idle, then send the display to deep sleep.
+    this->deep_sleep();
+    this->waiting_for_idle = false;
+  }
+}
+void HOT GDEY075Z08::display() {
+  ESP_LOGD(TAG, "Running through display()");
+  if (this->waiting_for_idle) {
+    // still waiting for the previous busy to ebb off, skip drawing the display.
+    return;
+  }
+
+  bool partial = this->at_update_ != 0;
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+  unsigned int i;
+  unsigned int half_length = this->get_buffer_length_() / 2u;
+
+  if (false) {
+    ESP_LOGI(TAG, "Evaluating Partial Screen Update");
+    this->calculate_CRCs_(false);
+    unsigned int first_px = half_length;
+    unsigned int last_px = 0;
+    bool found_change = false;
+    for (i = 0; i < half_length; i++) {
+      if (i % 1000 == 0) {
+        ESP_LOGD(TAG, "1000 Pixels evaluated");
+      }
+      unsigned int second_half = i + half_length;
+      // We look at the first half and second half at the same time and OR both values.
+      // We don't really care, WHICH of the halfs has a non-null value, since we have to update both maps regardless.
+      bool differ = this->buffer_[i] == last_buffer_[i] || this->buffer_[second_half] == last_buffer_[second_half];
+      if (differ) {
+        // last_buffer_ and buffer_ differ
+        if (!found_change) {
+          // found the first pixel
+          found_change = true;
+          first_px = i;
+          last_px = i;
+        } else {
+          // found another pixel, the last we find this way will be the last
+          last_px = i;
+        }
+      }
+    }
+    ESP_LOGD(TAG, "Partial Screen Update Evaluation complete");
+    if (!found_change) {
+      // jump out, without waking the display, so we don't have to send it back to sleep.
+      return;
+    }
+    ESP_LOGD(TAG, "Found a change, initializing display for partial backup");
+    unsigned int x_start, y_start, x_end, y_end;
+    x_start = first_px % get_width_internal() / 8;
+    y_start = first_px / get_width_internal() / 8;
+    x_end = last_px % get_width_internal() / 8;
+    y_end = last_px / get_width_internal() / 8;
+
+    this->init_fast();    // Wake up Display.
+    this->command(0x91);  // Enter partial mode
+    this->command(0x90);  // Enter resolution Setting (?)
+    this->data(x_start / 32);
+    this->data(x_start % 32);
+
+    this->data(x_end / 32);
+    this->data(x_end % 32 - 1);
+
+    this->data(y_start / 32);
+    this->data(y_start % 32);
+
+    this->data(y_end / 32);
+    this->data(y_end % 32 - 1);
+    this->data(0x01);
+
+    this->command(0x10);  // write black data
+    for (i = first_px; i <= last_px; i++) {
+      this->data(~this->buffer_[i]);
+    }
+    this->command(0x13);
+    for (i = first_px; i <= last_px; i++) {
+      this->data(this->buffer_[i + half_length]);
+    }
+    this->command(0x12);  // Display Refresh
+    delay(1);
+    this->command(0x92);  // Exit Partial mode
+  } else {
+    ESP_LOGI(TAG, "Performing Full Screen Update");
+    calculate_CRCs_(true);  // reset the crc table.
+    this->init_fast();      // Wake up display.
+
+    // Write Data
+    this->command(0x10);  // Transfer old data
+    ESP_LOGI(TAG, "Writing Black Data...");
+    for (i = 0; i < half_length; i++) {
+      this->data(~this->buffer_[i]);  // Transfer the black display
+      // last_buffer_[i] = this->buffer_[i];
+    }
+    this->command(0x13);  // Transfer new data
+    ESP_LOGI(TAG, "Writing Red Data...");
+    for (i = half_length; i < this->get_buffer_length_(); i++) {
+      this->data(this->buffer_[i]);  // Transfer the red displayed data
+      // last_buffer_[i] = this->buffer_[i];
+    }
+    ESP_LOGI(TAG, "Image Render complete.");
+    this->command(0x12);  // this triggers a refresh, everything before is just preparatory.
+  }
+  delay(1);                       // This delay needs to be here. 200µS at least.
+  this->waiting_for_idle = true;  // BUSY should be LOW now, setting waiting_for_idle to true. This will cause loop() to
+                                  // poll for BUSY to go HIGH again, then enter deep sleep
+}
+
+void GDEY075Z08::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in Black/Red/White GDEW029T5");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+void GDEY075Z08::deep_sleep() {
+  // COMMAND DEEP SLEEP
+  this->command(0x50);
+  this->data(0xF7);  // check byte
+  this->command(0x02);
+  delay(100);
+  this->command(0x07);
+  this->data(0xA5);
+  ESP_LOGI(TAG, "Display now in deep sleep.");
+}
+
+bool GDEY075Z08::wait_until_idle_() {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+
+  const uint32_t start = millis();
+  while (this->busy_pin_->digital_read()) {
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+  return true;
+}
+
+uint32_t GDEY075Z08::idle_timeout_() { return 40000; }
+void GDEY075Z08::reset_() {
+  // RST is inverse from other einks in this project
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+  }
+  this->wait_until_idle_();  // wait for the display to return from busy.
+}
+// ========================================================
 //     Good Display 2.9in black/white/grey
 // Datasheet:
 //  - https://v4.cecdn.yun300.cn/100001_1909185148/SSD1680.pdf
