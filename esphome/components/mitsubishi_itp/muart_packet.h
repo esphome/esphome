@@ -19,6 +19,15 @@ static constexpr char PACKETS_TAG[] = "mitsubishi_itp.packets";
 #define CONSOLE_COLOR_CYAN_BOLD "\033[1;36m"
 #define CONSOLE_COLOR_WHITE "\033[0;37m"
 
+const std::string FAN_MODE_VERYHIGH = "Very High";
+
+// These are named to match with set fan speeds where possible.  "Very Low" is a special speed
+// for e.g. preheating or thermal off
+const std::array<std::string, 7> ACTUAL_FAN_SPEED_NAMES = {"Off",  "Very Low",        "Low",  "Medium",
+                                                           "High", FAN_MODE_VERYHIGH, "Quiet"};
+
+const std::array<std::string, 5> THERMOSTAT_BATTERY_STATE_NAMES = {"OK", "Low", "Critical", "Replace", "Unknown"};
+
 class PacketProcessor;
 
 // Generic Base Packet wrapper over RawPacket

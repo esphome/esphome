@@ -2,12 +2,12 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#include "esphome/core/preferences.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
+#include "mitp_listener.h"
 #include "muart_packet.h"
 #include "muart_bridge.h"
 #include "muart_mhk.h"
@@ -22,19 +22,10 @@ const uint8_t MUART_MIN_TEMP = 16;  // Degrees C
 const uint8_t MUART_MAX_TEMP = 31;  // Degrees C
 const float MUART_TEMPERATURE_STEP = 0.5;
 
-const std::string FAN_MODE_VERYHIGH = "Very High";
-
 const std::string TEMPERATURE_SOURCE_INTERNAL = "Internal";
-const uint32_t TEMPERATURE_SOURCE_TIMEOUT_MS = 420000;  // (7min) The heatpump will revert on its own in ~10min
-
 const std::string TEMPERATURE_SOURCE_THERMOSTAT = "Thermostat";
 
-// These are named to match with set fan speeds where possible.  "Very Low" is a special speed
-// for e.g. preheating or thermal off
-const std::array<std::string, 7> ACTUAL_FAN_SPEED_NAMES = {"Off",  "Very Low",        "Low",  "Medium",
-                                                           "High", FAN_MODE_VERYHIGH, "Quiet"};
-
-const std::array<std::string, 5> THERMOSTAT_BATTERY_STATE_NAMES = {"OK", "Low", "Critical", "Replace", "Unknown"};
+const uint32_t TEMPERATURE_SOURCE_TIMEOUT_MS = 420000;  // (7min) The heatpump will revert on its own in ~10min
 
 class MitsubishiUART : public PollingComponent, public climate::Climate, public PacketProcessor {
  public:
@@ -70,24 +61,8 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Set thermostat UART component
   void set_thermostat_uart(uart::UARTComponent *uart);
 
-  // Sensor setters
-  void set_thermostat_temperature_sensor(sensor::Sensor *sensor) { thermostat_temperature_sensor_ = sensor; };
-  void set_outdoor_temperature_sensor(sensor::Sensor *sensor) { outdoor_temperature_sensor_ = sensor; };
-  void set_thermostat_humidity_sensor(sensor::Sensor *sensor) { thermostat_humidity_sensor_ = sensor; }
-  void set_compressor_frequency_sensor(sensor::Sensor *sensor) { compressor_frequency_sensor_ = sensor; };
-  void set_actual_fan_sensor(text_sensor::TextSensor *sensor) { actual_fan_sensor_ = sensor; };
-  void set_filter_status_sensor(binary_sensor::BinarySensor *sensor) { filter_status_sensor_ = sensor; };
-  void set_defrost_sensor(binary_sensor::BinarySensor *sensor) { defrost_sensor_ = sensor; };
-  void set_preheat_sensor(binary_sensor::BinarySensor *sensor) { preheat_sensor_ = sensor; };
-  void set_standby_sensor(binary_sensor::BinarySensor *sensor) { standby_sensor_ = sensor; };
-  void set_isee_status_sensor(binary_sensor::BinarySensor *sensor) { isee_status_sensor_ = sensor; }
-  void set_error_code_sensor(text_sensor::TextSensor *sensor) { error_code_sensor_ = sensor; };
-  void set_thermostat_battery_sensor(text_sensor::TextSensor *sensor) { thermostat_battery_sensor_ = sensor; }
-
-  // Select setters
-  void set_temperature_source_select(select::Select *select) { temperature_source_select_ = select; };
-  void set_vane_position_select(select::Select *select) { vane_position_select_ = select; };
-  void set_horizontal_vane_position_select(select::Select *select) { horizontal_vane_position_select_ = select; };
+  // Listener-sensors
+  void register_listener(MITPListener *listener) { this->listeners_.push_back(listener); }
 
   // Returns true if select was valid (even if not yet successful) to indicate select component
   // should optimistically publish
@@ -174,38 +149,16 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // Have we received at least one RunState response?
   bool run_state_received_ = false;
 
-  // Preferences
-  void save_preferences_();
-  void restore_preferences_();
-
-  ESPPreferenceObject preferences_;
-
   // Time Source
   time::RealTimeClock *time_source_ = nullptr;
 
-  // Internal sensors
-  sensor::Sensor *thermostat_temperature_sensor_ = nullptr;
-  sensor::Sensor *thermostat_humidity_sensor_ = nullptr;
-  sensor::Sensor *compressor_frequency_sensor_ = nullptr;
-  sensor::Sensor *outdoor_temperature_sensor_ = nullptr;
-  text_sensor::TextSensor *actual_fan_sensor_ = nullptr;
-  binary_sensor::BinarySensor *filter_status_sensor_ = nullptr;
-  binary_sensor::BinarySensor *defrost_sensor_ = nullptr;
-  binary_sensor::BinarySensor *preheat_sensor_ = nullptr;
-  binary_sensor::BinarySensor *standby_sensor_ = nullptr;
-  binary_sensor::BinarySensor *isee_status_sensor_ = nullptr;
-  text_sensor::TextSensor *error_code_sensor_ = nullptr;
-  text_sensor::TextSensor *thermostat_battery_sensor_ = nullptr;
-
-  // Selects
-  select::Select *temperature_source_select_;
-  select::Select *vane_position_select_;
-  select::Select *horizontal_vane_position_select_;
+  // Listener-sensors
+  std::vector<MITPListener *> listeners_{};
 
   // Temperature select extras
-  std::map<std::string, size_t> temp_select_map_;  // Used to map strings to indexes for preference storage
   std::string current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
   uint32_t last_received_temperature_ = millis();
+  bool temperature_source_timeout_ = false;  // Has the current source timed out?
 
   void send_if_active_(const Packet &packet);
   bool active_mode_ = true;
@@ -214,12 +167,6 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   bool enhanced_mhk_support_ = false;
 
   MHKState mhk_state_;
-};
-
-struct MUARTPreferences {
-  optional<size_t> currentTemperatureSourceIndex = nullopt;  // Index of selected value
-  // optional<uint32_t> currentTemperatureSourceHash = nullopt; // Hash of selected value (to make sure it hasn't
-  // changed since last save)
 };
 
 }  // namespace mitsubishi_itp
