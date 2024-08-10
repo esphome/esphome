@@ -13,7 +13,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#ifdef ESP32
+#if defined(ESP32) || defined(USE_ESP_IDF)
 #include "driver/timer.h"
 #endif
 
@@ -302,7 +302,7 @@ class OpenTherm {
   ISRInternalGPIOPin isr_in_pin_;
   ISRInternalGPIOPin isr_out_pin_;
 
-#ifdef ESP32
+#if defined(ESP32) || defined(USE_ESP_IDF)
   timer_group_t timer_group_;
   timer_idx_t timer_idx_;
 #endif
@@ -317,7 +317,7 @@ class OpenTherm {
 
   int32_t device_timeout_;
 
-#ifdef ESP32
+#if defined(ESP32) || defined(USE_ESP_IDF)
   bool init_esp32_timer_();
   void start_esp32_timer_(uint64_t alarm_value);
 #endif
