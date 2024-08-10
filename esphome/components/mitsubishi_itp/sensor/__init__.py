@@ -5,10 +5,6 @@ from esphome.components import (
     binary_sensor,
     text_sensor,
 )
-from esphome.components.mitsubishi_itp.climate import (
-    CONF_MITSUBISHI_ITP_ID,
-    MitsubishiUART,
-)
 from esphome.const import (
     CONF_ID,
     CONF_OUTDOOR_TEMPERATURE,
@@ -21,6 +17,11 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from esphome.core import coroutine
+from ...mitsubishi_itp.climate import (
+    CONF_MITSUBISHI_ITP_ID,
+    mitsubishi_itp_ns,
+    MitsubishiUART,
+)
 
 CONF_THERMOSTAT_BATTERY = "thermostat_battery"
 CONF_THERMOSTAT_HUMIDITY = "thermostat_humidity"
@@ -30,17 +31,46 @@ CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
 CONF_ERROR_CODE = "error_code"
 CONF_ISEE_STATUS = "isee_status"
 
+ActualFanSensor = mitsubishi_itp_ns.class_("ActualFanSensor", text_sensor.TextSensor)
+CompressorFrequencySensor = mitsubishi_itp_ns.class_(
+    "CompressorFrequencySensor", sensor.Sensor
+)
+DefrostSensor = mitsubishi_itp_ns.class_("DefrostSensor", binary_sensor.BinarySensor)
+ErrorCodeSensor = mitsubishi_itp_ns.class_("ErrorCodeSensor", text_sensor.TextSensor)
+FilterStatusSensor = mitsubishi_itp_ns.class_(
+    "FilterStatusSensor", binary_sensor.BinarySensor
+)
+ISeeStatusSensor = mitsubishi_itp_ns.class_(
+    "ISeeStatusSensor", binary_sensor.BinarySensor
+)
+OutdoorTemperatureSensor = mitsubishi_itp_ns.class_(
+    "OutdoorTemperatureSensor", sensor.Sensor
+)
+PreheatSensor = mitsubishi_itp_ns.class_("PreheatSensor", binary_sensor.BinarySensor)
+StandbySensor = mitsubishi_itp_ns.class_("StandbySensor", binary_sensor.BinarySensor)
+ThermostatBatterySensor = mitsubishi_itp_ns.class_(
+    "ThermostatBatterySensor", text_sensor.TextSensor
+)
+ThermostatHumiditySensor = mitsubishi_itp_ns.class_(
+    "ThermostatHumiditySensor", sensor.Sensor
+)
+ThermostatTemperatureSensor = mitsubishi_itp_ns.class_(
+    "ThermostatTemperatureSensor", sensor.Sensor
+)
+
 # TODO Storing the registration function here seems weird, but I can't figure out how to determine schema type later
 SENSORS = dict[str, tuple[cv.Schema, callable]](
     {
         "actual_fan": (
             text_sensor.text_sensor_schema(
+                ActualFanSensor,
                 icon="mdi:fan",
             ),
             text_sensor.register_text_sensor,
         ),
         "compressor_frequency": (
             sensor.sensor_schema(
+                CompressorFrequencySensor,
                 unit_of_measurement=UNIT_HERTZ,
                 device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -48,25 +78,30 @@ SENSORS = dict[str, tuple[cv.Schema, callable]](
             sensor.register_sensor,
         ),
         "defrost": (
-            binary_sensor.binary_sensor_schema(icon="mdi:snowflake-melt"),
+            binary_sensor.binary_sensor_schema(
+                DefrostSensor, icon="mdi:snowflake-melt"
+            ),
             binary_sensor.register_binary_sensor,
         ),
         CONF_ERROR_CODE: (
-            text_sensor.text_sensor_schema(icon="mdi:alert-circle-outline"),
+            text_sensor.text_sensor_schema(
+                ErrorCodeSensor, icon="mdi:alert-circle-outline"
+            ),
             text_sensor.register_text_sensor,
         ),
         "filter_status": (
             binary_sensor.binary_sensor_schema(
-                device_class="problem", icon="mdi:air-filter"
+                FilterStatusSensor, device_class="problem", icon="mdi:air-filter"
             ),
             binary_sensor.register_binary_sensor,
         ),
         CONF_ISEE_STATUS: (
-            binary_sensor.binary_sensor_schema(icon="mdi:eye"),
+            binary_sensor.binary_sensor_schema(ISeeStatusSensor, icon="mdi:eye"),
             binary_sensor.register_binary_sensor,
         ),
         CONF_OUTDOOR_TEMPERATURE: (
             sensor.sensor_schema(
+                OutdoorTemperatureSensor,
                 unit_of_measurement=UNIT_CELSIUS,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -76,21 +111,25 @@ SENSORS = dict[str, tuple[cv.Schema, callable]](
             sensor.register_sensor,
         ),
         "preheat": (
-            binary_sensor.binary_sensor_schema(icon="mdi:heating-coil"),
+            binary_sensor.binary_sensor_schema(PreheatSensor, icon="mdi:heating-coil"),
             binary_sensor.register_binary_sensor,
         ),
         "standby": (
-            binary_sensor.binary_sensor_schema(icon="mdi:pause-circle-outline"),
+            binary_sensor.binary_sensor_schema(
+                StandbySensor, icon="mdi:pause-circle-outline"
+            ),
             binary_sensor.register_binary_sensor,
         ),
         CONF_THERMOSTAT_BATTERY: (
             text_sensor.text_sensor_schema(
+                ThermostatBatterySensor,
                 icon="mdi:battery",
             ),
             text_sensor.register_text_sensor,
         ),
         CONF_THERMOSTAT_HUMIDITY: (
             sensor.sensor_schema(
+                ThermostatHumiditySensor,
                 unit_of_measurement=UNIT_PERCENT,
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -100,6 +139,7 @@ SENSORS = dict[str, tuple[cv.Schema, callable]](
         ),
         CONF_THERMOSTAT_TEMPERATURE: (
             sensor.sensor_schema(
+                ThermostatTemperatureSensor,
                 unit_of_measurement=UNIT_CELSIUS,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -140,8 +180,4 @@ async def to_code(config):
 
             await registration_function(sensor_component, sensor_conf)
 
-            cg.add(
-                getattr(muart_component, f"set_{sensor_designator}_sensor")(
-                    sensor_component
-                )
-            )
+            cg.add(getattr(muart_component, "register_listener")(sensor_component))

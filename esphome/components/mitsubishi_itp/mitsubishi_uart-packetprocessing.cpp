@@ -3,6 +3,11 @@
 namespace esphome {
 namespace mitsubishi_itp {
 
+#define ALERT_LISTENERS \
+  for (auto *listener : this->listeners_) { \
+    listener->process_packet(packet); \
+  }
+
 void MitsubishiUART::route_packet_(const Packet &packet) {
   // If the packet is associated with the thermostat and just came from the thermostat, send it to the heatpump
   // If it came from the heatpump, send it back to the thermostat
@@ -70,6 +75,7 @@ void MitsubishiUART::process_packet(const GetRequestPacket &packet) {
 void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
+  ALERT_LISTENERS;
 
   // Mode
 
@@ -105,13 +111,6 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
   }
 
   publish_on_update_ |= (old_mode != mode);
-
-  // Mode (i-see)
-  if (isee_status_sensor_) {
-    const bool old_isee_status = isee_status_sensor_->state;
-    isee_status_sensor_->state = packet.is_i_see_enabled();
-    publish_on_update_ |= (old_isee_status != isee_status_sensor_->state);
-  }
 
   // Temperature
   const float old_target_temperature = target_temperature;
@@ -228,22 +227,19 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
 void MitsubishiUART::process_packet(const CurrentTempGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
+  ALERT_LISTENERS;
   // This will be the same as the remote temperature if we're using a remote sensor, otherwise the internal temp
   const float old_current_temperature = current_temperature;
   current_temperature = packet.get_current_temp();
 
   publish_on_update_ |= (old_current_temperature != current_temperature);
-
-  if (outdoor_temperature_sensor_ && !std::isnan(packet.get_outdoor_temp())) {
-    const float old_outdoor_temperature = outdoor_temperature_sensor_->raw_state;
-    outdoor_temperature_sensor_->raw_state = packet.get_outdoor_temp();
-    publish_on_update_ |= (old_outdoor_temperature != outdoor_temperature_sensor_->raw_state);
-  }
 }
 
 void MitsubishiUART::process_packet(const StatusGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
+  ALERT_LISTENERS;
+
   const climate::ClimateAction old_action = action;
 
   // If mode is off, action is off
@@ -290,50 +286,13 @@ void MitsubishiUART::process_packet(const StatusGetResponsePacket &packet) {
   }
 
   publish_on_update_ |= (old_action != action);
-
-  if (compressor_frequency_sensor_) {
-    const float old_compressor_frequency = compressor_frequency_sensor_->raw_state;
-
-    compressor_frequency_sensor_->raw_state = packet.get_compressor_frequency();
-
-    publish_on_update_ |= (old_compressor_frequency != compressor_frequency_sensor_->raw_state);
-  }
 }
 void MitsubishiUART::process_packet(const RunStateGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
+  ALERT_LISTENERS;
 
   run_state_received_ = true;  // Set this since we received one
-
-  if (filter_status_sensor_) {
-    const bool old_service_filter = filter_status_sensor_->state;
-    filter_status_sensor_->state = packet.service_filter();
-    publish_on_update_ |= (old_service_filter != filter_status_sensor_->state);
-  }
-
-  if (defrost_sensor_) {
-    const bool old_defrost = defrost_sensor_->state;
-    defrost_sensor_->state = packet.in_defrost();
-    publish_on_update_ |= (old_defrost != defrost_sensor_->state);
-  }
-
-  if (preheat_sensor_) {
-    const bool old_preheat = preheat_sensor_->state;
-    preheat_sensor_->state = packet.in_preheat();
-    publish_on_update_ |= (old_preheat != preheat_sensor_->state);
-  }
-
-  if (standby_sensor_) {
-    const bool old_standby = standby_sensor_->state;
-    standby_sensor_->state = packet.in_standby();
-    publish_on_update_ |= (old_standby != standby_sensor_->state);
-  }
-
-  if (actual_fan_sensor_) {
-    const auto old_actual_fan = actual_fan_sensor_->raw_state;
-    actual_fan_sensor_->raw_state = ACTUAL_FAN_SPEED_NAMES[packet.get_actual_fan_speed()];
-    publish_on_update_ |= (old_actual_fan != actual_fan_sensor_->raw_state);
-  }
 
   // TODO: Not sure what AutoMode does yet
 }
@@ -341,28 +300,7 @@ void MitsubishiUART::process_packet(const RunStateGetResponsePacket &packet) {
 void MitsubishiUART::process_packet(const ErrorStateGetResponsePacket &packet) {
   ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
   route_packet_(packet);
-
-  // Only worry about this if we have error_code_sensor_ defined
-  // TODO: Should we log a warning with error codes even if no sensor?
-  if (error_code_sensor_) {
-    std::string old_error_code = error_code_sensor_->raw_state;
-
-    // TODO: Include friendly text from JSON, somehow.
-    if (!packet.error_present()) {
-      error_code_sensor_->raw_state = "No Error Reported";
-    } else if (auto raw_code = packet.get_raw_short_code() != 0x00) {
-      // Not that it matters, but good for validation I guess.
-      if ((raw_code & 0x1F) > 0x15) {
-        ESP_LOGW(TAG, "Error short code %x had invalid low bits. This is an IT protocol violation!", raw_code);
-      }
-
-      error_code_sensor_->raw_state = "Error " + packet.get_short_code();
-    } else {
-      error_code_sensor_->raw_state = "Error " + to_string(packet.get_error_code());
-    }
-
-    publish_on_update_ |= (old_error_code != error_code_sensor_->raw_state);
-  }
+  ALERT_LISTENERS;
 }
 
 void MitsubishiUART::process_packet(const SettingsSetRequestPacket &packet) {
@@ -383,17 +321,10 @@ void MitsubishiUART::process_packet(const RemoteTemperatureSetRequestPacket &pac
   } else {
     ts_bridge_->send_packet(SetResponsePacket());
   }
+  ALERT_LISTENERS;
 
   float t = packet.get_remote_temperature();
   temperature_source_report(TEMPERATURE_SOURCE_THERMOSTAT, t);
-
-  if (thermostat_temperature_sensor_) {
-    const float old_thermostat_temp = thermostat_temperature_sensor_->raw_state;
-
-    thermostat_temperature_sensor_->raw_state = t;
-
-    publish_on_update_ |= (old_thermostat_temp != thermostat_temperature_sensor_->raw_state);
-  }
 }
 
 void MitsubishiUART::process_packet(const ThermostatSensorStatusPacket &packet) {
@@ -406,17 +337,7 @@ void MitsubishiUART::process_packet(const ThermostatSensorStatusPacket &packet) 
 
   ESP_LOGV(TAG, "Processing inbound %s", packet.to_string().c_str());
 
-  if (thermostat_humidity_sensor_ && packet.get_flags() & 0x04) {
-    const float old_humidity = thermostat_humidity_sensor_->raw_state;
-    thermostat_humidity_sensor_->raw_state = packet.get_indoor_humidity_percent();
-    publish_on_update_ |= (old_humidity != thermostat_humidity_sensor_->raw_state);
-  }
-
-  if (thermostat_battery_sensor_ && packet.get_flags() & 0x08) {
-    const auto old_battery = thermostat_battery_sensor_->raw_state;
-    thermostat_battery_sensor_->raw_state = THERMOSTAT_BATTERY_STATE_NAMES[packet.get_thermostat_battery_state()];
-    publish_on_update_ |= (old_battery != thermostat_battery_sensor_->raw_state);
-  }
+  ALERT_LISTENERS;
 
   ts_bridge_->send_packet(SetResponsePacket());
 }

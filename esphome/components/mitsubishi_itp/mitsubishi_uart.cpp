@@ -163,6 +163,12 @@ void MitsubishiUART::update() {
   }
 
   // Before requesting additional updates, publish any changes waiting from packets received
+
+  // Notify all listeners a publish is happening, they will decide if actual publish is needed.
+  for (auto *listener : listeners_) {
+    listener->publish(false);
+  }
+
   if (publish_on_update_) {
     do_publish_();
 
@@ -206,59 +212,6 @@ void MitsubishiUART::do_publish_() {
     horizontal_vane_position_select_->publish_state(horizontal_vane_position_select_->state);
   }
   save_preferences_();  // We can save this every time we publish as writes to flash are by default collected and
-                        // delayed
-
-  // Check sensors and publish if needed.
-  // This is a bit of a hack to avoid needing to publish sensor data immediately as packets arrive.
-  // Instead, packet data is written directly to `raw_state` (which doesn't update `state`).  If they
-  // differ, calling `publish_state` will update `state` so that it won't be published later
-  if (thermostat_temperature_sensor_ &&
-      (thermostat_temperature_sensor_->raw_state != thermostat_temperature_sensor_->state)) {
-    ESP_LOGI(TAG, "Thermostat temp differs, do publish");
-    thermostat_temperature_sensor_->publish_state(thermostat_temperature_sensor_->raw_state);
-  }
-  if (outdoor_temperature_sensor_ && (outdoor_temperature_sensor_->raw_state != outdoor_temperature_sensor_->state)) {
-    ESP_LOGI(TAG, "Outdoor temp differs, do publish");
-    outdoor_temperature_sensor_->publish_state(outdoor_temperature_sensor_->raw_state);
-  }
-  if (thermostat_humidity_sensor_ && (thermostat_humidity_sensor_->raw_state != thermostat_humidity_sensor_->state)) {
-    ESP_LOGI(TAG, "Thermostat humidity differs, do publish");
-    thermostat_humidity_sensor_->publish_state(thermostat_humidity_sensor_->raw_state);
-  }
-  if (compressor_frequency_sensor_ &&
-      (compressor_frequency_sensor_->raw_state != compressor_frequency_sensor_->state)) {
-    ESP_LOGI(TAG, "Compressor frequency differs, do publish");
-    compressor_frequency_sensor_->publish_state(compressor_frequency_sensor_->raw_state);
-  }
-  if (actual_fan_sensor_ && (actual_fan_sensor_->raw_state != actual_fan_sensor_->state)) {
-    ESP_LOGI(TAG, "Actual fan speed differs, do publish");
-    actual_fan_sensor_->publish_state(actual_fan_sensor_->raw_state);
-  }
-  if (error_code_sensor_ && (error_code_sensor_->raw_state != error_code_sensor_->state)) {
-    ESP_LOGI(TAG, "Error code state differs, do publish");
-    error_code_sensor_->publish_state(error_code_sensor_->raw_state);
-  }
-  if (thermostat_battery_sensor_ && (thermostat_battery_sensor_->raw_state != thermostat_battery_sensor_->state)) {
-    ESP_LOGI(TAG, "Thermostat battery state differs, do publish");
-    thermostat_battery_sensor_->publish_state(thermostat_battery_sensor_->raw_state);
-  }
-
-  // Binary sensors automatically dedup publishes (I think) and so will only actually publish on change
-  if (filter_status_sensor_) {
-    filter_status_sensor_->publish_state(filter_status_sensor_->state);
-  }
-  if (defrost_sensor_) {
-    defrost_sensor_->publish_state(defrost_sensor_->state);
-  }
-  if (preheat_sensor_) {
-    preheat_sensor_->publish_state(preheat_sensor_->state);
-  }
-  if (standby_sensor_) {
-    standby_sensor_->publish_state(standby_sensor_->state);
-  }
-  if (isee_status_sensor_) {
-    isee_status_sensor_->publish_state(isee_status_sensor_->state);
-  }
 }
 
 bool MitsubishiUART::select_temperature_source(const std::string &state) {

@@ -18,11 +18,8 @@ from esphome.core import coroutine
 CODEOWNERS = ["@Sammy1Am", "@KazWolfe"]
 
 AUTO_LOAD = [
-    "climate",
     "select",
-    "sensor",
     "binary_sensor",
-    "button",
     "text_sensor",
     "time",
 ]
