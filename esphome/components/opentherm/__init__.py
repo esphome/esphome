@@ -3,9 +3,8 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import sensor
 from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
-from . import const, schema, validate, generate
+from . import generate
 
 CODEOWNERS = ["@olegtarasov"]
 MULTI_CONF = True
@@ -23,13 +22,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional("ch2_active", False): cv.boolean,
             cv.Optional("sync_mode", False): cv.boolean,
         }
-    )
-    .extend(
-        validate.create_entities_schema(
-            schema.INPUTS, (lambda _: cv.use_id(sensor.Sensor))
-        )
-    )
-    .extend(cv.COMPONENT_SCHEMA),
+    ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 
@@ -47,25 +40,7 @@ async def to_code(config: dict[str, Any]) -> None:
     out_pin = await cg.gpio_pin_expression(config["out_pin"])
     cg.add(var.set_out_pin(out_pin))
 
-    input_sensors = []
     non_sensors = {CONF_ID, "in_pin", "out_pin"}
     for key, value in config.items():
         if key not in non_sensors:
-            if key in schema.INPUTS:
-                input_sensor = await cg.get_variable(value)
-                cg.add(
-                    getattr(var, f"set_{key}_{const.INPUT_SENSOR.lower()}")(
-                        input_sensor
-                    )
-                )
-                input_sensors.append(key)
-            else:
-                cg.add(getattr(var, f"set_{key}")(value))
-
-    if len(input_sensors) > 0:
-        generate.define_has_component(const.INPUT_SENSOR, input_sensors)
-        generate.define_message_handler(
-            const.INPUT_SENSOR, input_sensors, schema.INPUTS
-        )
-        generate.define_readers(const.INPUT_SENSOR, input_sensors)
-        generate.add_messages(var, input_sensors, schema.INPUTS)
+            cg.add(getattr(var, f"set_{key}")(value))

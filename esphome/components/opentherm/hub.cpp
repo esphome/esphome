@@ -10,60 +10,6 @@
 namespace esphome {
 namespace opentherm {
 
-namespace message_data {
-bool parse_flag8_lb_0(OpenthermData &data) { return readBit(data.valueLB, 0); }
-bool parse_flag8_lb_1(OpenthermData &data) { return readBit(data.valueLB, 1); }
-bool parse_flag8_lb_2(OpenthermData &data) { return readBit(data.valueLB, 2); }
-bool parse_flag8_lb_3(OpenthermData &data) { return readBit(data.valueLB, 3); }
-bool parse_flag8_lb_4(OpenthermData &data) { return readBit(data.valueLB, 4); }
-bool parse_flag8_lb_5(OpenthermData &data) { return readBit(data.valueLB, 5); }
-bool parse_flag8_lb_6(OpenthermData &data) { return readBit(data.valueLB, 6); }
-bool parse_flag8_lb_7(OpenthermData &data) { return readBit(data.valueLB, 7); }
-bool parse_flag8_hb_0(OpenthermData &data) { return readBit(data.valueHB, 0); }
-bool parse_flag8_hb_1(OpenthermData &data) { return readBit(data.valueHB, 1); }
-bool parse_flag8_hb_2(OpenthermData &data) { return readBit(data.valueHB, 2); }
-bool parse_flag8_hb_3(OpenthermData &data) { return readBit(data.valueHB, 3); }
-bool parse_flag8_hb_4(OpenthermData &data) { return readBit(data.valueHB, 4); }
-bool parse_flag8_hb_5(OpenthermData &data) { return readBit(data.valueHB, 5); }
-bool parse_flag8_hb_6(OpenthermData &data) { return readBit(data.valueHB, 6); }
-bool parse_flag8_hb_7(OpenthermData &data) { return readBit(data.valueHB, 7); }
-uint8_t parse_u8_lb(OpenthermData &data) { return data.valueLB; }
-uint8_t parse_u8_hb(OpenthermData &data) { return data.valueHB; }
-int8_t parse_s8_lb(OpenthermData &data) { return (int8_t) data.valueLB; }
-int8_t parse_s8_hb(OpenthermData &data) { return (int8_t) data.valueHB; }
-uint16_t parse_u16(OpenthermData &data) { return data.u16(); }
-int16_t parse_s16(OpenthermData &data) { return data.s16(); }
-float parse_f88(OpenthermData &data) { return data.f88(); }
-
-void write_flag8_lb_0(const bool value, OpenthermData &data) { writeBit(data.valueLB, 0, value); }
-void write_flag8_lb_1(const bool value, OpenthermData &data) { writeBit(data.valueLB, 1, value); }
-void write_flag8_lb_2(const bool value, OpenthermData &data) { writeBit(data.valueLB, 2, value); }
-void write_flag8_lb_3(const bool value, OpenthermData &data) { writeBit(data.valueLB, 3, value); }
-void write_flag8_lb_4(const bool value, OpenthermData &data) { writeBit(data.valueLB, 4, value); }
-void write_flag8_lb_5(const bool value, OpenthermData &data) { writeBit(data.valueLB, 5, value); }
-void write_flag8_lb_6(const bool value, OpenthermData &data) { writeBit(data.valueLB, 6, value); }
-void write_flag8_lb_7(const bool value, OpenthermData &data) { writeBit(data.valueLB, 7, value); }
-void write_flag8_hb_0(const bool value, OpenthermData &data) { writeBit(data.valueHB, 0, value); }
-void write_flag8_hb_1(const bool value, OpenthermData &data) { writeBit(data.valueHB, 1, value); }
-void write_flag8_hb_2(const bool value, OpenthermData &data) { writeBit(data.valueHB, 2, value); }
-void write_flag8_hb_3(const bool value, OpenthermData &data) { writeBit(data.valueHB, 3, value); }
-void write_flag8_hb_4(const bool value, OpenthermData &data) { writeBit(data.valueHB, 4, value); }
-void write_flag8_hb_5(const bool value, OpenthermData &data) { writeBit(data.valueHB, 5, value); }
-void write_flag8_hb_6(const bool value, OpenthermData &data) { writeBit(data.valueHB, 6, value); }
-void write_flag8_hb_7(const bool value, OpenthermData &data) { writeBit(data.valueHB, 7, value); }
-void write_u8_lb(const uint8_t value, OpenthermData &data) { data.valueLB = value; }
-void write_u8_hb(const uint8_t value, OpenthermData &data) { data.valueHB = value; }
-void write_s8_lb(const int8_t value, OpenthermData &data) { data.valueLB = (uint8_t) value; }
-void write_s8_hb(const int8_t value, OpenthermData &data) { data.valueHB = (uint8_t) value; }
-void write_u16(const uint16_t value, OpenthermData &data) { data.u16(value); }
-void write_s16(const int16_t value, OpenthermData &data) { data.s16(value); }
-void write_f88(const float value, OpenthermData &data) { data.f88(value); }
-
-}  // namespace message_data
-
-#define OPENTHERM_IGNORE_1(x)
-#define OPENTHERM_IGNORE_2(x, y)
-
 OpenthermData OpenthermHub::build_request_(MessageId request_id) {
   OpenthermData data;
   data.type = 0;
@@ -139,46 +85,6 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 
     return data;
   }
-
-// Next, we start with the write requests from switches and other inputs,
-// because we would want to write that data if it is available, rather than
-// request a read for that type (in the case that both read and write are
-// supported).
-#define OPENTHERM_MESSAGE_WRITE_MESSAGE(msg) \
-  case MessageId::msg: { \
-    data.type = MessageType::WRITE_DATA; \
-    data.id = request_id;
-#define OPENTHERM_MESSAGE_WRITE_ENTITY(key, msg_data) message_data::write_##msg_data(this->key->state, data);
-#define OPENTHERM_MESSAGE_WRITE_POSTSCRIPT \
-  return data; \
-  }
-  switch (request_id) {
-    OPENTHERM_SWITCH_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-    OPENTHERM_NUMBER_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-    OPENTHERM_OUTPUT_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-    OPENTHERM_INPUT_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                            OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-  }
-
-// Finally, handle the simple read requests, which only change with the message id.
-#define OPENTHERM_MESSAGE_READ_MESSAGE(msg) \
-  case MessageId::msg: \
-    data.type = MessageType::READ_DATA; \
-    data.id = request_id; \
-    return data;
-  switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , ) }
-  switch (request_id) {
-    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , )
-  }
-
-  // And if we get here, a message was requested which somehow wasn't handled.
-  // This shouldn't happen due to the way the defines are configured, so we
-  // log an error and just return a 0 message.
-  ESP_LOGE(OT_TAG, "Tried to create a request with unknown id %d. This should never happen, so please open an issue.",
-           request_id);
   return OpenthermData();
 }
 
@@ -188,23 +94,6 @@ void OpenthermHub::process_response(OpenthermData &data) {
   ESP_LOGD(OT_TAG, "Received OpenTherm response with id %d (%s)", data.id,
            opentherm_->message_id_to_str((MessageId) data.id));
   ESP_LOGD(OT_TAG, "%s", opentherm_->debug_data(data).c_str());
-
-// Define the handler helpers to publish the results to all sensors
-#define OPENTHERM_MESSAGE_RESPONSE_MESSAGE(msg) case MessageId::msg:
-#define OPENTHERM_MESSAGE_RESPONSE_ENTITY(key, msg_data) this->key->publish_state(message_data::parse_##msg_data(data));
-#define OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT break;
-
-  // Then use those to create a switch statement for each thing we would want
-  // to report. We use a separate switch statement for each type, because some
-  // messages include results for multiple types, like flags and a number.
-  switch (data.id) {
-    OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
-                                      OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
-  }
-  switch (data.id) {
-    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
-                                             OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
-  }
 }
 
 void OpenthermHub::setup() {
