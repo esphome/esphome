@@ -1,0 +1,19 @@
+- platform: sevenseg
+    id: test
+    lambda: |-
+      it.print("1234");
+  
+    a_pin: 1
+    b_pin: 2
+    c_pin: 3
+    d_pin: 4
+    e_pin: 5
+    f_pin: 6
+    g_pin: 7
+    dp_pin: 8
+
+    digits:
+      - 9
+      - 10
+      - 11
+      - 12
