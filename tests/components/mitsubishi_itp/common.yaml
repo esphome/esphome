@@ -41,6 +41,7 @@ uart:
 
 climate:
   - platform: mitsubishi_itp
+    name: "Climate"
     uart_heatpump: hp_uart
     uart_thermostat: tstat_uart
     time_id: homeassistant_time
