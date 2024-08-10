@@ -9,6 +9,13 @@ time:
     id: homeassistant_time
     timezone: America/Los_Angeles
 
+select:
+  - platform: mitsubishi_itp
+    temperature_source:
+      name: "Temperature Source"
+      sources:
+        - fake_temp
+
 sensor:
   - platform: template
     id: fake_temp
@@ -38,5 +45,3 @@ climate:
     uart_thermostat: tstat_uart
     time_id: homeassistant_time
     update_interval: 12s
-    temperature_sources:
-      - fake_temp

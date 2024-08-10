@@ -8,7 +8,7 @@ namespace mitsubishi_itp {
 
 class MITPBinarySensor : public MITPListener, public binary_sensor::BinarySensor {
  public:
-  void publish(bool force = true) {
+  void publish() override {
     if (mitp_binary_sensor_state_.has_value())
       // Binary sensors automatically dedup publishes (I think) and so will only actually publish on change
       publish_state(mitp_binary_sensor_state_.value());

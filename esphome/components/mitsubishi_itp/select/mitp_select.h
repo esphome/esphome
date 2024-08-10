@@ -10,9 +10,9 @@ class MITPSelect : public select::Select, public Parented<MitsubishiUART>, publi
  public:
   MITPSelect() = default;
   using Parented<MitsubishiUART>::Parented;
-  void publish(bool force = false) {
+  void publish() override {
     // Only publish if force, or a change has occurred and we have a real value
-    if (force || (mitp_select_value_.has_value() && mitp_select_value_.value() != state)) {
+    if (mitp_select_value_.has_value() && mitp_select_value_.value() != state) {
       publish_state(mitp_select_value_.value());
     }
   }
@@ -24,12 +24,12 @@ class MITPSelect : public select::Select, public Parented<MitsubishiUART>, publi
 
 class TemperatureSourceSelect : public MITPSelect {
  public:
-  void publish(bool force = false) override;
+  void publish() override;
   void setup(bool thermostat_is_present) override;
-  void temperature_source_change(const std::string temp_source) override;
+  void temperature_source_change(const std::string &temp_source) override;
 
   // Adds an option to temperature_source_select_
-  void register_temperature_source(std::string temperature_source_name);
+  void register_temperature_source(const std::string &temperature_source_name);
 
  protected:
   void control(const std::string &value) override;
@@ -41,36 +41,10 @@ class TemperatureSourceSelect : public MITPSelect {
 };
 
 class VanePositionSelect : public MITPSelect {
-  void process_packet(const SettingsGetResponsePacket &packet) {
-    switch (packet.get_vane()) {
-      case SettingsSetRequestPacket::VANE_AUTO:
-        mitp_select_value_ = std::string("Auto");
-        break;
-      case SettingsSetRequestPacket::VANE_1:
-        mitp_select_value_ = std::string("1");
-        break;
-      case SettingsSetRequestPacket::VANE_2:
-        mitp_select_value_ = std::string("2");
-        break;
-      case SettingsSetRequestPacket::VANE_3:
-        mitp_select_value_ = std::string("3");
-        break;
-      case SettingsSetRequestPacket::VANE_4:
-        mitp_select_value_ = std::string("4");
-        break;
-      case SettingsSetRequestPacket::VANE_5:
-        mitp_select_value_ = std::string("5");
-        break;
-      case SettingsSetRequestPacket::VANE_SWING:
-        mitp_select_value_ = std::string("Swing");
-        break;
-      default:
-        ESP_LOGW(TAG, "Vane in unknown position %x", packet.get_vane());
-    }
-  }
+  void process_packet(const SettingsGetResponsePacket &packet) override;
 
  protected:
-  void control(const std::string &value) {
+  void control(const std::string &value) override {
     if (parent_->select_vane_position(value)) {
       mitp_select_value_ = value;
       publish();
@@ -79,39 +53,10 @@ class VanePositionSelect : public MITPSelect {
 };
 
 class HorizontalVanePositionSelect : public MITPSelect {
-  void process_packet(const SettingsGetResponsePacket &packet) {
-    switch (packet.get_horizontal_vane()) {
-      case SettingsSetRequestPacket::HV_AUTO:
-        mitp_select_value_ = std::string("Auto");
-        break;
-      case SettingsSetRequestPacket::HV_LEFT_FULL:
-        mitp_select_value_ = std::string("<<");
-        break;
-      case SettingsSetRequestPacket::HV_LEFT:
-        mitp_select_value_ = std::string("<");
-        break;
-      case SettingsSetRequestPacket::HV_CENTER:
-        mitp_select_value_ = std::string("");
-        break;
-      case SettingsSetRequestPacket::HV_RIGHT:
-        mitp_select_value_ = std::string(">");
-        break;
-      case SettingsSetRequestPacket::HV_RIGHT_FULL:
-        mitp_select_value_ = std::string(">>");
-        break;
-      case SettingsSetRequestPacket::HV_SPLIT:
-        mitp_select_value_ = std::string("<>");
-        break;
-      case SettingsSetRequestPacket::HV_SWING:
-        mitp_select_value_ = std::string("Swing");
-        break;
-      default:
-        ESP_LOGW(TAG, "Vane in unknown horizontal position %x", packet.get_horizontal_vane());
-    }
-  }
+  void process_packet(const SettingsGetResponsePacket &packet) override;
 
  protected:
-  void control(const std::string &value) {
+  void control(const std::string &value) override {
     if (parent_->select_horizontal_vane_position(value)) {
       mitp_select_value_ = value;
       publish();

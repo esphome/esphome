@@ -114,7 +114,7 @@ void MitsubishiUART::update() {
 
   // Notify all listeners a publish is happening, they will decide if actual publish is needed.
   for (auto *listener : listeners_) {
-    listener->publish(false);
+    listener->publish();
   }
 
   if (publish_on_update_) {

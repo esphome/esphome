@@ -3,9 +3,9 @@
 namespace esphome {
 namespace mitsubishi_itp {
 
-void TemperatureSourceSelect::publish(bool force) {
+void TemperatureSourceSelect::publish() {
   // Only publish if force, or a change has occurred and we have a real value
-  if (force || (mitp_select_value_.has_value() && mitp_select_value_.value() != state)) {
+  if (mitp_select_value_.has_value() && mitp_select_value_.value() != state) {
     publish_state(mitp_select_value_.value());
     if (active_index().has_value()) {
       preferences_.save(&active_index().value());
@@ -33,11 +33,11 @@ void TemperatureSourceSelect::setup(bool thermostat_is_present) {
   }
 }
 
-void TemperatureSourceSelect::temperature_source_change(const std::string temp_source) {
+void TemperatureSourceSelect::temperature_source_change(const std::string &temp_source) {
   mitp_select_value_ = temp_source;
 }
 
-void TemperatureSourceSelect::register_temperature_source(std::string temperature_source_name) {
+void TemperatureSourceSelect::register_temperature_source(const std::string &temperature_source_name) {
   temp_select_options_.push_back(temperature_source_name);
 }
 

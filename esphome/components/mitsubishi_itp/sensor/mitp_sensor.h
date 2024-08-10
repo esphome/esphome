@@ -8,9 +8,9 @@ namespace mitsubishi_itp {
 
 class MITPSensor : public MITPListener, public sensor::Sensor {
  public:
-  void publish(bool force = true) {
+  void publish() override {
     // Only publish if force, or a change has occurred and we have a real value
-    if (force || (!isnan(mitp_sensor_state_) && mitp_sensor_state_ != state)) {
+    if (!isnan(mitp_sensor_state_) && mitp_sensor_state_ != state) {
       publish_state(mitp_sensor_state_);
     }
   }
