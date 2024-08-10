@@ -6,16 +6,16 @@
 namespace esphome {
 namespace mitsubishi_itp {
 
-class MUARTButton : public button::Button, public Component, public Parented<MitsubishiUART> {
+class MITPButton : public button::Button, public Component, public Parented<MitsubishiUART> {
  public:
-  MUARTButton() = default;
+  MITPButton() = default;
   using Parented<MitsubishiUART>::Parented;
 
  protected:
   virtual void press_action() override = 0;
 };
 
-class FilterResetButton : public MUARTButton {
+class FilterResetButton : public MITPButton {
  protected:
   void press_action() override { this->parent_->reset_filter_status(); }
 };

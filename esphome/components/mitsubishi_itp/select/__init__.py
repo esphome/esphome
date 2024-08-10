@@ -9,7 +9,7 @@ from esphome.const import (
     ENTITY_CATEGORY_NONE,
 )
 from esphome.core import coroutine
-from ...mitsubishi_itp.climate import (
+from ...mitsubishi_itp import (
     CONF_MITSUBISHI_ITP_ID,
     mitsubishi_itp_ns,
     MitsubishiUART,

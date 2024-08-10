@@ -14,13 +14,12 @@ from esphome.const import (
     CONF_TIME_ID,
 )
 from esphome.core import coroutine
+from . import mitsubishi_itp_ns, MitsubishiUART
 
 CODEOWNERS = ["@Sammy1Am", "@KazWolfe"]
 
 AUTO_LOAD = [
     "select",
-    "binary_sensor",
-    "text_sensor",
     "time",
 ]
 DEPENDENCIES = [
@@ -40,12 +39,6 @@ CONF_ENHANCED_MHK_SUPPORT = (
 )
 
 DEFAULT_POLLING_INTERVAL = "5s"
-
-mitsubishi_itp_ns = cg.esphome_ns.namespace("mitsubishi_itp")
-MitsubishiUART = mitsubishi_itp_ns.class_(
-    "MitsubishiUART", cg.PollingComponent, climate.Climate
-)
-CONF_MITSUBISHI_ITP_ID = "mitsubishi_itp_id"
 
 DEFAULT_CLIMATE_MODES = ["OFF", "HEAT", "DRY", "COOL", "FAN_ONLY", "HEAT_COOL"]
 DEFAULT_FAN_MODES = ["AUTO", "QUIET", "LOW", "MEDIUM", "HIGH"]
