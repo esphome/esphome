@@ -1,8 +1,7 @@
 - platform: sevenseg
-    id: test
     lambda: |-
       it.print("1234");
-  
+
     a_pin: 1
     b_pin: 2
     c_pin: 3
