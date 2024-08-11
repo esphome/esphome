@@ -290,18 +290,18 @@ void SEVENSEGComponent::set_digit_(uint8_t digit, uint8_t ch, bool dot) {
 // print functions
 uint8_t SEVENSEGComponent::print(uint8_t start_pos, const char *str) {
   uint8_t pos = start_pos;
-  for (; str != '\0'; str++) {
+  for (; *str != '\0'; str++) {
     uint8_t data = SEVENSEG_UNKNOWN_CHAR;
-    if (str >= 0 && str <= 126)
-      data = progmem_read_byte(&SEVENSEG_ASCII_TO_RAW[(unsigned char) str]);
+    if (*str >= ' ' && *str <= '~')
+      data = progmem_read_byte(&SEVENSEG_ASCII_TO_RAW[(unsigned char) *str]);
 
-    if (str == '.') {
+    if (*str == '.') {
       if (pos != start_pos)
         pos--;
       this->buffer_[pos] |= 0b10000000;
     } else {
       if (pos >= this->num_digits_) {
-        ESP_LOGE(TAG, "MAX7219 String is too long for the display!");
+        ESP_LOGE(TAG, "String is too long for the display!");
         break;
       }
       this->buffer_[pos] = data;
