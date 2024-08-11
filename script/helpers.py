@@ -1,8 +1,8 @@
 import json
 import os.path
+from pathlib import Path
 import re
 import subprocess
-from pathlib import Path
 
 import colorama
 

@@ -13,7 +13,7 @@ class SpiLedStrip : public light::AddressableLight,
                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                           spi::DATA_RATE_1MHZ> {
  public:
-  void setup() { this->spi_setup(); }
+  void setup() override { this->spi_setup(); }
 
   int32_t size() const override { return this->num_leds_; }
 
@@ -43,7 +43,7 @@ class SpiLedStrip : public light::AddressableLight,
     memset(this->buf_, 0, 4);
   }
 
-  void dump_config() {
+  void dump_config() override {
     esph_log_config(TAG, "SPI LED Strip:");
     esph_log_config(TAG, "  LEDs: %d", this->num_leds_);
     if (this->data_rate_ >= spi::DATA_RATE_1MHZ)

@@ -1328,7 +1328,17 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
   if (update == nullptr)
     return;
 
-  update->perform();
+  switch (msg.command) {
+    case enums::UPDATE_COMMAND_UPDATE:
+      update->perform();
+      break;
+    case enums::UPDATE_COMMAND_CHECK:
+      update->check();
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown update command: %d", msg.command);
+      break;
+  }
 }
 #endif
 

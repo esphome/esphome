@@ -33,7 +33,9 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     uint8_t cmd, num_args, bits;
     const uint8_t *addr = init_sequence;
     while ((cmd = *addr++) != 0) {
-      num_args = *addr++ & 0x7F;
+      num_args = *addr++;
+      if (num_args == ILI9XXX_DELAY_FLAG)
+        continue;
       bits = *addr;
       switch (cmd) {
         case ILI9XXX_MADCTL: {
@@ -50,13 +52,10 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
           break;
         }
 
-        case ILI9XXX_DELAY:
-          continue;  // no args to skip
-
         default:
           break;
       }
-      addr += num_args;
+      addr += (num_args & 0x7F);
     }
   }
 
@@ -109,7 +108,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   virtual void set_madctl();
   void display_();
-  virtual void init_lcd(const uint8_t *addr);
+  void init_lcd_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
   void reset_();
 
@@ -269,7 +268,6 @@ class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
 class ILI9XXXGC9A01A : public ILI9XXXDisplay {
  public:
   ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240, true) {}
-  void init_lcd(const uint8_t *addr) override;
 };
 
 //-----------   ILI9XXX_24_TFT display --------------

@@ -372,9 +372,9 @@ static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
 
 static const uint8_t PROGMEM INITCMD_ST7735[] = {
     ILI9XXX_SWRESET, 0,         // Soft reset, then delay 10ms
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     ILI9XXX_SLPOUT  , 0,                // Exit Sleep, delay
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     ILI9XXX_PIXFMT  , 1, 0x05,
     ILI9XXX_FRMCTR1, 3, //  4: Frame rate control, 3 args + delay:
     0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
@@ -415,9 +415,9 @@ static const uint8_t PROGMEM INITCMD_ST7735[] = {
     0x00, 0x00, 0x02, 0x10,
     ILI9XXX_MADCTL  , 1, 0x00,             // Memory Access Control, BGR
     ILI9XXX_NORON  , 0,
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     ILI9XXX_DISPON  , 0,                // Display on
-    ILI9XXX_DELAY, 10,
+    ILI9XXX_DELAY(10),
     00,   // endo of list
 };
 

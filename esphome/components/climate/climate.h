@@ -141,7 +141,7 @@ struct ClimateDeviceRestoreState {
       float target_temperature_low;
       float target_temperature_high;
     };
-  };
+  } __attribute__((packed));
   float target_humidity;
 
   /// Convert this struct to a climate call that can be performed.
