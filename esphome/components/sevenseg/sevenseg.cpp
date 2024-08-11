@@ -198,7 +198,6 @@ void SEVENSEGComponent::setup() {
   }
   this->num_digits_ = ct;
   this->buffer_ = new uint8_t[this->num_digits_];
-  this->buffer_size_ = sizeof(this->buffer_);
   this->setup_complete_ = true;
 }
 

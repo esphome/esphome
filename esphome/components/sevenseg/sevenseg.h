@@ -73,7 +73,6 @@ class SEVENSEGComponent : public PollingComponent {
   uint16_t hold_time_{5};
   uint16_t blank_time_{0};
   uint8_t *buffer_;
-  uint16_t buffer_size_{0};
   bool setup_complete_{false};
   uint8_t num_digits_{0};
 

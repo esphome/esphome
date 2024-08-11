@@ -67,10 +67,10 @@ async def to_code(config):
     pin_dp = await cg.gpio_pin_expression(config[CONF_DP_PIN])
     cg.add(var.set_dp_pin(pin_dp))
 
-    hold_time = await cg.get_variable(config[CONF_HOLD_TIME])
+    hold_time = await cg.add(config[CONF_HOLD_TIME])
     cg.add(var.set_hold_time(hold_time))
 
-    blank_time = await cg.get_variable(config[CONF_BLANK_TIME])
+    blank_time = await cg.add(config[CONF_BLANK_TIME])
     cg.add(var.set_blank_time(blank_time))
 
     digits = []
