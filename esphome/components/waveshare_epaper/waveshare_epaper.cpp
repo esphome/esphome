@@ -1517,7 +1517,10 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
   uint16_t segment_size = width_b * height_px;
   uint32_t buffer_half_size = this->get_width_internal() * this->get_height_internal() / 2;
   uint8_t seg_x, seg_y, x, y;
-  boolean found_change = false;
+  bool found_change = false;
+  // reset first and last X segment so we can recalculate it here.
+  first_segment_x_ = -1;
+  last_segment_x_ = this->seg_x_ + 1;
   for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {       // vertically iterate through the number of lines (px)
     for (seg_x = 0; seg_x < this->seg_x_; seg_x++) {     // horizontally iterate through number of columns (px)
       uint8_t *segment = new uint8_t[segment_size * 2];  // create segment array (muliply by 2 since we need 2 byte per
@@ -1537,14 +1540,30 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
         // no need to compare, we're in the first run, just place it. This is called by full refresh only
         checksums_[seg_x + seg_y * width_b] = segment_crc;
       } else {
-        boolean changed = checksums_[seg_x + seg_y * width_b] != segment_crc;
+        // Partial Update, compare checksums while replacing and record the X and Y block position of the top left and
+        // bottom right corner of the changed elements. Afterwards, we can partially update only the segment that has
+        // been altered.
+        bool changed = checksums_[seg_x + seg_y * width_b] != segment_crc;
         checksums_[seg_x + seg_y * width_b] = segment_crc;
         if (changed && !found_change) {
           found_change = true;
-          first_segment_ = seg_x + seg_y * width_b;
+          // We need to span the x segment, with the lowest segment found making the first segment and the highest
+          // segment found the last segment.
+          if (seg_x < first_segment_x_)
+            first_segment_x_ = seg_x;
+          if (seg_x > last_segment_x_)
+            last_segment_x_ > seg_x;
+          first_segment_y_ = seg_y;
+
         } else if (changed) {
-          // Segment changed but we already found a change before, so
-          last_segment_ = seg_x + seg_y * width_b;
+          // We need to span the x segment, with the lowest segment found making the first segment and the highest
+          // segment found the last segment.
+          if (seg_x < first_segment_x_)
+            first_segment_x_ = seg_x;
+          if (seg_x > last_segment_x_)
+            last_segment_x_ = seg_x;
+          // Segment changed but we already found a change before, so set it as last segment
+          last_segment_y_ = seg_y;
         } else {
           // do nothing, segment didn't change.
         }
@@ -1633,54 +1652,37 @@ void GDEY075Z08::loop() {
 }
 void HOT GDEY075Z08::display() {
   ESP_LOGD(TAG, "Running through display()");
+  // We do the partial evaluation logic before checking for idle. This is in order to prevent sliding of the full
+  // update.
+  // E.g.: you update once a minute, and every 1440 Minutes (once per day) you do a full update.
+  bool partial = this->at_update_ != 0;
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+
   if (this->waiting_for_idle) {
     // still waiting for the previous busy to ebb off, skip drawing the display.
     return;
   }
-
-  bool partial = this->at_update_ != 0;
-  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
   unsigned int i;
   unsigned int half_length = this->get_buffer_length_() / 2u;
 
-  if (false) {
+  if (partial) {
     ESP_LOGI(TAG, "Evaluating Partial Screen Update");
     this->calculate_CRCs_(false);
-    unsigned int first_px = half_length;
-    unsigned int last_px = 0;
-    bool found_change = false;
-    for (i = 0; i < half_length; i++) {
-      if (i % 1000 == 0) {
-        ESP_LOGD(TAG, "1000 Pixels evaluated");
-      }
-      unsigned int second_half = i + half_length;
-      // We look at the first half and second half at the same time and OR both values.
-      // We don't really care, WHICH of the halfs has a non-null value, since we have to update both maps regardless.
-      bool differ = this->buffer_[i] == last_buffer_[i] || this->buffer_[second_half] == last_buffer_[second_half];
-      if (differ) {
-        // last_buffer_ and buffer_ differ
-        if (!found_change) {
-          // found the first pixel
-          found_change = true;
-          first_px = i;
-          last_px = i;
-        } else {
-          // found another pixel, the last we find this way will be the last
-          last_px = i;
-        }
-      }
-    }
     ESP_LOGD(TAG, "Partial Screen Update Evaluation complete");
-    if (!found_change) {
-      // jump out, without waking the display, so we don't have to send it back to sleep.
+    if (first_segment_x_ == -1) {
+      // if first_segment_x_ was not altered from -1, this means that no changes have happened in the display.
+      // Jump out, without waking the display, so we don't have to send it back to sleep.
       return;
     }
     ESP_LOGD(TAG, "Found a change, initializing display for partial backup");
     unsigned int x_start, y_start, x_end, y_end;
-    x_start = first_px % get_width_internal() / 8;
-    y_start = first_px / get_width_internal() / 8;
-    x_end = last_px % get_width_internal() / 8;
-    y_end = last_px / get_width_internal() / 8;
+    x_start = (this->get_width_internal() / seg_x_) * first_segment_x_;
+    x_end = (this->get_width_internal() / seg_x_) * (last_segment_x_ + 1);
+    y_start = (this->get_height_internal() / seg_y_) * first_segment_y_;
+    y_end = (this->get_height_internal() / seg_y_) * (last_segment_y_ + 1);
+    uint16_t first_byte, last_byte;
+    first_byte = ((y_start * this->get_width_internal()) + x_start) / 8;
+    last_byte = ((y_end * this->get_width_internal()) + x_end) / 8;
 
     this->init_fast();    // Wake up Display.
     this->command(0x91);  // Enter partial mode
@@ -1698,18 +1700,20 @@ void HOT GDEY075Z08::display() {
     this->data(y_end % 32 - 1);
     this->data(0x01);
 
-    this->command(0x10);  // write black data
-    for (i = first_px; i <= last_px; i++) {
+    this->command(0x10);
+    // write black data
+    for (i = first_byte; i <= last_byte; i++) {
       this->data(~this->buffer_[i]);
     }
     this->command(0x13);
-    for (i = first_px; i <= last_px; i++) {
+    // write red data
+    for (i = first_byte; i <= last_byte; i++) {
       this->data(this->buffer_[i + half_length]);
     }
     this->command(0x12);  // Display Refresh
     delay(1);
     this->command(0x92);  // Exit Partial mode
-  } else {
+  } else {                // if partial is false
     ESP_LOGI(TAG, "Performing Full Screen Update");
     calculate_CRCs_(true);  // reset the crc table.
     this->init_fast();      // Wake up display.

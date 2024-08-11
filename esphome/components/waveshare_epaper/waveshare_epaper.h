@@ -250,8 +250,10 @@ class GDEY075Z08 : public WaveshareEPaperBWR {
   uint32_t at_update_{0};
   uint8_t seg_x_{20};  // number of horizontal segments for partial update
   uint8_t seg_y_{10};  // number of vertical segments for partial update.
-  uint16_t first_segment_ = 0;
-  uint16_t last_segment_ = 0;
+  uint16_t first_segment_x_ = 0;
+  uint16_t first_segment_y_ = 0;
+  uint16_t last_segment_x_ = 0;
+  uint16_t last_segment_y_ = 0;
   uint16_t *checksums_ = nullptr;
   void calculate_CRCs_(bool fullSync);
   bool waiting_for_idle = false;
