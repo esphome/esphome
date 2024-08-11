@@ -12,7 +12,6 @@ namespace hlw8032 {
 
 class HLW8032Component : public Component, public uart::UARTDevice {
  public:
-
   void loop() override;
   void dump_config() override;
 
@@ -21,7 +20,9 @@ class HLW8032Component : public Component, public uart::UARTDevice {
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
-  void set_apparent_power_sensor(sensor::Sensor *apparent_power_sensor) { apparent_power_sensor_ = apparent_power_sensor; }
+  void set_apparent_power_sensor(sensor::Sensor *apparent_power_sensor) {
+    apparent_power_sensor_ = apparent_power_sensor;
+  }
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
 
  protected:

@@ -10,7 +10,6 @@ namespace hlw8032 {
 static const char *const TAG = "hlw8032";
 
 void HLW8032Component::loop() {
-
   if (!this->available())
     return;
 
@@ -44,14 +43,14 @@ void HLW8032Component::loop() {
 
 void HLW8032Component::parse_data_() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-{
-  std::stringstream ss;
-  ss << "Raw data:" << std::hex << std::uppercase << std::setfill('0');
-  for (unsigned char i : this->raw_data_) {
-    ss << ' ' << std::setw(2) << static_cast<unsigned>(i);
+  {
+    std::stringstream ss;
+    ss << "Raw data:" << std::hex << std::uppercase << std::setfill('0');
+    for (unsigned char i : this->raw_data_) {
+      ss << ' ' << std::setw(2) << static_cast<unsigned>(i);
+    }
+    ESP_LOGD(TAG, "%s", ss.str().c_str());
   }
-  ESP_LOGD(TAG, "%s", ss.str().c_str());
-}
 #endif
 
   // Parse header
@@ -112,7 +111,6 @@ void HLW8032Component::parse_data_() {
 
   float voltage = 0.0f;
   if (have_voltage) {
-
     voltage = float(voltage_parameter) * this->voltage_divider_ / float(voltage_reg);
     if (this->voltage_sensor_ != nullptr) {
       this->voltage_sensor_->publish_state(voltage);
@@ -162,20 +160,20 @@ void HLW8032Component::parse_data_() {
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-{
-  std::stringstream ss;
-  ss << "Parsed:";
-  if (have_voltage) {
-    ss << " V=" << voltage << "V";
+  {
+    std::stringstream ss;
+    ss << "Parsed:";
+    if (have_voltage) {
+      ss << " V=" << voltage << "V";
+    }
+    if (have_current) {
+      ss << " I=" << current * 1000.0f << "mA";
+    }
+    if (have_power) {
+      ss << " P=" << power << "W";
+    }
+    ESP_LOGD(TAG, "%s", ss.str().c_str());
   }
-  if (have_current) {
-    ss << " I=" << current * 1000.0f << "mA";
-  }
-  if (have_power) {
-    ss << " P=" << power << "W";
-  }
-  ESP_LOGD(TAG, "%s", ss.str().c_str());
-}
 #endif
 }
 
