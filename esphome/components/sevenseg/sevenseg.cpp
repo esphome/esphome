@@ -293,7 +293,7 @@ uint8_t SEVENSEGComponent::print(uint8_t start_pos, const char *str) {
   for (; *str != '\0'; str++) {
     uint8_t data = SEVENSEG_UNKNOWN_CHAR;
     if (*str >= ' ' && *str <= '~')
-      data = progmem_read_byte(&SEVENSEG_ASCII_TO_RAW[*str]);
+      data = progmem_read_byte(&SEVENSEG_ASCII_TO_RAW[(unsigned char) *str]);
 
     if (*str == '.') {
       if (pos != start_pos)
