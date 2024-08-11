@@ -290,7 +290,7 @@ void SEVENSEGComponent::set_digit_(uint8_t digit, uint8_t ch, bool dot) {
 // print functions
 uint8_t SEVENSEGComponent::print(uint8_t start_pos, const char *str) {
   uint8_t pos = start_pos;
-  input = std::string(str);
+  string input = string(str);
   for (unsigned char c : input) {
     uint8_t data = SEVENSEG_UNKNOWN_CHAR;
     if (c >= 0 && c <= 127)
