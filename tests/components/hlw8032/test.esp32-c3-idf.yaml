@@ -1,6 +1,6 @@
 uart:
   id: uart_hlw8032
-  rx_pin: GPIO13
+  rx_pin: GPIO5
   baud_rate: 4800
   parity: EVEN
 
