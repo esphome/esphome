@@ -307,13 +307,13 @@ class OpenTherm {
   timer_idx_t timer_idx_;
 #endif
 
-  volatile OperationMode mode_;
-  volatile ProtocolErrorType error_type_;
-  volatile uint32_t capture_;
-  volatile uint8_t clock_;
-  volatile uint32_t data_;
-  volatile uint8_t bit_pos_;
-  volatile int32_t timeout_counter_;  // <0 no timeout
+  OperationMode mode_;
+  ProtocolErrorType error_type_;
+  uint32_t capture_;
+  uint8_t clock_;
+  uint32_t data_;
+  uint8_t bit_pos_;
+  int32_t timeout_counter_;  // <0 no timeout
 
   int32_t device_timeout_;
 

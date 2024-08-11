@@ -277,6 +277,9 @@ bool OpenTherm::init_esp32_timer_() {
       .intr_type = TIMER_INTR_LEVEL,
       .counter_dir = TIMER_COUNT_UP,
       .auto_reload = TIMER_AUTORELOAD_EN,
+#if ESP_IDF_VERSION_MAJOR >= 5
+      .clk_src = TIMER_SRC_CLK_DEFAULT,
+#endif
       .divider = 80,
   };
 
