@@ -27,6 +27,6 @@ python script\platformio_install_deps.py platformio.ini --libraries --tools --pl
 
 echo.
 echo.
-echo Virtual environment created. Run 'call %location%' to use it.
+echo Virtual environment created. Run '.\%location%.bat' to use it.
 
 endlocal
