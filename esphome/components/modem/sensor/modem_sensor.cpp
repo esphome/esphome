@@ -29,7 +29,9 @@
   }
 
 namespace esphome {
-namespace modem_sensor {
+namespace modem {
+
+static const char *const TAG = "modem.sensor";
 
 using namespace esp_modem;
 
@@ -40,9 +42,7 @@ void ModemSensor::update() {
   if (modem::global_modem_component->dce && modem::global_modem_component->modem_ready()) {
     this->update_signal_sensors_();
     App.feed_wdt();
-    if (!modem::global_modem_component->get_gnss_power_command().empty()) {
-      this->update_gnss_sensors_();
-    }
+    this->update_gnss_sensors_();
   }
 }
 
@@ -90,7 +90,9 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
 
   switch (parts.size()) {
     case 15:
-      parts.push_back("");
+      parts.emplace_back("");
+      // NOLINTNEXTLINE(bugprone-branch-clone)
+      // fall through
     case 16:
       gnss_data["mode"] = parts[0];
       gnss_data["sat_used_count"] = parts[1];
@@ -112,7 +114,9 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
       break;
 
     case 17:
-      parts.push_back("");
+      parts.emplace_back("");
+      // NOLINTNEXTLINE(bugprone-branch-clone)
+      // fall through
     case 18:
       gnss_data["mode"] = parts[0];
       gnss_data["sat_used_count"] = parts[1];
@@ -232,7 +236,7 @@ void ModemSensor::update_gnss_sensors_() {
   }
 }
 
-}  // namespace modem_sensor
+}  // namespace modem
 }  // namespace esphome
 
 #endif  // USE_MODEM

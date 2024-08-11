@@ -39,6 +39,8 @@ namespace modem {
 
 using namespace esp_modem;
 
+static const char *const TAG = "modem";
+
 ModemComponent *global_modem_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 ModemComponent::ModemComponent() {
@@ -49,13 +51,16 @@ ModemComponent::ModemComponent() {
 void ModemComponent::enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
 
 std::string ModemComponent::send_at(const std::string &cmd) {
-  std::string result = "ERROR";
+  std::string result = "";
   command_result status = command_result::FAIL;
   ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
   if (this->modem_ready()) {
     status = this->dce->at(cmd, result, this->command_delay_);
     ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), result.c_str(),
              command_result_to_string(status).c_str());
+  }
+  if (status != command_result::OK) {
+    result = "ERROR";
   }
   return result;
 }
@@ -547,27 +552,12 @@ bool ModemComponent::modem_sync_() {
     // First time the modem is synced, or modem recovered
     this->internal_state_.modem_synced = true;
 
-    if (!this->gnss_power_command_.empty()) {
-      command_result err;
-      ESP_LOGD(TAG, "Enabling GNSS with command: %s", this->gnss_power_command_.c_str());
-      err = this->dce->at(this->gnss_power_command_, result, this->command_delay_);
-      if (err == command_result::FAIL) {
-        // AT+CGPS=1 for SIM7600 or AT+CGNSSPWR=1 for SIM7670 often fail, but seems to be working anyway
-        ESP_LOGD(TAG, "GNSS power command failed. Ignoring, as the status is often FAIL, while it works later.");
-      }
-    }
-    // ESPMODEM_ERROR_CHECK(this->dce->set_gnss_power_mode(0), "Enabling/disabling GNSS");
-
-    // delay(200);  // NOLINT
-
     if (!this->prepare_sim_()) {
       // fatal error
       this->disable();
       status = false;
     }
     this->send_init_at_();
-
-    // ESPMODEM_ERROR_CHECK(this->dce->set_gnss_power_mode(this->gnss_), "Enabling/disabling GNSS");
 
     ESP_LOGI(TAG, "Modem infos:");
     std::string result;

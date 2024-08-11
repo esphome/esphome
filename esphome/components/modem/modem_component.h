@@ -28,8 +28,6 @@ namespace modem {
 
 using namespace esp_modem;
 
-static const char *const TAG = "modem";
-
 enum class ModemComponentState {
   NOT_RESPONDING,
   DISCONNECTED,
@@ -49,7 +47,7 @@ class ModemComponent : public Component {
   void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
-  void set_model(const std::string model) { this->model_ = model; }
+  void set_model(const std::string &model) { this->model_ = model; }
   void set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
   void set_power_ton(int ton) { this->power_ton_ = ton; }
   void set_power_tonuart(int tonuart) { this->power_tonuart_ = tonuart; }
@@ -60,8 +58,8 @@ class ModemComponent : public Component {
   void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
   void set_apn(const std::string &apn) { this->apn_ = apn; }
-  void set_gnss_power_command(const std::string &at_command) { this->gnss_power_command_ = at_command; }
-  std::string get_gnss_power_command() { return this->gnss_power_command_; }
+  // void set_gnss_power_command(const std::string &at_command) { this->gnss_power_command_ = at_command; }
+  // std::string get_gnss_power_command() { return this->gnss_power_command_; }
   void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void enable_cmux() { this->cmux_ = true; }
   void enable_debug();
@@ -130,7 +128,6 @@ class ModemComponent : public Component {
   std::vector<std::string> init_at_commands_;
   std::string use_address_;
   bool cmux_{false};
-  std::string gnss_power_command_;
   // separate handler for `on_not_responding` (we want to know when it's ended)
   Trigger<> *not_responding_cb_{nullptr};
   CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;

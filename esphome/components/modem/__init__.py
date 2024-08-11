@@ -40,7 +40,6 @@ CONF_POWER_PIN = "power_pin"
 CONF_INIT_AT = "init_at"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
 CONF_ENABLE_CMUX = "enable_cmux"
-CONF_ENABLE_GNSS = "enable_gnss"
 
 MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7600", "SIM7670", "GENERIC"]
 MODEM_MODELS_POWER = {
@@ -51,10 +50,6 @@ MODEM_MODELS_POWER = {
 }
 
 MODEM_MODELS_POWER["SIM7670"] = MODEM_MODELS_POWER["SIM7600"]
-
-# SIM70xx doesn't support AT+CGNSSINFO, so gnss is not available
-MODEM_MODELS_GNSS_POWER = {"SIM7600": "AT+CGPS=1", "SIM7670": "AT+CGNSSPWR=1"}
-
 
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
@@ -68,7 +63,6 @@ ModemOnConnectTrigger = modem_ns.class_(
 ModemOnDisconnectTrigger = modem_ns.class_(
     "ModemOnDisconnectTrigger", automation.Trigger.template()
 )
-
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -89,7 +83,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_CMUX, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG, default=False): cv.boolean,  # needs also
-            cv.Optional(CONF_ENABLE_GNSS, default=False): cv.boolean,
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -137,11 +130,6 @@ def _final_validate(config):
         if config[CONF_MODEL] not in MODEM_MODELS_POWER:
             raise cv.Invalid(
                 f"Modem model '{config[CONF_MODEL]}' has no power power specs."
-            )
-    if config.get(CONF_ENABLE_GNSS, None):
-        if config[CONF_MODEL] not in MODEM_MODELS_GNSS_POWER:
-            raise cv.Invalid(
-                f"Modem model '{config[CONF_MODEL]}' has no GNSS support with AT+CGNSSINFO."
             )
 
 
@@ -198,9 +186,6 @@ async def to_code(config):
 
     modem_model = config[CONF_MODEL]
     cg.add(var.set_model(modem_model))
-
-    if config[CONF_ENABLE_GNSS]:
-        cg.add(var.set_gnss_power_command(MODEM_MODELS_GNSS_POWER[modem_model]))
 
     if power_spec := MODEM_MODELS_POWER.get(modem_model, None):
         cg.add(var.set_power_ton(power_spec["ton"]))

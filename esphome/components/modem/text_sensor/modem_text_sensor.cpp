@@ -25,10 +25,12 @@
   }
 
 namespace esphome {
-namespace modem_text_sensor {
+namespace modem {
 
 using namespace esp_modem;
 // using namespace esphome::modem;
+
+static const char *const TAG = "modem.text_sensor";
 
 void ModemTextSensor::setup() { ESP_LOGI(TAG, "Setting up Modem Sensor..."); }
 
@@ -112,7 +114,7 @@ void ModemTextSensor::update_network_type_text_sensor_() {
   }
 }
 
-}  // namespace modem_text_sensor
+}  // namespace modem
 }  // namespace esphome
 
 #endif  // USE_MODEM

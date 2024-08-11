@@ -262,6 +262,7 @@ esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/modem/* @oarcher
 esphome/components/modem/sensor/* @oarcher
+esphome/components/modem/switch/* @oarcher
 esphome/components/modem/text_sensor/* @oarcher
 esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan

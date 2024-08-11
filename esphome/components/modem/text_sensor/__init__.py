@@ -3,7 +3,7 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY
 
-from .. import final_validate_platform
+from .. import final_validate_platform, modem_ns
 
 CODEOWNERS = ["@oarcher"]
 
@@ -11,21 +11,16 @@ AUTO_LOAD = []
 
 DEPENDENCIES = ["modem"]
 
-# MULTI_CONF = True
 IS_PLATFORM_COMPONENT = True
 
 CONF_NETWORK_TYPE = "network_type"
 
-modem_text_sensor_ns = cg.esphome_ns.namespace("modem_text_sensor")
-ModemTextSensorComponent = modem_text_sensor_ns.class_(
-    "ModemTextSensor", cg.PollingComponent
-)
-
+ModemTextSensor = modem_ns.class_("ModemTextSensor", cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ModemTextSensorComponent),
+            cv.GenerateID(): cv.declare_id(ModemTextSensor),
             cv.Optional(CONF_NETWORK_TYPE): text_sensor.text_sensor_schema(
                 device_class=DEVICE_CLASS_EMPTY,
             ),

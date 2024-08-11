@@ -11,9 +11,7 @@
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
-namespace modem_sensor {
-
-static const char *const TAG = "modem_sensor";
+namespace modem {
 
 class ModemSensor : public PollingComponent {
  public:
@@ -49,7 +47,7 @@ class ModemSensor : public PollingComponent {
   void update_gnss_sensors_();
 };
 
-}  // namespace modem_sensor
+}  // namespace modem
 }  // namespace esphome
 
 #endif  // USE_MODEM

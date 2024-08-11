@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_PLATFORM,
     CONF_SPEED,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -20,7 +21,7 @@ from esphome.const import (
 )
 import esphome.final_validate as fv
 
-from .. import CONF_ENABLE_GNSS, CONF_MODEM, final_validate_platform
+from .. import CONF_MODEM, final_validate_platform, modem_ns, switch
 
 CODEOWNERS = ["@oarcher"]
 
@@ -28,7 +29,6 @@ AUTO_LOAD = []
 
 DEPENDENCIES = ["modem"]
 
-# MULTI_CONF = True
 IS_PLATFORM_COMPONENT = True
 
 CONF_BER = "ber"
@@ -43,14 +43,13 @@ ICON_LOCATION_UP = "mdi:map-marker-up"
 ICON_SPEED = "mdi:speedometer"
 ICON_SIGNAL_BAR = "mdi:signal"
 
-modem_sensor_ns = cg.esphome_ns.namespace("modem_sensor")
-ModemSensorComponent = modem_sensor_ns.class_("ModemSensor", cg.PollingComponent)
+ModemSensor = modem_ns.class_("ModemSensor", cg.PollingComponent)
 
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ModemSensorComponent),
+            cv.GenerateID(): cv.declare_id(ModemSensor),
             cv.Optional(CONF_RSSI): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DECIBEL,
                 accuracy_decimals=0,
@@ -108,16 +107,19 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate_gnss(config):
-    if (
-        config.get(CONF_LATITUDE, None)
-        or config.get(CONF_LONGITUDE, None)
-        or config.get(CONF_ALTITUDE, None)
-    ):
-        if modem_config := fv.full_config.get().get(CONF_MODEM, None):
-            if not modem_config[CONF_ENABLE_GNSS]:
-                raise cv.Invalid(
-                    f"Using GNSS sensors require '{CONF_ENABLE_GNSS}' to be 'true' in '{CONF_MODEM}'."
-                )
+    # GNSS sensors needs GNSS switch
+    if config.get(CONF_LATITUDE, None) or config.get(CONF_LONGITUDE, None):
+        gnss = False
+        if switches := fv.full_config.get().get("switch", None):
+            modem_switches = filter(
+                lambda x: x.get(CONF_PLATFORM, None) and x[CONF_PLATFORM] == CONF_MODEM,
+                switches,
+            )
+            for sw in modem_switches:
+                if switch.CONF_GNSS in sw:
+                    gnss = True
+        if not gnss:
+            raise cv.Invalid("Using GNSS modem sensors require GNSS modem switch.")
     return config
 
 
