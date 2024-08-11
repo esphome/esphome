@@ -16,6 +16,8 @@ CONF_E_PIN = "e_pin"
 CONF_F_PIN = "f_pin"
 CONF_G_PIN = "g_pin"
 CONF_DP_PIN = "dp_pin"
+CONF_HOLD_TIME = "hold_time"
+CONF_BLANK_TIME = "blank_time"
 CONF_DIGITS = "digits"
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
@@ -30,6 +32,8 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
         cv.Required(CONF_G_PIN): cv.ensure_schema(gpio_output_pin_schema),
         cv.Required(CONF_DP_PIN): cv.ensure_schema(gpio_output_pin_schema),
         cv.Required(CONF_DIGITS): cv.ensure_list(gpio_output_pin_schema),
+        cv.Optional(CONF_HOLD_TIME, default="5"): cv.int_range(min=0, max=65535),
+        cv.Optional(CONF_BLANK_TIME, default="0"): cv.int_range(min=0, max=65535),
     }
 ).extend(cv.polling_component_schema("25ms"))
 
@@ -62,6 +66,12 @@ async def to_code(config):
 
     pin_dp = await cg.gpio_pin_expression(config[CONF_DP_PIN])
     cg.add(var.set_dp_pin(pin_dp))
+
+    hold_time = await cg.get_variable(config[CONF_HOLD_TIME])
+    cg.add(var.set_hold_time(hold_time))
+
+    blank_time = await cg.get_variable(config[CONF_BLANK_TIME])
+    cg.add(var.set_blank_time(blank_time))
 
     digits = []
     for pin in config[CONF_DIGITS]:

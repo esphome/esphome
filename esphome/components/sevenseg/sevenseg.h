@@ -34,6 +34,8 @@ class SEVENSEGComponent : public PollingComponent {
   void set_f_pin(GPIOPin *f_pin);
   void set_g_pin(GPIOPin *g_pin);
   void set_dp_pin(GPIOPin *dp_pin);
+  void set_hold_time(uint16_t hold_time);
+  void set_blank_time(uint16_t blank_time);
   void set_digits(const std::vector<GPIOPin *> &digits);
 
   /// Evaluate the printf-format and print the result at the given position.
@@ -68,6 +70,8 @@ class SEVENSEGComponent : public PollingComponent {
   GPIOPin *dp_pin_{nullptr};
   std::vector<GPIOPin *> digits_;
 
+  uint16_t hold_time_{5};
+  uint16_t blank_time_{0};
   uint8_t *buffer_;
   uint16_t buffer_size_{0};
   bool setup_complete_{false};

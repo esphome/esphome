@@ -152,6 +152,8 @@ void SEVENSEGComponent::set_e_pin(GPIOPin *e_pin) { this->e_pin_ = e_pin; }
 void SEVENSEGComponent::set_f_pin(GPIOPin *f_pin) { this->f_pin_ = f_pin; }
 void SEVENSEGComponent::set_g_pin(GPIOPin *g_pin) { this->g_pin_ = g_pin; }
 void SEVENSEGComponent::set_dp_pin(GPIOPin *dp_pin) { this->dp_pin_ = dp_pin; }
+void SEVENSEGComponent::set_hold_time(uint16_t hold_time) { this->hold_time_ = hold_time; }
+void SEVENSEGComponent::set_blank_time(uint16_t blank_time) { this->blank_time_ = blank_time; }
 void SEVENSEGComponent::set_digits(const std::vector<GPIOPin *> &digits) { this->digits_ = digits; }
 
 // setup
@@ -197,10 +199,6 @@ void SEVENSEGComponent::setup() {
   this->num_digits_ = ct;
   this->buffer_ = new uint8_t[this->num_digits_];
   this->buffer_size_ = sizeof(this->buffer_);
-  this->buffer_[0] = 0;
-  this->buffer_[1] = 72;
-  this->buffer_[2] = 73;
-  this->buffer_[3] = 0;
   this->setup_complete_ = true;
 }
 
@@ -222,6 +220,9 @@ void SEVENSEGComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "Number of Digits: %u", this->num_digits_);
   ESP_LOGCONFIG(TAG, "Buffer Size: %u", this->buffer_size_);
+  ESP_LOGCONFIG(TAG, "Hold Time: %u", this->hold_time_);
+  ESP_LOGCONFIG(TAG, "Blank Time: %u", this->blank_time_);
+  ESP_LOGCONFIG(TAG, "update interval: %u", this->update_interval_);
   ESP_LOGCONFIG(TAG, "Writer: %s", this->writer_ ? "YES" : "NO");
   ESP_LOGCONFIG(TAG, "Setup Complete: %s", this->setup_complete_ ? "YES" : "NO");
   // ESP_LOGCONFIG(TAG, "  Number of Digits: %u", this->num_chips_);
@@ -254,6 +255,7 @@ void SEVENSEGComponent::clear_display_() {
   this->f_pin_->digital_write(false);
   this->g_pin_->digital_write(false);
   this->dp_pin_->digital_write(false);
+  delay(this->blank_time_);
 }
 
 // write digit to segment
@@ -284,22 +286,31 @@ void SEVENSEGComponent::set_digit_(uint8_t digit, uint8_t ch, bool dot) {
   this->e_pin_->digital_write(segments & 0b00000100);
   this->f_pin_->digital_write(segments & 0b00000010);
   this->g_pin_->digital_write(segments & 0b00000001);
-  delay(5);
+  delay(this->hold_time_);
 };
 
 // print functions
 uint8_t SEVENSEGComponent::print(uint8_t start_pos, const char *str) {
-  std::string s = str;
-  if (s.length() > buffer_size_) {
-    return 0;
+  uint8_t pos = start_pos;
+  for (; *str != '\0'; str++) {
+    uint8_t data = SEVENSEG_UNKNOWN_CHAR;
+    if (*str >= ' ' && *str <= '~')
+      data = progmem_read_byte(&SEVENSEG_ASCII_TO_RAW[*str]);
+
+    if (*str == '.') {
+      if (pos != start_pos)
+        pos--;
+      this->buffer_[pos] |= 0b10000000;
+    } else {
+      if (pos >= this->num_digits_) {
+        ESP_LOGE(TAG, "MAX7219 String is too long for the display!");
+        break;
+      }
+      this->buffer_[pos] = data;
+    }
+    pos++;
   }
-  while (s.length() < 4) {
-    s = " " + s;
-  }
-  for (uint8_t i = 0; i < s.length(); i++) {
-    this->buffer_[i] = s[i];
-  }
-  return 0;
+  return pos - start_pos;
 }
 
 uint8_t SEVENSEGComponent::print(const char *str) { return this->print(0, str); }
