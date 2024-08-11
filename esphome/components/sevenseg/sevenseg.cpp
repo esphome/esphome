@@ -218,7 +218,6 @@ void SEVENSEGComponent::dump_config() {
     ct++;
   }
   ESP_LOGCONFIG(TAG, "Number of Digits: %u", this->num_digits_);
-  ESP_LOGCONFIG(TAG, "Buffer Size: %u", this->buffer_size_);
   ESP_LOGCONFIG(TAG, "Hold Time: %u", this->hold_time_);
   ESP_LOGCONFIG(TAG, "Blank Time: %u", this->blank_time_);
   ESP_LOGCONFIG(TAG, "update interval: %u", this->update_interval_);
