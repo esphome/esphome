@@ -101,9 +101,12 @@ void HLW8032Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGD(TAG, "HLW8032 Parsed data:");
-  ESP_LOGD(TAG, "  Voltage Parameter REG: 0x%06X, Voltage REG: 0x%06X", (unsigned int) voltage_parameter, (unsigned int) voltage_reg);
-  ESP_LOGD(TAG, "  Current Parameter REG: 0x%06X, Current REG: 0x%06X", (unsigned int) current_parameter, (unsigned int) current_reg);
-  ESP_LOGD(TAG, "  Power Parameter REG: 0x%06X, Power REG: 0x%06X", (unsigned int) power_parameter, (unsigned int) power_reg);
+  ESP_LOGD(TAG, "  Voltage Parameter REG: 0x%06X, Voltage REG: 0x%06X", (unsigned int) voltage_parameter,
+           (unsigned int) voltage_reg);
+  ESP_LOGD(TAG, "  Current Parameter REG: 0x%06X, Current REG: 0x%06X", (unsigned int) current_parameter,
+           (unsigned int) current_reg);
+  ESP_LOGD(TAG, "  Power Parameter REG: 0x%06X, Power REG: 0x%06X", (unsigned int) power_parameter,
+           (unsigned int) power_reg);
   ESP_LOGD(TAG, "  Data Update REG: 0x%02X", data_update_register);
 #endif
 
