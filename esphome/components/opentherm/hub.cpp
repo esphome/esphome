@@ -229,7 +229,7 @@ bool OpenthermHub::check_timings_(uint32_t cur_time) {
     ESP_LOGW(OT_TAG,
              "%d ms elapsed since the start of the last convo, but 1150 ms are allowed at maximum. Look at other "
              "components that might slow the loop down.",
-             (int)(cur_time - last_conversation_start_));
+             (int) (cur_time - last_conversation_start_));
     stop_opentherm_();
     return false;
   }
