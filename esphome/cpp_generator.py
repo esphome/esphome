@@ -1,8 +1,8 @@
 import abc
+from collections.abc import Sequence
 import inspect
 import math
 import re
-from collections.abc import Sequence
 from typing import Any, Callable, Optional, Union
 
 from esphome.core import (
