@@ -12,7 +12,6 @@ modem:
   pin_code: "0000"
   enable_on_boot: True
   enable_cmux: True
-  enable_gnss: True
   init_at:
     - AT
   on_not_responding:
@@ -39,3 +38,9 @@ sensor:
       name: Longitude
     altitude:
       name: Altitude
+
+switch:
+  - platform: modem
+    gnss:
+      name: GNSS
+      restore_mode: ALWAYS_ON
