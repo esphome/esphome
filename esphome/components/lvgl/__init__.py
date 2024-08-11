@@ -336,8 +336,8 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
-            cv.Optional(df.CONF_TOUCHSCREENS): touchscreen_schema,
-            cv.Optional(df.CONF_ENCODERS): ENCODERS_CONFIG,
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
         }
     )
