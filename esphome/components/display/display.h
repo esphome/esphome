@@ -4,10 +4,12 @@
 #include <vector>
 
 #include "rect.h"
+#include "point.h"
 
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/time.h"
+#include "esphome/core/log.h"
 #include "display_color_utils.h"
 
 #ifdef USE_GRAPH
@@ -631,6 +633,36 @@ class Display : public PollingComponent {
    */
   bool clip(int x, int y);
 
+  /** Changes the local coordinates to be relative to (x, y). After calling a pixel
+   *  drawn at (10, 20) would be drawn to the screen at (x + 10, y + 20)
+   *
+   * @param[in] x: x coordinate as the new local. Absolute to the displays underlying 0
+   * @param[in] y: y coordinate as the new local. Absolute to the displays underlying 0
+   */
+  void set_local_coordinate(int x, int y) { this->local_coordinate_.emplace_back(x, y); };
+
+  /** Changes the local coordinates to be to be (x_local + x_offset, y_local + y_offset)
+   *  After calling a pixel drawn at (10, 20) would be drawn to the screen at
+   *  (x_local + x_offset + 10, y_local + y_offset + 20)
+   *
+   * @param[in] x_offset: x offset from the current local. Relative to the local x
+   * @param[in] y_offset: y offset from the current local. Relative to the local y
+   */
+  void set_local_coordinates_relative_to_current(int x_offset, int y_offset);
+
+  /** Removes the most recent local coordinate system from use
+   */
+  void pop_local_coordinates();
+
+  /** Gets the current local coordinates in the displays absolute coordinate system
+   */
+  Point get_local_coordinates();
+
+  /** Clears all the local coordinate systems and revers to the displays absolute coordinate
+   *  system
+   */
+  void clear_local_coordinates() { this->local_coordinate_.clear(); };
+
   void test_card();
   void show_test_card() { this->show_test_card_ = true; }
 
@@ -662,6 +694,7 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+  std::vector<Point> local_coordinate_;
   bool show_test_card_{false};
 };
 
@@ -736,6 +769,8 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
   DisplayPage *from_{nullptr};
   DisplayPage *to_{nullptr};
 };
+
+const LogString *text_align_to_string(TextAlign textalign);
 
 }  // namespace display
 }  // namespace esphome
