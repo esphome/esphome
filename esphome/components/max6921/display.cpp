@@ -460,12 +460,13 @@ int Display::update_out_buf_() {
     bool is_get_next_char, is_clear_pos = true;
     do {
       // determine character for current display position...
-      if ((pos < this->disp_text_.start_pos) ||                                    // empty position before text or
-          (pos >= (this->disp_text_.start_pos + this->disp_text_.visible_len))) {  // empty position after text?
+      if ((pos < this->disp_text_.start_pos) ||                    // empty position before text or
+          (visible_idx_offset >= this->disp_text_.visible_len)) {  // all characters proccessed?
         pos_char = ' ';
       } else {
         pos_char = this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset++];
       }
+      ESP_LOGVV(TAG, "%s(): pos=%u, current char (0x%02x)=%c", __func__, pos, pos_char, pos_char);
 
       // special handling for point segment...
       is_get_next_char = false;
