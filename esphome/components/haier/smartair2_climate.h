@@ -18,8 +18,8 @@ class Smartair2Climate : public HaierClimateBase {
  protected:
   void set_handlers() override;
   void process_phase(std::chrono::steady_clock::time_point now) override;
-  haier_protocol::HaierMessage get_power_message(bool state) override;
-  haier_protocol::HaierMessage get_control_message() override;
+  haier_protocol::HaierMessage get_power_message_(bool state) override;
+  haier_protocol::HaierMessage get_control_message_() override;
   // Answer handlers
   haier_protocol::HandlerError status_handler_(haier_protocol::FrameType request_type,
                                                haier_protocol::FrameType message_type, const uint8_t *data,

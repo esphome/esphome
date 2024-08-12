@@ -180,7 +180,7 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
     case ProtocolPhases::SENDING_CONTROL:
       if (this->can_send_message() && this->is_control_message_interval_exceeded_(now)) {
         ESP_LOGI(TAG, "Sending control packet");
-        this->send_message_(get_control_message(), this->use_crc_, CONTROL_MESSAGE_RETRIES,
+        this->send_message_(get_control_message_(), this->use_crc_, CONTROL_MESSAGE_RETRIES,
                             CONTROL_MESSAGE_RETRIES_INTERVAL);
       }
       break;
@@ -220,7 +220,7 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
   }
 }
 
-haier_protocol::HaierMessage Smartair2Climate::get_power_message(bool state) {
+haier_protocol::HaierMessage Smartair2Climate::get_power_message_(bool state) {
   if (state) {
     static haier_protocol::HaierMessage power_on_message(haier_protocol::FrameType::CONTROL, 0x4D02);
     return power_on_message;
@@ -230,7 +230,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_power_message(bool state) {
   }
 }
 
-haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
+haier_protocol::HaierMessage Smartair2Climate::get_control_message_() {
   uint8_t control_out_buffer[sizeof(smartair2_protocol::HaierPacketControl)];
   memcpy(control_out_buffer, this->last_status_message_.get(), sizeof(smartair2_protocol::HaierPacketControl));
   smartair2_protocol::HaierPacketControl *out_data = (smartair2_protocol::HaierPacketControl *) control_out_buffer;
