@@ -121,28 +121,33 @@ def validate_bme68x(config):
     return config
 
 
-CONFIG_SCHEMA_BASE = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(BME68xBSEC2Component),
-        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-        cv.Required(CONF_MODEL): cv.one_of(*MODEL_OPTIONS, lower=True),
-        cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(
-            ALGORITHM_OUTPUT_OPTIONS, lower=True
-        ),
-        cv.Optional(CONF_OPERATING_AGE, default="28d"): cv.enum(
-            OPERATING_AGE_OPTIONS, lower=True
-        ),
-        cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
-            SAMPLE_RATE_OPTIONS, upper=True
-        ),
-        cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
-            VOLTAGE_OPTIONS, upper=True
-        ),
-        cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
-        cv.Optional(
-            CONF_STATE_SAVE_INTERVAL, default="6hours"
-        ): cv.positive_time_period_minutes,
-    },
+CONFIG_SCHEMA_BASE = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(BME68xBSEC2Component),
+            cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+            cv.Required(CONF_MODEL): cv.one_of(*MODEL_OPTIONS, lower=True),
+            cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(
+                ALGORITHM_OUTPUT_OPTIONS, lower=True
+            ),
+            cv.Optional(CONF_OPERATING_AGE, default="28d"): cv.enum(
+                OPERATING_AGE_OPTIONS, lower=True
+            ),
+            cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
+                SAMPLE_RATE_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
+                VOLTAGE_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(
+                CONF_STATE_SAVE_INTERVAL, default="6hours"
+            ): cv.positive_time_period_minutes,
+        },
+    )
+    .add_extra(cv.only_with_arduino)
+    .add_extra(validate_bme68x)
+    .add_extra(download_bme68x_blob)
 )
 
 

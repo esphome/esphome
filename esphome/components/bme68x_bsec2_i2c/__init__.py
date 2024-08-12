@@ -3,9 +3,7 @@ from esphome.components import i2c
 from esphome.components.bme68x_bsec2 import (
     CONFIG_SCHEMA_BASE,
     BME68xBSEC2Component,
-    download_bme68x_blob,
     to_code_base,
-    validate_bme68x,
 )
 import esphome.config_validation as cv
 
@@ -20,14 +18,9 @@ BME68xBSEC2I2CComponent = bme68x_bsec2_i2c_ns.class_(
 )
 
 
-CONFIG_SCHEMA = cv.All(
-    CONFIG_SCHEMA_BASE.extend(
-        cv.Schema({cv.GenerateID(): cv.declare_id(BME68xBSEC2I2CComponent)})
-    ).extend(i2c.i2c_device_schema(0x76)),
-    cv.only_with_arduino,
-    validate_bme68x,
-    download_bme68x_blob,
-)
+CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
+    cv.Schema({cv.GenerateID(): cv.declare_id(BME68xBSEC2I2CComponent)})
+).extend(i2c.i2c_device_schema(0x76))
 
 
 async def to_code(config):
