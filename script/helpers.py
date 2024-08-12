@@ -292,10 +292,7 @@ CONFIG_NEWLIB_LIBC=y
 def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
-        # If no exception was raised, the command was successful
-        result = subprocess.check_output(
-            [binary_file, "-version"], stderr=subprocess.STDOUT
-        )
+        result = subprocess.check_output([binary_file, "-version"])
         return binary_file
     except FileNotFoundError:
         pass

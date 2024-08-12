@@ -47,6 +47,7 @@ from .types import (
     IdleTrigger,
     ObjUpdateAction,
     lv_font_t,
+    lv_group_t,
     lv_style_t,
     lvgl_ns,
 )
@@ -335,8 +336,9 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
-            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
-            cv.GenerateID(df.CONF_ENCODERS): ENCODERS_CONFIG,
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
         }
     )
     .extend(DISP_BG_SCHEMA)
