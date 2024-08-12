@@ -15,12 +15,18 @@ enum TotalDailyEnergyMethod {
   TOTAL_DAILY_ENERGY_METHOD_RIGHT,
 };
 
+enum TotalDailyEnergyMode {
+  TOTAL_DAILY_ENERGY_MODE_DAILY = 0,
+  TOTAL_DAILY_ENERGY_MODE_LIFETIME,
+};
+
 class TotalDailyEnergy : public sensor::Sensor, public Component {
  public:
   void set_restore(bool restore) { restore_ = restore; }
   void set_time(time::RealTimeClock *time) { time_ = time; }
   void set_parent(Sensor *parent) { parent_ = parent; }
   void set_method(TotalDailyEnergyMethod method) { method_ = method; }
+  void set_mode(TotalDailyEnergyMode mode) { mode_ = mode; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -35,10 +41,12 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   time::RealTimeClock *time_;
   Sensor *parent_;
   TotalDailyEnergyMethod method_;
+  TotalDailyEnergyMode mode_;
   uint16_t last_day_of_year_{};
   uint32_t last_update_{0};
   bool restore_;
-  float total_energy_{0.0f};
+  float today_energy_{0.0f};
+  float lifetime_energy_{0.0f};
   float last_power_state_{0.0f};
 };
 

@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_TIME_ID,
     DEVICE_CLASS_ENERGY,
     CONF_METHOD,
+    CONF_MODE,
     STATE_CLASS_TOTAL_INCREASING,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_ACCURACY_DECIMALS,
@@ -19,10 +20,15 @@ DEPENDENCIES = ["time"]
 CONF_POWER_ID = "power_id"
 total_daily_energy_ns = cg.esphome_ns.namespace("total_daily_energy")
 TotalDailyEnergyMethod = total_daily_energy_ns.enum("TotalDailyEnergyMethod")
+TotalDailyEnergyMode = total_daily_energy_ns.enum("TotalDailyEnergyMode")
 TOTAL_DAILY_ENERGY_METHODS = {
     "trapezoid": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID,
     "left": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_LEFT,
     "right": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_RIGHT,
+}
+TOTAL_DAILY_ENERGY_MODES = {
+    "daily": TotalDailyEnergyMode.TOTAL_DAILY_ENERGY_MODE_DAILY,
+    "lifetime": TotalDailyEnergyMode.TOTAL_DAILY_ENERGY_MODE_LIFETIME,
 }
 TotalDailyEnergy = total_daily_energy_ns.class_(
     "TotalDailyEnergy", sensor.Sensor, cg.Component
@@ -53,6 +59,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_METHOD, default="right"): cv.enum(
                 TOTAL_DAILY_ENERGY_METHODS, lower=True
+            ),
+            cv.Optional(CONF_MODE, default="daily"): cv.enum(
+                TOTAL_DAILY_ENERGY_MODES, lower=True
             ),
         }
     )
@@ -90,3 +99,4 @@ async def to_code(config):
     cg.add(var.set_time(time_))
     cg.add(var.set_restore(config[CONF_RESTORE]))
     cg.add(var.set_method(config[CONF_METHOD]))
+    cg.add(var.set_mode(config[CONF_MODE]))

@@ -13,7 +13,13 @@ void TotalDailyEnergy::setup() {
     this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
     this->pref_.load(&initial_value);
   }
-  this->publish_state_and_save(initial_value);
+  if(this->mode_ == TOTAL_DAILY_ENERGY_MODE_LIFETIME) {
+    this->lifetime_energy_ = initial_value;
+    this->publish_state_and_save(0);
+  }
+  else {
+    this->publish_state_and_save(initial_value);
+  }
 
   this->last_update_ = millis();
 
@@ -34,13 +40,19 @@ void TotalDailyEnergy::loop() {
 
   if (t.day_of_year != this->last_day_of_year_) {
     this->last_day_of_year_ = t.day_of_year;
-    this->total_energy_ = 0;
+    if(this->mode_ == TOTAL_DAILY_ENERGY_MODE_LIFETIME) {
+      this->lifetime_energy_ += this->today_energy_;
+    }
+    this->today_energy_ = 0;
     this->publish_state_and_save(0);
   }
 }
 
 void TotalDailyEnergy::publish_state_and_save(float state) {
-  this->total_energy_ = state;
+  this->today_energy_ = state;
+  if(this->mode_ == TOTAL_DAILY_ENERGY_MODE_LIFETIME) {
+    state += this->lifetime_energy_;
+  }
   this->publish_state(state);
   if (this->restore_) {
     this->pref_.save(&state);
@@ -68,7 +80,7 @@ void TotalDailyEnergy::process_new_state_(float state) {
   }
   this->last_power_state_ = new_state;
   this->last_update_ = now;
-  this->publish_state_and_save(this->total_energy_ + delta_energy);
+  this->publish_state_and_save(this->today_energy_ + delta_energy);
 }
 
 }  // namespace total_daily_energy
