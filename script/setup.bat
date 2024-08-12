@@ -11,7 +11,7 @@ echo Running the Virtual Environment
 
 :install
 
-echo Start installing the requiremented packages
+echo Installing required packages...
 
 python.exe -m pip install --upgrade pip
 
