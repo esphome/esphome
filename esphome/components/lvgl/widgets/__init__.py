@@ -271,6 +271,7 @@ async def set_obj_properties(w: Widget, config):
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
     if layout := config.get(CONF_LAYOUT):
         layout_type: str = layout[CONF_TYPE]
+        add_lv_use(layout_type)
         lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
@@ -334,7 +335,7 @@ async def set_obj_properties(w: Widget, config):
         for key, value in states.items():
             if isinstance(value, cv.Lambda):
                 lambs[key] = value
-            elif value == "true":
+            elif value:
                 adds.add(key)
             else:
                 clears.add(key)

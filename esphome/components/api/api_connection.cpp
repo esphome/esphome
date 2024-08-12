@@ -1336,7 +1336,10 @@ void APIConnection::update_command(const UpdateCommandRequest &msg) {
       update->check();
       break;
     case enums::UPDATE_COMMAND_NONE:
-      ESP_LOGW(TAG, "UPDATE_COMMAND_NONE not handled");
+      ESP_LOGE(TAG, "UPDATE_COMMAND_NONE not handled. Check client is sending the correct command");
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown update command: %" PRIu32, msg.command);
       break;
   }
 }
