@@ -114,8 +114,8 @@ class HonClimate : public HaierClimateBase {
  protected:
   void set_handlers() override;
   void process_phase(std::chrono::steady_clock::time_point now) override;
-  haier_protocol::HaierMessage get_control_message() override;
-  haier_protocol::HaierMessage get_power_message(bool state) override;
+  haier_protocol::HaierMessage get_control_message_() override;
+  haier_protocol::HaierMessage get_power_message_(bool state) override;
   void initialization() override;
   bool prepare_pending_action() override;
   void process_protocol_reset() override;
