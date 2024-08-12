@@ -120,8 +120,8 @@ async def setup_conf(config, key, hub):
     if conf := config.get(key):
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
-        if CONF_SAMPLE_RATE in conf:
-            cg.add(getattr(hub, f"set_{key}_sample_rate")(conf[CONF_SAMPLE_RATE]))
+        if sample_rate := conf.get(CONF_SAMPLE_RATE):
+            cg.add(getattr(hub, f"set_{key}_sample_rate")(sample_rate))
 
 
 async def to_code(config):
