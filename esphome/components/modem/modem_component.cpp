@@ -104,26 +104,30 @@ bool ModemComponent::get_power_status() {
 
 bool ModemComponent::modem_ready(bool force_check) {
   // check if the modem is ready to answer AT commands
-  if (this->dce) {
-    if (!force_check) {
-      if (!this->internal_state_.modem_synced)
-        return false;
-      if (!this->cmux_ && this->internal_state_.connected)
-        return false;
-      if (!this->internal_state_.powered_on)
-        return false;
+  // We first try to check flags, and then really send an AT command if force_check
+
+  if (!this->dce)
+    return false;
+  if (!this->internal_state_.modem_synced)
+    return false;
+  if (!this->cmux_ && this->internal_state_.connected)
+    return false;
+  if (!this->internal_state_.powered_on)
+    return false;
 #ifdef USE_MODEM_POWER
-      if (this->internal_state_.power_transition)
-        return false;
+  if (this->internal_state_.power_transition)
+    return false;
 #endif
-    }
+
+  if (force_check) {
     if (this->get_imei()) {
       // we are sure that the modem is on
       this->internal_state_.powered_on = true;
       return true;
-    }
-  }
-  return false;
+    } else
+      return false;
+  } else
+    return true;
 }
 
 bool ModemComponent::modem_ready() { return this->modem_ready(false); }
@@ -258,10 +262,10 @@ void ModemComponent::loop() {
         ESP_LOGD(TAG, "TONUART check sync");
         if (!this->modem_sync_()) {
           ESP_LOGE(TAG, "Unable to power on the modem");
-          this->internal_state_.powered_on = false;
+          // this->internal_state_.powered_on = false;
         } else {
           ESP_LOGI(TAG, "Modem powered ON");
-          this->internal_state_.powered_on = true;
+          // this->internal_state_.powered_on = true;
         }
         break;
       case ModemPowerState::TOFF:
@@ -275,7 +279,7 @@ void ModemComponent::loop() {
         break;
       case ModemPowerState::TOFFUART:
         this->internal_state_.power_transition = false;
-        if (this->modem_ready()) {
+        if (this->modem_ready(true)) {
           ESP_LOGE(TAG, "Unable to power off the modem");
           this->internal_state_.powered_on = true;
         } else {
@@ -505,22 +509,22 @@ bool ModemComponent::modem_sync_() {
   std::string result;
 
   ESP_LOGV(TAG, "Checking if the modem is synced...");
-  bool status = this->modem_ready(true);
-  watchdog::WatchdogManager wdt(30000);
+  bool status = this->get_imei();
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
     ESP_LOGD(TAG, "Connecting to the the modem...");
+    watchdog::WatchdogManager wdt(30000);
 
     auto command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying command mode");
       this->dce->set_mode(modem_mode::UNDEF);
-      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->modem_ready(true);
+      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->get_imei();
     };
 
     auto cmux_command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying cmux command mode");
       return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) &&
-             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->modem_ready(true);
+             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->get_imei();
     };
 
     // The cmux state is supposed to be the same before the reboot. But if it has changed (new firwmare), we will try
@@ -535,15 +539,21 @@ bool ModemComponent::modem_sync_() {
 
     if (!status) {
       ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms.", elapsed_ms);
+      // assume the modem is OFF
       this->internal_state_.powered_on = false;
     } else {
       ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
+      this->internal_state_.powered_on = true;
     }
+  } else {
+    // modem responded without need to recover command mode
+    this->internal_state_.powered_on = true;
   }
 
   if (status && !this->internal_state_.modem_synced) {
-    App.feed_wdt();
     // First time the modem is synced, or modem recovered
+    App.feed_wdt();
+    watchdog::WatchdogManager wdt(30000);
     this->internal_state_.modem_synced = true;
 
     if (!this->prepare_sim_()) {
