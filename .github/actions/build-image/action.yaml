@@ -46,7 +46,7 @@ runs:
 
     - name: Build and push to ghcr by digest
       id: build-ghcr
-      uses: docker/build-push-action@v6.5.0
+      uses: docker/build-push-action@v6.6.1
       with:
         context: .
         file: ./docker/Dockerfile
@@ -69,7 +69,7 @@ runs:
 
     - name: Build and push to dockerhub by digest
       id: build-dockerhub
-      uses: docker/build-push-action@v6.5.0
+      uses: docker/build-push-action@v6.6.1
       with:
         context: .
         file: ./docker/Dockerfile
