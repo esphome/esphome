@@ -158,6 +158,7 @@
 #endif
 
 // Disabled feature flags
-// #define USE_BSEC  // Requires a library with proprietary license.
+// #define USE_BSEC   // Requires a library with proprietary license
+// #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT
