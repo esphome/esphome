@@ -178,6 +178,9 @@ void CSE7766Component::parse_data_() {
     if (this->apparent_power_sensor_ != nullptr) {
       this->apparent_power_sensor_->publish_state(apparent_power);
     }
+    if (have_power && this->reactive_power_sensor_ != nullptr) {
+      this->reactive_power_sensor_->publish_state(apparent_power - power);
+    }
     if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
       float pf = NAN;
       if (apparent_power > 0) {
@@ -232,6 +235,7 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Energy", this->energy_sensor_);
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
+  LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
   this->check_uart_settings(4800);
 }
