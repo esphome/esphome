@@ -50,47 +50,43 @@ ModemComponent::ModemComponent() {
 
 void ModemComponent::enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
 
-std::string ModemComponent::send_at(const std::string &cmd) {
-  std::string result = "";
+AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout) {
+  AtCommandResult at_command_result;
+  at_command_result.success = false;
   command_result status = command_result::FAIL;
-  ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
   if (this->modem_ready()) {
-    status = this->dce->at(cmd, result, this->command_delay_);
-    ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), result.c_str(),
+    ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
+    status = this->dce->at(cmd, at_command_result.result, timeout);
+    ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), at_command_result.result.c_str(),
              command_result_to_string(status).c_str());
   }
-  if (status != command_result::OK) {
-    result = "ERROR";
+  if (status == command_result::OK) {
+    at_command_result.success = true;
   }
-  return result;
+  return at_command_result;
 }
 
-bool ModemComponent::get_imei(std::string &result) {
-  // wrapper around this->dce->get_imei() that check that the result is valid
+AtCommandResult ModemComponent::send_at(const std::string &cmd) { return this->send_at(cmd, this->command_delay_); }
+
+AtCommandResult ModemComponent::get_imei() {
+  // get the imei, and check the result is a valid imei string
   // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
-
-  bool success = false;
-  if (this->dce) {
-    command_result status;
-    // status = this->dce->get_imei(result);
-    status = this->dce->at("AT+CGSN", result, 1000);
-    success = true;
-    if (status == command_result::OK && result.length() == 15) {
-      for (char c : result) {
-        if (!isdigit(static_cast<unsigned char>(c))) {
-          success = false;
-          break;
-        }
+  AtCommandResult at_command_result;
+  at_command_result.success = false;
+  command_result status = command_result::FAIL;
+  status = this->dce->at("AT+CGSN", at_command_result.result, 1000);
+  if ((status == command_result::OK) && at_command_result.result.length() == 15) {
+    at_command_result.success = true;
+    for (char c : at_command_result.result) {
+      if (!isdigit(static_cast<unsigned char>(c))) {
+        at_command_result.success = false;
+        break;
       }
-    } else {
-      success = false;
     }
+  } else {
+    at_command_result.success = false;
   }
-
-  if (!success) {
-    result = "UNAVAILABLE";
-  }
-  return success;
+  return at_command_result;
 }
 
 bool ModemComponent::get_power_status() {
@@ -121,9 +117,7 @@ bool ModemComponent::modem_ready(bool force_check) {
         return false;
 #endif
     }
-    std::string imei;
-    // watchdog::WatchdogManager wdt(10000);
-    if (this->get_imei(imei)) {
+    if (this->get_imei()) {
       // we are sure that the modem is on
       this->internal_state_.powered_on = true;
       return true;
@@ -603,14 +597,13 @@ bool ModemComponent::prepare_sim_() {
 
 void ModemComponent::send_init_at_() {
   // send initial AT commands from yaml
-  // watchdog::WatchdogManager wdt(20000);
   for (const auto &cmd : this->init_at_commands_) {
     App.feed_wdt();
-    std::string result = this->send_at(cmd);
-    if (result == "ERROR") {
+    auto at_command_result = this->send_at(cmd);
+    if (!at_command_result) {
       ESP_LOGE(TAG, "Error while executing 'init_at' '%s' command", cmd.c_str());
     } else {
-      ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), result.c_str());
+      ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), at_command_result.result.c_str());
     }
     delay(200);  // NOLINT
   }

@@ -42,6 +42,14 @@ enum class ModemPowerState {
   TOFFUART,
 };
 
+struct AtCommandResult {
+  std::string result;
+  bool success;
+
+  // Conversion to bool, allowing you to do things like `if (commandResult) {...}`
+  operator bool() const { return success; }
+};
+
 class ModemComponent : public Component {
  public:
   void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
@@ -58,16 +66,15 @@ class ModemComponent : public Component {
   void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
   void set_apn(const std::string &apn) { this->apn_ = apn; }
-  // void set_gnss_power_command(const std::string &at_command) { this->gnss_power_command_ = at_command; }
-  // std::string get_gnss_power_command() { return this->gnss_power_command_; }
   void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void enable_cmux() { this->cmux_ = true; }
   void enable_debug();
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
   bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
   bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED; }
-  std::string send_at(const std::string &cmd);
-  bool get_imei(std::string &result);
+  AtCommandResult send_at(const std::string &cmd, uint32_t timeout);
+  AtCommandResult send_at(const std::string &cmd);
+  AtCommandResult get_imei();
   bool get_power_status();
   bool modem_ready();
   bool modem_ready(bool force_check);

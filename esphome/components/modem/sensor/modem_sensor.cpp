@@ -153,9 +153,9 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
 
 void ModemSensor::update_gnss_sensors_() {
   if (this->gnss_latitude_sensor_ || this->gnss_longitude_sensor_ || this->gnss_altitude_sensor_) {
-    std::string gnss_info = modem::global_modem_component->send_at("AT+CGNSSINFO");
-
-    if (gnss_info != "ERROR") {
+    auto at_command_result = modem::global_modem_component->send_at("AT+CGNSSINFO");
+    if (at_command_result) {
+      std::string gnss_info = at_command_result.result;
       std::map<std::string, std::string> parts = get_gnssinfo_tokens(gnss_info, "SIM7600");
 
       float lat = NAN;
@@ -220,6 +220,7 @@ void ModemSensor::update_gnss_sensors_() {
       ESP_LOGV(TAG, "Time: %02d:%02d:%02d", hour, minute, second);
 
       // Sensors update
+      App.feed_wdt();
       if (this->gnss_latitude_sensor_)
         this->gnss_latitude_sensor_->publish_state(lat);
       if (this->gnss_longitude_sensor_)

@@ -33,8 +33,9 @@ static const char *const TAG = "modem.switch";
 
 optional<bool> GnssSwitch::get_modem_gnss_state() {
   optional<bool> gnss_state;
-  if (global_modem_component->modem_ready()) {
-    std::string modem_state = global_modem_component->send_at(this->command_ + "?");
+  auto at_command_result = global_modem_component->send_at(this->command_ + "?");
+  if (at_command_result) {
+    std::string modem_state = at_command_result.result;
     std::string delimiter = ": ";
     std::size_t pos = modem_state.find(delimiter);
     if (pos != std::string::npos) {
@@ -54,12 +55,11 @@ void GnssSwitch::dump_config() { LOG_SWITCH("", "Modem GNSS Switch", this); }
 void GnssSwitch::setup() { this->state = this->get_initial_state_with_restore_mode().value_or(false); }
 
 void GnssSwitch::loop() {
-  if (global_modem_component->modem_ready()) {
-    if (!this->modem_state_.has_value()) {
-      this->modem_state_ = this->get_modem_gnss_state();
-    } else {
-      if ((this->state != this->modem_state_)) {
-        global_modem_component->send_at(this->command_ + (this->state ? "=1" : "=0"));
+  if (!this->modem_state_.has_value()) {
+    this->modem_state_ = this->get_modem_gnss_state();
+  } else {
+    if ((this->state != this->modem_state_)) {
+      if (global_modem_component->send_at(this->command_ + (this->state ? "=1" : "=0"))) {
         this->modem_state_ = this->state;
         this->publish_state(this->state);
       }
