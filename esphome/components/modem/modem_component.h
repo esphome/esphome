@@ -62,8 +62,6 @@ class ModemComponent : public Component {
   void set_power_toff(int toff) { this->power_toff_ = toff; }
   void set_power_toffuart(int toffuart) { this->power_toffuart_ = toffuart; }
   void set_status_pin(GPIOPin *status_pin) { this->status_pin_ = status_pin; }
-  void set_username(const std::string &username) { this->username_ = username; }
-  void set_password(const std::string &password) { this->password_ = password; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
   void set_apn(const std::string &apn) { this->apn_ = apn; }
   void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
@@ -129,8 +127,6 @@ class ModemComponent : public Component {
   int power_toffuart_;
   GPIOPin *power_pin_{nullptr};
   std::string pin_code_;
-  std::string username_;
-  std::string password_;
   std::string apn_;
   std::vector<std::string> init_at_commands_;
   std::string use_address_;

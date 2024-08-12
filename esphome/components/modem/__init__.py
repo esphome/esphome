@@ -74,10 +74,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_APN): cv.string,
             cv.Optional(CONF_STATUS_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_DTR_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
-            cv.Optional(CONF_USERNAME): cv.string,
-            cv.Optional(CONF_PASSWORD): cv.string,
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
@@ -122,10 +119,6 @@ def _final_validate(config):
     # if wifi_config := fv.full_config.get().get(CONF_WIFI, None):
     #     if wifi_has_sta(wifi_config):
     #         raise cv.Invalid("Wifi must be AP only when using ethernet")
-    if config.get(CONF_STATUS_PIN, None):
-        _LOGGER.warning("Using '%s' is experimental", CONF_STATUS_PIN)
-    if not config[CONF_ENABLE_ON_BOOT]:
-        _LOGGER.warning("Using '%s: False' is experimental", CONF_ENABLE_ON_BOOT)
     if config.get(CONF_POWER_PIN, None):
         if config[CONF_MODEL] not in MODEM_MODELS_POWER:
             raise cv.Invalid(

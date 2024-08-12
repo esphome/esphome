@@ -214,13 +214,6 @@ void ModemComponent::setup() {
   this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
   assert(this->ppp_netif_);
 
-  if (!this->username_.empty()) {
-    ESP_LOGV(TAG, "Set auth: username: %s password: %s", this->username_.c_str(), this->password_.c_str());
-    ESPHL_ERROR_CHECK(esp_netif_ppp_set_auth(this->ppp_netif_, NETIF_PPP_AUTHTYPE_PAP, this->username_.c_str(),
-                                             this->password_.c_str()),
-                      "PPP set auth");
-  }
-
   err = esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, nullptr,
                                             nullptr);
   ESPHL_ERROR_CHECK(err, "IP event handler register error");
@@ -262,10 +255,8 @@ void ModemComponent::loop() {
         ESP_LOGD(TAG, "TONUART check sync");
         if (!this->modem_sync_()) {
           ESP_LOGE(TAG, "Unable to power on the modem");
-          // this->internal_state_.powered_on = false;
         } else {
           ESP_LOGI(TAG, "Modem powered ON");
-          // this->internal_state_.powered_on = true;
         }
         break;
       case ModemPowerState::TOFF:
