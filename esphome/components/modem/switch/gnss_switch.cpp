@@ -32,7 +32,7 @@ using namespace esp_modem;
 static const char *const TAG = "modem.switch";
 
 optional<bool> GnssSwitch::get_modem_gnss_state() {
-  optional<bool> gnss_state;
+  optional<bool> gnss_state = nullopt;
   auto at_command_result = global_modem_component->send_at(this->command_ + "?");
   if (at_command_result) {
     std::string modem_state = at_command_result.result;

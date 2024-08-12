@@ -57,7 +57,7 @@ AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout
   if (this->modem_ready()) {
     ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
     status = this->dce->at(cmd, at_command_result.result, timeout);
-    ESP_LOGV(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), at_command_result.result.c_str(),
+    ESP_LOGD(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), at_command_result.result.c_str(),
              command_result_to_string(status).c_str());
   }
   if (status == command_result::OK) {
@@ -694,7 +694,7 @@ void ModemComponent::poweron_() {
     if (this->modem_ready()) {
       ESP_LOGV(TAG, "Modem is already ON");
     } else {
-      ESP_LOGW(TAG, "No 'power_pin' defined: Not able to poweron the modem");
+      ESP_LOGE(TAG, "No 'power_pin' defined: Not able to poweron the modem");
     }
   }
 }

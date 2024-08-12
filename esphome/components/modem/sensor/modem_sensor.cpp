@@ -79,6 +79,7 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
 
   if (data.find(",,,,,,") != std::string::npos) {
     ESP_LOGW(TAG, "No GNSS location available");
+    return gnss_data;  // empty
   }
 
   std::vector<std::string> parts;
@@ -90,10 +91,6 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
   }
 
   switch (parts.size()) {
-    case 15:
-      parts.emplace_back("");
-      // NOLINTNEXTLINE(bugprone-branch-clone)
-      // fall through
     case 16:
       gnss_data["mode"] = parts[0];
       gnss_data["sat_used_count"] = parts[1];
@@ -114,10 +111,6 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
       gnss_data["lon_lat_format"] = "DDMM.MM";  // decimal degrees, float minutes
       break;
 
-    case 17:
-      parts.emplace_back("");
-      // NOLINTNEXTLINE(bugprone-branch-clone)
-      // fall through
     case 18:
       gnss_data["mode"] = parts[0];
       gnss_data["sat_used_count"] = parts[1];
@@ -154,87 +147,88 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
 
 void ModemSensor::update_gnss_sensors_() {
   if (this->gnss_latitude_sensor_ || this->gnss_longitude_sensor_ || this->gnss_altitude_sensor_) {
+    std::map<std::string, std::string> parts;
     auto at_command_result = global_modem_component->send_at("AT+CGNSSINFO");
     if (at_command_result) {
       std::string gnss_info = at_command_result.result;
-      std::map<std::string, std::string> parts = get_gnssinfo_tokens(gnss_info);
-
-      float lat = NAN;
-      float lon = NAN;
-
-      if (parts["lon_lat_format"] == "DDMM.MM") {
-        float lat_deg = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"].substr(0, 2));
-        float lat_min = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"].substr(2));
-        lat = lat_deg + (lat_min / 60.0);
-        if (parts["lat_dir"] == "S")
-          lat = -lat;
-
-        float lon_deg = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"].substr(0, 3));
-        float lon_min = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"].substr(3));
-        lon = lon_deg + (lon_min / 60.0);
-        if (parts["lon_dir"] == "W")
-          lon = -lon;
-      } else if (parts["lon_lat_format"] == "DD.DD") {
-        lat = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"]);
-        if (parts["lat_dir"] == "S")
-          lat = -lat;
-
-        lon = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"]);
-        if (parts["lon_dir"] == "W")
-          lon = -lon;
-      }
-
-      float alt = parts["altitude"].empty() ? NAN : std::stof(parts["altitude"]);
-      float speed_knots = parts["speed"].empty() ? NAN : std::stof(parts["speed"]);
-      float speed_kmh = speed_knots * 1.852;  // Convert speed from knots to km/h
-      float cog = parts["cog"].empty() ? NAN : std::stof(parts["cog"]);
-      float pdop = parts["pdop"].empty() ? NAN : std::stof(parts["pdop"]);
-      float hdop = parts["hdop"].empty() ? NAN : std::stof(parts["hdop"]);
-      float vdop = parts["vdop"].empty() ? NAN : std::stof(parts["vdop"]);
-      int mode = parts["mode"].empty() ? 0 : std::stoi(parts["mode"]);
-      int gps_svs = parts["sat_used_count"].empty() ? 0 : std::stoi(parts["sat_used_count"]);
-      int glonass_svs = parts["sat_view_count"].empty() ? NAN : std::stoi(parts["sat_view_count"]);
-      int beidou_svs = parts["sat_view_count_2"].empty() ? 0 : std::stoi(parts["sat_view_count_2"]);
-
-      // Parsing date
-      int day = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(0, 2));
-      int month = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(2, 2));
-      int year = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(4, 2)) + 2000;
-
-      // Parsing time
-      int hour = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(0, 2));
-      int minute = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(2, 2));
-      int second = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(4, 2));
-
-      ESP_LOGV(TAG, "Latitude: %f, Longitude: %f", lat, lon);
-      ESP_LOGV(TAG, "Altitude: %f m", alt);
-      ESP_LOGV(TAG, "Speed: %f km/h", speed_kmh);
-      ESP_LOGV(TAG, "COG: %f degrees", cog);
-      ESP_LOGV(TAG, "PDOP: %f", pdop);
-      ESP_LOGV(TAG, "HDOP: %f", hdop);
-      ESP_LOGV(TAG, "VDOP: %f", vdop);
-      ESP_LOGV(TAG, "GPS SVs: %d", gps_svs);
-      ESP_LOGV(TAG, "GLONASS SVs: %d", glonass_svs);
-      ESP_LOGV(TAG, "BEIDOU SVs: %d", beidou_svs);
-      ESP_LOGV(TAG, "Fix mode: %d", mode);
-      ESP_LOGV(TAG, "Date: %04d-%02d-%02d", year, month, day);
-      ESP_LOGV(TAG, "Time: %02d:%02d:%02d", hour, minute, second);
-
-      // Sensors update
-      App.feed_wdt();
-      if (this->gnss_latitude_sensor_)
-        this->gnss_latitude_sensor_->publish_state(lat);
-      if (this->gnss_longitude_sensor_)
-        this->gnss_longitude_sensor_->publish_state(lon);
-      if (this->gnss_altitude_sensor_)
-        this->gnss_altitude_sensor_->publish_state(alt);
-      if (this->gnss_speed_sensor_)
-        this->gnss_speed_sensor_->publish_state(speed_kmh);
-      if (this->gnss_course_sensor_)
-        this->gnss_course_sensor_->publish_state(cog);
-      if (this->gnss_accuracy_sensor_)
-        this->gnss_accuracy_sensor_->publish_state(hdop * 5);
+      parts = get_gnssinfo_tokens(gnss_info);
     }
+
+    float lat = NAN;
+    float lon = NAN;
+
+    if (parts["lon_lat_format"] == "DDMM.MM") {
+      float lat_deg = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"].substr(0, 2));
+      float lat_min = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"].substr(2));
+      lat = lat_deg + (lat_min / 60.0);
+      if (parts["lat_dir"] == "S")
+        lat = -lat;
+
+      float lon_deg = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"].substr(0, 3));
+      float lon_min = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"].substr(3));
+      lon = lon_deg + (lon_min / 60.0);
+      if (parts["lon_dir"] == "W")
+        lon = -lon;
+    } else if (parts["lon_lat_format"] == "DD.DD") {
+      lat = parts["latitude"].empty() ? NAN : std::stof(parts["latitude"]);
+      if (parts["lat_dir"] == "S")
+        lat = -lat;
+
+      lon = parts["longitude"].empty() ? NAN : std::stof(parts["longitude"]);
+      if (parts["lon_dir"] == "W")
+        lon = -lon;
+    }
+
+    float alt = parts["altitude"].empty() ? NAN : std::stof(parts["altitude"]);
+    float speed_knots = parts["speed"].empty() ? NAN : std::stof(parts["speed"]);
+    float speed_kmh = speed_knots * 1.852;  // Convert speed from knots to km/h
+    float cog = parts["cog"].empty() ? NAN : std::stof(parts["cog"]);
+    float pdop = parts["pdop"].empty() ? NAN : std::stof(parts["pdop"]);
+    float hdop = parts["hdop"].empty() ? NAN : std::stof(parts["hdop"]);
+    float vdop = parts["vdop"].empty() ? NAN : std::stof(parts["vdop"]);
+    int mode = parts["mode"].empty() ? 0 : std::stoi(parts["mode"]);
+    int gps_svs = parts["sat_used_count"].empty() ? 0 : std::stoi(parts["sat_used_count"]);
+    int glonass_svs = parts["sat_view_count"].empty() ? NAN : std::stoi(parts["sat_view_count"]);
+    int beidou_svs = parts["sat_view_count_2"].empty() ? 0 : std::stoi(parts["sat_view_count_2"]);
+
+    // Parsing date
+    int day = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(0, 2));
+    int month = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(2, 2));
+    int year = parts["date"].empty() ? 0 : std::stoi(parts["date"].substr(4, 2)) + 2000;
+
+    // Parsing time
+    int hour = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(0, 2));
+    int minute = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(2, 2));
+    int second = parts["time"].empty() ? 0 : std::stoi(parts["time"].substr(4, 2));
+
+    ESP_LOGV(TAG, "Latitude: %f, Longitude: %f", lat, lon);
+    ESP_LOGV(TAG, "Altitude: %f m", alt);
+    ESP_LOGV(TAG, "Speed: %f km/h", speed_kmh);
+    ESP_LOGV(TAG, "COG: %f degrees", cog);
+    ESP_LOGV(TAG, "PDOP: %f", pdop);
+    ESP_LOGV(TAG, "HDOP: %f", hdop);
+    ESP_LOGV(TAG, "VDOP: %f", vdop);
+    ESP_LOGV(TAG, "GPS SVs: %d", gps_svs);
+    ESP_LOGV(TAG, "GLONASS SVs: %d", glonass_svs);
+    ESP_LOGV(TAG, "BEIDOU SVs: %d", beidou_svs);
+    ESP_LOGV(TAG, "Fix mode: %d", mode);
+    ESP_LOGV(TAG, "Date: %04d-%02d-%02d", year, month, day);
+    ESP_LOGV(TAG, "Time: %02d:%02d:%02d", hour, minute, second);
+
+    // Sensors update
+    App.feed_wdt();
+    if (this->gnss_latitude_sensor_)
+      this->gnss_latitude_sensor_->publish_state(lat);
+    if (this->gnss_longitude_sensor_)
+      this->gnss_longitude_sensor_->publish_state(lon);
+    if (this->gnss_altitude_sensor_)
+      this->gnss_altitude_sensor_->publish_state(alt);
+    if (this->gnss_speed_sensor_)
+      this->gnss_speed_sensor_->publish_state(speed_kmh);
+    if (this->gnss_course_sensor_)
+      this->gnss_course_sensor_->publish_state(cog);
+    if (this->gnss_accuracy_sensor_)
+      this->gnss_accuracy_sensor_->publish_state(hdop * 5);
   }
 }
 
