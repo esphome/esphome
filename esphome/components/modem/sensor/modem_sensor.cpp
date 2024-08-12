@@ -39,7 +39,7 @@ void ModemSensor::setup() { ESP_LOGI(TAG, "Setting up Modem Sensor..."); }
 
 void ModemSensor::update() {
   ESP_LOGD(TAG, "Modem sensor update");
-  if (modem::global_modem_component->dce && modem::global_modem_component->modem_ready()) {
+  if (global_modem_component->modem_ready()) {
     this->update_signal_sensors_();
     App.feed_wdt();
     this->update_gnss_sensors_();
@@ -50,23 +50,24 @@ void ModemSensor::update_signal_sensors_() {
   float rssi = NAN;
   float ber = NAN;
   if (this->rssi_sensor_ || this->ber_sensor_) {
-    int modem_rssi, modem_ber;
-    if (modem::global_modem_component->dce && modem::global_modem_component->modem_ready()) {
-      modem::global_modem_component->dce->get_signal_quality(modem_rssi, modem_ber);
-      if (this->rssi_sensor_ && modem_rssi != 99) {
+    int modem_rssi = 99;
+    int modem_ber = 99;
+    if (global_modem_component->modem_ready() &&
+        (global_modem_component->dce->get_signal_quality(modem_rssi, modem_ber) == command_result::OK)) {
+      if (modem_rssi != 99)
         rssi = -113 + (modem_rssi * 2);
-        this->rssi_sensor_->publish_state(rssi);
-      }
-      if (this->ber_sensor_ && modem_ber != 99) {
+      if (modem_ber != 99)
         ber = 0.1f * (modem_ber * modem_ber);
+
+      if (this->rssi_sensor_)
+        this->rssi_sensor_->publish_state(rssi);
+      if (this->ber_sensor_)
         this->ber_sensor_->publish_state(ber);
-      }
-      ESP_LOGD(TAG, "Modem sensor rssi: %d", modem_rssi);
     }
   }
 }
 
-std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_info, const std::string &module) {
+std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_info) {
   // for 7670 (18 tokens):
   //    +CGNSSINFO: 3,12,,04,00,48.6167297,N,4.5600739,W,060824,101218.00,75.7,0.000,234.10,2.52,1.88,1.68,08
   // for 7600 (16 tokens):
@@ -145,7 +146,7 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
   }
 
   for (const auto &pair : gnss_data) {
-    ESP_LOGV(TAG, "GNSSINFO token %s: %s", pair.first.c_str(), pair.second.c_str());
+    ESP_LOGVV(TAG, "GNSSINFO token %s: %s", pair.first.c_str(), pair.second.c_str());
   }
 
   return gnss_data;
@@ -153,10 +154,10 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
 
 void ModemSensor::update_gnss_sensors_() {
   if (this->gnss_latitude_sensor_ || this->gnss_longitude_sensor_ || this->gnss_altitude_sensor_) {
-    auto at_command_result = modem::global_modem_component->send_at("AT+CGNSSINFO");
+    auto at_command_result = global_modem_component->send_at("AT+CGNSSINFO");
     if (at_command_result) {
       std::string gnss_info = at_command_result.result;
-      std::map<std::string, std::string> parts = get_gnssinfo_tokens(gnss_info, "SIM7600");
+      std::map<std::string, std::string> parts = get_gnssinfo_tokens(gnss_info);
 
       float lat = NAN;
       float lon = NAN;
