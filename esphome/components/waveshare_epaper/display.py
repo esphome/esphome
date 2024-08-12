@@ -182,8 +182,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
-            cv.Optional(CONF_NUM_SEGMENTS_X): cv.int_range(min=1, max=40),
-            cv.Optional(CONF_NUM_SEGMENTS_Y): cv.int_range(min=1, max=40),
+            cv.Optional(CONF_NUM_SEGMENTS_X): cv.int_range(min=1, max=100),
+            cv.Optional(CONF_NUM_SEGMENTS_Y): cv.int_range(min=1, max=100),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -213,9 +213,7 @@ async def to_code(config):
     if CONF_NUM_SEGMENTS_X in config:
         cg.add(var.set_num_segments_x(config["num_segments_x"]))
     if CONF_NUM_SEGMENTS_Y in config:
-        cg.add(var.set_num_segments_x(config["num_segments_y"]))
-    if "abcdefghijklmnop1" in config:
-        cg.add(var.blablablubb())
+        cg.add(var.set_num_segments_y(config["num_segments_y"]))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void

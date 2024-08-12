@@ -1520,10 +1520,10 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
   uint16_t seg_x, seg_y, x, y;  // loop count variables
   bool found_change = false;
   // reset first and last X segment so we can recalculate it here.
-  first_segment_x_ = this->seg_x_ + 1;
-  last_segment_x_ = 0;
+  this->first_segment_x_ = this->seg_x_ + 1;
+  this->last_segment_x_ = 0;
   ESP_LOGD(TAG, "width_b: %d, height_px: %d, segment_size: %d, buffer_half_size: %d, seg_x_: %d, seg_y_: %d", width_b,
-           height_px, segment_size, buffer_half_size, seg_x_, seg_y_);
+           height_px, segment_size, buffer_half_size, this->seg_x_, this->seg_y_);
   ESP_LOGD(TAG, "Entering CRC calculation Loop");
   for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {       // vertically iterate through the number of lines (px)
     for (seg_x = 0; seg_x < this->seg_x_; seg_x++) {     // horizontally iterate through number of columns (px)
@@ -1543,32 +1543,31 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
       uint16_t segment_crc = crc16(segment, segment_size * 2, 65535U, 40961U, false, false);
       if (fullSync) {
         // no need to compare, we're in the first run, just place it. This is called by full refresh only
-        checksums_[seg_x + seg_y * seg_x_] = segment_crc;
+        this->checksums_[seg_x + seg_y * seg_x_] = segment_crc;
       } else {
         // Partial Update, compare checksums while replacing and record the X and Y block position of the top left and
         // bottom right corner of the changed elements. Afterwards, we can partially update only the segment that has
         // been altered.
-        bool changed = checksums_[seg_x + seg_y * seg_x_] != segment_crc;
-        checksums_[seg_x + seg_y * seg_x_] = segment_crc;
+        bool changed = this->checksums_[seg_x + seg_y * seg_x_] != segment_crc;
+        this->checksums_[seg_x + seg_y * seg_x_] = segment_crc;
         if (changed && !found_change) {
           found_change = true;
           // We need to span the x segment, with the lowest segment found making the first segment and the highest
           // segment found the last segment.
-          if (seg_x < first_segment_x_)
-            first_segment_x_ = seg_x;
-          if (seg_x > last_segment_x_)
-            last_segment_x_ = seg_x;
-          first_segment_y_ = seg_y;
-
+          if (seg_x < this->first_segment_x_)
+            this->first_segment_x_ = seg_x;
+          if (seg_x > this->last_segment_x_)
+            this->last_segment_x_ = seg_x;
+          this->first_segment_y_ = seg_y;
         } else if (changed) {
           // We need to span the x segment, with the lowest segment found making the first segment and the highest
           // segment found the last segment.
-          if (seg_x < first_segment_x_)
-            first_segment_x_ = seg_x;
-          if (seg_x > last_segment_x_)
-            last_segment_x_ = seg_x;
+          if (seg_x < this->first_segment_x_)
+            this->first_segment_x_ = seg_x;
+          if (seg_x > this->last_segment_x_)
+            this->last_segment_x_ = seg_x;
           // Segment changed but we already found a change before, so set it as last segment
-          last_segment_y_ = seg_y;
+          this->last_segment_y_ = seg_y;
         } else {
           // do nothing, segment didn't change.
         }
@@ -1576,8 +1575,12 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
       delete segment;  // Delete the heap element again, this is not java... >.<
     }
   }
-  ESP_LOGD(TAG, "CRC Calculation finished. Found changes: %02d:%02d to %02d:%02d", first_segment_x_, first_segment_y_,
-           last_segment_x_, last_segment_y_);
+  if (found_change) {
+    ESP_LOGD(TAG, "CRC Calculation finished. Found changes: %02d:%02d to %02d:%02d", first_segment_x_, first_segment_y_,
+             last_segment_x_, last_segment_y_);
+  } else {
+    ESP_LOGD(TAG, "CRC Calculation finished. No changes found.");
+  }
 }
 void GDEY075Z08::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
