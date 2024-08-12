@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_ID,
     CONF_LATITUDE,
     CONF_LONGITUDE,
-    CONF_PLATFORM,
     CONF_SPEED,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -21,7 +20,7 @@ from esphome.const import (
 )
 import esphome.final_validate as fv
 
-from .. import CONF_MODEM, final_validate_platform, modem_ns, switch
+from .. import final_validate_platform, modem_ns, switch
 
 CODEOWNERS = ["@oarcher"]
 
@@ -109,16 +108,7 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate_gnss(config):
     # GNSS sensors needs GNSS switch
     if config.get(CONF_LATITUDE, None) or config.get(CONF_LONGITUDE, None):
-        gnss = False
-        if switches := fv.full_config.get().get("switch", None):
-            modem_switches = filter(
-                lambda x: x.get(CONF_PLATFORM, None) and x[CONF_PLATFORM] == CONF_MODEM,
-                switches,
-            )
-            for sw in modem_switches:
-                if switch.CONF_GNSS in sw:
-                    gnss = True
-        if not gnss:
+        if not fv.full_config.get().data.get(switch.KEY_MODEM_GNSS, None):
             raise cv.Invalid("Using GNSS modem sensors require GNSS modem switch.")
     return config
 

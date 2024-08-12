@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SWITCH
 import esphome.final_validate as fv
 
-from .. import CONF_MODEL, CONF_MODEM, final_validate_platform, modem_ns
+from .. import KEY_MODEM_MODEL, final_validate_platform, modem_ns
 
 CODEOWNERS = ["@oarcher"]
 
@@ -15,7 +15,9 @@ DEPENDENCIES = ["modem"]
 IS_PLATFORM_COMPONENT = True
 
 CONF_GNSS = "gnss"
-CONF_GNSS_COMMAND = "gnss_command"
+CONF_GNSS_COMMAND = "gnss_command"  # will be set by _final_validate_gnss
+
+KEY_MODEM_GNSS = "modem_gnss"
 
 ICON_SATELLITE = "mdi:satellite-variant"
 
@@ -38,11 +40,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _final_validate_gnss(config):
     if config.get(CONF_GNSS, None):
-        modem_config = fv.full_config.get().get(CONF_MODEM)
-        modem_model = modem_config.get(CONF_MODEL, None)
+        full_config = fv.full_config.get()
+        modem_model = full_config.data.get(KEY_MODEM_MODEL, None)
         if modem_model not in MODEM_MODELS_GNSS_COMMAND:
             raise cv.Invalid(f"GNSS not supported for modem '{modem_model}'.")
         config[CONF_GNSS_COMMAND] = MODEM_MODELS_GNSS_COMMAND[modem_model]
+        full_config.data[KEY_MODEM_GNSS] = True
     return config
 
 

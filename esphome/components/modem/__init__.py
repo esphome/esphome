@@ -51,6 +51,9 @@ MODEM_MODELS_POWER = {
 
 MODEM_MODELS_POWER["SIM7670"] = MODEM_MODELS_POWER["SIM7600"]
 
+KEY_MODEM_MODEL = "modem_model"
+KEY_MODEM_CMUX = "modem_cmux"
+
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
 ModemComponentState = modem_ns.enum("ModemComponentState")
@@ -106,17 +109,17 @@ CONFIG_SCHEMA = cv.All(
 
 
 def final_validate_platform(config):
-    if modem_config := fv.full_config.get().get(CONF_MODEM, None):
-        if not modem_config[CONF_ENABLE_CMUX]:
-            raise cv.Invalid(
-                f"'{CONF_MODEM}' platform require '{CONF_ENABLE_CMUX}' to be 'true'."
-            )
+    if not fv.full_config.get().data.get(KEY_MODEM_CMUX, None):
+        raise cv.Invalid(
+            f"'{CONF_MODEM}' platform require '{CONF_ENABLE_CMUX}' to be 'true'."
+        )
     return config
 
 
 def _final_validate(config):
+    full_config = fv.full_config.get()
     # uncomment after PR#4091 merged
-    # if wifi_config := fv.full_config.get().get(CONF_WIFI, None):
+    # if wifi_config := full_config.get(CONF_WIFI, None):
     #     if wifi_has_sta(wifi_config):
     #         raise cv.Invalid("Wifi must be AP only when using ethernet")
     if config.get(CONF_POWER_PIN, None):
@@ -124,6 +127,8 @@ def _final_validate(config):
             raise cv.Invalid(
                 f"Modem model '{config[CONF_MODEL]}' has no power power specs."
             )
+    full_config.data[KEY_MODEM_MODEL] = config[CONF_MODEL]
+    full_config.data[KEY_MODEM_CMUX] = config[CONF_ENABLE_CMUX]
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
