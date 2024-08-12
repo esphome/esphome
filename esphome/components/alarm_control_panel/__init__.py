@@ -1,16 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import web_server
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.core import CORE, coroutine_with_priority
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CODE,
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_STATE,
     CONF_TRIGGER_ID,
-    CONF_CODE,
     CONF_WEB_SERVER_ID,
 )
+from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@grahambrown11", "@hwstar"]
@@ -77,67 +78,72 @@ AlarmControlPanelCondition = alarm_control_panel_ns.class_(
     "AlarmControlPanelCondition", automation.Condition
 )
 
-ALARM_CONTROL_PANEL_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
-    web_server.WEBSERVER_SORTING_SCHEMA
-).extend(
-    {
-        cv.GenerateID(): cv.declare_id(AlarmControlPanel),
-        cv.Optional(CONF_ON_STATE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TRIGGERED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TriggeredTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ARMING): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmingTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PENDING): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PendingTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ARMED_HOME): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedHomeTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ARMED_NIGHT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedNightTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ARMED_AWAY): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedAwayTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_DISARMED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DisarmedTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_CLEARED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClearedTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_CHIME): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ChimeTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_READY): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReadyTrigger),
-            }
-        ),
-    }
+ALARM_CONTROL_PANEL_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(AlarmControlPanel),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt.MQTTAlarmControlPanelComponent
+            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_TRIGGERED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TriggeredTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_ARMING): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmingTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_PENDING): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PendingTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_ARMED_HOME): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedHomeTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_ARMED_NIGHT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedNightTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_ARMED_AWAY): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedAwayTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_DISARMED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DisarmedTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_CLEARED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClearedTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_CHIME): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ChimeTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_READY): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReadyTrigger),
+                }
+            ),
+        }
+    )
 )
 
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
@@ -192,6 +198,9 @@ async def setup_alarm_control_panel_core_(var, config):
     if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
         web_server_ = await cg.get_variable(webserver_id)
         web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if mqtt_id := config.get(CONF_MQTT_ID):
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
 
 async def register_alarm_control_panel(var, config):

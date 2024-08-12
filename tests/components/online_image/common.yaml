@@ -1,0 +1,37 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Purposely test that `online_image:` does auto-load `image:`
+# Keep the `image:` undefined.
+# image:
+online_image:
+  - id: online_binary_image
+    url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
+    format: PNG
+    type: BINARY
+    resize: 50x50
+  - id: online_binary_transparent_image
+    url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
+    type: TRANSPARENT_BINARY
+    format: png
+  - id: online_rgba_image
+    url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
+    format: PNG
+    type: RGBA
+  - id: online_rgb24_image
+    url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
+    format: PNG
+    type: RGB24
+    use_transparency: true
+
+# Check the set_url action
+time:
+  - platform: sntp
+    on_time:
+      - at: "13:37:42"
+        then:
+          - online_image.set_url:
+              id: online_rgba_image
+              url: http://www.example.org/example.png
+

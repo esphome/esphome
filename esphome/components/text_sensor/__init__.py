@@ -1,21 +1,21 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
+    CONF_FROM,
     CONF_ICON,
     CONF_ID,
-    CONF_ON_VALUE,
-    CONF_ON_RAW_VALUE,
-    CONF_TRIGGER_ID,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
+    CONF_ON_RAW_VALUE,
+    CONF_ON_VALUE,
     CONF_STATE,
-    CONF_FROM,
     CONF_TO,
+    CONF_TRIGGER_ID,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,

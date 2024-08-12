@@ -33,8 +33,8 @@ class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
   void publish_state();
 
   void perform() { this->perform(false); }
-
   virtual void perform(bool force) = 0;
+  virtual void check() = 0;
 
   const UpdateInfo &update_info = update_info_;
   const UpdateState &state = state_;
