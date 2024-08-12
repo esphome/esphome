@@ -16,6 +16,7 @@ namespace modem {
 class GnssSwitch : public switch_::Switch, public Component {
  public:
   void set_command(const std::string &command) { this->command_ = command; }
+  optional<bool> get_modem_gnss_state();
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
@@ -26,7 +27,7 @@ class GnssSwitch : public switch_::Switch, public Component {
  protected:
   std::string command_;
   void write_state(bool state) override;
-  bool modem_state_{false};
+  optional<bool> modem_state_;
 };
 
 }  // namespace modem

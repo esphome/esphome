@@ -73,7 +73,7 @@ bool ModemComponent::get_imei(std::string &result) {
   if (this->dce) {
     command_result status;
     // status = this->dce->get_imei(result);
-    status = this->dce->at("AT+CGSN", result, 3000);
+    status = this->dce->at("AT+CGSN", result, 1000);
     success = true;
     if (status == command_result::OK && result.length() == 15) {
       for (char c : result) {
@@ -122,7 +122,7 @@ bool ModemComponent::modem_ready(bool force_check) {
 #endif
     }
     std::string imei;
-    watchdog::WatchdogManager wdt(10000);
+    // watchdog::WatchdogManager wdt(10000);
     if (this->get_imei(imei)) {
       // we are sure that the modem is on
       this->internal_state_.powered_on = true;
