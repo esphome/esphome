@@ -15,7 +15,8 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["spi"]
-
+CONF_NUM_SEGMENTS_X = "num_segments_x"
+CONF_NUM_SEGMENTS_Y = "num_segments_y"
 waveshare_epaper_ns = cg.esphome_ns.namespace("waveshare_epaper")
 WaveshareEPaperBase = waveshare_epaper_ns.class_(
     "WaveshareEPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
@@ -181,6 +182,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            cv.Optional(CONF_NUM_SEGMENTS_X): cv.int_range(min=1, max=40),
+            cv.Optional(CONF_NUM_SEGMENTS_Y): cv.int_range(min=1, max=40),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -207,7 +210,12 @@ async def to_code(config):
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
-
+    if CONF_NUM_SEGMENTS_X in config:
+        cg.add(var.set_num_segments_x(config["num_segments_x"]))
+    if CONF_NUM_SEGMENTS_Y in config:
+        cg.add(var.set_num_segments_x(config["num_segments_y"]))
+    if "abcdefghijklmnop1" in config:
+        cg.add(var.blablablubb())
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void

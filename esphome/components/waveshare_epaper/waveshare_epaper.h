@@ -237,13 +237,19 @@ class GDEY075Z08 : public WaveshareEPaperBWR {
   void dump_config() override;
   void deep_sleep() override;
   void set_full_update_every(uint32_t full_update_every);
-  void set_seg_x(uint8_t value) { this->seg_x_ = value; }
-  void set_seg_y(uint8_t value) { this->seg_y_ = value; }
+  void set_num_segments_x(uint8_t value) {
+    ESP_LOGD("TAG", "Setting num segments X to %d", value);
+    this->seg_x_ = value;
+  }
+  void set_num_segments_y(uint8_t value) {
+    ESP_LOGD("TAG", "Setting num segments Y to %d", value);
+    this->seg_y_ = value;
+  }
 
  protected:
   bool wait_until_idle_();
-  int get_width_internal() override { return 800; }
-  int get_height_internal() override { return 480; }
+  uint16_t get_width_internal() override { return 800; }
+  uint16_t get_height_internal() override { return 480; }
 
  private:
   uint32_t full_update_every_{30};

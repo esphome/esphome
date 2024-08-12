@@ -1512,15 +1512,19 @@ void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every)
 // ========================================================
 
 void GDEY075Z08::calculate_CRCs_(bool fullSync) {
+  ESP_LOGD(TAG, "Entering calculate_CRCs_");
   uint16_t width_b = this->get_width_internal() / (this->seg_x_ * 8);  // width of individual segments in bytes
-  uint16_t height_px = this->get_height_internal() / this->seg_x_;     // height of individual segments in pixel
+  uint16_t height_px = this->get_height_internal() / this->seg_y_;     // height of individual segments in pixel
   uint16_t segment_size = width_b * height_px;
-  uint32_t buffer_half_size = this->get_width_internal() * this->get_height_internal() / 2;
-  uint8_t seg_x, seg_y, x, y;
+  uint32_t buffer_half_size = this->get_width_internal() * this->get_height_internal() / 8;
+  uint16_t seg_x, seg_y, x, y;  // loop count variables
   bool found_change = false;
   // reset first and last X segment so we can recalculate it here.
-  first_segment_x_ = -1;
-  last_segment_x_ = this->seg_x_ + 1;
+  first_segment_x_ = this->seg_x_ + 1;
+  last_segment_x_ = 0;
+  ESP_LOGD(TAG, "width_b: %d, height_px: %d, segment_size: %d, buffer_half_size: %d, seg_x_: %d, seg_y_: %d", width_b,
+           height_px, segment_size, buffer_half_size, seg_x_, seg_y_);
+  ESP_LOGD(TAG, "Entering CRC calculation Loop");
   for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {       // vertically iterate through the number of lines (px)
     for (seg_x = 0; seg_x < this->seg_x_; seg_x++) {     // horizontally iterate through number of columns (px)
       uint8_t *segment = new uint8_t[segment_size * 2];  // create segment array (muliply by 2 since we need 2 byte per
@@ -1535,16 +1539,17 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
         }
       }
       // now calculate a CRC16_checksum and compare it against the stored value.
+      // ESP_LOGD(TAG, "Calculating a CRC");
       uint16_t segment_crc = crc16(segment, segment_size * 2, 65535U, 40961U, false, false);
       if (fullSync) {
         // no need to compare, we're in the first run, just place it. This is called by full refresh only
-        checksums_[seg_x + seg_y * width_b] = segment_crc;
+        checksums_[seg_x + seg_y * seg_x_] = segment_crc;
       } else {
         // Partial Update, compare checksums while replacing and record the X and Y block position of the top left and
         // bottom right corner of the changed elements. Afterwards, we can partially update only the segment that has
         // been altered.
-        bool changed = checksums_[seg_x + seg_y * width_b] != segment_crc;
-        checksums_[seg_x + seg_y * width_b] = segment_crc;
+        bool changed = checksums_[seg_x + seg_y * seg_x_] != segment_crc;
+        checksums_[seg_x + seg_y * seg_x_] = segment_crc;
         if (changed && !found_change) {
           found_change = true;
           // We need to span the x segment, with the lowest segment found making the first segment and the highest
@@ -1552,7 +1557,7 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
           if (seg_x < first_segment_x_)
             first_segment_x_ = seg_x;
           if (seg_x > last_segment_x_)
-            last_segment_x_ > seg_x;
+            last_segment_x_ = seg_x;
           first_segment_y_ = seg_y;
 
         } else if (changed) {
@@ -1568,8 +1573,11 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
           // do nothing, segment didn't change.
         }
       }
+      delete segment;  // Delete the heap element again, this is not java... >.<
     }
   }
+  ESP_LOGD(TAG, "CRC Calculation finished. Found changes: %02d:%02d to %02d:%02d", first_segment_x_, first_segment_y_,
+           last_segment_x_, last_segment_y_);
 }
 void GDEY075Z08::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
@@ -1646,7 +1654,7 @@ void GDEY075Z08::initialize() {
 void GDEY075Z08::loop() {
   if (this->waiting_for_idle && this->busy_pin_) {
     // reset waiting_for idle, then send the display to deep sleep.
-    this->deep_sleep();
+    // this->deep_sleep();
     this->waiting_for_idle = false;
   }
 }
@@ -1662,61 +1670,69 @@ void HOT GDEY075Z08::display() {
     // still waiting for the previous busy to ebb off, skip drawing the display.
     return;
   }
-  unsigned int i;
-  unsigned int half_length = this->get_buffer_length_() / 2u;
+
+  uint32_t half_length = this->get_buffer_length_() / 2u;  // what is the u for?
 
   if (partial) {
     ESP_LOGI(TAG, "Evaluating Partial Screen Update");
     this->calculate_CRCs_(false);
     ESP_LOGD(TAG, "Partial Screen Update Evaluation complete");
-    if (first_segment_x_ == -1) {
-      // if first_segment_x_ was not altered from -1, this means that no changes have happened in the display.
+    if (first_segment_x_ > seg_x_ || first_segment_x_ > last_segment_x_) {
+      // if first_segment_x_ was not altered from seg_x_ + 1, this means that no changes have happened in the display.
       // Jump out, without waking the display, so we don't have to send it back to sleep.
       return;
     }
     ESP_LOGD(TAG, "Found a change, initializing display for partial backup");
-    unsigned int x_start, y_start, x_end, y_end;
+    unsigned int x_start, y_start, x_end, y_end, x_start_b, x_end_b;
     x_start = (this->get_width_internal() / seg_x_) * first_segment_x_;
     x_end = (this->get_width_internal() / seg_x_) * (last_segment_x_ + 1);
     y_start = (this->get_height_internal() / seg_y_) * first_segment_y_;
     y_end = (this->get_height_internal() / seg_y_) * (last_segment_y_ + 1);
-    uint16_t first_byte, last_byte;
-    first_byte = ((y_start * this->get_width_internal()) + x_start) / 8;
-    last_byte = ((y_end * this->get_width_internal()) + x_end) / 8;
+    x_start_b = x_start / 8;  // We need bytes for X, but pixels for Y. This Display does my head in 🤪️
+    x_end_b = x_end / 8;
+    uint16_t width_b = this->get_width_internal() / 8;
+    uint16_t x, y;
+    ESP_LOGD(TAG, "Updating from %03d:%03d to %03d:%03d.", x_start, y_start, x_end, y_end);
 
     this->init_fast();    // Wake up Display.
     this->command(0x91);  // Enter partial mode
     this->command(0x90);  // Enter resolution Setting (?)
-    this->data(x_start / 32);
-    this->data(x_start % 32);
+    this->data(x_start / 256);
+    this->data(x_start % 256);
 
-    this->data(x_end / 32);
-    this->data(x_end % 32 - 1);
+    this->data(x_end / 256);
+    this->data(x_end % 256 - 1);
 
-    this->data(y_start / 32);
-    this->data(y_start % 32);
+    this->data(y_start / 256);
+    this->data(y_start % 256);
 
-    this->data(y_end / 32);
-    this->data(y_end % 32 - 1);
+    this->data(y_end / 256);
+    this->data(y_end % 256 - 1);
     this->data(0x01);
 
     this->command(0x10);
     // write black data
-    for (i = first_byte; i <= last_byte; i++) {
-      this->data(~this->buffer_[i]);
+    for (y = y_start; y < y_end; y++) {
+      for (x = x_start_b; x < x_end_b; x++) {
+        this->data(~this->buffer_[x + y * width_b]);
+      }
     }
     this->command(0x13);
     // write red data
-    for (i = first_byte; i <= last_byte; i++) {
-      this->data(this->buffer_[i + half_length]);
+    for (y = y_start; y < y_end; y++) {
+      for (x = x_start_b; x < x_end_b; x++) {
+        this->data(this->buffer_[half_length + x + y * width_b]);
+      }
     }
     this->command(0x12);  // Display Refresh
     delay(1);
     this->command(0x92);  // Exit Partial mode
   } else {                // if partial is false
+    uint32_t i;
     ESP_LOGI(TAG, "Performing Full Screen Update");
-    calculate_CRCs_(true);  // reset the crc table.
-    this->init_fast();      // Wake up display.
+    this->calculate_CRCs_(true);  // reset the crc table.
+    ESP_LOGD(TAG, "after calculate_CRCs_");
+    this->init_fast();  // Wake up display.
 
     // Write Data
     this->command(0x10);  // Transfer old data
@@ -1737,6 +1753,7 @@ void HOT GDEY075Z08::display() {
   delay(1);                       // This delay needs to be here. 200µS at least.
   this->waiting_for_idle = true;  // BUSY should be LOW now, setting waiting_for_idle to true. This will cause loop() to
                                   // poll for BUSY to go HIGH again, then enter deep sleep
+  this->deep_sleep();
 }
 
 void GDEY075Z08::dump_config() {
