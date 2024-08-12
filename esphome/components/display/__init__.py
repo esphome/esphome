@@ -38,6 +38,7 @@ DisplayOnPageChangeTrigger = display_ns.class_(
 )
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
+CONF_SHOW_TEST_CARD = "show_test_card"
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -82,6 +83,7 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
             }
         ),
         cv.Optional(CONF_AUTO_CLEAR_ENABLED, default=True): cv.boolean,
+        cv.Optional(CONF_SHOW_TEST_CARD): cv.boolean,
     }
 )
 
@@ -113,6 +115,8 @@ async def setup_display_core_(var, config):
         await automation.build_automation(
             trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
         )
+    if config.get(CONF_SHOW_TEST_CARD):
+        cg.add(var.show_test_card())
 
 
 async def register_display(var, config):

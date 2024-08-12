@@ -1,0 +1,38 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+sun:
+  latitude: 48.8584°
+  longitude: 2.2945°
+  on_sunrise:
+    - then:
+        - logger.log: Good morning
+    - elevation: 5°
+      then:
+        - logger.log: Good morning again
+  on_sunset:
+    - then:
+        - logger.log: Good evening
+
+sensor:
+  - platform: sun
+    name: Sun Elevation
+    type: elevation
+  - platform: sun
+    name: Sun Azimuth
+    type: azimuth
+
+text_sensor:
+  - platform: sun
+    name: Sun Next Sunrise
+    type: sunrise
+  - platform: sun
+    name: Sun Next Sunset
+    type: sunset

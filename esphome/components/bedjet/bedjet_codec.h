@@ -187,5 +187,8 @@ class BedjetCodec {
   BedjetStatusPacket buf_;
 };
 
+/// Converts a BedJet temp step into degrees Celsius.
+float bedjet_temp_to_c(uint8_t temp);
+
 }  // namespace bedjet
 }  // namespace esphome

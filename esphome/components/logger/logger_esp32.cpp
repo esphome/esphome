@@ -120,29 +120,27 @@ void Logger::pre_setup() {
     switch (this->uart_) {
       case UART_SELECTION_UART0:
         this->uart_num_ = UART_NUM_0;
+        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
         break;
       case UART_SELECTION_UART1:
         this->uart_num_ = UART_NUM_1;
+        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
         break;
 #ifdef USE_ESP32_VARIANT_ESP32
       case UART_SELECTION_UART2:
         this->uart_num_ = UART_NUM_2;
+        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
         break;
 #endif
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
-        this->uart_num_ = -1;
         break;
 #endif
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
       case UART_SELECTION_USB_SERIAL_JTAG:
-        this->uart_num_ = -1;
         init_usb_serial_jtag_();
         break;
 #endif
-    }
-    if (this->uart_num_ >= 0) {
-      init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
     }
 #endif  // USE_ESP_IDF
   }

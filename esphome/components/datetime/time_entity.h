@@ -10,10 +10,6 @@
 
 #include "datetime_base.h"
 
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
-
 namespace esphome {
 namespace datetime {
 
@@ -27,6 +23,7 @@ namespace datetime {
 
 class TimeCall;
 class TimeEntity;
+class OnTimeTrigger;
 
 struct TimeEntityRestoreState {
   uint8_t hour;
@@ -62,6 +59,7 @@ class TimeEntity : public DateTimeBase {
  protected:
   friend class TimeCall;
   friend struct TimeEntityRestoreState;
+  friend class OnTimeTrigger;
 
   virtual void control(const TimeCall &call) = 0;
 };
@@ -115,21 +113,15 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
   }
 };
 
-#ifdef USE_TIME
-
 class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:
-  explicit OnTimeTrigger(time::RealTimeClock *rtc) : rtc_(rtc) {}
   void loop() override;
 
  protected:
   bool matches_(const ESPTime &time) const;
 
-  time::RealTimeClock *rtc_;
   optional<ESPTime> last_check_;
 };
-
-#endif
 
 }  // namespace datetime
 }  // namespace esphome

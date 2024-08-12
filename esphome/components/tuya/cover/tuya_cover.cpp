@@ -51,7 +51,7 @@ void TuyaCover::setup() {
       return;
     }
     auto pos = float(datapoint.value_uint - this->min_value_) / this->value_range_;
-    this->position = 1.0f - pos;
+    this->position = this->invert_position_report_ ? pos : 1.0f - pos;
     this->publish_state();
   });
 }
@@ -62,7 +62,7 @@ void TuyaCover::control(const cover::CoverCall &call) {
       this->parent_->force_set_enum_datapoint_value(*this->control_id_, COMMAND_STOP);
     } else {
       auto pos = this->position;
-      pos = 1.0f - pos;
+      pos = this->invert_position_report_ ? pos : 1.0f - pos;
       auto position_int = static_cast<uint32_t>(pos * this->value_range_);
       position_int = position_int + this->min_value_;
 
@@ -78,7 +78,7 @@ void TuyaCover::control(const cover::CoverCall &call) {
         this->parent_->force_set_enum_datapoint_value(*this->control_id_, COMMAND_CLOSE);
       }
     } else {
-      pos = 1.0f - pos;
+      pos = this->invert_position_report_ ? pos : 1.0f - pos;
       auto position_int = static_cast<uint32_t>(pos * this->value_range_);
       position_int = position_int + this->min_value_;
 
@@ -111,6 +111,9 @@ void TuyaCover::dump_config() {
     } else {
       ESP_LOGCONFIG(TAG, "   Configured as Inverted, but direction_datapoint isn't configured");
     }
+  }
+  if (this->invert_position_report_) {
+    ESP_LOGCONFIG(TAG, "   Position Reporting Inverted");
   }
   if (this->control_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "   Control has datapoint ID %u", *this->control_id_);

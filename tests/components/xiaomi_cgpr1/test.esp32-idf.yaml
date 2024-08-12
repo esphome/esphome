@@ -1,13 +1,1 @@
-esp32_ble_tracker:
-
-binary_sensor:
-  - platform: xiaomi_cgpr1
-    name: CGPR1 Motion
-    mac_address: "12:34:56:12:34:56"
-    bindkey: 48403ebe2d385db8d0c187f81e62cb64
-    battery_level:
-      name: CGPR1 battery Level
-    idle_time:
-      name: CGPR1 Idle Time
-    illuminance:
-      name: CGPR1 Illuminance
+<<: !include common.yaml

@@ -7,7 +7,10 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_ADDRESS,
     CONF_REBOOT_TIMEOUT,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
 )
+from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
 from esphome.components import time
 from esphome.core import TimePeriod
 from esphome import automation
@@ -21,6 +24,8 @@ CONF_PEER_PRESHARED_KEY = "peer_preshared_key"
 CONF_PEER_ALLOWED_IPS = "peer_allowed_ips"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
 CONF_REQUIRE_CONNECTION_TO_PROCEED = "require_connection_to_proceed"
+
+CONF_WIREGUARD_ID = "wireguard_id"
 
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
@@ -115,12 +120,19 @@ async def to_code(config):
     if config[CONF_REQUIRE_CONNECTION_TO_PROCEED]:
         cg.add(var.disable_auto_proceed())
 
+    # Workaround for crash on IDF 5+
+    # See https://github.com/trombik/esp_wireguard/issues/33#issuecomment-1568503651
+    if CORE.using_esp_idf and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
+        5, 0, 0
+    ):
+        add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
+
     # This flag is added here because the esp_wireguard library statically
     # set the size of its allowed_ips list at compile time using this value;
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("droscy/esp_wireguard", "0.4.0")
+    cg.add_library("droscy/esp_wireguard", "0.4.2")
 
     await cg.register_component(var, config)
 

@@ -1,0 +1,23 @@
+uart:
+  - id: uart_sm300d2
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+sensor:
+  - platform: sm300d2
+    co2:
+      name: SM300D2 CO2 Value
+    formaldehyde:
+      name: SM300D2 Formaldehyde Value
+    tvoc:
+      name: SM300D2 TVOC Value
+    pm_2_5:
+      name: SM300D2 PM2.5 Value
+    pm_10_0:
+      name: SM300D2 PM10 Value
+    temperature:
+      name: SM300D2 Temperature Value
+    humidity:
+      name: SM300D2 Humidity Value
+    update_interval: 60s
