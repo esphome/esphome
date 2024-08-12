@@ -19,7 +19,7 @@ class LVGLSwitch : public switch_::Switch {
   }
 
  protected:
-  void write_state(bool value) {
+  void write_state(bool value) override {
     if (this->state_lambda_ != nullptr)
       this->state_lambda_(value);
     else
