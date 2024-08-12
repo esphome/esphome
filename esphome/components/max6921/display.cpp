@@ -471,10 +471,10 @@ int Display::update_out_buf_() {
       is_get_next_char = false;
       if (is_point_seg_only(pos_char)) {                                  // is point segment only?
         if (this->disp_text_.visible_idx + visible_idx_offset - 1 > 0) {  // not the 1st text character?
-          if (is_point_seg_only(this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset -
-                                                      2])) {  // previous text character wasn't a point?
-            if (pos == 0) {                                   // 1st (most left) display position?
-              is_get_next_char = true;                        // yes -> ignore point, get next character
+          if (!is_point_seg_only(this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset -
+                                                       2])) {  // previous text character wasn't a point?
+            if (pos == 0) {                                    // 1st (most left) display position?
+              is_get_next_char = true;                         // yes -> ignore point, get next character
             } else {
               --pos;  // no -> add point to previous display position
               is_clear_pos = false;
