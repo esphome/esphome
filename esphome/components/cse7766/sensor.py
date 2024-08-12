@@ -22,6 +22,7 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
