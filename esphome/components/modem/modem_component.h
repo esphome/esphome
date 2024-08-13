@@ -77,6 +77,7 @@ class ModemComponent : public Component {
   bool modem_ready(bool force_check);
   void enable();
   void disable();
+  void reconnect();
 
   network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
@@ -166,6 +167,8 @@ class ModemComponent : public Component {
     bool power_transition{false};
     // states for triggering on/off signals
     ModemPowerState power_state{ModemPowerState::TOFFUART};
+    // ask the modem to reconnect
+    bool reconnect{false};
   };
   InternalState internal_state_;
 };

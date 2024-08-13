@@ -153,6 +153,17 @@ void ModemComponent::disable() {
   }
 }
 
+void ModemComponent::reconnect() {
+  if (!this->internal_state_.reconnect) {
+    this->internal_state_.reconnect = true;
+    this->component_state_ = ModemComponentState::NOT_RESPONDING;
+    // if reconnect fail, let some time before retry
+    set_timeout(120000, [this]() { this->internal_state_.reconnect = false; });
+  } else {
+    ESP_LOGD(TAG, "Reconnecting already in progress.");
+  }
+}
+
 network::IPAddresses ModemComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   esp_netif_ip_info_t ip;
@@ -233,7 +244,6 @@ void ModemComponent::loop() {
   static uint32_t last_health_check = millis();
   static bool connecting = false;
   static uint8_t network_attach_retry = 10;
-  static uint8_t ip_lost_retries = 10;
 
   if ((millis() < next_loop_millis)) {
     // some commands need some delay
@@ -380,7 +390,12 @@ void ModemComponent::loop() {
         if (!this->internal_state_.connected) {
           this->status_set_warning("Connection via Modem lost!");
           this->component_state_ = ModemComponentState::DISCONNECTED;
-        } else if (this->cmux_ && (millis() - last_health_check) > 30000) {
+          break;
+        }
+        // clear flags if previously set by this->reconnect()
+        this->internal_state_.reconnect = false;
+
+        if (this->cmux_ && (millis() - last_health_check) > 30000) {
           ESP_LOGD(TAG, "modem health check");
           last_health_check = millis();
           if (!this->get_imei()) {
