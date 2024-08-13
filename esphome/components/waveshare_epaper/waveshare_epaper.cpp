@@ -1656,7 +1656,7 @@ void GDEY075Z08::initialize() {
   wait_until_idle_();   // waiting for the electronic paper IC to release the idle signal
 
   this->command(0X00);  // PANNEL SETTING
-  this->data(0x0F);     // KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
+  this->data(0x0F);     // KW-3f KWR-2F BWROTP 0f BWOTP 1f
 
   this->command(0x61);  // resolution setting
   this->data(this->get_width_internal() / 256);
