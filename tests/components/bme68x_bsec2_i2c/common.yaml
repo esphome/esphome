@@ -1,0 +1,34 @@
+i2c:
+  - id: i2c_bme68x
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+bme68x_bsec2_i2c:
+  address: 0x76
+  model: bme688
+  algorithm_output: classification
+  operating_age: 28d
+  sample_rate: LP
+  supply_voltage: 3.3V
+
+sensor:
+  - platform: bme68x_bsec2
+    temperature:
+      name: BME68X Temperature
+    pressure:
+      name: BME68X Pressure
+    humidity:
+      name: BME68X Humidity
+    gas_resistance:
+      name: BME68X Gas Sensor
+    iaq:
+      name: BME68X IAQ
+    co2_equivalent:
+      name: BME68X eCO2
+    breath_voc_equivalent:
+      name: BME68X Breath eVOC
+
+text_sensor:
+  - platform: bme68x_bsec2
+    iaq_accuracy:
+      name: BME68X Accuracy

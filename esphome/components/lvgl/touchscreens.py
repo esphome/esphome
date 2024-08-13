@@ -34,7 +34,7 @@ def touchscreen_schema(config):
 
 
 async def touchscreens_to_code(var, config):
-    for tconf in config.get(CONF_TOUCHSCREENS, ()):
+    for tconf in config[CONF_TOUCHSCREENS]:
         lvgl_components_required.add(CONF_TOUCHSCREEN)
         touchscreen = await cg.get_variable(tconf[CONF_TOUCHSCREEN_ID])
         lpt = tconf[CONF_LONG_PRESS_TIME].total_milliseconds
