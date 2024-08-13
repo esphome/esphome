@@ -35,6 +35,14 @@ OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFor
   this->set_url(url);
 }
 
+void OnlineImage::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
+  if (this->data_start_) {
+    Image::draw(x, y, display, color_on, color_off);
+  } else if (this->placeholder_) {
+    this->placeholder_->draw(x, y, display, color_on, color_off);
+  }
+}
+
 void OnlineImage::release() {
   if (this->buffer_) {
     ESP_LOGD(TAG, "Deallocating old buffer...");
