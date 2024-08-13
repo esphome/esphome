@@ -15,10 +15,10 @@ esphome:
           on_response:
             then:
               - logger.log:
-                  format: "Response status: %d, Duration: %u ms"
+                  format: "Response status: %d, Duration: %lu ms"
                   args:
                     - response->status_code
-                    - response->duration_ms
+                    - (long) response->duration_ms
       - http_request.post:
           url: https://esphome.io
           headers:
