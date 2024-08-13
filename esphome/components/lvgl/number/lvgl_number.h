@@ -19,7 +19,7 @@ class LVGLNumber : public number::Number {
   }
 
  protected:
-  void control(float value) {
+  void control(float value) override {
     if (this->control_lambda_ != nullptr)
       this->control_lambda_(value);
     else

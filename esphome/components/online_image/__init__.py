@@ -27,6 +27,7 @@ CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
+CONF_PLACEHOLDER = "placeholder"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ ONLINE_IMAGE_SCHEMA = cv.Schema(
         #
         cv.Required(CONF_URL): cv.url,
         cv.Required(CONF_FORMAT): cv.enum(IMAGE_FORMAT, upper=True),
+        cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
         cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
         cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
             {
@@ -151,6 +153,10 @@ async def to_code(config):
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
 
     cg.add(var.set_transparency(transparent))
+
+    if placeholder_id := config.get(CONF_PLACEHOLDER):
+        placeholder = await cg.get_variable(placeholder_id)
+        cg.add(var.set_placeholder(placeholder))
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

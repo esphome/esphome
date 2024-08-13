@@ -170,7 +170,11 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
 }
 
 std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
+#ifdef ESPHOME_PROJECT_NAME
+  std::vector<std::string> infos = {ESPHOME_PROJECT_NAME, ESPHOME_PROJECT_VERSION, ESPHOME_VARIANT, App.get_name()};
+#else
   std::vector<std::string> infos = {"ESPHome", ESPHOME_VERSION, ESPHOME_VARIANT, App.get_name()};
+#endif
   std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_DEVICE_INFO, infos, false);
   return data;
 };

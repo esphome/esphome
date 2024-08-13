@@ -1,9 +1,9 @@
 #pragma once
 #include "esphome/core/defines.h"
 
-#ifdef USE_LVGL_BINARY_SENSOR
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#endif  // USE_LVGL_BINARY_SENSOR
+#endif  // USE_BINARY_SENSOR
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER

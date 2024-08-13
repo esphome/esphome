@@ -334,7 +334,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Override the web handler's handleRequest method.
   void handleRequest(AsyncWebServerRequest *request) override;
   /// This web handle is not trivial.
-  bool isRequestHandlerTrivial() override;
+  bool isRequestHandlerTrivial() override;  // NOLINT(readability-identifier-naming)
 
   void add_entity_to_sorting_list(EntityBase *entity, float weight);
 
