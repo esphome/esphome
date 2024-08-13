@@ -50,6 +50,7 @@
 #define USE_LVGL_ROTARY_ENCODER
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
+#define USE_NETWORK
 #define USE_MQTT
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
