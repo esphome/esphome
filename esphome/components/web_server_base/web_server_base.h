@@ -31,7 +31,6 @@ class MiddlewareHandler : public AsyncWebHandler {
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
     next_->handleBody(request, data, len, index, total);
   }
-  // NOLINTNEXTLINE(readability-identifier-naming)
   bool isRequestHandlerTrivial() override { return next_->isRequestHandlerTrivial(); }
 
  protected:
