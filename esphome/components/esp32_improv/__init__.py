@@ -1,12 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, output
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
-
 
 AUTO_LOAD = ["esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
-CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["wifi", "esp32"]
 
 CONF_AUTHORIZED_DURATION = "authorized_duration"
@@ -45,7 +43,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("USE_IMPROV")
-    cg.add_library("esphome/Improv", "1.2.3")
+    cg.add_library("improv/Improv", "1.2.4")
 
     cg.add(var.set_identify_duration(config[CONF_IDENTIFY_DURATION]))
     cg.add(var.set_authorized_duration(config[CONF_AUTHORIZED_DURATION]))

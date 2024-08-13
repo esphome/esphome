@@ -1,5 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import esp32_ble
+from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -11,11 +13,9 @@ from esphome.const import (
 )
 from esphome.components import esp32_ble
 from esphome.core import CORE
-from esphome.components.esp32 import add_idf_sdkconfig_option
 
 AUTO_LOAD = ["esp32_ble"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
-CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["esp32"]
 
 CONF_MANUFACTURER = "manufacturer"

@@ -1,9 +1,10 @@
+import argparse
+import glob
 import inspect
 import json
-import argparse
 import os
-import glob
 import re
+
 import voluptuous as vol
 
 # NOTE: Cannot import other esphome components globally as a modification in vol_schema
@@ -94,13 +95,12 @@ load_components()
 
 # Import esphome after loading components (so schema is tracked)
 # pylint: disable=wrong-import-position
-import esphome.core as esphome_core
-import esphome.config_validation as cv
-from esphome import automation
-from esphome import pins
+from esphome import automation, pins
 from esphome.components import remote_base
-from esphome.loader import get_platform, CORE_COMPONENTS_PATH
+import esphome.config_validation as cv
+import esphome.core as esphome_core
 from esphome.helpers import write_file_if_changed
+from esphome.loader import CORE_COMPONENTS_PATH, get_platform
 from esphome.util import Registry
 
 # pylint: enable=wrong-import-position

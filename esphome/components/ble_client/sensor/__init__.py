@@ -1,18 +1,19 @@
+from esphome import automation
 import esphome.codegen as cg
+from esphome.components import ble_client, esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, ble_client, esp32_ble_tracker
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
     CONF_LAMBDA,
+    CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
-    CONF_SERVICE_UUID,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
     CONF_NOTIFY,
 )
-from esphome import automation
+
 from .. import ble_client_ns
 
 DEPENDENCIES = ["ble_client"]
