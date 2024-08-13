@@ -3109,6 +3109,16 @@ void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
   out.append("SubscribeHomeAssistantStatesRequest {}");
 }
 #endif
+bool SubscribeHomeAssistantStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->once = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool SubscribeHomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -3126,6 +3136,7 @@ bool SubscribeHomeAssistantStateResponse::decode_length(uint32_t field_id, Proto
 void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->entity_id);
   buffer.encode_string(2, this->attribute);
+  buffer.encode_bool(3, this->once);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
@@ -3137,6 +3148,10 @@ void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
 
   out.append("  attribute: ");
   out.append("'").append(this->attribute).append("'");
+  out.append("\n");
+
+  out.append("  once: ");
+  out.append(YESNO(this->once));
   out.append("\n");
   out.append("}");
 }
