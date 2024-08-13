@@ -11,7 +11,7 @@ using namespace esphome::switch_;
 
 void HomeassistantSwitch::setup() {
   api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, optional<std::string>(""), [this](const std::string &state) {
+      this->entity_id_, nullopt, [this](const std::string &state) {
         auto val = parse_on_off(state.c_str());
         switch (val) {
           case PARSE_NONE:
@@ -25,7 +25,6 @@ void HomeassistantSwitch::setup() {
             this->publish_state(new_state);
             break;
         }
-        return;
       });
 }
 
@@ -37,26 +36,22 @@ void HomeassistantSwitch::dump_config() {
 float HomeassistantSwitch::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantSwitch::write_state(bool state) {
-  if (!api::global_api_server) {
-    ESP_LOGE(TAG, "Missing API Server");
-    return;
-  }
   if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "API Server not connected");
+    ESP_LOGE(TAG, "No clients connected to API server");
     return;
   }
 
   api::HomeassistantServiceResponse resp;
-  api::HomeassistantServiceMap entity_id_kv;
-  entity_id_kv.key = "entity_id";
-  entity_id_kv.value = this->entity_id_;
-  resp.data.push_back(entity_id_kv);
-
   if (state) {
     resp.service = "switch.turn_on";
   } else {
     resp.service = "switch.turn_off";
   }
+  
+  api::HomeassistantServiceMap entity_id_kv;
+  entity_id_kv.key = "entity_id";
+  entity_id_kv.value = this->entity_id_;
+  resp.data.push_back(entity_id_kv);
 
   api::global_api_server->send_homeassistant_service_call(resp);
 }
