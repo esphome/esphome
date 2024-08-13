@@ -41,6 +41,11 @@ binary_sensor:
     attribute: world
     id: ha_hello_world_binary_attribute
 
+number:
+  - platform: homeassistant
+    entity_id: number.hello_world
+    id: ha_hello_world_number
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
