@@ -231,7 +231,6 @@ void ModemComponent::loop() {
   static ModemComponentState last_state = this->component_state_;
   static uint32_t next_loop_millis = millis();
   static bool connecting = false;
-  static bool disconnecting = false;
   static uint8_t network_attach_retry = 10;
   static uint8_t ip_lost_retries = 10;
 
@@ -381,40 +380,10 @@ void ModemComponent::loop() {
           this->status_set_warning("Connection via Modem lost!");
           this->component_state_ = ModemComponentState::DISCONNECTED;
         }
-        disconnecting = false;
       } else {
         if (this->internal_state_.connected) {
-          // connected but disbled, so disconnect
-          if (!disconnecting) {
-            disconnecting = true;
-            ip_lost_retries = 10;
-            ESP_LOGD(TAG, "Disconnecting...");
-            this->stop_ppp_();
-            delay(200);  // NOLINT
-            ESP_LOGD(TAG, "Disconnected after %.1fmin", float(this->internal_state_.connect_begin) / (1000 * 60));
-          } else {
-            // disconnecting
-            // Waiting for IP_EVENT_PPP_LOST_IP.
-            // This can take a long time, so we ckeck the IP addr, and trigger the event manualy if it's null.
-            esp_netif_ip_info_t ip_info;
-            esp_netif_get_ip_info(this->ppp_netif_, &ip_info);
-            if (ip_info.ip.addr == 0) {
-              // lost IP
-              esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
-            } else {
-              ESP_LOGD(TAG, "Waiting for lost IP... (retries %" PRIu8 ")", ip_lost_retries);
-              ip_lost_retries--;
-              if (ip_lost_retries == 0) {
-                // Something goes wrong, we have still an IP
-                ESP_LOGE(TAG, "No IP lost event recieved. Sending one manually");
-                esp_event_post(IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr, 0, 0);
-              }
-            }
-            next_loop_millis = millis() + 2000;  // delay for next loop
-          }
-        } else {  // if (this->internal_state_.connected)
-          // ip lost as expected
-          ESP_LOGI(TAG, "PPPoS disconnected");
+          // connected but disbaled, so disconnect
+          this->stop_ppp_();
           this->component_state_ = ModemComponentState::DISCONNECTED;
         }
       }
@@ -423,7 +392,6 @@ void ModemComponent::loop() {
     case ModemComponentState::DISABLED:
       if (this->internal_state_.enabled) {
         this->component_state_ = ModemComponentState::DISCONNECTED;
-        ESP_LOGE(TAG, "here");
       } else if (this->internal_state_.powered_on) {
         this->poweroff_();
       }
