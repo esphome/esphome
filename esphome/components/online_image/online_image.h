@@ -50,6 +50,8 @@ class OnlineImage : public PollingComponent,
   OnlineImage(const std::string &url, int width, int height, ImageFormat format, image::ImageType type,
               uint32_t buffer_size);
 
+  void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
+
   void update() override;
   void loop() override;
 
@@ -59,6 +61,14 @@ class OnlineImage : public PollingComponent,
       this->url_ = url;
     }
   }
+
+  /**
+   * @brief Set the image that needs to be shown as long as the downloaded image
+   *  is not available.
+   *
+   * @param placeholder Pointer to the (@link Image) to show as placeholder.
+   */
+  void set_placeholder(image::Image *placeholder) { this->placeholder_ = placeholder; }
 
   /**
    * Release the buffer storing the image. The image will need to be downloaded again
@@ -113,6 +123,7 @@ class OnlineImage : public PollingComponent,
   DownloadBuffer download_buffer_;
 
   const ImageFormat format_;
+  image::Image *placeholder_{nullptr};
 
   std::string url_{""};
 
