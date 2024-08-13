@@ -10,11 +10,13 @@ namespace esphome {
 namespace modem {
 
 class ModemOnNotRespondingTrigger : public Trigger<> {
-  // not managed by `add_on_state_callback`, because we want to execute the callback
-  // as a single mode script (we have to know when the callback has ended)
  public:
   explicit ModemOnNotRespondingTrigger(ModemComponent *parent) {
-    parent->set_not_responding_cb(static_cast<Trigger<> *>(this));
+    parent->add_on_state_callback([this, parent](ModemComponentState old_state, ModemComponentState state) {
+      if (!parent->is_failed() && state == ModemComponentState::NOT_RESPONDING) {
+        this->trigger();
+      }
+    });
   }
 };
 

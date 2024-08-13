@@ -64,7 +64,6 @@ class ModemComponent : public Component {
   void set_status_pin(GPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void set_pin_code(const std::string &pin_code) { this->pin_code_ = pin_code; }
   void set_apn(const std::string &apn) { this->apn_ = apn; }
-  void set_not_responding_cb(Trigger<> *not_responding_cb) { this->not_responding_cb_ = not_responding_cb; }
   void enable_cmux() { this->cmux_ = true; }
   void enable_debug();
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }

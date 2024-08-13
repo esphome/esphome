@@ -297,16 +297,13 @@ void ModemComponent::loop() {
           this->status_clear_warning();
           this->component_state_ = ModemComponentState::DISCONNECTED;
         } else {
-          if (!this->internal_state_.powered_on) {
-            this->poweron_();
-          } else if (this->not_responding_cb_) {
-            if (!this->not_responding_cb_->is_action_running()) {
-              ESP_LOGD(TAG, "Calling 'on_not_responding' callback");
-              this->not_responding_cb_->trigger();
-            }
-          } else {
-            ESP_LOGW(TAG, "Modem not responding, and no 'on_not_responding' action defined");
+          this->modem_lazy_init_();
+          if (!this->modem_sync_()) {
+            ESP_LOGE(TAG, "Unable to recover modem");
           }
+          // if (!this->internal_state_.powered_on) {
+          //   this->poweron_();
+          // }
         }
       }
       break;
