@@ -248,8 +248,9 @@ class GDEY075Z08 : public WaveshareEPaperBWR {
  private:
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
-  uint8_t seg_x_{20};  // number of horizontal segments for partial update
-  uint8_t seg_y_{10};  // number of vertical segments for partial update.
+  uint8_t seg_x_{20};        // number of horizontal segments for partial update
+  uint8_t seg_y_{10};        // number of vertical segments for partial update.
+  uint8_t *segment_buffer_;  // byte buffer of segments to hold a single segment for CRC calculation.
   uint16_t first_segment_x_ = 0;
   uint16_t first_segment_y_ = 0;
   uint16_t last_segment_x_ = 0;

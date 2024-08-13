@@ -1525,31 +1525,30 @@ void GDEY075Z08::calculate_crcs_(bool full_sync) {
   ESP_LOGD(TAG, "width_b: %d, height_px: %d, segment_size: %d, buffer_half_size: %d, seg_x_: %d, seg_y_: %d", width_b,
            height_px, segment_size, buffer_half_size, this->seg_x_, this->seg_y_);
   ESP_LOGD(TAG, "Entering CRC calculation Loop");
-  for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {       // vertically iterate through the number of lines (px)
-    for (seg_x = 0; seg_x < this->seg_x_; seg_x++) {     // horizontally iterate through number of columns (px)
-      uint8_t *segment = new uint8_t[segment_size * 2];  // create segment array (muliply by 2 since we need 2 byte per
-                                                         // 8 pixel, 1 for black and 1 for red)
+  for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {    // vertically iterate through the number of lines (px)
+    for (seg_x = 0; seg_x < this->seg_x_; seg_x++) {  // horizontally iterate through number of columns (px)
       for (y = 0; y < height_px; y++) {
         for (x = 0; x < width_b; x++) {
           uint16_t segment_position = x + y * width_b;  // linear position inside the segment in bytes
           uint16_t global_position = seg_y * height_px * this->get_width_internal() / 8 +
                                      y * this->get_width_internal() / 8 + seg_x * width_b + x;
-          segment[segment_position] = this->buffer_[global_position];                                    // copy black data
-          segment[segment_position + segment_size] = this->buffer_[global_position + buffer_half_size];  // copy red data
+          this->segment_buffer_[segment_position] = this->buffer_[global_position];  // copy black data
+          this->segment_buffer_[segment_position + segment_size] =
+              this->buffer_[global_position + buffer_half_size];  // copy red data
         }
       }
       // now calculate a CRC16_checksum and compare it against the stored value.
       // ESP_LOGD(TAG, "Calculating a CRC");
-      uint16_t segment_crc = crc16(segment, segment_size * 2, 65535U, 40961U, false, false);
+      uint16_t segment_crc = crc16(this->segment_buffer_, segment_size * 2, 65535U, 40961U, false, false);
       if (full_sync) {
         // no need to compare, we're in the first run, just place it. This is called by full refresh only
-        this->checksums_[seg_x + seg_y * seg_x_] = segment_crc;
+        this->checksums_[seg_x + seg_y * this->seg_x_] = segment_crc;
       } else {
         // Partial Update, compare checksums while replacing and record the X and Y block position of the top left and
         // bottom right corner of the changed elements. Afterwards, we can partially update only the segment that has
         // been altered.
-        bool changed = this->checksums_[seg_x + seg_y * seg_x_] != segment_crc;
-        this->checksums_[seg_x + seg_y * seg_x_] = segment_crc;
+        bool changed = this->checksums_[seg_x + seg_y * this->seg_x_] != segment_crc;
+        this->checksums_[seg_x + seg_y * this->seg_x_] = segment_crc;
         if (changed && !found_change) {
           found_change = true;
           // We need to span the x segment, with the lowest segment found making the first segment and the highest
@@ -1572,7 +1571,6 @@ void GDEY075Z08::calculate_crcs_(bool full_sync) {
           // do nothing, segment didn't change.
         }
       }
-      delete[] segment;  // Delete the heap element again, this is not java... >.<
     }
   }
   if (found_change) {
@@ -1631,11 +1629,18 @@ void GDEY075Z08::init_fast_() {
   this->data(0x07);
 }
 void GDEY075Z08::initialize() {
+  ExternalRAMAllocator<uint8_t> allocator8(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  ExternalRAMAllocator<uint16_t> allocator16(ExternalRAMAllocator<uint16_t>::ALLOW_FAILURE);
+  uint16_t width_b = this->get_width_internal() / (this->seg_x_ * 8);  // width of individual segments in bytes
+  uint16_t height_px = this->get_height_internal() / this->seg_y_;     // height of individual segments in pixel
+  uint16_t segment_size = width_b * height_px;
+  this->segment_buffer_ = allocator8.allocate(
+      segment_size * 2);  // Allocate the buffer for twice the segment size because we have 2 bit per Pixel.
   this->reset_();
   this->at_update_ = 0;
-  checksums_ =
-      new uint16_t[seg_x_ *
-                   seg_y_];  // initialize the checksums array. Will be filed and maintained by calculate_CRCs_()
+  this->checksums_ = allocator16.allocate(
+      this->seg_x_ *
+      this->seg_y_);  // initialize the checksums array. Will be filed and maintained by calculate_crss_()
 
   ESP_LOGE(TAG, "Before Powerup, after Reset");
   this->command(0x01);  // POWER SETTING
@@ -1701,7 +1706,7 @@ void HOT GDEY075Z08::display() {
     ESP_LOGI(TAG, "Evaluating Partial Screen Update");
     this->calculate_crcs_(false);
     ESP_LOGD(TAG, "Partial Screen Update Evaluation complete");
-    if (first_segment_x_ > seg_x_ || first_segment_x_ > last_segment_x_) {
+    if (this->first_segment_x_ > this->seg_x_ || this->first_segment_x_ > this->last_segment_x_) {
       // if first_segment_x_ was not altered from seg_x_ + 1, this means that no changes have happened in the display.
       // Jump out, without waking the display, so we don't have to send it back to sleep.
       return;
