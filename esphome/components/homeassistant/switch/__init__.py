@@ -4,11 +4,12 @@ from esphome.components import switch
 from esphome.const import CONF_ID
 
 from .. import (
-    HOME_ASSISTANT_IMPORT_SCHEMA,
+    HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
     homeassistant_ns,
     setup_home_assistant_entity,
 )
 
+CODEOWNERS = ["@Links2004"]
 DEPENDENCIES = ["api"]
 
 HomeassistantSwitch = homeassistant_ns.class_(
@@ -17,9 +18,8 @@ HomeassistantSwitch = homeassistant_ns.class_(
 
 CONFIG_SCHEMA = (
     switch.switch_schema(HomeassistantSwitch)
-    .extend({cv.GenerateID(): cv.declare_id(HomeassistantSwitch)})
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(HOME_ASSISTANT_IMPORT_SCHEMA)
+    .extend(HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA)
 )
 
 
