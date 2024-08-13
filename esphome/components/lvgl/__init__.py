@@ -23,7 +23,7 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, update_to_code
 from .defines import CONF_SKIP
-from .encoders import ENCODERS_CONFIG, encoders_to_code
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
 from .schemas import (
@@ -272,6 +272,7 @@ async def to_code(config):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
+        await initial_focus_to_code(config)
 
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")

@@ -46,6 +46,7 @@ binary_sensor:
 lvgl:
   encoders:
     group: switches
+    initial_focus: button_button
     enter_button: select_button
     sensor:
       left_button: up_button
