@@ -104,7 +104,6 @@ template<typename T> class optional {  // NOLINT
     has_value_ = true;
   }
 
- private:
   bool has_value_{false};  // NOLINT
   value_type value_;       // NOLINT
 };
