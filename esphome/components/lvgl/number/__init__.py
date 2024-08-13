@@ -5,7 +5,15 @@ from esphome.cpp_generator import MockObj
 
 from ..defines import CONF_ANIMATED, CONF_LVGL_ID, CONF_UPDATE_ON_RELEASE, CONF_WIDGET
 from ..lv_validation import animated
-from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
+from ..lvcode import (
+    API_EVENT,
+    EVENT_ARG,
+    UPDATE_EVENT,
+    LambdaContext,
+    LvContext,
+    lv,
+    lv_add,
+)
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvNumber, lvgl_ns
 from ..widgets import get_widgets
@@ -40,20 +48,19 @@ async def to_code(config):
         await widget.set_property(
             "value", MockObj("v") * MockObj(widget.get_scale()), config[CONF_ANIMATED]
         )
-        lv.event_send(widget.obj, CUSTOM_EVENT, cg.nullptr)
+        lv.event_send(widget.obj, API_EVENT, cg.nullptr)
     async with LambdaContext(EVENT_ARG) as event:
         event.add(var.publish_state(widget.get_value()))
+    event_code = (
+        LV_EVENT.VALUE_CHANGED
+        if not config[CONF_UPDATE_ON_RELEASE]
+        else LV_EVENT.RELEASED
+    )
     async with LvContext(paren):
         lv_add(var.set_control_lambda(await control.get_lambda()))
         lv_add(
             paren.add_event_cb(
-                widget.obj,
-                await event.get_lambda(),
-                (
-                    LV_EVENT.VALUE_CHANGED
-                    if not config[CONF_UPDATE_ON_RELEASE]
-                    else LV_EVENT.RELEASED
-                ),
+                widget.obj, await event.get_lambda(), UPDATE_EVENT, event_code
             )
         )
         lv_add(var.publish_state(widget.get_value()))

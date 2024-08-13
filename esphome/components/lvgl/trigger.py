@@ -11,7 +11,15 @@ from .defines import (
     LV_EVENT_TRIGGERS,
     literal,
 )
-from .lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvConditional, lv, lv_add
+from .lvcode import (
+    API_EVENT,
+    EVENT_ARG,
+    UPDATE_EVENT,
+    LambdaContext,
+    LvConditional,
+    lv,
+    lv_add,
+)
 from .types import LV_EVENT
 from .widgets import widget_map
 
@@ -37,7 +45,12 @@ async def generate_triggers(lv_component):
                 await add_trigger(conf, lv_component, w, event)
             for conf in w.config.get(CONF_ON_VALUE, ()):
                 await add_trigger(
-                    conf, lv_component, w, LV_EVENT.VALUE_CHANGED, CUSTOM_EVENT
+                    conf,
+                    lv_component,
+                    w,
+                    LV_EVENT.VALUE_CHANGED,
+                    API_EVENT,
+                    UPDATE_EVENT,
                 )
 
             # Generate align to directives while we're here
