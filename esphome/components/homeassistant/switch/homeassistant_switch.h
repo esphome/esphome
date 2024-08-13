@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace homeassistant {

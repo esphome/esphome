@@ -1,6 +1,6 @@
 #include "homeassistant_switch.h"
-#include "esphome/core/log.h"
 #include "esphome/components/api/api_server.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace homeassistant {
@@ -10,22 +10,21 @@ static const char *const TAG = "homeassistant.switch";
 using namespace esphome::switch_;
 
 void HomeassistantSwitch::setup() {
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, nullopt, [this](const std::string &state) {
-        auto val = parse_on_off(state.c_str());
-        switch (val) {
-          case PARSE_NONE:
-          case PARSE_TOGGLE:
-            ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
-            break;
-          case PARSE_ON:
-          case PARSE_OFF:
-            bool new_state = val == PARSE_ON;
-            ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
-            this->publish_state(new_state);
-            break;
-        }
-      });
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullopt, [this](const std::string &state) {
+    auto val = parse_on_off(state.c_str());
+    switch (val) {
+      case PARSE_NONE:
+      case PARSE_TOGGLE:
+        ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
+        break;
+      case PARSE_ON:
+      case PARSE_OFF:
+        bool new_state = val == PARSE_ON;
+        ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
+        this->publish_state(new_state);
+        break;
+    }
+  });
 }
 
 void HomeassistantSwitch::dump_config() {
@@ -47,7 +46,7 @@ void HomeassistantSwitch::write_state(bool state) {
   } else {
     resp.service = "switch.turn_off";
   }
-  
+
   api::HomeassistantServiceMap entity_id_kv;
   entity_id_kv.key = "entity_id";
   entity_id_kv.value = this->entity_id_;
