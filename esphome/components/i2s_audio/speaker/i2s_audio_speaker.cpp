@@ -182,9 +182,9 @@ void I2SAudioSpeaker::player_task(void *params) {
 
 void I2SAudioSpeaker::stop() { this->stop_(false); }
 
-void I2SAudioSpeaker::finnish() { this->stop_(true); }
+void I2SAudioSpeaker::finish() { this->stop_(true); }
 
-void stop_(bool wait_on_empty) {
+void I2SAudioSpeaker::stop_(bool wait_on_empty) {
   if (this->is_failed())
     return;
   if (this->state_ == speaker::STATE_STOPPED)
