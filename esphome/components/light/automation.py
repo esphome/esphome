@@ -19,10 +19,15 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_RANGE_FROM,
     CONF_RANGE_TO,
+    CONF_BRIGHTNESS_LIMITS,
+    CONF_LIMIT_MODE,
+    CONF_MIN_BRIGHTNESS,
+    CONF_MAX_BRIGHTNESS,
 )
 from .types import (
     ColorMode,
     COLOR_MODES,
+    LIMIT_MODES,
     DimRelativeAction,
     ToggleAction,
     LightState,
@@ -167,6 +172,15 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(
             cv.positive_time_period_milliseconds
         ),
+        cv.Optional(CONF_BRIGHTNESS_LIMITS): cv.Schema(
+            {
+                cv.Optional(CONF_MIN_BRIGHTNESS, default="0%"): cv.percentage,
+                cv.Optional(CONF_MAX_BRIGHTNESS, default="100%"): cv.percentage,
+                cv.Optional(CONF_LIMIT_MODE, default="CLAMP"): cv.enum(
+                    LIMIT_MODES, upper=True, space="_"
+                ),
+            }
+        ),
     }
 )
 
@@ -182,6 +196,13 @@ async def light_dim_relative_to_code(config, action_id, template_arg, args):
     if CONF_TRANSITION_LENGTH in config:
         templ = await cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
         cg.add(var.set_transition_length(templ))
+    if conf := config.get(CONF_BRIGHTNESS_LIMITS):
+        cg.add(
+            var.set_min_max_brightness(
+                conf[CONF_MIN_BRIGHTNESS], conf[CONF_MAX_BRIGHTNESS]
+            )
+        )
+        cg.add(var.set_limit_mode(conf[CONF_LIMIT_MODE]))
     return var
 
 
