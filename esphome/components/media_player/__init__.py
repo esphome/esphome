@@ -85,7 +85,7 @@ async def setup_media_player_core_(var, config):
 async def register_media_player(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_media_player(var))
+    cg.add_entity(MediaPlayer, var)
     await setup_media_player_core_(var, config)
 
 
@@ -191,3 +191,4 @@ async def media_player_volume_set_action(config, action_id, template_arg, args):
 async def to_code(config):
     cg.add_global(media_player_ns.using)
     cg.add_define("USE_MEDIA_PLAYER")
+    cg.register_entity(MediaPlayer)

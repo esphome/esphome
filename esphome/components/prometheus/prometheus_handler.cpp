@@ -9,43 +9,43 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
 
 #ifdef USE_SENSOR
   this->sensor_type_(stream);
-  for (auto *obj : App.get_sensors())
+  for (auto *obj : App.get_entities<sensor::Sensor>())
     this->sensor_row_(stream, obj);
 #endif
 
 #ifdef USE_BINARY_SENSOR
   this->binary_sensor_type_(stream);
-  for (auto *obj : App.get_binary_sensors())
+  for (auto *obj : App.get_entities<binary_sensor::BinarySensor>())
     this->binary_sensor_row_(stream, obj);
 #endif
 
 #ifdef USE_FAN
   this->fan_type_(stream);
-  for (auto *obj : App.get_fans())
+  for (auto *obj : App.get_entities<fan::Fan>())
     this->fan_row_(stream, obj);
 #endif
 
 #ifdef USE_LIGHT
   this->light_type_(stream);
-  for (auto *obj : App.get_lights())
+  for (auto *obj : App.get_entities<light::LightState>())
     this->light_row_(stream, obj);
 #endif
 
 #ifdef USE_COVER
   this->cover_type_(stream);
-  for (auto *obj : App.get_covers())
+  for (auto *obj : App.get_entities<cover::Cover>())
     this->cover_row_(stream, obj);
 #endif
 
 #ifdef USE_SWITCH
   this->switch_type_(stream);
-  for (auto *obj : App.get_switches())
+  for (auto *obj : App.get_entities<switch_::Switch>())
     this->switch_row_(stream, obj);
 #endif
 
 #ifdef USE_LOCK
   this->lock_type_(stream);
-  for (auto *obj : App.get_locks())
+  for (auto *obj : App.get_entities<lock::Lock>())
     this->lock_row_(stream, obj);
 #endif
 

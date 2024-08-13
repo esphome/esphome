@@ -30,10 +30,10 @@ void ComponentIterator::advance() {
       break;
 #ifdef USE_BINARY_SENSOR
     case IteratorState::BINARY_SENSOR:
-      if (this->at_ >= App.get_binary_sensors().size()) {
+      if (this->at_ >= App.get_entities<binary_sensor::BinarySensor>().size()) {
         advance_platform = true;
       } else {
-        auto *binary_sensor = App.get_binary_sensors()[this->at_];
+        auto *binary_sensor = App.get_entities<binary_sensor::BinarySensor>()[this->at_];
         if (binary_sensor->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -45,10 +45,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_COVER
     case IteratorState::COVER:
-      if (this->at_ >= App.get_covers().size()) {
+      if (this->at_ >= App.get_entities<cover::Cover>().size()) {
         advance_platform = true;
       } else {
-        auto *cover = App.get_covers()[this->at_];
+        auto *cover = App.get_entities<cover::Cover>()[this->at_];
         if (cover->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -60,10 +60,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_FAN
     case IteratorState::FAN:
-      if (this->at_ >= App.get_fans().size()) {
+      if (this->at_ >= App.get_entities<fan::Fan>().size()) {
         advance_platform = true;
       } else {
-        auto *fan = App.get_fans()[this->at_];
+        auto *fan = App.get_entities<fan::Fan>()[this->at_];
         if (fan->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -75,10 +75,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_LIGHT
     case IteratorState::LIGHT:
-      if (this->at_ >= App.get_lights().size()) {
+      if (this->at_ >= App.get_entities<light::LightState>().size()) {
         advance_platform = true;
       } else {
-        auto *light = App.get_lights()[this->at_];
+        auto *light = App.get_entities<light::LightState>()[this->at_];
         if (light->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -90,10 +90,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_SENSOR
     case IteratorState::SENSOR:
-      if (this->at_ >= App.get_sensors().size()) {
+      if (this->at_ >= App.get_entities<sensor::Sensor>().size()) {
         advance_platform = true;
       } else {
-        auto *sensor = App.get_sensors()[this->at_];
+        auto *sensor = App.get_entities<sensor::Sensor>()[this->at_];
         if (sensor->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -105,10 +105,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_SWITCH
     case IteratorState::SWITCH:
-      if (this->at_ >= App.get_switches().size()) {
+      if (this->at_ >= App.get_entities<switch_::Switch>().size()) {
         advance_platform = true;
       } else {
-        auto *a_switch = App.get_switches()[this->at_];
+        auto *a_switch = App.get_entities<switch_::Switch>()[this->at_];
         if (a_switch->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -120,10 +120,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_BUTTON
     case IteratorState::BUTTON:
-      if (this->at_ >= App.get_buttons().size()) {
+      if (this->at_ >= App.get_entities<button::Button>().size()) {
         advance_platform = true;
       } else {
-        auto *button = App.get_buttons()[this->at_];
+        auto *button = App.get_entities<button::Button>()[this->at_];
         if (button->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -135,10 +135,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_TEXT_SENSOR
     case IteratorState::TEXT_SENSOR:
-      if (this->at_ >= App.get_text_sensors().size()) {
+      if (this->at_ >= App.get_entities<text_sensor::TextSensor>().size()) {
         advance_platform = true;
       } else {
-        auto *text_sensor = App.get_text_sensors()[this->at_];
+        auto *text_sensor = App.get_entities<text_sensor::TextSensor>()[this->at_];
         if (text_sensor->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -174,10 +174,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_CLIMATE
     case IteratorState::CLIMATE:
-      if (this->at_ >= App.get_climates().size()) {
+      if (this->at_ >= App.get_entities<climate::Climate>().size()) {
         advance_platform = true;
       } else {
-        auto *climate = App.get_climates()[this->at_];
+        auto *climate = App.get_entities<climate::Climate>()[this->at_];
         if (climate->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -189,10 +189,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_NUMBER
     case IteratorState::NUMBER:
-      if (this->at_ >= App.get_numbers().size()) {
+      if (this->at_ >= App.get_entities<number::Number>().size()) {
         advance_platform = true;
       } else {
-        auto *number = App.get_numbers()[this->at_];
+        auto *number = App.get_entities<number::Number>()[this->at_];
         if (number->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -204,10 +204,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_DATETIME_DATE
     case IteratorState::DATETIME_DATE:
-      if (this->at_ >= App.get_dates().size()) {
+      if (this->at_ >= App.get_entities<datetime::DateEntity>().size()) {
         advance_platform = true;
       } else {
-        auto *date = App.get_dates()[this->at_];
+        auto *date = App.get_entities<datetime::DateEntity>()[this->at_];
         if (date->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -219,10 +219,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_DATETIME_TIME
     case IteratorState::DATETIME_TIME:
-      if (this->at_ >= App.get_times().size()) {
+      if (this->at_ >= App.get_entities<datetime::TimeEntity>().size()) {
         advance_platform = true;
       } else {
-        auto *time = App.get_times()[this->at_];
+        auto *time = App.get_entities<datetime::TimeEntity>()[this->at_];
         if (time->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -234,10 +234,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_DATETIME_DATETIME
     case IteratorState::DATETIME_DATETIME:
-      if (this->at_ >= App.get_datetimes().size()) {
+      if (this->at_ >= App.get_entities<datetime::DateTimeEntity>().size()) {
         advance_platform = true;
       } else {
-        auto *datetime = App.get_datetimes()[this->at_];
+        auto *datetime = App.get_entities<datetime::DateTimeEntity>()[this->at_];
         if (datetime->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -249,10 +249,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_TEXT
     case IteratorState::TEXT:
-      if (this->at_ >= App.get_texts().size()) {
+      if (this->at_ >= App.get_entities<text::Text>().size()) {
         advance_platform = true;
       } else {
-        auto *text = App.get_texts()[this->at_];
+        auto *text = App.get_entities<text::Text>()[this->at_];
         if (text->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -264,10 +264,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_SELECT
     case IteratorState::SELECT:
-      if (this->at_ >= App.get_selects().size()) {
+      if (this->at_ >= App.get_entities<select::Select>().size()) {
         advance_platform = true;
       } else {
-        auto *select = App.get_selects()[this->at_];
+        auto *select = App.get_entities<select::Select>()[this->at_];
         if (select->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -279,10 +279,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_LOCK
     case IteratorState::LOCK:
-      if (this->at_ >= App.get_locks().size()) {
+      if (this->at_ >= App.get_entities<lock::Lock>().size()) {
         advance_platform = true;
       } else {
-        auto *a_lock = App.get_locks()[this->at_];
+        auto *a_lock = App.get_entities<lock::Lock>()[this->at_];
         if (a_lock->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -294,10 +294,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_VALVE
     case IteratorState::VALVE:
-      if (this->at_ >= App.get_valves().size()) {
+      if (this->at_ >= App.get_entities<valve::Valve>().size()) {
         advance_platform = true;
       } else {
-        auto *valve = App.get_valves()[this->at_];
+        auto *valve = App.get_entities<valve::Valve>()[this->at_];
         if (valve->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -309,10 +309,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_MEDIA_PLAYER
     case IteratorState::MEDIA_PLAYER:
-      if (this->at_ >= App.get_media_players().size()) {
+      if (this->at_ >= App.get_entities<media_player::MediaPlayer>().size()) {
         advance_platform = true;
       } else {
-        auto *media_player = App.get_media_players()[this->at_];
+        auto *media_player = App.get_entities<media_player::MediaPlayer>()[this->at_];
         if (media_player->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -324,10 +324,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
     case IteratorState::ALARM_CONTROL_PANEL:
-      if (this->at_ >= App.get_alarm_control_panels().size()) {
+      if (this->at_ >= App.get_entities<alarm_control_panel::AlarmControlPanel>().size()) {
         advance_platform = true;
       } else {
-        auto *a_alarm_control_panel = App.get_alarm_control_panels()[this->at_];
+        auto *a_alarm_control_panel = App.get_entities<alarm_control_panel::AlarmControlPanel>()[this->at_];
         if (a_alarm_control_panel->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -339,10 +339,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_EVENT
     case IteratorState::EVENT:
-      if (this->at_ >= App.get_events().size()) {
+      if (this->at_ >= App.get_entities<event::Event>().size()) {
         advance_platform = true;
       } else {
-        auto *event = App.get_events()[this->at_];
+        auto *event = App.get_entities<event::Event>()[this->at_];
         if (event->is_internal() && !this->include_internal_) {
           success = true;
           break;
@@ -354,10 +354,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_UPDATE
     case IteratorState::UPDATE:
-      if (this->at_ >= App.get_updates().size()) {
+      if (this->at_ >= App.get_entities<update::UpdateEntity>().size()) {
         advance_platform = true;
       } else {
-        auto *update = App.get_updates()[this->at_];
+        auto *update = App.get_entities<update::UpdateEntity>()[this->at_];
         if (update->is_internal() && !this->include_internal_) {
           success = true;
           break;

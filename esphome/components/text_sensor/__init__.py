@@ -220,7 +220,7 @@ async def setup_text_sensor_core_(var, config):
 async def register_text_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_text_sensor(var))
+    cg.add_entity(TextSensor, var)
     await setup_text_sensor_core_(var, config)
 
 
@@ -234,6 +234,7 @@ async def new_text_sensor(config, *args):
 async def to_code(config):
     cg.add_define("USE_TEXT_SENSOR")
     cg.add_global(text_sensor_ns.using)
+    cg.register_entity(TextSensor)
 
 
 @automation.register_condition(

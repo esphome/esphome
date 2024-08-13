@@ -112,7 +112,7 @@ async def setup_select_core_(var, config, *, options: list[str]):
 async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_select(var))
+    cg.add_entity(Select, var)
     await setup_select_core_(var, config, options=options)
 
 
@@ -126,6 +126,7 @@ async def new_select(config, *, options: list[str]):
 async def to_code(config):
     cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)
+    cg.register_entity(Select)
 
 
 OPERATION_BASE_SCHEMA = cv.Schema(

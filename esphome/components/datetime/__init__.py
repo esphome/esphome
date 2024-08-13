@@ -151,9 +151,12 @@ async def setup_datetime_core_(var, config):
 async def register_datetime(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(getattr(cg.App, f"register_{config[CONF_TYPE].lower()}")(var))
+    entity = f"datetime::{str(config[CONF_ID].type).split('Template')[1]}Entity"
+    print(entity)
+    cg.add_entity(entity, var)
     await setup_datetime_core_(var, config)
     cg.add_define(f"USE_DATETIME_{config[CONF_TYPE]}")
+    cg.register_entity(entity)
 
 
 async def new_datetime(config, *args):

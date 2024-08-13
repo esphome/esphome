@@ -416,7 +416,7 @@ async def setup_climate_core_(var, config):
 async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_climate(var))
+    cg.add_entity(Climate, var)
     await setup_climate_core_(var, config)
 
 
@@ -485,3 +485,4 @@ async def climate_control_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_CLIMATE")
     cg.add_global(climate_ns.using)
+    cg.register_entity(Climate)

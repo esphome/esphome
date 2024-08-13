@@ -265,7 +265,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   return this->send_list_entities_cover_response(msg);
 }
 void APIConnection::cover_command(const CoverCommandRequest &msg) {
-  cover::Cover *cover = App.get_cover_by_key(msg.key);
+  cover::Cover *cover = App.get_entity_by_key<cover::Cover>(msg.key);
   if (cover == nullptr)
     return;
 
@@ -333,7 +333,7 @@ bool APIConnection::send_fan_info(fan::Fan *fan) {
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
-  fan::Fan *fan = App.get_fan_by_key(msg.key);
+  fan::Fan *fan = App.get_entity_by_key<fan::Fan>(msg.key);
   if (fan == nullptr)
     return;
 
@@ -416,7 +416,7 @@ bool APIConnection::send_light_info(light::LightState *light) {
   return this->send_list_entities_light_response(msg);
 }
 void APIConnection::light_command(const LightCommandRequest &msg) {
-  light::LightState *light = App.get_light_by_key(msg.key);
+  light::LightState *light = App.get_entity_by_key<light::LightState>(msg.key);
   if (light == nullptr)
     return;
 
@@ -509,7 +509,7 @@ bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
   return this->send_list_entities_switch_response(msg);
 }
 void APIConnection::switch_command(const SwitchCommandRequest &msg) {
-  switch_::Switch *a_switch = App.get_switch_by_key(msg.key);
+  switch_::Switch *a_switch = App.get_entity_by_key<switch_::Switch>(msg.key);
   if (a_switch == nullptr)
     return;
 
@@ -627,7 +627,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   return this->send_list_entities_climate_response(msg);
 }
 void APIConnection::climate_command(const ClimateCommandRequest &msg) {
-  climate::Climate *climate = App.get_climate_by_key(msg.key);
+  climate::Climate *climate = App.get_entity_by_key<climate::Climate>(msg.key);
   if (climate == nullptr)
     return;
 
@@ -688,7 +688,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   return this->send_list_entities_number_response(msg);
 }
 void APIConnection::number_command(const NumberCommandRequest &msg) {
-  number::Number *number = App.get_number_by_key(msg.key);
+  number::Number *number = App.get_entity_by_key<number::Number>(msg.key);
   if (number == nullptr)
     return;
 
@@ -725,7 +725,7 @@ bool APIConnection::send_date_info(datetime::DateEntity *date) {
   return this->send_list_entities_date_response(msg);
 }
 void APIConnection::date_command(const DateCommandRequest &msg) {
-  datetime::DateEntity *date = App.get_date_by_key(msg.key);
+  datetime::DateEntity *date = App.get_entity_by_key<datetime::DateEntity>(msg.key);
   if (date == nullptr)
     return;
 
@@ -762,7 +762,7 @@ bool APIConnection::send_time_info(datetime::TimeEntity *time) {
   return this->send_list_entities_time_response(msg);
 }
 void APIConnection::time_command(const TimeCommandRequest &msg) {
-  datetime::TimeEntity *time = App.get_time_by_key(msg.key);
+  datetime::TimeEntity *time = App.get_entity_by_key<datetime::TimeEntity>(msg.key);
   if (time == nullptr)
     return;
 
@@ -800,7 +800,7 @@ bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
   return this->send_list_entities_date_time_response(msg);
 }
 void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
-  datetime::DateTimeEntity *datetime = App.get_datetime_by_key(msg.key);
+  datetime::DateTimeEntity *datetime = App.get_entity_by_key<datetime::DateTimeEntity>(msg.key);
   if (datetime == nullptr)
     return;
 
@@ -838,7 +838,7 @@ bool APIConnection::send_text_info(text::Text *text) {
   return this->send_list_entities_text_response(msg);
 }
 void APIConnection::text_command(const TextCommandRequest &msg) {
-  text::Text *text = App.get_text_by_key(msg.key);
+  text::Text *text = App.get_entity_by_key<text::Text>(msg.key);
   if (text == nullptr)
     return;
 
@@ -876,7 +876,7 @@ bool APIConnection::send_select_info(select::Select *select) {
   return this->send_list_entities_select_response(msg);
 }
 void APIConnection::select_command(const SelectCommandRequest &msg) {
-  select::Select *select = App.get_select_by_key(msg.key);
+  select::Select *select = App.get_entity_by_key<select::Select>(msg.key);
   if (select == nullptr)
     return;
 
@@ -901,7 +901,7 @@ bool APIConnection::send_button_info(button::Button *button) {
   return this->send_list_entities_button_response(msg);
 }
 void APIConnection::button_command(const ButtonCommandRequest &msg) {
-  button::Button *button = App.get_button_by_key(msg.key);
+  button::Button *button = App.get_entity_by_key<button::Button>(msg.key);
   if (button == nullptr)
     return;
 
@@ -935,7 +935,7 @@ bool APIConnection::send_lock_info(lock::Lock *a_lock) {
   return this->send_list_entities_lock_response(msg);
 }
 void APIConnection::lock_command(const LockCommandRequest &msg) {
-  lock::Lock *a_lock = App.get_lock_by_key(msg.key);
+  lock::Lock *a_lock = App.get_entity_by_key<lock::Lock>(msg.key);
   if (a_lock == nullptr)
     return;
 
@@ -982,7 +982,7 @@ bool APIConnection::send_valve_info(valve::Valve *valve) {
   return this->send_list_entities_valve_response(msg);
 }
 void APIConnection::valve_command(const ValveCommandRequest &msg) {
-  valve::Valve *valve = App.get_valve_by_key(msg.key);
+  valve::Valve *valve = App.get_entity_by_key<valve::Valve>(msg.key);
   if (valve == nullptr)
     return;
 
@@ -1028,7 +1028,7 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
   return this->send_list_entities_media_player_response(msg);
 }
 void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
-  media_player::MediaPlayer *media_player = App.get_media_player_by_key(msg.key);
+  media_player::MediaPlayer *media_player = App.get_entity_by_key<media_player::MediaPlayer>(msg.key);
   if (media_player == nullptr)
     return;
 
@@ -1230,7 +1230,8 @@ bool APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmCont
   return this->send_list_entities_alarm_control_panel_response(msg);
 }
 void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) {
-  alarm_control_panel::AlarmControlPanel *a_alarm_control_panel = App.get_alarm_control_panel_by_key(msg.key);
+  alarm_control_panel::AlarmControlPanel *a_alarm_control_panel =
+      App.get_entity_by_key<alarm_control_panel::AlarmControlPanel>(msg.key);
   if (a_alarm_control_panel == nullptr)
     return;
 
@@ -1324,7 +1325,7 @@ bool APIConnection::send_update_info(update::UpdateEntity *update) {
   return this->send_list_entities_update_response(msg);
 }
 void APIConnection::update_command(const UpdateCommandRequest &msg) {
-  update::UpdateEntity *update = App.get_update_by_key(msg.key);
+  update::UpdateEntity *update = App.get_entity_by_key<update::UpdateEntity>(msg.key);
   if (update == nullptr)
     return;
 
