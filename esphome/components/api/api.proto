@@ -686,6 +686,7 @@ message SubscribeHomeAssistantStateResponse {
   option (source) = SOURCE_SERVER;
   string entity_id = 1;
   string attribute = 2;
+  bool once = 3;
 }
 
 message HomeAssistantStateResponse {
