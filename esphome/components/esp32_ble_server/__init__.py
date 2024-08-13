@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_VALUE,
     CONF_NOTIFY,
 )
-from esphome.components import esp32_ble
 from esphome.core import CORE
 
 AUTO_LOAD = ["esp32_ble"]
