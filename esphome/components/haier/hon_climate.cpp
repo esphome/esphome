@@ -394,7 +394,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       if (this->control_messages_queue_.empty()) {
         switch (this->control_method_) {
           case HonControlMethod::SET_GROUP_PARAMETERS: {
-            haier_protocol::HaierMessage control_message = this->get_control_message_();
+            haier_protocol::HaierMessage control_message = this->get_control_message();
             this->control_messages_queue_.push(control_message);
           } break;
           case HonControlMethod::SET_SINGLE_PARAMETER:
@@ -459,7 +459,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
   }
 }
 
-haier_protocol::HaierMessage HonClimate::get_power_message_(bool state) {
+haier_protocol::HaierMessage HonClimate::get_power_message(bool state) {
   if (state) {
     static haier_protocol::HaierMessage power_on_message(
         haier_protocol::FrameType::CONTROL, ((uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER) + 1,
@@ -486,7 +486,7 @@ void HonClimate::initialization() {
   this->current_horizontal_swing_ = this->settings_.last_horizontal_swing;
 }
 
-haier_protocol::HaierMessage HonClimate::get_control_message_() {
+haier_protocol::HaierMessage HonClimate::get_control_message() {
   uint8_t control_out_buffer[haier_protocol::MAX_FRAME_SIZE];
   memcpy(control_out_buffer, this->last_status_message_.get(), this->real_control_packet_size_);
   hon_protocol::HaierPacketControl *out_data = (hon_protocol::HaierPacketControl *) control_out_buffer;

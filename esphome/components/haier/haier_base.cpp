@@ -310,13 +310,13 @@ bool HaierClimateBase::prepare_pending_action() {
       case ActionRequest::SEND_CUSTOM_COMMAND:
         return true;
       case ActionRequest::TURN_POWER_ON:
-        this->action_request_.value().message = this->get_power_message_(true);
+        this->action_request_.value().message = this->get_power_message(true);
         return true;
       case ActionRequest::TURN_POWER_OFF:
-        this->action_request_.value().message = this->get_power_message_(false);
+        this->action_request_.value().message = this->get_power_message(false);
         return true;
       case ActionRequest::TOGGLE_POWER:
-        this->action_request_.value().message = this->get_power_message_(this->mode == ClimateMode::CLIMATE_MODE_OFF);
+        this->action_request_.value().message = this->get_power_message(this->mode == ClimateMode::CLIMATE_MODE_OFF);
         return true;
       default:
         ESP_LOGW(TAG, "Unsupported action: %d", (uint8_t) this->action_request_.value().action);
