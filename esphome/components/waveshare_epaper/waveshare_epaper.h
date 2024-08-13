@@ -255,7 +255,7 @@ class GDEY075Z08 : public WaveshareEPaperBWR {
   uint16_t last_segment_x_ = 0;
   uint16_t last_segment_y_ = 0;
   uint16_t *checksums_ = nullptr;
-  void calculate_crcs_(bool fullSync);
+  void calculate_crcs_(bool full_sync);
   bool waiting_for_idle_ = false;
   uint32_t idle_timeout_() override;
   void reset_();

@@ -1707,7 +1707,7 @@ void HOT GDEY075Z08::display() {
       return;
     }
     ESP_LOGD(TAG, "Found a change, initializing display for partial backup");
-    unsigned int x_start, y_start, x_end, y_end, x_start_b, x_end_b;
+    uint16_t x_start, y_start, x_end, y_end, x_start_b, x_end_b;
     x_start = (this->get_width_internal() / seg_x_) * first_segment_x_;
     x_end = (this->get_width_internal() / seg_x_) * (last_segment_x_ + 1);
     y_start = (this->get_height_internal() / seg_y_) * first_segment_y_;
