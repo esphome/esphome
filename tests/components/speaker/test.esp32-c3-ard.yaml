@@ -8,8 +8,8 @@ esphome:
       - if:
           condition: speaker.is_running
           then:
-            - speaker.finish
-      - speaker.stop
+            - speaker.finish:
+      - speaker.stop:
 
 i2s_audio:
   i2s_lrclk_pin: 6
