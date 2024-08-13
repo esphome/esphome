@@ -8,6 +8,7 @@ static const char *const TAG = "matrix_keypad";
 
 void MatrixKeypad::setup() {
   for (auto *pin : this->rows_) {
+    pin->setup();
     if (!has_diodes_) {
       pin->pin_mode(gpio::FLAG_INPUT);
     } else {
@@ -15,6 +16,7 @@ void MatrixKeypad::setup() {
     }
   }
   for (auto *pin : this->columns_) {
+    pin->setup();
     if (has_pulldowns_) {
       pin->pin_mode(gpio::FLAG_INPUT);
     } else {

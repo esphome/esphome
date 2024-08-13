@@ -675,5 +675,36 @@ void DisplayPage::set_prev(DisplayPage *prev) { this->prev_ = prev; }
 void DisplayPage::set_next(DisplayPage *next) { this->next_ = next; }
 const display_writer_t &DisplayPage::get_writer() const { return this->writer_; }
 
+const LogString *text_align_to_string(TextAlign textalign) {
+  switch (textalign) {
+    case TextAlign::TOP_LEFT:
+      return LOG_STR("TOP_LEFT");
+    case TextAlign::TOP_CENTER:
+      return LOG_STR("TOP_CENTER");
+    case TextAlign::TOP_RIGHT:
+      return LOG_STR("TOP_RIGHT");
+    case TextAlign::CENTER_LEFT:
+      return LOG_STR("CENTER_LEFT");
+    case TextAlign::CENTER:
+      return LOG_STR("CENTER");
+    case TextAlign::CENTER_RIGHT:
+      return LOG_STR("CENTER_RIGHT");
+    case TextAlign::BASELINE_LEFT:
+      return LOG_STR("BASELINE_LEFT");
+    case TextAlign::BASELINE_CENTER:
+      return LOG_STR("BASELINE_CENTER");
+    case TextAlign::BASELINE_RIGHT:
+      return LOG_STR("BASELINE_RIGHT");
+    case TextAlign::BOTTOM_LEFT:
+      return LOG_STR("BOTTOM_LEFT");
+    case TextAlign::BOTTOM_CENTER:
+      return LOG_STR("BOTTOM_CENTER");
+    case TextAlign::BOTTOM_RIGHT:
+      return LOG_STR("BOTTOM_RIGHT");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 }  // namespace display
 }  // namespace esphome

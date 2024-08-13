@@ -431,5 +431,14 @@ class RoundFilter : public Filter {
   uint8_t precision_;
 };
 
+class RoundMultipleFilter : public Filter {
+ public:
+  explicit RoundMultipleFilter(float multiple);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float multiple_;
+};
+
 }  // namespace sensor
 }  // namespace esphome

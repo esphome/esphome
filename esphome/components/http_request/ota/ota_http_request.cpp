@@ -1,11 +1,11 @@
 #include "ota_http_request.h"
-#include "../watchdog.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/md5/md5.h"
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_arduino_esp32.h"
 #include "esphome/components/ota/ota_backend_arduino_esp8266.h"
@@ -14,6 +14,8 @@
 
 namespace esphome {
 namespace http_request {
+
+static const char *const TAG = "http_request.ota";
 
 void OtaHttpRequestComponent::setup() {
 #ifdef USE_OTA_STATE_CALLBACK
