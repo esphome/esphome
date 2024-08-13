@@ -1584,13 +1584,34 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
 }
 void GDEY075Z08::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
+void GDEY075Z08::set_num_segments_x(uint8_t value) {
+  if (this->get_width_internal() % (value * 8) != 0) {
+    ESP_LOGD(TAG,
+             "Invalid number of X Segments (%d) The display width divided by number of segments must be divisible by "
+             "8 for "
+             "proper byte boundaries. Setting num_segments_x to 20.",
+             value);  // We actually don't have to do anything, 10 is the default value :o)
+  } else {
+    this->seg_x_ = value;
+  }
+}
+void GDEY075Z08::set_num_segments_y(uint8_t value) {
+  if (this->get_height_internal() % value != 0) {
+    ESP_LOGD(TAG,
+             "Invalid number of Y Segments (%d). The display height (480px) must be divisible by the number of y "
+             "segments for equal segment height. Setting num_segments_y to 10.",
+             value);  // We actually don't have to do anything, 10 is the default value :o)
+  } else {
+    this->seg_y_ = value;
+  }
+}
 void GDEY075Z08::init_fast() {
   this->reset_();       // Module reset
   this->command(0x00);  // PANNEL SETTING
-  this->data(0x0F);     // KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
+  this->data(0x0F);     // KW-3f KWR-2F BWROTP 0f BWOTP 1f
 
   this->command(0x04);
-  delay(100);
+  delay(100);                // NOLINT
   this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
   // Enhanced display drive(Add 0x06 command)
@@ -1772,7 +1793,7 @@ void GDEY075Z08::deep_sleep() {
   this->command(0x50);
   this->data(0xF7);  // check byte
   this->command(0x02);
-  delay(100);
+  delay(100);  // NOLINT
   this->command(0x07);
   this->data(0xA5);
   ESP_LOGI(TAG, "Display now in deep sleep.");

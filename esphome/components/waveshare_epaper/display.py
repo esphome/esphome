@@ -9,14 +9,14 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
+    CONF_NUM_SEGMENTS_X,
+    CONF_NUM_SEGMENTS_Y,
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
 )
 
 DEPENDENCIES = ["spi"]
-CONF_NUM_SEGMENTS_X = "num_segments_x"
-CONF_NUM_SEGMENTS_Y = "num_segments_y"
 waveshare_epaper_ns = cg.esphome_ns.namespace("waveshare_epaper")
 WaveshareEPaperBase = waveshare_epaper_ns.class_(
     "WaveshareEPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer

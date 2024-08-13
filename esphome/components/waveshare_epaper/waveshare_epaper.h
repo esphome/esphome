@@ -237,28 +237,8 @@ class GDEY075Z08 : public WaveshareEPaperBWR {
   void dump_config() override;
   void deep_sleep() override;
   void set_full_update_every(uint32_t full_update_every);
-  void set_num_segments_x(uint8_t value) {
-    if (this->get_width_internal() % (value * 8) != 0) {
-      ESP_LOGD(TAG,
-               "Invalid number of X Segments (%d) The display width divided by number of segments must be divisible by "
-               "8 for "
-               "proper byte boundaries. Setting num_segments_x to 20.",
-               value);
-    } else {
-      this->seg_x_ = value;
-    }
-  }
-  void set_num_segments_y(uint8_t value) {
-    if (this->get_height_internal() % value != 0) {
-      ESP_LOGD(TAG,
-               "Invalid number of Y Segments (%d). The display height (480px) must be divisible by the number of y "
-               "segments for equal segment height. Setting num_segments_y to 10.",
-               value);
-      uint8_t replacementvalue = this->get_height_internal() /
-    } else {
-      this->seg_y_ = value;
-    }
-  }
+  void set_num_segments_x(uint8_t value);
+  void set_num_segments_y(uint8_t value);
 
  protected:
   bool wait_until_idle_();
