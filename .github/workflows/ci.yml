@@ -9,6 +9,7 @@ on:
     paths:
       - "**"
       - "!.github/workflows/*.yml"
+      - "!.github/actions/build-image/*"
       - ".github/workflows/ci.yml"
       - "!.yamllint"
       - "!.github/dependabot.yml"
