@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_CHIP, ICON_SCALE
+from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ICON_CHIP, ICON_SCALE
 
-from .. import CONF_ATM90E32_ID, atm90e32_ns
+from .. import atm90e32_ns
 from ..sensor import ATM90E32Component
 
 CONF_RUN_OFFSET_CALIBRATION = "run_offset_calibration"
@@ -19,7 +19,7 @@ ATM90E32ClearCalibrationButton = atm90e32_ns.class_(
 )
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_ATM90E32_ID): cv.use_id(ATM90E32Component),
+    cv.GenerateID(CONF_ID): cv.use_id(ATM90E32Component),
     cv.Optional(CONF_RUN_OFFSET_CALIBRATION): button.button_schema(
         ATM90E32CalibrationButton,
         entity_category=ENTITY_CATEGORY_CONFIG,
@@ -34,7 +34,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ATM90E32_ID])
+    parent = await cg.get_variable(config[CONF_ID])
     if run_offset := config.get(CONF_RUN_OFFSET_CALIBRATION):
         b = await button.new_button(run_offset)
         await cg.register_parented(b, parent)
