@@ -40,9 +40,6 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
   lv_obj_add_event_cb(obj, callback, event, this);
-  if (event == LV_EVENT_VALUE_CHANGED) {
-    lv_obj_add_event_cb(obj, callback, lv_custom_event, this);
-  }
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2) {

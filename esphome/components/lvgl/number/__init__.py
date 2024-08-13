@@ -3,7 +3,7 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.cpp_generator import MockObj
 
-from ..defines import CONF_ANIMATED, CONF_LVGL_ID, CONF_WIDGET
+from ..defines import CONF_ANIMATED, CONF_LVGL_ID, CONF_UPDATE_ON_RELEASE, CONF_WIDGET
 from ..lv_validation import animated
 from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
 from ..schemas import LVGL_SCHEMA
@@ -19,6 +19,7 @@ CONFIG_SCHEMA = (
         {
             cv.Required(CONF_WIDGET): cv.use_id(LvNumber),
             cv.Optional(CONF_ANIMATED, default=True): animated,
+            cv.Optional(CONF_UPDATE_ON_RELEASE, default=False): cv.boolean,
         }
     )
 )
@@ -46,7 +47,13 @@ async def to_code(config):
         lv_add(var.set_control_lambda(await control.get_lambda()))
         lv_add(
             paren.add_event_cb(
-                widget.obj, await event.get_lambda(), LV_EVENT.VALUE_CHANGED
+                widget.obj,
+                await event.get_lambda(),
+                (
+                    LV_EVENT.VALUE_CHANGED
+                    if not config[CONF_UPDATE_ON_RELEASE]
+                    else LV_EVENT.RELEASED
+                ),
             )
         )
         lv_add(var.publish_state(widget.get_value()))
