@@ -1,7 +1,14 @@
 esphome:
   on_boot:
     then:
-      - speaker.play: [0, 1, 2, 3]
+      - if:
+          condition: speaker.is_stopped
+          then:
+            - speaker.play: [0, 1, 2, 3]
+      - if:
+          condition: speaker.is_running
+          then:
+            - speaker.finish
       - speaker.stop
 
 i2s_audio:
