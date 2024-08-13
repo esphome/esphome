@@ -79,7 +79,7 @@ class PartitionLightOutput : public light::AddressableLight {
     int32_t seg_off = index - seg.get_dst_offset();
     // offset within the src
     int32_t src_off;
-    if (seg.is_reversed()) {  // NOLINT(bugprone-branch-clone)
+    if (seg.is_reversed()) {
       src_off = seg.get_src_offset() + seg.get_size() - seg_off - 1;
     } else {
       src_off = seg.get_src_offset() + seg_off;
