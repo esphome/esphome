@@ -3,11 +3,11 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-
-#include "watchdog.h"
 
 namespace esphome {
 namespace http_request {
@@ -31,6 +31,13 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
   container->set_secure(secure);
 
   watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+
+  if (this->follow_redirects_) {
+    container->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    container->client_.setRedirectLimit(this->redirect_limit_);
+  } else {
+    container->client_.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  }
 
 #if defined(USE_ESP8266)
   std::unique_ptr<WiFiClient> stream_ptr;
@@ -59,8 +66,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
                   "in your YAML, or use HTTPS");
   }
 #endif  // USE_ARDUINO_VERSION_CODE
-
-  container->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   bool status = container->client_.begin(*stream_ptr, url.c_str());
 
 #elif defined(USE_RP2040)

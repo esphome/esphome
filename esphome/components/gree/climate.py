@@ -16,6 +16,7 @@ MODELS = {
     "yan": Model.GREE_YAN,
     "yaa": Model.GREE_YAA,
     "yac": Model.GREE_YAC,
+    "yac1fb9": Model.GREE_YAC1FB9,
 }
 
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(

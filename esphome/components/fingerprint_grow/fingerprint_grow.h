@@ -36,7 +36,7 @@ enum GrowCommand {
   LOAD = 0x07,
   UPLOAD = 0x08,
   DELETE = 0x0C,
-  EMPTY = 0x0D,
+  DELETE_ALL = 0x0D,  // aka EMPTY
   READ_SYS_PARAM = 0x0F,
   SET_PASSWORD = 0x12,
   VERIFY_PASSWORD = 0x13,
