@@ -72,10 +72,16 @@
 #ifdef USE_UPDATE
 #include "esphome/components/update/update_entity.h"
 #endif
+#include "esphome/core/entities.h"
 
 namespace esphome {
 
 class Application {
+  template<typename Tuple> struct entityRegistry;
+  template<typename... Args> struct entityRegistry<std::tuple<Args...>> {
+    using type = std::tuple<std::vector<Args>...>;
+  };
+
  public:
   void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &area,
                  const char *comment, const char *compilation_time, bool name_add_mac_suffix) {
@@ -97,93 +103,22 @@ class Application {
     this->compilation_time_ = compilation_time;
   }
 
-#ifdef USE_BINARY_SENSOR
-  void register_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-    this->binary_sensors_.push_back(binary_sensor);
+  template<typename Entity> void register_entity(Entity *entity) {
+    get_by_type<std::vector<Entity *>>(entities_).push_back(entity);
   }
-#endif
 
-#ifdef USE_SENSOR
-  void register_sensor(sensor::Sensor *sensor) { this->sensors_.push_back(sensor); }
-#endif
-
-#ifdef USE_SWITCH
-  void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
-#endif
-
-#ifdef USE_BUTTON
-  void register_button(button::Button *button) { this->buttons_.push_back(button); }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-  void register_text_sensor(text_sensor::TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
-#endif
-
-#ifdef USE_FAN
-  void register_fan(fan::Fan *state) { this->fans_.push_back(state); }
-#endif
-
-#ifdef USE_COVER
-  void register_cover(cover::Cover *cover) { this->covers_.push_back(cover); }
-#endif
-
-#ifdef USE_CLIMATE
-  void register_climate(climate::Climate *climate) { this->climates_.push_back(climate); }
-#endif
-
-#ifdef USE_LIGHT
-  void register_light(light::LightState *light) { this->lights_.push_back(light); }
-#endif
-
-#ifdef USE_NUMBER
-  void register_number(number::Number *number) { this->numbers_.push_back(number); }
-#endif
-
-#ifdef USE_DATETIME_DATE
-  void register_date(datetime::DateEntity *date) { this->dates_.push_back(date); }
-#endif
-
-#ifdef USE_DATETIME_TIME
-  void register_time(datetime::TimeEntity *time) { this->times_.push_back(time); }
-#endif
-
-#ifdef USE_DATETIME_DATETIME
-  void register_datetime(datetime::DateTimeEntity *datetime) { this->datetimes_.push_back(datetime); }
-#endif
-
-#ifdef USE_TEXT
-  void register_text(text::Text *text) { this->texts_.push_back(text); }
-#endif
-
-#ifdef USE_SELECT
-  void register_select(select::Select *select) { this->selects_.push_back(select); }
-#endif
-
-#ifdef USE_LOCK
-  void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
-#endif
-
-#ifdef USE_VALVE
-  void register_valve(valve::Valve *valve) { this->valves_.push_back(valve); }
-#endif
-
-#ifdef USE_MEDIA_PLAYER
-  void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
-#endif
-
-#ifdef USE_ALARM_CONTROL_PANEL
-  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
-    this->alarm_control_panels_.push_back(a_alarm_control_panel);
+  template<typename Entity> const std::vector<Entity *> &get_entities() {
+    return get_by_type<std::vector<Entity *>>(entities_);
   }
-#endif
 
-#ifdef USE_EVENT
-  void register_event(event::Event *event) { this->events_.push_back(event); }
-#endif
-
-#ifdef USE_UPDATE
-  void register_update(update::UpdateEntity *update) { this->updates_.push_back(update); }
-#endif
+  template<typename Entity> Entity *get_entity_by_key(uint32_t key, bool include_internal) {
+    for (auto *obj : this->get_entities<Entity>()) {
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) {
+        return obj;
+      }
+    }
+    return nullptr;
+  }
 
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
@@ -244,197 +179,142 @@ class Application {
   uint32_t get_app_state() const { return this->app_state_; }
 
 #ifdef USE_BINARY_SENSOR
-  const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() { return this->binary_sensors_; }
+  const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() {
+    return this->get_entities<binary_sensor::BinarySensor>();
+  }
   binary_sensor::BinarySensor *get_binary_sensor_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->binary_sensors_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<binary_sensor::BinarySensor>(key, include_internal);
   }
 #endif
 #ifdef USE_SWITCH
-  const std::vector<switch_::Switch *> &get_switches() { return this->switches_; }
+  const std::vector<switch_::Switch *> &get_switches() { return this->get_entities<switch_::Switch>(); }
   switch_::Switch *get_switch_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->switches_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<switch_::Switch>(key, include_internal);
   }
 #endif
 #ifdef USE_BUTTON
-  const std::vector<button::Button *> &get_buttons() { return this->buttons_; }
+  const std::vector<button::Button *> &get_buttons() { return this->get_entities<button::Button>(); }
   button::Button *get_button_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->buttons_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<button::Button>(key, include_internal);
   }
 #endif
 #ifdef USE_SENSOR
-  const std::vector<sensor::Sensor *> &get_sensors() { return this->sensors_; }
+  const std::vector<sensor::Sensor *> &get_sensors() { return this->get_entities<sensor::Sensor>(); }
   sensor::Sensor *get_sensor_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->sensors_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<sensor::Sensor>(key, include_internal);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
-  const std::vector<text_sensor::TextSensor *> &get_text_sensors() { return this->text_sensors_; }
+  const std::vector<text_sensor::TextSensor *> &get_text_sensors() {
+    return this->get_entities<text_sensor::TextSensor>();
+  }
   text_sensor::TextSensor *get_text_sensor_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->text_sensors_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<text_sensor::TextSensor>(key, include_internal);
   }
 #endif
 #ifdef USE_FAN
-  const std::vector<fan::Fan *> &get_fans() { return this->fans_; }
+  const std::vector<fan::Fan *> &get_fans() { return this->get_entities<fan::Fan>(); }
   fan::Fan *get_fan_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->fans_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<fan::Fan>(key, include_internal);
   }
 #endif
 #ifdef USE_COVER
-  const std::vector<cover::Cover *> &get_covers() { return this->covers_; }
+  const std::vector<cover::Cover *> &get_covers() { return this->get_entities<cover::Cover>(); }
   cover::Cover *get_cover_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->covers_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<cover::Cover>(key, include_internal);
   }
 #endif
 #ifdef USE_LIGHT
-  const std::vector<light::LightState *> &get_lights() { return this->lights_; }
+  const std::vector<light::LightState *> &get_lights() { return this->get_entities<light::LightState>(); }
   light::LightState *get_light_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->lights_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<light::LightState>(key, include_internal);
   }
 #endif
 #ifdef USE_CLIMATE
-  const std::vector<climate::Climate *> &get_climates() { return this->climates_; }
+  const std::vector<climate::Climate *> &get_climates() { return this->get_entities<climate::Climate>(); }
   climate::Climate *get_climate_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->climates_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<climate::Climate>(key, include_internal);
   }
 #endif
 #ifdef USE_NUMBER
-  const std::vector<number::Number *> &get_numbers() { return this->numbers_; }
+  const std::vector<number::Number *> &get_numbers() { return this->get_entities<number::Number>(); }
   number::Number *get_number_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->numbers_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<number::Number>(key, include_internal);
   }
 #endif
 #ifdef USE_DATETIME_DATE
-  const std::vector<datetime::DateEntity *> &get_dates() { return this->dates_; }
+  const std::vector<datetime::DateEntity *> &get_dates() { return this->get_entities<datetime::DateEntity>(); }
   datetime::DateEntity *get_date_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->dates_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<datetime::DateEntity>(key, include_internal);
   }
 #endif
 #ifdef USE_DATETIME_TIME
-  const std::vector<datetime::TimeEntity *> &get_times() { return this->times_; }
+  const std::vector<datetime::TimeEntity *> &get_times() { return this->get_entities<datetime::TimeEntity>(); }
   datetime::TimeEntity *get_time_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->times_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<datetime::TimeEntity>(key, include_internal);
   }
 #endif
 #ifdef USE_DATETIME_DATETIME
-  const std::vector<datetime::DateTimeEntity *> &get_datetimes() { return this->datetimes_; }
+  const std::vector<datetime::DateTimeEntity *> &get_datetimes() {
+    return this->get_entities<datetime::DateTimeEntity>();
+  }
   datetime::DateTimeEntity *get_datetime_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->datetimes_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<datetime::DateTimeEntity>(key, include_internal);
   }
 #endif
 #ifdef USE_TEXT
-  const std::vector<text::Text *> &get_texts() { return this->texts_; }
+  const std::vector<text::Text *> &get_texts() { return this->get_entities<text::Text>(); }
   text::Text *get_text_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->texts_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<text::Text>(key, include_internal);
   }
 #endif
 #ifdef USE_SELECT
-  const std::vector<select::Select *> &get_selects() { return this->selects_; }
+  const std::vector<select::Select *> &get_selects() { return this->get_entities<select::Select>(); }
   select::Select *get_select_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->selects_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<select::Select>(key, include_internal);
   }
 #endif
 #ifdef USE_LOCK
-  const std::vector<lock::Lock *> &get_locks() { return this->locks_; }
+  const std::vector<lock::Lock *> &get_locks() { return this->get_entities<lock::Lock>(); }
   lock::Lock *get_lock_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->locks_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<lock::Lock>(key, include_internal);
   }
 #endif
 #ifdef USE_VALVE
-  const std::vector<valve::Valve *> &get_valves() { return this->valves_; }
+  const std::vector<valve::Valve *> &get_valves() { return this->get_entities<valve::Valve>(); }
   valve::Valve *get_valve_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->valves_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<valve::Valve>(key, include_internal);
   }
 #endif
 #ifdef USE_MEDIA_PLAYER
-  const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
+  const std::vector<media_player::MediaPlayer *> &get_media_players() {
+    return this->get_entities<media_player::MediaPlayer>();
+  }
   media_player::MediaPlayer *get_media_player_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->media_players_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<media_player::MediaPlayer>(key, include_internal);
   }
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
   const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
-    return this->alarm_control_panels_;
+    return this->get_entities<alarm_control_panel::AlarmControlPanel>();
   }
   alarm_control_panel::AlarmControlPanel *get_alarm_control_panel_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->alarm_control_panels_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<alarm_control_panel::AlarmControlPanel>(key, include_internal);
   }
 #endif
 
 #ifdef USE_EVENT
-  const std::vector<event::Event *> &get_events() { return this->events_; }
+  const std::vector<event::Event *> &get_events() { return this->get_entities<event::Event>(); }
   event::Event *get_event_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->events_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<event::Event>(key, include_internal);
   }
 #endif
 
 #ifdef USE_UPDATE
-  const std::vector<update::UpdateEntity *> &get_updates() { return this->updates_; }
+  const std::vector<update::UpdateEntity *> &get_updates() { return this->get_entities<update::UpdateEntity>(); }
   update::UpdateEntity *get_update_by_key(uint32_t key, bool include_internal = false) {
-    for (auto *obj : this->updates_)
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
-        return obj;
-    return nullptr;
+    return this->get_entity_by_key<update::UpdateEntity>(key, include_internal);
   }
 #endif
 
@@ -452,70 +332,6 @@ class Application {
   std::vector<Component *> components_{};
   std::vector<Component *> looping_components_{};
 
-#ifdef USE_BINARY_SENSOR
-  std::vector<binary_sensor::BinarySensor *> binary_sensors_{};
-#endif
-#ifdef USE_SWITCH
-  std::vector<switch_::Switch *> switches_{};
-#endif
-#ifdef USE_BUTTON
-  std::vector<button::Button *> buttons_{};
-#endif
-#ifdef USE_EVENT
-  std::vector<event::Event *> events_{};
-#endif
-#ifdef USE_SENSOR
-  std::vector<sensor::Sensor *> sensors_{};
-#endif
-#ifdef USE_TEXT_SENSOR
-  std::vector<text_sensor::TextSensor *> text_sensors_{};
-#endif
-#ifdef USE_FAN
-  std::vector<fan::Fan *> fans_{};
-#endif
-#ifdef USE_COVER
-  std::vector<cover::Cover *> covers_{};
-#endif
-#ifdef USE_CLIMATE
-  std::vector<climate::Climate *> climates_{};
-#endif
-#ifdef USE_LIGHT
-  std::vector<light::LightState *> lights_{};
-#endif
-#ifdef USE_NUMBER
-  std::vector<number::Number *> numbers_{};
-#endif
-#ifdef USE_DATETIME_DATE
-  std::vector<datetime::DateEntity *> dates_{};
-#endif
-#ifdef USE_DATETIME_TIME
-  std::vector<datetime::TimeEntity *> times_{};
-#endif
-#ifdef USE_DATETIME_DATETIME
-  std::vector<datetime::DateTimeEntity *> datetimes_{};
-#endif
-#ifdef USE_SELECT
-  std::vector<select::Select *> selects_{};
-#endif
-#ifdef USE_TEXT
-  std::vector<text::Text *> texts_{};
-#endif
-#ifdef USE_LOCK
-  std::vector<lock::Lock *> locks_{};
-#endif
-#ifdef USE_VALVE
-  std::vector<valve::Valve *> valves_{};
-#endif
-#ifdef USE_MEDIA_PLAYER
-  std::vector<media_player::MediaPlayer *> media_players_{};
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-  std::vector<alarm_control_panel::AlarmControlPanel *> alarm_control_panels_{};
-#endif
-#ifdef USE_UPDATE
-  std::vector<update::UpdateEntity *> updates_{};
-#endif
-
   std::string name_;
   std::string friendly_name_;
   std::string area_;
@@ -526,6 +342,7 @@ class Application {
   uint32_t loop_interval_{16};
   size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
+  entityRegistry<entities_t>::type entities_;
 };
 
 /// Global storage of Application pointer - only one Application can exist.

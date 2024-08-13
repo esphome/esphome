@@ -12,7 +12,7 @@ def test_text_sensor_is_setup(generate_main):
 
     # Then
     assert "new template_::TemplateTextSensor();" in main_cpp
-    assert "App.register_text_sensor" in main_cpp
+    assert "App.register_entity<text_sensor::TextSensor>" in main_cpp
 
 
 def test_text_sensor_sets_mandatory_fields(generate_main):

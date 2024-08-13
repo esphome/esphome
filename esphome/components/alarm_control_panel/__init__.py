@@ -206,7 +206,7 @@ async def setup_alarm_control_panel_core_(var, config):
 async def register_alarm_control_panel(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_alarm_control_panel(var))
+    cg.register_entity(AlarmControlPanel, var)
     await setup_alarm_control_panel_core_(var, config)
 
 
@@ -315,3 +315,4 @@ async def alarm_control_panel_is_armed_to_code(
 async def to_code(config):
     cg.add_global(alarm_control_panel_ns.using)
     cg.add_define("USE_ALARM_CONTROL_PANEL")
+    cg.define_entity(AlarmControlPanel)

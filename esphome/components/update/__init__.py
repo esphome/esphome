@@ -81,7 +81,7 @@ async def setup_update_core_(var, config):
 async def register_update(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_update(var))
+    cg.register_entity(UpdateEntity, var)
     await setup_update_core_(var, config)
 
 
@@ -95,6 +95,7 @@ async def new_update(config):
 async def to_code(config):
     cg.add_define("USE_UPDATE")
     cg.add_global(update_ns.using)
+    cg.define_entity(UpdateEntity)
 
 
 @automation.register_action(
