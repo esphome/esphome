@@ -1,12 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ATTRIBUTE,
-    CONF_ENTITY_ID,
-    CONF_INTERNAL,
-)
+from esphome.const import CONF_ATTRIBUTE, CONF_ENTITY_ID, CONF_INTERNAL
 
-CODEOWNERS = ["@esphome/core", "@OttoWinter"]
+CODEOWNERS = ["@OttoWinter", "@esphome/core"]
 homeassistant_ns = cg.esphome_ns.namespace("homeassistant")
 
 HOME_ASSISTANT_IMPORT_SCHEMA = cv.Schema(
