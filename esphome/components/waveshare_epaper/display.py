@@ -210,10 +210,10 @@ async def to_code(config):
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
-    if CONF_NUM_SEGMENTS_X in config:
-        cg.add(var.set_num_segments_x(config["num_segments_x"]))
-    if CONF_NUM_SEGMENTS_Y in config:
-        cg.add(var.set_num_segments_y(config["num_segments_y"]))
+    if num_segments_x := config.get(CONF_NUM_SEGMENTS_X):
+        cg.add(var.set_num_segments_x(num_segments_x))
+    if num_segments_y := config.get(CONF_NUM_SEGMENTS_Y):
+        cg.add(var.set_num_segments_y(num_segments_y))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
