@@ -242,8 +242,8 @@ class GDEY075Z08 : public WaveshareEPaperBWR {
 
  protected:
   bool wait_until_idle_();
-  virtual int get_width_internal() override { return 800; }
-  virtual int get_height_internal() override { return 480; }
+  int get_width_internal() override { return 800; }
+  int get_height_internal() override { return 480; }
 
  private:
   uint32_t full_update_every_{30};
@@ -255,11 +255,11 @@ class GDEY075Z08 : public WaveshareEPaperBWR {
   uint16_t last_segment_x_ = 0;
   uint16_t last_segment_y_ = 0;
   uint16_t *checksums_ = nullptr;
-  void calculate_CRCs_(bool fullSync);
-  bool waiting_for_idle = false;
+  void calculate_crcs_(bool fullSync);
+  bool waiting_for_idle_ = false;
   uint32_t idle_timeout_() override;
   void reset_();
-  void init_fast();
+  void init_fast_();
 };
 
 class GDEW029T5 : public WaveshareEPaper {

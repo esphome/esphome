@@ -1511,8 +1511,8 @@ void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every)
 //     Good Display 7.5in black/white/red
 // ========================================================
 
-void GDEY075Z08::calculate_CRCs_(bool fullSync) {
-  ESP_LOGD(TAG, "Entering calculate_CRCs_");
+void GDEY075Z08::calculate_crcs_(bool full_sync) {
+  ESP_LOGD(TAG, "Entering calculate_crcs_");
   uint16_t width_b = this->get_width_internal() / (this->seg_x_ * 8);  // width of individual segments in bytes
   uint16_t height_px = this->get_height_internal() / this->seg_y_;     // height of individual segments in pixel
   uint16_t segment_size = width_b * height_px;
@@ -1541,7 +1541,7 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
       // now calculate a CRC16_checksum and compare it against the stored value.
       // ESP_LOGD(TAG, "Calculating a CRC");
       uint16_t segment_crc = crc16(segment, segment_size * 2, 65535U, 40961U, false, false);
-      if (fullSync) {
+      if (full_sync) {
         // no need to compare, we're in the first run, just place it. This is called by full refresh only
         this->checksums_[seg_x + seg_y * seg_x_] = segment_crc;
       } else {
@@ -1572,7 +1572,7 @@ void GDEY075Z08::calculate_CRCs_(bool fullSync) {
           // do nothing, segment didn't change.
         }
       }
-      delete segment;  // Delete the heap element again, this is not java... >.<
+      delete[] segment;  // Delete the heap element again, this is not java... >.<
     }
   }
   if (found_change) {
@@ -1605,7 +1605,7 @@ void GDEY075Z08::set_num_segments_y(uint8_t value) {
     this->seg_y_ = value;
   }
 }
-void GDEY075Z08::init_fast() {
+void GDEY075Z08::init_fast_() {
   this->reset_();       // Module reset
   this->command(0x00);  // PANNEL SETTING
   this->data(0x0F);     // KW-3f KWR-2F BWROTP 0f BWOTP 1f
@@ -1676,10 +1676,10 @@ void GDEY075Z08::initialize() {
   ESP_LOGE(TAG, "Initialization finished");
 }
 void GDEY075Z08::loop() {
-  if (this->waiting_for_idle && this->busy_pin_) {
+  if (this->waiting_for_idle_ && this->busy_pin_) {
     // reset waiting_for idle, then send the display to deep sleep.
     // this->deep_sleep();
-    this->waiting_for_idle = false;
+    this->waiting_for_idle_ = false;
   }
 }
 void HOT GDEY075Z08::display() {
@@ -1690,7 +1690,7 @@ void HOT GDEY075Z08::display() {
   bool partial = this->at_update_ != 0;
   this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
 
-  if (this->waiting_for_idle) {
+  if (this->waiting_for_idle_) {
     // still waiting for the previous busy to ebb off, skip drawing the display.
     return;
   }
@@ -1699,7 +1699,7 @@ void HOT GDEY075Z08::display() {
 
   if (partial) {
     ESP_LOGI(TAG, "Evaluating Partial Screen Update");
-    this->calculate_CRCs_(false);
+    this->calculate_crcs_(false);
     ESP_LOGD(TAG, "Partial Screen Update Evaluation complete");
     if (first_segment_x_ > seg_x_ || first_segment_x_ > last_segment_x_) {
       // if first_segment_x_ was not altered from seg_x_ + 1, this means that no changes have happened in the display.
@@ -1718,7 +1718,7 @@ void HOT GDEY075Z08::display() {
     uint16_t x, y;
     ESP_LOGD(TAG, "Updating from %03d:%03d to %03d:%03d.", x_start, y_start, x_end, y_end);
 
-    this->init_fast();    // Wake up Display.
+    this->init_fast_();   // Wake up Display.
     this->command(0x91);  // Enter partial mode
     this->command(0x90);  // Enter resolution Setting (?)
     this->data(x_start / 256);
@@ -1754,9 +1754,9 @@ void HOT GDEY075Z08::display() {
   } else {                // if partial is false
     uint32_t i;
     ESP_LOGI(TAG, "Performing Full Screen Update");
-    this->calculate_CRCs_(true);  // reset the crc table.
+    this->calculate_crcs_(true);  // reset the crc table.
     ESP_LOGD(TAG, "after calculate_CRCs_");
-    this->init_fast();  // Wake up display.
+    this->init_fast_();  // Wake up display.
 
     // Write Data
     this->command(0x10);  // Transfer old data
@@ -1774,9 +1774,9 @@ void HOT GDEY075Z08::display() {
     ESP_LOGI(TAG, "Image Render complete.");
     this->command(0x12);  // this triggers a refresh, everything before is just preparatory.
   }
-  delay(1);                       // This delay needs to be here. 200µS at least.
-  this->waiting_for_idle = true;  // BUSY should be LOW now, setting waiting_for_idle to true. This will cause loop() to
-                                  // poll for BUSY to go HIGH again, then enter deep sleep
+  delay(1);                        // This delay needs to be here. 200µS at least.
+  this->waiting_for_idle_ = true;  // BUSY should be LOW now, setting waiting_for_idle to true. This will cause loop()
+                                   // to poll for BUSY to go HIGH again, then enter deep sleep
   this->deep_sleep();
 }
 
