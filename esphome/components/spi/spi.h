@@ -27,8 +27,8 @@ using SPIInterface = spi_host_device_t;
 
 #endif  // USE_ESP_IDF
 
-#ifndef USE_SPI
-// supprse clang-tidy on platform that do not support SPI
+#ifdef USE_ZEPHYR
+// supprse clang-tidy
 using SPIInterface = void *;
 #endif
 
