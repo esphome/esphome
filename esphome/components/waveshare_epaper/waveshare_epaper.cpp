@@ -1534,8 +1534,8 @@ void GDEY075Z08::calculate_crcs_(bool full_sync) {
           uint16_t segment_position = x + y * width_b;  // linear position inside the segment in bytes
           uint16_t global_position = seg_y * height_px * this->get_width_internal() / 8 +
                                      y * this->get_width_internal() / 8 + seg_x * width_b + x;
-          segment[segment_position] = buffer_[global_position];                                    // copy black data
-          segment[segment_position + segment_size] = buffer_[global_position + buffer_half_size];  // copy red data
+          segment[segment_position] = this->buffer_[global_position];                                    // copy black data
+          segment[segment_position + segment_size] = this->buffer_[global_position + buffer_half_size];  // copy red data
         }
       }
       // now calculate a CRC16_checksum and compare it against the stored value.
