@@ -1,8 +1,6 @@
-from esphome.core import CORE
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components.esp32 import add_idf_sdkconfig_option
-
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_MIN_IPV6_ADDR_COUNT,
@@ -10,6 +8,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -42,11 +41,10 @@ async def to_code(config):
         if CORE.using_esp_idf:
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
-        else:
-            if enable_ipv6:
-                cg.add_build_flag("-DCONFIG_LWIP_IPV6")
-                cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
-                if CORE.is_rp2040:
-                    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-                if CORE.is_esp8266:
-                    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+        elif enable_ipv6:
+            cg.add_build_flag("-DCONFIG_LWIP_IPV6")
+            cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
+            if CORE.is_rp2040:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+            if CORE.is_esp8266:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")

@@ -159,20 +159,19 @@ def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
         result = subprocess.check_output([binary_file, "-version"])
-        if result.returncode == 0:
-            return binary_file
-    except Exception:
+        return binary_file
+    except FileNotFoundError:
         pass
     binary_file = name
     try:
         result = subprocess.run(
-            [binary_file, "-version"], text=True, capture_output=True
+            [binary_file, "-version"], text=True, capture_output=True, check=False
         )
         if result.returncode == 0 and (f"version {version}") in result.stdout:
             return binary_file
         raise FileNotFoundError(f"{name} not found")
 
-    except FileNotFoundError as ex:
+    except FileNotFoundError:
         print(
             f"""
             Oops. It looks like {name} is not installed. It should be available under venv/bin
