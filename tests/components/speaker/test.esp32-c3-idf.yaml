@@ -6,7 +6,7 @@ esphome:
           then:
             - speaker.play: [0, 1, 2, 3]
       - if:
-          condition: speaker.is_running
+          condition: speaker.is_playing
           then:
             - speaker.finish:
       - speaker.stop:
