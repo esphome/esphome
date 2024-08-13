@@ -258,7 +258,6 @@ def main():
                 "socket",
                 "status",
                 "voice_assistant",
-                "wake_on_lan",
                 "web_server",
                 "web_server_base",
                 "wireguard",
