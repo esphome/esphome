@@ -47,10 +47,16 @@ def set_core_data(config):
 def get_download_types(storage_json):
     return [
         {
-            "title": "UF2 format",
+            "title": "UF2 factory format",
             "description": "For copying to RP2040 over USB.",
             "file": "firmware.uf2",
-            "download": f"{storage_json.name}.uf2",
+            "download": f"{storage_json.name}.factory.uf2",
+        },
+        {
+            "title": "OTA format",
+            "description": "For OTA updating a device.",
+            "file": "firmware.ota.bin",
+            "download": f"{storage_json.name}.ota.bin",
         },
     ]
 
@@ -160,6 +166,8 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")
 
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
@@ -225,4 +233,10 @@ def generate_pio_files() -> bool:
 
 # Called by writer.py
 def copy_files() -> bool:
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
+    )
     return generate_pio_files()

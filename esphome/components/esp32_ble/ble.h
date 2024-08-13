@@ -3,6 +3,8 @@
 #include "ble_advertising.h"
 #include "ble_uuid.h"
 
+#include <functional>
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -76,6 +78,11 @@ class ESP32BLE : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
 
+  void set_advertising_cycle_time(uint32_t advertising_cycle_time) {
+    this->advertising_cycle_time_ = advertising_cycle_time;
+  }
+  uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
+
   void enable();
   void disable();
   bool is_active();
@@ -89,6 +96,7 @@ class ESP32BLE : public Component {
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
+  void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
@@ -121,6 +129,7 @@ class ESP32BLE : public Component {
   Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
+  uint32_t advertising_cycle_time_;
   bool enable_on_boot_;
 };
 

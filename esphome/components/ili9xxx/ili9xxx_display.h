@@ -33,7 +33,9 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     uint8_t cmd, num_args, bits;
     const uint8_t *addr = init_sequence;
     while ((cmd = *addr++) != 0) {
-      num_args = *addr++ & 0x7F;
+      num_args = *addr++;
+      if (num_args == ILI9XXX_DELAY_FLAG)
+        continue;
       bits = *addr;
       switch (cmd) {
         case ILI9XXX_MADCTL: {
@@ -50,13 +52,10 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
           break;
         }
 
-        case ILI9XXX_DELAY:
-          continue;  // no args to skip
-
         default:
           break;
       }
-      addr += num_args;
+      addr += (num_args & 0x7F);
     }
   }
 
