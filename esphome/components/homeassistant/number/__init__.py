@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import number
+import esphome.config_validation as cv
 
 from .. import (
     HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
@@ -14,8 +15,10 @@ HomeassistantNumber = homeassistant_ns.class_(
     "HomeassistantNumber", number.Number, cg.Component
 )
 
-CONFIG_SCHEMA = number.number_schema(HomeassistantNumber).extend(
-    HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA
+CONFIG_SCHEMA = (
+    number.number_schema(HomeassistantNumber)
+    .extend(HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 
