@@ -48,7 +48,11 @@ ModemComponent::ModemComponent() {
   global_modem_component = this;
 }
 
-void ModemComponent::enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
+void ModemComponent::enable_debug() {
+  esp_log_level_set("command_lib", ESP_LOG_VERBOSE);
+  // esp_log_level_set("CMUX", ESP_LOG_VERBOSE);
+  // esp_log_level_set("CMUX Received", ESP_LOG_VERBOSE);
+}
 
 AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout) {
   AtCommandResult at_command_result;
@@ -643,7 +647,6 @@ bool ModemComponent::start_ppp_() {
 
   if (!status) {
     ESP_LOGE(TAG, "Unable to change modem mode to PPP");
-    this->poweroff_();
   }
 
   return status;

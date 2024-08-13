@@ -82,7 +82,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_CMUX, default=False): cv.boolean,
-            cv.Optional(CONF_DEBUG, default=False): cv.boolean,  # needs also
+            cv.Optional(CONF_DEBUG, default=False): cv.boolean,
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -176,6 +176,7 @@ async def to_code(config):
         cg.add(var.enable_cmux())
 
     if config[CONF_DEBUG]:
+        add_idf_sdkconfig_option("CONFIG_LOG_MAXIMUM_LEVEL_VERBOSE", True)
         cg.add(var.enable_debug())
 
     if init_at := config.get(CONF_INIT_AT, None):
