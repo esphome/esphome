@@ -8,6 +8,7 @@ from .defines import (
     CONF_DEFAULT_GROUP,
     CONF_ENCODERS,
     CONF_ENTER_BUTTON,
+    CONF_INITIAL_FOCUS,
     CONF_LEFT_BUTTON,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
@@ -67,3 +68,10 @@ async def encoders_to_code(var, config):
         else:
             group = default_group
         lv.indev_set_group(lv_expr.indev_drv_register(listener.get_drv()), group)
+
+
+async def initial_focus_to_code(config):
+    for enc_conf in config[CONF_ENCODERS]:
+        if default_focus := enc_conf.get(CONF_INITIAL_FOCUS):
+            obj = await cg.get_variable(default_focus)
+            lv.group_focus_obj(obj)
