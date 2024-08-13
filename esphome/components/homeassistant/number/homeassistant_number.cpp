@@ -73,14 +73,21 @@ void HomeassistantNumber::dump_config() {
 float HomeassistantNumber::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantNumber::control(float value) {
+  if (!api::global_api_server->is_connected()) {
+    ESP_LOGE(TAG, "No clients connected to API server");
+    return;
+  }
+
   this->publish_state(value);
 
   api::HomeassistantServiceResponse resp;
   resp.service = "number.set_value";
+
   api::HomeassistantServiceMap entity_id;
   entity_id.key = "entity_id";
   entity_id.value = this->entity_id_;
   resp.data.push_back(entity_id);
+
   api::HomeassistantServiceMap entity_value;
   entity_value.key = "value";
   entity_value.value = to_string(value);
