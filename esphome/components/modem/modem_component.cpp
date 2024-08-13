@@ -230,6 +230,7 @@ void ModemComponent::setup() {
 void ModemComponent::loop() {
   static ModemComponentState last_state = this->component_state_;
   static uint32_t next_loop_millis = millis();
+  static uint32_t last_health_check = millis();
   static bool connecting = false;
   static uint8_t network_attach_retry = 10;
   static uint8_t ip_lost_retries = 10;
@@ -291,14 +292,18 @@ void ModemComponent::loop() {
   switch (this->component_state_) {
     case ModemComponentState::NOT_RESPONDING:
       if (this->internal_state_.start) {
-        if (this->modem_ready(true)) {
+        if (this->modem_ready(true) && !this->internal_state_.connected) {
           ESP_LOGI(TAG, "Modem recovered");
           this->status_clear_warning();
           this->component_state_ = ModemComponentState::DISCONNECTED;
         } else {
+          ESP_LOGI(TAG, "Resetting modem");
+          this->internal_state_.connected = false;
           this->modem_lazy_init_();
           if (!this->modem_sync_()) {
             ESP_LOGE(TAG, "Unable to recover modem");
+          } else {
+            this->component_state_ = ModemComponentState::DISCONNECTED;
           }
           // if (!this->internal_state_.powered_on) {
           //   this->poweron_();
@@ -375,6 +380,13 @@ void ModemComponent::loop() {
         if (!this->internal_state_.connected) {
           this->status_set_warning("Connection via Modem lost!");
           this->component_state_ = ModemComponentState::DISCONNECTED;
+        } else if (this->cmux_ && (millis() - last_health_check) > 30000) {
+          ESP_LOGD(TAG, "modem health check");
+          last_health_check = millis();
+          if (!this->get_imei()) {
+            ESP_LOGW(TAG, "modem health check failed");
+            this->component_state_ = ModemComponentState::NOT_RESPONDING;
+          }
         }
       } else {
         if (this->internal_state_.connected) {
@@ -405,6 +417,8 @@ void ModemComponent::loop() {
 void ModemComponent::modem_lazy_init_() {
   // destroy previous dte/dce, and recreate them.
   // no communication is done with the modem.
+
+  this->internal_state_.modem_synced = false;
 
   this->dte_.reset();
   this->dce.reset();
@@ -551,11 +565,11 @@ bool ModemComponent::prepare_sim_() {
     if (!this->pin_code_.empty()) {
       ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
       ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "Set pin code failed");
-      delay(this->command_delay_);
+      delay(2000);  // NOLINT
     }
   }
 
-  this->dce->read_pin(pin_ok);
+  ESPMODEM_ERROR_CHECK(this->dce->read_pin(pin_ok), "Check pin");
   if (pin_ok) {
     if (this->pin_code_.empty()) {
       ESP_LOGD(TAG, "PIN not needed");
