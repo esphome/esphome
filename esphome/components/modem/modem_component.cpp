@@ -336,12 +336,8 @@ void ModemComponent::loop() {
               network_attach_retry--;
               if (network_attach_retry == 0) {
                 ESP_LOGE(TAG, "modem is unable to attach to a network");
-                if (this->power_pin_) {
-                  this->poweroff_();
-                } else {
-                  network_attach_retry = 10;
-                  this->component_state_ = ModemComponentState::NOT_RESPONDING;
-                }
+                network_attach_retry = 10;
+                this->component_state_ = ModemComponentState::NOT_RESPONDING;
               }
               next_loop_millis = millis() + 1000;  // delay to retry
             }
@@ -392,8 +388,6 @@ void ModemComponent::loop() {
     case ModemComponentState::DISABLED:
       if (this->internal_state_.enabled) {
         this->component_state_ = ModemComponentState::DISCONNECTED;
-      } else if (this->internal_state_.powered_on) {
-        this->poweroff_();
       }
       next_loop_millis = millis() + 2000;  // delay for next loop
       break;
@@ -428,8 +422,8 @@ void ModemComponent::modem_lazy_init_() {
 
   this->dte_ = create_uart_dte(&dte_config);
 
-  if (this->dte_->set_mode(modem_mode::COMMAND_MODE)) {
-    ESP_LOGD(TAG, "dte in command mode");
+  if (!this->dte_->set_mode(modem_mode::COMMAND_MODE)) {
+    ESP_LOGW(TAG, "Unable to set DTE in command mode.");
   }
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
 
@@ -478,13 +472,12 @@ bool ModemComponent::modem_sync_() {
     auto command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying command mode");
       this->dce->set_mode(modem_mode::UNDEF);
-      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->get_imei();
+      return this->dce->set_mode(modem_mode::COMMAND_MODE);
     };
 
     auto cmux_command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying cmux command mode");
-      return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) &&
-             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->get_imei();
+      return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) && this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND);
     };
 
     // The cmux state is supposed to be the same before the reboot. But if it has changed (new firwmare), we will try
@@ -503,18 +496,26 @@ bool ModemComponent::modem_sync_() {
       this->internal_state_.powered_on = false;
     } else {
       ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
+      delay(2000);  // NOLINT
       this->internal_state_.powered_on = true;
     }
   } else {
     // modem responded without need to recover command mode
+    ESP_LOGD(TAG, "Modem already synced");
     this->internal_state_.powered_on = true;
   }
 
   if (status && !this->internal_state_.modem_synced) {
+    this->internal_state_.modem_synced = true;
+
     // First time the modem is synced, or modem recovered
     App.feed_wdt();
     watchdog::WatchdogManager wdt(30000);
-    this->internal_state_.modem_synced = true;
+    delay(2000);  // NOLINT
+    if (!this->get_imei()) {
+      ESP_LOGW(TAG, "Unable to sync modem");
+      return false;
+    }
 
     if (!this->prepare_sim_()) {
       // fatal error
@@ -543,6 +544,8 @@ bool ModemComponent::prepare_sim_() {
     this->status_set_error("Unable to read pin status. Missing SIM card?");
     return false;
   }
+
+  delay(this->command_delay_);
 
   if (!pin_ok) {
     if (!this->pin_code_.empty()) {
@@ -671,6 +674,9 @@ void ModemComponent::poweroff_() {
   if (this->power_pin_) {
     this->internal_state_.power_state = ModemPowerState::TOFF;
     this->internal_state_.power_transition = true;
+  } else {
+    // This will powercycle the modem
+    this->send_at("AT+CPOF");
   }
 }
 
