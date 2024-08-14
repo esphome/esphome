@@ -1175,9 +1175,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_exit_reparse_on_start_internal(bool exit_reparse_on_start) {
     this->exit_reparse_on_start_ = exit_reparse_on_start;
   }
-  void set_skip_connection_handshake_internal(bool skip_connection_handshake) {
-    this->skip_connection_handshake_ = skip_connection_handshake;
-  }
 
   /**
    * @brief Retrieves the number of commands pending in the Nextion command queue.
