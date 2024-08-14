@@ -22,32 +22,47 @@ ByteBuffer ByteBuffer::wrap(uint8_t value) {
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(uint16_t value) {
+ByteBuffer ByteBuffer::wrap(uint16_t value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(2);
+  if (endianness == BIG) {
+    buffer.big_endian();
+  }
   buffer.put_uint16(value);
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(uint32_t value) {
+ByteBuffer ByteBuffer::wrap(uint32_t value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(4);
+  if (endianness == BIG) {
+    buffer.big_endian();
+  }
   buffer.put_uint32(value);
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(uint64_t value) {
+ByteBuffer ByteBuffer::wrap(uint64_t value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(8);
+  if (endianness == BIG) {
+    buffer.big_endian();
+  }
   buffer.put_uint64(value);
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(float value) {
-  ByteBuffer buffer = ByteBuffer::create(4);
+ByteBuffer ByteBuffer::wrap(float value, Endian endianness) {
+  ByteBuffer buffer = ByteBuffer::create(sizeof(float));
+  if (endianness == BIG) {
+    buffer.big_endian();
+  }
   buffer.put_float(value);
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(double value) {
-  ByteBuffer buffer = ByteBuffer::create(8);
+ByteBuffer ByteBuffer::wrap(double value, Endian endianness) {
+  ByteBuffer buffer = ByteBuffer::create(sizeof(double));
+  if (endianness == BIG) {
+    buffer.big_endian();
+  }
   buffer.put_double(value);
   return buffer;
 }
