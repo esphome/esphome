@@ -144,6 +144,7 @@ MODELS = {
 }
 
 RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")
+SEGMENT_UPDATEABLE_MODELS = "7.5in-bgr-gd"
 
 
 def validate_full_update_every_only_types_ac(value):
@@ -159,6 +160,16 @@ def validate_full_update_every_only_types_ac(value):
             + ", ".join(full_models)
         )
     return value
+
+
+def validate_num_segments_supported(config):
+    if config[CONF_MODEL] not in SEGMENT_UPDATEABLE_MODELS and (
+        CONF_NUM_SEGMENTS_X in config or CONF_NUM_SEGMENTS_Y in config
+    ):
+        raise cv.Invalid(
+            f"'num_segments_x' and num_segment_y' are not supported by {config[CONF_MODEL]}"
+        )
+    return config
 
 
 def validate_reset_pin_required(config):
@@ -190,6 +201,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(spi.spi_device_schema()),
     validate_full_update_every_only_types_ac,
     validate_reset_pin_required,
+    validate_num_segments_supported,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 
