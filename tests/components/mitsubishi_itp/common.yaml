@@ -1,0 +1,49 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    timezone: America/Los_Angeles
+
+# Temporarily commented out until this component can be merged
+# select:
+#   - platform: mitsubishi_itp
+#     temperature_source:
+#       name: "Temperature Source"
+#       sources:
+#         - fake_temp
+
+sensor:
+  - platform: template
+    id: fake_temp
+    name: "Fake Temperature"
+    lambda: |-
+      return 20.5;
+
+uart:
+  - id: hp_uart
+    baud_rate: 2400
+    parity: EVEN
+    rx_pin:
+      number: GPIO0
+    tx_pin:
+      number: GPIO1
+  - id: tstat_uart
+    baud_rate: 2400
+    parity: EVEN
+    rx_pin:
+      number: GPIO3
+    tx_pin:
+      number: GPIO4
+
+climate:
+  - platform: mitsubishi_itp
+    name: "Climate"
+    uart_heatpump: hp_uart
+    uart_thermostat: tstat_uart
+    time_id: homeassistant_time
+    update_interval: 12s
