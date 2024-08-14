@@ -1642,6 +1642,15 @@ void GDEY075Z08::initialize() {
       this->seg_x_ *
       this->seg_y_);  // initialize the checksums array. Will be filed and maintained by calculate_crss_()
 
+  if (this->checksums_ == nullptr || this->segment_buffer_ == nullptr) {
+    // could not ExternalRAMAllocate at least one of the buffers. We don't really care which, since we need both, so
+    // mark failed, whine, and return.
+    this->mark_failed();
+    ESP_LOGE(TAG, "Failed to allocate required memory for partial updates. Try reducing your num_segment_x and "
+                  "num_segment_y to lower memory requirements. If you don't want to use partial updates, set both "
+                  "values to '1'.");
+    return;
+  }
   ESP_LOGE(TAG, "Before Powerup, after Reset");
   this->command(0x01);  // POWER SETTING
   this->data(0x07);
@@ -1713,10 +1722,10 @@ void HOT GDEY075Z08::display() {
     }
     ESP_LOGD(TAG, "Found a change, initializing display for partial backup");
     uint16_t x_start, y_start, x_end, y_end, x_start_b, x_end_b;
-    x_start = (this->get_width_internal() / seg_x_) * first_segment_x_;
-    x_end = (this->get_width_internal() / seg_x_) * (last_segment_x_ + 1);
-    y_start = (this->get_height_internal() / seg_y_) * first_segment_y_;
-    y_end = (this->get_height_internal() / seg_y_) * (last_segment_y_ + 1);
+    x_start = (this->get_width_internal() / this->seg_x_) * this->first_segment_x_;
+    x_end = (this->get_width_internal() / this->seg_x_) * (this->last_segment_x_ + 1);
+    y_start = (this->get_height_internal() / this->seg_y_) * this->first_segment_y_;
+    y_end = (this->get_height_internal() / this->seg_y_) * (this->last_segment_y_ + 1);
     x_start_b = x_start / 8;  // We need bytes for X, but pixels for Y. This Display does my head in 🤪️
     x_end_b = x_end / 8;
     uint16_t width_b = this->get_width_internal() / 8;
