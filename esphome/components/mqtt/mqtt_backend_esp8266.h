@@ -1,8 +1,9 @@
 #pragma once
+#include "mqtt_backend.h"
 
+#ifdef USE_MQTT
 #ifdef USE_ESP8266
 
-#include "mqtt_backend.h"
 #include <AsyncMqttClient.h>
 
 namespace esphome {
@@ -70,3 +71,4 @@ class MQTTBackendESP8266 final : public MQTTBackend {
 }  // namespace esphome
 
 #endif  // defined(USE_ESP8266)
+#endif

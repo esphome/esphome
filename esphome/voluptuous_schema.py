@@ -2,6 +2,7 @@ import difflib
 import itertools
 
 import voluptuous as vol
+
 from esphome.schema_extractors import schema_extractor_extended
 
 

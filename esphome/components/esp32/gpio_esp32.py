@@ -1,5 +1,6 @@
 import logging
 
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
     CONF_MODE,
@@ -8,9 +9,7 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-import esphome.config_validation as cv
 from esphome.pins import check_strapping_pin
-
 
 _ESP_SDIO_PINS = {
     6: "Flash Clock",
