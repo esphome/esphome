@@ -45,19 +45,19 @@ class ByteBuffer {
    */
   static ByteBuffer wrap(const uint8_t *ptr, size_t len);
   // Convenience functions to create a ByteBuffer from a value
-  static ByteBuffer wrap(const uint8_t value);
-  static ByteBuffer wrap(const uint16_t value, Endian endianness = LITTLE);
-  static ByteBuffer wrap(const uint32_t value, Endian endianness = LITTLE);
-  static ByteBuffer wrap(const uint64_t value, Endian endianness = LITTLE);
-  static ByteBuffer wrap(const int8_t value) { return wrap((uint8_t) value); }
-  static ByteBuffer wrap(const int16_t value, Endian endianness = LITTLE) { return wrap((uint16_t) value, endianness); }
-  static ByteBuffer wrap(const int32_t value, Endian endianness = LITTLE) { return wrap((uint32_t) value, endianness); }
-  static ByteBuffer wrap(const int64_t value, Endian endianness = LITTLE) { return wrap((uint64_t) value, endianness); }
-  static ByteBuffer wrap(const float value, Endian endianness = LITTLE);
-  static ByteBuffer wrap(const double value, Endian endianness = LITTLE);
-  static ByteBuffer wrap(const bool value) { return wrap(value ? (uint8_t) 1 : (uint8_t) 0); }
+  static ByteBuffer wrap(uint8_t value);
+  static ByteBuffer wrap(uint16_t value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(uint32_t value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(uint64_t value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(int8_t value) { return wrap((uint8_t) value); }
+  static ByteBuffer wrap(int16_t value, Endian endianness = LITTLE) { return wrap((uint16_t) value, endianness); }
+  static ByteBuffer wrap(int32_t value, Endian endianness = LITTLE) { return wrap((uint32_t) value, endianness); }
+  static ByteBuffer wrap(int64_t value, Endian endianness = LITTLE) { return wrap((uint64_t) value, endianness); }
+  static ByteBuffer wrap(float value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(double value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(bool value) { return wrap(value ? (uint8_t) 1 : (uint8_t) 0); }
   static ByteBuffer wrap(const std::string &value);
-  static ByteBuffer wrap(const std::initializer_list<uint8_t> values);
+  static ByteBuffer wrap(std::initializer_list<uint8_t> values);
 
   // Get one byte from the buffer, increment position by 1
   uint8_t get_uint8();

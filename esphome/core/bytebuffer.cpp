@@ -174,10 +174,10 @@ uint64_t ByteBuffer::get_uint64() {
 }
 float ByteBuffer::get_float() {
   assert(this->get_remaining() >= sizeof(float));
-  unsigned char byteArray[sizeof(float)];
+  uint8_t byteArray[sizeof(float)];
   if (this->endianness_ == LITTLE) {
-    for (size_t i = 0; i < sizeof(float); i++) {
-      byteArray[i] = this->data_[this->position_++];
+    for (uint8_t & bytePart : byteArray) {
+      i = this->data_[this->position_++];
     }
   } else {
     for (size_t i = sizeof(float); i > 0; i--) {
@@ -190,10 +190,10 @@ float ByteBuffer::get_float() {
 }
 double ByteBuffer::get_double() {
   assert(this->get_remaining() >= sizeof(double));
-  unsigned char byteArray[sizeof(double)];
+  uint8_t byteArray[sizeof(double)];
   if (this->endianness_ == LITTLE) {
-    for (size_t i = 0; i < sizeof(double); i++) {
-      byteArray[i] = this->data_[this->position_++];
+    for (uint8_t & bytePart : byteArray) {
+      i = this->data_[this->position_++];
     }
   } else {
     for (size_t i = sizeof(double); i > 0; i--) {
@@ -280,11 +280,11 @@ void ByteBuffer::put_uint64(uint64_t value) {
 }
 void ByteBuffer::put_float(float value) {
   assert(this->get_remaining() >= sizeof(float));
-  unsigned char byteArray[sizeof(float)];
+  uint8_t byteArray[sizeof(float)];
   std::memcpy(byteArray, &value, sizeof(float));
   if (this->endianness_ == LITTLE) {
-    for (size_t i = 0; i < sizeof(float); i++) {
-      this->data_[this->position_++] = byteArray[i];
+    for (uint8_t bytePart : byteArray) {
+      this->data_[this->position_++] = bytePart;
     }
   } else {
     for (size_t i = sizeof(float); i > 0; i--) {
@@ -294,11 +294,11 @@ void ByteBuffer::put_float(float value) {
 }
 void ByteBuffer::put_double(double value) {
   assert(this->get_remaining() >= sizeof(double));
-  unsigned char byteArray[sizeof(double)];
+  uint8_t byteArray[sizeof(double)];
   std::memcpy(byteArray, &value, sizeof(double));
   if (this->endianness_ == LITTLE) {
-    for (size_t i = 0; i < sizeof(double); i++) {
-      this->data_[this->position_++] = byteArray[i];
+    for (uint8_t bytePart : byteArray) {
+      this->data_[this->position_++] = bytePart;
     }
   } else {
     for (size_t i = sizeof(double); i > 0; i--) {
