@@ -46,6 +46,7 @@ esphome/components/async_tcp/* @OttoWinter
 esphome/components/at581x/* @X-Ryl669
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/atm90e26/* @danieltwagner
+esphome/components/atm90e32/* @circuitsetup @descipher
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
@@ -168,7 +169,9 @@ esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
-esphome/components/homeassistant/* @OttoWinter
+esphome/components/homeassistant/* @OttoWinter @esphome/core
+esphome/components/homeassistant/number/* @landonr
+esphome/components/homeassistant/switch/* @Links2004
 esphome/components/honeywell_hih_i2c/* @Benichou34
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/honeywellabp2_i2c/* @jpfaff
@@ -453,6 +456,7 @@ esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_hhccjcy10/* @fariouche
+esphome/components/xiaomi_lywsd02mmc/* @juanluss31
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
