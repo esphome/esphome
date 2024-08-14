@@ -1,5 +1,5 @@
 from esphome import config_validation as cv
-from esphome.const import CONF_BUTTON, CONF_ID
+from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import new_Pvariable, static_const_array
 from esphome.cpp_types import nullptr
@@ -9,7 +9,6 @@ from ..defines import (
     CONF_BUTTONS,
     CONF_CLOSE_BUTTON,
     CONF_MSGBOXES,
-    CONF_TEXT,
     CONF_TITLE,
     TYPE_FLEX,
     literal,

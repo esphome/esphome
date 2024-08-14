@@ -23,9 +23,9 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, update_to_code
 from .defines import CONF_SKIP
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
-from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
     DISP_BG_SCHEMA,
     FLEX_OBJ_SCHEMA,
@@ -47,6 +47,7 @@ from .types import (
     IdleTrigger,
     ObjUpdateAction,
     lv_font_t,
+    lv_group_t,
     lv_style_t,
     lvgl_ns,
 )
@@ -256,7 +257,7 @@ async def to_code(config):
 
     async with LvContext(lv_component):
         await touchscreens_to_code(lv_component, config)
-        await rotary_encoders_to_code(lv_component, config)
+        await encoders_to_code(lv_component, config)
         await theme_to_code(config)
         await styles_to_code(config)
         await set_obj_properties(lv_scr_act, config)
@@ -271,6 +272,7 @@ async def to_code(config):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
+        await initial_focus_to_code(config)
 
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
@@ -335,8 +337,9 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
-            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
-            cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
         }
     )
     .extend(DISP_BG_SCHEMA)

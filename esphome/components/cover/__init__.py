@@ -1,23 +1,23 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import maybe_simple_id, Condition
+from esphome.automation import Condition, maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_DEVICE_CLASS,
-    CONF_STATE,
+    CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_OPEN,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
     CONF_POSITION_STATE_TOPIC,
+    CONF_STATE,
+    CONF_STOP,
     CONF_TILT,
     CONF_TILT_COMMAND_TOPIC,
     CONF_TILT_STATE_TOPIC,
-    CONF_STOP,
-    CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
     CONF_TRIGGER_ID,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
     DEVICE_CLASS_CURTAIN,

@@ -51,6 +51,7 @@
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
+#define USE_NETWORK
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_ONLINE_IMAGE_PNG_SUPPORT
@@ -158,6 +159,7 @@
 #endif
 
 // Disabled feature flags
-// #define USE_BSEC  // Requires a library with proprietary license.
+// #define USE_BSEC   // Requires a library with proprietary license
+// #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT

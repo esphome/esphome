@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WIDTH
+from esphome.const import CONF_ID, CONF_ITEMS, CONF_TEXT, CONF_WIDTH
 from esphome.cpp_generator import MockObj
 
 from ..automation import action_to_code
@@ -10,13 +10,11 @@ from ..defines import (
     BUTTONMATRIX_CTRLS,
     CONF_BUTTONS,
     CONF_CONTROL,
-    CONF_ITEMS,
     CONF_KEY_CODE,
     CONF_MAIN,
     CONF_ONE_CHECKED,
     CONF_ROWS,
     CONF_SELECTED,
-    CONF_TEXT,
 )
 from ..helpers import lvgl_components_required
 from ..lv_validation import key_code, lv_bool

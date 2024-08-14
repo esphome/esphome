@@ -1,24 +1,23 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
-from esphome.components import web_server
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
+    CONF_CYCLE,
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
-    CONF_ID,
     CONF_ICON,
+    CONF_ID,
     CONF_MODE,
+    CONF_MQTT_ID,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_OPERATION,
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_MQTT_ID,
     CONF_VALUE,
-    CONF_OPERATION,
-    CONF_CYCLE,
     CONF_WEB_SERVER_ID,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
@@ -72,8 +71,8 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [

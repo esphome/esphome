@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAINS_FILTER,
     DEVICE_CLASS_TEMPERATURE,
@@ -15,8 +15,8 @@ MAX31856Sensor = max31856_ns.class_(
 
 MAX31865ConfigFilter = max31856_ns.enum("MAX31856ConfigFilter")
 FILTER = {
-    "50HZ": MAX31865ConfigFilter.FILTER_50HZ,
-    "60HZ": MAX31865ConfigFilter.FILTER_60HZ,
+    50: MAX31865ConfigFilter.FILTER_50HZ,
+    60: MAX31865ConfigFilter.FILTER_60HZ,
 }
 
 CONFIG_SCHEMA = (
@@ -29,8 +29,8 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(CONF_MAINS_FILTER, default="60HZ"): cv.enum(
-                FILTER, upper=True, space=""
+            cv.Optional(CONF_MAINS_FILTER, default="60Hz"): cv.All(
+                cv.frequency, cv.enum(FILTER, int=True)
             ),
         }
     )

@@ -4,7 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
-
+#ifdef USE_WIFI
 namespace esphome {
 namespace wifi_signal {
 
@@ -19,3 +19,4 @@ class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
 
 }  // namespace wifi_signal
 }  // namespace esphome
+#endif

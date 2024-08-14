@@ -19,11 +19,12 @@ class LVGLText : public text::Text {
   }
 
  protected:
-  void control(const std::string &value) {
-    if (this->control_lambda_ != nullptr)
+  void control(const std::string &value) override {
+    if (this->control_lambda_ != nullptr) {
       this->control_lambda_(value);
-    else
+    } else {
       this->initial_state_ = value;
+    }
   }
   std::function<void(const std::string)> control_lambda_{};
   optional<std::string> initial_state_{};

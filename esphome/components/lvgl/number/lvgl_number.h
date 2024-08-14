@@ -19,11 +19,12 @@ class LVGLNumber : public number::Number {
   }
 
  protected:
-  void control(float value) {
-    if (this->control_lambda_ != nullptr)
+  void control(float value) override {
+    if (this->control_lambda_ != nullptr) {
       this->control_lambda_(value);
-    else
+    } else {
       this->initial_state_ = value;
+    }
   }
   std::function<void(float)> control_lambda_{};
   optional<float> initial_state_{};
