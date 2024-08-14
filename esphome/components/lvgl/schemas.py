@@ -103,6 +103,7 @@ STYLE_PROPS = {
     ).several_of,
     "border_width": cv.positive_int,
     "clip_corner": lvalid.lv_bool,
+    "color_filter_opa": lvalid.opacity,
     "height": lvalid.size,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
