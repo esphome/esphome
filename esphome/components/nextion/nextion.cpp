@@ -279,7 +279,6 @@ void Nextion::loop() {
     // This could probably be removed from the loop area, as those are redundant.
     this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
     this->set_exit_reparse_on_start(this->exit_reparse_on_start_);
-    this->set_skip_connection_handshake(this->skip_connection_handshake_);
 
     if (this->touch_sleep_timeout_ != 0) {
       this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
