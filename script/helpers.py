@@ -180,9 +180,14 @@ CONFIG_NEWLIB_LIBC=y
 
         def extract_include_paths(command):
             include_paths = []
-            include_pattern = re.compile(r"(-I|-isystem)\s*([^\s]+)")
+            include_pattern = re.compile(
+                r'("-I\s*[^"]+)|(-isystem\s*[^\s]+)|(-I\s*[^\s]+)'
+            )
             for match in include_pattern.findall(command):
-                include_paths.append(match[1])
+                split_strings = re.split(
+                    r"\s*-\s*(?:I|isystem)", list(filter(lambda x: x, match))[0]
+                )
+                include_paths.append(split_strings[1])
             return include_paths
 
         def extract_defines(command):
