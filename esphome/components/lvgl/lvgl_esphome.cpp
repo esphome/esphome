@@ -27,7 +27,8 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
     area->y2++;
 }
 
-lv_event_code_t lv_custom_event;  // NOLINT
+lv_event_code_t lv_api_event;     // NOLINT
+lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() { ESP_LOGCONFIG(TAG, "LVGL:"); }
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
@@ -40,14 +41,17 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
   lv_obj_add_event_cb(obj, callback, event, this);
-  if (event == LV_EVENT_VALUE_CHANGED) {
-    lv_obj_add_event_cb(obj, callback, lv_custom_event, this);
-  }
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2) {
   this->add_event_cb(obj, callback, event1);
   this->add_event_cb(obj, callback, event2);
+}
+void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
+                                 lv_event_code_t event2, lv_event_code_t event3) {
+  this->add_event_cb(obj, callback, event1);
+  this->add_event_cb(obj, callback, event2);
+  this->add_event_cb(obj, callback, event3);
 }
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
@@ -228,7 +232,8 @@ void LvglComponent::setup() {
   lv_log_register_print_cb(log_cb);
 #endif
   lv_init();
-  lv_custom_event = static_cast<lv_event_code_t>(lv_event_register_id());
+  lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
+  lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
   auto *display = this->displays_[0];
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
