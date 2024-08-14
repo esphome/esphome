@@ -27,6 +27,10 @@
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
 
+#if defined(USE_ZEPHYR)
+#define MD5_CTX_TYPE void *
+#endif
+
 namespace esphome {
 namespace md5 {
 
