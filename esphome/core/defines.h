@@ -75,6 +75,7 @@
 #define USE_VALVE
 #define USE_WIFI
 #define USE_WIFI_AP
+#define USE_WIREGUARD
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
