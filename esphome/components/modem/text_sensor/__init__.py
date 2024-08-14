@@ -3,7 +3,7 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY
 
-from .. import final_validate_platform, modem_ns
+from .. import MODEM_COMPONENT_SCHEMA, final_validate_platform, modem_ns
 
 CODEOWNERS = ["@oarcher"]
 
@@ -25,7 +25,9 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_EMPTY,
             ),
         }
-    ).extend(cv.polling_component_schema("60s"))
+    )
+    .extend(MODEM_COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("60s"))
 )
 
 

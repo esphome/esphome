@@ -32,6 +32,7 @@ AUTO_LOAD = ["network", "watchdog"]
 CONFLICTS_WITH = ["captive_portal", "ethernet"]
 
 CONF_MODEM = "modem"
+CONF_MODEM_ID = "modem_id"
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
 CONF_DTR_PIN = "dtr_pin"
@@ -67,10 +68,14 @@ ModemOnDisconnectTrigger = modem_ns.class_(
     "ModemOnDisconnectTrigger", automation.Trigger.template()
 )
 
+MODEM_COMPONENT_SCHEMA = cv.Schema(
+    {cv.GenerateID(CONF_MODEM_ID): cv.use_id(ModemComponent)}
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ModemComponent),
+            cv.GenerateID(CONF_ID): cv.declare_id(ModemComponent),
             cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
@@ -101,7 +106,9 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(MODEM_COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
         esp_idf=cv.Version(4, 0, 0),  # 5.2.0 OK
     ),
@@ -109,10 +116,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 def final_validate_platform(config):
-    if not fv.full_config.get().data.get(KEY_MODEM_CMUX, None):
-        raise cv.Invalid(
-            f"'{CONF_MODEM}' platform require '{CONF_ENABLE_CMUX}' to be 'true'."
-        )
+    # to be called by platform components
+    if modem_config := fv.full_config.get().get(CONF_MODEM, None):
+        if not modem_config.get(CONF_ENABLE_CMUX, None):
+            raise cv.Invalid(
+                f"'{CONF_MODEM}' platform require '{CONF_ENABLE_CMUX}' to be 'true'."
+            )
+    else:
+        raise cv.Invalid("'{CONF_MODEM}' component required.")
     return config
 
 

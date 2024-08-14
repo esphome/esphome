@@ -18,9 +18,9 @@ from esphome.const import (
     UNIT_METER,
     UNIT_PERCENT,
 )
-import esphome.final_validate as fv
 
-from .. import final_validate_platform, modem_ns, switch
+from .. import MODEM_COMPONENT_SCHEMA, final_validate_platform, modem_ns
+from ..switch import GNSS_SWITCH_SCHEMA
 
 CODEOWNERS = ["@oarcher"]
 
@@ -44,6 +44,15 @@ ICON_SIGNAL_BAR = "mdi:signal"
 
 ModemSensor = modem_ns.class_("ModemSensor", cg.PollingComponent)
 
+
+GNSS_SENSORS = {
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_ALTITUDE,
+    CONF_COURSE,
+    CONF_ACCURACY,
+    CONF_SPEED,
+}
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -69,51 +78,44 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=5,
                 icon=ICON_LATITUDE,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            ).extend(GNSS_SWITCH_SCHEMA),
             cv.Optional(CONF_LONGITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,
                 accuracy_decimals=5,
                 icon=ICON_LONGITUDE,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            ).extend(GNSS_SWITCH_SCHEMA),
             cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER,
                 accuracy_decimals=1,
                 icon=ICON_LOCATION_UP,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            ).extend(GNSS_SWITCH_SCHEMA),
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
                 accuracy_decimals=1,
                 icon=ICON_SPEED,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            ).extend(GNSS_SWITCH_SCHEMA),
             cv.Optional(CONF_ACCURACY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER,
                 accuracy_decimals=1,
                 icon=ICON_LOCATION_RADIUS,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            ).extend(GNSS_SWITCH_SCHEMA),
             cv.Optional(CONF_COURSE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,
                 accuracy_decimals=1,
                 icon=ICON_COMPASS,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            ).extend(GNSS_SWITCH_SCHEMA),
         }
-    ).extend(cv.polling_component_schema("60s"))
+    )
+    .extend(MODEM_COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("60s")),
 )
 
-
-def _final_validate_gnss(config):
-    # GNSS sensors needs GNSS switch
-    if config.get(CONF_LATITUDE, None) or config.get(CONF_LONGITUDE, None):
-        if not fv.full_config.get().data.get(switch.KEY_MODEM_GNSS, None):
-            raise cv.Invalid("Using GNSS modem sensors require GNSS modem switch.")
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(final_validate_platform, _final_validate_gnss)
+FINAL_VALIDATE_SCHEMA = cv.All(final_validate_platform)
 
 
 async def to_code(config):
