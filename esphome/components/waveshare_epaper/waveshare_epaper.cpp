@@ -1522,7 +1522,7 @@ void GDEY075Z08::calculate_crcs_(bool full_sync) {
   // reset first and last X segment so we can recalculate it here.
   this->first_segment_x_ = this->seg_x_ + 1;
   this->last_segment_x_ = 0;
-  ESP_LOGD(TAG, "width_b: %u, height_px: %u, segment_size: %u, buffer_half_size: %u, seg_x_: %u, seg_y_: %u", width_b,
+  ESP_LOGD(TAG, "width_b: %u, height_px: %u, segment_size: %u, buffer_half_size: %lu, seg_x_: %u, seg_y_: %u", width_b,
            height_px, segment_size, buffer_half_size, this->seg_x_, this->seg_y_);
   ESP_LOGD(TAG, "Entering CRC calculation Loop");
   for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {    // vertically iterate through the number of lines (px)
