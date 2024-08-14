@@ -32,6 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    cg.add_define("USE_NETWORK")
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:

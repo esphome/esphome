@@ -14,8 +14,6 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
     ESP_LOGD(TAG, "version = %d", value->version);
 
     if (value->version == 1) {
-      ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
-
       if (this->humidity_sensor_ != nullptr) {
         this->humidity_sensor_->publish_state(value->humidity / 2.0f);
       }
@@ -43,6 +41,10 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
       if ((this->tvoc_sensor_ != nullptr) && this->is_valid_voc_value_(value->voc)) {
         this->tvoc_sensor_->publish_state(value->voc);
       }
+
+      if (this->illuminance_sensor_ != nullptr) {
+        this->illuminance_sensor_->publish_state(value->ambientLight);
+      }
     } else {
       ESP_LOGE(TAG, "Invalid payload version (%d != 1, newer version or not a Wave Plus?)", value->version);
     }
@@ -68,6 +70,7 @@ void AirthingsWavePlus::dump_config() {
   LOG_SENSOR("  ", "Radon", this->radon_sensor_);
   LOG_SENSOR("  ", "Radon Long Term", this->radon_long_term_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
 }
 
 AirthingsWavePlus::AirthingsWavePlus() {

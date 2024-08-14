@@ -1,30 +1,30 @@
 """Constants used by esphome."""
 
-__version__ = "2024.8.0-dev"
+__version__ = "2024.9.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
+PLATFORM_BK72XX = "bk72xx"
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
-PLATFORM_RP2040 = "rp2040"
 PLATFORM_HOST = "host"
-PLATFORM_BK72XX = "bk72xx"
-PLATFORM_RTL87XX = "rtl87xx"
 PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
 PLATFORM_NRF52 = "nrf52"
+PLATFORM_RP2040 = "rp2040"
+PLATFORM_RTL87XX = "rtl87xx"
 
 TARGET_PLATFORMS = [
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
     PLATFORM_HOST,
-    PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
     PLATFORM_LIBRETINY_OLDSTYLE,
     PLATFORM_NRF52,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 ]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
@@ -97,6 +97,7 @@ CONF_BOARD_FLASH_MODE = "board_flash_mode"
 CONF_BORDER = "border"
 CONF_BRANCH = "branch"
 CONF_BRIGHTNESS = "brightness"
+CONF_BRIGHTNESS_LIMITS = "brightness_limits"
 CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_SIZE = "buffer_size"
@@ -431,6 +432,7 @@ CONF_LIGHT = "light"
 CONF_LIGHT_ID = "light_id"
 CONF_LIGHTNING_ENERGY = "lightning_energy"
 CONF_LIGHTNING_THRESHOLD = "lightning_threshold"
+CONF_LIMIT_MODE = "limit_mode"
 CONF_LINE_THICKNESS = "line_thickness"
 CONF_LINE_TYPE = "line_type"
 CONF_LOADED_INTEGRATIONS = "loaded_integrations"
