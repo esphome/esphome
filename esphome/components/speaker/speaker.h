@@ -14,7 +14,6 @@ class Speaker {
  public:
   virtual size_t play(const uint8_t *data, size_t length) = 0;
   size_t play(const std::vector<uint8_t> &data) { return this->play(data.data(), data.size()); }
-  virtual void finish() {}
 
   virtual void start() = 0;
   virtual void stop() = 0;
