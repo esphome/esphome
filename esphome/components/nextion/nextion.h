@@ -939,7 +939,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * When set to true, the display will be marked as connected without performing a handshake.
    */
-  void set_skip_connection_handshake(bool skip_handshake);
+  void set_skip_connection_handshake(bool skip_handshake) { this->skip_connection_handshake_ = skip_handshake; }
 
   /**
    * Sets Nextion mode between sleep and awake
