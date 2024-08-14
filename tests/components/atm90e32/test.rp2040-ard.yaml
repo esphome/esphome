@@ -7,7 +7,7 @@ spi:
 sensor:
   - platform: atm90e32
     cs_pin: 5
-    id: chip1    
+    id: chip1
     phase_a:
       voltage:
         name: EMON Line Voltage A
