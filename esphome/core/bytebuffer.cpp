@@ -174,34 +174,34 @@ uint64_t ByteBuffer::get_uint64() {
 }
 float ByteBuffer::get_float() {
   assert(this->get_remaining() >= sizeof(float));
-  uint8_t byteArray[sizeof(float)];
+  uint8_t byte_array[sizeof(float)];
   if (this->endianness_ == LITTLE) {
-    for (uint8_t &bytePart : byteArray) {
-      bytePart = this->data_[this->position_++];
+    for (uint8_t &byte_part : byte_array) {
+      byte_part = this->data_[this->position_++];
     }
   } else {
     for (size_t i = sizeof(float); i > 0; i--) {
-      byteArray[i - 1] = this->data_[this->position_++];
+      byte_array[i - 1] = this->data_[this->position_++];
     }
   }
   float value;
-  std::memcpy(&value, byteArray, sizeof(float));
+  std::memcpy(&value, byte_array, sizeof(float));
   return value;
 }
 double ByteBuffer::get_double() {
   assert(this->get_remaining() >= sizeof(double));
-  uint8_t byteArray[sizeof(double)];
+  uint8_t byte_array[sizeof(double)];
   if (this->endianness_ == LITTLE) {
-    for (uint8_t &bytePart : byteArray) {
-      bytePart = this->data_[this->position_++];
+    for (uint8_t &byte_part : byte_array) {
+      byte_part = this->data_[this->position_++];
     }
   } else {
     for (size_t i = sizeof(double); i > 0; i--) {
-      byteArray[i - 1] = this->data_[this->position_++];
+      byte_array[i - 1] = this->data_[this->position_++];
     }
   }
   double value;
-  std::memcpy(&value, byteArray, sizeof(double));
+  std::memcpy(&value, byte_array, sizeof(double));
   return value;
 }
 std::string ByteBuffer::get_string(size_t length) {
@@ -280,29 +280,29 @@ void ByteBuffer::put_uint64(uint64_t value) {
 }
 void ByteBuffer::put_float(float value) {
   assert(this->get_remaining() >= sizeof(float));
-  uint8_t byteArray[sizeof(float)];
-  std::memcpy(byteArray, &value, sizeof(float));
+  uint8_t byte_array[sizeof(float)];
+  std::memcpy(byte_array, &value, sizeof(float));
   if (this->endianness_ == LITTLE) {
-    for (uint8_t bytePart : byteArray) {
-      this->data_[this->position_++] = bytePart;
+    for (uint8_t byte_part : byte_array) {
+      this->data_[this->position_++] = byte_part;
     }
   } else {
     for (size_t i = sizeof(float); i > 0; i--) {
-      this->data_[this->position_++] = byteArray[i - 1];
+      this->data_[this->position_++] = byte_array[i - 1];
     }
   }
 }
 void ByteBuffer::put_double(double value) {
   assert(this->get_remaining() >= sizeof(double));
-  uint8_t byteArray[sizeof(double)];
-  std::memcpy(byteArray, &value, sizeof(double));
+  uint8_t byte_array[sizeof(double)];
+  std::memcpy(byte_array, &value, sizeof(double));
   if (this->endianness_ == LITTLE) {
-    for (uint8_t bytePart : byteArray) {
-      this->data_[this->position_++] = bytePart;
+    for (uint8_t byte_part : byte_array) {
+      this->data_[this->position_++] = byte_part;
     }
   } else {
     for (size_t i = sizeof(double); i > 0; i--) {
-      this->data_[this->position_++] = byteArray[i - 1];
+      this->data_[this->position_++] = byte_array[i - 1];
     }
   }
 }
