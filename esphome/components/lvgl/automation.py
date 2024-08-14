@@ -17,6 +17,7 @@ from .defines import (
 from .lv_validation import lv_bool, lv_color, lv_image
 from .lvcode import (
     LVGL_COMP_ARG,
+    UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
     LvConditional,
@@ -30,7 +31,6 @@ from .lvcode import (
 )
 from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
-    LV_EVENT,
     LV_STATE,
     LvglAction,
     LvglCondition,
@@ -64,7 +64,7 @@ async def update_to_code(config, action_id, template_arg, args):
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
         ):
-            lv.event_send(widget.obj, LV_EVENT.VALUE_CHANGED, nullptr)
+            lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(widgets, do_update, action_id, template_arg, args)
