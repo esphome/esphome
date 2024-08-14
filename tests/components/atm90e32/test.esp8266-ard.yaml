@@ -67,6 +67,8 @@ sensor:
         name: EMON Power Factor CT1
       gain_voltage: 7305
       gain_ct: 27961
+    line_frequency: 60Hz
+    current_phases: 1
 button:
   - platform: atm90e32
     id: chip1
