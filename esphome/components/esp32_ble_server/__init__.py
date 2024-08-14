@@ -176,7 +176,7 @@ def parse_descriptor_value(value):
         cv.hex_uint16_t,
         cv.hex_uint32_t,
         cv.int_,
-        cv.string
+        cv.string,
     ]:
         try:
             val = val_method(value)
@@ -296,7 +296,7 @@ async def parse_characteristic_value(value, args):
         cv.hex_uint16_t,
         cv.hex_uint32_t,
         cv.int_,
-        cv.string
+        cv.string,
     ]:
         try:
             val = val_method(value)
