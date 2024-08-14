@@ -169,8 +169,15 @@ def parse_uuid(uuid):
 def parse_descriptor_value(value):
     # Compute the maximum length of the descriptor value
     # Also parse the value for byte arrays
-    for val_method in [cv.boolean, cv.float_, cv.hex_uint8_t,
-                       cv.hex_uint16_t, cv.hex_uint32_t, cv.int_, cv.string]:
+    for val_method in [
+        cv.boolean,
+        cv.float_,
+        cv.hex_uint8_t,
+        cv.hex_uint16_t,
+        cv.hex_uint32_t,
+        cv.int_,
+        cv.string
+    ]:
         try:
             val = val_method(value)
             buffer = ByteBuffer_ns.wrap(val)
@@ -281,9 +288,16 @@ async def parse_characteristic_value(value, args):
             args,
             ByteBuffer,
             ByteBuffer_ns.wrap,
-        )        
-    for val_method in [cv.boolean, cv.float_, cv.hex_uint8_t,
-                       cv.hex_uint16_t, cv.hex_uint32_t, cv.int_, cv.string]:
+        )
+    for val_method in [
+        cv.boolean,
+        cv.float_,
+        cv.hex_uint8_t,
+        cv.hex_uint16_t,
+        cv.hex_uint32_t,
+        cv.int_,
+        cv.string
+    ]:
         try:
             val = val_method(value)
             return ByteBuffer_ns.wrap(val)
