@@ -196,8 +196,7 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
   ESP_LOGV(TAG, "Setting state: %d", state);
   this->state_ = state;
   if (this->status_->get_value().empty() || this->status_->get_value()[0] != state) {
-    uint8_t data[1]{state};
-    this->status_->set_value(ByteBuffer::wrap(data));
+    this->status_->set_value(ByteBuffer::wrap(static_cast<uint8_t>(state)));
     if (state != improv::STATE_STOPPED)
       this->status_->notify();
   }
@@ -226,8 +225,7 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
     ESP_LOGE(TAG, "Error: %d", error);
   }
   if (this->error_->get_value().empty() || this->error_->get_value()[0] != error) {
-    uint8_t data[1]{error};
-    this->error_->set_value(ByteBuffer::wrap(data));
+    this->error_->set_value(ByteBuffer::wrap(static_cast<uint8_t>(error)));
     if (this->state_ != improv::STATE_STOPPED)
       this->error_->notify();
   }
