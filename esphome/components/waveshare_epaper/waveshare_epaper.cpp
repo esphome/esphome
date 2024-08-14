@@ -1522,7 +1522,7 @@ void GDEY075Z08::calculate_crcs_(bool full_sync) {
   // reset first and last X segment so we can recalculate it here.
   this->first_segment_x_ = this->seg_x_ + 1;
   this->last_segment_x_ = 0;
-  ESP_LOGD(TAG, "width_b: %d, height_px: %d, segment_size: %d, buffer_half_size: %d, seg_x_: %d, seg_y_: %d", width_b,
+  ESP_LOGD(TAG, "width_b: %u, height_px: %u, segment_size: %u, buffer_half_size: %u, seg_x_: %u, seg_y_: %u", width_b,
            height_px, segment_size, buffer_half_size, this->seg_x_, this->seg_y_);
   ESP_LOGD(TAG, "Entering CRC calculation Loop");
   for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {    // vertically iterate through the number of lines (px)
@@ -1574,7 +1574,7 @@ void GDEY075Z08::calculate_crcs_(bool full_sync) {
     }
   }
   if (found_change) {
-    ESP_LOGD(TAG, "CRC Calculation finished. Found changes: %02d:%02d to %02d:%02d", first_segment_x_, first_segment_y_,
+    ESP_LOGD(TAG, "CRC Calculation finished. Found changes: %02u:%02u to %02u:%02u", first_segment_x_, first_segment_y_,
              last_segment_x_, last_segment_y_);
   } else {
     ESP_LOGD(TAG, "CRC Calculation finished. No changes found.");
@@ -1582,27 +1582,8 @@ void GDEY075Z08::calculate_crcs_(bool full_sync) {
 }
 void GDEY075Z08::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
-void GDEY075Z08::set_num_segments_x(uint8_t value) {
-  if (this->get_width_internal() % (value * 8) != 0) {
-    ESP_LOGD(TAG,
-             "Invalid number of X Segments (%d) The display width divided by number of segments must be divisible by "
-             "8 for "
-             "proper byte boundaries. Setting num_segments_x to 20.",
-             value);  // We actually don't have to do anything, 10 is the default value :o)
-  } else {
-    this->seg_x_ = value;
-  }
-}
-void GDEY075Z08::set_num_segments_y(uint8_t value) {
-  if (this->get_height_internal() % value != 0) {
-    ESP_LOGD(TAG,
-             "Invalid number of Y Segments (%d). The display height (480px) must be divisible by the number of y "
-             "segments for equal segment height. Setting num_segments_y to 10.",
-             value);  // We actually don't have to do anything, 10 is the default value :o)
-  } else {
-    this->seg_y_ = value;
-  }
-}
+void GDEY075Z08::set_num_segments_x(uint8_t value) { this->seg_x_ = value; }
+void GDEY075Z08::set_num_segments_y(uint8_t value) { this->seg_y_ = value; }
 void GDEY075Z08::init_fast_() {
   this->reset_();       // Module reset
   this->command(0x00);  // PANNEL SETTING
