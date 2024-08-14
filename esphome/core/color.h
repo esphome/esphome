@@ -85,22 +85,26 @@ struct Color {
   }
   inline Color operator+(const Color &add) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    if (uint8_t(add.r + this->r) < this->r)
+    if (uint8_t(add.r + this->r) < this->r) {
       ret.r = 255;
-    else
+    } else {
       ret.r = this->r + add.r;
-    if (uint8_t(add.g + this->g) < this->g)
+    }
+    if (uint8_t(add.g + this->g) < this->g) {
       ret.g = 255;
-    else
+    } else {
       ret.g = this->g + add.g;
-    if (uint8_t(add.b + this->b) < this->b)
+    }
+    if (uint8_t(add.b + this->b) < this->b) {
       ret.b = 255;
-    else
+    } else {
       ret.b = this->b + add.b;
-    if (uint8_t(add.w + this->w) < this->w)
+    }
+    if (uint8_t(add.w + this->w) < this->w) {
       ret.w = 255;
-    else
+    } else {
       ret.w = this->w + add.w;
+    }
     return ret;
   }
   inline Color &operator+=(const Color &add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
@@ -108,22 +112,26 @@ struct Color {
   inline Color &operator+=(uint8_t add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
   inline Color operator-(const Color &subtract) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    if (subtract.r > this->r)
+    if (subtract.r > this->r) {
       ret.r = 0;
-    else
+    } else {
       ret.r = this->r - subtract.r;
-    if (subtract.g > this->g)
+    }
+    if (subtract.g > this->g) {
       ret.g = 0;
-    else
+    } else {
       ret.g = this->g - subtract.g;
-    if (subtract.b > this->b)
+    }
+    if (subtract.b > this->b) {
       ret.b = 0;
-    else
+    } else {
       ret.b = this->b - subtract.b;
-    if (subtract.w > this->w)
+    }
+    if (subtract.w > this->w) {
       ret.w = 0;
-    else
+    } else {
       ret.w = this->w - subtract.w;
+    }
     return ret;
   }
   inline Color &operator-=(const Color &subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }

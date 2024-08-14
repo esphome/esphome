@@ -20,10 +20,11 @@ class LVGLSwitch : public switch_::Switch {
 
  protected:
   void write_state(bool value) override {
-    if (this->state_lambda_ != nullptr)
+    if (this->state_lambda_ != nullptr) {
       this->state_lambda_(value);
-    else
+    } else {
       this->initial_state_ = value;
+    }
   }
   std::function<void(bool)> state_lambda_{};
   optional<bool> initial_state_{};
