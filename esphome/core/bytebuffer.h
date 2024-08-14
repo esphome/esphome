@@ -31,11 +31,11 @@ enum Endian { LITTLE, BIG };
 class ByteBuffer {
  public:
   // Default constructor (compatibility with TEMPLATABLE_VALUE)
-  ByteBuffer() = default;
+  ByteBuffer() : ByteBuffer(std::vector<uint8_t>()) {}
   /**
    * Create a new Bytebuffer with the given capacity
    */
-  static ByteBuffer create(size_t capacity);
+  static ByteBuffer create(size_t capacity, Endian endianness = LITTLE);
   /**
    * Wrap an existing vector in a ByteBufffer
    */

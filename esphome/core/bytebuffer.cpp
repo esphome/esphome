@@ -4,9 +4,11 @@
 
 namespace esphome {
 
-ByteBuffer ByteBuffer::create(size_t capacity) {
+ByteBuffer ByteBuffer::create(size_t capacity, Endian endianness) {
   std::vector<uint8_t> data(capacity);
-  return {data};
+  ByteBuffer buffer = {data};
+  buffer.endianness_ = endianness;
+  return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len) {
@@ -23,46 +25,31 @@ ByteBuffer ByteBuffer::wrap(uint8_t value) {
 }
 
 ByteBuffer ByteBuffer::wrap(uint16_t value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(2);
-  if (endianness == BIG) {
-    buffer.big_endian();
-  }
+  ByteBuffer buffer = ByteBuffer::create(2, endianness);
   buffer.put_uint16(value);
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint32_t value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(4);
-  if (endianness == BIG) {
-    buffer.big_endian();
-  }
+  ByteBuffer buffer = ByteBuffer::create(4, endianness);
   buffer.put_uint32(value);
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint64_t value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(8);
-  if (endianness == BIG) {
-    buffer.big_endian();
-  }
+  ByteBuffer buffer = ByteBuffer::create(8, endianness);
   buffer.put_uint64(value);
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(float value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(sizeof(float));
-  if (endianness == BIG) {
-    buffer.big_endian();
-  }
+  ByteBuffer buffer = ByteBuffer::create(sizeof(float), endianness);
   buffer.put_float(value);
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(double value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(sizeof(double));
-  if (endianness == BIG) {
-    buffer.big_endian();
-  }
+  ByteBuffer buffer = ByteBuffer::create(sizeof(double), endianness);
   buffer.put_double(value);
   return buffer;
 }
