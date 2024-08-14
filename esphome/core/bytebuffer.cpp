@@ -177,7 +177,7 @@ float ByteBuffer::get_float() {
   uint8_t byteArray[sizeof(float)];
   if (this->endianness_ == LITTLE) {
     for (uint8_t &bytePart : byteArray) {
-      i = this->data_[this->position_++];
+      bytePart = this->data_[this->position_++];
     }
   } else {
     for (size_t i = sizeof(float); i > 0; i--) {
@@ -193,7 +193,7 @@ double ByteBuffer::get_double() {
   uint8_t byteArray[sizeof(double)];
   if (this->endianness_ == LITTLE) {
     for (uint8_t &bytePart : byteArray) {
-      i = this->data_[this->position_++];
+      bytePart = this->data_[this->position_++];
     }
   } else {
     for (size_t i = sizeof(double); i > 0; i--) {
