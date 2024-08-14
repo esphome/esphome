@@ -1,10 +1,10 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include <map>
 #include <utility>
 
 #include "esphome/components/web_server_base/web_server_base.h"
-#ifdef USE_NETWORK
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
