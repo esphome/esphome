@@ -55,7 +55,6 @@ bool Nextion::set_protocol_reparse_mode(bool active_mode) {
   return all_commands_sent;
 }
 void Nextion::set_exit_reparse_on_start(bool exit_reparse) { this->exit_reparse_on_start_ = exit_reparse; }
-void Nextion::set_skip_connection_handshake(bool skip_handshake) { this->skip_connection_handshake_ = skip_handshake; }
 
 // Set Colors - Background
 void Nextion::set_component_background_color(const char *component, uint16_t color) {
