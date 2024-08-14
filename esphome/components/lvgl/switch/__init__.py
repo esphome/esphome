@@ -5,8 +5,9 @@ from esphome.cpp_generator import MockObj
 
 from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lvcode import (
-    CUSTOM_EVENT,
+    API_EVENT,
     EVENT_ARG,
+    UPDATE_EVENT,
     LambdaContext,
     LvConditional,
     LvContext,
@@ -41,7 +42,7 @@ async def to_code(config):
             widget.add_state(LV_STATE.CHECKED)
             cond.else_()
             widget.clear_state(LV_STATE.CHECKED)
-        lv.event_send(widget.obj, CUSTOM_EVENT, cg.nullptr)
+        lv.event_send(widget.obj, API_EVENT, cg.nullptr)
     async with LvContext(paren) as ctx:
         lv_add(switch.set_control_lambda(await control.get_lambda()))
         ctx.add(
@@ -49,6 +50,7 @@ async def to_code(config):
                 widget.obj,
                 await checked_ctx.get_lambda(),
                 LV_EVENT.VALUE_CHANGED,
+                UPDATE_EVENT,
             )
         )
         lv_add(switch.publish_state(widget.get_value()))

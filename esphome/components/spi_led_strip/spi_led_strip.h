@@ -46,10 +46,11 @@ class SpiLedStrip : public light::AddressableLight,
   void dump_config() override {
     esph_log_config(TAG, "SPI LED Strip:");
     esph_log_config(TAG, "  LEDs: %d", this->num_leds_);
-    if (this->data_rate_ >= spi::DATA_RATE_1MHZ)
+    if (this->data_rate_ >= spi::DATA_RATE_1MHZ) {
       esph_log_config(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
-    else
+    } else {
       esph_log_config(TAG, "  Data rate: %ukHz", (unsigned) (this->data_rate_ / 1000));
+    }
   }
 
   void write_state(light::LightState *state) override {
