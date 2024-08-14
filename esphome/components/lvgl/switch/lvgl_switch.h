@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -11,7 +13,7 @@ namespace lvgl {
 class LVGLSwitch : public switch_::Switch {
  public:
   void set_control_lambda(std::function<void(bool)> state_lambda) {
-    this->state_lambda_ = state_lambda;
+    this->state_lambda_ = std::move(state_lambda);
     if (this->initial_state_.has_value()) {
       this->state_lambda_(this->initial_state_.value());
       this->initial_state_.reset();
