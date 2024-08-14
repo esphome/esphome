@@ -121,7 +121,7 @@ async def to_code(config):
     cg.add(var.set_exit_reparse_on_start_internal(config[CONF_EXIT_REPARSE_ON_START]))
 
     cg.add(
-        var.set_skip_connection_handshake_internal(
+        var.set_skip_connection_handshake(
             config[CONF_SKIP_CONNECTION_HANDSHAKE]
         )
     )
