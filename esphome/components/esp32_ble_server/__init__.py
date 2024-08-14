@@ -53,6 +53,8 @@ BLECharacteristicSetValueAction = esp32_ble_server_automations_ns.class_(
 BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
     "BLECharacteristicNotifyAction", automation.Action
 )
+ByteBuffer_ns = cg.esphome_ns.namespace("ByteBuffer")
+ByteBuffer = cg.esphome_ns.class_("ByteBuffer")
 _ble_server_config = None
 
 
@@ -167,47 +169,22 @@ def parse_uuid(uuid):
 def parse_descriptor_value(value):
     # Compute the maximum length of the descriptor value
     # Also parse the value for byte arrays
+    for val_method in [cv.boolean, cv.float_, cv.hex_uint8_t,
+                       cv.hex_uint16_t, cv.hex_uint32_t, cv.int_, cv.string]:
+        try:
+            val = val_method(value)
+            buffer = ByteBuffer_ns.wrap(val)
+            return buffer, buffer.get_capacity()
+        except cv.Invalid:
+            pass
+    # Assume it's a list of bytes
     try:
-        cv.boolean(value)
-        return value, 1
+        val = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1))(value)
+        buffer = ByteBuffer_ns.wrap(cg.std_vector.template(cg.uint8)(val))
+        return buffer, buffer.get_capacity()
     except cv.Invalid:
         pass
-    try:
-        cv.float_(value)
-        return value, 8
-    except cv.Invalid:
-        pass
-    try:
-        cv.hex_uint8_t(value)
-        return value, 1
-    except cv.Invalid:
-        pass
-    try:
-        cv.hex_uint16_t(value)
-        return value, 2
-    except cv.Invalid:
-        pass
-    try:
-        cv.hex_uint32_t(value)
-        return value, 4
-    except cv.Invalid:
-        pass
-    try:
-        cv.int_(value)
-        return value, 4
-    except cv.Invalid:
-        pass
-    try:
-        cv.string(value)
-        # Count the bytes in the string
-        value_len = len(value.encode("utf-8"))
-        return value, value_len
-    except cv.Invalid:
-        pass
-    return (
-        cg.std_vector.template(cg.uint8)(value),
-        len(value),
-    )  # Assume it's a list of bytes
+    raise cv.Invalid(f"Could not find type for value: {value}")
 
 
 def calculate_num_handles(service_config):
@@ -302,30 +279,20 @@ async def parse_characteristic_value(value, args):
         return await cg.templatable(
             value,
             args,
-            cg.std_vector.template(cg.uint8),
-            cg.std_vector.template(cg.uint8),
-        )
-    if isinstance(value, list):
-        return cg.std_vector.template(cg.uint8)(value)
-    # Transform the value into a vector of bytes
+            ByteBuffer,
+            ByteBuffer_ns.wrap,
+        )        
+    for val_method in [cv.boolean, cv.float_, cv.hex_uint8_t,
+                       cv.hex_uint16_t, cv.hex_uint32_t, cv.int_, cv.string]:
+        try:
+            val = val_method(value)
+            return ByteBuffer_ns.wrap(val)
+        except cv.Invalid:
+            pass
+    # Assume it's a list of bytes
     try:
-        bool_value = cv.boolean(value)
-        return cg.RawExpression(f"to_vector({'true' if bool_value else 'false'})")
-    except cv.Invalid:
-        pass
-    try:
-        int_ = cv.uint64_t(value)
-        return cg.RawExpression(f"to_vector({int_})")
-    except cv.Invalid:
-        pass
-    try:
-        float_ = cv.float_(value)
-        return cg.RawExpression(f"to_vector({float_})")
-    except cv.Invalid:
-        pass
-    try:
-        string_ = cv.string(value)
-        return cg.RawExpression(f'to_vector("{string_}")')
+        val = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1))(value)
+        return ByteBuffer_ns.wrap(cg.std_vector.template(cg.uint8)(val))
     except cv.Invalid:
         pass
     raise cv.Invalid(f"Could not find type for value: {value}")
@@ -345,7 +312,7 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     value = await parse_characteristic_value(config[CONF_VALUE], args)
-    cg.add(var.set_value(value))
+    cg.add(var.set_buffer(value))
     return var
 
 

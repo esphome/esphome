@@ -4,6 +4,7 @@
 #include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/bytebuffer.h"
 
 #ifdef USE_ESP32
 
@@ -63,7 +64,7 @@ void ESP32ImprovComponent::setup_characteristics() {
   if (this->status_indicator_ != nullptr)
     capabilities |= improv::CAPABILITY_IDENTIFY;
 #endif
-  this->capabilities_->set_value(capabilities);
+  this->capabilities_->set_value(ByteBuffer::wrap(capabilities));
   this->setup_complete_ = true;
 }
 
@@ -196,7 +197,7 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
   this->state_ = state;
   if (this->status_->get_value().empty() || this->status_->get_value()[0] != state) {
     uint8_t data[1]{state};
-    this->status_->set_value(data, 1);
+    this->status_->set_value(ByteBuffer::wrap(data));
     if (state != improv::STATE_STOPPED)
       this->status_->notify();
   }
@@ -226,14 +227,14 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
   if (this->error_->get_value().empty() || this->error_->get_value()[0] != error) {
     uint8_t data[1]{error};
-    this->error_->set_value(data, 1);
+    this->error_->set_value(ByteBuffer::wrap(data));
     if (this->state_ != improv::STATE_STOPPED)
       this->error_->notify();
   }
 }
 
 void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
-  this->rpc_response_->set_value(response);
+  this->rpc_response_->set_value(ByteBuffer::wrap(response));
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
 }

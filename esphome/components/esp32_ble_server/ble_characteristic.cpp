@@ -32,13 +32,12 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
   this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
 }
 
-void BLECharacteristic::set_value(std::vector<uint8_t> value) {
+void BLECharacteristic::set_value(ByteBuffer buffer) {
+  size_t length = buffer.get_capacity();
+  uint8_t *data = buffer.array();
   xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = std::move(value);
+  this->value_ = std::vector<uint8_t>(data, data + length);
   xSemaphoreGive(this->set_value_lock_);
-}
-void BLECharacteristic::set_value(const uint8_t *data, size_t length) {
-  this->set_value(std::vector<uint8_t>(data, data + length));
 }
 
 void BLECharacteristic::notify(bool require_ack) {
@@ -227,7 +226,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         this->value_.insert(this->value_.end(), param->write.value, param->write.value + param->write.len);
         this->write_event_ = true;
       } else {
-        this->set_value(param->write.value, param->write.len);
+        this->set_value(ByteBuffer::wrap(param->write.value, param->write.len));
       }
 
       if (param->write.need_rsp) {

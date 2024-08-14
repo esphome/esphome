@@ -31,6 +31,6 @@ esp32_ble_server:
                   ESP_LOGD("BLE", "Received: %s", std::string(x.begin(), x.end()).c_str());
               - ble_server.characteristic.set_value:
                   id: test_change_characteristic
-                  value: !lambda 'return {0x00, 0x01, 0x02};'
+                  value: !lambda 'return ByteBuffer::wrap({0x00, 0x01, 0x02});'
               - ble_server.characteristic.notify:
                   id: test_notify_characteristic

@@ -3,7 +3,7 @@
 #include "ble_descriptor.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/core/event_emitter.h"
-#include "esphome/core/helpers.h"
+#include "esphome/core/bytebuffer.h"
 
 #include <vector>
 
@@ -40,16 +40,7 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();
 
-  void set_value(const uint8_t *data, size_t length);
-  void set_value(std::vector<uint8_t> value);
-  void set_value(const std::string &value) { this->set_value(to_vector(value)); }
-  void set_value(uint8_t data) { this->set_value(to_vector(data)); }
-  void set_value(uint16_t data) { this->set_value(to_vector(data)); }
-  void set_value(uint32_t data) { this->set_value(to_vector(data)); }
-  void set_value(int data) { this->set_value(to_vector(data)); }
-  void set_value(float data) { this->set_value(to_vector(data)); }
-  void set_value(double data) { this->set_value(to_vector(data)); }
-  void set_value(bool data) { this->set_value(to_vector(data)); }
+  void set_value(ByteBuffer buffer);
 
   void set_broadcast_property(bool value);
   void set_indicate_property(bool value);

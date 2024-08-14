@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
+#include "esphome/core/bytebuffer.h"
 
 #ifdef USE_ESP32
 
@@ -111,20 +112,20 @@ bool BLEServer::create_device_characteristics_() {
   if (this->model_.has_value()) {
     BLECharacteristic *model =
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
-    model->set_value(this->model_.value());
+    model->set_value(ByteBuffer::wrap(this->model_.value()));
   } else {
     BLECharacteristic *model =
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
-    model->set_value(ESPHOME_BOARD);
+    model->set_value(ByteBuffer::wrap(ESPHOME_BOARD));
   }
 
   BLECharacteristic *version =
       this->device_information_service_->create_characteristic(VERSION_UUID, BLECharacteristic::PROPERTY_READ);
-  version->set_value("ESPHome " ESPHOME_VERSION);
+  version->set_value(ByteBuffer::wrap("ESPHome " ESPHOME_VERSION));
 
   BLECharacteristic *manufacturer =
       this->device_information_service_->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
-  manufacturer->set_value(this->manufacturer_);
+  manufacturer->set_value(ByteBuffer::wrap(this->manufacturer_));
 
   return true;
 }

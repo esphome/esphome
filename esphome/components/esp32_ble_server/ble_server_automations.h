@@ -4,6 +4,7 @@
 
 #include "esphome/core/event_emitter.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/bytebuffer.h"
 
 #include <vector>
 #include <unordered_map>
@@ -27,7 +28,7 @@ enum BLECharacteristicSetValueActionEvt {
   PRE_NOTIFY,
 };
 
-// Class to make sure only one BLECharacteristicSetValueAction is active at a time
+// Class to make sure only one BLECharacteristicSetValueAction is active at a time for each characteristic
 class BLECharacteristicSetValueActionManager
     : public EventEmitter<BLECharacteristicSetValueActionEvt, BLECharacteristic *> {
  public:
@@ -52,22 +53,22 @@ class BLECharacteristicSetValueActionManager
 template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
  public:
   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, value)
+  TEMPLATABLE_VALUE(ByteBuffer, buffer)
   void play(Ts... x) override {
     // If the listener is already set, do nothing
     if (BLECharacteristicSetValueActionManager::get_instance()->get_listener(this->parent_) == this->listener_id_)
       return;
     // Set initial value
-    this->parent_->set_value(this->value_.value(x...));
+    this->parent_->set_value(this->buffer_.value(x...));
     // Set the listener for read events
     this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt>::on(
         BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...]() {
           // Set the value of the characteristic every time it is read
-          this->parent_->set_value(this->value_.value(x...));
+          this->parent_->set_value(this->buffer_.value(x...));
         });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(
-        this->parent_, this->listener_id_, [this, x...]() { this->parent_->set_value(this->value_.value(x...)); });
+        this->parent_, this->listener_id_, [this, x...]() { this->parent_->set_value(this->buffer_.value(x...)); });
   }
 
  protected:
