@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_MULTIPLY,
     CONF_STEP,
-    CONF_VALUE,
+    CONF_INITIAL_VALUE,
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya, TuyaDatapointType
 
@@ -16,7 +16,6 @@ DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@frankiboy1"]
 
 CONF_DATAPOINT_HIDDEN = "datapoint_hidden"
-CONF_INIT = "init"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 
 TuyaNumber = tuya_ns.class_("TuyaNumber", number.Number, cg.Component)
@@ -31,6 +30,13 @@ DATAPOINT_TYPES = {
 def validate_min_max(config):
     if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
         raise cv.Invalid("max_value must be greater than min_value")
+    if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
+        if (hidden_config[CONF_INITIAL_VALUE] > config[CONF_MAX_VALUE]) or (
+            hidden_config[CONF_INITIAL_VALUE] < config[CONF_MIN_VALUE]
+        ):
+            raise cv.Invalid(
+                f"{CONF_INITIAL_VALUE} must be a value between {CONF_MAX_VALUE} and {CONF_MIN_VALUE}"
+            )
     return config
 
 
@@ -79,5 +85,5 @@ async def to_code(config):
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
         cg.add(var.set_datapoint_type(hidden_config[CONF_DATAPOINT_TYPE]))
-        if hidden_init_config := hidden_config.get(CONF_INIT):
-            cg.add(var.set_datapoint_restore_value(hidden_init_config[CONF_VALUE]))
+        if hidden_init_value := hidden_config.get(CONF_INITIAL_VALUE):
+            cg.add(var.set_datapoint_restore_value(hidden_init_value))
