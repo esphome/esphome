@@ -18,6 +18,9 @@ class ModemTextSensor : public PollingComponent {
   void set_network_type_text_sensor(text_sensor::TextSensor *network_type_text_sensor) {
     this->network_type_text_sensor_ = network_type_text_sensor;
   }
+  void set_signal_strength_text_sensor(text_sensor::TextSensor *signal_strength_text_sensor) {
+    this->signal_strength_text_sensor_ = signal_strength_text_sensor;
+  }
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
@@ -28,7 +31,9 @@ class ModemTextSensor : public PollingComponent {
 
  protected:
   text_sensor::TextSensor *network_type_text_sensor_{nullptr};
+  text_sensor::TextSensor *signal_strength_text_sensor_{nullptr};
   void update_network_type_text_sensor_();
+  void update_signal_strength_text_sensor_();
 };
 
 }  // namespace modem

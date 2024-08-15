@@ -12,19 +12,22 @@ modem:
   pin_code: "0000"
   enable_on_boot: True
   enable_cmux: True
+  reboot_timeout: 5min
   init_at:
     - AT
   on_not_responding:
     logger.log: "modem not responding"
   on_connect:
-    logger.log: "got IP"
+    logger.log: "modem connected"
   on_disconnect:
-    logger.log: "lost IP"
+    logger.log: "modem disconnected"
 
 text_sensor:
   - platform: modem
     network_type:
       name: network type
+    signal_strength:
+      name: Signal strength
 
 sensor:
   - platform: modem

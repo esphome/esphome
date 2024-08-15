@@ -11,6 +11,7 @@
 #include "esphome/core/application.h"
 
 #include "../modem_component.h"
+#include "../helpers.h"
 
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \
@@ -38,6 +39,7 @@ void ModemTextSensor::update() {
   ESP_LOGD(TAG, "Modem text_sensor update");
   if (modem::global_modem_component->dce && modem::global_modem_component->modem_ready()) {
     this->update_network_type_text_sensor_();
+    this->update_signal_strength_text_sensor_();
   }
 }
 
@@ -46,71 +48,19 @@ void ModemTextSensor::update_network_type_text_sensor_() {
     int act;
     std::string network_type = "Not available";
     if (modem::global_modem_component->dce->get_network_system_mode(act) == command_result::OK) {
-      // Access Technology from AT+CNSMOD?
-      // see https://www.waveshare.com/w/upload/a/af/SIM7500_SIM7600_Series_AT_Command_Manual_V3.00.pdf, page 109
-      switch (act) {
-        case 0:
-          network_type = "No service";
-          break;
-        case 1:
-          network_type = "GSM";
-          break;
-        case 2:
-          network_type = "GPRS";
-          break;
-        case 3:
-          network_type = "EGPRS (EDGE)";
-          break;
-        case 4:
-          network_type = "WCDMA";
-          break;
-        case 5:
-          network_type = "HSDPA only (WCDMA)";
-          break;
-        case 6:
-          network_type = "HSUPA only (WCDMA)";
-          break;
-        case 7:
-          network_type = "HSPA (HSDPA and HSUPA, WCDMA)";
-          break;
-        case 8:
-          network_type = "LTE";
-          break;
-        case 9:
-          network_type = "TDS-CDMA";
-          break;
-        case 10:
-          network_type = "TDS-HSDPA only";
-          break;
-        case 11:
-          network_type = "TDS-HSUPA only";
-          break;
-        case 12:
-          network_type = "TDS-HSPA (HSDPA and HSUPA)";
-          break;
-        case 13:
-          network_type = "CDMA";
-          break;
-        case 14:
-          network_type = "EVDO";
-          break;
-        case 15:
-          network_type = "HYBRID (CDMA and EVDO)";
-          break;
-        case 16:
-          network_type = "1XLTE (CDMA and LTE)";
-          break;
-        case 23:
-          network_type = "EHRPD";
-          break;
-        case 24:
-          network_type = "HYBRID (CDMA and EHRPD)";
-          break;
-        default:
-          network_type = "Unknown";
-      }
+      network_type = network_system_mode_to_string(act);
     }
     this->network_type_text_sensor_->publish_state(network_type);
+  }
+}
+
+void ModemTextSensor::update_signal_strength_text_sensor_() {
+  if (modem::global_modem_component->modem_ready() && this->network_type_text_sensor_) {
+    float rssi, ber;
+    if (modem::global_modem_component->get_signal_quality(rssi, ber)) {
+      std::string bars = get_signal_bars(rssi, false);
+      this->signal_strength_text_sensor_->publish_state(bars);
+    }
   }
 }
 
