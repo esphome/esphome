@@ -1,39 +1,34 @@
-import logging
-
-import json
 import hashlib
-from urllib.parse import urljoin
+import json
+import logging
 from pathlib import Path
+from urllib.parse import urljoin
+
 import requests
 
-import esphome.config_validation as cv
-import esphome.codegen as cg
-
-from esphome.core import CORE, HexInt
-
-from esphome.components import esp32, microphone
-from esphome import automation, git, external_files
+from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
-
-
+import esphome.codegen as cg
+from esphome.components import esp32, microphone
+import esphome.config_validation as cv
 from esphome.const import (
-    __version__,
+    CONF_FILE,
     CONF_ID,
     CONF_MICROPHONE,
     CONF_MODEL,
-    CONF_URL,
-    CONF_FILE,
+    CONF_PASSWORD,
     CONF_PATH,
+    CONF_RAW_DATA_ID,
     CONF_REF,
     CONF_REFRESH,
     CONF_TYPE,
+    CONF_URL,
     CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_RAW_DATA_ID,
     TYPE_GIT,
     TYPE_LOCAL,
+    __version__,
 )
-
+from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -174,12 +169,12 @@ def _convert_manifest_v1_to_v2(v1_manifest):
         CONF_SLIDING_WINDOW_AVERAGE_SIZE
     ]
     del v2_manifest[KEY_MICRO][CONF_SLIDING_WINDOW_AVERAGE_SIZE]
-    v2_manifest[KEY_MICRO][
-        CONF_TENSOR_ARENA_SIZE
-    ] = 45672  # Original Inception-based V1 manifest models require a minimum of 45672 bytes
-    v2_manifest[KEY_MICRO][
-        CONF_FEATURE_STEP_SIZE
-    ] = 20  # Original Inception-based V1 manifest models use a 20 ms feature step size
+
+    # Original Inception-based V1 manifest models require a minimum of 45672 bytes
+    v2_manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE] = 45672
+
+    # Original Inception-based V1 manifest models use a 20 ms feature step size
+    v2_manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE] = 20
 
     return v2_manifest
 
@@ -502,7 +497,7 @@ async def to_code(config):
             )
 
     cg.add(var.set_features_step_size(manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]))
-    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.0.0")
+    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.1.0")
 
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})

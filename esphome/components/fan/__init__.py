@@ -1,31 +1,31 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DIRECTION,
     CONF_ID,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
-    CONF_OSCILLATING,
-    CONF_OSCILLATION_COMMAND_TOPIC,
-    CONF_OSCILLATION_STATE_TOPIC,
-    CONF_SPEED,
-    CONF_SPEED_LEVEL_COMMAND_TOPIC,
-    CONF_SPEED_LEVEL_STATE_TOPIC,
-    CONF_SPEED_COMMAND_TOPIC,
-    CONF_SPEED_STATE_TOPIC,
     CONF_OFF_SPEED_CYCLE,
     CONF_ON_DIRECTION_SET,
     CONF_ON_OSCILLATING_SET,
+    CONF_ON_PRESET_SET,
     CONF_ON_SPEED_SET,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
-    CONF_ON_PRESET_SET,
-    CONF_TRIGGER_ID,
-    CONF_DIRECTION,
+    CONF_OSCILLATING,
+    CONF_OSCILLATION_COMMAND_TOPIC,
+    CONF_OSCILLATION_STATE_TOPIC,
     CONF_RESTORE_MODE,
+    CONF_SPEED,
+    CONF_SPEED_COMMAND_TOPIC,
+    CONF_SPEED_LEVEL_COMMAND_TOPIC,
+    CONF_SPEED_LEVEL_STATE_TOPIC,
+    CONF_SPEED_STATE_TOPIC,
+    CONF_TRIGGER_ID,
+    CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity

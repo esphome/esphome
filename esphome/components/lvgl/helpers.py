@@ -1,10 +1,7 @@
 import re
 
 from esphome import config_validation as cv
-from esphome.config import Config
 from esphome.const import CONF_ARGS, CONF_FORMAT
-from esphome.core import CORE, ID
-from esphome.yaml_util import ESPHomeDataBase
 
 lv_uses = {
     "USER_DATA",
@@ -42,23 +39,6 @@ def validate_printf(value):
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
         )
     return value
-
-
-def get_line_marks(value) -> list:
-    """
-    If possible, return a preprocessor directive to identify the line number where the given id was defined.
-    :param id: The id in question
-    :return: A list containing zero or more line directives
-    """
-    path = None
-    if isinstance(value, ESPHomeDataBase):
-        path = value.esp_range
-    elif isinstance(value, ID) and isinstance(CORE.config, Config):
-        path = CORE.config.get_path_for_id(value)[:-1]
-        path = CORE.config.get_deepest_document_range_for_path(path)
-    if path is None:
-        return []
-    return [path.start_mark.as_line_directive]
 
 
 def requires_component(comp):

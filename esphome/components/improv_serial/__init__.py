@@ -1,12 +1,10 @@
+import esphome.codegen as cg
 from esphome.components import improv_base
 from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import (
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32.const import VARIANT_ESP32S3
 from esphome.components.logger import USB_CDC
-from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_LOGGER
-import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_LOGGER
 from esphome.core import CORE
 import esphome.final_validate as fv
 
@@ -19,11 +17,7 @@ improv_serial_ns = cg.esphome_ns.namespace("improv_serial")
 ImprovSerialComponent = improv_serial_ns.class_("ImprovSerialComponent", cg.Component)
 
 CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ImprovSerialComponent),
-        }
-    )
+    cv.Schema({cv.GenerateID(): cv.declare_id(ImprovSerialComponent)})
     .extend(improv_base.IMPROV_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )

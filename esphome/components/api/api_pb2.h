@@ -245,6 +245,11 @@ enum ValveOperation : uint32_t {
   VALVE_OPERATION_IS_OPENING = 1,
   VALVE_OPERATION_IS_CLOSING = 2,
 };
+enum UpdateCommand : uint32_t {
+  UPDATE_COMMAND_NONE = 0,
+  UPDATE_COMMAND_UPDATE = 1,
+  UPDATE_COMMAND_CHECK = 2,
+};
 
 }  // namespace enums
 
@@ -849,6 +854,7 @@ class SubscribeHomeAssistantStateResponse : public ProtoMessage {
  public:
   std::string entity_id{};
   std::string attribute{};
+  bool once{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -856,6 +862,7 @@ class SubscribeHomeAssistantStateResponse : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class HomeAssistantStateResponse : public ProtoMessage {
  public:
@@ -2208,7 +2215,7 @@ class UpdateStateResponse : public ProtoMessage {
 class UpdateCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
-  bool install{false};
+  enums::UpdateCommand command{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
