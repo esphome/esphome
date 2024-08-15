@@ -91,7 +91,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=consider-using-f-string
 VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
 )
 
 # pylint: disable=invalid-name

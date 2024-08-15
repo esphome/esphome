@@ -38,7 +38,7 @@ class LVLight : public light::LightOutput {
   void set_value_(lv_color_t value) {
     lv_led_set_color(this->obj_, value);
     lv_led_on(this->obj_);
-    lv_event_send(this->obj_, lv_custom_event, nullptr);
+    lv_event_send(this->obj_, lv_api_event, nullptr);
   }
   lv_obj_t *obj_{};
   optional<lv_color_t> initial_value_{};
