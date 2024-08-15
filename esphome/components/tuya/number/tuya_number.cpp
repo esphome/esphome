@@ -22,8 +22,8 @@ void TuyaNumber::setup() {
   });
 
   this->parent_->add_on_initialized_callback([this] {
-    if ((this->value_to_restore_) && (this->type_)) {
-      this->control(*this->value_to_restore_);
+    if ((this->initial_value_) && (this->type_)) {
+      this->control(*this->initial_value_);
     }
   });
 }
@@ -48,8 +48,8 @@ void TuyaNumber::dump_config() {
     ESP_LOGCONFIG(TAG, "  Datapoint type is unknown");
   }
 
-  if (this->value_to_restore_) {
-    ESP_LOGCONFIG(TAG, "  Initial Value: %f", *this->value_to_restore_);
+  if (this->initial_value_) {
+    ESP_LOGCONFIG(TAG, "  Initial Value: %f", *this->initial_value_);
   }
 }
 
