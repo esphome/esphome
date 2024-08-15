@@ -47,23 +47,14 @@ void ModemSensor::update() {
 }
 
 void ModemSensor::update_signal_sensors_() {
-  float rssi = NAN;
-  float ber = NAN;
   if (this->rssi_sensor_ || this->ber_sensor_) {
-    int modem_rssi = 99;
-    int modem_ber = 99;
-    if (global_modem_component->modem_ready() &&
-        (global_modem_component->dce->get_signal_quality(modem_rssi, modem_ber) == command_result::OK)) {
-      if (modem_rssi != 99)
-        rssi = -113 + (modem_rssi * 2);
-      if (modem_ber != 99)
-        ber = 0.1f * (modem_ber * modem_ber);
-
-      if (this->rssi_sensor_)
-        this->rssi_sensor_->publish_state(rssi);
-      if (this->ber_sensor_)
-        this->ber_sensor_->publish_state(ber);
-    }
+    float rssi;
+    float ber;
+    global_modem_component->get_signal_quality(rssi, ber);
+    if (this->rssi_sensor_)
+      this->rssi_sensor_->publish_state(rssi);
+    if (this->ber_sensor_)
+      this->ber_sensor_->publish_state(ber);
   }
 }
 

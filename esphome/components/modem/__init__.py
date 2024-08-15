@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_PASSWORD,
+    CONF_REBOOT_TIMEOUT,
     CONF_RX_PIN,
     CONF_TRIGGER_ID,
     CONF_TX_PIN,
@@ -88,6 +89,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_CMUX, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+            cv.Optional(
+                CONF_REBOOT_TIMEOUT, default="10min"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -168,6 +172,9 @@ async def to_code(config):
     cg.add_define("USE_MODEM")
 
     var = cg.new_Pvariable(config[CONF_ID])
+
+    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+
     if use_address := config.get(CONF_USE_ADDRESS, None):
         cg.add(var.set_use_address(use_address))
 

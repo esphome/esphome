@@ -52,6 +52,7 @@ struct AtCommandResult {
 
 class ModemComponent : public Component {
  public:
+  void set_reboot_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
@@ -67,8 +68,10 @@ class ModemComponent : public Component {
   void enable_cmux() { this->cmux_ = true; }
   void enable_debug();
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
-  bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
+  bool is_connected() { return this->internal_state_.connected; }
   bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED; }
+  bool is_modem_connected(bool verbose);  // this if for modem only, not PPP
+  bool is_modem_connected() { return this->is_modem_connected(true); }
   AtCommandResult send_at(const std::string &cmd, uint32_t timeout);
   AtCommandResult send_at(const std::string &cmd);
   AtCommandResult get_imei();
@@ -78,6 +81,7 @@ class ModemComponent : public Component {
   void enable();
   void disable();
   void reconnect();
+  bool get_signal_quality(float &rssi, float &ber);
 
   network::IPAddresses get_ip_addresses();
   std::string get_use_address() const;
@@ -90,12 +94,7 @@ class ModemComponent : public Component {
   void loop() override;
   void dump_config() override { this->dump_connect_params_(); }
   float get_setup_priority() const override { return setup_priority::WIFI + 1; }  // just before WIFI
-  bool can_proceed() override {
-    if (!this->internal_state_.enabled) {
-      return true;
-    }
-    return this->is_connected();
-  };
+  bool can_proceed() override { return network::is_disabled() || this->is_connected(); };
   void add_on_state_callback(std::function<void(ModemComponentState, ModemComponentState)> &&callback) {
     this->on_state_callback_.add(std::move(callback));
   }
@@ -113,10 +112,12 @@ class ModemComponent : public Component {
   bool stop_ppp_();
   void poweron_();
   void poweroff_();
+  void abort_(const std::string &message);
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
 
   // Attributes from yaml config
+  uint16_t timeout_;
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
   std::string model_;
@@ -142,7 +143,7 @@ class ModemComponent : public Component {
   size_t uart_event_task_stack_size_ = 4096;  // 2000-6000
   uint8_t uart_event_task_priority_ = 5;      // 3-22
   uint32_t command_delay_ = 1000;             // timeout for AT commands
-  uint32_t update_interval_ = 60 * 1000;
+  uint32_t reconnect_grace_period_ = 30000;   // let some time to mqtt or api to reconnect before retry
 
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::DISABLED};
@@ -153,7 +154,9 @@ class ModemComponent : public Component {
   esp_netif_t *ppp_netif_{nullptr};
 
   struct InternalState {
-    bool start{false};
+    bool starting{false};
+    // trying to connect timestamp (for timeout)
+    uint32_t startms;
     bool enabled{false};
     bool connected{false};
     bool got_ipv4_address{false};
