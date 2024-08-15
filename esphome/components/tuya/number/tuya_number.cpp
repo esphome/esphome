@@ -16,7 +16,7 @@ void TuyaNumber::setup() {
       this->publish_state(datapoint.value_enum);
     }
     if ((this->type_) && (this->type_ != datapoint.type)) {
-      ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", datapoint.type, *this->type_);
+      ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", datapoint.type, static_cast<int>(*this->type_));
     }
     this->type_ = datapoint.type;
   });
@@ -43,7 +43,7 @@ void TuyaNumber::dump_config() {
   LOG_NUMBER("", "Tuya Number", this);
   ESP_LOGCONFIG(TAG, "  Number has datapoint ID %u", this->number_id_);
   if (this->type_) {
-    ESP_LOGCONFIG(TAG, "  Datapoint type is %d", *this->type_);
+    ESP_LOGCONFIG(TAG, "  Datapoint type is %d", static_cast<int>(*this->type_));
   } else {
     ESP_LOGCONFIG(TAG, "  Datapoint type is unknown");
   }
