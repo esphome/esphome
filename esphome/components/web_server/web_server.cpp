@@ -191,6 +191,22 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 }
 #endif
 
+void WebServer::handle_states_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("application/json");
+  StatesIterator states_it = StatesIterator(this);
+  states_it.begin();
+  optional<std::string> s;
+  stream->print(F("["));
+  int i = 0;
+  while ((s = states_it.next()) != nullopt) {
+    if (i++)
+      stream->print(F(","));
+    stream->print(s->c_str());
+  }
+  stream->print(F("]\n"));
+  request->send(stream);
+}
+
 #define set_json_id(root, obj, sensor, start_config) \
   (root)["id"] = sensor; \
   if (((start_config) == DETAIL_ALL)) { \
@@ -1355,6 +1371,9 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
+  if (request->url() == "/states")
+    return true;
+
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css")
     return true;
@@ -1480,6 +1499,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (request->url() == "/") {
     this->handle_index_request(request);
+    return;
+  }
+
+  if (request->url() == "/states") {
+    this->handle_states_request(request);
     return;
   }
 
