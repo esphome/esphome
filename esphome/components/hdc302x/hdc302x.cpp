@@ -68,7 +68,7 @@ void HDC302xComponent::update() {
 
     bool success = true;
     const int value_len = 3;
-    if (crc8(raw_temp_humidity, value_len) == raw_temp_humidity[value_len - 1]) {
+    if (crc8(raw_temp_humidity, value_len) != raw_temp_humidity[value_len - 1]) {
       uint16_t raw_temp = (raw_temp_humidity[0] << 8) | raw_temp_humidity[1];
       float temp = -40.0f + 165.0f * (raw_temp / 65536.0f);
       this->temperature_->publish_state(temp);
