@@ -33,9 +33,7 @@ def validate_min_max(config):
     if max_value <= min_value:
         raise cv.Invalid("max_value must be greater than min_value")
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
-        if (
-            initial_value := hidden_config.get(CONF_INITIAL_VALUE, None)
-        ) is not None:
+        if (initial_value := hidden_config.get(CONF_INITIAL_VALUE, None)) is not None:
             if (initial_value > max_value) or (initial_value < min_value):
                 raise cv.Invalid(
                     f"{CONF_INITIAL_VALUE} must be a value between {CONF_MAX_VALUE} and {CONF_MIN_VALUE}"
@@ -88,5 +86,7 @@ async def to_code(config):
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
         cg.add(var.set_datapoint_type(hidden_config[CONF_DATAPOINT_TYPE]))
-        if (hidden_init_value := hidden_config.get(CONF_INITIAL_VALUE, None)) is not None:
+        if (
+            hidden_init_value := hidden_config.get(CONF_INITIAL_VALUE, None)
+        ) is not None:
             cg.add(var.set_datapoint_initial_value(hidden_init_value))
