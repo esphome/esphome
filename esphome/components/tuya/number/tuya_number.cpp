@@ -16,8 +16,8 @@ void TuyaNumber::setup() {
       this->publish_state(datapoint.value_enum);
     }
     if ((this->type_) && (this->type_ != datapoint.type)) {
-      ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!",
-               static_cast<int>(datapoint.type), static_cast<int>(*this->type_));
+      ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", static_cast<int>(datapoint.type),
+               static_cast<int>(*this->type_));
     }
     this->type_ = datapoint.type;
   });
