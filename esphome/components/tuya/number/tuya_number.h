@@ -15,7 +15,7 @@ class TuyaNumber : public number::Number, public Component {
   void set_number_id(uint8_t number_id) { this->number_id_ = number_id; }
   void set_write_multiply(float factor) { multiply_by_ = factor; }
   void set_datapoint_type(TuyaDatapointType type) { type_ = type; }
-  void set_datapoint_restore_value(float value) { this->value_to_restore_ = value; }
+  void set_datapoint_initial_value(float value) { this->initial_value_ = value; }
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
 
