@@ -29,6 +29,13 @@ inline double deg2rad(double degrees) {
 void Rtttl::dump_config() { ESP_LOGCONFIG(TAG, "Rtttl"); }
 
 void Rtttl::play(std::string rtttl) {
+  if (this->state_ != State::STATE_STOPPED && this->state_ != State::STATE_STOPPING) {
+    int pos = this->rtttl_.find(':');
+    auto name = this->rtttl_.substr(0, pos);
+    ESP_LOGW(TAG, "RTTL Component is already playing: %s", name.c_str());
+    return;
+  }
+
   this->rtttl_ = std::move(rtttl);
 
   this->default_duration_ = 4;
@@ -98,13 +105,20 @@ void Rtttl::play(std::string rtttl) {
   this->note_duration_ = 1;
 
 #ifdef USE_SPEAKER
-  this->samples_sent_ = 0;
-  this->samples_count_ = 0;
+  if (this->speaker_ != nullptr) {
+    this->set_state_(State::STATE_INIT);
+    this->samples_sent_ = 0;
+    this->samples_count_ = 0;
+  }
+#endif
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->set_state_(State::STATE_RUNNING);
+  }
 #endif
 }
 
 void Rtttl::stop() {
-  this->note_duration_ = 0;
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
     this->output_->set_level(0.0);
@@ -117,16 +131,35 @@ void Rtttl::stop() {
     }
   }
 #endif
+  this->note_duration_ = 0;
+  this->set_state_(STATE_STOPPING);
 }
 
 void Rtttl::loop() {
-  if (this->note_duration_ == 0)
+  if (this->note_duration_ == 0 || this->state_ == State::STATE_STOPPED)
     return;
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
+    if (this->state_ == State::STATE_STOPPING) {
+      if (this->speaker_->is_stopped()) {
+        this->set_state_(State::STATE_STOPPED);
+      }
+    } else if (this->state_ == State::STATE_INIT) {
+      if (this->speaker_->is_stopped()) {
+        this->speaker_->start();
+        this->set_state_(State::STATE_STARTING);
+      }
+    } else if (this->state_ == State::STATE_STARTING) {
+      if (this->speaker_->is_running()) {
+        this->set_state_(State::STATE_RUNNING);
+      }
+    }
+    if (!this->speaker_->is_running()) {
+      return;
+    }
     if (this->samples_sent_ != this->samples_count_) {
-      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 1];
+      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
       int x = 0;
       double rem = 0.0;
 
@@ -136,7 +169,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = (49152 * this->gain_) * sin(deg2rad(rem));
+          int16_t val = (127 * this->gain_) * sin(deg2rad(rem));  // 16bit = 49152
 
           sample[x].left = val;
           sample[x].right = val;
@@ -153,9 +186,9 @@ void Rtttl::loop() {
         x++;
       }
       if (x > 0) {
-        int send = this->speaker_->play((uint8_t *) (&sample), x * 4);
+        int send = this->speaker_->play((uint8_t *) (&sample), x * 2);
         if (send != x * 4) {
-          this->samples_sent_ -= (x - (send / 4));
+          this->samples_sent_ -= (x - (send / 2));
         }
         return;
       }
@@ -167,14 +200,7 @@ void Rtttl::loop() {
     return;
 #endif
   if (!this->rtttl_[position_]) {
-    this->note_duration_ = 0;
-#ifdef USE_OUTPUT
-    if (this->output_ != nullptr) {
-      this->output_->set_level(0.0);
-    }
-#endif
-    ESP_LOGD(TAG, "Playback finished");
-    this->on_finished_playback_callback_.call();
+    this->finish_();
     return;
   }
 
@@ -213,6 +239,7 @@ void Rtttl::loop() {
     case 'a':
       note = 10;
       break;
+    case 'h':
     case 'b':
       note = 12;
       break;
@@ -238,14 +265,21 @@ void Rtttl::loop() {
   uint8_t scale = get_integer_();
   if (scale == 0)
     scale = this->default_octave_;
+
+  if (scale < 4 || scale > 7) {
+    ESP_LOGE(TAG, "Octave out of valid range. Should be between 4 and 7. (Octave: %d)", scale);
+    this->finish_();
+    return;
+  }
   bool need_note_gap = false;
 
   // Now play the note
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
-      ESP_LOGE(TAG, "Note out of valid range");
-      this->note_duration_ = 0;
+      ESP_LOGE(TAG, "Note out of valid range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
+               (int) sizeof(NOTES));
+      this->finish_();
       return;
     }
     auto freq = NOTES[note_index];
@@ -285,20 +319,71 @@ void Rtttl::loop() {
       this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  //(ms);
     }
     if (this->output_freq_ != 0) {
+      // make sure there is enough samples to add a full last sinus.
+
+      uint16_t samples_wish = this->samples_count_;
       this->samples_per_wave_ = (this->sample_rate_ << 10) / this->output_freq_;
 
-      // make sure there is enough samples to add a full last sinus.
       uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
-      uint16_t x = this->samples_count_;
+
       this->samples_count_ = (division * this->samples_per_wave_);
-      ESP_LOGD(TAG, "play time old: %d div: %d new: %d %d", x, division, this->samples_count_, this->samples_per_wave_);
       this->samples_count_ = this->samples_count_ >> 10;
+      ESP_LOGVV(TAG, "- Calc play time: wish: %d gets: %d (div: %d spw: %d)", samples_wish, this->samples_count_,
+                division, this->samples_per_wave_);
     }
     // Convert from frequency in Hz to high and low samples in fixed point
   }
 #endif
 
   this->last_note_ = millis();
+}
+
+void Rtttl::finish_() {
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->output_->set_level(0.0);
+  }
+#endif
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    SpeakerSample sample[2];
+    sample[0].left = 0;
+    sample[0].right = 0;
+    sample[1].left = 0;
+    sample[1].right = 0;
+    this->speaker_->play((uint8_t *) (&sample), 8);
+
+    this->speaker_->finish();
+  }
+#endif
+  this->set_state_(State::STATE_STOPPING);
+  this->note_duration_ = 0;
+  this->on_finished_playback_callback_.call();
+  ESP_LOGD(TAG, "Playback finished");
+}
+
+static const LogString *state_to_string(State state) {
+  switch (state) {
+    case STATE_STOPPED:
+      return LOG_STR("STATE_STOPPED");
+    case STATE_STARTING:
+      return LOG_STR("STATE_STARTING");
+    case STATE_RUNNING:
+      return LOG_STR("STATE_RUNNING");
+    case STATE_STOPPING:
+      return LOG_STR("STATE_STOPPING");
+    case STATE_INIT:
+      return LOG_STR("STATE_INIT");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+};
+
+void Rtttl::set_state_(State state) {
+  State old_state = this->state_;
+  this->state_ = state;
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
+           LOG_STR_ARG(state_to_string(state)));
 }
 
 }  // namespace rtttl
