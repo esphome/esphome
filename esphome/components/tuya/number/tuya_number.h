@@ -26,7 +26,7 @@ class TuyaNumber : public number::Number, public Component {
   uint8_t number_id_{0};
   float multiply_by_{1.0};
   optional<TuyaDatapointType> type_{};
-  optional<float> value_to_restore_{};
+  optional<float> initial_value_{};
 };
 
 }  // namespace tuya

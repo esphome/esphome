@@ -16,7 +16,7 @@
 namespace esphome {
 namespace tuya {
 
-enum TuyaDatapointType {
+enum class TuyaDatapointType : uint8_t {
   RAW = 0x00,      // variable length
   BOOLEAN = 0x01,  // 1 byte (0/1)
   INTEGER = 0x02,  // 4 byte

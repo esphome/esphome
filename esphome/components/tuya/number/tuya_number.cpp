@@ -49,7 +49,7 @@ void TuyaNumber::dump_config() {
   }
 
   if (this->value_to_restore_) {
-    ESP_LOGCONFIG(TAG, "  Value to restore is %f", *this->value_to_restore_);
+    ESP_LOGCONFIG(TAG, "  Initial Value: %f", *this->value_to_restore_);
   }
 }
 

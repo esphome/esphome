@@ -50,9 +50,7 @@ CONFIG_SCHEMA = cv.All(
                         cv.Required(CONF_DATAPOINT_TYPE): cv.enum(
                             DATAPOINT_TYPES, lower=True
                         ),
-                        cv.Optional(CONF_INIT): cv.All(
-                            cv.Schema({cv.Required(CONF_VALUE): cv.float_})
-                        ),
+                        cv.Optional(CONF_INITIAL_VALUE): cv.float_,
                     }
                 )
             ),
