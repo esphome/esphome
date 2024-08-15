@@ -18,13 +18,18 @@ IPAddress = network_ns.class_("IPAddress")
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.Optional(CONF_ENABLE_IPV6, default=False): cv.boolean,
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             esp8266=False,
             esp32=False,
             rp2040=False,
         ): cv.All(
-            cv.boolean, cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040])
+            cv.boolean,
+            cv.Any(
+                cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+                cv.boolean_false,
+            ),
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
     }
