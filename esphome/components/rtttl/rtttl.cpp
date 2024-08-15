@@ -30,7 +30,7 @@ void Rtttl::dump_config() { ESP_LOGCONFIG(TAG, "Rtttl"); }
 
 void Rtttl::play(std::string rtttl) {
   if (this->state_ != State::STATE_STOPPED && this->state_ != State::STATE_STOPPING) {
-    int pos = rtttl_.find(':');
+    int pos = this->rtttl_.find(':');
     auto name = this->rtttl_.substr(0, pos);
     ESP_LOGW(TAG, "RTTL Component is already playing: %s", name.c_str());
     return;
