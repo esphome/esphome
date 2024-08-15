@@ -7,17 +7,26 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TEXT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
 from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
-from . import defines as df, lv_validation as lvalid, types as ty
+from . import defines as df, lv_validation as lvalid
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import id_name, lv_color, lv_font, lv_image
+from .lv_validation import lv_color, lv_font, lv_image
 from .lvcode import LvglComponent
-from .types import WidgetType
+from .types import (
+    LVEncoderListener,
+    LvType,
+    WidgetType,
+    lv_group_t,
+    lv_obj_t,
+    lv_pseudo_button_t,
+    lv_style_t,
+)
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
@@ -25,7 +34,7 @@ WIDGET_TYPES: dict = {}
 # A schema for text properties
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Optional(df.CONF_TEXT): cv.Any(
+        cv.Optional(CONF_TEXT): cv.Any(
             cv.All(
                 cv.Schema(
                     {
@@ -45,7 +54,7 @@ TEXT_SCHEMA = cv.Schema(
 LIST_ACTION_SCHEMA = cv.ensure_list(
     cv.maybe_simple_value(
         {
-            cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
+            cv.Required(CONF_ID): cv.use_id(lv_pseudo_button_t),
         },
         key=CONF_ID,
     )
@@ -58,9 +67,10 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
         ),
-        cv.Optional(CONF_GROUP): lvalid.id_name,
+        cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
+        cv.Optional(df.CONF_INITIAL_FOCUS): cv.use_id(lv_obj_t),
         cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
@@ -93,6 +103,7 @@ STYLE_PROPS = {
     ).several_of,
     "border_width": cv.positive_int,
     "clip_corner": lvalid.lv_bool,
+    "color_filter_opa": lvalid.opacity,
     "height": lvalid.size,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
@@ -160,7 +171,7 @@ STYLE_REMAP = {
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
-        cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(ty.lv_style_t)),
+        cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(lv_style_t)),
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
@@ -192,12 +203,12 @@ def part_schema(widget_type: WidgetType):
     )
 
 
-def automation_schema(typ: ty.LvType):
+def automation_schema(typ: LvType):
     if typ.has_on_value:
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
     else:
         events = df.LV_EVENT_TRIGGERS
-    if isinstance(typ, ty.LvType):
+    if isinstance(typ, LvType):
         template = Trigger.template(typ.get_arg_type())
     else:
         template = Trigger.template()
@@ -248,7 +259,7 @@ def obj_schema(widget_type: WidgetType):
             cv.Schema(
                 {
                     cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                    cv.Optional(CONF_GROUP): id_name,
+                    cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
                 }
             )
         )
@@ -260,7 +271,7 @@ LAYOUT_SCHEMAS = {}
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(ty.lv_obj_t),
+            cv.Required(CONF_ID): cv.use_id(lv_obj_t),
             cv.Required(df.CONF_ALIGN): df.ALIGN_ALIGNMENTS.one_of,
             cv.Optional(df.CONF_X, default=0): lvalid.pixels_or_percent,
             cv.Optional(df.CONF_Y, default=0): lvalid.pixels_or_percent,
@@ -330,7 +341,7 @@ DISP_BG_SCHEMA = cv.Schema(
 
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
-    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=df.CONF_TEXT
+    STYLE_SCHEMA.extend(TEXT_SCHEMA), key=CONF_TEXT
 )
 
 # For use by platform components

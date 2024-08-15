@@ -21,23 +21,11 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .animimg import animimg_spec
-from .arc import arc_spec
 from .automation import disp_update, update_to_code
-from .btn import btn_spec
-from .checkbox import checkbox_spec
 from .defines import CONF_SKIP
-from .img import img_spec
-from .label import label_spec
-from .led import led_spec
-from .line import line_spec
-from .lv_bar import bar_spec
-from .lv_switch import switch_spec
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
-from .obj import obj_spec
-from .page import add_pages, page_spec
-from .rotary_encoders import ROTARY_ENCODER_CONFIG, rotary_encoders_to_code
 from .schemas import (
     DISP_BG_SCHEMA,
     FLEX_OBJ_SCHEMA,
@@ -51,8 +39,6 @@ from .schemas import (
     grid_alignments,
     obj_schema,
 )
-from .slider import slider_spec
-from .spinner import spinner_spec
 from .styles import add_top_layer, styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import generate_triggers
@@ -61,10 +47,35 @@ from .types import (
     IdleTrigger,
     ObjUpdateAction,
     lv_font_t,
+    lv_group_t,
     lv_style_t,
     lvgl_ns,
 )
-from .widget import Widget, add_widgets, lv_scr_act, set_obj_properties
+from .widgets import Widget, add_widgets, lv_scr_act, set_obj_properties
+from .widgets.animimg import animimg_spec
+from .widgets.arc import arc_spec
+from .widgets.button import button_spec
+from .widgets.buttonmatrix import buttonmatrix_spec
+from .widgets.checkbox import checkbox_spec
+from .widgets.dropdown import dropdown_spec
+from .widgets.img import img_spec
+from .widgets.keyboard import keyboard_spec
+from .widgets.label import label_spec
+from .widgets.led import led_spec
+from .widgets.line import line_spec
+from .widgets.lv_bar import bar_spec
+from .widgets.meter import meter_spec
+from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
+from .widgets.obj import obj_spec
+from .widgets.page import add_pages, page_spec
+from .widgets.roller import roller_spec
+from .widgets.slider import slider_spec
+from .widgets.spinbox import spinbox_spec
+from .widgets.spinner import spinner_spec
+from .widgets.switch import switch_spec
+from .widgets.tabview import tabview_spec
+from .widgets.textarea import textarea_spec
+from .widgets.tileview import tileview_spec
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]
@@ -75,7 +86,7 @@ LOGGER = logging.getLogger(__name__)
 for w_type in (
     label_spec,
     obj_spec,
-    btn_spec,
+    button_spec,
     bar_spec,
     slider_spec,
     arc_spec,
@@ -86,6 +97,15 @@ for w_type in (
     checkbox_spec,
     img_spec,
     switch_spec,
+    tabview_spec,
+    buttonmatrix_spec,
+    meter_spec,
+    dropdown_spec,
+    roller_spec,
+    textarea_spec,
+    spinbox_spec,
+    keyboard_spec,
+    tileview_spec,
 ):
     WIDGET_TYPES[w_type.name] = w_type
 
@@ -237,13 +257,14 @@ async def to_code(config):
 
     async with LvContext(lv_component):
         await touchscreens_to_code(lv_component, config)
-        await rotary_encoders_to_code(lv_component, config)
+        await encoders_to_code(lv_component, config)
         await theme_to_code(config)
         await styles_to_code(config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
         await add_top_layer(config)
+        await msgboxes_to_code(config)
         await disp_update(f"{lv_component}->get_disp()", config)
         Widget.set_completed()
         await generate_triggers(lv_component)
@@ -251,6 +272,7 @@ async def to_code(config):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
+        await initial_focus_to_code(config)
 
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
@@ -308,14 +330,16 @@ CONFIG_SCHEMA = (
             cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
                 container_schema(page_spec)
             ),
+            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
-            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
-            cv.GenerateID(df.CONF_ROTARY_ENCODERS): ROTARY_ENCODER_CONFIG,
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
         }
     )
     .extend(DISP_BG_SCHEMA)

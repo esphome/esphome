@@ -80,8 +80,8 @@ class HaierClimateBase : public esphome::Component,
   const char *phase_to_string_(ProtocolPhases phase);
   virtual void set_handlers() = 0;
   virtual void process_phase(std::chrono::steady_clock::time_point now) = 0;
-  virtual haier_protocol::HaierMessage get_control_message() = 0;
-  virtual haier_protocol::HaierMessage get_power_message(bool state) = 0;
+  virtual haier_protocol::HaierMessage get_control_message() = 0;          // NOLINT(readability-identifier-naming)
+  virtual haier_protocol::HaierMessage get_power_message(bool state) = 0;  // NOLINT(readability-identifier-naming)
   virtual void initialization(){};
   virtual bool prepare_pending_action();
   virtual void process_protocol_reset();

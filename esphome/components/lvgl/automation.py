@@ -17,6 +17,7 @@ from .defines import (
 from .lv_validation import lv_bool, lv_color, lv_image
 from .lvcode import (
     LVGL_COMP_ARG,
+    UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
     LvConditional,
@@ -30,7 +31,6 @@ from .lvcode import (
 )
 from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
-    LV_EVENT,
     LV_STATE,
     LvglAction,
     LvglCondition,
@@ -38,7 +38,7 @@ from .types import (
     lv_disp_t,
     lv_obj_t,
 )
-from .widget import Widget, get_widgets, lv_scr_act, set_obj_properties
+from .widgets import Widget, get_widgets, lv_scr_act, set_obj_properties
 
 
 async def action_to_code(
@@ -64,7 +64,7 @@ async def update_to_code(config, action_id, template_arg, args):
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
         ):
-            lv.event_send(widget.obj, LV_EVENT.VALUE_CHANGED, nullptr)
+            lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(widgets, do_update, action_id, template_arg, args)
@@ -109,7 +109,7 @@ async def disp_update(disp, config: dict):
     if CONF_DISP_BG_COLOR not in config and CONF_DISP_BG_IMAGE not in config:
         return
     with LocalVariable("lv_disp_tmp", lv_disp_t, literal(disp)) as disp_temp:
-        if bg_color := config.get(CONF_DISP_BG_COLOR):
+        if (bg_color := config.get(CONF_DISP_BG_COLOR)) is not None:
             lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
         if bg_image := config.get(CONF_DISP_BG_IMAGE):
             lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))

@@ -1,28 +1,28 @@
 """Constants used by esphome."""
 
-__version__ = "2024.8.0-dev"
+__version__ = "2024.9.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
+PLATFORM_BK72XX = "bk72xx"
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
-PLATFORM_RP2040 = "rp2040"
 PLATFORM_HOST = "host"
-PLATFORM_BK72XX = "bk72xx"
-PLATFORM_RTL87XX = "rtl87xx"
 PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
+PLATFORM_RP2040 = "rp2040"
+PLATFORM_RTL87XX = "rtl87xx"
 
 TARGET_PLATFORMS = [
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
     PLATFORM_HOST,
-    PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
     PLATFORM_LIBRETINY_OLDSTYLE,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 ]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
@@ -74,6 +74,7 @@ CONF_AWAY = "away"
 CONF_AWAY_COMMAND_TOPIC = "away_command_topic"
 CONF_AWAY_CONFIG = "away_config"
 CONF_AWAY_STATE_TOPIC = "away_state_topic"
+CONF_BACKGROUND_COLOR = "background_color"
 CONF_BACKLIGHT_PIN = "backlight_pin"
 CONF_BASELINE = "baseline"
 CONF_BATTERY_LEVEL = "battery_level"
@@ -94,6 +95,7 @@ CONF_BOARD_FLASH_MODE = "board_flash_mode"
 CONF_BORDER = "border"
 CONF_BRANCH = "branch"
 CONF_BRIGHTNESS = "brightness"
+CONF_BRIGHTNESS_LIMITS = "brightness_limits"
 CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_SIZE = "buffer_size"
@@ -307,8 +309,10 @@ CONF_FLASH_LENGTH = "flash_length"
 CONF_FLASH_TRANSITION_LENGTH = "flash_transition_length"
 CONF_FLOW = "flow"
 CONF_FLOW_CONTROL_PIN = "flow_control_pin"
+CONF_FONT = "font"
 CONF_FOR = "for"
 CONF_FORCE_UPDATE = "force_update"
+CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_FORMALDEHYDE = "formaldehyde"
 CONF_FORMAT = "format"
 CONF_FORWARD_ACTIVE_ENERGY = "forward_active_energy"
@@ -405,6 +409,7 @@ CONF_INVERTED = "inverted"
 CONF_IP_ADDRESS = "ip_address"
 CONF_IRQ_PIN = "irq_pin"
 CONF_IS_RGBW = "is_rgbw"
+CONF_ITEMS = "items"
 CONF_JS_INCLUDE = "js_include"
 CONF_JS_URL = "js_url"
 CONF_JVC = "jvc"
@@ -425,6 +430,7 @@ CONF_LIGHT = "light"
 CONF_LIGHT_ID = "light_id"
 CONF_LIGHTNING_ENERGY = "lightning_energy"
 CONF_LIGHTNING_THRESHOLD = "lightning_threshold"
+CONF_LIMIT_MODE = "limit_mode"
 CONF_LINE_THICKNESS = "line_thickness"
 CONF_LINE_TYPE = "line_type"
 CONF_LOADED_INTEGRATIONS = "loaded_integrations"
@@ -839,6 +845,7 @@ CONF_TEMPERATURE = "temperature"
 CONF_TEMPERATURE_OFFSET = "temperature_offset"
 CONF_TEMPERATURE_SOURCE = "temperature_source"
 CONF_TEMPERATURE_STEP = "temperature_step"
+CONF_TEXT = "text"
 CONF_TEXT_SENSORS = "text_sensors"
 CONF_THEN = "then"
 CONF_THRESHOLD = "threshold"
@@ -1029,8 +1036,10 @@ UNIT_KELVIN = "K"
 UNIT_KILOGRAM = "kg"
 UNIT_KILOMETER = "km"
 UNIT_KILOMETER_PER_HOUR = "km/h"
-UNIT_KILOVOLT_AMPS_REACTIVE = "kVAr"
-UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVArh"
+UNIT_KILOVOLT_AMPS = "kVA"
+UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
+UNIT_KILOVOLT_AMPS_REACTIVE = "kVAR"
+UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LUX = "lx"
@@ -1061,6 +1070,7 @@ UNIT_SECOND = "s"
 UNIT_STEPS = "steps"
 UNIT_VOLT = "V"
 UNIT_VOLT_AMPS = "VA"
+UNIT_VOLT_AMPS_HOURS = "VAh"
 UNIT_VOLT_AMPS_REACTIVE = "VAR"
 UNIT_VOLT_AMPS_REACTIVE_HOURS = "VARh"
 UNIT_WATT = "W"
