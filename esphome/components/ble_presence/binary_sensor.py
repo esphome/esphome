@@ -1,12 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble_tracker
 import esphome.config_validation as cv
+from esphome.components.number import Number
 from esphome.const import (
     CONF_IBEACON_MAJOR,
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
     CONF_MAC_ADDRESS,
     CONF_MIN_RSSI,
+    CONF_MIN_RSSI_NUMBER_ID,
     CONF_SERVICE_UUID,
     CONF_TIMEOUT,
 )
@@ -46,12 +48,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_RSSI): cv.All(
                 cv.decibel, cv.int_range(min=-100, max=-30)
             ),
+            cv.Optional(CONF_MIN_RSSI_NUMBER_ID): cv.use_id(Number)
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(
         CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID
+    ),
+    cv.has_at_most_one_key(
+        CONF_MIN_RSSI, CONF_MIN_RSSI_NUMBER_ID
     ),
     _validate,
 )
@@ -63,8 +69,12 @@ async def to_code(config):
     await esp32_ble_tracker.register_ble_device(var, config)
 
     cg.add(var.set_timeout(config[CONF_TIMEOUT].total_milliseconds))
+
     if min_rssi := config.get(CONF_MIN_RSSI):
         cg.add(var.set_minimum_rssi(min_rssi))
+    elif min_rssi_number_id := config.get(CONF_MIN_RSSI_NUMBER_ID):
+        min_rssi_number = await cg.get_variable(min_rssi_number_id)
+        cg.add(var.set_minimum_rssi_input(min_rssi_number))
 
     if mac_address := config.get(CONF_MAC_ADDRESS):
         cg.add(var.set_address(mac_address.as_hex))
