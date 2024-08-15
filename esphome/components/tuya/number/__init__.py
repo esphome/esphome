@@ -86,4 +86,4 @@ async def to_code(config):
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
         cg.add(var.set_datapoint_type(hidden_config[CONF_DATAPOINT_TYPE]))
         if hidden_init_value := hidden_config.get(CONF_INITIAL_VALUE):
-            cg.add(var.set_datapoint_restore_value(hidden_init_value))
+            cg.add(var.set_datapoint_initial_value(hidden_init_value))
