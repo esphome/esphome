@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace waveshare_epaper {

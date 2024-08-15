@@ -144,7 +144,9 @@ MODELS = {
 }
 
 RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")
-SEGMENT_UPDATEABLE_MODELS = "7.5in-bgr-gd"
+SEGMENT_UPDATEABLE_MODELS = {
+    "7.5in-bgr-gd": (800, 480),
+}
 
 
 def validate_full_update_every_only_types_ac(value):
@@ -168,6 +170,21 @@ def validate_num_segments_supported(config):
     ):
         raise cv.Invalid(
             f"'num_segments_x' and num_segment_y' are not supported by {config[CONF_MODEL]}"
+        )
+    if CONF_NUM_SEGMENTS_X in config and (
+        SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][0]
+        % (config[CONF_NUM_SEGMENTS_X] * 8)
+        > 0
+    ):
+        raise cv.Invalid(
+            f"The horizontal resolution of the display ({SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][0]}px) must be divisible by 'num_segments_x * 8'"
+        )
+    if CONF_NUM_SEGMENTS_Y in config and (
+        SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][1] % config[CONF_NUM_SEGMENTS_Y]
+        > 0
+    ):
+        raise cv.Invalid(
+            f"The vertical resolution of the display ({SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][1]}px) must be divisible by 'num_segments_y'"
         )
     return config
 
