@@ -3,7 +3,6 @@ import base64
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.noise import load_noise
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -156,7 +155,7 @@ async def to_code(config):
         decoded = base64.b64decode(encryption_config[CONF_KEY])
         cg.add(var.set_noise_psk(list(decoded)))
         cg.add_define("USE_API_NOISE")
-        load_noise()
+        cg.add_library("esphome/noise-c", "0.1.6")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
