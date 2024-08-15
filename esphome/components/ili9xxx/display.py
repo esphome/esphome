@@ -177,7 +177,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
                 "'invert_display' has been replaced by 'invert_colors'"
             ),
-            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
+            cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
             cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
             cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
             cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
