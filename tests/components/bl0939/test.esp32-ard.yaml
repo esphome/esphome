@@ -24,3 +24,4 @@ sensor:
       name: BL0939 Energy 2
     energy_total:
       name: BL0939 Total energy
+    device_address: 5

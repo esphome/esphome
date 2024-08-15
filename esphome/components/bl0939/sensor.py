@@ -25,6 +25,7 @@ CONF_ACTIVE_POWER_2 = "active_power_2"
 CONF_ENERGY_1 = "energy_1"
 CONF_ENERGY_2 = "energy_2"
 CONF_ENERGY_TOTAL = "energy_total"
+CONF_DEVICE_ADDRESS = "device_address"
 
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
@@ -81,6 +82,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.Optional(CONF_DEVICE_ADDRESS, default=5): cv.int_range(min=0, max=15),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -117,3 +119,4 @@ async def to_code(config):
     if energy_total_config := config.get(CONF_ENERGY_TOTAL):
         sens = await sensor.new_sensor(energy_total_config)
         cg.add(var.set_energy_sensor_sum(sens))
+    cg.add(var.set_device_address(config.get(CONF_DEVICE_ADDRESS)))
