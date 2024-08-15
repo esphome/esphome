@@ -75,6 +75,7 @@ number:
   - platform: lvgl
     widget: slider_id
     name: LVGL Slider
+    update_on_release: true
   - platform: lvgl
     widget: lv_arc
     id: lvgl_arc_number
