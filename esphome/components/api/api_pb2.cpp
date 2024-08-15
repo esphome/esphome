@@ -567,6 +567,20 @@ template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveO
   }
 }
 #endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::UpdateCommand>(enums::UpdateCommand value) {
+  switch (value) {
+    case enums::UPDATE_COMMAND_NONE:
+      return "UPDATE_COMMAND_NONE";
+    case enums::UPDATE_COMMAND_UPDATE:
+      return "UPDATE_COMMAND_UPDATE";
+    case enums::UPDATE_COMMAND_CHECK:
+      return "UPDATE_COMMAND_CHECK";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -3095,6 +3109,16 @@ void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
   out.append("SubscribeHomeAssistantStatesRequest {}");
 }
 #endif
+bool SubscribeHomeAssistantStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->once = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool SubscribeHomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -3112,6 +3136,7 @@ bool SubscribeHomeAssistantStateResponse::decode_length(uint32_t field_id, Proto
 void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->entity_id);
   buffer.encode_string(2, this->attribute);
+  buffer.encode_bool(3, this->once);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
@@ -3123,6 +3148,10 @@ void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
 
   out.append("  attribute: ");
   out.append("'").append(this->attribute).append("'");
+  out.append("\n");
+
+  out.append("  once: ");
+  out.append(YESNO(this->once));
   out.append("\n");
   out.append("}");
 }
@@ -8372,6 +8401,262 @@ void DateTimeCommandRequest::dump_to(std::string &out) const {
   out.append("  epoch_seconds: ");
   sprintf(buffer, "%" PRIu32, this->epoch_seconds);
   out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesUpdateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesUpdateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    case 8: {
+      this->device_class = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesUpdateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesUpdateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_string(8, this->device_class);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesUpdateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesUpdateResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool UpdateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->in_progress = value.as_bool();
+      return true;
+    }
+    case 4: {
+      this->has_progress = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool UpdateStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 6: {
+      this->current_version = value.as_string();
+      return true;
+    }
+    case 7: {
+      this->latest_version = value.as_string();
+      return true;
+    }
+    case 8: {
+      this->title = value.as_string();
+      return true;
+    }
+    case 9: {
+      this->release_summary = value.as_string();
+      return true;
+    }
+    case 10: {
+      this->release_url = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool UpdateStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 5: {
+      this->progress = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void UpdateStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->missing_state);
+  buffer.encode_bool(3, this->in_progress);
+  buffer.encode_bool(4, this->has_progress);
+  buffer.encode_float(5, this->progress);
+  buffer.encode_string(6, this->current_version);
+  buffer.encode_string(7, this->latest_version);
+  buffer.encode_string(8, this->title);
+  buffer.encode_string(9, this->release_summary);
+  buffer.encode_string(10, this->release_url);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void UpdateStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("UpdateStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
+  out.append("\n");
+
+  out.append("  in_progress: ");
+  out.append(YESNO(this->in_progress));
+  out.append("\n");
+
+  out.append("  has_progress: ");
+  out.append(YESNO(this->has_progress));
+  out.append("\n");
+
+  out.append("  progress: ");
+  sprintf(buffer, "%g", this->progress);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  current_version: ");
+  out.append("'").append(this->current_version).append("'");
+  out.append("\n");
+
+  out.append("  latest_version: ");
+  out.append("'").append(this->latest_version).append("'");
+  out.append("\n");
+
+  out.append("  title: ");
+  out.append("'").append(this->title).append("'");
+  out.append("\n");
+
+  out.append("  release_summary: ");
+  out.append("'").append(this->release_summary).append("'");
+  out.append("\n");
+
+  out.append("  release_url: ");
+  out.append("'").append(this->release_url).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool UpdateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->command = value.as_enum<enums::UpdateCommand>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void UpdateCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_enum<enums::UpdateCommand>(2, this->command);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void UpdateCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("UpdateCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%" PRIu32, this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  command: ");
+  out.append(proto_enum_to_string<enums::UpdateCommand>(this->command));
   out.append("\n");
   out.append("}");
 }

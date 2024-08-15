@@ -56,7 +56,7 @@ void HE60rCover::endstop_reached_(CoverOperation operation) {
     this->position = new_position;
     this->current_operation = COVER_OPERATION_IDLE;
     if (this->last_command_ == operation) {
-      float dur = (now - this->start_dir_time_) / 1e3f;
+      float dur = (float) (now - this->start_dir_time_) / 1e3f;
       ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(),
                operation == COVER_OPERATION_OPENING ? "Open" : "Close", dur);
     }
@@ -69,7 +69,6 @@ void HE60rCover::set_current_operation_(cover::CoverOperation operation) {
     this->current_operation = operation;
     if (operation != COVER_OPERATION_IDLE)
       this->last_recompute_time_ = millis();
-    this->publish_state();
   }
 }
 
@@ -129,7 +128,7 @@ void HE60rCover::update_() {
   if (this->toggles_needed_ != 0) {
     if ((this->counter_++ & 0x3) == 0) {
       this->toggles_needed_--;
-      ESP_LOGD(TAG, "Writing byte 0x30, still needed=%" PRIu32, this->toggles_needed_);
+      ESP_LOGD(TAG, "Writing byte 0x30, still needed=%u", this->toggles_needed_);
       this->write_byte(TOGGLE_BYTE);
     } else {
       this->write_byte(QUERY_BYTE);
@@ -235,31 +234,28 @@ void HE60rCover::recompute_position_() {
     return;
 
   const uint32_t now = millis();
-  float dir;
-  float action_dur;
-
-  switch (this->current_operation) {
-    case COVER_OPERATION_OPENING:
-      dir = 1.0f;
-      action_dur = this->open_duration_;
-      break;
-    case COVER_OPERATION_CLOSING:
-      dir = -1.0f;
-      action_dur = this->close_duration_;
-      break;
-    default:
-      return;
-  }
-
   if (now > this->last_recompute_time_) {
-    auto diff = now - last_recompute_time_;
-    auto delta = dir * diff / action_dur;
+    auto diff = (unsigned) (now - last_recompute_time_);
+    float delta;
+    switch (this->current_operation) {
+      case COVER_OPERATION_OPENING:
+        delta = (float) diff / (float) this->open_duration_;
+        break;
+      case COVER_OPERATION_CLOSING:
+        delta = -(float) diff / (float) this->close_duration_;
+        break;
+      default:
+        return;
+    }
+
     // make sure our guesstimate never reaches full open or close.
-    this->position = clamp(delta + this->position, COVER_CLOSED + 0.01f, COVER_OPEN - 0.01f);
-    ESP_LOGD(TAG, "Recompute %dms, dir=%f, action_dur=%f, delta=%f, pos=%f", (int) diff, dir, action_dur, delta,
-             this->position);
+    auto new_position = clamp(delta + this->position, COVER_CLOSED + 0.01f, COVER_OPEN - 0.01f);
+    ESP_LOGD(TAG, "Recompute %ums, dir=%u, delta=%f, pos=%f", diff, this->current_operation, delta, new_position);
     this->last_recompute_time_ = now;
-    this->publish_state();
+    if (this->position != new_position) {
+      this->position = new_position;
+      this->publish_state();
+    }
   }
 }
 

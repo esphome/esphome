@@ -163,6 +163,7 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
   WAVESHARE_EPAPER_7_5_IN_B_V2,
+  WAVESHARE_EPAPER_13_3_IN_K,
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
@@ -769,5 +770,28 @@ class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
   bool is_busy_{false};
   void write_lut_(const uint8_t *lut);
 };
+
+class WaveshareEPaper13P3InK : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x10);
+    this->data(0x01);
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+};
+
 }  // namespace waveshare_epaper
 }  // namespace esphome

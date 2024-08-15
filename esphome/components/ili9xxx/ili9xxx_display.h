@@ -33,9 +33,10 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     uint8_t cmd, num_args, bits;
     const uint8_t *addr = init_sequence;
     while ((cmd = *addr++) != 0) {
-      num_args = *addr++ & 0x7F;
+      num_args = *addr++;
+      if (num_args == ILI9XXX_DELAY_FLAG)
+        continue;
       bits = *addr;
-      esph_log_d(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, bits);
       switch (cmd) {
         case ILI9XXX_MADCTL: {
           this->swap_xy_ = (bits & MADCTL_MV) != 0;
@@ -54,7 +55,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
         default:
           break;
       }
-      addr += num_args;
+      addr += (num_args & 0x7F);
     }
   }
 
@@ -267,6 +268,12 @@ class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
 class ILI9XXXGC9A01A : public ILI9XXXDisplay {
  public:
   ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240, true) {}
+};
+
+//-----------   ILI9XXX_24_TFT display --------------
+class ILI9XXXST7735 : public ILI9XXXDisplay {
+ public:
+  ILI9XXXST7735() : ILI9XXXDisplay(INITCMD_ST7735, 128, 160, false) {}
 };
 
 }  // namespace ili9xxx
