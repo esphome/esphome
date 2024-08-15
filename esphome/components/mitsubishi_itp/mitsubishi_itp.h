@@ -165,7 +165,7 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   }
 
   // Temperature select extras
-  std::string current_temperature_source_ = TEMPERATURE_SOURCE_INTERNAL;
+  std::string current_temperature_source_;
   uint32_t last_received_temperature_ = millis();
   bool temperature_source_timeout_ = false;  // Has the current source timed out?
 

@@ -51,19 +51,25 @@ void MitsubishiUART::loop() {
   if (ts_bridge_)
     ts_bridge_->loop();
 
-  // If it's been too long since we received a temperature update (and we're not set to Internal)
-  if (((millis() - last_received_temperature_) > TEMPERATURE_SOURCE_TIMEOUT_MS) &&
-      current_temperature_source_ != TEMPERATURE_SOURCE_INTERNAL && !temperature_source_timeout_) {
-    ESP_LOGW(TAG, "No temperature received from %s for %lu milliseconds, reverting to Internal source",
-             current_temperature_source_.c_str(), (unsigned long) TEMPERATURE_SOURCE_TIMEOUT_MS);
-    // Let listeners know we've changed to the Internal temperature source (but do not change
-    // currentTemperatureSource)
-    for (auto *listener : listeners_) {
-      listener->temperature_source_change(TEMPERATURE_SOURCE_INTERNAL);
+  if ((millis() - last_received_temperature_) > TEMPERATURE_SOURCE_TIMEOUT_MS) {
+    if (current_temperature_source_.empty() || current_temperature_source_ != TEMPERATURE_SOURCE_INTERNAL) {
+      ESP_LOGD(TAG, "Reminding heat pump to use internal temperature sensor");
+      // Check to make sure a temperature source is set-- if not, set to internal for sanity reasons
+      IFACTIVE(this->select_temperature_source(TEMPERATURE_SOURCE_INTERNAL);)
+      last_received_temperature_ = millis();  // Count this as "receiving" the internal temperature
+    } else if (!temperature_source_timeout_) {
+      // If it's been too long since we received a temperature update (and we're not set to Internal)
+      ESP_LOGW(TAG, "No temperature received from %s for %lu milliseconds, reverting to Internal source",
+               current_temperature_source_.c_str(), (unsigned long) TEMPERATURE_SOURCE_TIMEOUT_MS);
+      // Let listeners know we've changed to the Internal temperature source (but do not change
+      // currentTemperatureSource)
+      for (auto *listener : listeners_) {
+        listener->temperature_source_change(TEMPERATURE_SOURCE_INTERNAL);
+      }
+      temperature_source_timeout_ = true;
+      // Send a packet to the heat pump to tell it to switch to internal temperature sensing
+      IFACTIVE(hp_bridge_.send_packet(RemoteTemperatureSetRequestPacket().use_internal_temperature());)
     }
-    temperature_source_timeout_ = true;
-    // Send a packet to the heat pump to tell it to switch to internal temperature sensing
-    IFACTIVE(hp_bridge_.send_packet(RemoteTemperatureSetRequestPacket().use_internal_temperature());)
   }
 }
 
