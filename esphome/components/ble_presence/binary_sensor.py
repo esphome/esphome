@@ -48,7 +48,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_RSSI): cv.All(
                 cv.decibel, cv.int_range(min=-100, max=-30)
             ),
-            cv.Optional(CONF_MIN_RSSI_NUMBER_ID): cv.use_id(Number)
+            cv.Optional(CONF_MIN_RSSI_NUMBER_ID): cv.use_id(Number),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -56,9 +56,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_exactly_one_key(
         CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID
     ),
-    cv.has_at_most_one_key(
-        CONF_MIN_RSSI, CONF_MIN_RSSI_NUMBER_ID
-    ),
+    cv.has_at_most_one_key(CONF_MIN_RSSI, CONF_MIN_RSSI_NUMBER_ID),
     _validate,
 )
 

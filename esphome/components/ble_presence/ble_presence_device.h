@@ -5,7 +5,6 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/number/number.h"
 
-
 #ifdef USE_ESP32
 
 namespace esphome {
@@ -113,9 +112,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-   void set_minimum_rssi_(int rssi) {
-    this->minimum_rssi_ = rssi;
-  }
+  void set_minimum_rssi_(int rssi) { this->minimum_rssi_ = rssi; }
 
   void set_found_(bool state) {
     this->found_ = state;
@@ -144,7 +141,6 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   bool found_{false};
   uint32_t last_seen_{};
   uint32_t timeout_{};
-
 };
 
 }  // namespace ble_presence
