@@ -1850,7 +1850,7 @@ def maybe_simple_value(*validators, **kwargs):
         if value == SCHEMA_EXTRACT:
             return (validator, key)
 
-        if isinstance(value, dict) and key in value:
+        if isinstance(value, dict):
             return validator(value)
         return validator({key: value})
 
