@@ -145,24 +145,21 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 float DallasTemperatureSensor::get_temp_c_() {
   int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
-    if (this->scratch_pad_[7] != 0x10)
-      ESP_LOGE(TAG, "unexpected COUNT_PER_C value: %u", this->scratch_pad_[7]);
-    temp = ((temp & 0xfff7) << 3) + (0x10 - this->scratch_pad_[6]) - 4;
-  } else {
-    switch (this->resolution_) {
-      case 9:
-        temp &= 0xfff8;
-        break;
-      case 10:
-        temp &= 0xfffc;
-        break;
-      case 11:
-        temp &= 0xfffe;
-        break;
-      case 12:
-      default:
-        break;
-    }
+    return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25;
+  }
+  switch (this->resolution_) {
+    case 9:
+      temp &= 0xfff8;
+      break;
+    case 10:
+      temp &= 0xfffc;
+      break;
+    case 11:
+      temp &= 0xfffe;
+      break;
+    case 12:
+    default:
+      break;
   }
 
   return temp / 16.0f;

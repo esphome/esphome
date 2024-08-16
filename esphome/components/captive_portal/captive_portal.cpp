@@ -1,4 +1,5 @@
 #include "captive_portal.h"
+#ifdef USE_CAPTIVE_PORTAL
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/wifi/wifi_component.h"
@@ -91,3 +92,4 @@ CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avo
 
 }  // namespace captive_portal
 }  // namespace esphome
+#endif

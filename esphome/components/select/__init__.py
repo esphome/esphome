@@ -1,20 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CYCLE,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_INDEX,
+    CONF_MODE,
+    CONF_MQTT_ID,
     CONF_ON_VALUE,
+    CONF_OPERATION,
     CONF_OPTION,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
-    CONF_CYCLE,
-    CONF_MODE,
-    CONF_OPERATION,
-    CONF_INDEX,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass

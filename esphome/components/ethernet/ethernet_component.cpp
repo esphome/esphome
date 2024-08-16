@@ -65,7 +65,8 @@ void EthernetComponent::setup() {
       .intr_flags = 0,
   };
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6)
   auto host = SPI2_HOST;
 #else
   auto host = SPI3_HOST;
@@ -393,7 +394,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
 #else
   global_eth_component->connected_ = true;
@@ -406,8 +407,12 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   global_eth_component->ipv6_count_ += 1;
+#if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+#else
+  global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
+#endif
 }
 #endif /* USE_NETWORK_IPV6 */
 

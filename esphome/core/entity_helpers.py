@@ -1,6 +1,5 @@
-import esphome.final_validate as fv
-
 from esphome.const import CONF_ID
+import esphome.final_validate as fv
 
 
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
