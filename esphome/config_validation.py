@@ -370,6 +370,20 @@ def boolean(value):
     )
 
 
+def boolean_false(value):
+    """Validate the given config option to be a boolean, set to False.
+
+    This option allows a bunch of different ways of expressing boolean values:
+     - instance of boolean
+     - 'true'/'false'
+     - 'yes'/'no'
+     - 'enable'/disable
+    """
+    if boolean(value):
+        raise Invalid("Expected boolean value to be false")
+    return False
+
+
 @schema_extractor_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
