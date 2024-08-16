@@ -731,7 +731,11 @@ POST_CONFIG_ACTIONS = {
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
-        "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
+        "-v", 
+        "--verbose", 
+        help="Enable verbose ESPHome logs.", 
+        action="store_true",
+        default=get_bool_env("ESPHOME_VERBOSE"),
     )
     options_parser.add_argument(
         "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
@@ -964,9 +968,6 @@ def parse_args(argv):
 def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
-
-    if get_bool_env("ESPHOME_VERBOSE"):
-        args.verbose = True
 
     setup_log(
         args.verbose,
