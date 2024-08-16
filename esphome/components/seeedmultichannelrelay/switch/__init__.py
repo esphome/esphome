@@ -49,4 +49,3 @@ async def to_code(config):
     await cg.register_parented(var, config[CONF_SEEEDMULTICHANNELRELAY_ID])
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-
