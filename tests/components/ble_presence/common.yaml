@@ -1,5 +1,14 @@
 esp32_ble_tracker:
 
+number:
+  - platform: template
+    id: min_rssi
+    name: "Min RSSI"
+    max_value: -30
+    min_value: -100
+    step: 5
+    optimistic: true
+
 binary_sensor:
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
@@ -21,4 +30,13 @@ binary_sensor:
   - platform: ble_presence
     irk: 1234567890abcdef1234567890abcdef
     name: "ESP32 BLE Tracker with Identity Resolving Key"
+  - platform: ble_presence
+    service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
+    name: BLE Test Service Min RSSI
+    min_rssi: -50dB
+  - platform: ble_presence
+    service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
+    name: BLE Test Service Min RSSI
+    min_rssi_number_id: min_rssi
+
 
