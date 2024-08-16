@@ -120,7 +120,6 @@ class MAX7219Component : public display::DisplayBuffer,
   optional<max7219_writer_t> writer_local_{};
 };
 
-
 template<typename... Ts> class DisplayInvertAction : public Action<Ts...> {
  public:
   DisplayInvertAction(MAX7219Component *buffer) : buffer_(buffer) {}

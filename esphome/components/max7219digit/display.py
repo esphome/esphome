@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import display, spi
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INTENSITY,
@@ -110,7 +110,9 @@ async def to_code(config):
 
 
 DisplayInvertAction = max7219_ns.class_("DisplayInvertAction", automation.Action)
-DisplayVisibilityAction = max7219_ns.class_("DisplayVisibilityAction", automation.Action)
+DisplayVisibilityAction = max7219_ns.class_(
+    "DisplayVisibilityAction", automation.Action
+)
 DisplayReverseAction = max7219_ns.class_("DisplayReverseAction", automation.Action)
 DisplayIntensityAction = max7219_ns.class_("DisplayIntensityAction", automation.Action)
 
@@ -144,10 +146,10 @@ async def MAX7219_inveert_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "MAX7219.turn_off", DisplayVisiblityAction, MAX7219_OFF_ACTION_SCHEMA
+    "MAX7219.turn_off", DisplayVisibilityAction, MAX7219_OFF_ACTION_SCHEMA
 )
 @automation.register_action(
-    "MAX7219.turn_on", DisplayVisiblityAction, MAX7219_ON_ACTION_SCHEMA
+    "MAX7219.turn_on", DisplayVisibilityAction, MAX7219_ON_ACTION_SCHEMA
 )
 async def MAX7219_visible_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
