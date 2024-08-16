@@ -1,7 +1,7 @@
 i2c:
   - id: i2c_tca9548a
-    scl: "16"
-    sda: "17"
+    scl: 16
+    sda: 17
 
 tca9548a:
   - id: multiplex0
