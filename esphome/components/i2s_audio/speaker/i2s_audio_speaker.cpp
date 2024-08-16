@@ -180,7 +180,11 @@ void I2SAudioSpeaker::player_task(void *params) {
   }
 }
 
-void I2SAudioSpeaker::stop() {
+void I2SAudioSpeaker::stop() { this->stop_(false); }
+
+void I2SAudioSpeaker::finish() { this->stop_(true); }
+
+void I2SAudioSpeaker::stop_(bool wait_on_empty) {
   if (this->is_failed())
     return;
   if (this->state_ == speaker::STATE_STOPPED)
@@ -192,7 +196,11 @@ void I2SAudioSpeaker::stop() {
   this->state_ = speaker::STATE_STOPPING;
   DataEvent data;
   data.stop = true;
-  xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
+  if (wait_on_empty) {
+    xQueueSend(this->buffer_queue_, &data, portMAX_DELAY);
+  } else {
+    xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
+  }
 }
 
 void I2SAudioSpeaker::watch_() {

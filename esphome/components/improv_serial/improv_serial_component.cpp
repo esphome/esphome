@@ -1,5 +1,5 @@
 #include "improv_serial_component.h"
-
+#ifdef USE_WIFI
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -313,3 +313,4 @@ ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidel
 
 }  // namespace improv_serial
 }  // namespace esphome
+#endif

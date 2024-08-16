@@ -4,7 +4,15 @@ import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
 
 from ..defines import CONF_ANIMATED, CONF_LVGL_ID, CONF_WIDGET
-from ..lvcode import CUSTOM_EVENT, EVENT_ARG, LambdaContext, LvContext, lv, lv_add
+from ..lvcode import (
+    API_EVENT,
+    EVENT_ARG,
+    UPDATE_EVENT,
+    LambdaContext,
+    LvContext,
+    lv,
+    lv_add,
+)
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvSelect, lvgl_ns
 from ..widgets import get_widgets
@@ -33,7 +41,7 @@ async def to_code(config):
         pub_ctx.add(selector.publish_index(widget.get_value()))
     async with LambdaContext([(cg.uint16, "v")]) as control:
         await widget.set_property("selected", "v", animated=config[CONF_ANIMATED])
-        lv.event_send(widget.obj, CUSTOM_EVENT, cg.nullptr)
+        lv.event_send(widget.obj, API_EVENT, cg.nullptr)
     async with LvContext(paren) as ctx:
         lv_add(selector.set_control_lambda(await control.get_lambda()))
         ctx.add(
@@ -41,6 +49,7 @@ async def to_code(config):
                 widget.obj,
                 await pub_ctx.get_lambda(),
                 LV_EVENT.VALUE_CHANGED,
+                UPDATE_EVENT,
             )
         )
         lv_add(selector.publish_index(widget.get_value()))
