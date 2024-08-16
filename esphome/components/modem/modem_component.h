@@ -43,16 +43,18 @@ enum class ModemPowerState {
 };
 
 struct AtCommandResult {
-  std::string result;
-  bool success;
+  std::string output{};
+  bool success{false};
+  command_result esp_modem_command_result{command_result::TIMEOUT};
+  mutable std::string cached_c_str;
 
-  // Conversion to bool, allowing you to do things like `if (commandResult) {...}`
   operator bool() const { return success; }
+  const char *c_str() const;
 };
 
 class ModemComponent : public Component {
  public:
-  void set_reboot_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+  void set_reboot_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
@@ -72,8 +74,8 @@ class ModemComponent : public Component {
   bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED; }
   bool is_modem_connected(bool verbose);  // this if for modem only, not PPP
   bool is_modem_connected() { return this->is_modem_connected(true); }
+  AtCommandResult send_at(const std::string &cmd) { return this->send_at(cmd, this->command_delay_); }
   AtCommandResult send_at(const std::string &cmd, uint32_t timeout);
-  AtCommandResult send_at(const std::string &cmd);
   AtCommandResult get_imei();
   bool get_power_status();
   bool modem_ready();
@@ -115,9 +117,10 @@ class ModemComponent : public Component {
   void abort_(const std::string &message);
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
+  bool flush_uart_();
 
   // Attributes from yaml config
-  uint16_t timeout_;
+  uint32_t timeout_;
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
   std::string model_;

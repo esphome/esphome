@@ -72,31 +72,24 @@ bool ModemComponent::is_modem_connected(bool verbose) {
 AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout) {
   AtCommandResult at_command_result;
   at_command_result.success = false;
-  command_result status = command_result::FAIL;
-  if (this->modem_ready()) {
+  at_command_result.esp_modem_command_result = command_result::TIMEOUT;
+  if (this->dce) {
     ESP_LOGV(TAG, "Sending command: %s", cmd.c_str());
-    status = this->dce->at(cmd, at_command_result.result, timeout);
-    ESP_LOGD(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), at_command_result.result.c_str(),
-             command_result_to_string(status).c_str());
+    at_command_result.esp_modem_command_result = this->dce->at(cmd, at_command_result.output, timeout);
+    ESP_LOGD(TAG, "Result for command %s: %s (status %s)", cmd.c_str(), at_command_result.c_str(),
+             command_result_to_string(at_command_result.esp_modem_command_result).c_str());
   }
-  if (status == command_result::OK) {
-    at_command_result.success = true;
-  }
+  at_command_result.success = at_command_result.esp_modem_command_result == command_result::OK;
   return at_command_result;
 }
-
-AtCommandResult ModemComponent::send_at(const std::string &cmd) { return this->send_at(cmd, this->command_delay_); }
 
 AtCommandResult ModemComponent::get_imei() {
   // get the imei, and check the result is a valid imei string
   // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
   AtCommandResult at_command_result;
-  at_command_result.success = false;
-  command_result status = command_result::FAIL;
-  status = this->dce->at("AT+CGSN", at_command_result.result, 1000);
-  if ((status == command_result::OK) && at_command_result.result.length() == 15) {
-    at_command_result.success = true;
-    for (char c : at_command_result.result) {
+  at_command_result = this->send_at("AT+CGSN", 4000);
+  if (at_command_result.success && at_command_result.output.length() == 15) {
+    for (char c : at_command_result.output) {
       if (!isdigit(static_cast<unsigned char>(c))) {
         at_command_result.success = false;
         break;
@@ -513,6 +506,9 @@ bool ModemComponent::modem_sync_() {
   std::string result;
 
   ESP_LOGV(TAG, "Checking if the modem is synced...");
+
+  this->flush_uart_();
+
   bool status = this->get_imei();
   if (!status) {
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
@@ -522,12 +518,13 @@ bool ModemComponent::modem_sync_() {
     auto command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying command mode");
       this->dce->set_mode(modem_mode::UNDEF);
-      return this->dce->set_mode(modem_mode::COMMAND_MODE);
+      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->get_imei();
     };
 
     auto cmux_command_mode = [this]() -> bool {
       ESP_LOGVV(TAG, "trying cmux command mode");
-      return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) && this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND);
+      return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) &&
+             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->get_imei();
     };
 
     // The cmux state is supposed to be the same before the reboot. But if it has changed (new firwmare), we will try
@@ -546,7 +543,6 @@ bool ModemComponent::modem_sync_() {
       this->internal_state_.powered_on = false;
     } else {
       ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
-      delay(2000);  // NOLINT
       this->internal_state_.powered_on = true;
     }
   } else {
@@ -567,12 +563,17 @@ bool ModemComponent::modem_sync_() {
       return false;
     }
 
-    if (!this->prepare_sim_()) {
-      // fatal error
-      this->disable();
-      status = false;
-    }
     this->send_init_at_();
+
+    if (!this->pin_code_.empty()) {
+      if (!this->prepare_sim_()) {
+        // fatal error
+        this->disable();
+        status = false;
+      }
+    } else {
+      ESP_LOGI(TAG, "No pin_code, so no pin check");
+    }
 
     ESP_LOGI(TAG, "Modem infos:");
     std::string result;
@@ -588,33 +589,35 @@ bool ModemComponent::modem_sync_() {
 }
 
 bool ModemComponent::prepare_sim_() {
-  // it seems that read_pin(pin_ok) unexpectedly fail if no sim card is inserted, whithout updating the 'pin_ok'
-  bool pin_ok = false;
-  if (this->dce->read_pin(pin_ok) != command_result::OK) {
-    this->status_set_error("Unable to read pin status. Missing SIM card?");
-    return false;
-  }
+  command_result modem_status;
 
-  delay(this->command_delay_);
+  std::string output;
 
-  if (!pin_ok) {
-    if (!this->pin_code_.empty()) {
-      ESP_LOGV(TAG, "Set pin code: %s", this->pin_code_.c_str());
-      ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "Set pin code failed");
-      delay(2000);  // NOLINT
-    }
-  }
+  // this->dce->read_pin(pin_ok)   // not used, because we can't know the cause of the error.
+  modem_status = this->dce->command(
+      "AT+CPIN?\r",
+      [&](uint8_t *data, size_t len) {
+        output.assign(reinterpret_cast<char *>(data), len);
+        std::replace(output.begin(), output.end(), '\n', ' ');
+        return command_result::OK;
+      },
+      this->command_delay_);
 
-  ESPMODEM_ERROR_CHECK(this->dce->read_pin(pin_ok), "Check pin");
-  if (pin_ok) {
-    if (this->pin_code_.empty()) {
-      ESP_LOGD(TAG, "PIN not needed");
-    } else {
-      ESP_LOGD(TAG, "PIN unlocked");
-    }
+  ESP_LOGD(TAG, "SIM: %s", output.c_str());
+
+  if (output.find("+CPIN: READY") != std::string::npos) {
+    return true;  // pin not needed or already unlocked
   } else {
-    this->status_set_error("Invalid PIN code.");
+    if (output.find("SIM not inserted") != std::string::npos) {
+      this->abort_("Sim card not inserted.");
+    }
   }
+
+  ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "Set pin error");
+
+  bool pin_ok = false;
+  ESPMODEM_ERROR_CHECK(this->dce->read_pin(pin_ok), "Error checking pin");
+
   return pin_ok;
 }
 
@@ -626,9 +629,9 @@ void ModemComponent::send_init_at_() {
     if (!at_command_result) {
       ESP_LOGE(TAG, "Error while executing 'init_at' '%s' command", cmd.c_str());
     } else {
-      ESP_LOGI(TAG, "'init_at' '%s' result: %s", cmd.c_str(), at_command_result.result.c_str());
+      ESP_LOGI(TAG, "'init_at' '%s' output: %s", cmd.c_str(), at_command_result.output.c_str());
     }
-    delay(200);  // NOLINT
+    delay(2000);  // NOLINT
   }
 }
 
@@ -760,6 +763,31 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS main    : %s", network::IPAddress(dns_main_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(dns_backup_ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
+}
+
+bool ModemComponent::flush_uart_() {
+  size_t cleaned = 0;
+
+  this->dce->command(
+      "",
+      [&](uint8_t *data, size_t len) {
+        cleaned = len;
+        return command_result::OK;
+      },
+      1000) == command_result::OK;
+
+  if (cleaned != 0) {
+    ESP_LOGW(TAG, "Cleaned %d modem buffer data", cleaned);
+  }
+}
+
+const char *AtCommandResult::c_str() const {
+  if (success) {
+    cached_c_str = output + " (OK)";
+  } else {
+    cached_c_str = output + " (" + command_result_to_string(esp_modem_command_result) + ")";
+  }
+  return cached_c_str.c_str();
 }
 
 }  // namespace modem
