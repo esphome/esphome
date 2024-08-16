@@ -1,5 +1,5 @@
 substitutions:
-  scl_pin: 16
-  sda_pin: 17
+  scl_pin: "16"
+  sda_pin: "17"
 
 <<: !include common.yaml
