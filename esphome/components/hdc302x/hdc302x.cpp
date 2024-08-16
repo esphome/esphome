@@ -14,7 +14,7 @@ static const uint8_t HDC302X_CMD_SOFT_RESET[2] = {0x30, 0xA2};
 uint8_t crc8(const uint8_t *data, int len) {
   // Check CRC
   uint8_t crc = 0xff;
-  for (uint8_t i = 0; i < 4; i++) {
+  for (uint8_t i = 0; i < len; i++) {
     crc ^= data[i];
     for (uint8_t j = 0; j < 8; j++) {
       if (crc & 0x80) {
@@ -71,7 +71,7 @@ void HDC302xComponent::update() {
 
     const int value_len = 3;
     uint8_t crc0 = crc8(raw_temp_humidity, value_len);
-    uint8_t crc1 = crc8(raw_temp_humidity + 3, value_len);
+    uint8_t crc1 = crc8(raw_temp_humidity + value_len, value_len);
 
     ESP_LOGI(TAG, "CRC0: %02X, CRC1: %02X", crc0, crc1);
 
