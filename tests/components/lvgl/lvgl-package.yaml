@@ -101,6 +101,7 @@ lvgl:
             border_side: [bottom, left]
             border_width: 4
             clip_corner: false
+            color_filter_opa: transp
             height: 50%
             image_recolor: light_blue
             image_recolor_opa: cover

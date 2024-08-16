@@ -63,7 +63,11 @@ void SeeedMultiChannelRelaySwitch::write_state(bool state) {
   }
 
   // This will be called every time the user requests a state change.
+<<<<<<< HEAD
   this->parent_->relay_write(this->channel_-1, state);
+=======
+  this->parent_->relay_write(this->channel_, state);
+>>>>>>> 50580e13d9408947ba9253f034cae2466b2703d5
 
   // Acknowledge new state by publishing it
   this->publish_state(state);

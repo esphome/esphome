@@ -134,6 +134,7 @@ class OTARequestHandler : public AsyncWebHandler {
     return request->url() == "/update" && request->method() == HTTP_POST;
   }
 
+  // NOLINTNEXTLINE(readability-identifier-naming)
   bool isRequestHandlerTrivial() override { return false; }
 
  protected:
