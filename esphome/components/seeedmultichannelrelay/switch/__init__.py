@@ -17,18 +17,6 @@ SeeedMultiChannelRelaySwitch = seeedmultichannelrelay_ns.class_(
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
-<<<<<<< HEAD
-=======
-CONF_Relay_1 = 1
-CONF_Relay_2 = 2
-CONF_Relay_3 = 3
-CONF_Relay_4 = 4
-CONF_Relay_5 = 5
-CONF_Relay_6 = 6
-CONF_Relay_7 = 7
-CONF_Relay_8 = 8
-
->>>>>>> 50580e13d9408947ba9253f034cae2466b2703d5
 RelayBit_ = seeedmultichannelrelay_ns.enum("RelayBit", is_class=True)
 
 CONFIG_SCHEMA = (
