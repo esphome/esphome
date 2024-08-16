@@ -8,7 +8,7 @@ from .. import m5stack_4relay_ns, M5Stack_4Relay, CONF_M5STACK_4RELAY_ID
 DEPENDENCIES = ["m5stack_4relay"]
 
 M5StackSwitch = m5stack_4relay_ns.class_(
-    "M5Stack_4RelaySwitch", cg.Component, i2c.I2CDevice, switch.Switch
+    "M5Stack4RelaySwitch", cg.Component, i2c.I2CDevice, switch.Switch
 )
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
