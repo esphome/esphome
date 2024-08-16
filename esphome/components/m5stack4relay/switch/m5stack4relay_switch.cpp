@@ -23,6 +23,7 @@ void M5Stack4RelaySwitch::setup() {
 
 void M5Stack4RelaySwitch::dump_config() {
   LOG_SWITCH("", "M5Stack4Relay Switch", this);
+ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
 
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
@@ -63,7 +64,7 @@ void M5Stack4RelaySwitch::write_state(bool state) {
   }
 
   // This will be called every time the user requests a state change.
-  this->parent_->relay_write(this->channel_, state);
+  this->parent_->relay_write(this->channel_ - 1, state);
 
   // Acknowledge new state by publishing it
   this->publish_state(state);

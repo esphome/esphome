@@ -18,14 +18,6 @@ CONF_Relay_2 = 2
 CONF_Relay_3 = 3
 CONF_Relay_4 = 4
 
-RelayBit_ = m5stack4relay_ns.enum("RelayBit", is_class=True)
-
-SWITCH_MAP = {
-    CONF_Relay_1: RelayBit_.RELAY1,
-    CONF_Relay_2: RelayBit_.RELAY2,
-    CONF_Relay_3: RelayBit_.RELAY3,
-    CONF_Relay_4: RelayBit_.RELAY4,
-}
 
 
 CONFIG_SCHEMA = (
@@ -34,11 +26,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(M5StackSwitch),
             cv.GenerateID(CONF_M5STACK4RELAY_ID): cv.use_id(M5Stack4Relay),
-            cv.Required(CONF_CHANNEL): cv.enum(SWITCH_MAP),
-            cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
-            cv.Optional(
-                CONF_INTERLOCK_WAIT_TIME, default="0ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=4),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -52,10 +40,3 @@ async def to_code(config):
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
 
-    if CONF_INTERLOCK in config:
-        interlock = []
-        for it in config[CONF_INTERLOCK]:
-            lock = await cg.get_variable(it)
-            interlock.append(lock)
-        cg.add(var.set_interlock(interlock))
-        cg.add(var.set_interlock_wait_time(config[CONF_INTERLOCK_WAIT_TIME]))

@@ -16,7 +16,7 @@ class M5Stack4RelaySwitch : public Component, public switch_::Switch, public Par
   void dump_config() override;
   void write_state(bool state) override;
 
-  void set_channel(RelayBit channel) { this->channel_ = (uint8_t) channel; }
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
 
   void set_interlock(const std::vector<Switch *> &interlock);
   void set_interlock_wait_time(uint32_t interlock_wait_time) { interlock_wait_time_ = interlock_wait_time; }

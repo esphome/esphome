@@ -9,7 +9,6 @@ namespace m5stack4relay {
 static constexpr uint8_t UNIT_4RELAY_REG = 0X10;
 static constexpr uint8_t UNIT_4RELAY_RELAY_REG = 0X11;
 
-enum class RelayBit : uint8_t { RELAY1 = 0, RELAY2 = 1, RELAY3 = 2, RELAY4 = 3 };
 
 class M5Stack4Relay : public Component, public i2c::I2CDevice {
  public:
