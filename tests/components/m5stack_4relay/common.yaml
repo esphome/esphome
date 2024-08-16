@@ -1,32 +1,32 @@
 i2c:
-  - id: i2c_m5stack4relay
+  - id: i2c_m5stack_4relay
     scl: ${scl_pin}
     sda: ${sda_pin}
 
-m5stack4relay:
+m5stack_4relay:
   id: M5stackrelay_ID1
 
 switch:
-  - platform: m5stack4relay
-    id: m5stack4relay_1
-    name: m5stack4relay1
+  - platform: m5stack_4relay
+    id: m5stack_4relay_1
+    name: m5stack_4relay1
     channel: 1
-    m5stack4relay_id: M5stackrelay_ID1
+    m5stack_4relay_id: M5stackrelay_ID1
 
-  - platform: m5stack4relay
-    id: m5stack4relay_2
-    name: m5stack4relay2
+  - platform: m5stack_4relay
+    id: m5stack_4relay_2
+    name: m5stack_4relay2
     channel: 2
-    m5stack4relay_id: M5stackrelay_ID1
+    m5stack_4relay_id: M5stackrelay_ID1
 
-  - platform: m5stack4relay
-    id: m5stack4relay_3
-    name: m5stack4relay3
+  - platform: m5stack_4relay
+    id: m5stack_4relay_3
+    name: m5stack_4relay3
     channel: 3
-    m5stack4relay_id: M5stackrelay_ID1
+    m5stack_4relay_id: M5stackrelay_ID1
 
-  - platform: m5stack4relay
-    id: m5stack4relay_4
-    name: m5stack4relay4
+  - platform: m5stack_4relay
+    id: m5stack_4relay_4
+    name: m5stack_4relay4
     channel: 4
-    m5stack4relay_id: M5stackrelay_ID1
+    m5stack_4relay_id: M5stackrelay_ID1
