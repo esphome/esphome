@@ -169,6 +169,7 @@ esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
+esphome/components/hmac_md5/* @dwmw2
 esphome/components/homeassistant/* @OttoWinter @esphome/core
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/switch/* @Links2004
