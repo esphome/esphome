@@ -66,7 +66,7 @@ void HDC302xComponent::update() {
       this->status_set_warning();
       return;
     }
-    ESP_LOGI(TAG, "Got data: %02X %02X %02X %02X %02X %02X", raw_temp_humidity[0], raw_temp_humidity[1],
+    ESP_LOGD(TAG, "Got data: %02X %02X %02X %02X %02X %02X", raw_temp_humidity[0], raw_temp_humidity[1],
              raw_temp_humidity[2], raw_temp_humidity[3], raw_temp_humidity[4], raw_temp_humidity[5]);
 
     const int value_len = 2;
@@ -74,12 +74,12 @@ void HDC302xComponent::update() {
     uint8_t crc0 = crc8(raw_temp_humidity, value_len);
     uint8_t crc1 = crc8(raw_temp_humidity + value_plus_crc_len, value_len);
 
-    ESP_LOGI(TAG, "CRC0: %02X, CRC1: %02X", crc0, crc1);
+    ESP_LOGD(TAG, "CRC0: %02X, CRC1: %02X", crc0, crc1);
 
     bool success = true;
     if (crc0 == raw_temp_humidity[2]) {
       uint16_t raw_temp = (raw_temp_humidity[0] << 8) | raw_temp_humidity[1];
-      float temp = -40.0f + 165.0f * (raw_temp / 65536.0f);
+      float temp = -45.0f + 175.0f * (raw_temp / 65536.0f);
       this->temperature_->publish_state(temp);
       ESP_LOGD(TAG, "Got temperature=%.1f°C", temp);
     } else {
