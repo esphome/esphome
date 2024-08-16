@@ -55,7 +55,7 @@ void ModemTextSensor::update_network_type_text_sensor_() {
 }
 
 void ModemTextSensor::update_signal_strength_text_sensor_() {
-  if (modem::global_modem_component->modem_ready() && this->network_type_text_sensor_) {
+  if (modem::global_modem_component->modem_ready() && this->signal_strength_text_sensor_) {
     float rssi, ber;
     if (modem::global_modem_component->get_signal_quality(rssi, ber)) {
       std::string bars = get_signal_bars(rssi, false);
