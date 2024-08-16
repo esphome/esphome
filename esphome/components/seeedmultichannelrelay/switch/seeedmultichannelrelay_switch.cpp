@@ -23,7 +23,7 @@ void SeeedMultiChannelRelaySwitch::setup() {
 
 void SeeedMultiChannelRelaySwitch::dump_config() {
   LOG_SWITCH("", "SeeedMultiChannelRelay Switch", this);
-
+  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
     for (auto *lock : this->interlock_) {
