@@ -9,7 +9,7 @@ namespace m5stack_4relay {
 static constexpr uint8_t UNIT_4RELAY_REG = 0X10;
 static constexpr uint8_t UNIT_4RELAY_RELAY_REG = 0X11;
 
-class M5Stack_4Relay : public Component, public i2c::I2CDevice {
+class M5Stack4Relay : public Component, public i2c::I2CDevice {
  public:
   void set_switch_mode(bool mode);
 

@@ -8,7 +8,7 @@
 namespace esphome {
 namespace m5stack_4relay {
 
-class M5Stack_4RelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack_4Relay> {
+class M5Stack4RelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
  public:
   float get_setup_priority() const override;
 
