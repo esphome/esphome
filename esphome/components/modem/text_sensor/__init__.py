@@ -26,6 +26,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SIGNAL_STRENGTH): text_sensor.text_sensor_schema(
                 device_class=DEVICE_CLASS_EMPTY,
+                icon="mdi:signal",
             ),
         }
     )

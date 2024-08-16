@@ -28,7 +28,7 @@ class ModemSensor : public PollingComponent {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
   void setup() override;
   void update() override;
   void dump_config() override {}

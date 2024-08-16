@@ -141,7 +141,7 @@ void ModemSensor::update_gnss_sensors_() {
     std::map<std::string, std::string> parts;
     auto at_command_result = global_modem_component->send_at("AT+CGNSSINFO");
     if (at_command_result) {
-      std::string gnss_info = at_command_result.result;
+      std::string gnss_info = at_command_result.output;
       parts = get_gnssinfo_tokens(gnss_info);
     }
 

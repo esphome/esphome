@@ -131,7 +131,7 @@ std::string get_signal_bars(float rssi, bool color) {
 
   if (!color) {
     if (std::isnan(rssi)) {
-      return {};
+      return "None";
     } else if (rssi >= -50) {
       return "High";
     } else if (rssi >= -65) {
