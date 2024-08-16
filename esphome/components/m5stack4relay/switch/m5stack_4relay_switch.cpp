@@ -1,14 +1,14 @@
 #include "esphome/core/log.h"
-#include "m5stack4relay_switch.h"
+#include "m5stack_4relay_switch.h"
 
 namespace esphome {
-namespace m5stack4relay {
+namespace m5stack_4relay {
 
 static const char *const TAG = "switch.M5Stack_4_Relay";
 
-float M5Stack4RelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
+float M5Stack_4RelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void M5Stack4RelaySwitch::setup() {
+void M5Stack_4RelaySwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up M5Stack_4_relay Switch '%s'...", this->name_.c_str());
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
@@ -21,9 +21,9 @@ void M5Stack4RelaySwitch::setup() {
   }
 }
 
-void M5Stack4RelaySwitch::dump_config() {
-  LOG_SWITCH("", "M5Stack4Relay Switch", this);
-ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
+void M5Stack_4RelaySwitch::dump_config() {
+  LOG_SWITCH("", "M5Stack_4Relay Switch", this);
+  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
 
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
@@ -35,7 +35,7 @@ ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
   }
 }
 
-void M5Stack4RelaySwitch::write_state(bool state) {
+void M5Stack_4RelaySwitch::write_state(bool state) {
   if (state != this->inverted_) {
     // Turning ON, check interlocking
 
@@ -70,7 +70,7 @@ void M5Stack4RelaySwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-void M5Stack4RelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
+void M5Stack_4RelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
 
-}  // namespace m5stack4relay
+}  // namespace m5stack_4relay
 }  // namespace esphome

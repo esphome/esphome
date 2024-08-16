@@ -3,12 +3,12 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-#include "esphome/components/m5stack4relay/m5stack4relay.h"
+#include "esphome/components/m5stack_4relay/m5stack_4relay.h"
 
 namespace esphome {
-namespace m5stack4relay {
+namespace m5stack_4relay {
 
-class M5Stack4RelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
+class M5Stack_4RelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
  public:
   float get_setup_priority() const override;
 
@@ -27,5 +27,5 @@ class M5Stack4RelaySwitch : public Component, public switch_::Switch, public Par
   uint32_t interlock_wait_time_{0};
 };
 
-}  // namespace m5stack4relay
+}  // namespace m5stack_4relay
 }  // namespace esphome

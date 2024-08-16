@@ -1,7 +1,7 @@
 i2c:
   - id: i2c_m5stack4relay
-    scl: 5
-    sda: 4
+    scl: ${scl_pin}
+    sda: ${sda_pin}
 
 m5stack4relay:
   id: M5stackrelay_ID1
@@ -30,4 +30,3 @@ switch:
     name: m5stack4relay4
     channel: 4
     m5stack4relay_id: M5stackrelay_ID1
-
