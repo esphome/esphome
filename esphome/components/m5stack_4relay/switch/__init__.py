@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, switch
-from esphome.const import CONF_CHANNEL, CONF_INTERLOCK  # , CONF_ID,
+from esphome.const import CONF_CHANNEL
 
 from .. import m5stack_4relay_ns, M5Stack_4Relay, CONF_M5STACK_4RELAY_ID
 
@@ -32,4 +32,3 @@ async def to_code(config):
     await cg.register_parented(var, config[CONF_M5STACK_4RELAY_ID])
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-
