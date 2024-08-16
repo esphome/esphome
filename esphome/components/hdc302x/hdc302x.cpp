@@ -66,14 +66,14 @@ void HDC302xComponent::update() {
       this->status_set_warning();
       return;
     }
-    ESP_LOGVV(TAG, "Got data: %02X %02X %02X %02X %02X %02X", raw_temp_humidity[0], raw_temp_humidity[1],
-              raw_temp_humidity[2], raw_temp_humidity[3], raw_temp_humidity[4], raw_temp_humidity[5]);
+    ESP_LOGD(TAG, "Got data: %02X %02X %02X %02X %02X %02X", raw_temp_humidity[0], raw_temp_humidity[1],
+             raw_temp_humidity[2], raw_temp_humidity[3], raw_temp_humidity[4], raw_temp_humidity[5]);
 
     const int value_len = 3;
     uint8_t crc0 = crc8(raw_temp_humidity, value_len);
     uint8_t crc1 = crc8(raw_temp_humidity + 3, value_len);
 
-    ESP_LOGVV(TAG, "CRC0: %02X, CRC1: %02X", crc0, crc1);
+    ESP_LOGD(TAG, "CRC0: %02X, CRC1: %02X", crc0, crc1);
 
     bool success = true;
     if (crc0 != raw_temp_humidity[2]) {
