@@ -1,18 +1,18 @@
-import esphome.config_validation as cv
-import esphome.codegen as cg
-
-from esphome.const import (
-    CONF_ID,
-    CONF_MICROPHONE,
-    CONF_SPEAKER,
-    CONF_MEDIA_PLAYER,
-    CONF_ON_CLIENT_CONNECTED,
-    CONF_ON_CLIENT_DISCONNECTED,
-    CONF_ON_IDLE,
-)
 from esphome import automation
 from esphome.automation import register_action, register_condition
-from esphome.components import microphone, speaker, media_player
+import esphome.codegen as cg
+from esphome.components import media_player, microphone, speaker
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID,
+    CONF_MEDIA_PLAYER,
+    CONF_MICROPHONE,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
+    CONF_ON_ERROR,
+    CONF_ON_IDLE,
+    CONF_SPEAKER,
+)
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["api", "microphone"]
@@ -20,7 +20,6 @@ DEPENDENCIES = ["api", "microphone"]
 CODEOWNERS = ["@jesserockz"]
 
 CONF_ON_END = "on_end"
-CONF_ON_ERROR = "on_error"
 CONF_ON_INTENT_END = "on_intent_end"
 CONF_ON_INTENT_START = "on_intent_start"
 CONF_ON_LISTENING = "on_listening"

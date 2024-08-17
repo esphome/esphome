@@ -3,6 +3,8 @@
 #ifdef USE_ESP_IDF
 
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -11,12 +13,16 @@
 #include "esp_crt_bundle.h"
 #endif
 
-#include "watchdog.h"
-
 namespace esphome {
 namespace http_request {
 
 static const char *const TAG = "http_request.idf";
+
+void HttpRequestIDF::dump_config() {
+  HttpRequestComponent::dump_config();
+  ESP_LOGCONFIG(TAG, "  Buffer Size RX: %u", this->buffer_size_rx_);
+  ESP_LOGCONFIG(TAG, "  Buffer Size TX: %u", this->buffer_size_tx_);
+}
 
 std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::string method, std::string body,
                                                      std::list<Header> headers) {
@@ -62,6 +68,9 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::start(std::string url, std::strin
   if (this->useragent_ != nullptr) {
     config.user_agent = this->useragent_;
   }
+
+  config.buffer_size = this->buffer_size_rx_;
+  config.buffer_size_tx = this->buffer_size_tx_;
 
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
