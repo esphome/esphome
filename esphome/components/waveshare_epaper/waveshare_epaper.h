@@ -54,7 +54,7 @@ class WaveshareEPaper : public display::DisplayBuffer,
 
   virtual int get_width_controller() { return this->get_width_internal(); };
 
-  virtual uint32_t get_buffer_length_();
+  uint32_t get_buffer_length_();
   uint32_t reset_duration_{200};
 
   // Return the list of colors supported by the device
@@ -75,7 +75,7 @@ class WaveshareEPaper : public display::DisplayBuffer,
 
 class WaveshareEPaperBWR : public WaveshareEPaper {
  public:
-  virtual std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
 };
 
 enum WaveshareEPaperTypeAModel {
