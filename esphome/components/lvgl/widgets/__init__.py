@@ -322,8 +322,13 @@ async def set_obj_properties(w: Widget, config):
     flag_clr = set()
     flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]
+    lambs = {}
+    flag_set = set()
+    flag_clr = set()
     for prop, value in {k: v for k, v in props.items() if k in OBJ_FLAGS}.items():
-        if value:
+        if isinstance(value, cv.Lambda):
+            lambs[prop] = value
+        elif value:
             flag_set.add(prop)
         else:
             flag_clr.add(prop)
@@ -333,6 +338,13 @@ async def set_obj_properties(w: Widget, config):
     if flag_clr:
         clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
         w.clear_flag(clrs)
+    for key, value in lambs.items():
+        lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+        flag = f"LV_OBJ_FLAG_{key.upper()}"
+        with LvConditional(f"{lamb}()") as cond:
+            w.add_flag(flag)
+            cond.else_()
+            w.clear_flag(flag)
 
     if states := config.get(CONF_STATE):
         adds = set()
