@@ -20,6 +20,8 @@ from ..defines import (
     CONF_GRID_ROWS,
     CONF_LAYOUT,
     CONF_MAIN,
+    CONF_PAD_COLUMN,
+    CONF_PAD_ROW,
     CONF_SCROLLBAR_MODE,
     CONF_STYLES,
     CONF_WIDGETS,
@@ -273,6 +275,8 @@ async def set_obj_properties(w: Widget, config):
         layout_type: str = layout[CONF_TYPE]
         add_lv_use(layout_type)
         lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
+        await w.set_property(CONF_PAD_ROW, layout)
+        await w.set_property(CONF_PAD_COLUMN, layout)
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
             rows = [str(x) for x in layout[CONF_GRID_ROWS]]

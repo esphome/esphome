@@ -110,13 +110,13 @@ def angle(value):
 def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
-        return ["size_content", "pixels", "..%"]
+        return ["SIZE_CONTENT", "number of pixels", "percentage"]
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
     if isinstance(value, str) and not value.endswith("%"):
         if value.upper() == "SIZE_CONTENT":
             return "LV_SIZE_CONTENT"
-        raise cv.Invalid("must be 'size_content', a pixel position or a percentage")
+        raise cv.Invalid("must be 'size_content', a percentage or an integer (pixels)")
     if isinstance(value, int):
         return cv.int_(value)
     # Will throw an exception if not a percentage.
@@ -124,6 +124,15 @@ def size_validator(value):
 
 
 size = LValidator(size_validator, uint32, retmapper=literal)
+
+
+def pixels_validator(value):
+    if isinstance(value, str) and value.lower().endswith("px"):
+        return cv.int_(value[:-2])
+    return cv.int_(value)
+
+
+pixels = LValidator(pixels_validator, uint32, retmapper=literal)
 
 radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 
