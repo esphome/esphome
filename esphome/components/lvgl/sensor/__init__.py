@@ -3,7 +3,15 @@ from esphome.components.sensor import Sensor, new_sensor, sensor_schema
 import esphome.config_validation as cv
 
 from ..defines import CONF_LVGL_ID, CONF_WIDGET
-from ..lvcode import EVENT_ARG, LVGL_COMP_ARG, LambdaContext, LvContext, lv_add
+from ..lvcode import (
+    API_EVENT,
+    EVENT_ARG,
+    LVGL_COMP_ARG,
+    UPDATE_EVENT,
+    LambdaContext,
+    LvContext,
+    lv_add,
+)
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvNumber
 from ..widgets import Widget, get_widgets
@@ -30,6 +38,10 @@ async def to_code(config):
     async with LvContext(paren, LVGL_COMP_ARG):
         lv_add(
             paren.add_event_cb(
-                widget.obj, await lamb.get_lambda(), LV_EVENT.VALUE_CHANGED
+                widget.obj,
+                await lamb.get_lambda(),
+                LV_EVENT.VALUE_CHANGED,
+                API_EVENT,
+                UPDATE_EVENT,
             )
         )
