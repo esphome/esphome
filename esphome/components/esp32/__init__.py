@@ -169,9 +169,28 @@ def add_idf_component(
             KEY_REF: ref,
             KEY_PATH: path,
             KEY_REFRESH: refresh,
-            KEY_COMPONENTS: components,
-            KEY_SUBMODULES: submodules,
+            KEY_COMPONENTS: components if components is not None else [],
+            KEY_SUBMODULES: submodules if submodules is not None else [],
         }
+    else:
+        if components is not None:
+            for comp in components:
+                if (
+                    comp
+                    not in CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS]
+                ):
+                    CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS].append(
+                        comp
+                    )
+        if submodules is not None:
+            for comp in submodules:
+                if (
+                    comp
+                    not in CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES]
+                ):
+                    CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES].append(
+                        comp
+                    )
 
 
 def add_extra_script(stage: str, filename: str, path: str):
