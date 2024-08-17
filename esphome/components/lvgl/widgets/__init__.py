@@ -275,8 +275,10 @@ async def set_obj_properties(w: Widget, config):
         layout_type: str = layout[CONF_TYPE]
         add_lv_use(layout_type)
         lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
-        await w.set_property(CONF_PAD_ROW, layout)
-        await w.set_property(CONF_PAD_COLUMN, layout)
+        if (pad_row := layout.get(CONF_PAD_ROW)) is not None:
+            w.set_style(CONF_PAD_ROW, pad_row, 0)
+        if (pad_column := layout.get(CONF_PAD_COLUMN)) is not None:
+            w.set_style(CONF_PAD_COLUMN, pad_column, 0)
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
             rows = [str(x) for x in layout[CONF_GRID_ROWS]]
