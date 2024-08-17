@@ -58,6 +58,7 @@ class ModemComponent : public Component {
   void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
+  void set_baud_rate(int baud_rate) { this->baud_rate_ = baud_rate; }
   void set_model(const std::string &model) { this->model_ = model; }
   void set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
   void set_power_ton(int ton) { this->power_ton_ = ton; }
@@ -78,7 +79,8 @@ class ModemComponent : public Component {
   AtCommandResult send_at(const std::string &cmd, uint32_t timeout);
   AtCommandResult get_imei();
   bool get_power_status();
-  bool modem_ready();
+  bool sync();
+  bool modem_ready() { return this->modem_ready(false); }
   bool modem_ready(bool force_check);
   void enable();
   void disable();
@@ -105,8 +107,10 @@ class ModemComponent : public Component {
   std::unique_ptr<DCE> dce{nullptr};
 
  protected:
-  void modem_lazy_init_();
-  bool modem_sync_();
+  void modem_create_dce_dte_(int baud_rate);
+  void modem_create_dce_dte_() { this->modem_create_dce_dte_(0); }
+  bool modem_preinit_();
+  bool modem_init_();
   bool prepare_sim_();
   void send_init_at_();
   bool is_network_attached_();
@@ -147,6 +151,7 @@ class ModemComponent : public Component {
   uint8_t uart_event_task_priority_ = 5;      // 3-22
   uint32_t command_delay_ = 1000;             // timeout for AT commands
   uint32_t reconnect_grace_period_ = 30000;   // let some time to mqtt or api to reconnect before retry
+  int baud_rate_ = 0;
 
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::DISABLED};
@@ -163,7 +168,7 @@ class ModemComponent : public Component {
     bool enabled{false};
     bool connected{false};
     bool got_ipv4_address{false};
-    // true if modem_sync_ was sucessfull
+    // true if modem_init_ was sucessfull
     bool modem_synced{false};
     // date start (millis())
     uint32_t connect_begin;
@@ -175,6 +180,7 @@ class ModemComponent : public Component {
     ModemPowerState power_state{ModemPowerState::TOFFUART};
     // ask the modem to reconnect
     bool reconnect{false};
+    bool baud_rate_changed{false};
   };
   InternalState internal_state_;
 };

@@ -48,11 +48,7 @@ ModemComponent::ModemComponent() {
   global_modem_component = this;
 }
 
-void ModemComponent::enable_debug() {
-  esp_log_level_set("command_lib", ESP_LOG_VERBOSE);
-  // esp_log_level_set("CMUX", ESP_LOG_VERBOSE);
-  // esp_log_level_set("CMUX Received", ESP_LOG_VERBOSE);
-}
+void ModemComponent::enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
 
 bool ModemComponent::is_modem_connected(bool verbose) {
   float rssi, ber;
@@ -98,6 +94,8 @@ AtCommandResult ModemComponent::get_imei() {
   } else {
     at_command_result.success = false;
   }
+  ESP_LOGV(TAG, "imei: %s (status: %s)", at_command_result.c_str(),
+           command_result_to_string(at_command_result.esp_modem_command_result).c_str());
   return at_command_result;
 }
 
@@ -114,25 +112,28 @@ bool ModemComponent::get_power_status() {
 #endif
 }
 
+bool ModemComponent::sync() {
+  this->internal_state_.modem_synced = this->get_imei();
+  if (this->internal_state_.modem_synced)
+    this->internal_state_.powered_on = true;
+  return this->internal_state_.modem_synced;
+}
+
 bool ModemComponent::modem_ready(bool force_check) {
   // check if the modem is ready to answer AT commands
   // We first try to check flags, and then really send an AT command if force_check
 
-  if (!this->dce)
-    return false;
   if (!this->internal_state_.modem_synced)
     return false;
   if (!this->cmux_ && this->internal_state_.connected)
     return false;
   if (!this->internal_state_.powered_on)
     return false;
-#ifdef USE_MODEM_POWER
   if (this->internal_state_.power_transition)
     return false;
-#endif
 
   if (force_check) {
-    if (this->get_imei()) {
+    if (this->sync()) {
       // we are sure that the modem is on
       this->internal_state_.powered_on = true;
       return true;
@@ -141,8 +142,6 @@ bool ModemComponent::modem_ready(bool force_check) {
   } else
     return true;
 }
-
-bool ModemComponent::modem_ready() { return this->modem_ready(false); }
 
 void ModemComponent::enable() {
   ESP_LOGD(TAG, "Enabling modem");
@@ -259,7 +258,7 @@ void ModemComponent::setup() {
                                             nullptr);
   ESPHL_ERROR_CHECK(err, "IP event handler register error");
 
-  this->modem_lazy_init_();
+  this->modem_create_dce_dte_();  // real init will be done by enable
 
   ESP_LOGV(TAG, "Setup finished");
 }
@@ -291,7 +290,7 @@ void ModemComponent::loop() {
         break;
       case ModemPowerState::TONUART:
         ESP_LOGD(TAG, "TONUART check sync");
-        if (!this->modem_sync_()) {
+        if (!this->modem_init_()) {
           ESP_LOGE(TAG, "Unable to power on the modem");
         } else {
           ESP_LOGI(TAG, "Modem powered ON");
@@ -329,8 +328,8 @@ void ModemComponent::loop() {
       if (this->internal_state_.starting) {
         ESP_LOGW(TAG, "Modem not responding, resetting...");
         this->internal_state_.connected = false;
-        // this->modem_lazy_init_();
-        if (!this->modem_sync_()) {
+        // this->modem_create_dce_dte_();
+        if (!this->modem_init_()) {
           ESP_LOGE(TAG, "Unable to recover modem");
         } else {
           this->component_state_ = ModemComponentState::DISCONNECTED;
@@ -345,7 +344,7 @@ void ModemComponent::loop() {
           this->poweron_();
           break;
         } else if (!this->internal_state_.modem_synced) {
-          if (!this->modem_sync_()) {
+          if (!this->modem_init_()) {
             this->component_state_ = ModemComponentState::NOT_RESPONDING;
           }
         }
@@ -443,14 +442,11 @@ void ModemComponent::loop() {
   }
 }
 
-void ModemComponent::modem_lazy_init_() {
-  // destroy previous dte/dce, and recreate them.
+void ModemComponent::modem_create_dce_dte_(int baud_rate) {
+  // create or recreate dte and dce.
   // no communication is done with the modem.
 
   this->internal_state_.modem_synced = false;
-
-  this->dte_.reset();
-  this->dce.reset();
 
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
 
@@ -459,10 +455,16 @@ void ModemComponent::modem_lazy_init_() {
   dte_config.uart_config.rx_buffer_size = this->uart_rx_buffer_size_;
   dte_config.uart_config.tx_buffer_size = this->uart_tx_buffer_size_;
   dte_config.uart_config.event_queue_size = this->uart_event_queue_size_;
+  if (baud_rate != 0) {
+    dte_config.uart_config.baud_rate = baud_rate;
+    this->internal_state_.baud_rate_changed = true;
+  }
   dte_config.task_stack_size = this->uart_event_task_stack_size_;
   dte_config.task_priority = this->uart_event_task_priority_;
   dte_config.dte_buffer_size = this->uart_rx_buffer_size_ / 2;
 
+  this->dce.reset();
+  this->dte_.reset();
   this->dte_ = create_uart_dte(&dte_config);
 
   if (!this->dte_->set_mode(modem_mode::COMMAND_MODE)) {
@@ -497,104 +499,132 @@ void ModemComponent::modem_lazy_init_() {
   ESP_LOGV(TAG, "DTE and CDE created");
 }
 
-bool ModemComponent::modem_sync_() {
-  // force command mode, check sim, and send init_at commands
-  // close cmux/data if needed, and may reboot the modem.
+bool ModemComponent::modem_preinit_() {
+  // init the modem to get command mode.
+  // if baud_rate != 0, will also set the baud rate.
 
-  uint32_t start_ms = millis();
-  uint32_t elapsed_ms;
-  std::string result;
+  // std::string result;
 
-  ESP_LOGV(TAG, "Checking if the modem is synced...");
+  ESP_LOGV(TAG, "Checking if the modem is reachable...");
 
   this->flush_uart_();
 
-  bool status = this->get_imei();
-  if (!status) {
+  bool success = this->sync();
+  if (!success) {
+    // the modem is not responding. possible causes are:
+    //  - warm reboot, it's still in data or cmux mode.
+    //  - has a non default baud rate
+    //  - power off
+
+    uint32_t start_ms = millis();
+    uint32_t elapsed_ms;
+
     // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
     ESP_LOGD(TAG, "Connecting to the the modem...");
-    watchdog::WatchdogManager wdt(30000);
+    // huge watchdog, because some commands are blocking for a very long time.
+    watchdog::WatchdogManager wdt(60000);
 
     auto command_mode = [this]() -> bool {
-      ESP_LOGVV(TAG, "trying command mode");
+      ESP_LOGV(TAG, "trying command mode");
       this->dce->set_mode(modem_mode::UNDEF);
-      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->get_imei();
+      return this->dce->set_mode(modem_mode::COMMAND_MODE) && this->sync();
     };
 
     auto cmux_command_mode = [this]() -> bool {
-      ESP_LOGVV(TAG, "trying cmux command mode");
+      ESP_LOGV(TAG, "trying cmux command mode");
       return this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE) &&
-             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->get_imei();
+             this->dce->set_mode(modem_mode::CMUX_MANUAL_COMMAND) && this->sync();
     };
 
     // The cmux state is supposed to be the same before the reboot. But if it has changed (new firwmare), we will try
     // to fallback to inverted cmux state.
     if (this->cmux_) {
-      status = cmux_command_mode() || (command_mode() && cmux_command_mode());
+      success = cmux_command_mode() || (command_mode() && cmux_command_mode());
     } else {
-      status = command_mode() || (cmux_command_mode() && command_mode());
+      success = command_mode() || (cmux_command_mode() && command_mode());
     }
 
     elapsed_ms = millis() - start_ms;
 
-    if (!status) {
-      ESP_LOGW(TAG, "modem not responding after %" PRIu32 "ms.", elapsed_ms);
-      // assume the modem is OFF
-      this->internal_state_.powered_on = false;
-    } else {
+    if (success) {
       ESP_LOGD(TAG, "Connected to the modem in %" PRIu32 "ms", elapsed_ms);
-      this->internal_state_.powered_on = true;
-    }
-  } else {
-    // modem responded without need to recover command mode
-    ESP_LOGD(TAG, "Modem already synced");
-    this->internal_state_.powered_on = true;
-  }
-
-  if (status && !this->internal_state_.modem_synced) {
-    this->internal_state_.modem_synced = true;
-
-    // First time the modem is synced, or modem recovered
-    App.feed_wdt();
-    watchdog::WatchdogManager wdt(30000);
-    delay(2000);  // NOLINT
-    if (!this->get_imei()) {
-      ESP_LOGW(TAG, "Unable to sync modem");
+    } else if ((this->baud_rate_ != 0) && !this->internal_state_.baud_rate_changed) {
+      ESP_LOGD(TAG, "Failed to connected to the modem in %" PRIu32 "ms", elapsed_ms);
+      ESP_LOGD(TAG, "Retrying with baud rate %d", this->baud_rate_);
+      this->modem_create_dce_dte_(this->baud_rate_);
+      return this->modem_preinit_();  // recursive call, but only 1 depth
+    } else {
+      ESP_LOGE(TAG, "Fatal: modem not responding during init");
       return false;
     }
-
-    this->send_init_at_();
-
-    if (!this->pin_code_.empty()) {
-      if (!this->prepare_sim_()) {
-        // fatal error
-        this->disable();
-        status = false;
-      }
-    } else {
-      ESP_LOGI(TAG, "No pin_code, so no pin check");
-    }
-
-    ESP_LOGI(TAG, "Modem infos:");
-    std::string result;
-    ESPMODEM_ERROR_CHECK(this->dce->get_module_name(result), "get_module_name");
-    ESP_LOGI(TAG, "  Module name: %s", result.c_str());
   }
 
-  this->internal_state_.modem_synced = status;
+  // modem synced
 
-  ESP_LOGVV(TAG, "Sync end status: %d", this->internal_state_.modem_synced);
+  if ((this->baud_rate_ != 0) && !this->internal_state_.baud_rate_changed) {
+    ESP_LOGD(TAG, "Setting baud rate: %d", this->baud_rate_);
+    this->dce->set_baud(this->baud_rate_);
+    delay(1000);
+    this->flush_uart_();
+    // need to recreate dte/dce with new baud rate
+    this->modem_create_dce_dte_(this->baud_rate_);
+    this->flush_uart_();
+    if (this->sync()) {
+      ESP_LOGI(TAG, "Modem baud rate set to %d", this->baud_rate_);
+      success = true;
+    } else {
+      // not able to switch to new baud rate. reset to default
+      this->internal_state_.baud_rate_changed = false;
+      this->modem_create_dce_dte_();
+      success = false;
+    }
+  }
+  this->internal_state_.modem_synced = success;
+  this->internal_state_.powered_on = success;
+  return success;
+}
 
-  return status;
+bool ModemComponent::modem_init_() {
+  // force command mode, check sim, and send init_at commands
+  // close cmux/data if needed, and may reboot the modem.
+
+  bool success = this->modem_preinit_() && this->sync();
+
+  if (!success) {
+    ESP_LOGE(TAG, "Fatal: modem not responding");
+    return false;
+  }
+
+  this->send_init_at_();
+
+  if (!this->pin_code_.empty()) {
+    if (!this->prepare_sim_()) {
+      ESP_LOGE(TAG, "Fatal: Sim error");
+      return false;
+    }
+  } else {
+    ESP_LOGI(TAG, "No pin_code, so no pin check");
+  }
+
+  ESP_LOGI(TAG, "Modem infos:");
+  std::string result;
+  ESPMODEM_ERROR_CHECK(this->dce->get_module_name(result), "get_module_name");
+  ESP_LOGI(TAG, "  Module name: %s", result.c_str());
+
+  success = this->sync();
+
+  if (!success) {
+    ESP_LOGE(TAG, "Fatal: unable to init modem");
+  }
+
+  return success;
 }
 
 bool ModemComponent::prepare_sim_() {
-  command_result modem_status;
-
   std::string output;
 
   // this->dce->read_pin(pin_ok)   // not used, because we can't know the cause of the error.
-  modem_status = this->dce->command(
+  this->dce->command(
       "AT+CPIN?\r",
       [&](uint8_t *data, size_t len) {
         output.assign(reinterpret_cast<char *>(data), len);
@@ -605,11 +635,11 @@ bool ModemComponent::prepare_sim_() {
 
   ESP_LOGD(TAG, "SIM: %s", output.c_str());
 
-  if (output.find("+CPIN: READY") != std::string::npos) {
+  if ((output.find("+CPIN: READY") != std::string::npos) || (output.find("+CPIN: SIM PIN") != std::string::npos)) {
     return true;  // pin not needed or already unlocked
   } else {
     if (output.find("SIM not inserted") != std::string::npos) {
-      this->abort_("Sim card not inserted.");
+      return false;
     }
   }
 
@@ -625,14 +655,22 @@ void ModemComponent::send_init_at_() {
   // send initial AT commands from yaml
   for (const auto &cmd : this->init_at_commands_) {
     App.feed_wdt();
-    auto at_command_result = this->send_at(cmd);
-    if (!at_command_result) {
-      ESP_LOGE(TAG, "Error while executing 'init_at' '%s' command", cmd.c_str());
-    } else {
-      ESP_LOGI(TAG, "'init_at' '%s' output: %s", cmd.c_str(), at_command_result.output.c_str());
-    }
-    delay(2000);  // NOLINT
+
+    std::string output;
+
+    ESPMODEM_ERROR_CHECK(this->dce->command(
+                             cmd + "\r",
+                             [&](uint8_t *data, size_t len) {
+                               output.assign(reinterpret_cast<char *>(data), len);
+                               std::replace(output.begin(), output.end(), '\n', ' ');
+                               return command_result::OK;
+                             },
+                             2000),
+                         "init_at");
+
+    ESP_LOGI(TAG, "init_at %s: %s", cmd.c_str(), output.c_str());
   }
+  this->flush_uart_();
 }
 
 bool ModemComponent::is_network_attached_() {
@@ -739,7 +777,7 @@ void ModemComponent::poweroff_() {
 
 void ModemComponent::abort_(const std::string &message) {
   ESP_LOGE(TAG, "Aborting: %s", message.c_str());
-  this->send_at("AT+CFUN=1,1");
+  // this->send_at("AT+CFUN=1,1");
   App.reboot();
 }
 
@@ -767,18 +805,21 @@ void ModemComponent::dump_connect_params_() {
 
 bool ModemComponent::flush_uart_() {
   size_t cleaned = 0;
-
+  std::string output;
   this->dce->command(
       "",
       [&](uint8_t *data, size_t len) {
         cleaned = len;
+        output.assign(reinterpret_cast<char *>(data), len);
+        std::replace(output.begin(), output.end(), '\n', ' ');
         return command_result::OK;
       },
-      1000) == command_result::OK;
+      2000);
 
   if (cleaned != 0) {
-    ESP_LOGW(TAG, "Cleaned %d modem buffer data", cleaned);
+    ESP_LOGW(TAG, "Cleaned %d modem buffer data: %s", cleaned, output.c_str());
   }
+  return cleaned != 0;
 }
 
 const char *AtCommandResult::c_str() const {

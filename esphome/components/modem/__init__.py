@@ -7,6 +7,7 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 # from esphome.components.wifi import wifi_has_sta  # uncomment after PR#4091 merged
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BAUD_RATE,
     CONF_DEBUG,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
@@ -79,6 +80,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_ID): cv.declare_id(ModemComponent),
             cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_BAUD_RATE): cv.positive_int,
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
             cv.Optional(CONF_STATUS_PIN): pins.gpio_input_pin_schema,
@@ -166,8 +168,8 @@ async def to_code(config):
     # If Uart queue full message ( A7672 ), those config option might be changed
     # https://github.com/espressif/esp-protocols/issues/272#issuecomment-1558682967
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD", True)
-    add_idf_sdkconfig_option("ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED", True)
-    add_idf_sdkconfig_option("ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", False)
+    add_idf_sdkconfig_option("CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", False)
 
     cg.add_define("USE_MODEM")
 
@@ -217,6 +219,9 @@ async def to_code(config):
 
     rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
     cg.add(var.set_rx_pin(rx_pin))
+
+    if baud_rate := config.get(CONF_BAUD_RATE, None):
+        cg.add(var.set_baud_rate(baud_rate))
 
     if status_pin := config.get(CONF_STATUS_PIN, None):
         pin = await cg.gpio_pin_expression(status_pin)

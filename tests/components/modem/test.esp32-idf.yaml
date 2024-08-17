@@ -4,6 +4,7 @@ modem:
   id: atmodem
   rx_pin: GPIO26
   tx_pin: GPIO27
+  baud_rate: 115200
   power_pin:
     number: GPIO04
     inverted: True
