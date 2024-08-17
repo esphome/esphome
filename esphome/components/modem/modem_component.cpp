@@ -83,7 +83,7 @@ AtCommandResult ModemComponent::get_imei() {
   // get the imei, and check the result is a valid imei string
   // (so it can be used to check if the modem is responding correctly (a simple 'AT' cmd is sometime not enough))
   AtCommandResult at_command_result;
-  at_command_result = this->send_at("AT+CGSN", 4000);
+  at_command_result = this->send_at("AT+CGSN", this->command_delay_);
   if (at_command_result.success && at_command_result.output.length() == 15) {
     for (char c : at_command_result.output) {
       if (!isdigit(static_cast<unsigned char>(c))) {
@@ -665,9 +665,9 @@ void ModemComponent::send_init_at_() {
                                std::replace(output.begin(), output.end(), '\n', ' ');
                                return command_result::OK;
                              },
-                             2000),
+                             this->command_delay_),
                          "init_at");
-
+    output += this->flush_uart_();  // probably a bug in esp_modem. long string are truncated
     ESP_LOGI(TAG, "init_at %s: %s", cmd.c_str(), output.c_str());
   }
   this->flush_uart_();
@@ -803,7 +803,8 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS fallback: %s", network::IPAddress(dns_fallback_ip).str().c_str());
 }
 
-bool ModemComponent::flush_uart_() {
+std::string ModemComponent::flush_uart_() {
+  // empty command that just read the result, to flush the uart
   size_t cleaned = 0;
   std::string output;
   this->dce->command(
@@ -811,15 +812,14 @@ bool ModemComponent::flush_uart_() {
       [&](uint8_t *data, size_t len) {
         cleaned = len;
         output.assign(reinterpret_cast<char *>(data), len);
-        std::replace(output.begin(), output.end(), '\n', ' ');
         return command_result::OK;
       },
-      2000);
+      this->command_delay_);
 
   if (cleaned != 0) {
-    ESP_LOGW(TAG, "Cleaned %d modem buffer data: %s", cleaned, output.c_str());
+    ESP_LOGD(TAG, "Flushed %d modem buffer data: %s", cleaned, output.c_str());
   }
-  return cleaned != 0;
+  return output;
 }
 
 const char *AtCommandResult::c_str() const {

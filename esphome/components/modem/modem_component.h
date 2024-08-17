@@ -121,7 +121,7 @@ class ModemComponent : public Component {
   void abort_(const std::string &message);
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
-  bool flush_uart_();
+  std::string flush_uart_();
 
   // Attributes from yaml config
   uint32_t timeout_;
