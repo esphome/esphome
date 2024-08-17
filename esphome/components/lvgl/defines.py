@@ -7,7 +7,7 @@ Constants already defined in esphome.const are not duplicated here and must be i
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import ID, Lambda
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
@@ -20,6 +20,14 @@ def literal(arg):
     if isinstance(arg, str):
         return MockObj(arg)
     return arg
+
+
+def call_lambda(lamb: LambdaExpression):
+    if len(lamb.parts) == 1:
+        expr = lamb.parts[0].strip()
+        if expr.startswith("return") and expr.endswith(";"):
+            return expr[7:][:-1]
+    return f"{lamb}()"
 
 
 class LValidator:
@@ -52,7 +60,9 @@ class LValidator:
             return None
         if isinstance(value, Lambda):
             return cg.RawExpression(
-                f"{await cg.process_lambda(value, args, return_type=self.rtype)}()"
+                call_lambda(
+                    await cg.process_lambda(value, args, return_type=self.rtype)
+                )
             )
         if self.idtype is not None and isinstance(value, ID):
             return cg.RawExpression(f"{value}->{self.idexpr}")

@@ -31,6 +31,7 @@ from ..defines import (
     TYPE_FLEX,
     TYPE_GRID,
     LValidator,
+    call_lambda,
     join_enums,
     literal,
 )
@@ -341,7 +342,7 @@ async def set_obj_properties(w: Widget, config):
     for key, value in lambs.items():
         lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
         flag = f"LV_OBJ_FLAG_{key.upper()}"
-        with LvConditional(f"{lamb}()") as cond:
+        with LvConditional(call_lambda(lamb)) as cond:
             w.add_flag(flag)
             cond.else_()
             w.clear_flag(flag)
@@ -366,7 +367,7 @@ async def set_obj_properties(w: Widget, config):
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
             state = f"LV_STATE_{key.upper()}"
-            with LvConditional(f"{lamb}()") as cond:
+            with LvConditional(call_lambda(lamb)) as cond:
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
