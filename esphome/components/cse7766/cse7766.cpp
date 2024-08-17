@@ -166,9 +166,9 @@ void CSE7766Component::parse_data_() {
       calculated_current = power / voltage;
     }
     // Datasheet: minimum measured current is 50mA
-    if (calculated_current > 0.05f) {
+    //if (calculated_current > 0.05f) {
       current = current_coeff / float(current_cycle);
-    }
+    //}
     if (this->current_sensor_ != nullptr) {
       this->current_sensor_->publish_state(current);
     }
