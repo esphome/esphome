@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/entity_base.h"
+#include "esphome/core/helpers.h"
+
 namespace esphome {
 namespace speaker {
 
