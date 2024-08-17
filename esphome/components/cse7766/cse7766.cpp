@@ -175,7 +175,7 @@ void CSE7766Component::parse_data_() {
   }
 
   if (have_voltage && have_current) {
-    const float apparent_power = voltage * current, power;
+    const float apparent_power = voltage * current;
     if (this->apparent_power_sensor_ != nullptr) {
       this->apparent_power_sensor_->publish_state(apparent_power);
     }
