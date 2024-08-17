@@ -1,5 +1,6 @@
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <esp_netif.h>
@@ -802,3 +803,4 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddr
 }  // namespace esphome
 
 #endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif

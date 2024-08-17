@@ -38,7 +38,8 @@
 namespace esphome {
 namespace lvgl {
 
-extern lv_event_code_t lv_custom_event;  // NOLINT
+extern lv_event_code_t lv_api_event;     // NOLINT
+extern lv_event_code_t lv_update_event;  // NOLINT
 #ifdef USE_LVGL_COLOR
 inline lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
 #endif  // USE_LVGL_COLOR
@@ -133,6 +134,8 @@ class LvglComponent : public PollingComponent {
   void set_paused(bool paused, bool show_snow);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
+  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
+                    lv_event_code_t event3);
   bool is_paused() const { return this->paused_; }
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
