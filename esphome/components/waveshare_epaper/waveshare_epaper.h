@@ -8,8 +8,8 @@ namespace esphome {
 namespace waveshare_epaper {
 
 class WaveshareEPaper : public display::DisplayBuffer,
-                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
+                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
@@ -783,7 +783,6 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
   int get_height_internal() override;
 
   uint32_t idle_timeout_() override;
-
 };
 
 // Generic Waveshare e-paper component that
