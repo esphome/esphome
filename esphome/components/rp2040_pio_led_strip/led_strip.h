@@ -95,7 +95,11 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
   size_t get_buffer_size_() const { return this->num_leds_ * (3 + this->is_rgbw_); }
 
-  void dma_complete_handler_();
+  static bool dma_channel_active_[12];
+  // Global flag to indicate completion
+  static struct semaphore reset_delay_complete_sem[12];
+  
+  static void dma_complete_handler_();
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};

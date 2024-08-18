@@ -27,15 +27,17 @@ static std::map<Chipset, bool> conf_count_ = {
 };
 
 // Global flag to indicate completion
-struct semaphore reset_delay_complete_sem;
+static struct semaphore reset_delay_complete_sem[12];
 
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_complete_handler_() {
-    // Clear the interrupt request
     uint32_t channel = dma_hw->ints0;
-    if( channel & (1u<<this->dma_chan_) ) {
-      dma_hw->ints0 = channel; /* reset interrupt */
-      sem_release(&reset_delay_complete_sem); /* release semaphore */
+
+    for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
+      if (dma_channel_active_[dma_chan] && (channel & (1u << dma_chan))) {
+        dma_hw->ints0 = (1u << dma_chan); // Clear the interrupt
+        sem_release(&reset_delay_complete_sem[dma_chan]); // Handle the interrupt
+      }
     }
 }
 
@@ -108,6 +110,9 @@ void RP2040PIOLEDStripLightOutput::setup() {
     return;
   }
 
+  // Mark the DMA channel as active
+  dma_channel_active_[this->dma_chan_] = true;
+
   this->dma_config_ = dma_channel_get_default_config(this->dma_chan_);
   channel_config_set_transfer_data_size(
       &this->dma_config_,
@@ -124,7 +129,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
                         false                                            // don't start yet
   );
 
-  irq_set_exclusive_handler(DMA_IRQ_0, this->dma_complete_handler_); /* after DMA all data, raise an interrupt */
+  // Initialize the semaphore for this DMA channel
+  sem_init(&reset_delay_complete_sem_[this->dma_chan_], 1, 1);
+
+  irq_set_exclusive_handler(DMA_IRQ_0, dma_complete_handler_); /* after DMA all data, raise an interrupt */
   dma_channel_set_irq0_enabled(this->dma_chan_, true); /* map DMA channel to interrupt */
   irq_set_enabled(DMA_IRQ_0, true); /* enable interrupt */
 
@@ -145,7 +153,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
-  sem_acquire_blocking(&reset_delay_complete_sem);
+  sem_acquire_blocking(&reset_delay_complete_sem[this->dma_chan_]);
   dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
