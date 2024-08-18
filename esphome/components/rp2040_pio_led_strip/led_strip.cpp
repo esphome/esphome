@@ -33,7 +33,7 @@ void RP2040PIOLEDStripLightOutput::dma_complete_handler_() {
     for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
       if (dma_channel_active_[dma_chan] && (channel & (1u << dma_chan))) {
         dma_hw->ints0 = (1u << dma_chan); // Clear the interrupt
-        sem_release(&reset_delay_complete_sem[dma_chan]); // Handle the interrupt
+        sem_release(&reset_delay_complete_sem_[dma_chan]); // Handle the interrupt
       }
     }
 }
@@ -150,7 +150,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
-  sem_acquire_blocking(&reset_delay_complete_sem[this->dma_chan_]);
+  sem_acquire_blocking(&reset_delay_complete_sem_[this->dma_chan_]);
   dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
