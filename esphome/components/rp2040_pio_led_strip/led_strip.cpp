@@ -7,6 +7,7 @@
 
 #include <hardware/clocks.h>
 #include <hardware/dma.h>
+#include <hardware/irq.h>
 #include <hardware/pio.h>
 #include <pico/stdlib.h>
 
@@ -23,6 +24,19 @@ static std::map<Chipset, bool> conf_count_ = {
     {CHIPSET_WS2812, false},  {CHIPSET_WS2812B, false}, {CHIPSET_SK6812, false},
     {CHIPSET_SM16703, false}, {CHIPSET_CUSTOM, false},
 };
+
+// Global flag to indicate completion
+struct semaphore reset_delay_complete_sem;
+
+// DMA interrupt service routine
+void RP2040PIOLEDStripLightOutput::dma_complete_handler_() {
+    // Clear the interrupt request
+    uint32_t channel = dma_hw->ints0;
+    if( channel & (1u<<this->dma_chan_) ) {
+      dma_hw->ints0 = channel; /* reset interrupt */
+      sem_release(&reset_delay_complete_sem); /* release semaphore */
+    }
+}
 
 void RP2040PIOLEDStripLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RP2040 LED Strip...");
@@ -109,6 +123,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
                         false                                            // don't start yet
   );
 
+  irq_set_exclusive_handler(DMA_IRQ_0, this->dma_complete_handler_); /* after DMA all data, raise an interrupt */
+  dma_channel_set_irq0_enabled(this->dma_chan_, true); /* map DMA channel to interrupt */
+  irq_set_enabled(DMA_IRQ_0, true); /* enable interrupt */
+
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 }
 
@@ -126,6 +144,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
+  sem_acquire_blocking(&reset_delay_complete_sem);
   dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
