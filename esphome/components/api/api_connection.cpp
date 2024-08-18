@@ -1465,6 +1465,7 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
     ESP_LOGV(TAG, "Could not find matching service!");
   }
 }
+#ifdef USE_API_NOISE
 NoiseEncryptionSetKeyResponse APIConnection::noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) {
   psk_t psk{};
   NoiseEncryptionSetKeyResponse resp;
@@ -1483,7 +1484,7 @@ NoiseEncryptionSetKeyResponse APIConnection::noise_encryption_set_key(const Nois
   resp.success = true;
   return resp;
 }
-
+#endif
 void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) {
   state_subs_at_ = 0;
 }
