@@ -169,28 +169,27 @@ def add_idf_component(
             KEY_REF: ref,
             KEY_PATH: path,
             KEY_REFRESH: refresh,
-            KEY_COMPONENTS: components if components is not None else [],
-            KEY_SUBMODULES: submodules if submodules is not None else [],
+            KEY_COMPONENTS: components,
+            KEY_SUBMODULES: submodules,
         }
     else:
         if components is not None:
-            for comp in components:
-                if (
-                    comp
-                    not in CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS]
-                ):
-                    CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS].append(
-                        comp
-                    )
+            CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS] = list(
+                set(
+                    CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS]
+                    + components
+                )
+            )
         if submodules is not None:
-            for comp in submodules:
-                if (
-                    comp
-                    not in CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES]
-                ):
-                    CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES].append(
-                        comp
+            if CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES] is None:
+                CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES] = submodules
+            else:
+                CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES] = list(
+                    set(
+                        CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES]
+                        + submodules
                     )
+                )
 
 
 def add_extra_script(stage: str, filename: str, path: str):
