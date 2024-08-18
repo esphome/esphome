@@ -30,13 +30,13 @@ static struct semaphore dma_write_complete_sem_[12];
 
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
-    uint32_t channel = dma_hw->ints0;
-    for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
-      if (dma_chan_active_[dma_chan] && (channel & (1u << dma_chan))) {
-        dma_hw->ints0 = (1u << dma_chan); // Clear the interrupt
-        sem_release(&dma_write_complete_sem_[dma_chan]); // Handle the interrupt
-      }
+  uint32_t channel = dma_hw->ints0;
+  for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
+    if (dma_chan_active_[dma_chan] && (channel & (1u << dma_chan))) {
+      dma_hw->ints0 = (1u << dma_chan);                 // Clear the interrupt
+      sem_release(&dma_write_complete_sem_[dma_chan]);  // Handle the interrupt
     }
+  }
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
@@ -130,9 +130,9 @@ void RP2040PIOLEDStripLightOutput::setup() {
   // Initialize the semaphore for this DMA channel
   sem_init(&dma_write_complete_sem_[this->dma_chan_], 1, 1);
 
-  irq_set_exclusive_handler(DMA_IRQ_0, dma_write_complete_handler_); /* after DMA all data, raise an interrupt */
-  dma_channel_set_irq0_enabled(this->dma_chan_, true); /* map DMA channel to interrupt */
-  irq_set_enabled(DMA_IRQ_0, true); /* enable interrupt */
+  irq_set_exclusive_handler(DMA_IRQ_0, dma_write_complete_handler_); // after DMA all data, raise an interrupt
+  dma_channel_set_irq0_enabled(this->dma_chan_, true);               // map DMA channel to interrupt
+  irq_set_enabled(DMA_IRQ_0, true);                                  // enable interrupt
 
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 }
