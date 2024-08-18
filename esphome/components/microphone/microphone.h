@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <vector>
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace microphone {
