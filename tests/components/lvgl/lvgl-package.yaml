@@ -224,10 +224,47 @@ lvgl:
               - label:
                   text: Button
             on_click:
-              lvgl.label.update:
-                id: hello_label
-                bg_color: 0x123456
-                text: clicked
+              - lvgl.label.update:
+                  id: hello_label
+                  bg_color: 0x123456
+                  text: clicked
+              - lvgl.label.update:
+                  id: hello_label
+                  text: !lambda return "hello world";
+              - lvgl.label.update:
+                  id: hello_label
+                  text: !lambda |-
+                        ESP_LOGD("label", "multi-line lambda");
+                        return "hello world";
+              - lvgl.label.update:
+                  id: hello_label
+                  text: !lambda 'return str_sprintf("Hello space");'
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    format: "sprintf format %s"
+                    args: ['x ? "checked" : "unchecked"']
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+                    time: time_id
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+                    time: !lambda return id(time_id).now();
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+                    time: !lambda |-
+                        ESP_LOGD("label", "multi-line lambda");
+                        return id(time_id).now();
             on_value:
               logger.log:
                 format: "state now %d"

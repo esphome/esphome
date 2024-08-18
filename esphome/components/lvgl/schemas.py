@@ -52,13 +52,7 @@ TEXT_SCHEMA = cv.Schema(
             cv.Schema(
                 {
                     cv.Required(CONF_TIME_FORMAT): cv.string,
-                    cv.Required(CONF_TIME): cv.lambda_,
-                }
-            ),
-            cv.Schema(
-                {
-                    cv.Required(CONF_TIME_FORMAT): cv.string,
-                    cv.GenerateID(CONF_TIME): cv.use_id(RealTimeClock),
+                    cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
                 }
             ),
             cv.templatable(cv.string),
