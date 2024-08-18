@@ -40,7 +40,7 @@ class APIServer : public Component, public Controller {
   void set_reboot_timeout(uint32_t reboot_timeout);
 
 #ifdef USE_API_NOISE
-  void save_noise_psk(psk_t psk, bool make_active = true);
+  bool save_noise_psk(psk_t psk, bool make_active = true);
   void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(psk); }
   std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
 #endif  // USE_API_NOISE

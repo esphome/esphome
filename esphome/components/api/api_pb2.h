@@ -350,6 +350,7 @@ class DeviceInfoResponse : public ProtoMessage {
   uint32_t legacy_voice_assistant_version{0};
   uint32_t voice_assistant_feature_flags{0};
   std::string suggested_area{};
+  bool api_encryption_supported{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -784,6 +785,28 @@ class SubscribeLogsResponse : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class NoiseEncryptionSetKeyRequest : public ProtoMessage {
+ public:
+  std::string key{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class NoiseEncryptionSetKeyResponse : public ProtoMessage {
+ public:
+  bool success{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SubscribeHomeassistantServicesRequest : public ProtoMessage {

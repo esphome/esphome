@@ -1,9 +1,9 @@
 #include "esphome/core/defines.h"
 #ifdef USE_MDNS
-#include "mdns_component.h"
-#include "esphome/core/version.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
+#include "mdns_component.h"
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
@@ -62,7 +62,11 @@ void MDNSComponent::compile_records_() {
 #endif
 
 #ifdef USE_API_NOISE
-    service.txt_records.push_back({"api_encryption", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+    if (api::global_api_server->get_noise_ctx()->has_psk()) {
+      service.txt_records.push_back({"api_encryption", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+    } else {
+      service.txt_records.push_back({"api_encryption_supported", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+    }
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME

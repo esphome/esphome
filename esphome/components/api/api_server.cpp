@@ -159,7 +159,12 @@ void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG, "API Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s: %u", network::get_use_address().c_str(), this->port_);
 #ifdef USE_API_NOISE
-  ESP_LOGCONFIG(TAG, "  Using noise encryption: YES");
+  if (this->noise_ctx_->has_psk()) {
+    ESP_LOGCONFIG(TAG, "  Using noise encryption: YES");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Using noise encryption: NO");
+    ESP_LOGCONFIG(TAG, "  Supports noise encryption: YES");
+  }
 #else
   ESP_LOGCONFIG(TAG, "  Using noise encryption: NO");
 #endif
@@ -415,24 +420,34 @@ uint16_t APIServer::get_port() const { return this->port_; }
 void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 
 #ifdef USE_API_NOISE
-void APIServer::save_noise_psk(psk_t psk, bool make_active) {
-  if (psk == this->noise_ctx_->get_psk()) {
-    ESP_LOGW(TAG, "New PSK matches old; doing nothing");
-    return;
+bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
+  auto &old_psk = this->noise_ctx_->get_psk();
+  if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
+    ESP_LOGW(TAG, "New PSK matches old");
+    return true;
   }
 
   SavedNoisePsk new_saved_psk{psk};
-  this->noise_pref_.save(&new_saved_psk);
-  // ensure it's written immediately
-  global_preferences->sync();
-  ESP_LOGD(TAG, "Noise PSK updated");
-  if (make_active) {
-    ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
-    this->set_noise_psk(psk);
-    for (auto &c : this->clients_) {
-      c->send_disconnect_request(DisconnectRequest());
-    }
+  if (!this->noise_pref_.save(&new_saved_psk)) {
+    ESP_LOGW(TAG, "Failed to save Noise PSK");
+    return false;
   }
+  // ensure it's written immediately
+  if (!global_preferences->sync()) {
+    ESP_LOGW(TAG, "Failed to sync preferences");
+    return false;
+  }
+  ESP_LOGD(TAG, "Noise PSK saved");
+  if (make_active) {
+    this->set_timeout(100, [this, psk]() {
+      ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
+      this->set_noise_psk(psk);
+      for (auto &c : this->clients_) {
+        c->send_disconnect_request(DisconnectRequest());
+      }
+    });
+  }
+  return true;
 }
 #endif
 

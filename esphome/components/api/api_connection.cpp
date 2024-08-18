@@ -31,7 +31,14 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
     : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
   this->proto_write_buffer_.reserve(64);
 
-#if defined(USE_API_PLAINTEXT)
+#if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
+  auto noise_ctx = parent->get_noise_ctx();
+  if (noise_ctx->has_psk()) {
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx)};
+  } else {
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+  }
+#elif defined(USE_API_PLAINTEXT)
   this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
   this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
@@ -1435,6 +1442,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.legacy_voice_assistant_version = voice_assistant::global_voice_assistant->get_legacy_version();
   resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
 #endif
+#ifdef USE_API_NOISE
+  resp.api_encryption_supported = true;
+#endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
@@ -1455,6 +1465,25 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
     ESP_LOGV(TAG, "Could not find matching service!");
   }
 }
+NoiseEncryptionSetKeyResponse APIConnection::noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) {
+  psk_t psk{};
+  NoiseEncryptionSetKeyResponse resp;
+  if (base64_decode(msg.key.data(), psk.data(), msg.key.size()) != psk.size()) {
+    ESP_LOGW(TAG, "Invalid encryption key length");
+    resp.success = false;
+    return resp;
+  }
+
+  if (!this->parent_->save_noise_psk(psk, true)) {
+    ESP_LOGW(TAG, "Failed to save encryption key");
+    resp.success = false;
+    return resp;
+  }
+
+  resp.success = true;
+  return resp;
+}
+
 void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) {
   state_subs_at_ = 0;
 }
