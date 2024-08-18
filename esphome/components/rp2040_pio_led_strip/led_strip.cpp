@@ -10,6 +10,7 @@
 #include <hardware/irq.h>
 #include <hardware/pio.h>
 #include <pico/stdlib.h>
+#include <pico/sem.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -192,7 +193,7 @@ light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t inde
 }
 
 void RP2040PIOLEDStripLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "RP2040 PIO LED Strip Light Output:");
+  ESP_LOGCONFIG(TAG, "RP2040 PIO LED Strip Light Outputs:");
   ESP_LOGCONFIG(TAG, "  Pin: GPIO%d", this->pin_);
   ESP_LOGCONFIG(TAG, "  Number of LEDs: %d", this->num_leds_);
   ESP_LOGCONFIG(TAG, "  RGBW: %s", YESNO(this->is_rgbw_));
