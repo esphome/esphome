@@ -26,9 +26,6 @@ static std::map<Chipset, bool> conf_count_ = {
     {CHIPSET_SM16703, false}, {CHIPSET_CUSTOM, false},
 };
 
-// Global flag to indicate completion
-static struct semaphore reset_delay_complete_sem[12];
-
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_complete_handler_() {
     uint32_t channel = dma_hw->ints0;
