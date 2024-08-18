@@ -172,12 +172,6 @@ void I2SAudioSpeaker::player_task(void *params) {
       data += bytes_written;
       remaining -= bytes_written;
     }
-
-    event.type = TaskEventType::PLAYING;
-    event.err = data_event.len;
-    if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
-      ESP_LOGW(TAG, "Failed to send PLAYING event");
-    }
   }
 
   event.type = TaskEventType::STOPPING;
@@ -232,12 +226,10 @@ void I2SAudioSpeaker::watch_() {
       case TaskEventType::STARTED:
         ESP_LOGD(TAG, "Started I2S Audio Speaker");
         this->state_ = speaker::STATE_RUNNING;
+        this->status_clear_warning();
         break;
       case TaskEventType::STOPPING:
         ESP_LOGD(TAG, "Stopping I2S Audio Speaker");
-        break;
-      case TaskEventType::PLAYING:
-        this->status_clear_warning();
         break;
       case TaskEventType::STOPPED:
         this->state_ = speaker::STATE_STOPPED;

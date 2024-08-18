@@ -21,7 +21,6 @@ static const size_t BUFFER_SIZE = 1024;
 enum class TaskEventType : uint8_t {
   STARTING = 0,
   STARTED,
-  PLAYING,
   STOPPING,
   STOPPED,
   WARNING = 255,
