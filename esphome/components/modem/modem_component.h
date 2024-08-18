@@ -86,7 +86,6 @@ class ModemComponent : public Component {
   AtCommandResult send_at(const std::string &cmd) { return this->send_at(cmd, this->command_delay_); }
   AtCommandResult send_at(const std::string &cmd, uint32_t timeout);
   AtCommandResult get_imei();
-  int get_baud_rate_();
   bool get_power_status();
   bool sync();
   bool modem_ready() { return this->modem_ready(false); }
@@ -124,6 +123,7 @@ class ModemComponent : public Component {
   bool modem_recover_sync_() { return this->modem_recover_sync_(0); }
   bool modem_preinit_();
   bool modem_init_();
+  int get_baud_rate_();
   bool prepare_sim_();
   void send_init_at_();
   bool is_network_attached_();

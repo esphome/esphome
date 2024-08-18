@@ -59,7 +59,7 @@ bool ModemComponent::is_modem_connected(bool verbose) {
 
   bool connected = (network_mode != 0) && (!std::isnan(rssi)) && network_attached;
 
-  ESP_LOGD(TAG, "Modem internal network status: %s (attached: %s, type: %s, rssi: %.0fdB %s, ber: %.0f%%)",
+  ESP_LOGI(TAG, "Modem internal network status: %s (attached: %s, type: %s, rssi: %.0fdB %s, ber: %.0f%%)",
            connected ? "Good" : "BAD", network_attached ? "Yes" : "NO",
            network_system_mode_to_string(network_mode).c_str(), rssi, get_signal_bars(rssi).c_str(), ber);
   return connected;
@@ -546,9 +546,6 @@ bool ModemComponent::modem_recover_sync_(int baud_rate) {
   bool success = false;
   this->modem_restore_state_.synced = false;
 
-  uint32_t start_ms = millis();
-  uint32_t elapsed_ms;
-
   // Try to exit CMUX_MANUAL_DATA or DATA_MODE, if any
   // huge watchdog, because some commands are blocking for a very long time.
   watchdog::WatchdogManager wdt(60000);
@@ -590,7 +587,11 @@ bool ModemComponent::modem_preinit_() {
   }
 
   if (!success) {
-    watchdog::WatchdogManager wdt(20000);
+    watchdog::WatchdogManager wdt(60000);
+    // this->dce->set_mode(modem_mode::CMUX_MANUAL_MODE);
+    // this->dce->set_mode(modem_mode::CMUX_MANUAL_DATA);
+    // this->dce->recover();
+    this->dce->set_mode(modem_mode::UNDEF);
     if (this->modem_command_mode_(this->modem_restore_state_.cmux)) {
       ESP_LOGD(TAG, "Modem responded after recovering command mode");
       success = true;
@@ -620,28 +621,28 @@ bool ModemComponent::modem_preinit_() {
   // modem synced
   if ((this->baud_rate_ != 0) && (this->baud_rate_ != current_baud_rate)) {
     ESP_LOGD(TAG, "Setting baud rate: %d", this->baud_rate_);
-    if (this->dce->set_baud(this->baud_rate_) == command_result::OK) {
-      // need to recreate dte/dce with new baud rate
-      this->modem_create_dce_dte_(this->baud_rate_);
-      // this->flush_uart_(2000);
-      delay(2000);  // NOLINT
+    this->flush_uart_();
+    // if (this->dce->set_baud(this->baud_rate_) == command_result::OK) {
+    // no error check, because the modem answer with a different baud rate
+    this->dce->set_baud(this->baud_rate_);
+    // need to recreate dte/dce with new baud rate
+    this->modem_create_dce_dte_(this->baud_rate_);
+    delay(1000);  // NOLINT
+    if (this->sync()) {
+      ESP_LOGI(TAG, "Modem baud rate set to %d", this->baud_rate_);
+      success = true;
+      this->modem_restore_state_.baud_rate = this->baud_rate_;
+      this->pref_.save(&this->modem_restore_state_);
+    } else {
+      // revert baud rate: FIXME: or wait safe mode ?
+      this->modem_create_dce_dte_();
+      delay(200);  // NOLINT
+      this->flush_uart_();
       if (this->sync()) {
-        ESP_LOGI(TAG, "Modem baud rate set to %d", this->baud_rate_);
-        success = true;
-        this->modem_restore_state_.baud_rate = this->baud_rate_;
-        this->pref_.save(&this->modem_restore_state_);
+        ESP_LOGW(TAG, "Unable to change baud rate, keeping default");
       } else {
         this->abort_("DCE has successfuly changed baud rate, but DTE can't reach it. Try to decrease baud rate?");
         return false;
-      }
-    } else {
-      ESP_LOGW(TAG, "DCE refuse to change baud rate.");
-      if (this->sync()) {
-        ESP_LOGW(TAG, "Modem is still responding, continuing with baud rate %d", current_baud_rate);
-        success = true;
-      } else {
-        ESP_LOGE(TAG, "Modem not responding after failed baud rate.");
-        success = false;
       }
     }
   }
@@ -694,7 +695,7 @@ bool ModemComponent::modem_init_() {
 
 bool ModemComponent::prepare_sim_() {
   std::string output;
-
+  this->flush_uart_();
   // this->dce->read_pin(pin_ok)   // not used, because we can't know the cause of the error.
   this->dce->command(
       "AT+CPIN?\r",
@@ -739,7 +740,8 @@ void ModemComponent::send_init_at_() {
                              },
                              this->command_delay_),
                          "init_at");
-    output += this->flush_uart_();  // probably a bug in esp_modem. long string are truncated
+    delay(200);                         // NOLINT
+    output += this->flush_uart_(2000);  // probably a bug in esp_modem. long string are truncated
     ESP_LOGI(TAG, "init_at %s: %s", cmd.c_str(), output.c_str());
   }
   this->flush_uart_();
@@ -886,7 +888,7 @@ std::string ModemComponent::flush_uart_(uint32_t timeout) {
       timeout);
 
   if (cleaned != 0) {
-    ESP_LOGD(TAG, "Flushed %d modem buffer data: %s", cleaned, output.c_str());
+    ESP_LOGV(TAG, "Flushed %d modem buffer data: %s", cleaned, output.c_str());
   }
   return output;
 }
