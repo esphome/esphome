@@ -58,7 +58,7 @@ void I2SAudioMicrophone::start_() {
       .tx_desc_auto_clear = false,
       .fixed_mclk = 0,
       .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-      .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
+      .bits_per_chan = this->bits_per_channel_,
   };
 
   esp_err_t err;
@@ -167,21 +167,24 @@ size_t I2SAudioMicrophone::read(int16_t *buf, size_t len) {
     return 0;
   }
   this->status_clear_warning();
-  if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
-    return bytes_read;
-  } else if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_32BIT) {
-    std::vector<int16_t> samples;
-    size_t samples_read = bytes_read / sizeof(int32_t);
-    samples.resize(samples_read);
-    for (size_t i = 0; i < samples_read; i++) {
-      int32_t temp = reinterpret_cast<int32_t *>(buf)[i] >> 14;
-      samples[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
+  // ESP-IDF I2S implementation right-extends 8-bit data to 16 bits,
+  // and 24-bit data to 32 bits.
+  switch (this->bits_per_sample_) {
+    case I2S_BITS_PER_SAMPLE_8BIT:
+    case I2S_BITS_PER_SAMPLE_16BIT:
+      return bytes_read;
+    case I2S_BITS_PER_SAMPLE_24BIT:
+    case I2S_BITS_PER_SAMPLE_32BIT: {
+      size_t samples_read = bytes_read / sizeof(int32_t);
+      for (size_t i = 0; i < samples_read; i++) {
+        int32_t temp = reinterpret_cast<int32_t *>(buf)[i] >> 14;
+        buf[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
+      }
+      return samples_read * sizeof(int16_t);
     }
-    memcpy(buf, samples.data(), samples_read * sizeof(int16_t));
-    return samples_read * sizeof(int16_t);
-  } else {
-    ESP_LOGE(TAG, "Unsupported bits per sample: %d", this->bits_per_sample_);
-    return 0;
+    default:
+      ESP_LOGE(TAG, "Unsupported bits per sample: %d", this->bits_per_sample_);
+      return 0;
   }
 }
 
