@@ -13,6 +13,7 @@
 #include <hardware/pio.h>
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
+#include <pico/sem.h>
 #include <map>
 
 namespace esphome {
