@@ -25,18 +25,16 @@ static std::map<Chipset, bool> conf_count_ = {
     {CHIPSET_WS2812, false},  {CHIPSET_WS2812B, false}, {CHIPSET_SK6812, false},
     {CHIPSET_SM16703, false}, {CHIPSET_CUSTOM, false},
 };
-static bool dma_channel_active_[12];
-// Global flag to indicate completion
-static struct semaphore reset_delay_complete_sem_[12];
+static bool dma_chan_active_[12];
+static struct semaphore dma_write_complete_sem_[12];
 
 // DMA interrupt service routine
-void RP2040PIOLEDStripLightOutput::dma_complete_handler_() {
+void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
     uint32_t channel = dma_hw->ints0;
-
     for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
-      if (dma_channel_active_[dma_chan] && (channel & (1u << dma_chan))) {
+      if (dma_chan_active_[dma_chan] && (channel & (1u << dma_chan))) {
         dma_hw->ints0 = (1u << dma_chan); // Clear the interrupt
-        sem_release(&reset_delay_complete_sem_[dma_chan]); // Handle the interrupt
+        sem_release(&dma_write_complete_sem_[dma_chan]); // Handle the interrupt
       }
     }
 }
@@ -111,7 +109,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
   }
 
   // Mark the DMA channel as active
-  dma_channel_active_[this->dma_chan_] = true;
+  dma_chan_active_[this->dma_chan_] = true;
 
   this->dma_config_ = dma_channel_get_default_config(this->dma_chan_);
   channel_config_set_transfer_data_size(
@@ -130,9 +128,9 @@ void RP2040PIOLEDStripLightOutput::setup() {
   );
 
   // Initialize the semaphore for this DMA channel
-  sem_init(&reset_delay_complete_sem_[this->dma_chan_], 1, 1);
+  sem_init(&dma_write_complete_sem_[this->dma_chan_], 1, 1);
 
-  irq_set_exclusive_handler(DMA_IRQ_0, dma_complete_handler_); /* after DMA all data, raise an interrupt */
+  irq_set_exclusive_handler(DMA_IRQ_0, dma_write_complete_handler_); /* after DMA all data, raise an interrupt */
   dma_channel_set_irq0_enabled(this->dma_chan_, true); /* map DMA channel to interrupt */
   irq_set_enabled(DMA_IRQ_0, true); /* enable interrupt */
 
@@ -153,7 +151,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
-  sem_acquire_blocking(&reset_delay_complete_sem_[this->dma_chan_]);
+  sem_acquire_blocking(&dma_write_complete_sem_[this->dma_chan_]);
   dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
