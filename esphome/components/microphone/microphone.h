@@ -1,7 +1,9 @@
 #pragma once
 
-#include "esphome/core/entity_base.h"
-#include "esphome/core/helpers.h"
+#include <stddef.h>
+#include <cstdint>
+#include <functional>
+#include <vector>
 
 namespace esphome {
 namespace microphone {
