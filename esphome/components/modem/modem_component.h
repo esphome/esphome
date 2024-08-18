@@ -6,6 +6,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/preferences.h"
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
 
@@ -52,6 +53,13 @@ struct AtCommandResult {
   const char *c_str() const;
 };
 
+struct ModemRestoreState {
+  int baud_rate{0};
+  uint8_t abort_count{0};
+  bool cmux{true};
+  bool synced{false};
+} __attribute__((packed));
+
 class ModemComponent : public Component {
  public:
   void set_reboot_timeout(uint32_t timeout) { this->timeout_ = timeout; }
@@ -78,6 +86,7 @@ class ModemComponent : public Component {
   AtCommandResult send_at(const std::string &cmd) { return this->send_at(cmd, this->command_delay_); }
   AtCommandResult send_at(const std::string &cmd, uint32_t timeout);
   AtCommandResult get_imei();
+  int get_baud_rate_();
   bool get_power_status();
   bool sync();
   bool modem_ready() { return this->modem_ready(false); }
@@ -109,6 +118,10 @@ class ModemComponent : public Component {
  protected:
   void modem_create_dce_dte_(int baud_rate);
   void modem_create_dce_dte_() { this->modem_create_dce_dte_(0); }
+  bool modem_command_mode_(bool cmux);
+  bool modem_command_mode_() { return modem_command_mode_(this->cmux_); };
+  bool modem_recover_sync_(int baud_rate);
+  bool modem_recover_sync_() { return this->modem_recover_sync_(0); }
   bool modem_preinit_();
   bool modem_init_();
   bool prepare_sim_();
@@ -121,7 +134,8 @@ class ModemComponent : public Component {
   void abort_(const std::string &message);
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void dump_connect_params_();
-  std::string flush_uart_();
+  std::string flush_uart_(uint32_t timeout);
+  std::string flush_uart_() { return this->flush_uart_(this->command_delay_); }
 
   // Attributes from yaml config
   uint32_t timeout_;
@@ -183,6 +197,9 @@ class ModemComponent : public Component {
     bool baud_rate_changed{false};
   };
   InternalState internal_state_;
+
+  ModemRestoreState modem_restore_state_{};
+  ESPPreferenceObject pref_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
