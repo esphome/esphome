@@ -312,7 +312,6 @@ struct RegisterRange {
 class ModbusCommandItem {
  public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
-  static const uint8_t MAX_SEND_REPEATS = 5;
   ModbusController *modbusdevice;
   uint16_t register_address;
   uint16_t register_count;
@@ -323,8 +322,8 @@ class ModbusCommandItem {
   std::vector<uint8_t> payload = {};
   bool send();
   // wrong commands (esp. custom commands) can block the send queue
-  // limit the number of repeats
-  uint8_t send_countdown{MAX_SEND_REPEATS};
+  // limit the number of repeats. How many times this command has been sent
+  uint8_t send_counter{0};
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
@@ -458,6 +457,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
   void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
+  /// called by esphome generated code to set the max_cmd_repeat
+  void set_max_cmd_repeat(uint8_t max_cmd_repeat) { this->max_cmd_repeat_ = max_cmd_repeat; }
+  /// get how many times a command will be sent if no response is received
+  uint8_t get_max_cmd_repeat() { return this->max_cmd_repeat_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -490,6 +493,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool module_offline_;
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_;
+  /// how many times we'll retry a command that got no response
+  uint8_t max_cmd_repeat_;
   CallbackManager<void(int, int)> command_sent_callback_{};
 };
 

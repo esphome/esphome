@@ -22,7 +22,7 @@ bool ModbusController::send_next_command_() {
     auto &command = command_queue_.front();
 
     // remove from queue if command was sent too often
-    if (command->send_countdown < 1) {
+    if (command->send_counter >= this->max_cmd_repeat_) {
       if (!this->module_offline_) {
         ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
 
@@ -36,8 +36,8 @@ bool ModbusController::send_next_command_() {
       this->module_offline_ = true;
       ESP_LOGD(
           TAG,
-          "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
-          this->address_, command->register_address, command->send_countdown);
+          "Modbus command to device=%d register=0x%02X send_counter=%d no response received - removed from send queue",
+          this->address_, command->register_address, command->send_counter);
       command_queue_.pop_front();
     } else {
       ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
@@ -344,6 +344,8 @@ size_t ModbusController::create_register_ranges_() {
 void ModbusController::dump_config() {
   ESP_LOGCONFIG(TAG, "ModbusController:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Max Cmd Retry: %d", this->max_cmd_repeat_);
+  ESP_LOGCONFIG(TAG, "  Offline Skip Updates: %d", this->offline_skip_updates_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : sensorset_) {
@@ -559,7 +561,7 @@ bool ModbusCommandItem::send() {
     modbusdevice->send_raw(this->payload);
   }
   ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
-  send_countdown--;
+  send_counter++;
   return true;
 }
 
