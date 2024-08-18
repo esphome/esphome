@@ -8,10 +8,10 @@ from esphome.components.image import Image_
 from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_VALUE
-from esphome.core import HexInt
+from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_TIME, CONF_VALUE
+from esphome.core import HexInt, Lambda
 from esphome.cpp_generator import MockObj
-from esphome.cpp_types import uint32
+from esphome.cpp_types import ESPTime, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
@@ -19,9 +19,11 @@ from . import types as ty
 from .defines import (
     CONF_END_VALUE,
     CONF_START_VALUE,
+    CONF_TIME_FORMAT,
     LV_FONTS,
     LValidator,
     LvConstant,
+    call_lambda,
     literal,
 )
 from .helpers import (
@@ -204,23 +206,44 @@ class TextValidator(LValidator):
     def __init__(self):
         super().__init__(
             cv.string,
-            cg.const_char_ptr,
+            cg.std_string,
             TextSensor,
             "get_state().c_str()",
             lambda s: cg.safe_exp(f"{s}"),
         )
 
     def __call__(self, value):
-        if isinstance(value, dict):
+        if isinstance(value, dict) and CONF_FORMAT in value:
             return value
         return super().__call__(value)
 
     async def process(self, value, args=()):
         if isinstance(value, dict):
-            args = [str(x) for x in value[CONF_ARGS]]
-            arg_expr = cg.RawExpression(",".join(args))
-            format_str = cpp_string_escape(value[CONF_FORMAT])
-            return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+            if format := value.get(CONF_FORMAT):
+                args = [str(x) for x in value[CONF_ARGS]]
+                arg_expr = cg.RawExpression(",".join(args))
+                format_str = cpp_string_escape(format)
+                return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+            if time_format := value.get(CONF_TIME_FORMAT):
+                source = value[CONF_TIME]
+                if isinstance(source, Lambda):
+                    time_format = cpp_string_escape(time_format)
+                    return cg.RawExpression(
+                        call_lambda(
+                            await cg.process_lambda(source, args, return_type=ESPTime)
+                        )
+                        + f".strftime({time_format}).c_str()"
+                    )
+                # must be an ID
+                source = await cg.get_variable(source)
+                return source.now().strftime(time_format).c_str()
+        if isinstance(value, Lambda):
+            return cg.RawExpression(
+                call_lambda(
+                    await cg.process_lambda(value, args, return_type=self.rtype)
+                )
+                + ".c_str()"
+            )
         return await super().process(value, args)
 
 
