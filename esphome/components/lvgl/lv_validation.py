@@ -1,12 +1,9 @@
 from typing import Union
 
 import esphome.codegen as cg
-from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
 from esphome.components.font import Font
 from esphome.components.image import Image_
-from esphome.components.sensor import Sensor
-from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_TIME, CONF_VALUE
 from esphome.core import HexInt, Lambda
@@ -178,9 +175,7 @@ lv_image = LValidator(
     retmapper=lambda x: lv_expr.img_from(MockObj(x)),
     requires="image",
 )
-lv_bool = LValidator(
-    cv.boolean, cg.bool_, BinarySensor, "get_state()", retmapper=literal
-)
+lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
 
 
 def lv_pct(value: Union[int, float]):
@@ -196,21 +191,13 @@ def lvms_validator_(value):
 
 
 lv_milliseconds = LValidator(
-    lvms_validator_,
-    cg.int32,
-    retmapper=lambda x: x.total_milliseconds,
+    lvms_validator_, cg.int32, retmapper=lambda x: x.total_milliseconds
 )
 
 
 class TextValidator(LValidator):
     def __init__(self):
-        super().__init__(
-            cv.string,
-            cg.std_string,
-            TextSensor,
-            "get_state().c_str()",
-            lambda s: cg.safe_exp(f"{s}"),
-        )
+        super().__init__(cv.string, cg.std_string, lambda s: cg.safe_exp(f"{s}"))
 
     def __call__(self, value):
         if isinstance(value, dict) and CONF_FORMAT in value:
@@ -219,10 +206,10 @@ class TextValidator(LValidator):
 
     async def process(self, value, args=()):
         if isinstance(value, dict):
-            if format := value.get(CONF_FORMAT):
+            if format_str := value.get(CONF_FORMAT):
                 args = [str(x) for x in value[CONF_ARGS]]
                 arg_expr = cg.RawExpression(",".join(args))
-                format_str = cpp_string_escape(format)
+                format_str = cpp_string_escape(format_str)
                 return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
@@ -238,21 +225,26 @@ class TextValidator(LValidator):
                 source = await cg.get_variable(source)
                 return source.now().strftime(time_format).c_str()
         if isinstance(value, Lambda):
-            return cg.RawExpression(
-                call_lambda(
-                    await cg.process_lambda(value, args, return_type=self.rtype)
-                )
-                + ".c_str()"
+            value = call_lambda(
+                await cg.process_lambda(value, args, return_type=self.rtype)
             )
+
+            # Was the lambda call reduced to a string?
+            if value.endswith("c_str()") or (
+                value.endswith('"') and value.startswith('"')
+            ):
+                pass
+            else:
+                # Either a std::string or a lambda call returning that. We need const char*
+                value = f"({value}).c_str()"
+            return cg.RawExpression(value)
         return await super().process(value, args)
 
 
 lv_text = TextValidator()
-lv_float = LValidator(cv.float_, cg.float_, Sensor, "get_state()")
-lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
-lv_brightness = LValidator(
-    cv.percentage, cg.float_, Sensor, "get_state()", retmapper=lambda x: int(x * 255)
-)
+lv_float = LValidator(cv.float_, cg.float_)
+lv_int = LValidator(cv.int_, cg.int_)
+lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
 
 
 def is_lv_font(font):
