@@ -33,7 +33,11 @@ CONFIG_SCHEMA = cv.Schema(
             esp32=False,
             rp2040=False,
         ): cv.All(
-            cv.boolean, cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040])
+            cv.boolean,
+            cv.Any(
+                cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+                cv.boolean_false,
+            ),
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.GenerateID(CONF_NETWORK_ID): cv.declare_id(Resolver),
@@ -65,6 +69,7 @@ def parse_hosts_file(hosts_contents: str) -> list[tuple[str, IPAddress]]:
 
 
 async def to_code(config):
+    cg.add_define("USE_NETWORK")
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:

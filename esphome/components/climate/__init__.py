@@ -1,8 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.cpp_helpers import setup_entity
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION_STATE_TOPIC,
     CONF_AWAY,
@@ -21,6 +20,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODE_COMMAND_TOPIC,
     CONF_MODE_STATE_TOPIC,
+    CONF_MQTT_ID,
     CONF_ON_CONTROL,
     CONF_ON_STATE,
     CONF_PRESET,
@@ -33,20 +33,20 @@ from esphome.const import (
     CONF_TARGET_HUMIDITY_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_COMMAND_TOPIC,
-    CONF_TARGET_TEMPERATURE_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE_HIGH,
     CONF_TARGET_TEMPERATURE_HIGH_COMMAND_TOPIC,
     CONF_TARGET_TEMPERATURE_HIGH_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE_LOW,
     CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC,
     CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC,
+    CONF_TARGET_TEMPERATURE_STATE_TOPIC,
     CONF_TEMPERATURE_STEP,
     CONF_TRIGGER_ID,
     CONF_VISUAL,
-    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
