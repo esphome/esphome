@@ -183,7 +183,7 @@ def add_idf_component(
                 component_config[KEY_SUBMODULES] = submodules
             else:
                 component_config[KEY_SUBMODULES] = list(
-                    set([KEY_SUBMODULES] + submodules)
+                    set(component_config[KEY_SUBMODULES] + submodules)
                 )
 
 
