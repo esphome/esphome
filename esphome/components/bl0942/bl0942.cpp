@@ -184,7 +184,7 @@ void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
   LOG_SENSOR("", "Energy", this->energy_sensor_);
-  LOG_SENSOR("", "frequency", this->frequency_sensor_);
+  LOG_SENSOR("", "Frequency", this->frequency_sensor_);
 }
 
 }  // namespace bl0942
