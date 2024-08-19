@@ -5,6 +5,7 @@
 #include "esphome/core/optional.h"
 #include "headers.h"
 
+#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 namespace esphome {
 namespace socket {
 
@@ -57,3 +58,4 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 
 }  // namespace socket
 }  // namespace esphome
+#endif
