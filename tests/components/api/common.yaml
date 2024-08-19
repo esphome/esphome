@@ -11,10 +11,6 @@ esphome:
             message: Button was pressed
       - homeassistant.tag_scanned: pulse
 
-wifi:
-  ssid: MySSID
-  password: password1
-
 api:
   port: 8000
   password: pwd
