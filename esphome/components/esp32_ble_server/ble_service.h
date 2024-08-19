@@ -59,7 +59,7 @@ class BLEService {
   std::vector<BLECharacteristic *> characteristics_;
   BLECharacteristic *last_created_characteristic_{nullptr};
   uint32_t created_characteristic_count_{0};
-  BLEServer *server_;
+  BLEServer *server_ = nullptr;
   ESPBTUUID uuid_;
   uint16_t num_handles_;
   uint16_t handle_{0xFFFF};

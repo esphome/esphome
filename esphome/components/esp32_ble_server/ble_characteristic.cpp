@@ -45,7 +45,8 @@ void BLECharacteristic::notify(bool require_ack) {
     ESP_LOGW(TAG, "require_ack=true is not yet supported (i.e. INDICATE is not yet supported)");
     // TODO: Handle when require_ack=true
   }
-  if (this->service_->get_server()->get_connected_client_count() == 0)
+  if (this->service_ == nullptr || this->service_->get_server() == nullptr ||
+      this->service_->get_server()->get_connected_client_count() == 0)
     return;
 
   for (auto &client : this->service_->get_server()->get_clients()) {
