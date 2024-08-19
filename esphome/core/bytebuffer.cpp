@@ -11,12 +11,18 @@ ByteBuffer ByteBuffer::create(size_t capacity, Endian endianness) {
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len) {
+ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len, Endian endianness) {
   std::vector<uint8_t> data(ptr, ptr + len);
-  return {data};
+  ByteBuffer buffer = {data};
+  buffer.endianness_ = endianness;
+  return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(std::vector<uint8_t> data) { return {std::move(data)}; }
+ByteBuffer ByteBuffer::wrap(std::vector<uint8_t> data, Endian endianness) {
+  ByteBuffer buffer = {std::move(data)};
+  buffer.endianness_ = endianness;
+  return buffer;
+}
 
 ByteBuffer ByteBuffer::wrap(uint8_t value) {
   ByteBuffer buffer = ByteBuffer::create(1);
@@ -52,11 +58,6 @@ ByteBuffer ByteBuffer::wrap(double value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(sizeof(double), endianness);
   buffer.put_double(value);
   return buffer;
-}
-
-ByteBuffer ByteBuffer::wrap(const std::string &data) {
-  std::vector<uint8_t> buffer(data.begin(), data.end());
-  return {buffer};
 }
 
 ByteBuffer ByteBuffer::wrap(std::initializer_list<uint8_t> values) {
@@ -191,15 +192,6 @@ double ByteBuffer::get_double() {
   std::memcpy(&value, byte_array, sizeof(double));
   return value;
 }
-std::string ByteBuffer::get_string(size_t length) {
-  assert(this->get_remaining() >= length);
-  std::string value;
-  value.reserve(length);
-  for (size_t i = 0; i < length; i++) {
-    value.push_back(this->data_[this->position_++]);
-  }
-  return value;
-}
 
 /// Putters
 void ByteBuffer::put_uint8(uint8_t value) {
@@ -291,12 +283,6 @@ void ByteBuffer::put_double(double value) {
     for (size_t i = sizeof(double); i > 0; i--) {
       this->data_[this->position_++] = byte_array[i - 1];
     }
-  }
-}
-void ByteBuffer::put_string(const std::string &value) {
-  assert(this->get_remaining() >= value.size());
-  for (char c : value) {
-    this->data_[this->position_++] = c;
   }
 }
 }  // namespace esphome
