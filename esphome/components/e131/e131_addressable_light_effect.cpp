@@ -1,5 +1,6 @@
 #include "e131_addressable_light_effect.h"
 #include "e131.h"
+#ifdef USE_NETWORK
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -90,3 +91,4 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
 
 }  // namespace e131
 }  // namespace esphome
+#endif
