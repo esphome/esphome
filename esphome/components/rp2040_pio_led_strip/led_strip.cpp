@@ -33,7 +33,7 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
   uint32_t channel = dma_hw->ints0;
   for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
     if (RP2040PIOLEDStripLightOutput::dma_chan_active_[dma_chan] && (channel & (1u << dma_chan))) {
-      dma_hw->ints0 = (1u << dma_chan);                 // Clear the interrupt
+      dma_hw->ints0 = (1u << dma_chan);                                               // Clear the interrupt
       sem_release(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem_[dma_chan]);  // Handle the interrupt
     }
   }
