@@ -17,16 +17,16 @@ namespace rp2040_pio_led_strip {
 
 static const char *TAG = "rp2040_pio_led_strip";
 
-static uint8_t RP2040PIOLEDStripLightOutput::num_instance_[2] = {0, 0};
-static std::map<Chipset, uint> RP2040PIOLEDStripLightOutput::chipset_offsets_ = {
+static uint8_t num_instance_[2] = {0, 0};
+static std::map<Chipset, uint> chipset_offsets_ = {
     {CHIPSET_WS2812, 0}, {CHIPSET_WS2812B, 0}, {CHIPSET_SK6812, 0}, {CHIPSET_SM16703, 0}, {CHIPSET_CUSTOM, 0},
 };
-static std::map<Chipset, bool> RP2040PIOLEDStripLightOutput::conf_count_ = {
+static std::map<Chipset, bool> conf_count_ = {
     {CHIPSET_WS2812, false},  {CHIPSET_WS2812B, false}, {CHIPSET_SK6812, false},
     {CHIPSET_SM16703, false}, {CHIPSET_CUSTOM, false},
 };
-static bool RP2040PIOLEDStripLightOutput::dma_chan_active_[12];
-static struct semaphore RP2040PIOLEDStripLightOutput::dma_write_complete_sem_[12];
+static bool dma_chan_active_[12];
+static struct semaphore dma_write_complete_sem_[12];
 
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
