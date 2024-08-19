@@ -216,7 +216,6 @@ def parse_descriptor_value(value):
     ]:
         try:
             val = val_method(value)
-            # TODO: What about ByteBuffer and strings
             buffer = ByteBuffer_ns.wrap(val)
             return buffer, buffer.get_capacity()
         except cv.Invalid:
