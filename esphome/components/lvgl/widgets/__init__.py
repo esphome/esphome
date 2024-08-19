@@ -217,7 +217,7 @@ def get_widget_generator(wid):
         yield
 
 
-async def get_widget_(wid: Widget):
+async def get_widget_(wid):
     if obj := widget_map.get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))

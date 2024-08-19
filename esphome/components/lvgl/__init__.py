@@ -21,8 +21,8 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .automation import disp_update, update_to_code
-from .defines import CONF_SKIP
+from .automation import disp_update, focused_widgets, update_to_code
+from .defines import CONF_ADJUSTABLE, CONF_SKIP
 from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
@@ -181,6 +181,14 @@ def final_validation(config):
         if image_conf[CONF_TYPE] in ("RGBA", "RGB24"):
             raise cv.Invalid(
                 "Using RGBA or RGB24 in image config not compatible with LVGL", path
+            )
+    for w in focused_widgets:
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if CONF_ADJUSTABLE in widget_conf and not widget_conf[CONF_ADJUSTABLE]:
+            raise cv.Invalid(
+                "A non adjustable arc may not be focused",
+                path,
             )
 
 

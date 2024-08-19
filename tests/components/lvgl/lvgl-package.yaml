@@ -225,6 +225,15 @@ lvgl:
                   text: Button
             on_click:
               - lvgl.widget.focus: spin_up
+              - lvgl.widget.focus: next
+              - lvgl.widget.focus: previous
+              - lvgl.widget.focus:
+                  direction: previous
+                  freeze: true
+              - lvgl.widget.focus:
+                  id: spin_up
+                  freeze: true
+                  editing: true
               - lvgl.label.update:
                   id: hello_label
                   bg_color: 0x123456

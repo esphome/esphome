@@ -288,6 +288,10 @@ class LvExpr(MockLv):
         pass
 
 
+def static_cast(type, value):
+    return literal(f"static_cast<{type}>({value})")
+
+
 # Top level mock for generic lv_ calls to be recorded
 lv = MockLv("lv_")
 # Just generate an expression
