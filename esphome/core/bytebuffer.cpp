@@ -60,7 +60,7 @@ ByteBuffer ByteBuffer::wrap(double value, Endian endianness) {
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(std::initializer_list<uint8_t> values) {
+ByteBuffer ByteBuffer::wrap(std::initializer_list<uint8_t> values, Endian endianness) {
   std::vector<uint8_t> buffer(values);
   return {buffer};
 }
