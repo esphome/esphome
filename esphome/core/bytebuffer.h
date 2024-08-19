@@ -55,7 +55,7 @@ class ByteBuffer {
   static ByteBuffer wrap(float value, Endian endianness = LITTLE);
   static ByteBuffer wrap(double value, Endian endianness = LITTLE);
   static ByteBuffer wrap(bool value) { return wrap(value ? (uint8_t) 1 : (uint8_t) 0); }
-  static ByteBuffer wrap(std::initializer_list<uint8_t> values, Endian endianness = LITTLE);
+  static ByteBuffer wrap(std::initializer_list<uint8_t> values, Endian endianness = LITTLE) { return wrap(std::vector<uint8_t>(values), endianness); }
 
   // Get one byte from the buffer, increment position by 1
   uint8_t get_uint8();

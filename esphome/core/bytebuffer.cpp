@@ -60,11 +60,6 @@ ByteBuffer ByteBuffer::wrap(double value, Endian endianness) {
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(std::initializer_list<uint8_t> values, Endian endianness) {
-  std::vector<uint8_t> buffer(values);
-  return {buffer};
-}
-
 void ByteBuffer::set_limit(size_t limit) {
   assert(limit <= this->get_capacity());
   this->limit_ = limit;
