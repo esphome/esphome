@@ -1,6 +1,9 @@
 #pragma once
 
-#include "esphome/core/entity_base.h"
+#include <stddef.h>
+#include <cstdint>
+#include <functional>
+#include <vector>
 #include "esphome/core/helpers.h"
 
 namespace esphome {
