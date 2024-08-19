@@ -38,5 +38,3 @@ binary_sensor:
     service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
     name: BLE Test Service Min RSSI
     min_rssi_number_id: min_rssi
-
-
