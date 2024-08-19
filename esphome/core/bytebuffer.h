@@ -4,7 +4,6 @@
 #include <vector>
 #include <cinttypes>
 #include <cstddef>
-#include <string>
 
 namespace esphome {
 
@@ -39,11 +38,11 @@ class ByteBuffer {
   /**
    * Wrap an existing vector in a ByteBufffer
    */
-  static ByteBuffer wrap(std::vector<uint8_t> data);
+  static ByteBuffer wrap(std::vector<uint8_t> data, Endian endianness = LITTLE);
   /**
    * Wrap an existing array in a ByteBufffer
    */
-  static ByteBuffer wrap(const uint8_t *ptr, size_t len);
+  static ByteBuffer wrap(const uint8_t *ptr, size_t len, Endian endianness = LITTLE);
   // Convenience functions to create a ByteBuffer from a value
   static ByteBuffer wrap(uint8_t value);
   static ByteBuffer wrap(uint16_t value, Endian endianness = LITTLE);
@@ -56,8 +55,9 @@ class ByteBuffer {
   static ByteBuffer wrap(float value, Endian endianness = LITTLE);
   static ByteBuffer wrap(double value, Endian endianness = LITTLE);
   static ByteBuffer wrap(bool value) { return wrap(value ? (uint8_t) 1 : (uint8_t) 0); }
-  static ByteBuffer wrap(const std::string &data);
-  static ByteBuffer wrap(std::initializer_list<uint8_t> values);
+  static ByteBuffer wrap(std::initializer_list<uint8_t> values, Endian endianness = LITTLE) {
+    return wrap(std::vector<uint8_t>(values), endianness);
+  }
 
   // Get one byte from the buffer, increment position by 1
   uint8_t get_uint8();
@@ -81,8 +81,6 @@ class ByteBuffer {
   double get_double();
   // Get a bool value, increment by 1
   bool get_bool() { return this->get_uint8() != 0; }
-  // Get a string value, increment by the length of the string
-  std::string get_string(size_t length);
 
   // Put values into the buffer, increment the position accordingly
   void put_uint8(uint8_t value);
@@ -99,7 +97,6 @@ class ByteBuffer {
   void put_float(float value);
   void put_double(double value);
   void put_bool(bool value) { this->put_uint8(value ? 1 : 0); }
-  void put_string(const std::string &value);
 
   inline size_t get_capacity() const { return this->data_.size(); }
   inline size_t get_position() const { return this->position_; }
