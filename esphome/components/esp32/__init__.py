@@ -173,22 +173,17 @@ def add_idf_component(
             KEY_SUBMODULES: submodules,
         }
     else:
+        component_config = CORE.data[KEY_ESP32][KEY_COMPONENTS][name]
         if components is not None:
-            CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS] = list(
-                set(
-                    CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_COMPONENTS]
-                    + components
-                )
+            component_config[KEY_COMPONENTS] = list(
+                set(component_config[KEY_COMPONENTS] + components)
             )
         if submodules is not None:
-            if CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES] is None:
-                CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES] = submodules
+            if component_config[KEY_SUBMODULES] is None:
+                component_config[KEY_SUBMODULES] = submodules
             else:
-                CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES] = list(
-                    set(
-                        CORE.data[KEY_ESP32][KEY_COMPONENTS][name][KEY_SUBMODULES]
-                        + submodules
-                    )
+                component_config[KEY_SUBMODULES] = list(
+                    set([KEY_SUBMODULES] + submodules)
                 )
 
 
