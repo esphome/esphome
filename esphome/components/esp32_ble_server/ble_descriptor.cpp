@@ -40,14 +40,13 @@ void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
 
 void BLEDescriptor::set_value(ByteBuffer buffer) {
   size_t length = buffer.get_capacity();
-  uint8_t *data = buffer.array();
 
   if (length > this->value_.attr_max_len) {
     ESP_LOGE(TAG, "Size %d too large, must be no bigger than %d", length, this->value_.attr_max_len);
     return;
   }
   this->value_.attr_len = length;
-  memcpy(this->value_.attr_value, data, length);
+  memcpy(this->value_.attr_value, buffer.array(), length);
 }
 
 void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
