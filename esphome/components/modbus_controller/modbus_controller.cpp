@@ -175,7 +175,7 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  if(!this->allow_duplicate_commands_) {
+  if (!this->allow_duplicate_commands_) {
     // check if this command is already qeued.
     // not very effective but the queue is never really large
     for (auto &item : command_queue_) {
