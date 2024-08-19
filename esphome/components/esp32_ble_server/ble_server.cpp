@@ -47,7 +47,7 @@ void BLEServer::loop() {
         for (unsigned i = 0; i < this->services_to_start_.size(); i++) {
           BLEService *service = this->services_to_start_[i];
           if (service->is_created()) {
-            service->start();   // Needs to be called once per characteristic in the service
+            service->start();  // Needs to be called once per characteristic in the service
           } else {
             index_to_remove = i + 1;
           }
@@ -126,7 +126,7 @@ bool BLEServer::create_device_characteristics_() {
   BLECharacteristic *manufacturer =
       this->device_information_service_->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
   manufacturer->set_value(
-    ByteBuffer::wrap(std::vector<uint8_t>(this->manufacturer_.begin(), this->manufacturer_.end())));
+      ByteBuffer::wrap(std::vector<uint8_t>(this->manufacturer_.begin(), this->manufacturer_.end())));
 
   return true;
 }

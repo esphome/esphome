@@ -104,7 +104,9 @@ def validate_notify_action(action_char_id):
         CORE.data[_KEY_NOTIFY_REQUIRED] = set()
     CORE.data[_KEY_NOTIFY_REQUIRED].add(action_char_id)
     # Check if the NOTIFY property is set for the characteristic
-    char_notify_value = CORE.data.get(_KEY_NOTIFY_PROVIDED, {}).get(action_char_id, None)
+    char_notify_value = CORE.data.get(_KEY_NOTIFY_PROVIDED, {}).get(
+        action_char_id, None
+    )
     if char_notify_value is not None and not char_notify_value:
         raise cv.Invalid(
             "Missing NOTIFY property for characteristic with notify action"
@@ -364,7 +366,9 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
     BLECharacteristicNotifyAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.All(cv.use_id(BLECharacteristic), validate_notify_action),
+            cv.Required(CONF_ID): cv.All(
+                cv.use_id(BLECharacteristic), validate_notify_action
+            ),
         }
     ),
 )
