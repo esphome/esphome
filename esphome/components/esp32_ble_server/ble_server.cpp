@@ -112,7 +112,7 @@ bool BLEServer::create_device_characteristics_() {
   if (this->model_.has_value()) {
     BLECharacteristic *model =
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
-    model->set_value(ByteBuffer::wrap(this->model_.value()));
+    model->set_value(ByteBuffer::wrap(std::vector<uint8_t>(this->model_.value().begin(), this->model_.value().end())));
   } else {
     BLECharacteristic *model =
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
@@ -125,7 +125,7 @@ bool BLEServer::create_device_characteristics_() {
 
   BLECharacteristic *manufacturer =
       this->device_information_service_->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
-  manufacturer->set_value(ByteBuffer::wrap(this->manufacturer_));
+  manufacturer->set_value(ByteBuffer::wrap(std::vector<uint8_t>(this->manufacturer_.begin(), this->manufacturer_.end())));
 
   return true;
 }
