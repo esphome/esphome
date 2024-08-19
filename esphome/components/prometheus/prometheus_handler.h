@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include <map>
 #include <utility>
 
@@ -117,3 +118,4 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
 }  // namespace prometheus
 }  // namespace esphome
+#endif
