@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
+    CONF_NOTIFY,
 )
 
 from .. import ble_client_ns
@@ -15,7 +16,6 @@ DEPENDENCIES = ["ble_client"]
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
-CONF_NOTIFY = "notify"
 CONF_ON_NOTIFY = "on_notify"
 
 adv_data_t = cg.std_vector.template(cg.uint8)

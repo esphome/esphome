@@ -4,6 +4,7 @@
 #include <vector>
 #include <cinttypes>
 #include <cstddef>
+#include <string>
 
 namespace esphome {
 
@@ -29,18 +30,34 @@ enum Endian { LITTLE, BIG };
  */
 class ByteBuffer {
  public:
+  // Default constructor (compatibility with TEMPLATABLE_VALUE)
+  ByteBuffer() : ByteBuffer(std::vector<uint8_t>()) {}
   /**
    * Create a new Bytebuffer with the given capacity
    */
-  static ByteBuffer create(size_t capacity);
+  static ByteBuffer create(size_t capacity, Endian endianness = LITTLE);
   /**
-   * Wrap an existing vector in a Bytebufffer
+   * Wrap an existing vector in a ByteBufffer
    */
   static ByteBuffer wrap(std::vector<uint8_t> data);
   /**
-   * Wrap an existing array in a Bytebufffer
+   * Wrap an existing array in a ByteBufffer
    */
-  static ByteBuffer wrap(uint8_t *ptr, size_t len);
+  static ByteBuffer wrap(const uint8_t *ptr, size_t len);
+  // Convenience functions to create a ByteBuffer from a value
+  static ByteBuffer wrap(uint8_t value);
+  static ByteBuffer wrap(uint16_t value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(uint32_t value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(uint64_t value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(int8_t value) { return wrap((uint8_t) value); }
+  static ByteBuffer wrap(int16_t value, Endian endianness = LITTLE) { return wrap((uint16_t) value, endianness); }
+  static ByteBuffer wrap(int32_t value, Endian endianness = LITTLE) { return wrap((uint32_t) value, endianness); }
+  static ByteBuffer wrap(int64_t value, Endian endianness = LITTLE) { return wrap((uint64_t) value, endianness); }
+  static ByteBuffer wrap(float value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(double value, Endian endianness = LITTLE);
+  static ByteBuffer wrap(bool value) { return wrap(value ? (uint8_t) 1 : (uint8_t) 0); }
+  static ByteBuffer wrap(const std::string &data);
+  static ByteBuffer wrap(std::initializer_list<uint8_t> values);
 
   // Get one byte from the buffer, increment position by 1
   uint8_t get_uint8();
@@ -50,20 +67,39 @@ class ByteBuffer {
   uint32_t get_uint24();
   // Get a 32 bit unsigned value, increment by 4
   uint32_t get_uint32();
-  // signed versions of the get functions
+  // Get a 64 bit unsigned value, increment by 8
+  uint64_t get_uint64();
+  // Signed versions of the get functions
   uint8_t get_int8() { return (int8_t) this->get_uint8(); };
   int16_t get_int16() { return (int16_t) this->get_uint16(); }
   uint32_t get_int24();
   int32_t get_int32() { return (int32_t) this->get_uint32(); }
+  int64_t get_int64() { return (int64_t) this->get_uint64(); }
   // Get a float value, increment by 4
   float get_float();
+  // Get a double value, increment by 8
+  double get_double();
+  // Get a bool value, increment by 1
+  bool get_bool() { return this->get_uint8() != 0; }
+  // Get a string value, increment by the length of the string
+  std::string get_string(size_t length);
 
-  // put values into the buffer, increment the position accordingly
+  // Put values into the buffer, increment the position accordingly
   void put_uint8(uint8_t value);
   void put_uint16(uint16_t value);
   void put_uint24(uint32_t value);
   void put_uint32(uint32_t value);
+  void put_uint64(uint64_t value);
+  // Signed versions of the put functions
+  void put_int8(int8_t value) { this->put_uint8(value); }
+  void put_int24(int32_t value) { this->put_uint24(value); }
+  void put_int32(int32_t value) { this->put_uint32(value); }
+  void put_int64(int64_t value) { this->put_uint64(value); }
+  // Extra put functions
   void put_float(float value);
+  void put_double(double value);
+  void put_bool(bool value) { this->put_uint8(value ? 1 : 0); }
+  void put_string(const std::string &value);
 
   inline size_t get_capacity() const { return this->data_.size(); }
   inline size_t get_position() const { return this->position_; }
