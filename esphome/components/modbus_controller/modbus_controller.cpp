@@ -181,7 +181,7 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
     for (auto &item : command_queue_) {
       if (item->is_equal(command)) {
         ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
-                static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
+                 static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
         // update the payload of the queued command
         // replaces a previous command
         item->payload = command.payload;
