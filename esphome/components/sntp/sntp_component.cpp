@@ -38,6 +38,8 @@ void SNTPComponent::setup() {
     }
   }
 #ifdef USE_ESP_IDF
+  // Stop the puller to prevent periodically update calls. IDF Handles periodic updates by itself.
+  // The user still able to call `update` to trigger manual update.
   this->stop_poller();
   esp_sntp_set_sync_interval(this->get_update_interval());
 #endif
@@ -105,6 +107,11 @@ void SNTPComponent::loop() {
   this->time_sync_callback_.call();
 }
 #if defined(USE_ESP_IDF)
+/**
+Sets the update interval calling `sntp_set_sync_interval()`.
+
+Calls `sntp_restart()` if update interval is less then it was before as ESP IDF according documentation. Without this cal interval will be updated only after previously scheduled update.
+*/
 void SNTPComponent::set_update_interval(uint32_t update_interval) {
   const auto previous_sync_interval = sntp_get_sync_interval();
 
@@ -116,6 +123,9 @@ void SNTPComponent::set_update_interval(uint32_t update_interval) {
     sntp_restart();
   }
 }
+/**
+Redirects the call to `sntp_get_sync_interval()` so it's only one source of truth.
+*/
 uint32_t SNTPComponent::get_update_interval() const { return sntp_get_sync_interval(); }
 #endif  // defined(USE_ESP_IDF)
 void SNTPComponent::setup_servers_() {
