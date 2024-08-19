@@ -37,6 +37,7 @@ from .types import (
     ObjUpdateAction,
     lv_disp_t,
     lv_obj_t,
+    lv_pseudo_button_t,
 )
 from .widgets import Widget, get_widgets, lv_scr_act, set_obj_properties
 
@@ -223,4 +224,23 @@ async def obj_show_to_code(config, action_id, template_arg, args):
 
     return await action_to_code(
         await get_widgets(config), do_show, action_id, template_arg, args
+    )
+
+
+@automation.register_action(
+    "lvgl.widget.focus",
+    ObjUpdateAction,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(lv_pseudo_button_t),
+        },
+        key=CONF_ID,
+    ),
+)
+async def widget_focus(config, action_id, template_arg, args):
+    async def do_focus(widget: Widget):
+        lv.group_focus_obj(widget.obj)
+
+    return await action_to_code(
+        await get_widgets(config), do_focus, action_id, template_arg, args
     )

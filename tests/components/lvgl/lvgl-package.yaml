@@ -224,6 +224,7 @@ lvgl:
               - label:
                   text: Button
             on_click:
+              - lvgl.widget.focus: spin_up
               - lvgl.label.update:
                   id: hello_label
                   bg_color: 0x123456
