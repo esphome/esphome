@@ -31,6 +31,9 @@ CONF_WRITE_NO_RESPONSE = "write_no_response"
 CONF_DESCRIPTORS = "descriptors"
 CONF_VALUE_ACTION_ID_ = "value_action_id_"
 
+# Core key to store the global configuration
+KEY_ESP32_BLE_SERVER = "esp32_ble_server"
+
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 ESPBTUUID_ns = cg.esphome_ns.namespace("esp32_ble").namespace("ESPBTUUID")
 BLECharacteristic_ns = esp32_ble_server_ns.namespace("BLECharacteristic")
@@ -55,14 +58,21 @@ BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
 )
 ByteBuffer_ns = cg.esphome_ns.namespace("ByteBuffer")
 ByteBuffer = cg.esphome_ns.class_("ByteBuffer")
-_ble_server_config = None
 
+
+PROPERTY_MAP = {
+    CONF_READ: BLECharacteristic_ns.PROPERTY_READ,
+    CONF_WRITE: BLECharacteristic_ns.PROPERTY_WRITE,
+    CONF_NOTIFY: BLECharacteristic_ns.PROPERTY_NOTIFY,
+    CONF_BROADCAST: BLECharacteristic_ns.PROPERTY_BROADCAST,
+    CONF_INDICATE: BLECharacteristic_ns.PROPERTY_INDICATE,
+    CONF_WRITE_NO_RESPONSE: BLECharacteristic_ns.PROPERTY_WRITE_NR,
+}
 
 def validate_uuid(value):
     if len(value) != 36:
         raise cv.Invalid("UUID must be exactly 36 characters long")
     return value
-
 
 UUID_SCHEMA = cv.Any(cv.All(cv.string, validate_uuid), cv.hex_uint32_t)
 
@@ -100,11 +110,6 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLECharacteristic),
         cv.Required(CONF_UUID): UUID_SCHEMA,
-        cv.Optional(CONF_READ, default=False): cv.boolean,
-        cv.Optional(CONF_WRITE, default=False): cv.boolean,
-        cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
-        cv.Optional(CONF_BROADCAST, default=False): cv.boolean,
-        cv.Optional(CONF_INDICATE, default=False): cv.boolean,
         cv.Optional(CONF_WRITE_NO_RESPONSE, default=False): cv.boolean,
         cv.Optional(CONF_VALUE): CHARACTERISTIC_VALUE_SCHEMA,
         cv.GenerateID(CONF_VALUE_ACTION_ID_): cv.declare_id(
@@ -115,7 +120,9 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
             {cv.GenerateID(): cv.declare_id(BLECharacteristic)}, single=True
         ),
     }
-)
+).extend({
+    cv.Optional(k, default=False): cv.boolean for k in PROPERTY_MAP.keys()
+})
 
 SERVICE_SCHEMA = cv.Schema(
     {
@@ -142,20 +149,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def parse_properties(char_conf):
-    result = 0
-    if char_conf[CONF_READ]:
-        result = result | BLECharacteristic_ns.PROPERTY_READ
-    if char_conf[CONF_WRITE]:
-        result = result | BLECharacteristic_ns.PROPERTY_WRITE
-    if char_conf[CONF_NOTIFY]:
-        result = result | BLECharacteristic_ns.PROPERTY_NOTIFY
-    if char_conf[CONF_BROADCAST]:
-        result = result | BLECharacteristic_ns.PROPERTY_BROADCAST
-    if char_conf[CONF_INDICATE]:
-        result = result | BLECharacteristic_ns.PROPERTY_INDICATE
-    if char_conf[CONF_WRITE_NO_RESPONSE]:
-        result = result | BLECharacteristic_ns.PROPERTY_WRITE_NR
-    return result
+    return sum((PROPERTY_MAP[k] for k in char_conf if k in PROPERTY_MAP and char_conf[k]), start=0)
 
 
 def parse_uuid(uuid):
@@ -205,8 +199,8 @@ def calculate_num_handles(service_config):
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    global _ble_server_config
-    _ble_server_config = config
+    # Store the configuration
+    CORE.data[KEY_ESP32_BLE_SERVER] = config
 
     await cg.register_component(var, config)
 
@@ -342,8 +336,8 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
 async def ble_server_characteristic_notify(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     # Check if the NOTIFY property is set from the global configuration
-    assert _ble_server_config is not None
-    for service_config in _ble_server_config[CONF_SERVICES]:
+    ble_server_config = CORE.data[KEY_ESP32_BLE_SERVER]
+    for service_config in ble_server_config[CONF_SERVICES]:
         for char_conf in service_config[CONF_CHARACTERISTICS]:
             if char_conf[CONF_ID] == config[CONF_ID]:
                 if not char_conf[CONF_NOTIFY]:
