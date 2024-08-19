@@ -1,5 +1,6 @@
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.time import RealTimeClock
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
@@ -8,6 +9,7 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
+    CONF_TIME,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
@@ -15,6 +17,7 @@ from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
+from .defines import CONF_TIME_FORMAT
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_image
 from .lvcode import LvglComponent
@@ -46,7 +49,13 @@ TEXT_SCHEMA = cv.Schema(
                 ),
                 validate_printf,
             ),
-            lvalid.lv_text,
+            cv.Schema(
+                {
+                    cv.Required(CONF_TIME_FORMAT): cv.string,
+                    cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
+                }
+            ),
+            cv.templatable(cv.string),
         )
     }
 )
@@ -116,15 +125,13 @@ STYLE_PROPS = {
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
-    "outline_pad": lvalid.size,
-    "outline_width": lvalid.size,
-    "pad_all": lvalid.size,
-    "pad_bottom": lvalid.size,
-    "pad_column": lvalid.size,
-    "pad_left": lvalid.size,
-    "pad_right": lvalid.size,
-    "pad_row": lvalid.size,
-    "pad_top": lvalid.size,
+    "outline_pad": lvalid.pixels,
+    "outline_width": lvalid.pixels,
+    "pad_all": lvalid.pixels,
+    "pad_bottom": lvalid.pixels,
+    "pad_left": lvalid.pixels,
+    "pad_right": lvalid.pixels,
+    "pad_top": lvalid.pixels,
     "shadow_color": lvalid.lv_color,
     "shadow_ofs_x": cv.int_,
     "shadow_ofs_y": cv.int_,
@@ -304,6 +311,8 @@ LAYOUT_SCHEMA = {
                 cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
                 cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
                 cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
             },
             df.TYPE_FLEX: {
                 cv.Optional(
@@ -312,6 +321,8 @@ LAYOUT_SCHEMA = {
                 cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
             },
         },
         lower=True,
@@ -337,7 +348,6 @@ DISP_BG_SCHEMA = cv.Schema(
         cv.Optional(df.CONF_DISP_BG_COLOR): lv_color,
     }
 )
-
 
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
