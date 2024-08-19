@@ -28,8 +28,8 @@ enum MediaPlayerCommand : uint8_t {
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
 enum class MediaPlayerFormatPurpose : uint8_t {
-  DEFAULT = 0,
-  ANNOUNCEMENT,
+  PURPOSE_DEFAULT = 0,
+  PURPOSE_ANNOUNCEMENT = 1,
 };
 
 struct MediaPlayerSupportedFormat {
