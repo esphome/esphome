@@ -457,10 +457,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
   void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
-  /// called by esphome generated code to set the max_cmd_repeat
-  void set_max_cmd_repeat(uint8_t max_cmd_repeat) { this->max_cmd_repeat_ = max_cmd_repeat; }
-  /// get how many times a command will be sent if no response is received
-  uint8_t get_max_cmd_repeat() { return this->max_cmd_repeat_; }
+  /// called by esphome generated code to set the max_cmd_retry
+  void set_max_cmd_retry(uint8_t max_cmd_retry) { this->max_cmd_retry_ = max_cmd_retry; }
+  /// get how many times a command will be (re)sent if no response is received
+  uint8_t get_max_cmd_retry() { return this->max_cmd_retry_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -494,7 +494,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_;
   /// how many times we'll retry a command that got no response
-  uint8_t max_cmd_repeat_;
+  uint8_t max_cmd_retry_;
   CallbackManager<void(int, int)> command_sent_callback_{};
 };
 
