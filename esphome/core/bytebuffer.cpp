@@ -27,36 +27,42 @@ ByteBuffer ByteBuffer::wrap(std::vector<uint8_t> data, Endian endianness) {
 ByteBuffer ByteBuffer::wrap(uint8_t value) {
   ByteBuffer buffer = ByteBuffer::create(1);
   buffer.put_uint8(value);
+  buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint16_t value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(2, endianness);
   buffer.put_uint16(value);
+  buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint32_t value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(4, endianness);
   buffer.put_uint32(value);
+  buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint64_t value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(8, endianness);
   buffer.put_uint64(value);
+  buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(float value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(sizeof(float), endianness);
   buffer.put_float(value);
+  buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(double value, Endian endianness) {
   ByteBuffer buffer = ByteBuffer::create(sizeof(double), endianness);
   buffer.put_double(value);
+  buffer.flip();
   return buffer;
 }
 
