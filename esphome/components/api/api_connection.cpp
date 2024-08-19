@@ -1469,7 +1469,7 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
 NoiseEncryptionSetKeyResponse APIConnection::noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) {
   psk_t psk{};
   NoiseEncryptionSetKeyResponse resp;
-  if (base64_decode(msg.key.data(), psk.data(), msg.key.size()) != psk.size()) {
+  if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
     resp.success = false;
     return resp;
