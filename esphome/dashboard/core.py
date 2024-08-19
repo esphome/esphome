@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
 import contextlib
-import logging
-import threading
 from dataclasses import dataclass
 from functools import partial
+import logging
+import threading
 from typing import TYPE_CHECKING, Any, Callable
-from collections.abc import Coroutine
 
 from ..zeroconf import DiscoveredImport
 from .dns import DNSCache

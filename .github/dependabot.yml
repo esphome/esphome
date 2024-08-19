@@ -13,6 +13,13 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    groups:
+      docker-actions:
+        applies-to: version-updates
+        patterns:
+          - "docker/setup-qemu-action"
+          - "docker/login-action"
+          - "docker/setup-buildx-action"
   - package-ecosystem: github-actions
     directory: "/.github/actions/build-image"
     schedule:

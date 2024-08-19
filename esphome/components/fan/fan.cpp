@@ -45,8 +45,8 @@ void FanCall::validate_() {
     this->speed_ = clamp(*this->speed_, 1, traits.supported_speed_count());
 
   if (this->binary_state_.has_value() && *this->binary_state_) {
-    // when turning on, if current speed is zero, set speed to 100%
-    if (traits.supports_speed() && !this->parent_.state && this->parent_.speed == 0) {
+    // when turning on, if neither current nor new speed available, set speed to 100%
+    if (traits.supports_speed() && !this->parent_.state && this->parent_.speed == 0 && !this->speed_.has_value()) {
       this->speed_ = traits.supported_speed_count();
     }
   }
