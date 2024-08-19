@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/components/md5/md5.h"
-
+#ifndef USE_ZEPHYR
 #include <string>
 
 namespace esphome {
@@ -46,3 +46,4 @@ class HmacMD5 {
 
 }  // namespace hmac_md5
 }  // namespace esphome
+#endif
