@@ -32,8 +32,8 @@ CONF_DESCRIPTORS = "descriptors"
 CONF_VALUE_ACTION_ID_ = "value_action_id_"
 
 # Core key to store the global configuration
-KEY_ESP32_BLE_SERVER_NOTIFY_REQUIRED = "esp32_ble_server_notify_required"
-KEY_ESP32_BLE_SERVER_NOTIFY_PROVIDED = "esp32_ble_server_notify_provided"
+_KEY_NOTIFY_REQUIRED = "esp32_ble_server_notify_required"
+_KEY_NOTIFY_PROVIDED = "esp32_ble_server_notify_provided"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 ESPBTUUID_ns = cg.esphome_ns.namespace("esp32_ble").namespace("ESPBTUUID")
@@ -87,24 +87,28 @@ def validate_on_write(char_config):
 
 
 def validate_notify_characteristic(char_config):
-    if KEY_ESP32_BLE_SERVER_NOTIFY_PROVIDED not in CORE.data:
-        CORE.data[KEY_ESP32_BLE_SERVER_NOTIFY_PROVIDED] = dict()
-    CORE.data[KEY_ESP32_BLE_SERVER_NOTIFY_PROVIDED][char_config[CONF_ID]] = char_config[CONF_NOTIFY]
+    if _KEY_NOTIFY_PROVIDED not in CORE.data:
+        CORE.data[_KEY_NOTIFY_PROVIDED] = {}
+    CORE.data[_KEY_NOTIFY_PROVIDED][char_config[CONF_ID]] = char_config[CONF_NOTIFY]
     # Check if the NOTIFY property is set if the characteristic has a notify action
-    char_ids = CORE.data.get(KEY_ESP32_BLE_SERVER_NOTIFY_REQUIRED, set())
+    char_ids = CORE.data.get(_KEY_NOTIFY_REQUIRED, set())
     if not char_config[CONF_NOTIFY] and char_config[CONF_ID] in char_ids:
-        raise cv.Invalid("Characteristic has a notify action, but the NOTIFY property is not set")
+        raise cv.Invalid(
+            "Characteristic has a notify action, but the NOTIFY property is not set"
+        )
     return char_config
 
 
 def validate_notify_action(action_char_id):
-    if KEY_ESP32_BLE_SERVER_NOTIFY_REQUIRED not in CORE.data:
-        CORE.data[KEY_ESP32_BLE_SERVER_NOTIFY_REQUIRED] = set()
-    CORE.data[KEY_ESP32_BLE_SERVER_NOTIFY_REQUIRED].add(action_char_id)
+    if _KEY_NOTIFY_REQUIRED not in CORE.data:
+        CORE.data[_KEY_NOTIFY_REQUIRED] = set()
+    CORE.data[_KEY_NOTIFY_REQUIRED].add(action_char_id)
     # Check if the NOTIFY property is set for the characteristic
-    char_notify_value = CORE.data.get(KEY_ESP32_BLE_SERVER_NOTIFY_PROVIDED, dict()).get(action_char_id, None)
+    char_notify_value = CORE.data.get(_KEY_NOTIFY_PROVIDED, {}).get(action_char_id, None)
     if char_notify_value is not None and not char_notify_value:
-        raise cv.Invalid("Missing NOTIFY property for characteristic with notify action")
+        raise cv.Invalid(
+            "Missing NOTIFY property for characteristic with notify action"
+        )
     return action_char_id
 
 
@@ -155,7 +159,7 @@ SERVICE_CHARACTERISTIC_SCHEMA = cv.Schema(
         ),
     },
     extra_schemas=[validate_on_write, validate_notify_characteristic],
-).extend({cv.Optional(k, default=False): cv.boolean for k in PROPERTY_MAP.keys()})
+).extend({cv.Optional(k, default=False): cv.boolean for k in PROPERTY_MAP})
 
 SERVICE_SCHEMA = cv.Schema(
     {
