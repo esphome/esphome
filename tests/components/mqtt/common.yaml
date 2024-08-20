@@ -12,7 +12,7 @@ mqtt:
   password: debug
   client_id: someclient
   use_abbreviations: false
-  discovery: true
+  discovery: !lambda 'return true;'
   discovery_retain: false
   discovery_prefix: discovery
   discovery_unique_id_generator: legacy

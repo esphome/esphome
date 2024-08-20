@@ -64,6 +64,7 @@ def AUTO_LOAD():
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
+CONF_DISCOVERY_ACTION_ID_ = "discovery_action_id_"
 
 
 def validate_message_just_topic(value):
@@ -97,6 +98,7 @@ MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
+MQTTSetDiscoveryAction = mqtt_ns.class_("MQTTSetDiscoveryAction", automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
@@ -225,14 +227,17 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
-            cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
-                cv.boolean, cv.one_of("CLEAN", upper=True)
+            cv.GenerateID(CONF_DISCOVERY_ACTION_ID_): cv.declare_id(
+                MQTTSetDiscoveryAction
             ),
-            cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
-            cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
+            cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
+                cv.templatable(cv.boolean), cv.one_of("CLEAN", upper=True)
+            ),
+            cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.templatable(cv.boolean),
+            cv.Optional(CONF_DISCOVER_IP, default=True): cv.templatable(cv.boolean),
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
-            ): cv.publish_topic,
+            ): cv.templatable(cv.publish_topic),
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
             ),
@@ -328,39 +333,33 @@ async def to_code(config):
     if CONF_CLIENT_ID in config:
         cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
 
-    discovery = config[CONF_DISCOVERY]
-    discovery_retain = config[CONF_DISCOVERY_RETAIN]
-    discovery_prefix = config[CONF_DISCOVERY_PREFIX]
-    discovery_unique_id_generator = config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
-    discovery_object_id_generator = config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
-    discover_ip = config[CONF_DISCOVER_IP]
-
-    if not discovery:
-        discovery_prefix = ""
-
-    if not discovery and not discover_ip:
-        cg.add(var.disable_discovery())
-    elif discovery == "CLEAN":
-        cg.add(
-            var.set_discovery_info(
-                discovery_prefix,
-                discovery_unique_id_generator,
-                discovery_object_id_generator,
-                discovery_retain,
-                discover_ip,
-                True,
-            )
-        )
-    elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
-        cg.add(
-            var.set_discovery_info(
-                discovery_prefix,
-                discovery_unique_id_generator,
-                discovery_object_id_generator,
-                discovery_retain,
-                discover_ip,
-            )
-        )
+    discovery_action = cg.new_Pvariable(
+        config[CONF_DISCOVERY_ACTION_ID_], cg.TemplateArguments(None), var
+    )
+    if config[CONF_DISCOVERY] == "CLEAN":
+        cg.add(discovery_action.set_enable(True))
+        cg.add(discovery_action.set_clean(True))
+    else:
+        cg.add(discovery_action.set_enable(
+            await cg.templatable(config[CONF_DISCOVERY], [], bool)
+        ))
+        cg.add(discovery_action.set_clean(False))
+    cg.add(discovery_action.set_prefix(
+        await cg.templatable(config[CONF_DISCOVERY_PREFIX], [], cg.std_string)
+    ))
+    cg.add(discovery_action.set_retain(
+        await cg.templatable(config[CONF_DISCOVERY_RETAIN], [], bool)
+    ))
+    cg.add(discovery_action.set_unique_id_generator(
+        config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
+    ))
+    cg.add(discovery_action.set_discover_ip(
+        await cg.templatable(config[CONF_DISCOVER_IP], [], bool)
+    ))
+    cg.add(discovery_action.set_object_id_generator(
+        config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
+    ))
+    cg.add(discovery_action.play())
 
     cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 

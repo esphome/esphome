@@ -403,6 +403,47 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
+template<typename... Ts> class MQTTSetDiscoveryAction : public Action<Ts...> {
+ public:
+  MQTTSetDiscoveryAction(MQTTClientComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(bool, enable)
+  TEMPLATABLE_VALUE(std::string, prefix)
+  TEMPLATABLE_VALUE(bool, retain)
+  TEMPLATABLE_VALUE(bool, discover_ip)
+
+  void set_unique_id_generator(MQTTDiscoveryUniqueIdGenerator unique_id_generator) {
+    this->unique_id_generator_ = unique_id_generator;
+  }
+
+  void set_object_id_generator(MQTTDiscoveryObjectIdGenerator object_id_generator) {
+    this->object_id_generator_ = object_id_generator;
+  }
+
+  void set_clean(bool clean) { this->clean_ = clean; }
+
+  void play(Ts... x) override {
+    bool enable = this->enable_.value(x...);
+    if (!enable and !this->discover_ip_.value(x...)) {
+      this->parent_->disable_discovery();
+      return;
+    }
+    // If discovery is not enabled, the discovery_prefix must be empty
+    std::string prefix = "";
+    if (enable) {
+      prefix = this->prefix_.value(x...);
+    }
+    this->parent_->set_discovery_info(std::move(prefix), this->unique_id_generator_,
+                                      this->object_id_generator_, this->retain_.value(x...),
+                                      this->discover_ip_.value(x...), this->clean_);
+  }
+
+ protected:
+  MQTTClientComponent *parent_;
+  MQTTDiscoveryUniqueIdGenerator unique_id_generator_{MQTT_LEGACY_UNIQUE_ID_GENERATOR};
+  MQTTDiscoveryObjectIdGenerator object_id_generator_{MQTT_NONE_OBJECT_ID_GENERATOR};
+  bool clean_{false};
+};
+
 template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> {
  public:
   MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
