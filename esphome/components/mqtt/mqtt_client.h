@@ -433,10 +433,8 @@ template<typename... Ts> class MQTTSetDiscoveryAction : public Action<Ts...> {
     if (enable) {
       prefix = this->prefix_.value(x...);
     }
-    this->parent_->set_discovery_info(std::move(prefix), this->unique_id_generator_,
-                                      this->object_id_generator_,
-                                      this->retain_.value(x...), discover_ip,
-                                      this->clean_);
+    this->parent_->set_discovery_info(std::move(prefix), this->unique_id_generator_, this->object_id_generator_,
+                                      this->retain_.value(x...), discover_ip, this->clean_);
   }
 
  protected:

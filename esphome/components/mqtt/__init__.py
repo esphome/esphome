@@ -240,11 +240,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.templatable(cv.boolean), cv.one_of("CLEAN", upper=True)
             ),
-            cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.templatable(cv.boolean),
+            cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.templatable(
+                cv.boolean
+            ),
             cv.Optional(CONF_DISCOVER_IP, default=True): cv.templatable(cv.boolean),
-            cv.Optional(
-                CONF_DISCOVERY_PREFIX, default="homeassistant"
-            ): cv.templatable(cv.publish_topic),
+            cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.templatable(
+                cv.publish_topic
+            ),
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
             ),
@@ -336,22 +338,32 @@ async def to_code(config):
     connection_info_action = cg.new_Pvariable(
         config[CONF_CONNECTION_INFO_ACTION_ID_], cg.TemplateArguments(None), var
     )
-    cg.add(connection_info_action.set_broker_address(
-        await cg.templatable(config[CONF_BROKER], [], cg.std_string)
-    ))
-    cg.add(connection_info_action.set_broker_port(
-        await cg.templatable(config[CONF_PORT], [], cg.uint16)
-    ))
-    cg.add(connection_info_action.set_username(
-        await cg.templatable(config[CONF_USERNAME], [], cg.std_string)
-    ))
-    cg.add(connection_info_action.set_password(
-        await cg.templatable(config[CONF_PASSWORD], [], cg.std_string)
-    ))
+    cg.add(
+        connection_info_action.set_broker_address(
+            await cg.templatable(config[CONF_BROKER], [], cg.std_string)
+        )
+    )
+    cg.add(
+        connection_info_action.set_broker_port(
+            await cg.templatable(config[CONF_PORT], [], cg.uint16)
+        )
+    )
+    cg.add(
+        connection_info_action.set_username(
+            await cg.templatable(config[CONF_USERNAME], [], cg.std_string)
+        )
+    )
+    cg.add(
+        connection_info_action.set_password(
+            await cg.templatable(config[CONF_PASSWORD], [], cg.std_string)
+        )
+    )
     if CONF_CLIENT_ID in config:
-        cg.add(connection_info_action.set_client_id(
-            await cg.templatable(config[CONF_CLIENT_ID], [], cg.std_string)
-        ))
+        cg.add(
+            connection_info_action.set_client_id(
+                await cg.templatable(config[CONF_CLIENT_ID], [], cg.std_string)
+            )
+        )
     cg.add(connection_info_action.play())
 
     discovery_action = cg.new_Pvariable(
@@ -361,25 +373,37 @@ async def to_code(config):
         cg.add(discovery_action.set_enable(True))
         cg.add(discovery_action.set_clean(True))
     else:
-        cg.add(discovery_action.set_enable(
-            await cg.templatable(config[CONF_DISCOVERY], [], bool)
-        ))
+        cg.add(
+            discovery_action.set_enable(
+                await cg.templatable(config[CONF_DISCOVERY], [], bool)
+            )
+        )
         cg.add(discovery_action.set_clean(False))
-    cg.add(discovery_action.set_prefix(
-        await cg.templatable(config[CONF_DISCOVERY_PREFIX], [], cg.std_string)
-    ))
-    cg.add(discovery_action.set_retain(
-        await cg.templatable(config[CONF_DISCOVERY_RETAIN], [], bool)
-    ))
-    cg.add(discovery_action.set_unique_id_generator(
-        config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
-    ))
-    cg.add(discovery_action.set_discover_ip(
-        await cg.templatable(config[CONF_DISCOVER_IP], [], bool)
-    ))
-    cg.add(discovery_action.set_object_id_generator(
-        config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
-    ))
+    cg.add(
+        discovery_action.set_prefix(
+            await cg.templatable(config[CONF_DISCOVERY_PREFIX], [], cg.std_string)
+        )
+    )
+    cg.add(
+        discovery_action.set_retain(
+            await cg.templatable(config[CONF_DISCOVERY_RETAIN], [], bool)
+        )
+    )
+    cg.add(
+        discovery_action.set_unique_id_generator(
+            config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
+        )
+    )
+    cg.add(
+        discovery_action.set_discover_ip(
+            await cg.templatable(config[CONF_DISCOVER_IP], [], bool)
+        )
+    )
+    cg.add(
+        discovery_action.set_object_id_generator(
+            config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
+        )
+    )
     cg.add(discovery_action.play())
 
     cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
