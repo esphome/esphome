@@ -184,8 +184,7 @@ void CSE7766Component::parse_data_() {
       if (reactive_power < 0.0f) {
         ESP_LOGD(TAG, "Impossible reactive power: %.4f is negative", reactive_power);
         this->reactive_power_sensor_->publish_state(0.0f);
-      }
-      else {
+      } else {
         this->reactive_power_sensor_->publish_state(reactive_power);
       }
     }
