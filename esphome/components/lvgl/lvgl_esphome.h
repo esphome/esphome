@@ -147,7 +147,6 @@ class LvglComponent : public PollingComponent {
   void restore_focus_mark(lv_group_t *group) {
     auto *mark = this->focus_marks_[group];
     if (mark != nullptr) {
-      lv_group_focus_freeze(group, false);
       lv_group_focus_obj(mark);
     }
   }

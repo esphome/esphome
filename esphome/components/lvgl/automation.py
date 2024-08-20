@@ -4,7 +4,7 @@ from typing import Callable
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_DIRECTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
+from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
 from esphome.cpp_generator import get_variable
 from esphome.cpp_types import nullptr
 
@@ -249,19 +249,13 @@ def focused_id(value):
         cv.maybe_simple_value(
             {
                 cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-                cv.Required(CONF_ACTION): cv.one_of("MARK", "RESTORE", upper=True),
+                cv.Required(CONF_ACTION): cv.one_of(
+                    "MARK", "RESTORE", "NEXT", "PREVIOUS", upper=True
+                ),
                 cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
                 cv.Optional(CONF_FREEZE, default=False): cv.boolean,
             },
             key=CONF_ACTION,
-        ),
-        cv.maybe_simple_value(
-            {
-                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-                cv.Required(CONF_DIRECTION): cv.one_of("NEXT", "PREVIOUS", upper=True),
-                cv.Optional(CONF_FREEZE, default=False): cv.boolean,
-            },
-            key=CONF_DIRECTION,
         ),
         cv.maybe_simple_value(
             {
@@ -286,23 +280,25 @@ async def widget_focus(config, action_id, template_arg, args):
         group = lv_expr.group_get_default()
 
     async with LambdaContext(parameters=args, where=action_id) as context:
-        # Unfreeze to allow the following action
-        if CONF_ACTION in config:
+        if widget:
+            lv.group_focus_freeze(group, False)
+            lv.group_focus_obj(widget.obj)
+            if config[CONF_EDITING]:
+                lv.group_set_editing(group, True)
+        else:
+            action = config[CONF_ACTION]
             lv_comp = await get_variable(config[CONF_LVGL_ID])
-            if config.get(CONF_ACTION) == "MARK":
+            if action == "MARK":
                 context.add(lv_comp.set_focus_mark(group))
             else:
-                context.add(lv_comp.restore_focus_mark(group))
-        else:
-            lv.group_focus_freeze(group, False)
-            if widget:
-                lv.group_focus_obj(widget.obj)
-                if config[CONF_EDITING]:
-                    lv.group_set_editing(group, True)
-            elif config[CONF_DIRECTION] == "NEXT":
-                lv.group_focus_next(group)
-            else:
-                lv.group_focus_prev(group)
+                lv.group_focus_freeze(group, False)
+                if action == "RESTORE":
+                    context.add(lv_comp.restore_focus_mark(group))
+                elif action == "NEXT":
+                    lv.group_focus_next(group)
+                else:
+                    lv.group_focus_prev(group)
+
         if config[CONF_FREEZE]:
             lv.group_focus_freeze(group, True)
         var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
