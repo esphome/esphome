@@ -148,6 +148,7 @@ LV_EVENT_MAP = {
     "DEFOCUS": "DEFOCUSED",
     "READY": "READY",
     "CANCEL": "CANCEL",
+    "ALL_EVENTS": "ALL",
 }
 
 LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)
@@ -430,9 +431,9 @@ CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
+CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
 CONF_ON_SELECT = "on_select"
-CONF_ONE_CHECKED = "one_checked"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
 CONF_PAD_COLUMN = "pad_column"

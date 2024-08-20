@@ -1,5 +1,6 @@
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.lvgl.lvcode import lv_event_t_ptr
 from esphome.components.time import RealTimeClock
 from esphome.const import (
     CONF_ARGS,
@@ -215,14 +216,12 @@ def automation_schema(typ: LvType):
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
     else:
         events = df.LV_EVENT_TRIGGERS
-    if isinstance(typ, LvType):
-        template = Trigger.template(typ.get_arg_type())
-    else:
-        template = Trigger.template()
+    args = [typ.get_arg_type()] if isinstance(typ, LvType) else []
+    args.append(lv_event_t_ptr)
     return {
         cv.Optional(event): validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
             }
         )
         for event in events
