@@ -53,7 +53,7 @@ void BL0939::loop() {
 }
 
 bool BL0939::validate_checksum_(const DataPacket *data) const {
-  uint8_t checksum =  BL0939_READ_COMMAND | (this->device_address_ & 0xF);
+  uint8_t checksum = BL0939_READ_COMMAND | (this->address_ & 0xF);
   // Whole package but checksum
   for (uint32_t i = 0; i < sizeof(data->raw) - 1; i++) {
     checksum += data->raw[i];
@@ -67,13 +67,13 @@ bool BL0939::validate_checksum_(const DataPacket *data) const {
 
 void BL0939::update() {
   this->flush();
-  this->write_byte(BL0939_READ_COMMAND | (this->device_address_ & 0xF));
+  this->write_byte(BL0939_READ_COMMAND | (this->address_ & 0xF));
   this->write_byte(BL0939_FULL_PACKET);
 }
 
 void BL0939::setup() {
   for (uint8_t *i : BL0939_INIT) {
-    i[0] = i[0] | (this->device_address_ & 0xF);
+    i[0] = i[0] | (this->address_ & 0xF);
     this->write_array(i, 6);
     delay(1);
   }
@@ -138,7 +138,7 @@ void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Energy 1", this->energy_sensor_1_);
   LOG_SENSOR("", "Energy 2", this->energy_sensor_2_);
   LOG_SENSOR("", "Energy sum", this->energy_sensor_sum_);
-  ESP_LOGCONFIG(TAG, "Device Address: %d", this->device_address_);
+  ESP_LOGCONFIG(TAG, "Device Address: %d", this->address_);
 }
 
 uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
