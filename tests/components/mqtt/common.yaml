@@ -7,7 +7,7 @@ time:
 
 mqtt:
   broker: "192.168.178.84"
-  port: 1883
+  port: !lambda 'return 1883;'
   username: debug
   password: debug
   client_id: someclient

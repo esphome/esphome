@@ -65,6 +65,7 @@ CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 CONF_DISCOVERY_ACTION_ID_ = "discovery_action_id_"
+CONF_CONNECTION_INFO_ACTION_ID_ = "connection_info_action_id_"
 
 
 def validate_message_just_topic(value):
@@ -99,6 +100,9 @@ MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTSetDiscoveryAction = mqtt_ns.class_("MQTTSetDiscoveryAction", automation.Action)
+MQTTSetConnectionInfoAction = mqtt_ns.class_(
+    "MQTTSetConnectionInfoAction", automation.Action
+)
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
@@ -207,11 +211,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MQTTClientComponent),
-            cv.Required(CONF_BROKER): cv.string_strict,
-            cv.Optional(CONF_PORT, default=1883): cv.port,
-            cv.Optional(CONF_USERNAME, default=""): cv.string,
-            cv.Optional(CONF_PASSWORD, default=""): cv.string,
-            cv.Optional(CONF_CLIENT_ID): cv.string,
+            cv.Required(CONF_BROKER): cv.templatable(cv.string_strict),
+            cv.Optional(CONF_PORT, default=1883): cv.templatable(cv.port),
+            cv.Optional(CONF_USERNAME, default=""): cv.templatable(cv.string),
+            cv.Optional(CONF_PASSWORD, default=""): cv.templatable(cv.string),
+            cv.Optional(CONF_CLIENT_ID): cv.templatable(cv.string),
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
@@ -229,6 +233,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.GenerateID(CONF_DISCOVERY_ACTION_ID_): cv.declare_id(
                 MQTTSetDiscoveryAction
+            ),
+            cv.GenerateID(CONF_CONNECTION_INFO_ACTION_ID_): cv.declare_id(
+                MQTTSetConnectionInfoAction
             ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.templatable(cv.boolean), cv.one_of("CLEAN", upper=True)
@@ -326,12 +333,26 @@ async def to_code(config):
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 
-    cg.add(var.set_broker_address(config[CONF_BROKER]))
-    cg.add(var.set_broker_port(config[CONF_PORT]))
-    cg.add(var.set_username(config[CONF_USERNAME]))
-    cg.add(var.set_password(config[CONF_PASSWORD]))
+    connection_info_action = cg.new_Pvariable(
+        config[CONF_CONNECTION_INFO_ACTION_ID_], cg.TemplateArguments(None), var
+    )
+    cg.add(connection_info_action.set_broker_address(
+        await cg.templatable(config[CONF_BROKER], [], cg.std_string)
+    ))
+    cg.add(connection_info_action.set_broker_port(
+        await cg.templatable(config[CONF_PORT], [], cg.uint16)
+    ))
+    cg.add(connection_info_action.set_username(
+        await cg.templatable(config[CONF_USERNAME], [], cg.std_string)
+    ))
+    cg.add(connection_info_action.set_password(
+        await cg.templatable(config[CONF_PASSWORD], [], cg.std_string)
+    ))
     if CONF_CLIENT_ID in config:
-        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+        cg.add(connection_info_action.set_client_id(
+            await cg.templatable(config[CONF_CLIENT_ID], [], cg.std_string)
+        ))
+    cg.add(connection_info_action.play())
 
     discovery_action = cg.new_Pvariable(
         config[CONF_DISCOVERY_ACTION_ID_], cg.TemplateArguments(None), var
