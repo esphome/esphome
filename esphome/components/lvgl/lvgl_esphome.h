@@ -143,6 +143,14 @@ class LvglComponent : public PollingComponent {
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
+  void set_focus_mark(lv_group_t *group) { this->focus_marks_[group] = lv_group_get_focused(group); }
+  void restore_focus_mark(lv_group_t *group) {
+    auto *mark = this->focus_marks_[group];
+    if (mark != nullptr) {
+      lv_group_focus_freeze(group, false);
+      lv_group_focus_obj(mark);
+    }
+  }
 
  protected:
   void write_random_();
@@ -158,6 +166,7 @@ class LvglComponent : public PollingComponent {
   bool show_snow_{};
   lv_coord_t snow_line_{};
   bool page_wrap_{true};
+  std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};

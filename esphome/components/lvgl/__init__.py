@@ -67,7 +67,7 @@ from .widgets.lv_bar import bar_spec
 from .widgets.meter import meter_spec
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
 from .widgets.obj import obj_spec
-from .widgets.page import add_pages, page_spec
+from .widgets.page import add_pages, generate_page_triggers, page_spec
 from .widgets.roller import roller_spec
 from .widgets.slider import slider_spec
 from .widgets.spinbox import spinbox_spec
@@ -276,6 +276,7 @@ async def to_code(config):
         await disp_update(f"{lv_component}->get_disp()", config)
         Widget.set_completed()
         await generate_triggers(lv_component)
+        await generate_page_triggers(lv_component, config)
         for conf in config.get(CONF_ON_IDLE, ()):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)

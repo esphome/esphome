@@ -23,7 +23,7 @@ from ..lvcode import (
 )
 from ..schemas import LVGL_SCHEMA
 from ..types import LvglAction, lv_page_t
-from . import Widget, WidgetType, add_widgets, set_obj_properties
+from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_ON_LOAD = "on_load"
 CONF_ON_UNLOAD = "on_unload"
@@ -137,6 +137,11 @@ async def add_pages(lv_component, config):
         await set_obj_properties(page, config)
         await set_obj_properties(page, pconf)
         await add_widgets(page, pconf)
+
+
+async def generate_page_triggers(lv_component, config):
+    for pconf in config.get(CONF_PAGES, ()):
+        page = (await get_widgets(pconf))[0]
         for ev in (CONF_ON_LOAD, CONF_ON_UNLOAD):
             for loaded in pconf.get(ev, ()):
                 trigger = cg.new_Pvariable(loaded[CONF_TRIGGER_ID])
@@ -147,6 +152,6 @@ async def add_pages(lv_component, config):
                     lv_component.add_event_cb(
                         page.obj,
                         await context.get_lambda(),
-                        literal(f"LV_EVENT_SCREEN_{ev[3:].upper()}ED"),
+                        literal(f"LV_EVENT_SCREEN_{ev[3:].upper()}_START"),
                     )
                 )

@@ -53,9 +53,12 @@ lvgl:
   pages:
     - id: page1
       on_load:
-        logger.log: page loaded
+        - logger.log: page loaded
+        - lvgl.widget.focus:
+            action: restore
       on_unload:
-        logger.log: page unloaded
+        - logger.log: page unloaded
+        - lvgl.widget.focus: mark
       on_all_events:
         logger.log:
           format: "Event %s"
