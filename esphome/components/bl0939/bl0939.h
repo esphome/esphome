@@ -88,6 +88,7 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *energy_sensor_sum_{nullptr};
 
   int address_;
+  uint8_t bl0939_init_[6][6];
 
   // Divide by this to turn into Watt
   float power_reference_ = BL0939_PREF;

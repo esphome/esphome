@@ -21,8 +21,7 @@ static const uint8_t BL0939_REG_SOFT_RESET = 0x19;
 static const uint8_t BL0939_REG_USR_WRPROT = 0x1A;
 static const uint8_t BL0939_REG_TPS_CTRL = 0x1B;
 
-// Needs to be Modified with device_address
-static uint8_t BL0939_INIT[6][6] = {
+static const uint8_t BL0939_INIT_DEFAULT[6][6] = {
     // Reset to default
     {BL0939_WRITE_COMMAND, BL0939_REG_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x33},
     // Enable User Operation Write
@@ -72,8 +71,10 @@ void BL0939::update() {
 }
 
 void BL0939::setup() {
-  for (uint8_t *i : BL0939_INIT) {
-    i[0] = i[0] | (this->address_ & 0xF);
+  memcpy(this->bl0939_init_, BL0939_INIT_DEFAULT, sizeof(BL0939_INIT_DEFAULT));
+
+  for (uint8_t *i : this->bl0939_init_) {
+    i[0] = i[0] | (this->address_ & 0xF); // Replace Default Address of the IC
     this->write_array(i, 6);
     delay(1);
   }
