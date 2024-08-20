@@ -766,7 +766,7 @@ void WaveshareEPaper2P7InV2::initialize() {
   // XRAM_START_AND_END_POSITION
   this->command(0x44);
   this->data(0x00);
-  this->data(((get_width_controller() - 1) >> 3) & 0xFF);
+  this->data(((this->get_width_controller() - 1) >> 3) & 0xFF);
   // YRAM_START_AND_END_POSITION
   this->command(0x45);
   this->data(0x00);
