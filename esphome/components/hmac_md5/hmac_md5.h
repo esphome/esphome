@@ -1,8 +1,8 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_MD5
 #include "esphome/components/md5/md5.h"
-#ifndef USE_ZEPHYR
 #include <string>
 
 namespace esphome {

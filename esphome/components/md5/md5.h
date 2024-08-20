@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_MD5
 
 #ifdef USE_ESP_IDF
 #include "esp_rom_md5.h"
@@ -26,8 +27,6 @@
 #include <MD5.h>
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
-
-#ifndef USE_ZEPHYR
 
 namespace esphome {
 namespace md5 {
