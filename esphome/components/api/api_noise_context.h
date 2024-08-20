@@ -20,7 +20,7 @@ class APINoiseContext {
     this->has_psk_ = has_psk;
   }
   const psk_t &get_psk() const { return this->psk_; }
-  const bool has_psk() const { return this->has_psk_; }
+  bool has_psk() const { return this->has_psk_; }
 
  protected:
   psk_t psk_{};
