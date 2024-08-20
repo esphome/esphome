@@ -1,6 +1,5 @@
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
-from esphome.components.lvgl.lvcode import lv_event_t_ptr
 from esphome.components.time import RealTimeClock
 from esphome.const import (
     CONF_ARGS,
@@ -21,7 +20,7 @@ from . import defines as df, lv_validation as lvalid
 from .defines import CONF_TIME_FORMAT
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_image
-from .lvcode import LvglComponent
+from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
     LvType,

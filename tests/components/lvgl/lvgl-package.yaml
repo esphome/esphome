@@ -52,6 +52,14 @@ lvgl:
       long_press_time: 500ms
   pages:
     - id: page1
+      on_load:
+        logger.log: page loaded
+      on_unload:
+        logger.log: page unloaded
+      on_all_events:
+        logger.log:
+          format: "Event %s"
+          args: ['lv_event_code_name_for(event->code)']
       skip: true
       layout:
         type: flex
@@ -68,6 +76,10 @@ lvgl:
             repeat_count: 10
             duration: 1s
             auto_start: true
+            on_all_events:
+              logger.log:
+                format: "Event %s"
+                args: ['lv_event_code_name_for(event->code)']
         - label:
             id: hello_label
             text: Hello world

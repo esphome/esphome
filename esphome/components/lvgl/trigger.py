@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.lvgl.lvcode import lv_event_t_ptr
 from esphome.const import CONF_ID, CONF_ON_VALUE, CONF_TRIGGER_ID
 
 from .defines import (
@@ -20,6 +19,7 @@ from .lvcode import (
     LvConditional,
     lv,
     lv_add,
+    lv_event_t_ptr,
 )
 from .types import LV_EVENT
 from .widgets import widget_map

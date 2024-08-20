@@ -25,18 +25,18 @@ from ..schemas import LVGL_SCHEMA
 from ..types import LvglAction, lv_page_t
 from . import Widget, WidgetType, add_widgets, set_obj_properties
 
-CONF_ON_LOADED = "on_loaded"
-CONF_ON_UNLOADED = "on_unloaded"
+CONF_ON_LOAD = "on_load"
+CONF_ON_UNLOAD = "on_unload"
 
 PAGE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_SKIP, default=False): lv_bool,
-        cv.Optional(CONF_ON_LOADED): automation.validate_automation(
+        cv.Optional(CONF_ON_LOAD): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template()),
             }
         ),
-        cv.Optional(CONF_ON_UNLOADED): automation.validate_automation(
+        cv.Optional(CONF_ON_UNLOAD): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template()),
             }
@@ -137,7 +137,7 @@ async def add_pages(lv_component, config):
         await set_obj_properties(page, config)
         await set_obj_properties(page, pconf)
         await add_widgets(page, pconf)
-        for ev in (CONF_ON_LOADED, CONF_ON_UNLOADED):
+        for ev in (CONF_ON_LOAD, CONF_ON_UNLOAD):
             for loaded in pconf.get(ev, ()):
                 trigger = cg.new_Pvariable(loaded[CONF_TRIGGER_ID])
                 await automation.build_automation(trigger, [], loaded)
@@ -147,6 +147,6 @@ async def add_pages(lv_component, config):
                     lv_component.add_event_cb(
                         page.obj,
                         await context.get_lambda(),
-                        literal(f"LV_EVENT_SCREEN_{ev[3:].upper()}"),
+                        literal(f"LV_EVENT_SCREEN_{ev[3:].upper()}ED"),
                     )
                 )
