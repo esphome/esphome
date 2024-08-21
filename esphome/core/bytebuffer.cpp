@@ -296,4 +296,5 @@ void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   assert(this->get_remaining() >= value.size());
   std::copy(value.begin(), value.end(), this->data_.begin() + this->position_);
   this->position_ += value.size();
+}
 }  // namespace esphome
