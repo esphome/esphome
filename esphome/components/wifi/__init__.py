@@ -494,7 +494,7 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_SSID): cv.templatable(cv.ssid),
             cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
         }
-    )
+    ),
 )
 async def wifi_save_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
