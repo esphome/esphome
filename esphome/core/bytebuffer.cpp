@@ -193,6 +193,12 @@ double ByteBuffer::get_double() {
   std::memcpy(&value, byte_array, sizeof(double));
   return value;
 }
+std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
+  assert(this->get_remaining() >= length);
+  auto start = this->data_.begin() + this->position_;
+  this->position_ += length;
+  return {start, start + length};
+}
 
 /// Putters
 void ByteBuffer::put_uint8(uint8_t value) {
@@ -286,4 +292,8 @@ void ByteBuffer::put_double(double value) {
     }
   }
 }
+void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
+  assert(this->get_remaining() >= value.size());
+  std::copy(value.begin(), value.end(), this->data_.begin() + this->position_);
+  this->position_ += value.size();
 }  // namespace esphome

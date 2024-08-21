@@ -81,6 +81,8 @@ class ByteBuffer {
   double get_double();
   // Get a bool value, increment by 1
   bool get_bool() { return this->get_uint8() != 0; }
+  // Get vector of bytes, increment by length
+  std::vector<uint8_t> get_vector(size_t length);
 
   // Put values into the buffer, increment the position accordingly
   void put_uint8(uint8_t value);
@@ -97,6 +99,7 @@ class ByteBuffer {
   void put_float(float value);
   void put_double(double value);
   void put_bool(bool value) { this->put_uint8(value ? 1 : 0); }
+  void put_vector(const std::vector<uint8_t> &value);
 
   inline size_t get_capacity() const { return this->data_.size(); }
   inline size_t get_position() const { return this->position_; }
