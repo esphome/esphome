@@ -32,7 +32,7 @@ void Rtttl::play(std::string rtttl) {
   if (this->state_ != State::STATE_STOPPED && this->state_ != State::STATE_STOPPING) {
     int pos = this->rtttl_.find(':');
     auto name = this->rtttl_.substr(0, pos);
-    ESP_LOGW(TAG, "RTTL Component is already playing: %s", name.c_str());
+    ESP_LOGW(TAG, "RTTTL Component is already playing: %s", name.c_str());
     return;
   }
 
@@ -122,6 +122,7 @@ void Rtttl::stop() {
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
     this->output_->set_level(0.0);
+    this->set_state_(STATE_STOPPED);
   }
 #endif
 #ifdef USE_SPEAKER
@@ -129,10 +130,10 @@ void Rtttl::stop() {
     if (this->speaker_->is_running()) {
       this->speaker_->stop();
     }
+    this->set_state_(STATE_STOPPING);
   }
 #endif
   this->note_duration_ = 0;
-  this->set_state_(STATE_STOPPING);
 }
 
 void Rtttl::loop() {
@@ -342,6 +343,7 @@ void Rtttl::finish_() {
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
     this->output_->set_level(0.0);
+    this->set_state_(State::STATE_STOPPED);
   }
 #endif
 #ifdef USE_SPEAKER
@@ -354,9 +356,9 @@ void Rtttl::finish_() {
     this->speaker_->play((uint8_t *) (&sample), 8);
 
     this->speaker_->finish();
+    this->set_state_(State::STATE_STOPPING);
   }
 #endif
-  this->set_state_(State::STATE_STOPPING);
   this->note_duration_ = 0;
   this->on_finished_playback_callback_.call();
   ESP_LOGD(TAG, "Playback finished");
