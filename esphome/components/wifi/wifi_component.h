@@ -441,6 +441,18 @@ template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
   void play(Ts... x) override { global_wifi_component->disable(); }
 };
 
+template<typename... Ts> class WiFiSaveAPSettingsAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, ssid)
+  TEMPLATABLE_VALUE(std::string, password)
+
+  void play(Ts... x) override {
+    global_wifi_component->save_wifi_sta(
+      this->ssid_.value(x...), this->password_.value(x...)
+    );
+  }
+};
+
 }  // namespace wifi
 }  // namespace esphome
 #endif

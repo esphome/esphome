@@ -63,6 +63,7 @@ WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
+WiFiSaveAPSettingsAction = wifi_ns.class_("WiFiSaveAPSettingsAction", automation.Action)
 
 
 def validate_password(value):
@@ -483,3 +484,16 @@ async def wifi_enable_to_code(config, action_id, template_arg, args):
 @automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
 async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action("wifi.save_ap_settings", WiFiSaveAPSettingsAction, cv.Schema({
+    cv.Required(CONF_SSID): cv.templatable(cv.ssid),
+    cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
+}))
+async def wifi_save_settings_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    ssid = await cg.templatable(config[CONF_SSID], args, cg.std_string)
+    password = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)
+    cg.add(var.set_ssid(ssid))
+    cg.add(var.set_password(password))
+    return var

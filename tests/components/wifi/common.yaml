@@ -3,6 +3,9 @@ esphome:
     then:
       - wifi.disable
       - wifi.enable
+      - wifi.save_ap_settings:
+          - ssid: MySSID
+          - password: password1
 
 wifi:
   ssid: MySSID
