@@ -447,9 +447,7 @@ template<typename... Ts> class WiFiSaveAPSettingsAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, password)
 
   void play(Ts... x) override {
-    global_wifi_component->save_wifi_sta(
-      this->ssid_.value(x...), this->password_.value(x...)
-    );
+    global_wifi_component->save_wifi_sta(this->ssid_.value(x...), this->password_.value(x...));
   }
 };
 

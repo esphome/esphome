@@ -486,10 +486,16 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action("wifi.save_ap_settings", WiFiSaveAPSettingsAction, cv.Schema({
-    cv.Required(CONF_SSID): cv.templatable(cv.ssid),
-    cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
-}))
+@automation.register_action(
+    "wifi.save_ap_settings",
+    WiFiSaveAPSettingsAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_SSID): cv.templatable(cv.ssid),
+            cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
+        }
+    )
+)
 async def wifi_save_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     ssid = await cg.templatable(config[CONF_SSID], args, cg.std_string)
