@@ -16,8 +16,6 @@ lvgl:
       border_width: 0
       radius: 0
       pad_all: 0
-      pad_row: 0
-      pad_column: 0
       border_color: 0x0077b3
       text_color: 0xFFFFFF
       width: 100%
@@ -55,6 +53,13 @@ lvgl:
   pages:
     - id: page1
       skip: true
+      layout:
+        type: flex
+        pad_row: 4
+        pad_column: 4px
+        flex_align_main: center
+        flex_align_cross: start
+        flex_align_track: end
       widgets:
         - animimg:
             height: 60
@@ -118,10 +123,8 @@ lvgl:
             outline_width: 10px
             pad_all: 10px
             pad_bottom: 10px
-            pad_column: 10px
             pad_left: 10px
             pad_right: 10px
-            pad_row: 10px
             pad_top: 10px
             shadow_color: light_blue
             shadow_ofs_x: 5
@@ -221,10 +224,47 @@ lvgl:
               - label:
                   text: Button
             on_click:
-              lvgl.label.update:
-                id: hello_label
-                bg_color: 0x123456
-                text: clicked
+              - lvgl.label.update:
+                  id: hello_label
+                  bg_color: 0x123456
+                  text: clicked
+              - lvgl.label.update:
+                  id: hello_label
+                  text: !lambda return "hello world";
+              - lvgl.label.update:
+                  id: hello_label
+                  text: !lambda |-
+                        ESP_LOGD("label", "multi-line lambda");
+                        return "hello world";
+              - lvgl.label.update:
+                  id: hello_label
+                  text: !lambda 'return str_sprintf("Hello space");'
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    format: "sprintf format %s"
+                    args: ['x ? "checked" : "unchecked"']
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+                    time: time_id
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+                    time: !lambda return id(time_id).now();
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    time_format: "%c"
+                    time: !lambda |-
+                        ESP_LOGD("label", "multi-line lambda");
+                        return id(time_id).now();
             on_value:
               logger.log:
                 format: "state now %d"
@@ -396,6 +436,8 @@ lvgl:
                   grid_row_align: end
                   grid_rows: [25px, fr(1), content]
                   grid_columns: [40, fr(1), fr(1)]
+                  pad_row: 6px
+                  pad_column: 0
                 widgets:
                   - image:
                       grid_cell_row_pos: 0
