@@ -1,23 +1,26 @@
 import re
-import esphome.codegen as cg
-import esphome.config_validation as cv
+
 from esphome import automation, core
+from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
+from esphome.components.number import Number
+from esphome.components.select import Select
+from esphome.components.switch import Switch
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_TYPE,
-    CONF_TRIGGER_ID,
-    CONF_ON_VALUE,
+    CONF_ACTIVE,
     CONF_COMMAND,
     CONF_CUSTOM,
-    CONF_NUMBER,
     CONF_FORMAT,
+    CONF_ID,
+    CONF_ITEMS,
     CONF_MODE,
-    CONF_ACTIVE,
+    CONF_NUMBER,
+    CONF_ON_VALUE,
+    CONF_TEXT,
+    CONF_TRIGGER_ID,
+    CONF_TYPE,
 )
-from esphome.automation import maybe_simple_id
-from esphome.components.select import Select
-from esphome.components.number import Number
-from esphome.components.switch import Switch
 
 CODEOWNERS = ["@numo68"]
 
@@ -29,10 +32,8 @@ CONF_JOYSTICK = "joystick"
 CONF_LABEL = "label"
 CONF_MENU = "menu"
 CONF_BACK = "back"
-CONF_TEXT = "text"
 CONF_SELECT = "select"
 CONF_SWITCH = "switch"
-CONF_ITEMS = "items"
 CONF_ON_TEXT = "on_text"
 CONF_OFF_TEXT = "off_text"
 CONF_VALUE_LAMBDA = "value_lambda"

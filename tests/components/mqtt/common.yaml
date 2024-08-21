@@ -426,3 +426,9 @@ valve:
       } else {
         return VALVE_CLOSED;
       }
+
+alarm_control_panel:
+  - platform: template
+    name: Alarm Control Panel
+    binary_sensors:
+      - input: some_binary_sensor
