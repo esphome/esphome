@@ -35,7 +35,7 @@ ESPBTUUID ESPBTUUID::from_raw_reversed(const uint8_t *data) {
   ESPBTUUID ret;
   ret.uuid_.len = ESP_UUID_LEN_128;
   for (int i = 0; i < ESP_UUID_LEN_128; i++)
-    ret.uuid_.uuid.uuid128[ESP_UUID_LEN_128-1-i] = data[i];
+    ret.uuid_.uuid.uuid128[ESP_UUID_LEN_128 - 1 - i] = data[i];
   return ret;
 }
 ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
