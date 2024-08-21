@@ -74,7 +74,7 @@ void BL0939::setup() {
   memcpy(this->bl0939_init_, BL0939_INIT_DEFAULT, sizeof(BL0939_INIT_DEFAULT));
 
   for (uint8_t *i : this->bl0939_init_) {
-    i[0] = i[0] | (this->address_ & 0xF); // Replace Default Address of the IC
+    i[0] = i[0] | (this->address_ & 0xF);  // Replace Default Address of the IC
     this->write_array(i, 6);
     delay(1);
   }
