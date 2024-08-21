@@ -120,10 +120,12 @@ void LEDCOutput::write_state(float state) {
   ledcWrite(this->channel_, duty);
 #endif
 #ifdef USE_ESP_IDF
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 1, 0)
   // ensure that 100% on is not 99.975% on
   if ((duty == max_duty) && (max_duty != 1)) {
     duty = max_duty + 1;
   }
+#endif
   auto speed_mode = get_speed_mode(channel_);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
