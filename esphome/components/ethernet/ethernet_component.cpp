@@ -37,6 +37,21 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
+#ifdef USE_ETHERNET_ENC28J60
+static inline uint8_t enc28j60_cal_spi_cs_hold_time(int clock_speed_mhz) {
+  if (clock_speed_mhz <= 0 || clock_speed_mhz > 20) {
+    return 0;
+  }
+  int temp = clock_speed_mhz * 210;
+  uint8_t cs_posttrans = temp / 1000;
+  if (temp % 1000) {
+    cs_posttrans += 1;
+  }
+
+  return cs_posttrans;
+}
+#endif
+
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
@@ -89,23 +104,40 @@ void EthernetComponent::setup() {
   eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
 
 #ifdef USE_ETHERNET_SPI  // Configure SPI interface and Ethernet driver for specific SPI module
-  spi_device_interface_config_t devcfg = {
-      .command_bits = 16,  // Actually it's the address phase in W5500 SPI frame
-      .address_bits = 8,   // Actually it's the control phase in W5500 SPI frame
-      .dummy_bits = 0,
-      .mode = 0,
-      .duty_cycle_pos = 0,
-      .cs_ena_pretrans = 0,
-      .cs_ena_posttrans = 0,
-      .clock_speed_hz = this->clock_speed_,
-      .input_delay_ns = 0,
-      .spics_io_num = this->cs_pin_,
-      .flags = 0,
-      .queue_size = 20,
-      .pre_cb = nullptr,
-      .post_cb = nullptr,
-  };
+  spi_device_interface_config_t devcfg = {};
+#ifndef USE_ETHERNET_ENC28J60
+  devcfg.command_bits = 16;  // Actually it's the address phase in W5500 SPI frame
+  devcfg.address_bits = 8;   // Actually it's the control phase in W5500 SPI frame
+  devcfg.dummy_bits = 0;
+  devcfg.duty_cycle_pos = 0;
+  devcfg.cs_ena_pretrans = 0;
+  devcfg.cs_ena_posttrans = 0;
+  devcfg.input_delay_ns = 0;
+#elif defined(USE_ETHERNET_ENC28J60)
+  devcfg.command_bits = 3;
+  devcfg.address_bits = 5;
+  devcfg.cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time(this->clock_speed_ / 1000 / 1000);
+#endif
+  devcfg.mode = 0;
+  devcfg.flags = 0;
+  devcfg.queue_size = 20;
+  devcfg.clock_speed_hz = this->clock_speed_;
+  devcfg.spics_io_num = this->cs_pin_;
+  devcfg.pre_cb = nullptr;
+  devcfg.post_cb = nullptr;
 
+  phy_config.phy_addr = this->phy_addr_spi_;
+  phy_config.reset_gpio_num = this->reset_pin_;
+
+#ifdef USE_ETHERNET_ENC28J60
+  phy_config.autonego_timeout_ms = 0;  // ENC28J60 doesn't support auto-negotiation
+
+  spi_device_handle_t spi_handle = nullptr;
+  err = spi_bus_add_device(host, &devcfg, &spi_handle);
+  ESPHL_ERROR_CHECK(err, "SPI bus add device error");
+
+  esp_eth_mac_t *mac = esp_eth_mac_new_enc28j60(spi_handle, this->interrupt_pin_, &mac_config);
+#elif defined(USE_ETHERNET_W5500)
 #if USE_ESP_IDF && (ESP_IDF_VERSION_MAJOR >= 5)
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
 #else
@@ -115,11 +147,11 @@ void EthernetComponent::setup() {
 
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
 #endif
-  w5500_config.int_gpio_num = this->interrupt_pin_;
-  phy_config.phy_addr = this->phy_addr_spi_;
-  phy_config.reset_gpio_num = this->reset_pin_;
 
+  w5500_config.int_gpio_num = this->interrupt_pin_;
   esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+#endif  // USE_ETHERNET_W5500
+
 #else
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
@@ -174,7 +206,12 @@ void EthernetComponent::setup() {
       break;
     }
 #endif
-#ifdef USE_ETHERNET_SPI
+#ifdef USE_ETHERNET_ENC28J60
+    case ETHERNET_TYPE_ENC28J60: {
+      this->phy_ = esp_eth_phy_new_enc28j60(&phy_config);
+      break;
+    }
+#elif defined(USE_ETHERNET_W5500)
     case ETHERNET_TYPE_W5500: {
       this->phy_ = esp_eth_phy_new_w5500(&phy_config);
       break;
@@ -208,6 +245,13 @@ void EthernetComponent::setup() {
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_MAC_ADDR, mac_addr);
   ESPHL_ERROR_CHECK(err, "set mac address error");
 
+#ifdef USE_ETHERNET_ENC28J60
+  // ENC28J60 Errata #1 check
+  if (emac_enc28j60_get_chip_info(mac) < 5 && this->clock_speed_ < 8 * 1000 * 1000) {
+    ESPHL_ERROR_CHECK(ESP_FAIL, "SPI frequency must be at least 8 MHz for chip revision less than 5");
+  }
+#endif
+
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
@@ -225,6 +269,13 @@ void EthernetComponent::setup() {
   /* start Ethernet driver state machine */
   err = esp_eth_start(this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH start error");
+
+#ifdef USE_ETHERNET_ENC28J60
+  /* It is recommended to use ENC28J60 in Full Duplex mode since multiple errata exist to the Half Duplex mode */
+  if (this->full_duplex_) {
+    ESPHL_ERROR_CHECK(enc28j60_set_phy_duplex(this->phy_, ETH_DUPLEX_FULL), "ENC28J60 failed to set full duplex");
+  }
+#endif
 }
 
 void EthernetComponent::loop() {
@@ -302,6 +353,10 @@ void EthernetComponent::dump_config() {
       eth_type = "W5500";
       break;
 
+    case ETHERNET_TYPE_ENC28J60:
+      eth_type = "ENC28J60";
+      break;
+
     default:
       eth_type = "Unknown";
       break;
@@ -317,6 +372,9 @@ void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  IRQ Pin: %u", this->interrupt_pin_);
   ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Clock Speed: %d MHz", this->clock_speed_ / 1000000);
+#ifdef USE_ETHERNET_ENC28J60
+  ESP_LOGCONFIG(TAG, "  Full Duplex: %s", this->full_duplex_ ? "yes" : "no");
+#endif
 #else
   if (this->power_pin_ != -1) {
     ESP_LOGCONFIG(TAG, "  Power Pin: %u", this->power_pin_);
@@ -523,6 +581,9 @@ void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
 void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
 void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
+#ifdef USE_ETHERNET_ENC28J60
+void EthernetComponent::set_full_duplex(bool full_duplex) { this->full_duplex_ = full_duplex; }
+#endif
 #else
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
 void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
