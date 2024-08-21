@@ -34,11 +34,12 @@ class ByteBuffer {
   /**
    * Create a new Bytebuffer with the given capacity
    */
-  static ByteBuffer create(size_t capacity, Endian endianness = LITTLE);
+  ByteBuffer(size_t capacity, Endian endianness = LITTLE)
+      : data_(std::vector<uint8_t>(capacity)), endianness_(endianness), limit_(capacity){};
   /**
    * Wrap an existing vector in a ByteBufffer
    */
-  static ByteBuffer wrap(std::vector<uint8_t> data, Endian endianness = LITTLE);
+  static ByteBuffer wrap(std::vector<uint8_t> const &data, Endian endianness = LITTLE);
   /**
    * Wrap an existing array in a ByteBufffer
    */
@@ -48,13 +49,22 @@ class ByteBuffer {
   static ByteBuffer wrap(uint16_t value, Endian endianness = LITTLE);
   static ByteBuffer wrap(uint32_t value, Endian endianness = LITTLE);
   static ByteBuffer wrap(uint64_t value, Endian endianness = LITTLE);
-  static ByteBuffer wrap(int8_t value) { return wrap((uint8_t) value); }
-  static ByteBuffer wrap(int16_t value, Endian endianness = LITTLE) { return wrap((uint16_t) value, endianness); }
-  static ByteBuffer wrap(int32_t value, Endian endianness = LITTLE) { return wrap((uint32_t) value, endianness); }
-  static ByteBuffer wrap(int64_t value, Endian endianness = LITTLE) { return wrap((uint64_t) value, endianness); }
+  static ByteBuffer wrap(int8_t value) { return wrap(static_cast<uint8_t>(value)); }
+  static ByteBuffer wrap(int16_t value, Endian endianness = LITTLE) {
+    return wrap(static_cast<uint16_t>(value), endianness);
+  }
+  static ByteBuffer wrap(int32_t value, Endian endianness = LITTLE) {
+    return wrap(static_cast<uint32_t>(value), endianness);
+  }
+  static ByteBuffer wrap(int64_t value, Endian endianness = LITTLE) {
+    return wrap(static_cast<uint64_t>(value), endianness);
+  }
   static ByteBuffer wrap(float value, Endian endianness = LITTLE);
   static ByteBuffer wrap(double value, Endian endianness = LITTLE);
-  static ByteBuffer wrap(bool value) { return wrap(value ? (uint8_t) 1 : (uint8_t) 0); }
+  static ByteBuffer wrap(bool value) { return wrap(static_cast<uint8_t>(value)); }
+  static ByteBuffer wrap(std::initializer_list<uint8_t> values, Endian endianness = LITTLE) {
+    return wrap(std::vector<uint8_t>(values), endianness);
+  }
 
   // Get one byte from the buffer, increment position by 1
   uint8_t get_uint8();
@@ -67,11 +77,11 @@ class ByteBuffer {
   // Get a 64 bit unsigned value, increment by 8
   uint64_t get_uint64();
   // Signed versions of the get functions
-  uint8_t get_int8() { return (int8_t) this->get_uint8(); };
-  int16_t get_int16() { return (int16_t) this->get_uint16(); }
+  uint8_t get_int8() { return static_cast<int8_t>(this->get_uint8()); };
+  int16_t get_int16() { return static_cast<int16_t>(this->get_uint16()); }
   uint32_t get_int24();
-  int32_t get_int32() { return (int32_t) this->get_uint32(); }
-  int64_t get_int64() { return (int64_t) this->get_uint64(); }
+  int32_t get_int32() { return static_cast<int32_t>(this->get_uint32()); }
+  int64_t get_int64() { return static_cast<int64_t>(this->get_uint64()); }
   // Get a float value, increment by 4
   float get_float();
   // Get a double value, increment by 8
@@ -88,10 +98,10 @@ class ByteBuffer {
   void put_uint32(uint32_t value);
   void put_uint64(uint64_t value);
   // Signed versions of the put functions
-  void put_int8(int8_t value) { this->put_uint8(value); }
-  void put_int24(int32_t value) { this->put_uint24(value); }
-  void put_int32(int32_t value) { this->put_uint32(value); }
-  void put_int64(int64_t value) { this->put_uint64(value); }
+  void put_int8(int8_t value) { this->put_uint8(static_cast<uint8_t>(value)); }
+  void put_int24(int32_t value) { this->put_uint24(static_cast<uint32_t>(value)); }
+  void put_int32(int32_t value) { this->put_uint32(static_cast<uint32_t>(value)); }
+  void put_int64(int64_t value) { this->put_uint64(static_cast<uint64_t>(value)); }
   // Extra put functions
   void put_float(float value);
   void put_double(double value);
@@ -113,12 +123,12 @@ class ByteBuffer {
   // set limit to current position, postition to zero. Used when swapping from write to read operations.
   void flip();
   // retrieve a pointer to the underlying data.
-  uint8_t *array() { return this->data_.data(); };
+  std::vector<uint8_t> get_data() { return this->data_; };
   void rewind() { this->position_ = 0; }
   void reset() { this->position_ = this->mark_; }
 
  protected:
-  ByteBuffer(std::vector<uint8_t> data) : data_(std::move(data)) { this->limit_ = this->get_capacity(); }
+  ByteBuffer(std::vector<uint8_t> const &data) : data_(data), limit_(data.size()) {}
   std::vector<uint8_t> data_;
   Endian endianness_{LITTLE};
   size_t position_{0};
