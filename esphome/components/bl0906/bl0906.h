@@ -97,6 +97,7 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void setup() override;
   void dump_config() override;
+  void bias_correction(const uint8_t address, const float measurements, const float Correction);
 
  protected:
   process_state m_process_state{PROCESS_DONE};
@@ -149,7 +150,7 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
 
   void read_data(const uint8_t address, const float reference, sensor::Sensor *sensor_);
 
-  void Bias_correction(const uint8_t address, const float measurements, const float Correction);
+  
 
   void gain_correction(const uint8_t address, const float measurements, const float Correction,
                        const float coefficient);

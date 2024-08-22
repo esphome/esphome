@@ -147,12 +147,12 @@ void BL0906::setup() {
     this->flush();
   this->write_array(USR_WRPROT_Witable, sizeof(USR_WRPROT_Witable));
   // Calibration (1: register address; 2: value before calibration; 3: value after calibration)
-  Bias_correction(BL0906_RMSOS_1, 0.01600, 0);  // Calibration current_1
-  Bias_correction(BL0906_RMSOS_2, 0.01500, 0);
-  Bias_correction(BL0906_RMSOS_3, 0.01400, 0);
-  Bias_correction(BL0906_RMSOS_4, 0.01300, 0);
-  Bias_correction(BL0906_RMSOS_5, 0.01200, 0);
-  Bias_correction(BL0906_RMSOS_6, 0.01200, 0);  // Calibration current_6
+  bias_correction(BL0906_RMSOS_1, 0.01600, 0);  // Calibration current_1
+  bias_correction(BL0906_RMSOS_2, 0.01500, 0);
+  bias_correction(BL0906_RMSOS_3, 0.01400, 0);
+  bias_correction(BL0906_RMSOS_4, 0.01300, 0);
+  bias_correction(BL0906_RMSOS_5, 0.01200, 0);
+  bias_correction(BL0906_RMSOS_6, 0.01200, 0);  // Calibration current_6
 
   // gain_correction(BL0906_RMSGN_1, 2.15000, 2.148, BL0906_ki);   //RMS gain adjustment current_1
   // gain_correction(BL0906_RMSGN_2, 2.15100, 2.148, BL0906_ki);
@@ -277,7 +277,7 @@ void BL0906::read_data(const uint8_t address, const float reference, sensor::Sen
 }
 
 // RMS offset correction
-void BL0906::Bias_correction(const uint8_t address, const float measurements, const float Correction) {
+void BL0906::bias_correction(const uint8_t address, const float measurements, const float Correction) {
   DataPacket data;
   float ki = 12875 * 1 * (5.1 + 5.1) * 1000 / 2000 / 1.097;  // Current coefficient
   float I_RMS0 = measurements * ki;
