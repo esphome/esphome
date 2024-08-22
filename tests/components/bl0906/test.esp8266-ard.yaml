@@ -4,7 +4,7 @@ uart:
       number: 1
     rx_pin:
       number: 3
-    baud_rate: baud_rate: 19200
+    baud_rate: 19200
 
 sensor:
   - platform: bl0906
