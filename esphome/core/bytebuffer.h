@@ -65,26 +65,25 @@ class ByteBuffer {
   static ByteBuffer wrap(float value, Endian endianness = LITTLE);
   static ByteBuffer wrap(double value, Endian endianness = LITTLE);
   static ByteBuffer wrap(bool value) { return wrap(static_cast<uint8_t>(value)); }
-  static ByteBuffer wrap(std::initializer_list<uint8_t> values, Endian endianness = LITTLE) {
-    return wrap(std::vector<uint8_t>(values), endianness);
-  }
 
+  // Get an integral value from the buffer, increment position by length
+  uint64_t get_uint(size_t length);
   // Get one byte from the buffer, increment position by 1
   uint8_t get_uint8();
   // Get a 16 bit unsigned value, increment by 2
-  uint16_t get_uint16();
+  uint16_t get_uint16() { return static_cast<uint16_t>(this->get_uint(sizeof(uint16_t))); };
   // Get a 24 bit unsigned value, increment by 3
-  uint32_t get_uint24();
+  uint32_t get_uint24() { return static_cast<uint32_t>(this->get_uint(3)); };
   // Get a 32 bit unsigned value, increment by 4
-  uint32_t get_uint32();
+  uint32_t get_uint32() { return static_cast<uint32_t>(this->get_uint(sizeof(uint32_t))); };
   // Get a 64 bit unsigned value, increment by 8
-  uint64_t get_uint64();
+  uint64_t get_uint64() { return this->get_uint(sizeof(uint64_t)); };
   // Signed versions of the get functions
   uint8_t get_int8() { return static_cast<int8_t>(this->get_uint8()); };
-  int16_t get_int16() { return static_cast<int16_t>(this->get_uint16()); }
+  int16_t get_int16() { return static_cast<int16_t>(this->get_uint(sizeof(int16_t))); }
   uint32_t get_int24();
-  int32_t get_int32() { return static_cast<int32_t>(this->get_uint32()); }
-  int64_t get_int64() { return static_cast<int64_t>(this->get_uint64()); }
+  int32_t get_int32() { return static_cast<int32_t>(this->get_uint(sizeof(int32_t))); }
+  int64_t get_int64() { return static_cast<int64_t>(this->get_uint(sizeof(int64_t))); }
   // Get a float value, increment by 4
   float get_float();
   // Get a double value, increment by 8
@@ -95,16 +94,19 @@ class ByteBuffer {
   std::vector<uint8_t> get_vector(size_t length);
 
   // Put values into the buffer, increment the position accordingly
+  // put any integral value, length represents the number of bytes
+  void put_uint(uint64_t value, size_t length);
   void put_uint8(uint8_t value);
-  void put_uint16(uint16_t value);
-  void put_uint24(uint32_t value);
-  void put_uint32(uint32_t value);
-  void put_uint64(uint64_t value);
+  void put_uint16(uint16_t value) { this->put_uint(value, sizeof(uint16_t)); }
+  void put_uint24(uint32_t value) { this->put_uint(value, 3); }
+  void put_uint32(uint32_t value) { this->put_uint(value, sizeof(uint32_t)); }
+  void put_uint64(uint64_t value) { this->put_uint(value, sizeof(uint64_t)); }
   // Signed versions of the put functions
   void put_int8(int8_t value) { this->put_uint8(static_cast<uint8_t>(value)); }
-  void put_int24(int32_t value) { this->put_uint24(static_cast<uint32_t>(value)); }
-  void put_int32(int32_t value) { this->put_uint32(static_cast<uint32_t>(value)); }
-  void put_int64(int64_t value) { this->put_uint64(static_cast<uint64_t>(value)); }
+  void put_int16(int32_t value) { this->put_uint(static_cast<uint16_t>(value), sizeof(uint16_t)); }
+  void put_int24(int32_t value) { this->put_uint(static_cast<uint32_t>(value), 3); }
+  void put_int32(int32_t value) { this->put_uint(static_cast<uint32_t>(value), sizeof(uint32_t)); }
+  void put_int64(int64_t value) { this->put_uint(static_cast<uint64_t>(value), sizeof(uint64_t)); }
   // Extra put functions
   void put_float(float value);
   void put_double(double value);
