@@ -5,6 +5,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIMEOUT
+from esphome.cpp_generator import RawExpression
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -26,6 +27,7 @@ from .lvcode import (
     add_line_marks,
     lv,
     lv_add,
+    lv_expr,
     lv_obj,
     lvgl_comp,
 )
@@ -49,9 +51,10 @@ async def action_to_code(
     args,
 ):
     async with LambdaContext(parameters=args, where=action_id) as context:
+        with LvConditional(lv_expr.is_pre_initialise()):
+            context.add(RawExpression("return"))
         for widget in widgets:
-            with LvConditional(widget.obj != nullptr):
-                await action(widget)
+            await action(widget)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     return var
 
