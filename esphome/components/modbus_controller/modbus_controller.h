@@ -321,9 +321,9 @@ class ModbusCommandItem {
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
-  // wrong commands (esp. custom commands) can block the send queue
-  // limit the number of repeats. How many times this command has been sent
-  uint8_t send_counter{0};
+  /// Check if the command should be retried based on the max_send_count parameter
+  bool shouldRetry(uint8_t max_send_count) { return this->send_count_ < max_send_count; };
+
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
@@ -412,6 +412,11 @@ class ModbusCommandItem {
           &&handler = nullptr);
 
   bool is_equal(const ModbusCommandItem &other);
+
+ protected:
+  // wrong commands (esp. custom commands) can block the send queue, limit the number of repeats.
+  /// How many times this command has been sent
+  uint8_t send_count_{0};
 };
 
 /** Modbus controller class.
@@ -457,8 +462,11 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
   void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
-  /// called by esphome generated code to set the max_cmd_retries
-  void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
+  /// called by esphome generated code to set the max_cmd_retries.
+  void set_max_cmd_retries(uint8_t max_cmd_retries) {
+    // We add 1 so the initial transmission doesn't count when checking against command->send_counter.
+    this->max_cmd_retries_ = max_cmd_retries + 1;
+  }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
 
@@ -493,8 +501,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool module_offline_;
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_;
-  /// how many times we'll retry a command that got no response
-  uint8_t max_cmd_retries_;
+  /// How many times we will send a command if we get no response(Includes the first one).
+  uint8_t max_cmd_retries_{5};
   CallbackManager<void(int, int)> command_sent_callback_{};
 };
 

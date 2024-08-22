@@ -22,7 +22,7 @@ bool ModbusController::send_next_command_() {
     auto &command = command_queue_.front();
 
     // remove from queue if command was sent too often
-    if (command->send_counter >= this->max_cmd_retries_) {
+    if (!command->shouldRetry(this->max_cmd_retries_)) {
       if (!this->module_offline_) {
         ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
 
@@ -36,8 +36,8 @@ bool ModbusController::send_next_command_() {
       this->module_offline_ = true;
       ESP_LOGD(
           TAG,
-          "Modbus command to device=%d register=0x%02X send_counter=%d no response received - removed from send queue",
-          this->address_, command->register_address, command->send_counter);
+          "Modbus command to device=%d register=0x%02X no response received - removed from send queue",
+          this->address_, command->register_address);
       command_queue_.pop_front();
     } else {
       ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
@@ -560,8 +560,9 @@ bool ModbusCommandItem::send() {
   } else {
     modbusdevice->send_raw(this->payload);
   }
-  ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
-  send_counter++;
+  this->send_count_++;
+  ESP_LOGV(TAG, "Command sent %d 0x%X %d send_count: %d", uint8_t(this->function_code), this->register_address,
+           this->register_count, this->send_count_);
   return true;
 }
 
