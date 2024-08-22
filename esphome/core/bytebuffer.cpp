@@ -156,13 +156,11 @@ uint64_t ByteBuffer::get_uint64() {
   return value;
 }
 float ByteBuffer::get_float() {
-  static_assert(sizeof(float) == sizeof(uint32_t));
   assert(this->get_remaining() >= sizeof(float));
   auto value = this->get_uint32();
   return *reinterpret_cast<float *>(&value);
 }
 double ByteBuffer::get_double() {
-  static_assert(sizeof(double) == sizeof(uint64_t));
   assert(this->get_remaining() >= sizeof(double));
   auto value = this->get_uint64();
   return *reinterpret_cast<double *>(&value);
@@ -239,12 +237,12 @@ void ByteBuffer::put_uint64(uint64_t value) {
   }
 }
 void ByteBuffer::put_float(float value) {
-  static_assert(sizeof(float) == sizeof(uint32_t));
+  static_assert(sizeof(float) == sizeof(uint32_t), "Float sizes other than 32 bit not supported");
   assert(this->get_remaining() >= sizeof(float));
   this->put_uint32(*reinterpret_cast<uint32_t *>(&value));
 }
 void ByteBuffer::put_double(double value) {
-  static_assert(sizeof(double) == sizeof(uint64_t));
+  static_assert(sizeof(double) == sizeof(uint64_t), "Double sizes other than 64 bit not supported");
   assert(this->get_remaining() >= sizeof(double));
   this->put_uint64(*reinterpret_cast<uint64_t *>(&value));
 }
