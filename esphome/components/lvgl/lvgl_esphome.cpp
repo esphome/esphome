@@ -63,13 +63,11 @@ static const char *const EVENT_NAMES[] = {
     "GET_SELF_SIZE",
 };
 
-const char *lv_event_code_name_for(uint8_t event_code) {
-  static char buf[8];
+std::string lv_event_code_name_for(uint8_t event_code) {
   if (event_code < sizeof(EVENT_NAMES) / sizeof(EVENT_NAMES[0])) {
     return EVENT_NAMES[event_code];
   }
-  snprintf(buf, sizeof(buf), "%2d", event_code);
-  return buf;
+  return str_sprintf("%2d", event_code);
 }
 static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   // make sure all coordinates are even

@@ -212,7 +212,6 @@ def get_widget_generator(wid):
         if obj := widget_map.get(wid):
             return obj
         if Widget.widgets_completed:
-            print(widget_map)
             raise Invalid(
                 f"Widget {wid} not found, yet all widgets should be defined by now"
             )
