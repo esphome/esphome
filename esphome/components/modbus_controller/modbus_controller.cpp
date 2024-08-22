@@ -34,10 +34,8 @@ bool ModbusController::send_next_command_() {
         }
       }
       this->module_offline_ = true;
-      ESP_LOGD(
-          TAG,
-          "Modbus command to device=%d register=0x%02X no response received - removed from send queue",
-          this->address_, command->register_address);
+      ESP_LOGD(TAG, "Modbus command to device=%d register=0x%02X no response received - removed from send queue",
+               this->address_, command->register_address);
       this->command_queue_.pop_front();
     } else {
       ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
