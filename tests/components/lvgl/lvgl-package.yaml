@@ -62,7 +62,7 @@ lvgl:
       on_all_events:
         logger.log:
           format: "Event %s"
-          args: ['lv_event_code_name_for(event->code)']
+          args: ['lv_event_code_name_for(event->code).c_str()']
       skip: true
       layout:
         type: flex
@@ -82,7 +82,7 @@ lvgl:
             on_all_events:
               logger.log:
                 format: "Event %s"
-                args: ['lv_event_code_name_for(event->code)']
+                args: ['lv_event_code_name_for(event->code).c_str()']
         - label:
             id: hello_label
             text: Hello world
