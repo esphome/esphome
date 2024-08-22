@@ -322,7 +322,7 @@ class ModbusCommandItem {
   std::vector<uint8_t> payload = {};
   bool send();
   /// Check if the command should be retried based on the max_send_count parameter
-  bool shouldRetry(uint8_t max_send_count) { return this->send_count_ < max_send_count; };
+  bool should_retry(uint8_t max_send_count) { return this->send_count_ < max_send_count; };
 
   /// factory methods
   /** Create modbus read command

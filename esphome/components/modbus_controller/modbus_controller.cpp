@@ -22,7 +22,7 @@ bool ModbusController::send_next_command_() {
     auto &command = this->command_queue_.front();
 
     // remove from queue if command was sent too often
-    if (!command->shouldRetry(this->max_cmd_retries_)) {
+    if (!command->should_retry(this->max_cmd_retries_)) {
       if (!this->module_offline_) {
         ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
 
