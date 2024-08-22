@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
     CONF_CURRENT,
@@ -20,6 +20,9 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    ICON_CURRENT_AC,
+    ICON_POWER,
+    ICON_THERMOMETER,
     STATE_CLASS_TOTAL,
     UNIT_AMPERE,
     UNIT_CELSIUS,
@@ -27,17 +30,10 @@ from esphome.const import (
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
-    ICON_CURRENT_AC,
-    ICON_POWER,
-    ICON_THERMOMETER,
 )
 
 # Import ICONS not included in esphome's const.py, from the local components const.py
-from .const import (
-    ICON_ENERGY,
-    ICON_FREQUENCY,
-    ICON_VOLTAGE,
-)
+from .const import ICON_ENERGY, ICON_FREQUENCY, ICON_VOLTAGE
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["bl0906"]
@@ -87,7 +83,7 @@ CONFIG_SCHEMA = (
     .extend(
         cv.Schema(
             {
-                cv.Optional(f"{CONF_CHANNEL}_{i+1}"): cv.Schema(
+                cv.Optional(f"{CONF_CHANNEL}_{i + 1}"): cv.Schema(
                     {
                         cv.Optional(CONF_CURRENT): cv.maybe_simple_value(
                             sensor.sensor_schema(
@@ -156,21 +152,21 @@ async def to_code(config):
         cg.add(var.set_voltage_sensor(sens))
 
     for i in range(6):
-        if channel_config := config.get(f"{CONF_CHANNEL}_{i+1}"):
+        if channel_config := config.get(f"{CONF_CHANNEL}_{i + 1}"):
             if current_config := channel_config.get(CONF_CURRENT):
                 sens = await sensor.new_sensor(current_config)
-                cg.add(getattr(var, f"set_current_sensor_{i+1}")(sens))
+                cg.add(getattr(var, f"set_current_{i + 1}_sensor")(sens))
             if power_config := channel_config.get(CONF_POWER):
                 sens = await sensor.new_sensor(power_config)
-                cg.add(getattr(var, f"set_power_sensor_{i+1}")(sens))
+                cg.add(getattr(var, f"set_power_{i + 1}_sensor")(sens))
             if energy_config := channel_config.get(CONF_ENERGY):
                 sens = await sensor.new_sensor(energy_config)
-                cg.add(getattr(var, f"set_energy_sensor_{i+1}")(sens))
+                cg.add(getattr(var, f"set_energy_{i + 1}_sensor")(sens))
 
     if total_power_config := config.get(CONF_TOTAL_POWER):
         sens = await sensor.new_sensor(total_power_config)
-        cg.add(var.set_power_sensor_sum(sens))
+        cg.add(var.set_total_power_sensor(sens))
 
     if total_energy_config := config.get(CONF_TOTAL_ENERGY):
         sens = await sensor.new_sensor(total_energy_config)
-        cg.add(var.set_energy_sensor_sum(sens))
+        cg.add(var.set_total_energy_sensor(sens))
