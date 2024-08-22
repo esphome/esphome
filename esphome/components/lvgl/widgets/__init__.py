@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from typing import Any, Union
 
@@ -221,6 +222,11 @@ async def get_widget_(wid: Widget):
     if obj := widget_map.get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
+
+
+async def wait_for_widgets():
+    while not Widget.widgets_completed:
+        await asyncio.sleep(0)
 
 
 async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
