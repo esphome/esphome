@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_ON_STATE,
     CONF_TRIGGER_ID,
     CONF_VOLUME,
-    CONF_ON_IDLE,
     CONF_ON_TURN_ON,
     CONF_ON_TURN_OFF,
 )
