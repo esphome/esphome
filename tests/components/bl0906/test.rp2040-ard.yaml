@@ -1,9 +1,9 @@
 uart:
   - id: uart_bl0906
     tx_pin:
-      number: GPIO4
+      number: 4
     rx_pin:
-      number: GPIO5
+      number: 5
     baud_rate: baud_rate: 19200
 
 sensor:
