@@ -167,7 +167,7 @@ template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
  public:
   ResetEnergyAction(BL0906 *bl0906) : bl0906_(bl0906) {}
 
-  void play(Ts... x) override { this->bl0906_->addActionCallBack(&BL0906::reset_energy);}
+  void play(Ts... x) override { this->bl0906_->addActionCallBack(&BL0906::reset_energy); }
 
  protected:
   BL0906 *bl0906_;

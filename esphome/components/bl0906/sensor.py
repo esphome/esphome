@@ -126,6 +126,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
 )
 
+
 @automation.register_action(
     "bl0906.reset_energy",
     ResetEnergyAction,
@@ -138,6 +139,7 @@ CONFIG_SCHEMA = (
 async def reset_energy_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
