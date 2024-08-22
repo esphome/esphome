@@ -4,6 +4,7 @@ uart:
   rx_pin: GPIO14
   baud_rate: 19200
 
+sensor:
   - platform: bl0906
     frequency:
       name: 'Frequency'
