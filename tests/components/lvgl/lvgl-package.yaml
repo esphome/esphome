@@ -379,6 +379,7 @@ lvgl:
                     format: "bar value %f"
                     args: [x]
         - line:
+            id: lv_line_id
             align: center
             points:
               - 5, 5
@@ -387,7 +388,10 @@ lvgl:
               - 180, 60
               - 240, 10
             on_click:
-              lvgl.page.next:
+              - lvgl.widget.update:
+                  id: lv_line_id
+                  line_color: 0xFFFF
+              - lvgl.page.next:
         - switch:
             align: right_mid
         - checkbox:
