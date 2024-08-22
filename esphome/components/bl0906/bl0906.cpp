@@ -99,7 +99,7 @@ void BL0906::loop() {
 
   if (this->current_channel_ == 0) {
     // Temperature
-    read_data(BL0906_TEMPERATURE, temperature_reference_, temperature_sensor_);
+    this->read_data(BL0906_TEMPERATURE, this->temperature_reference_, this->temperature_sensor_);
   } else if (this->current_channel_ == 1) {
     read_data(BL0906_I_1_RMS, current_reference_, current_sensor_1_);
     read_data(BL0906_WATT_1, power_reference_, power_sensor_1_);
@@ -147,26 +147,13 @@ void BL0906::setup() {
     this->flush();
   this->write_array(USR_WRPROT_Witable, sizeof(USR_WRPROT_Witable));
   // Calibration (1: register address; 2: value before calibration; 3: value after calibration)
-  bias_correction(BL0906_RMSOS_1, 0.01600, 0);  // Calibration current_1
-  bias_correction(BL0906_RMSOS_2, 0.01500, 0);
-  bias_correction(BL0906_RMSOS_3, 0.01400, 0);
-  bias_correction(BL0906_RMSOS_4, 0.01300, 0);
-  bias_correction(BL0906_RMSOS_5, 0.01200, 0);
-  bias_correction(BL0906_RMSOS_6, 0.01200, 0);  // Calibration current_6
+  this->bias_correction(BL0906_RMSOS_1, 0.01600, 0);  // Calibration current_1
+  this->bias_correction(BL0906_RMSOS_2, 0.01500, 0);
+  this->bias_correction(BL0906_RMSOS_3, 0.01400, 0);
+  this->bias_correction(BL0906_RMSOS_4, 0.01300, 0);
+  this->bias_correction(BL0906_RMSOS_5, 0.01200, 0);
+  this->bias_correction(BL0906_RMSOS_6, 0.01200, 0);  // Calibration current_6
 
-  // gain_correction(BL0906_RMSGN_1, 2.15000, 2.148, BL0906_ki);   //RMS gain adjustment current_1
-  // gain_correction(BL0906_RMSGN_2, 2.15100, 2.148, BL0906_ki);
-  // gain_correction(BL0906_RMSGN_3, 2.15200, 2.148, BL0906_ki);
-  // gain_correction(BL0906_RMSGN_4, 2.14500, 2.148, BL0906_ki);
-  // gain_correction(BL0906_RMSGN_5, 2.14600, 2.148, BL0906_ki);
-  // gain_correction(BL0906_RMSGN_6, 2.14600, 2.148, BL0906_ki);   //RMS gain adjustment current_6
-
-  // gain_correction(BL0906_WATTGN_1, 15.13427, 14.5, BL0906_Kp);  //Active power gain adjustment power_1
-  // gain_correction(BL0906_WATTGN_2, 15.23937, 14.5, BL0906_Kp);
-  // gain_correction(BL0906_WATTGN_3, 15.44956, 14.5, BL0906_Kp);
-  // gain_correction(BL0906_WATTGN_4, 16.57646, 14.5, BL0906_Kp);
-  // gain_correction(BL0906_WATTGN_5, 15.27440, 14.5, BL0906_Kp);
-  // gain_correction(BL0906_WATTGN_6, 31.75744, 14.5, BL0906_Kp);  //Active power gain adjustment power_6
   this->write_array(USR_WRPROT_Onlyread, sizeof(USR_WRPROT_Onlyread));
 }
 

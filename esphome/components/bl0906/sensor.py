@@ -155,7 +155,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(voltage_config)
         cg.add(var.set_voltage_sensor(sens))
 
-    for i in range(8):
+    for i in range(6):
         if channel_config := config.get(f"{CONF_CHANNEL}_{i+1}"):
             if current_config := channel_config.get(CONF_CURRENT):
                 sens = await sensor.new_sensor(current_config)

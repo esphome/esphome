@@ -150,10 +150,7 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
 
   void read_data(const uint8_t address, const float reference, sensor::Sensor *sensor_);
 
-  
-
-  void gain_correction(const uint8_t address, const float measurements, const float Correction,
-                       const float coefficient);
+  void gain_correction(const uint8_t address, const float measurements, const float Correction, const float coefficient);
 
   uint8_t current_channel_ = 0;
   int addActionCallBack(ActionCallbackFuncPtr ptrFunc);
