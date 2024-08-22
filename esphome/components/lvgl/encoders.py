@@ -5,24 +5,28 @@ import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
 
 from .defines import (
+    CONF_DEFAULT_GROUP,
+    CONF_ENCODERS,
     CONF_ENTER_BUTTON,
+    CONF_INITIAL_FOCUS,
     CONF_LEFT_BUTTON,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
     CONF_RIGHT_BUTTON,
-    CONF_ROTARY_ENCODERS,
 )
-from .helpers import lvgl_components_required
-from .lvcode import add_group, lv, lv_add, lv_expr
+from .helpers import lvgl_components_required, requires_component
+from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
-from .types import lv_indev_type_t
+from .types import lv_group_t, lv_indev_type_t
 
-ROTARY_ENCODER_CONFIG = cv.ensure_list(
+ENCODERS_CONFIG = cv.ensure_list(
     ENCODER_SCHEMA.extend(
         {
             cv.Required(CONF_ENTER_BUTTON): cv.use_id(BinarySensor),
             cv.Required(CONF_SENSOR): cv.Any(
-                cv.use_id(RotaryEncoderSensor),
+                cv.All(
+                    cv.use_id(RotaryEncoderSensor), requires_component("rotary_encoder")
+                ),
                 cv.Schema(
                     {
                         cv.Required(CONF_LEFT_BUTTON): cv.use_id(BinarySensor),
@@ -35,10 +39,12 @@ ROTARY_ENCODER_CONFIG = cv.ensure_list(
 )
 
 
-async def rotary_encoders_to_code(var, config):
-    for enc_conf in config.get(CONF_ROTARY_ENCODERS, ()):
+async def encoders_to_code(var, config):
+    default_group = lv_Pvariable(lv_group_t, config[CONF_DEFAULT_GROUP])
+    lv_assign(default_group, lv_expr.group_create())
+    lv.group_set_default(default_group)
+    for enc_conf in config[CONF_ENCODERS]:
         lvgl_components_required.add("KEY_LISTENER")
-        lvgl_components_required.add("ROTARY_ENCODER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(
@@ -56,7 +62,16 @@ async def rotary_encoders_to_code(var, config):
                 lv_add(listener.set_sensor(sensor_config))
         b_sensor = await cg.get_variable(enc_conf[CONF_ENTER_BUTTON])
         cg.add(listener.set_enter_button(b_sensor))
-        if group := add_group(enc_conf.get(CONF_GROUP)):
-            lv.indev_set_group(lv_expr.indev_drv_register(listener.get_drv()), group)
+        if group := enc_conf.get(CONF_GROUP):
+            group = lv_Pvariable(lv_group_t, group)
+            lv_assign(group, lv_expr.group_create())
         else:
-            lv.indev_drv_register(listener.get_drv())
+            group = default_group
+        lv.indev_set_group(lv_expr.indev_drv_register(listener.get_drv()), group)
+
+
+async def initial_focus_to_code(config):
+    for enc_conf in config[CONF_ENCODERS]:
+        if default_focus := enc_conf.get(CONF_INITIAL_FOCUS):
+            obj = await cg.get_variable(default_focus)
+            lv.group_focus_obj(obj)

@@ -52,6 +52,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
   void start() override;
   void stop() override;
+  void finish() override;
 
   size_t play(const uint8_t *data, size_t length) override;
 
@@ -59,6 +60,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
  protected:
   void start_();
+  void stop_(bool wait_on_empty);
   void watch_();
 
   static void player_task(void *params);

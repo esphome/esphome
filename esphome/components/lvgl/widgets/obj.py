@@ -1,9 +1,9 @@
 from esphome import automation
 
-from .automation import update_to_code
-from .defines import CONF_MAIN, CONF_OBJ
-from .schemas import create_modify_schema
-from .types import ObjUpdateAction, WidgetType, lv_obj_t
+from ..automation import update_to_code
+from ..defines import CONF_MAIN, CONF_OBJ
+from ..schemas import create_modify_schema
+from ..types import ObjUpdateAction, WidgetType, lv_obj_t
 
 
 class ObjType(WidgetType):

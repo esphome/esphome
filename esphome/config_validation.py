@@ -91,7 +91,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=consider-using-f-string
 VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
 )
 
 # pylint: disable=invalid-name
@@ -368,6 +368,20 @@ def boolean(value):
     raise Invalid(
         f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
     )
+
+
+def boolean_false(value):
+    """Validate the given config option to be a boolean, set to False.
+
+    This option allows a bunch of different ways of expressing boolean values:
+     - instance of boolean
+     - 'true'/'false'
+     - 'yes'/'no'
+     - 'enable'/disable
+    """
+    if boolean(value):
+        raise Invalid("Expected boolean value to be false")
+    return False
 
 
 @schema_extractor_list

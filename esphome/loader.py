@@ -1,3 +1,4 @@
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 import importlib
 import importlib.abc
@@ -7,7 +8,7 @@ import logging
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any, Callable, ContextManager, Optional
+from typing import Any, Callable, Optional
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE
@@ -22,7 +23,7 @@ class FileResource:
     package: str
     resource: str
 
-    def path(self) -> ContextManager[Path]:
+    def path(self) -> AbstractContextManager[Path]:
         return importlib.resources.as_file(
             importlib.resources.files(self.package) / self.resource
         )
@@ -176,7 +177,7 @@ def _lookup_module(domain):
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
         if "No module named" in str(e):
-            _LOGGER.error(
+            _LOGGER.info(
                 "Unable to import component %s: %s", domain, str(e), exc_info=False
             )
         else:
