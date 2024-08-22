@@ -15,16 +15,19 @@ enum Endian { LITTLE, BIG };
  *
  * There are three variables maintained pointing into the buffer:
  *
- * 0 <= position <= limit <= capacity
- *
- * capacity: the maximum amount of data that can be stored
+ * capacity: the maximum amount of data that can be stored - set on construction and cannot be changed
  * limit: the limit of the data currently available to get or put
  * position: the current insert or extract position
+ *
+ * 0 <= position <= limit <= capacity
  *
  * In addition a mark can be set to the current position with mark(). A subsequent call to reset() will restore
  * the position to the mark.
  *
  * The buffer can be marked to be little-endian (default) or big-endian. All subsequent operations will use that order.
+ *
+ * The flip() operation will reset the position to 0 and limit to the current position. This is useful for reading
+ * data from a buffer after it has been written.
  *
  */
 class ByteBuffer {
@@ -41,7 +44,7 @@ class ByteBuffer {
    */
   static ByteBuffer wrap(std::vector<uint8_t> const &data, Endian endianness = LITTLE);
   /**
-   * Wrap an existing array in a ByteBufffer
+   * Wrap an existing array in a ByteBuffer. Note that this will create a copy of the data.
    */
   static ByteBuffer wrap(const uint8_t *ptr, size_t len, Endian endianness = LITTLE);
   // Convenience functions to create a ByteBuffer from a value
@@ -87,7 +90,7 @@ class ByteBuffer {
   // Get a double value, increment by 8
   double get_double();
   // Get a bool value, increment by 1
-  bool get_bool() { return this->get_uint8() != 0; }
+  bool get_bool() { return this->get_uint8(); }
   // Get vector of bytes, increment by length
   std::vector<uint8_t> get_vector(size_t length);
 
@@ -105,7 +108,7 @@ class ByteBuffer {
   // Extra put functions
   void put_float(float value);
   void put_double(double value);
-  void put_bool(bool value) { this->put_uint8(value ? 1 : 0); }
+  void put_bool(bool value) { this->put_uint8(value); }
   void put_vector(const std::vector<uint8_t> &value);
 
   inline size_t get_capacity() const { return this->data_.size(); }
