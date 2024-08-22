@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from typing import Any, Union
 
@@ -224,6 +225,11 @@ async def get_widget_(wid):
     return await FakeAwaitable(get_widget_generator(wid))
 
 
+async def wait_for_widgets():
+    while not Widget.widgets_completed:
+        await asyncio.sleep(0)
+
+
 async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
     if not config:
         return []
@@ -321,8 +327,6 @@ async def set_obj_properties(w: Widget, config):
     if group := config.get(CONF_GROUP):
         group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)
-    flag_clr = set()
-    flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]
     lambs = {}
     flag_set = set()

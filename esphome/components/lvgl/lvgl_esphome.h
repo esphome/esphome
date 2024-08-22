@@ -41,6 +41,7 @@ namespace lvgl {
 extern lv_event_code_t lv_api_event;     // NOLINT
 extern lv_event_code_t lv_update_event;  // NOLINT
 extern const char *lv_event_code_name_for(uint8_t event_code);
+extern bool lv_is_pre_initialise();
 #ifdef USE_LVGL_COLOR
 inline lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
 #endif  // USE_LVGL_COLOR

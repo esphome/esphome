@@ -5,7 +5,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
-from esphome.cpp_generator import get_variable
+from esphome.cpp_generator import RawExpression, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -45,7 +45,13 @@ from .types import (
     lv_obj_t,
     lv_pseudo_button_t,
 )
-from .widgets import Widget, get_widgets, lv_scr_act, set_obj_properties
+from .widgets import (
+    Widget,
+    get_widgets,
+    lv_scr_act,
+    set_obj_properties,
+    wait_for_widgets,
+)
 
 # Record widgets that are used in a focused action here
 focused_widgets = set()
@@ -58,10 +64,12 @@ async def action_to_code(
     template_arg,
     args,
 ):
+    await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
+        with LvConditional(lv_expr.is_pre_initialise()):
+            context.add(RawExpression("return"))
         for widget in widgets:
-            with LvConditional(widget.obj != nullptr):
-                await action(widget)
+            await action(widget)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     return var
 
