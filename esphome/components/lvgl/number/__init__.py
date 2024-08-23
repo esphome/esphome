@@ -16,7 +16,7 @@ from ..lvcode import (
 )
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvNumber, lvgl_ns
-from ..widgets import get_widgets
+from ..widgets import get_widgets, wait_for_widgets
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number)
 
@@ -44,6 +44,7 @@ async def to_code(config):
         step=widget.get_step(),
     )
 
+    await wait_for_widgets()
     async with LambdaContext([(cg.float_, "v")]) as control:
         await widget.set_property(
             "value", MockObj("v") * MockObj(widget.get_scale()), config[CONF_ANIMATED]
