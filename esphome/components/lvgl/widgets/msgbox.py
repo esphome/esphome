@@ -13,7 +13,7 @@ from ..defines import (
     TYPE_FLEX,
     literal,
 )
-from ..helpers import add_lv_use
+from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import lv_bool, lv_pct, lv_text
 from ..lvcode import (
     EVENT_ARG,
@@ -72,6 +72,7 @@ async def msgbox_to_code(conf):
         *buttonmatrix_spec.get_uses(),
         *button_spec.get_uses(),
     )
+    lvgl_components_required.add("BUTTONMATRIX")
     messagebox_id = conf[CONF_ID]
     outer = lv_Pvariable(lv_obj_t, messagebox_id.id)
     buttonmatrix = new_Pvariable(
