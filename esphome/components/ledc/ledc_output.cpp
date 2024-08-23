@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include "ledc_output.h"
 #include "esphome/core/log.h"
 
