@@ -5,7 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-
+#ifdef USE_WIFI
 #include <improv.h>
 #include <vector>
 
@@ -78,3 +78,4 @@ extern ImprovSerialComponent
 
 }  // namespace improv_serial
 }  // namespace esphome
+#endif

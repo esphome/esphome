@@ -1,4 +1,5 @@
 #include "socket.h"
+#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 #include <cerrno>
 #include <cstring>
 #include <string>
@@ -74,3 +75,4 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 }
 }  // namespace socket
 }  // namespace esphome
+#endif

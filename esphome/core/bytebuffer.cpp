@@ -4,63 +4,57 @@
 
 namespace esphome {
 
-ByteBuffer ByteBuffer::create(size_t capacity, Endian endianness) {
-  std::vector<uint8_t> data(capacity);
-  ByteBuffer buffer = {data};
-  buffer.endianness_ = endianness;
-  return buffer;
-}
-
 ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len, Endian endianness) {
+  // there is a double copy happening here, could be optimized but at cost of clarity.
   std::vector<uint8_t> data(ptr, ptr + len);
   ByteBuffer buffer = {data};
   buffer.endianness_ = endianness;
   return buffer;
 }
 
-ByteBuffer ByteBuffer::wrap(std::vector<uint8_t> data, Endian endianness) {
-  ByteBuffer buffer = {std::move(data)};
+ByteBuffer ByteBuffer::wrap(std::vector<uint8_t> const &data, Endian endianness) {
+  ByteBuffer buffer = {data};
   buffer.endianness_ = endianness;
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint8_t value) {
-  ByteBuffer buffer = ByteBuffer::create(1);
+  ByteBuffer buffer = ByteBuffer(1);
   buffer.put_uint8(value);
   buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint16_t value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(2, endianness);
+  ByteBuffer buffer = ByteBuffer(2, endianness);
   buffer.put_uint16(value);
   buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint32_t value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(4, endianness);
+  ByteBuffer buffer = ByteBuffer(4, endianness);
   buffer.put_uint32(value);
   buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(uint64_t value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(8, endianness);
+  ByteBuffer buffer = ByteBuffer(8, endianness);
   buffer.put_uint64(value);
   buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(float value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(sizeof(float), endianness);
+  ByteBuffer buffer = ByteBuffer(sizeof(float), endianness);
   buffer.put_float(value);
   buffer.flip();
   return buffer;
 }
 
 ByteBuffer ByteBuffer::wrap(double value, Endian endianness) {
-  ByteBuffer buffer = ByteBuffer::create(sizeof(double), endianness);
+  ByteBuffer buffer = ByteBuffer(sizeof(double), endianness);
   buffer.put_double(value);
   buffer.flip();
   return buffer;
@@ -88,110 +82,51 @@ uint8_t ByteBuffer::get_uint8() {
   assert(this->get_remaining() >= 1);
   return this->data_[this->position_++];
 }
-uint16_t ByteBuffer::get_uint16() {
-  assert(this->get_remaining() >= 2);
-  uint16_t value;
-  if (endianness_ == LITTLE) {
-    value = this->data_[this->position_++];
-    value |= this->data_[this->position_++] << 8;
+uint64_t ByteBuffer::get_uint(size_t length) {
+  assert(this->get_remaining() >= length);
+  uint64_t value = 0;
+  if (this->endianness_ == LITTLE) {
+    this->position_ += length;
+    auto index = this->position_;
+    while (length-- != 0) {
+      value <<= 8;
+      value |= this->data_[--index];
+    }
   } else {
-    value = this->data_[this->position_++] << 8;
-    value |= this->data_[this->position_++];
+    while (length-- != 0) {
+      value <<= 8;
+      value |= this->data_[this->position_++];
+    }
   }
   return value;
 }
-uint32_t ByteBuffer::get_uint24() {
-  assert(this->get_remaining() >= 3);
-  uint32_t value;
-  if (endianness_ == LITTLE) {
-    value = this->data_[this->position_++];
-    value |= this->data_[this->position_++] << 8;
-    value |= this->data_[this->position_++] << 16;
-  } else {
-    value = this->data_[this->position_++] << 16;
-    value |= this->data_[this->position_++] << 8;
-    value |= this->data_[this->position_++];
-  }
-  return value;
-}
+
 uint32_t ByteBuffer::get_int24() {
   auto value = this->get_uint24();
-  uint32_t mask = (~(uint32_t) 0) << 23;
+  uint32_t mask = (~static_cast<uint32_t>(0)) << 23;
   if ((value & mask) != 0)
     value |= mask;
   return value;
 }
-uint32_t ByteBuffer::get_uint32() {
-  assert(this->get_remaining() >= 4);
-  uint32_t value;
-  if (endianness_ == LITTLE) {
-    value = this->data_[this->position_++];
-    value |= this->data_[this->position_++] << 8;
-    value |= this->data_[this->position_++] << 16;
-    value |= this->data_[this->position_++] << 24;
-  } else {
-    value = this->data_[this->position_++] << 24;
-    value |= this->data_[this->position_++] << 16;
-    value |= this->data_[this->position_++] << 8;
-    value |= this->data_[this->position_++];
-  }
-  return value;
-}
-uint64_t ByteBuffer::get_uint64() {
-  assert(this->get_remaining() >= 8);
-  uint64_t value;
-  if (endianness_ == LITTLE) {
-    value = this->data_[this->position_++];
-    value |= (uint64_t) this->data_[this->position_++] << 8;
-    value |= (uint64_t) this->data_[this->position_++] << 16;
-    value |= (uint64_t) this->data_[this->position_++] << 24;
-    value |= (uint64_t) this->data_[this->position_++] << 32;
-    value |= (uint64_t) this->data_[this->position_++] << 40;
-    value |= (uint64_t) this->data_[this->position_++] << 48;
-    value |= (uint64_t) this->data_[this->position_++] << 56;
-  } else {
-    value = (uint64_t) this->data_[this->position_++] << 56;
-    value |= (uint64_t) this->data_[this->position_++] << 48;
-    value |= (uint64_t) this->data_[this->position_++] << 40;
-    value |= (uint64_t) this->data_[this->position_++] << 32;
-    value |= (uint64_t) this->data_[this->position_++] << 24;
-    value |= (uint64_t) this->data_[this->position_++] << 16;
-    value |= (uint64_t) this->data_[this->position_++] << 8;
-    value |= this->data_[this->position_++];
-  }
-  return value;
-}
 float ByteBuffer::get_float() {
   assert(this->get_remaining() >= sizeof(float));
-  uint8_t byte_array[sizeof(float)];
-  if (this->endianness_ == LITTLE) {
-    for (uint8_t &byte_part : byte_array) {
-      byte_part = this->data_[this->position_++];
-    }
-  } else {
-    for (size_t i = sizeof(float); i > 0; i--) {
-      byte_array[i - 1] = this->data_[this->position_++];
-    }
-  }
+  auto ui_value = this->get_uint32();
   float value;
-  std::memcpy(&value, byte_array, sizeof(float));
+  memcpy(&value, &ui_value, sizeof(float));
   return value;
 }
 double ByteBuffer::get_double() {
   assert(this->get_remaining() >= sizeof(double));
-  uint8_t byte_array[sizeof(double)];
-  if (this->endianness_ == LITTLE) {
-    for (uint8_t &byte_part : byte_array) {
-      byte_part = this->data_[this->position_++];
-    }
-  } else {
-    for (size_t i = sizeof(double); i > 0; i--) {
-      byte_array[i - 1] = this->data_[this->position_++];
-    }
-  }
+  auto ui_value = this->get_uint64();
   double value;
-  std::memcpy(&value, byte_array, sizeof(double));
+  memcpy(&value, &ui_value, sizeof(double));
   return value;
+}
+std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
+  assert(this->get_remaining() >= length);
+  auto start = this->data_.begin() + this->position_;
+  this->position_ += length;
+  return {start, start + length};
 }
 
 /// Putters
@@ -200,90 +135,39 @@ void ByteBuffer::put_uint8(uint8_t value) {
   this->data_[this->position_++] = value;
 }
 
-void ByteBuffer::put_uint16(uint16_t value) {
-  assert(this->get_remaining() >= 2);
+void ByteBuffer::put_uint(uint64_t value, size_t length) {
+  assert(this->get_remaining() >= length);
   if (this->endianness_ == LITTLE) {
-    this->data_[this->position_++] = (uint8_t) value;
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
+    while (length-- != 0) {
+      this->data_[this->position_++] = static_cast<uint8_t>(value);
+      value >>= 8;
+    }
   } else {
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
-    this->data_[this->position_++] = (uint8_t) value;
-  }
-}
-void ByteBuffer::put_uint24(uint32_t value) {
-  assert(this->get_remaining() >= 3);
-  if (this->endianness_ == LITTLE) {
-    this->data_[this->position_++] = (uint8_t) value;
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
-    this->data_[this->position_++] = (uint8_t) (value >> 16);
-  } else {
-    this->data_[this->position_++] = (uint8_t) (value >> 16);
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
-    this->data_[this->position_++] = (uint8_t) value;
-  }
-}
-void ByteBuffer::put_uint32(uint32_t value) {
-  assert(this->get_remaining() >= 4);
-  if (this->endianness_ == LITTLE) {
-    this->data_[this->position_++] = (uint8_t) value;
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
-    this->data_[this->position_++] = (uint8_t) (value >> 16);
-    this->data_[this->position_++] = (uint8_t) (value >> 24);
-  } else {
-    this->data_[this->position_++] = (uint8_t) (value >> 24);
-    this->data_[this->position_++] = (uint8_t) (value >> 16);
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
-    this->data_[this->position_++] = (uint8_t) value;
-  }
-}
-void ByteBuffer::put_uint64(uint64_t value) {
-  assert(this->get_remaining() >= 8);
-  if (this->endianness_ == LITTLE) {
-    this->data_[this->position_++] = (uint8_t) value;
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
-    this->data_[this->position_++] = (uint8_t) (value >> 16);
-    this->data_[this->position_++] = (uint8_t) (value >> 24);
-    this->data_[this->position_++] = (uint8_t) (value >> 32);
-    this->data_[this->position_++] = (uint8_t) (value >> 40);
-    this->data_[this->position_++] = (uint8_t) (value >> 48);
-    this->data_[this->position_++] = (uint8_t) (value >> 56);
-  } else {
-    this->data_[this->position_++] = (uint8_t) (value >> 56);
-    this->data_[this->position_++] = (uint8_t) (value >> 48);
-    this->data_[this->position_++] = (uint8_t) (value >> 40);
-    this->data_[this->position_++] = (uint8_t) (value >> 32);
-    this->data_[this->position_++] = (uint8_t) (value >> 24);
-    this->data_[this->position_++] = (uint8_t) (value >> 16);
-    this->data_[this->position_++] = (uint8_t) (value >> 8);
-    this->data_[this->position_++] = (uint8_t) value;
+    this->position_ += length;
+    auto index = this->position_;
+    while (length-- != 0) {
+      this->data_[--index] = static_cast<uint8_t>(value);
+      value >>= 8;
+    }
   }
 }
 void ByteBuffer::put_float(float value) {
+  static_assert(sizeof(float) == sizeof(uint32_t), "Float sizes other than 32 bit not supported");
   assert(this->get_remaining() >= sizeof(float));
-  uint8_t byte_array[sizeof(float)];
-  std::memcpy(byte_array, &value, sizeof(float));
-  if (this->endianness_ == LITTLE) {
-    for (uint8_t byte_part : byte_array) {
-      this->data_[this->position_++] = byte_part;
-    }
-  } else {
-    for (size_t i = sizeof(float); i > 0; i--) {
-      this->data_[this->position_++] = byte_array[i - 1];
-    }
-  }
+  uint32_t ui_value;
+  memcpy(&ui_value, &value, sizeof(float));  // this work-around required to silence compiler warnings
+  this->put_uint32(ui_value);
 }
 void ByteBuffer::put_double(double value) {
+  static_assert(sizeof(double) == sizeof(uint64_t), "Double sizes other than 64 bit not supported");
   assert(this->get_remaining() >= sizeof(double));
-  uint8_t byte_array[sizeof(double)];
-  std::memcpy(byte_array, &value, sizeof(double));
-  if (this->endianness_ == LITTLE) {
-    for (uint8_t byte_part : byte_array) {
-      this->data_[this->position_++] = byte_part;
-    }
-  } else {
-    for (size_t i = sizeof(double); i > 0; i--) {
-      this->data_[this->position_++] = byte_array[i - 1];
-    }
-  }
+  uint64_t ui_value;
+  memcpy(&ui_value, &value, sizeof(double));
+  this->put_uint64(ui_value);
+}
+void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
+  assert(this->get_remaining() >= value.size());
+  std::copy(value.begin(), value.end(), this->data_.begin() + this->position_);
+  this->position_ += value.size();
 }
 }  // namespace esphome
