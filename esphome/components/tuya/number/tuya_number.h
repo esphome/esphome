@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/tuya/tuya.h"
 #include "esphome/components/number/number.h"
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
