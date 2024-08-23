@@ -102,7 +102,36 @@ async def to_code(config):
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
         cg.add(var.set_i2s_comm_fmt_lsb(config[CONF_I2S_COMM_FMT] == "lsb"))
 
+    # Add library dependencies:
+    # ESP32-audioI2S
+    # |-- FFat
+    # |   |-- FS
+    # |-- FS
+    # |-- SD
+    # |   |-- FS
+    # |   |-- SPI
+    # |-- SD_MMC
+    # |   |-- FS
+    # |-- SPIFFS
+    # |   |-- FS
+    # |-- WiFi
+    # |-- WiFiClientSecure
+    # |   |-- WiFi
+    cg.add_library("SPI", None)
+    cg.add_library("FS", None)
+    cg.add_library("FFat", None)    
+    cg.add_library("SD", None)
+    cg.add_library("SD_MMC", None)
+    cg.add_library("SPIFFS", None)
+
+    cg.add_library("WiFi", None)
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
-    cg.add_library("esphome/ESP32-audioI2S", "2.0.7")
-    cg.add_build_flag("-DAUDIO_NO_SD_FS")
+
+    cg.add_library(
+        name="ESP32-audioI2S",
+        version=None,
+
+        # Note: use a custom fork that removes the length limit on the host parameter in connecttohost()
+        repository="https://github.com/shadow578/ESP32-audioI2S.git#remove_host_length_limit",
+    )
