@@ -21,8 +21,13 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       if (this->audio_->isRunning()) {
         this->audio_->stopSong();
       }
-      this->audio_->connecttohost(this->current_url_.value().c_str());
-      this->state = play_state;
+      const bool ok = this->audio_->connecttohost(this->current_url_.value().c_str());
+      if (ok) {
+        this->state = play_state;
+      } else {
+        ESP_LOGD(TAG, "failed to start audio");
+        this->stop_();
+      }
     } else {
       this->start();
     }
@@ -180,12 +185,18 @@ void I2SAudioMediaPlayer::start_() {
   this->high_freq_.start();
   this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, 21));
   if (this->current_url_.has_value()) {
-    this->audio_->connecttohost(this->current_url_.value().c_str());
-    this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-    if (this->is_announcement_) {
-      this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+    const bool ok = this->audio_->connecttohost(this->current_url_.value().c_str());
+    if (ok) {
+      this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+      if (this->is_announcement_) {
+        this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+      }
+
+      this->publish_state();
+    } else {
+      ESP_LOGD(TAG, "failed to start audio");
+      stop_();
     }
-    this->publish_state();
   }
 }
 void I2SAudioMediaPlayer::stop() {
