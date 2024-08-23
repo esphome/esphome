@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cinttypes>
+
 namespace esphome {
 namespace atm90e32 {
 

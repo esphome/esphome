@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from typing import Any, Union
 
@@ -20,6 +21,8 @@ from ..defines import (
     CONF_GRID_ROWS,
     CONF_LAYOUT,
     CONF_MAIN,
+    CONF_PAD_COLUMN,
+    CONF_PAD_ROW,
     CONF_SCROLLBAR_MODE,
     CONF_STYLES,
     CONF_WIDGETS,
@@ -29,6 +32,7 @@ from ..defines import (
     TYPE_FLEX,
     TYPE_GRID,
     LValidator,
+    call_lambda,
     join_enums,
     literal,
 )
@@ -220,6 +224,11 @@ async def get_widget_(wid: Widget):
     return await FakeAwaitable(get_widget_generator(wid))
 
 
+async def wait_for_widgets():
+    while not Widget.widgets_completed:
+        await asyncio.sleep(0)
+
+
 async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
     if not config:
         return []
@@ -273,6 +282,10 @@ async def set_obj_properties(w: Widget, config):
         layout_type: str = layout[CONF_TYPE]
         add_lv_use(layout_type)
         lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
+        if (pad_row := layout.get(CONF_PAD_ROW)) is not None:
+            w.set_style(CONF_PAD_ROW, pad_row, 0)
+        if (pad_column := layout.get(CONF_PAD_COLUMN)) is not None:
+            w.set_style(CONF_PAD_COLUMN, pad_column, 0)
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
             rows = [str(x) for x in layout[CONF_GRID_ROWS]]
@@ -316,8 +329,13 @@ async def set_obj_properties(w: Widget, config):
     flag_clr = set()
     flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]
+    lambs = {}
+    flag_set = set()
+    flag_clr = set()
     for prop, value in {k: v for k, v in props.items() if k in OBJ_FLAGS}.items():
-        if value:
+        if isinstance(value, cv.Lambda):
+            lambs[prop] = value
+        elif value:
             flag_set.add(prop)
         else:
             flag_clr.add(prop)
@@ -327,6 +345,13 @@ async def set_obj_properties(w: Widget, config):
     if flag_clr:
         clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
         w.clear_flag(clrs)
+    for key, value in lambs.items():
+        lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+        flag = f"LV_OBJ_FLAG_{key.upper()}"
+        with LvConditional(call_lambda(lamb)) as cond:
+            w.add_flag(flag)
+            cond.else_()
+            w.clear_flag(flag)
 
     if states := config.get(CONF_STATE):
         adds = set()
@@ -348,7 +373,7 @@ async def set_obj_properties(w: Widget, config):
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
             state = f"LV_STATE_{key.upper()}"
-            with LvConditional(f"{lamb}()") as cond:
+            with LvConditional(call_lambda(lamb)) as cond:
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)

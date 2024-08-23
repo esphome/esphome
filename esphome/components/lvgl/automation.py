@@ -5,6 +5,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIMEOUT
+from esphome.cpp_generator import RawExpression
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -17,6 +18,7 @@ from .defines import (
 from .lv_validation import lv_bool, lv_color, lv_image
 from .lvcode import (
     LVGL_COMP_ARG,
+    UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
     LvConditional,
@@ -25,12 +27,12 @@ from .lvcode import (
     add_line_marks,
     lv,
     lv_add,
+    lv_expr,
     lv_obj,
     lvgl_comp,
 )
 from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
-    LV_EVENT,
     LV_STATE,
     LvglAction,
     LvglCondition,
@@ -38,7 +40,13 @@ from .types import (
     lv_disp_t,
     lv_obj_t,
 )
-from .widgets import Widget, get_widgets, lv_scr_act, set_obj_properties
+from .widgets import (
+    Widget,
+    get_widgets,
+    lv_scr_act,
+    set_obj_properties,
+    wait_for_widgets,
+)
 
 
 async def action_to_code(
@@ -48,10 +56,12 @@ async def action_to_code(
     template_arg,
     args,
 ):
+    await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
+        with LvConditional(lv_expr.is_pre_initialise()):
+            context.add(RawExpression("return"))
         for widget in widgets:
-            with LvConditional(widget.obj != nullptr):
-                await action(widget)
+            await action(widget)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     return var
 
@@ -64,7 +74,7 @@ async def update_to_code(config, action_id, template_arg, args):
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
         ):
-            lv.event_send(widget.obj, LV_EVENT.VALUE_CHANGED, nullptr)
+            lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(widgets, do_update, action_id, template_arg, args)
