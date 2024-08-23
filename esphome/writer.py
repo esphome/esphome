@@ -106,6 +106,8 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
         return True
     if old.build_path != new.build_path:
         return True
+    if old.loaded_integrations != new.loaded_integrations:
+        return True
     return False
 
 
@@ -117,7 +119,9 @@ def update_storage_json():
         return
 
     if storage_should_clean(old, new):
-        _LOGGER.info("Core config or version changed, cleaning build files...")
+        _LOGGER.info(
+            "Core config, version or integrations changed, cleaning build files..."
+        )
         clean_build()
 
     new.save(path)
