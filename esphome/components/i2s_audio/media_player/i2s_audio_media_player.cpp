@@ -266,4 +266,9 @@ void I2SAudioMediaPlayer::dump_config() {
 }  // namespace i2s_audio
 }  // namespace esphome
 
+void audio_info(const char *info) {
+  using namespace esphome;
+  ESP_LOGD("audio_info", "%s", info);
+}
+
 #endif  // USE_ESP32_FRAMEWORK_ARDUINO
