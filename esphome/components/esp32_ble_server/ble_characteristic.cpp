@@ -33,10 +33,8 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 }
 
 void BLECharacteristic::set_value(ByteBuffer buffer) {
-  size_t length = buffer.get_capacity();
-  uint8_t *data = buffer.array();
   xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = std::vector<uint8_t>(data, data + length);
+  this->value_ = buffer.get_data();
   xSemaphoreGive(this->set_value_lock_);
 }
 
