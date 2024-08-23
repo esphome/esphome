@@ -35,6 +35,7 @@ async def to_code(config):
     async with LambdaContext([(cg.std_string, "text_value")]) as control:
         await widget.set_property("text", "text_value.c_str())")
         lv.event_send(widget.obj, API_EVENT, None)
+        control.add(textvar.publish_state(widget.get_value()))
     async with LambdaContext(EVENT_ARG) as lamb:
         lv_add(textvar.publish_state(widget.get_value()))
     async with LvContext(paren):

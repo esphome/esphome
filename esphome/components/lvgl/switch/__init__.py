@@ -3,7 +3,7 @@ from esphome.components.switch import Switch, new_switch, switch_schema
 import esphome.config_validation as cv
 from esphome.cpp_generator import MockObj
 
-from ..defines import CONF_LVGL_ID, CONF_WIDGET
+from ..defines import CONF_LVGL_ID, CONF_WIDGET, literal
 from ..lvcode import (
     API_EVENT,
     EVENT_ARG,
@@ -43,6 +43,7 @@ async def to_code(config):
             cond.else_()
             widget.clear_state(LV_STATE.CHECKED)
         lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        control.add(switch.publish_state(literal("v")))
     async with LvContext(paren) as ctx:
         lv_add(switch.set_control_lambda(await control.get_lambda()))
         ctx.add(

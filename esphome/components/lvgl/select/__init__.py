@@ -42,6 +42,7 @@ async def to_code(config):
     async with LambdaContext([(cg.uint16, "v")]) as control:
         await widget.set_property("selected", "v", animated=config[CONF_ANIMATED])
         lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        control.add(selector.publish_index(widget.get_value()))
     async with LvContext(paren) as ctx:
         lv_add(selector.set_control_lambda(await control.get_lambda()))
         ctx.add(

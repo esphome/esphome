@@ -320,8 +320,15 @@ async def set_obj_properties(w: Widget, config):
             lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
     for part, states in parts.items():
+        part = "LV_PART_" + part.upper()
         for state, props in states.items():
-            lv_state = join_enums((f"LV_STATE_{state}", f"LV_PART_{part}"))
+            state = "LV_STATE_" + state.upper()
+            if state == "LV_STATE_DEFAULT":
+                lv_state = literal(part)
+            elif part == "LV_PART_MAIN":
+                lv_state = literal(state)
+            else:
+                lv_state = join_enums((state, part))
             for style_id in props.get(CONF_STYLES, ()):
                 lv_obj.add_style(w.obj, MockObj(style_id), lv_state)
             for prop, value in {
