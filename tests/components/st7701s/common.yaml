@@ -38,7 +38,10 @@ display:
     hsync_pin: 16
     vsync_pin: 17
     pclk_pin: 21
-    init_sequence: 1
+    init_sequence:
+      - 1
+      - delay 20ms
+      - [0x23, 0xA, 0xB]
     data_pins:
       - number: 0
         ignore_strapping_warning: true

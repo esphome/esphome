@@ -139,7 +139,6 @@ void ST7701S::write_init_sequence_() {
     uint8_t cmd = this->init_sequence_[i++];
     size_t len = this->init_sequence_[i++];
     if (len == ST7701S_DELAY_FLAG) {
-      cmd &= 0x7F;
       ESP_LOGV(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
