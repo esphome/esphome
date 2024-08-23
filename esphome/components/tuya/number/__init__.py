@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_MULTIPLY,
     CONF_STEP,
     CONF_INITIAL_VALUE,
-    CONF_RESTORE_VALUE
+    CONF_RESTORE_VALUE,
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya, TuyaDatapointType
 
