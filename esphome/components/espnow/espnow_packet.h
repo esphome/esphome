@@ -60,8 +60,8 @@ struct ESPNowPacket {
     } __attribute__((packed));
   };
 
-  inline ESPNowPacket() ESPHOME_ALWAYS_INLINE : retrys(0) {}
-  inline ESPNowPacket(const uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
+  ESPNowPacket() ESPHOME_ALWAYS_INLINE : retrys(0) {}
+  ESPNowPacket(const uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
 
   inline void info(std::string place);
 
@@ -87,11 +87,11 @@ struct ESPNowPacket {
 
   bool is_valid();
 
-  inline std::string to_str(uint64_t mac64_ = 0) {
+  inline std::string to_str(uint64_t mac64 = 0) {
     espnow_addr_t mac;
-    if (mac64_ == 0)
-      mac64_ = this->mac64;
-    memcpy((void *) &mac, &mac64_, 6);
+    if (mac64 == 0)
+      mac64 = this->mac64;
+    memcpy((void *) &mac, &mac64, 6);
     return string_format("{\"%02x:%02x:%02x:%02x:%02x:%02x\"}", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   }
 

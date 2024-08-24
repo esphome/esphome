@@ -5,11 +5,8 @@
 
 static const char *const TAG = "espnow_packet";
 
-ESPNowPacket::ESPNowPacket(const uint64_t mac64, const uint8_t *data, uint8_t size,
-                           uint32_t app_id) ESPHOME_ALWAYS_INLINE : mac64(mac64),
-                                                                    size(size),
-                                                                    app_id(app_id),
-                                                                    retrys(0) {
+ESPNowPacket::ESPNowPacket(const uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id)
+    : mac64(mac64), size(size), app_id(app_id), retrys(0) {
   if (this->mac64 == 0)
     this->mac64 = ESPNOW_BROADCAST_ADDR;
   this->is_broadcast = this->mac64 == ESPNOW_BROADCAST_ADDR;
