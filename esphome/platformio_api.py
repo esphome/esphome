@@ -1,12 +1,11 @@
 from dataclasses import dataclass
 import json
-from typing import Union
-from pathlib import Path
-
 import logging
 import os
+from pathlib import Path
 import re
 import subprocess
+from typing import Union
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
@@ -20,9 +19,10 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    from platformio.run import helpers, cli
-    from os.path import join, isdir, getmtime
     from os import makedirs
+    from os.path import getmtime, isdir, join
+
+    from platformio.run import cli, helpers
 
     def patched_clean_build_dir(build_dir, *args):
         from platformio import fs

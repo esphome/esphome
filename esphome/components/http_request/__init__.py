@@ -14,7 +14,7 @@ from esphome.const import (
 from esphome.core import CORE, Lambda
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["json"]
+AUTO_LOAD = ["json", "watchdog"]
 
 http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)

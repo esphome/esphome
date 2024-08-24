@@ -1,5 +1,6 @@
 import logging
 
+from esphome.automation import build_automation, register_action, validate_automation
 import esphome.codegen as cg
 from esphome.components.display import Display
 import esphome.config_validation as cv
@@ -8,47 +9,123 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_ON_IDLE,
     CONF_PAGES,
+    CONF_TIMEOUT,
+    CONF_TRIGGER_ID,
+    CONF_TYPE,
 )
-from esphome.core import CORE, ID, Lambda
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .label import label_spec
-from .lvcode import ConstantLiteral, LvContext
-
-# from .menu import menu_spec
-from .obj import obj_spec
-from .schemas import WIDGET_TYPES, any_widget_schema, obj_schema
-from .types import FontEngine, LvglComponent, lv_disp_t_ptr, lv_font_t, lvgl_ns
-from .widget import LvScrActType, Widget, add_widgets, set_obj_properties
+from .automation import disp_update, update_to_code
+from .defines import CONF_SKIP
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
+from .lv_validation import lv_bool, lv_images_used
+from .lvcode import LvContext, LvglComponent
+from .schemas import (
+    DISP_BG_SCHEMA,
+    FLEX_OBJ_SCHEMA,
+    GRID_CELL_SCHEMA,
+    LAYOUT_SCHEMAS,
+    STYLE_SCHEMA,
+    WIDGET_TYPES,
+    any_widget_schema,
+    container_schema,
+    create_modify_schema,
+    grid_alignments,
+    obj_schema,
+)
+from .styles import add_top_layer, styles_to_code, theme_to_code
+from .touchscreens import touchscreen_schema, touchscreens_to_code
+from .trigger import generate_triggers
+from .types import (
+    FontEngine,
+    IdleTrigger,
+    ObjUpdateAction,
+    lv_font_t,
+    lv_group_t,
+    lv_style_t,
+    lvgl_ns,
+)
+from .widgets import Widget, add_widgets, lv_scr_act, set_obj_properties
+from .widgets.animimg import animimg_spec
+from .widgets.arc import arc_spec
+from .widgets.button import button_spec
+from .widgets.buttonmatrix import buttonmatrix_spec
+from .widgets.checkbox import checkbox_spec
+from .widgets.dropdown import dropdown_spec
+from .widgets.img import img_spec
+from .widgets.keyboard import keyboard_spec
+from .widgets.label import label_spec
+from .widgets.led import led_spec
+from .widgets.line import line_spec
+from .widgets.lv_bar import bar_spec
+from .widgets.meter import meter_spec
+from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
+from .widgets.obj import obj_spec
+from .widgets.page import add_pages, page_spec
+from .widgets.roller import roller_spec
+from .widgets.slider import slider_spec
+from .widgets.spinbox import spinbox_spec
+from .widgets.spinner import spinner_spec
+from .widgets.switch import switch_spec
+from .widgets.tabview import tabview_spec
+from .widgets.textarea import textarea_spec
+from .widgets.tileview import tileview_spec
 
 DOMAIN = "lvgl"
-DEPENDENCIES = ("display",)
-AUTO_LOAD = ("key_provider",)
-CODEOWNERS = ("@clydebarrow",)
+DEPENDENCIES = ["display"]
+AUTO_LOAD = ["key_provider"]
+CODEOWNERS = ["@clydebarrow"]
 LOGGER = logging.getLogger(__name__)
 
-for widg in (
+for w_type in (
     label_spec,
     obj_spec,
+    button_spec,
+    bar_spec,
+    slider_spec,
+    arc_spec,
+    line_spec,
+    spinner_spec,
+    led_spec,
+    animimg_spec,
+    checkbox_spec,
+    img_spec,
+    switch_spec,
+    tabview_spec,
+    buttonmatrix_spec,
+    meter_spec,
+    dropdown_spec,
+    roller_spec,
+    textarea_spec,
+    spinbox_spec,
+    keyboard_spec,
+    tileview_spec,
 ):
-    WIDGET_TYPES[widg.name] = widg
-
-lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(
-    None, ConstantLiteral("lv_scr_act()"), lv_scr_act_spec, {}, parent=None
-)
+    WIDGET_TYPES[w_type.name] = w_type
 
 WIDGET_SCHEMA = any_widget_schema()
 
-
-async def add_init_lambda(lv_component, init):
-    if init:
-        lamb = await cg.process_lambda(Lambda(init), [(lv_disp_t_ptr, "lv_disp")])
-        cg.add(lv_component.add_init_lambda(lamb))
+LAYOUT_SCHEMAS[df.TYPE_GRID] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(GRID_CELL_SCHEMA))
+}
+LAYOUT_SCHEMAS[df.TYPE_FLEX] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema(FLEX_OBJ_SCHEMA))
+}
+LAYOUT_SCHEMAS[df.TYPE_NONE] = {
+    cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())
+}
+for w_type in WIDGET_TYPES.values():
+    register_action(
+        f"lvgl.{w_type.name}.update",
+        ObjUpdateAction,
+        create_modify_schema(w_type),
+    )(update_to_code)
 
 
 lv_defines = {}  # Dict of #defines to provide as build flags
@@ -82,6 +159,9 @@ def generate_lv_conf_h():
 
 
 def final_validation(config):
+    if pages := config.get(CONF_PAGES):
+        if all(p[CONF_SKIP] for p in pages):
+            raise cv.Invalid("At least one page must not be skipped")
     global_config = full_config.get()
     for display_id in config[df.CONF_DISPLAYS]:
         path = global_config.get_path_for_id(display_id)[:-1]
@@ -93,8 +173,15 @@ def final_validation(config):
                 "Using auto_clear_enabled: true in display config not compatible with LVGL"
             )
     buffer_frac = config[CONF_BUFFER_SIZE]
-    if not CORE.is_host and buffer_frac > 0.5 and "psram" not in global_config:
+    if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
         LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
+    for image_id in lv_images_used:
+        path = global_config.get_path_for_id(image_id)[:-1]
+        image_conf = global_config.get_config_for_path(path)
+        if image_conf[CONF_TYPE] in ("RGBA", "RGB24"):
+            raise cv.Invalid(
+                "Using RGBA or RGB24 in image config not compatible with LVGL", path
+            )
 
 
 async def to_code(config):
@@ -132,7 +219,7 @@ async def to_code(config):
     cg.add_global(lvgl_ns.using)
     lv_component = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(lv_component, config)
-    Widget.create(config[CONF_ID], lv_component, WIDGET_TYPES[df.CONF_OBJ], config)
+    Widget.create(config[CONF_ID], lv_component, obj_spec, config)
     for display in config[df.CONF_DISPLAYS]:
         cg.add(lv_component.add_display(await cg.get_variable(display)))
 
@@ -152,7 +239,7 @@ async def to_code(config):
         await cg.get_variable(font)
         cg.new_Pvariable(ID(f"{font}_engine", True, type=FontEngine), MockObj(font))
     default_font = config[df.CONF_DEFAULT_FONT]
-    if default_font not in helpers.lv_fonts_used:
+    if not lvalid.is_lv_font(default_font):
         add_define(
             "LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{df.DEFAULT_ESPHOME_FONT})"
         )
@@ -161,16 +248,32 @@ async def to_code(config):
             True,
             type=lv_font_t.operator("ptr").operator("const"),
         )
-        cg.new_variable(globfont_id, MockObj(default_font))
+        cg.new_variable(
+            globfont_id, MockObj(await lvalid.lv_font.process(default_font))
+        )
         add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
-        add_define("LV_FONT_DEFAULT", default_font)
+        add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
 
-    with LvContext():
+    async with LvContext(lv_component):
+        await touchscreens_to_code(lv_component, config)
+        await encoders_to_code(lv_component, config)
+        await theme_to_code(config)
+        await styles_to_code(config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
-    Widget.set_completed()
-    await add_init_lambda(lv_component, LvContext.get_code())
+        await add_pages(lv_component, config)
+        await add_top_layer(config)
+        await msgboxes_to_code(config)
+        await disp_update(f"{lv_component}->get_disp()", config)
+        Widget.set_completed()
+        await generate_triggers(lv_component)
+        for conf in config.get(CONF_ON_IDLE, ()):
+            templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
+            idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
+            await build_automation(idle_trigger, [], conf)
+        await initial_focus_to_code(config)
+
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
     for use in helpers.lv_uses:
@@ -190,7 +293,7 @@ FINAL_VALIDATE_SCHEMA = final_validation
 
 CONFIG_SCHEMA = (
     cv.polling_component_schema("1s")
-    .extend(obj_schema("obj"))
+    .extend(obj_schema(obj_spec))
     .extend(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
@@ -205,8 +308,39 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
                 "big_endian", "little_endian"
             ),
-            cv.Optional(df.CONF_WIDGETS): cv.ensure_list(WIDGET_SCHEMA),
+            cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
+                cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
+                .extend(STYLE_SCHEMA)
+                .extend(
+                    {
+                        cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
+                        cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                    }
+                )
+            ),
+            cv.Optional(CONF_ON_IDLE): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
+                    cv.Required(CONF_TIMEOUT): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
+                }
+            ),
+            cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(WIDGET_SCHEMA),
+            cv.Exclusive(CONF_PAGES, CONF_PAGES): cv.ensure_list(
+                container_schema(page_spec)
+            ),
+            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
+            cv.Optional(df.CONF_THEME): cv.Schema(
+                {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
+            ),
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
         }
     )
+    .extend(DISP_BG_SCHEMA)
 ).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))

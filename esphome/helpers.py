@@ -1,14 +1,13 @@
 import codecs
 from contextlib import suppress
-
 import logging
 import os
-import platform
 from pathlib import Path
-from typing import Union
-import tempfile
-from urllib.parse import urlparse
+import platform
 import re
+import tempfile
+from typing import Union
+from urllib.parse import urlparse
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -129,8 +128,9 @@ def _resolve_with_zeroconf(host):
 
 
 def resolve_ip_address(host):
-    from esphome.core import EsphomeError
     import socket
+
+    from esphome.core import EsphomeError
 
     errs = []
 
