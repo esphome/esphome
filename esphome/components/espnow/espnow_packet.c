@@ -29,17 +29,17 @@ inline void ESPNowPacket::info(std::string place) {
 }
 
 bool ESPNowPacket::is_valid() {
-  uint16_t crc = random;
+  uint16_t crc = this->crc16;
   recalc();
   bool valid = (std::memcmp(&header, &transport_header, 3) == 0);
   valid &= (this->app_id != 0);
-  valid &= (this->random == crc);
+  valid &= (this->crc16 == crc);
   if (!valid) {
     ESP_LOGV("Packet", "Invalid H:%02x%02x%02x A:%06x R:%02x C:%04x ipv. %04x, %d&%d&%d=%d\n", this->header[0],
-             this->header[1], this->header[2], this->app_id, this->ref_id, crc, this->random,
-             std::memcmp(&header, &transport_header, 3) == 0, (this->app_id != 0), (this->random == crc), valid);
+             this->header[1], this->header[2], this->app_id, this->ref_id, crc, this->crc16,
+             std::memcmp(&header, &transport_header, 3) == 0, (this->app_id != 0), (this->crc16 == crc), valid);
   }
 
-  this->random = crc;
+  this->crc16 = crc;
   return valid;
 }

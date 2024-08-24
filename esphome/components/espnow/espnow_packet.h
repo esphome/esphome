@@ -81,8 +81,8 @@ struct ESPNowPacket {
   }
 
   inline void recalc() {
-    random = 0;
-    random = esp_crc16_le(ref_id, (uint8_t *) &content, 10 + size);
+    crc16 = 0;
+    crc16 = esp_crc16_le(ref_id, (uint8_t *) &content, 10 + size);
   }
 
   bool is_valid();
