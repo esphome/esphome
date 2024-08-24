@@ -21,12 +21,11 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       if (this->audio_->isRunning()) {
         this->audio_->stopSong();
       }
-      const bool ok = this->audio_->connecttohost(this->current_url_.value().c_str());
-      if (ok) {
+      if (this->connecttouri_(this->current_url_.value())) {
         this->state = play_state;
       } else {
-        ESP_LOGD(TAG, "failed to start audio");
         this->stop_();
+        ESP_LOGD(TAG, "connecttouri_ failed");
       }
     } else {
       this->start();
@@ -183,20 +182,20 @@ void I2SAudioMediaPlayer::start_() {
 
   this->i2s_state_ = I2S_STATE_RUNNING;
   this->high_freq_.start();
-  this->audio_->setVolumeSteps(255); // use 255 steps for smoother volume control
+  this->audio_->setVolumeSteps(255);  // use 255 steps for smoother volume control
   this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, this->audio_->maxVolume()));
   if (this->current_url_.has_value()) {
-    const bool ok = this->audio_->connecttohost(this->current_url_.value().c_str());
-    if (ok) {
-      this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+    if (this->connecttouri_(this->current_url_.value())) {
       if (this->is_announcement_) {
         this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+      } else {
+        this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
       }
 
       this->publish_state();
     } else {
-      ESP_LOGD(TAG, "failed to start audio");
-      stop_();
+      this->stop_();
+      ESP_LOGD(TAG, "connecttouri_ failed");
     }
   }
 }
@@ -262,6 +261,46 @@ void I2SAudioMediaPlayer::dump_config() {
 #if SOC_I2S_SUPPORTS_DAC
   }
 #endif
+}
+
+bool I2SAudioMediaPlayer::connecttouri_(const std::string uri) {
+  if (this->audio_ == nullptr) {
+    return false;
+  }
+
+  // web stream?
+  if (uri.find("http://", 0) == 0 || uri.find("https://", 0) == 0) {
+    ESP_LOGD(TAG, "ConnectTo WebStream '%s'", uri.c_str());
+    return this->audio_->connecttohost(uri.c_str());
+  }
+
+  // local file?
+  if (uri.find("file://", 0) == 0) {
+    // format: file://<path>
+    // const std::string path = uri.substr(7);
+    // ESP_LOGD(TAG, "ConnectTo File '%s'", path.c_str());
+    // return this->audio_->connecttoFS(?, uri.c_str() + 7);
+    return false;
+  }
+
+  // text to speech?
+  if (uri.find("tts://", 0) == 0) {
+    // format: tts://<lang>:<text>
+    const size_t colon = uri.find(':', 6);
+    if (colon == std::string::npos || colon > 10) {
+      // language code is expected to be 2-5 characters
+      ESP_LOGW(TAG, "Invalid TTS URI");
+      return false;
+    }
+
+    const std::string lang = uri.substr(6, colon - 6);
+    const std::string text = uri.substr(colon + 1);
+
+    ESP_LOGD(TAG, "ConnectTo TTS: lang='%s', text='%s'", lang.c_str(), text.c_str());
+    return this->audio_->connecttospeech(text.c_str(), lang.c_str());
+  }
+
+  return false;
 }
 
 }  // namespace i2s_audio

@@ -59,6 +59,8 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
   void stop_();
   void play_();
 
+  bool connecttouri_(const std::string uri);
+
   I2SState i2s_state_{I2S_STATE_STOPPED};
   std::unique_ptr<Audio> audio_;
 

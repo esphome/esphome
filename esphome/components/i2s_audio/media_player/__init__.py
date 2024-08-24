@@ -119,7 +119,7 @@ async def to_code(config):
     # |   |-- WiFi
     cg.add_library("SPI", None)
     cg.add_library("FS", None)
-    cg.add_library("FFat", None)    
+    cg.add_library("FFat", None)
     cg.add_library("SD", None)
     cg.add_library("SD_MMC", None)
     cg.add_library("SPIFFS", None)
@@ -131,7 +131,6 @@ async def to_code(config):
     cg.add_library(
         name="ESP32-audioI2S",
         version=None,
-
         # Note: use a custom fork that removes the length limit on the host parameter in connecttohost()
         repository="https://github.com/shadow578/ESP32-audioI2S.git#remove_host_length_limit",
     )
