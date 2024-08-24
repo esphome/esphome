@@ -1,7 +1,9 @@
+#include "mqtt_backend_esp32.h"
+
+#ifdef USE_MQTT
 #ifdef USE_ESP32
 
 #include <string>
-#include "mqtt_backend_esp32.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -189,3 +191,4 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
 }  // namespace mqtt
 }  // namespace esphome
 #endif  // USE_ESP32
+#endif

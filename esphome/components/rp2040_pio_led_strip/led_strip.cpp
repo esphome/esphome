@@ -7,8 +7,10 @@
 
 #include <hardware/clocks.h>
 #include <hardware/dma.h>
+#include <hardware/irq.h>
 #include <hardware/pio.h>
 #include <pico/stdlib.h>
+#include <pico/sem.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -23,6 +25,19 @@ static std::map<Chipset, bool> conf_count_ = {
     {CHIPSET_WS2812, false},  {CHIPSET_WS2812B, false}, {CHIPSET_SK6812, false},
     {CHIPSET_SM16703, false}, {CHIPSET_CUSTOM, false},
 };
+static bool dma_chan_active_[12];
+static struct semaphore dma_write_complete_sem_[12];
+
+// DMA interrupt service routine
+void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
+  uint32_t channel = dma_hw->ints0;
+  for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
+    if (RP2040PIOLEDStripLightOutput::dma_chan_active_[dma_chan] && (channel & (1u << dma_chan))) {
+      dma_hw->ints0 = (1u << dma_chan);                                               // Clear the interrupt
+      sem_release(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem_[dma_chan]);  // Handle the interrupt
+    }
+  }
+}
 
 void RP2040PIOLEDStripLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RP2040 LED Strip...");
@@ -57,22 +72,22 @@ void RP2040PIOLEDStripLightOutput::setup() {
   // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
   uint offset = 0;
 
-  if (num_instance_[this->pio_ == pio0 ? 0 : 1] > 4) {
+  if (RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1] > 4) {
     ESP_LOGE(TAG, "Too many instances of PIO program");
     this->mark_failed();
     return;
   }
   // keep track of how many instances of the PIO program are running on each PIO
-  num_instance_[this->pio_ == pio0 ? 0 : 1]++;
+  RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1]++;
 
   // if there are multiple strips of the same chipset, we can reuse the same PIO program and save space
   if (this->conf_count_[this->chipset_]) {
-    offset = chipset_offsets_[this->chipset_];
+    offset = RP2040PIOLEDStripLightOutput::chipset_offsets_[this->chipset_];
   } else {
     // Load the assembled program into the PIO and get its location in the PIO's instruction memory and save it
     offset = pio_add_program(this->pio_, this->program_);
-    chipset_offsets_[this->chipset_] = offset;
-    conf_count_[this->chipset_] = true;
+    RP2040PIOLEDStripLightOutput::chipset_offsets_[this->chipset_] = offset;
+    RP2040PIOLEDStripLightOutput::conf_count_[this->chipset_] = true;
   }
 
   // Configure the state machine's PIO, and start it
@@ -93,6 +108,9 @@ void RP2040PIOLEDStripLightOutput::setup() {
     return;
   }
 
+  // Mark the DMA channel as active
+  RP2040PIOLEDStripLightOutput::dma_chan_active_[this->dma_chan_] = true;
+
   this->dma_config_ = dma_channel_get_default_config(this->dma_chan_);
   channel_config_set_transfer_data_size(
       &this->dma_config_,
@@ -108,6 +126,13 @@ void RP2040PIOLEDStripLightOutput::setup() {
                         this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3,  // number of bytes to transfer
                         false                                            // don't start yet
   );
+
+  // Initialize the semaphore for this DMA channel
+  sem_init(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem_[this->dma_chan_], 1, 1);
+
+  irq_set_exclusive_handler(DMA_IRQ_0, dma_write_complete_handler_);  // after DMA all data, raise an interrupt
+  dma_channel_set_irq0_enabled(this->dma_chan_, true);                // map DMA channel to interrupt
+  irq_set_enabled(DMA_IRQ_0, true);                                   // enable interrupt
 
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 }
@@ -126,6 +151,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
+  sem_acquire_blocking(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem_[this->dma_chan_]);
   dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 

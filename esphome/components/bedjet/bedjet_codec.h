@@ -90,7 +90,7 @@ struct BedjetStatusPacket {
     int unused_6 : 1;       // 0x4
     bool is_dual_zone : 1;  /// Is part of a Dual Zone configuration
     int unused_7 : 1;       // 0x1
-  } dual_zone_flags;
+  } dual_zone_flags;        // NOLINT(clang-diagnostic-unaligned-access)
 
   uint8_t unused_4 : 8;  // Unknown 23-24 = 0x1310
   uint8_t unused_5 : 8;  // Unknown 23-24 = 0x1310
