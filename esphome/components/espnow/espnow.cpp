@@ -31,7 +31,7 @@ static void application_task(void *param) {
 }
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 1)
-using struct {
+struct {
   uint16_t frame_head;
   uint16_t duration;
   uint8_t destination_address[6];

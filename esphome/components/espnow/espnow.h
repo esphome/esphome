@@ -26,7 +26,7 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
  public:
   ESPNowProtocol(){};
 
-  void setup() override;
+  void setup();
 
   virtual void on_receive(ESPNowPacket packet) { return; };
   virtual void on_sent(ESPNowPacket packet, bool status) { return; };
@@ -45,18 +45,9 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
 
 class ESPNowDefaultProtocol : public ESPNowProtocol {
  public:
-  void on_receive(ESPNowPacket packet) {
-    this->on_receive_.call(packet);
-    return true;
-  };
-  void on_sent(ESPNowPacket packet, bool status) {
-    this->on_sent_.call(packet, status);
-    return true;
-  };
-  void on_new_peer(ESPNowPacket packet) {
-    this->on_new_peer_.call(packet);
-    return true;
-  };
+  void on_receive(ESPNowPacket packet) { this->on_receive_.call(packet); };
+  void on_sent(ESPNowPacket packet, bool status) { this->on_sent_.call(packet, status); };
+  void on_new_peer(ESPNowPacket packet) { this->on_new_peer_.call(packet); };
 
   uint32_t get_app_id() override { return ESPNOW_DEFAULT_APP_ID; };
 
