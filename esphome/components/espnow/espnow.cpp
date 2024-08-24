@@ -102,7 +102,7 @@ void ESPNowComponent::setup() {
   ESP_LOGI(TAG, "Setting up ESP-NOW...");
 
 #ifdef USE_WIFI
-  wifi::global_wifi_component.disable();
+  wifi::global_wifi_component->disable();
 #else  // Set device as a Wi-Fi Station
   esp_event_loop_create_default();
 
