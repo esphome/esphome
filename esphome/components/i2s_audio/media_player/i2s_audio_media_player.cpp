@@ -119,7 +119,7 @@ void I2SAudioMediaPlayer::unmute_() {
 }
 void I2SAudioMediaPlayer::set_volume_(float volume, bool publish) {
   if (this->audio_ != nullptr)
-    this->audio_->setVolume(remap<uint8_t, float>(volume, 0.0f, 1.0f, 0, 21));
+    this->audio_->setVolume(remap<uint8_t, float>(volume, 0.0f, 1.0f, 0, this->audio_->maxVolume()));
   if (publish)
     this->volume = volume;
 }
@@ -183,7 +183,8 @@ void I2SAudioMediaPlayer::start_() {
 
   this->i2s_state_ = I2S_STATE_RUNNING;
   this->high_freq_.start();
-  this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, 21));
+  this->audio_->setVolumeSteps(255); // use 255 steps for smoother volume control
+  this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, this->audio_->maxVolume()));
   if (this->current_url_.has_value()) {
     const bool ok = this->audio_->connecttohost(this->current_url_.value().c_str());
     if (ok) {
