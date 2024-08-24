@@ -131,6 +131,7 @@ esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
+esphome/components/espnow/* @jesserockz @nielsnl68
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
 esphome/components/exposure_notifications/* @OttoWinter

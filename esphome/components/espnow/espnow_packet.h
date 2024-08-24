@@ -23,9 +23,8 @@ typedef uint8_t espnow_addr_t[6];
 static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
 static espnow_addr_t ESPNOW_ADDR_SELF = {0};
 static const uint8_t MAX_ESPNOW_DATA_SIZE = 240;
-#define TRANSPORT_HEADER_SIZE 3
 
-static const uint8_t transport_header[TRANSPORT_HEADER_SIZE] = {0xC1, 0x99, 0x83};
+static const uint32_t transport_header = 0xC19983;
 
 template<typename... Args> std::string string_format(const std::string &format, Args... args) {
   int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) + 1;  // Extra space for '\0'
@@ -62,30 +61,9 @@ struct ESPNowPacket {
   };
 
   inline ESPNowPacket() ESPHOME_ALWAYS_INLINE : retrys(0) {}
+  inline ESPNowPacket(const uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
 
-  inline void info(std::string place) {
-    ESP_LOGVV("Packet", "%s: M:%s A:0x%06x R:0x%02x C:0x%04x S:%02x", place.c_str(), this->to_str().c_str(),
-              this->app_id, this->ref_id, this->random, this->size);
-  }
-
-  inline ESPNowPacket(const uint64_t mac64_, const uint8_t *data_, uint8_t size_,
-                      uint32_t app_id_) ESPHOME_ALWAYS_INLINE : mac64(mac64_),
-                                                                size(size_),
-                                                                app_id(app_id_),
-                                                                retrys(0) {
-    if (mac64_ == 0)
-      this->mac64 = ESPNOW_BROADCAST_ADDR;
-    this->is_broadcast = this->mac64 == ESPNOW_BROADCAST_ADDR;
-
-    this->ref_id = 0;
-
-    this->size = std::min(MAX_ESPNOW_DATA_SIZE, size_);
-    std::memcpy(&data, (uint8_t *) data_, this->size);
-
-    this->data[this->size + 1] = 0;
-    this->recalc();
-    this->info("create");
-  }
+  inline void info(std::string place);
 
   inline void get_mac(espnow_addr_t *mac_addres) { std::memcpy(mac_addres, &mac64, 6); }
   inline void set_mac(espnow_addr_t *mac_addres) { this->mac64 = this->to_mac64(mac_addres); }
@@ -107,21 +85,7 @@ struct ESPNowPacket {
     random = esp_crc16_le(ref_id, (uint8_t *) &content, 10 + size);
   }
 
-  bool is_valid() {
-    uint16_t crc = random;
-    recalc();
-    bool valid = (std::memcmp(&header, &transport_header, 3) == 0);
-    valid &= (this->app_id != 0);
-    valid &= (this->random == crc);
-    if (!valid) {
-      ESP_LOGV("Packet", "Invalid H:%02x%02x%02x A:%06x R:%02x C:%04x ipv. %04x, %d&%d&%d=%d\n", this->header[0],
-               this->header[1], this->header[2], this->app_id, this->ref_id, crc, this->random,
-               std::memcmp(&header, &transport_header, 3) == 0, (this->app_id != 0), (this->random == crc), valid);
-    }
-
-    this->random = crc;
-    return valid;
-  }
+  bool is_valid();
 
   inline std::string to_str(uint64_t mac64_ = 0) {
     espnow_addr_t mac;

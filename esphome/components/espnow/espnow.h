@@ -22,7 +22,7 @@ class ESPNowComponent;
 
 static const uint32_t ESPNOW_DEFAULT_APP_ID = 0x11CFAF;
 
-class ESPNowProtocol : public Component, public Parented<ESPNowComponent> {
+class ESPNowProtocol : public Parented<ESPNowComponent> {
  public:
   ESPNowProtocol(){};
 
