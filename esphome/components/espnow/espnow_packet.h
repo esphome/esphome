@@ -1,6 +1,6 @@
 #pragma once
 
-// #if defined(USE_ESP32)
+#if defined(USE_ESP32)
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -100,3 +100,5 @@ struct ESPNowPacket {
 
 }  // namespace espnow
 }  // namespace esphome
+
+#endif

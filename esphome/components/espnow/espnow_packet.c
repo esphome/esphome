@@ -1,4 +1,5 @@
 #include "espnow_packet.h"
+#if defined(USE_ESP32)
 
 #include "esphome/core/log.h"
 
@@ -43,3 +44,5 @@ bool ESPNowPacket::is_valid() {
   this->crc16 = crc;
   return valid;
 }
+
+#endif

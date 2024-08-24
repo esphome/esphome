@@ -1,5 +1,7 @@
 #include "espnow.h"
 
+#if defined(USE_ESP32)
+
 #include <cstring>
 
 #include "esp_mac.h"
@@ -388,3 +390,5 @@ ESPNowComponent *global_esp_now = nullptr;
 
 }  // namespace espnow
 }  // namespace esphome
+
+#endif
