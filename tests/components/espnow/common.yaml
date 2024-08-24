@@ -2,7 +2,7 @@ espnow:
   auto_add_peer: true
   peers:
     - FF:FF:FF:FF:FF:FF
-  on_received:
+  on_receive:
     - logger.log:
         format: "Received: %s  RSSI: %d"
         args: [it->data().data(), it->rssi()]
