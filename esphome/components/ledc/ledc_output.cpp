@@ -9,6 +9,8 @@
 #endif
 #include <driver/ledc.h>
 
+#include <cinttypes>
+
 #define CLOCK_FREQUENCY 80e6f
 
 #ifdef USE_ARDUINO
