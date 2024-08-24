@@ -22,6 +22,7 @@ pip3 install -e ".[dev,test,displays]" --config-settings editable_mode=compat
 pre-commit install
 
 python script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
+pip install python-magic-bin
 
 echo .
 echo .
