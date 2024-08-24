@@ -28,15 +28,15 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
 
   void setup();
 
-  virtual void on_receive(ESPNowPacket packet) { return; };
-  virtual void on_sent(ESPNowPacket packet, bool status) { return; };
-  virtual void on_new_peer(ESPNowPacket packet) { return; };
+  virtual void on_receive(ESPNowPacket packet){};
+  virtual void on_sent(ESPNowPacket packet, bool status){};
+  virtual void on_new_peer(ESPNowPacket packet){};
 
   virtual uint32_t get_app_id() = 0;
   uint8_t get_next_ref_id() { return next_ref_id_++; }
 
-  bool write(const uint64_t mac_address, const uint8_t *data, uint8_t len);
-  bool write(const uint64_t mac_address, const std::vector<uint8_t> data);
+  bool write(uint64_t mac_address, const uint8_t *data, uint8_t len);
+  bool write(uint64_t mac_address, std::vector<uint8_t> &data);
   bool write(ESPNowPacket packet);
 
  protected:
@@ -45,9 +45,9 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
 
 class ESPNowDefaultProtocol : public ESPNowProtocol {
  public:
-  void on_receive(ESPNowPacket packet) { this->on_receive_.call(packet); };
-  void on_sent(ESPNowPacket packet, bool status) { this->on_sent_.call(packet, status); };
-  void on_new_peer(ESPNowPacket packet) { this->on_new_peer_.call(packet); };
+  void on_receive(ESPNowPacket packet) override { this->on_receive_.call(packet); };
+  void on_sent(ESPNowPacket packet, bool status) override { this->on_sent_.call(packet, status); };
+  void on_new_peer(ESPNowPacket packet) override { this->on_new_peer_.call(packet); };
 
   uint32_t get_app_id() override { return ESPNOW_DEFAULT_APP_ID; };
 
@@ -96,7 +96,7 @@ class ESPNowComponent : public Component {
 
   void register_protocol(ESPNowProtocol *protocol) {
     protocol->set_parent(this);
-    this->protocols_[protocol->get_app_id()] = std::move(protocol);
+    this->protocols_[protocol->get_app_id()] = protocol;
   }
 
   esp_err_t add_peer(uint64_t addr);
@@ -111,7 +111,7 @@ class ESPNowComponent : public Component {
   bool is_locked() { return this->lock_; }
   void unlock() { this->lock_ = false; }
 
-  ESPNowDefaultProtocol *get_defaultProtocol_();
+  ESPNowDefaultProtocol *get_default_protocol();
 
  protected:
   bool validate_channel_(uint8_t channel);
@@ -151,10 +151,10 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
     auto mac = this->mac_.value(x...);
 
     if (this->static_) {
-      this->parent_->get_defaultProtocol_()->write(mac, this->data_static_);
+      this->parent_->get_default_protocol()->write(mac, this->data_static_);
     } else {
       auto val = this->data_func_(x...);
-      this->parent_->get_defaultProtocol_()->write(mac, val);
+      this->parent_->get_default_protocol()->write(mac, val);
     }
   }
 
@@ -192,7 +192,7 @@ template<typename... Ts> class DelPeerAction : public Action<Ts...>, public Pare
 class ESPNowSentTrigger : public Trigger<ESPNowPacket, bool> {
  public:
   explicit ESPNowSentTrigger(ESPNowComponent *parent) {
-    parent->get_defaultProtocol_()->add_on_sent_callback(
+    parent->get_default_protocol()->add_on_sent_callback(
         [this](ESPNowPacket value, bool status) { this->trigger(value, status); });
   }
 };
@@ -200,14 +200,14 @@ class ESPNowSentTrigger : public Trigger<ESPNowPacket, bool> {
 class ESPNowReceiveTrigger : public Trigger<ESPNowPacket> {
  public:
   explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
-    parent->get_defaultProtocol_()->add_on_receive_callback([this](ESPNowPacket value) { this->trigger(value); });
+    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacket value) { this->trigger(value); });
   }
 };
 
 class ESPNowNewPeerTrigger : public Trigger<ESPNowPacket> {
  public:
   explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
-    parent->get_defaultProtocol_()->add_on_peer_callback([this](ESPNowPacket value) { this->trigger(value); });
+    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacket value) { this->trigger(value); });
   }
 };
 

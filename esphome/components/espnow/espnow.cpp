@@ -57,11 +57,11 @@ struct {
 
 void ESPNowProtocol::setup() { parent_->register_protocol(this); }
 
-bool ESPNowProtocol::write(const uint64_t mac_address, const uint8_t *data, uint8_t len) {
+bool ESPNowProtocol::write(uint64_t mac_address, const uint8_t *data, uint8_t len) {
   ESPNowPacket packet(mac_address, data, len, this->get_app_id());
   return this->parent_->write(packet);
 }
-bool ESPNowProtocol::write(const uint64_t mac_address, const std::vector<uint8_t> data) {
+bool ESPNowProtocol::write(uint64_t mac_address, std::vector<uint8_t> &data) {
   ESPNowPacket packet(mac_address, (uint8_t *) data.data(), (uint8_t) data.size(), this->get_app_id());
   return this->parent_->write(packet);
 }
@@ -102,7 +102,7 @@ void ESPNowComponent::setup() {
   ESP_LOGI(TAG, "Setting up ESP-NOW...");
 
 #ifdef USE_WIFI
-  global_wifi_component.disable();
+  wifi::global_wifi_component.disable();
 #else  // Set device as a Wi-Fi Station
   esp_event_loop_create_default();
 
@@ -181,13 +181,13 @@ esp_err_t ESPNowComponent::add_peer(uint64_t addr) {
     uint8_t mac[6];
     this->del_peer(addr);
 
-    esp_now_peer_info_t peerInfo = {};
-    memset(&peerInfo, 0, sizeof(esp_now_peer_info_t));
-    peerInfo.channel = this->wifi_channel_;
-    peerInfo.encrypt = false;
-    memcpy((void *) peerInfo.peer_addr, (void *) &addr, 6);
+    esp_now_peer_info_t peer_info = {};
+    memset(&peer_info, 0, sizeof(esp_now_peer_info_t));
+    peer_info.channel = this->wifi_channel_;
+    peer_info.encrypt = false;
+    memcpy((void *) peer_info.peer_addr, (void *) &addr, 6);
 
-    return esp_now_add_peer(&peerInfo);
+    return esp_now_add_peer(&peer_info);
   }
 }
 
@@ -199,7 +199,7 @@ esp_err_t ESPNowComponent::del_peer(uint64_t addr) {
   return ESP_OK;
 }
 
-ESPNowDefaultProtocol *ESPNowComponent::get_defaultProtocol_() {
+ESPNowDefaultProtocol *ESPNowComponent::get_default_protocol() {
   if (this->protocols_[ESPNOW_DEFAULT_APP_ID] == nullptr) {
     ESPNowDefaultProtocol *tmp = new ESPNowDefaultProtocol();
     this->protocols_[ESPNOW_DEFAULT_APP_ID] = tmp;
@@ -240,7 +240,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
 #endif
 {
   ESPNowPacket packet;
-  wifi_pkt_rx_ctrl_t *rx_ctrl = NULL;
+  wifi_pkt_rx_ctrl_t *rx_ctrl = nullptr;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
   uint8_t *addr = recv_info->src_addr;

@@ -24,7 +24,7 @@ static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
 static espnow_addr_t ESPNOW_ADDR_SELF = {0};
 static const uint8_t MAX_ESPNOW_DATA_SIZE = 240;
 
-static const uint32_t transport_header = 0xC19983;
+static const uint32_t TRANSPORT_HEADER = 0xC19983;
 
 template<typename... Args> std::string string_format(const std::string &format, Args... args) {
   int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) + 1;  // Extra space for '\0'
@@ -61,7 +61,7 @@ struct ESPNowPacket {
   };
 
   ESPNowPacket() ESPHOME_ALWAYS_INLINE : retrys(0) {}
-  ESPNowPacket(const uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
+  ESPNowPacket(uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
 
   inline void info(std::string place);
 
