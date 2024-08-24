@@ -53,8 +53,8 @@ struct ESPNowPacket {
     struct {
       uint8_t header[3] = {0xC1, 0x99, 0x83};
       uint32_t app_id = 0xFFFFFF;
-      uint1_t ref_id = 0x99;
-      uint8_t crc16 = 0x1234;
+      uint8_t ref_id = 0x99;
+      uint16_t crc16 = 0x1234;
       uint8_t data[MAX_ESPNOW_DATA_SIZE];
       uint8_t space = 0;
     } __attribute__((packed));

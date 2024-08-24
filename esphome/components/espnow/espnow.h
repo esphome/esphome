@@ -45,15 +45,15 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
 
 class ESPNowDefaultProtocol : public ESPNowProtocol {
  public:
-  bool on_receive(ESPNowPacket packet) {
+  void on_receive(ESPNowPacket packet) {
     this->on_receive_.call(packet);
     return true;
   };
-  bool on_sent(ESPNowPacket packet, bool status) {
+  void on_sent(ESPNowPacket packet, bool status) {
     this->on_sent_.call(packet, status);
     return true;
   };
-  bool on_new_peer(ESPNowPacket packet) {
+  void on_new_peer(ESPNowPacket packet) {
     this->on_new_peer_.call(packet);
     return true;
   };
