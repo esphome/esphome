@@ -117,24 +117,22 @@ void LEDCOutput::write_state(float state) {
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
+  ESP_LOGV(TAG, "Setting duty: %" PRIu32 " on channel %u", duty, this->channel_);
 #ifdef USE_ARDUINO
-  ESP_LOGV(TAG, "Setting duty: %u on channel %u", duty, this->channel_);
   ledcWrite(this->channel_, duty);
 #endif
 #ifdef USE_ESP_IDF
-#if !defined(USE_ESP32_VARIANT_ESP32C3) || (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 1, 0))
-  // ensure that 100% on is not 99.975% on
-  // note: on the C3, this tweak will result in the outputs turning off at 100%, so it has been omitted
-  if ((duty == max_duty) && (max_duty != 1)) {
-    duty = max_duty + 1;
-  }
-#endif
   auto speed_mode = get_speed_mode(channel_);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
-  ESP_LOGV(TAG, "Setting duty: %" PRIu32 " on channel %u", duty, this->channel_);
-  ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
-  ledc_update_duty(speed_mode, chan_num);
+  if (duty == max_duty) {
+    ledc_stop(speed_mode, chan_num, 1);
+  } else if (duty == 0) {
+    ledc_stop(speed_mode, chan_num, 0);
+  } else {
+    ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
+    ledc_update_duty(speed_mode, chan_num);
+  }
 #endif
 }
 
