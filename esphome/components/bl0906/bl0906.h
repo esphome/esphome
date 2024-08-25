@@ -32,10 +32,11 @@ struct sbe24_t {  // NOLINT(readability-identifier-naming,altera-struct-pack-ali
   int8_t h{0};
 } __attribute__((packed));
 
-typedef enum process_state_ { PROCESS_DONE = 0 } process_state;
 template<typename... Ts> class ResetEnergyAction;
+
 class BL0906;
-typedef void (BL0906::*ActionCallbackFuncPtr)(void);
+
+using ActionCallbackFuncPtr = void (BL0906::*)();
 
 class BL0906 : public PollingComponent, public uart::UARTDevice {
   SUB_SENSOR(voltage)
@@ -70,16 +71,14 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  process_state m_process_state{PROCESS_DONE};
   template<typename... Ts> friend class ResetEnergyAction;
 
-  void reset_energy();
+  void reset_energy_();
 
-  void read_data(const uint8_t address, const float reference, sensor::Sensor *sensor_);
+  void read_data_(const uint8_t address, const float reference, sensor::Sensor *sensor_);
 
-  void bias_correction_(const uint8_t address, const float measurements, const float correction);
-  void gain_correction_(const uint8_t address, const float measurements, const float correction,
-                        const float coefficient);
+  void bias_correction_(uint8_t address, float measurements, float correction);
+  void gain_correction_(uint8_t address, float measurements, float correction, float coefficient);
 
   uint8_t current_channel_{0};
   size_t enqueue_action_(ActionCallbackFuncPtr function);
@@ -91,7 +90,7 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
 
 template<typename... Ts> class ResetEnergyAction : public Action<Ts...>, public Parented<BL0906> {
  public:
-  void play(Ts... x) override { this->parent_->enqueue_action_(&BL0906::reset_energy); }
+  void play(Ts... x) override { this->parent_->enqueue_action_(&BL0906::reset_energy_); }
 };
 
 }  // namespace bl0906

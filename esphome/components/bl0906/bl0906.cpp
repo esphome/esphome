@@ -27,41 +27,41 @@ void BL0906::loop() {
 
   if (this->current_channel_ == 0) {
     // Temperature
-    this->read_data(BL0906_TEMPERATURE, BL0906_TREF, this->temperature_sensor_);
+    this->read_data_(BL0906_TEMPERATURE, BL0906_TREF, this->temperature_sensor_);
   } else if (this->current_channel_ == 1) {
-    this->read_data(BL0906_I_1_RMS, BL0906_IREF, this->current_1_sensor_);
-    this->read_data(BL0906_WATT_1, BL0906_PREF, this->power_1_sensor_);
-    this->read_data(BL0906_CF_1_CNT, BL0906_EREF, this->energy_1_sensor_);
+    this->read_data_(BL0906_I_1_RMS, BL0906_IREF, this->current_1_sensor_);
+    this->read_data_(BL0906_WATT_1, BL0906_PREF, this->power_1_sensor_);
+    this->read_data_(BL0906_CF_1_CNT, BL0906_EREF, this->energy_1_sensor_);
   } else if (this->current_channel_ == 2) {
-    this->read_data(BL0906_I_2_RMS, BL0906_IREF, this->current_2_sensor_);
-    this->read_data(BL0906_WATT_2, BL0906_PREF, this->power_2_sensor_);
-    this->read_data(BL0906_CF_2_CNT, BL0906_EREF, this->energy_2_sensor_);
+    this->read_data_(BL0906_I_2_RMS, BL0906_IREF, this->current_2_sensor_);
+    this->read_data_(BL0906_WATT_2, BL0906_PREF, this->power_2_sensor_);
+    this->read_data_(BL0906_CF_2_CNT, BL0906_EREF, this->energy_2_sensor_);
   } else if (this->current_channel_ == 3) {
-    this->read_data(BL0906_I_3_RMS, BL0906_IREF, this->current_3_sensor_);
-    this->read_data(BL0906_WATT_3, BL0906_PREF, this->power_3_sensor_);
-    this->read_data(BL0906_CF_3_CNT, BL0906_EREF, this->energy_3_sensor_);
+    this->read_data_(BL0906_I_3_RMS, BL0906_IREF, this->current_3_sensor_);
+    this->read_data_(BL0906_WATT_3, BL0906_PREF, this->power_3_sensor_);
+    this->read_data_(BL0906_CF_3_CNT, BL0906_EREF, this->energy_3_sensor_);
   } else if (this->current_channel_ == 4) {
-    this->read_data(BL0906_I_4_RMS, BL0906_IREF, this->current_4_sensor_);
-    this->read_data(BL0906_WATT_4, BL0906_PREF, this->power_4_sensor_);
-    this->read_data(BL0906_CF_4_CNT, BL0906_EREF, this->energy_4_sensor_);
+    this->read_data_(BL0906_I_4_RMS, BL0906_IREF, this->current_4_sensor_);
+    this->read_data_(BL0906_WATT_4, BL0906_PREF, this->power_4_sensor_);
+    this->read_data_(BL0906_CF_4_CNT, BL0906_EREF, this->energy_4_sensor_);
   } else if (this->current_channel_ == 5) {
-    this->read_data(BL0906_I_5_RMS, BL0906_IREF, this->current_5_sensor_);
-    this->read_data(BL0906_WATT_5, BL0906_PREF, this->power_5_sensor_);
-    this->read_data(BL0906_CF_5_CNT, BL0906_EREF, this->energy_5_sensor_);
+    this->read_data_(BL0906_I_5_RMS, BL0906_IREF, this->current_5_sensor_);
+    this->read_data_(BL0906_WATT_5, BL0906_PREF, this->power_5_sensor_);
+    this->read_data_(BL0906_CF_5_CNT, BL0906_EREF, this->energy_5_sensor_);
   } else if (this->current_channel_ == 6) {
-    this->read_data(BL0906_I_6_RMS, BL0906_IREF, this->current_6_sensor_);
-    this->read_data(BL0906_WATT_6, BL0906_PREF, this->power_6_sensor_);
-    this->read_data(BL0906_CF_6_CNT, BL0906_EREF, this->energy_6_sensor_);
+    this->read_data_(BL0906_I_6_RMS, BL0906_IREF, this->current_6_sensor_);
+    this->read_data_(BL0906_WATT_6, BL0906_PREF, this->power_6_sensor_);
+    this->read_data_(BL0906_CF_6_CNT, BL0906_EREF, this->energy_6_sensor_);
   } else if (this->current_channel_ == UINT8_MAX - 2) {
     // Frequency
-    this->read_data(BL0906_FREQUENCY, BL0906_FREF, frequency_sensor_);
+    this->read_data_(BL0906_FREQUENCY, BL0906_FREF, frequency_sensor_);
     // Voltage
-    this->read_data(BL0906_V_RMS, BL0906_UREF, voltage_sensor_);
+    this->read_data_(BL0906_V_RMS, BL0906_UREF, voltage_sensor_);
   } else if (this->current_channel_ == UINT8_MAX - 1) {
     // Total power
-    this->read_data(BL0906_WATT_SUM, BL0906_WATT, this->total_power_sensor_);
+    this->read_data_(BL0906_WATT_SUM, BL0906_WATT, this->total_power_sensor_);
     // Total Energy
-    this->read_data(BL0906_CF_SUM_CNT, BL0906_CF, this->total_energy_sensor_);
+    this->read_data_(BL0906_CF_SUM_CNT, BL0906_CF, this->total_energy_sensor_);
   } else {
     this->current_channel_ = UINT8_MAX - 2;  // Go to frequency and voltage
     return;
@@ -96,12 +96,12 @@ void BL0906::handle_actions_() {
   if (this->action_queue_.empty()) {
     return;
   }
-  ActionCallbackFuncPtr ptrFunc = nullptr;
+  ActionCallbackFuncPtr ptr_func = nullptr;
   for (int i = 0; i < this->action_queue_.size(); i++) {
-    ptrFunc = this->action_queue_[i];
-    if (ptrFunc) {
+    ptr_func = this->action_queue_[i];
+    if (ptr_func) {
       ESP_LOGI(TAG, "HandleActionCallback[%d]...", i);
-      (this->*ptrFunc)();
+      (this->*ptr_func)();
     }
   }
 
@@ -110,13 +110,10 @@ void BL0906::handle_actions_() {
   }
 
   this->action_queue_.clear();
-  if (m_process_state != PROCESS_DONE) {
-    m_process_state = PROCESS_DONE;
-  }
 }
 
 // Reset energy
-void BL0906::reset_energy() {
+void BL0906::reset_energy_() {
   this->write_array(BL0906_INIT[0], 6);
   delay(1);
   this->flush();
@@ -126,7 +123,7 @@ void BL0906::reset_energy() {
 }
 
 // Read data
-void BL0906::read_data(const uint8_t address, const float reference, sensor::Sensor *sensor) {
+void BL0906::read_data_(const uint8_t address, const float reference, sensor::Sensor *sensor) {
   if (sensor == nullptr) {
     return;
   }
@@ -185,7 +182,7 @@ void BL0906::read_data(const uint8_t address, const float reference, sensor::Sen
 }
 
 // RMS offset correction
-void BL0906::bias_correction_(const uint8_t address, const float measurements, const float correction) {
+void BL0906::bias_correction_(uint8_t address, float measurements, float correction) {
   DataPacket data;
   float ki = 12875 * 1 * (5.1 + 5.1) * 1000 / 2000 / 1.097;  // Current coefficient
   float i_rms0 = measurements * ki;
@@ -205,9 +202,9 @@ void BL0906::bias_correction_(const uint8_t address, const float measurements, c
   this->write_byte(data.h);
   this->write_byte(data.address);
 }
+
 // Gain adjustment
-void BL0906::gain_correction_(const uint8_t address, const float measurements, const float correction,
-                              const float coefficient) {
+void BL0906::gain_correction_(uint8_t address, float measurements, float correction, float coefficient) {
   DataPacket data;
   float i_rms0 = measurements * coefficient;
   float i_rms = correction * coefficient;
@@ -222,8 +219,6 @@ void BL0906::gain_correction_(const uint8_t address, const float measurements, c
   data.m = value >> 8;
   data.l = value << 8 >> 8;
   data.address = bl0906_checksum(address, &data);
-  // ESP_LOGW(TAG, "RMSOS:%02X%02X%02X%02X%02X%02X",BL0906_WRITE_COMMAND,address,data.l ,data.m, data.h,data.address
-  // );
   this->write_byte(BL0906_WRITE_COMMAND);
   this->write_byte(address);
   this->write_byte(data.l);
