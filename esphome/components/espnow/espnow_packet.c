@@ -1,6 +1,6 @@
-#include "espnow_packet.h"
-#if defined(USE_ESP32)
 
+#if defined(USE_ESP32)
+#include "espnow_packet.h"
 #include "esphome/core/log.h"
 
 static const char *const TAG = "espnow_packet";

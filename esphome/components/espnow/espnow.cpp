@@ -373,7 +373,7 @@ void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_
       ESP_LOGE(TAG, "sent packet failed (0x%04x.%d)", packet.ref_id, packet.retrys);
     } else if (packet.mac64 != mac64) {
       ESP_LOGE(TAG, " Invalid mac address. (0x%04x.%d) expected: %s got %s", packet.ref_id, packet.retrys,
-               packet.to_str().c_str(), packet.to_str(mac64));
+               packet.to_str().c_str(), packet.to_str(mac64).c_str());
     } else {
       ESP_LOGV(TAG, "Confirm sent (0x%04x.%d)", packet.ref_id, packet.retrys);
       global_esp_now->unlock();
