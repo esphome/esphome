@@ -118,7 +118,14 @@ class Widget:
     def clear_flag(self, flag):
         return lv_obj.clear_flag(self.obj, literal(flag))
 
-    async def set_property(self, prop, value, animated: bool = None):
+    async def set_property(self, prop, value, animated: bool = None, lv_name=None):
+        """
+        Set a property of the widget.
+        :param prop:  The property name
+        :param value:  The value
+        :param animated:  If the change should be animated
+        :param lv_name:  The base type of the widget e.g. "obj"
+        """
         if isinstance(value, dict):
             value = value.get(prop)
             if isinstance(ALL_STYLES.get(prop), LValidator):
@@ -131,11 +138,12 @@ class Widget:
             value = value.total_milliseconds
         if isinstance(value, str):
             value = literal(value)
+        lv_name = lv_name or self.type.lv_name
         if animated is None or self.type.animated is not True:
-            lv.call(f"{self.type.lv_name}_set_{prop}", self.obj, value)
+            lv.call(f"{lv_name}_set_{prop}", self.obj, value)
         else:
             lv.call(
-                f"{self.type.lv_name}_set_{prop}",
+                f"{lv_name}_set_{prop}",
                 self.obj,
                 value,
                 literal("LV_ANIM_ON" if animated else "LV_ANIM_OFF"),
@@ -319,8 +327,15 @@ async def set_obj_properties(w: Widget, config):
             lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
     for part, states in parts.items():
+        part = "LV_PART_" + part.upper()
         for state, props in states.items():
-            lv_state = join_enums((f"LV_STATE_{state}", f"LV_PART_{part}"))
+            state = "LV_STATE_" + state.upper()
+            if state == "LV_STATE_DEFAULT":
+                lv_state = literal(part)
+            elif part == "LV_PART_MAIN":
+                lv_state = literal(state)
+            else:
+                lv_state = join_enums((state, part))
             for style_id in props.get(CONF_STYLES, ()):
                 lv_obj.add_style(w.obj, MockObj(style_id), lv_state)
             for prop, value in {
@@ -384,7 +399,7 @@ async def set_obj_properties(w: Widget, config):
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
-    await w.set_property(CONF_SCROLLBAR_MODE, config)
+    await w.set_property(CONF_SCROLLBAR_MODE, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):
