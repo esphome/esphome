@@ -15,7 +15,17 @@ void TuyaNumber::setup() {
       ESP_LOGV(TAG, "MCU reported number %u is: %u", datapoint.id, datapoint.value_enum);
       this->publish_state(datapoint.value_enum);
     }
+    if ((this->type_) && (this->type_ != datapoint.type)) {
+      ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", static_cast<int>(datapoint.type),
+               static_cast<int>(*this->type_));
+    }
     this->type_ = datapoint.type;
+  });
+
+  this->parent_->add_on_initialized_callback([this] {
+    if ((this->initial_value_) && (this->type_)) {
+      this->control(*this->initial_value_);
+    }
   });
 }
 
@@ -33,6 +43,15 @@ void TuyaNumber::control(float value) {
 void TuyaNumber::dump_config() {
   LOG_NUMBER("", "Tuya Number", this);
   ESP_LOGCONFIG(TAG, "  Number has datapoint ID %u", this->number_id_);
+  if (this->type_) {
+    ESP_LOGCONFIG(TAG, "  Datapoint type is %d", static_cast<int>(*this->type_));
+  } else {
+    ESP_LOGCONFIG(TAG, "  Datapoint type is unknown");
+  }
+
+  if (this->initial_value_) {
+    ESP_LOGCONFIG(TAG, "  Initial Value: %f", *this->initial_value_);
+  }
 }
 
 }  // namespace tuya
