@@ -135,14 +135,14 @@ void ESPNowComponent::setup() {
 
   err = esp_now_register_recv_cb(ESPNowComponent::on_data_received);
   if (err != ESP_OK) {
-    ESP_LOGE("esp_now_register_recv_cb failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_now_register_recv_cb failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
   err = esp_now_register_send_cb(ESPNowComponent::on_data_sent);
   if (err != ESP_OK) {
-    ESP_LOGE("esp_now_register_send_cb failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_now_register_send_cb failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
