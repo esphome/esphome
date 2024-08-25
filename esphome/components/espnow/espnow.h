@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 
 #include <esp_now.h>
+#include <esp_crc.h>
 
 #include <array>
 #include <memory>
