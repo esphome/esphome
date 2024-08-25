@@ -16,7 +16,7 @@ from ..lvcode import (
 )
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
-from ..widgets import get_widgets
+from ..widgets import get_widgets, wait_for_widgets
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch)
 CONFIG_SCHEMA = (
@@ -35,6 +35,7 @@ async def to_code(config):
     paren = await cg.get_variable(config[CONF_LVGL_ID])
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
+    await wait_for_widgets()
     async with LambdaContext(EVENT_ARG) as checked_ctx:
         checked_ctx.add(switch.publish_state(widget.get_value()))
     async with LambdaContext([(cg.bool_, "v")]) as control:
