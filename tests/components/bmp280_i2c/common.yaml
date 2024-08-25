@@ -13,4 +13,5 @@ sensor:
     pressure:
       name: Outside Pressure
       id: bmp280_pressure
+    iir_filter: 16x
     update_interval: 15s
