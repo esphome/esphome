@@ -2,6 +2,8 @@
 
 #if defined(USE_ESP32)
 
+#include <string.h>
+#include <stdlib.h>
 #include "esphome/core/helpers.h"
 
 #include "esp_crc.h"
