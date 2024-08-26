@@ -157,7 +157,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
     w = widgets[0]
     disp = f"{w.obj}->get_disp()"
-    async with LambdaContext(parameters=args, where=action_id) as context:
+    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
         await disp_update(disp, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)

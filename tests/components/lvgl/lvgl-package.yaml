@@ -1,6 +1,8 @@
 lvgl:
   log_level: TRACE
   bg_color: light_blue
+  disp_bg_color: 0xffff00
+  disp_bg_image: cat_image
   theme:
     obj:
       border_width: 1
@@ -78,6 +80,9 @@ lvgl:
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
+                - lvgl.update:
+                    disp_bg_color: 0xffff00
+                    disp_bg_image: cat_image
         - label:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
@@ -304,6 +309,17 @@ lvgl:
             src: cat_image
             align: top_left
             y: 50
+        - tileview:
+            id: tileview_id
+            scrollbar_mode: active
+            tiles:
+              - id: page_1
+                row: 0
+                column: 0
+                dir: HOR
+                widgets:
+                  - obj:
+                      bg_color: 0x000000
 
     - id: page2
       widgets:
