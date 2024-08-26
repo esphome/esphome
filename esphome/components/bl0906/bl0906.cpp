@@ -203,30 +203,6 @@ void BL0906::bias_correction_(uint8_t address, float measurements, float correct
   this->write_byte(data.address);
 }
 
-// Gain adjustment
-void BL0906::gain_correction_(uint8_t address, float measurements, float correction, float coefficient) {
-  DataPacket data;
-  float i_rms0 = measurements * coefficient;
-  float i_rms = correction * coefficient;
-  float rms_gn = int((i_rms / i_rms0 - 1) * 65536);
-  int16_t value;
-  if (rms_gn <= -32767) {
-    value = -32767;
-  } else {
-    value = int(rms_gn);
-  }
-  data.h = 0xFF;
-  data.m = value >> 8;
-  data.l = value << 8 >> 8;
-  data.address = bl0906_checksum(address, &data);
-  this->write_byte(BL0906_WRITE_COMMAND);
-  this->write_byte(address);
-  this->write_byte(data.l);
-  this->write_byte(data.m);
-  this->write_byte(data.h);
-  this->write_byte(data.address);
-}
-
 void BL0906::dump_config() {
   ESP_LOGCONFIG(TAG, "BL0906:");
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
