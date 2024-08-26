@@ -1471,6 +1471,13 @@ message VoiceAssistantAudioSettings {
   float volume_multiplier = 3;
 }
 
+enum VoiceAssistantPipelineStage {
+  VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD = 0;
+  VOICE_ASSISTANT_PIPELINE_STAGE_STT = 1;
+  VOICE_ASSISTANT_PIPELINE_STAGE_INTENT = 2;
+  VOICE_ASSISTANT_PIPELINE_STAGE_TTS = 3;
+}
+
 message VoiceAssistantRequest {
   option (id) = 90;
   option (source) = SOURCE_SERVER;
@@ -1481,6 +1488,10 @@ message VoiceAssistantRequest {
   uint32 flags = 3;
   VoiceAssistantAudioSettings audio_settings = 4;
   string wake_word_phrase = 5;
+  VoiceAssistantPipelineStage start_stage = 6;
+  VoiceAssistantPipelineStage end_stage = 7;
+  repeated string wake_word_names = 8;
+  string tts_input = 9;
 }
 
 message VoiceAssistantResponse {
@@ -1551,6 +1562,18 @@ message VoiceAssistantTimerEventResponse {
   uint32 total_seconds = 4;
   uint32 seconds_left = 5;
   bool is_active = 6;
+}
+
+message VoiceAssistantTriggerPipeline {
+  option (id) = 120;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  VoiceAssistantPipelineStage start_stage = 1;
+  VoiceAssistantPipelineStage end_stage = 2;
+  string wake_word_phrase = 3;
+  repeated string wake_word_names = 4;
+  string tts_input = 5;
 }
 
 // ==================== ALARM CONTROL PANEL ====================

@@ -449,6 +449,23 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantRequestFlag>(en
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
+template<>
+const char *proto_enum_to_string<enums::VoiceAssistantPipelineStage>(enums::VoiceAssistantPipelineStage value) {
+  switch (value) {
+    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD:
+      return "VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD";
+    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_STT:
+      return "VOICE_ASSISTANT_PIPELINE_STAGE_STT";
+    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_INTENT:
+      return "VOICE_ASSISTANT_PIPELINE_STAGE_INTENT";
+    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_TTS:
+      return "VOICE_ASSISTANT_PIPELINE_STAGE_TTS";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::VoiceAssistantEvent value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_ERROR:
@@ -6784,6 +6801,14 @@ bool VoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->flags = value.as_uint32();
       return true;
     }
+    case 6: {
+      this->start_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
+      return true;
+    }
+    case 7: {
+      this->end_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
+      return true;
+    }
     default:
       return false;
   }
@@ -6802,6 +6827,14 @@ bool VoiceAssistantRequest::decode_length(uint32_t field_id, ProtoLengthDelimite
       this->wake_word_phrase = value.as_string();
       return true;
     }
+    case 8: {
+      this->wake_word_names.push_back(value.as_string());
+      return true;
+    }
+    case 9: {
+      this->tts_input = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -6812,6 +6845,12 @@ void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(3, this->flags);
   buffer.encode_message<VoiceAssistantAudioSettings>(4, this->audio_settings);
   buffer.encode_string(5, this->wake_word_phrase);
+  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(6, this->start_stage);
+  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(7, this->end_stage);
+  for (auto &it : this->wake_word_names) {
+    buffer.encode_string(8, it, true);
+  }
+  buffer.encode_string(9, this->tts_input);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantRequest::dump_to(std::string &out) const {
@@ -6836,6 +6875,24 @@ void VoiceAssistantRequest::dump_to(std::string &out) const {
 
   out.append("  wake_word_phrase: ");
   out.append("'").append(this->wake_word_phrase).append("'");
+  out.append("\n");
+
+  out.append("  start_stage: ");
+  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->start_stage));
+  out.append("\n");
+
+  out.append("  end_stage: ");
+  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->end_stage));
+  out.append("\n");
+
+  for (const auto &it : this->wake_word_names) {
+    out.append("  wake_word_names: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  out.append("  tts_input: ");
+  out.append("'").append(this->tts_input).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -7057,6 +7114,75 @@ void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
 
   out.append("  is_active: ");
   out.append(YESNO(this->is_active));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantTriggerPipeline::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->start_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
+      return true;
+    }
+    case 2: {
+      this->end_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantTriggerPipeline::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3: {
+      this->wake_word_phrase = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->wake_word_names.push_back(value.as_string());
+      return true;
+    }
+    case 5: {
+      this->tts_input = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantTriggerPipeline::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(1, this->start_stage);
+  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(2, this->end_stage);
+  buffer.encode_string(3, this->wake_word_phrase);
+  for (auto &it : this->wake_word_names) {
+    buffer.encode_string(4, it, true);
+  }
+  buffer.encode_string(5, this->tts_input);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantTriggerPipeline::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantTriggerPipeline {\n");
+  out.append("  start_stage: ");
+  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->start_stage));
+  out.append("\n");
+
+  out.append("  end_stage: ");
+  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->end_stage));
+  out.append("\n");
+
+  out.append("  wake_word_phrase: ");
+  out.append("'").append(this->wake_word_phrase).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->wake_word_names) {
+    out.append("  wake_word_names: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  out.append("  tts_input: ");
+  out.append("'").append(this->tts_input).append("'");
   out.append("\n");
   out.append("}");
 }

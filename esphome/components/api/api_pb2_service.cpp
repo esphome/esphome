@@ -486,6 +486,14 @@ bool APIServerConnectionBase::send_voice_assistant_audio(const VoiceAssistantAud
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #endif
+#ifdef USE_VOICE_ASSISTANT
+bool APIServerConnectionBase::send_voice_assistant_trigger_pipeline(const VoiceAssistantTriggerPipeline &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_voice_assistant_trigger_pipeline: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<VoiceAssistantTriggerPipeline>(msg, 120);
+}
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIServerConnectionBase::send_list_entities_alarm_control_panel_response(
     const ListEntitiesAlarmControlPanelResponse &msg) {

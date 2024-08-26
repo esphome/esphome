@@ -178,6 +178,12 @@ enum VoiceAssistantRequestFlag : uint32_t {
   VOICE_ASSISTANT_REQUEST_USE_VAD = 1,
   VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD = 2,
 };
+enum VoiceAssistantPipelineStage : uint32_t {
+  VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD = 0,
+  VOICE_ASSISTANT_PIPELINE_STAGE_STT = 1,
+  VOICE_ASSISTANT_PIPELINE_STAGE_INTENT = 2,
+  VOICE_ASSISTANT_PIPELINE_STAGE_TTS = 3,
+};
 enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_ERROR = 0,
   VOICE_ASSISTANT_RUN_START = 1,
@@ -1749,6 +1755,10 @@ class VoiceAssistantRequest : public ProtoMessage {
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
   std::string wake_word_phrase{};
+  enums::VoiceAssistantPipelineStage start_stage{};
+  enums::VoiceAssistantPipelineStage end_stage{};
+  std::vector<std::string> wake_word_names{};
+  std::string tts_input{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1816,6 +1826,22 @@ class VoiceAssistantTimerEventResponse : public ProtoMessage {
   uint32_t total_seconds{0};
   uint32_t seconds_left{0};
   bool is_active{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantTriggerPipeline : public ProtoMessage {
+ public:
+  enums::VoiceAssistantPipelineStage start_stage{};
+  enums::VoiceAssistantPipelineStage end_stage{};
+  std::string wake_word_phrase{};
+  std::vector<std::string> wake_word_names{};
+  std::string tts_input{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
