@@ -94,11 +94,11 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_nanoseconds,
             cv.Optional(
                 CONF_RESET_HIGH,
-                default=0,
+                default="0 us",
             ): cv.positive_time_period_nanoseconds,
             cv.Optional(
                 CONF_RESET_LOW,
-                default=0,
+                default="0 us",
             ): cv.positive_time_period_nanoseconds,
         }
     ),
