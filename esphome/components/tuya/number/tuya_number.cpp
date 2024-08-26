@@ -40,7 +40,9 @@ void TuyaNumber::setup() {
     if (this->type_) {
       float value;
       if (!this->restore_value_) {
-        value = *this->initial_value_;
+        if (this->initial_value_) {
+          value = *this->initial_value_;
+        }
       } else {
         if (!this->pref_.load(&value)) {
           if (this->initial_value_) {
