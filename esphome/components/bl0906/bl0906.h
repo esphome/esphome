@@ -75,7 +75,7 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
 
   void reset_energy_();
 
-  void read_data_(const uint8_t address, const float reference, sensor::Sensor *sensor_);
+  void read_data_(uint8_t address, float reference, sensor::Sensor *sensor);
 
   void bias_correction_(uint8_t address, float measurements, float correction);
   void gain_correction_(uint8_t address, float measurements, float correction, float coefficient);
