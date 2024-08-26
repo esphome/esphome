@@ -505,4 +505,10 @@ DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
 
 def join_enums(enums, prefix=""):
-    return literal("|".join(f"(int){prefix}{e.upper()}" for e in enums))
+    enums = list(enums)
+    enums.sort()
+    # If a prefix is provided, prepend each constant with the prefix, and assume that all the constants are within the
+    # same namespace, otherwise cast to int to avoid triggering warnings about mixing enum types.
+    if prefix:
+        return literal("|".join(f"{prefix}{e.upper()}" for e in enums))
+    return literal("|".join(f"(int){e.upper()}" for e in enums))

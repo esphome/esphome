@@ -294,6 +294,13 @@ void LvglComponent::loop() {
   }
   lv_timer_handler_run_in_period(5);
 }
+bool lv_is_pre_initialise() {
+  if (!lv_is_initialized()) {
+    ESP_LOGE(TAG, "LVGL call before component is initialised");
+    return true;
+  }
+  return false;
+}
 
 #ifdef USE_LVGL_IMAGE
 lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc) {
