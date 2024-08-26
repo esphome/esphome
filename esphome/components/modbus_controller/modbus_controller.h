@@ -498,7 +498,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool module_offline_;
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_;
-  /// How many times we will send a command if we get no response(Includes the first one).
+  /// How many times we will retry a command if we get no response
   uint8_t max_cmd_retries_{4};
   CallbackManager<void(int, int)> command_sent_callback_{};
 };
