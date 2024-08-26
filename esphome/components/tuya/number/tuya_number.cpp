@@ -42,6 +42,8 @@ void TuyaNumber::setup() {
       if (!this->restore_value_) {
         if (this->initial_value_) {
           value = *this->initial_value_;
+        } else {
+          return;
         }
       } else {
         if (!this->pref_.load(&value)) {
