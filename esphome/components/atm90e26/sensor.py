@@ -1,34 +1,34 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, spi
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_REACTIVE_POWER,
-    CONF_VOLTAGE,
     CONF_CURRENT,
+    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_FREQUENCY,
+    CONF_ID,
+    CONF_LINE_FREQUENCY,
     CONF_POWER,
     CONF_POWER_FACTOR,
-    CONF_FREQUENCY,
-    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_REACTIVE_POWER,
     CONF_REVERSE_ACTIVE_ENERGY,
+    CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
-    ICON_LIGHTBULB,
     ICON_CURRENT_AC,
+    ICON_LIGHTBULB,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
     UNIT_HERTZ,
     UNIT_VOLT,
-    UNIT_AMPERE,
-    UNIT_WATT,
     UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
     UNIT_WATT_HOURS,
 )
 
-CONF_LINE_FREQUENCY = "line_frequency"
 CONF_METER_CONSTANT = "meter_constant"
 CONF_PL_CONST = "pl_const"
 CONF_GAIN_PGA = "gain_pga"
