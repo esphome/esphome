@@ -8,7 +8,7 @@ from ..defines import CONF_LVGL_ID
 from ..lvcode import LvContext
 from ..schemas import LVGL_SCHEMA
 from ..types import LvType, lvgl_ns
-from ..widgets import get_widgets
+from ..widgets import get_widgets, wait_for_widgets
 
 lv_led_t = LvType("lv_led_t")
 LVLight = lvgl_ns.class_("LVLight", LightOutput)
@@ -28,5 +28,6 @@ async def to_code(config):
     paren = await cg.get_variable(config[CONF_LVGL_ID])
     widget = await get_widgets(config, CONF_LED)
     widget = widget[0]
+    await wait_for_widgets()
     async with LvContext(paren) as ctx:
         ctx.add(var.set_obj(widget.obj))
