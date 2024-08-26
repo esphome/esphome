@@ -220,6 +220,8 @@ switch:
       name: inverter0_output_source_priority_solar
     output_source_priority_battery:
       name: inverter0_output_source_priority_battery
+    output_source_priority_hybrid:
+      name: inverter0_output_source_priority_hybrid
     input_voltage_range:
       name: inverter0_input_voltage_range
     pv_ok_condition_for_parallel:

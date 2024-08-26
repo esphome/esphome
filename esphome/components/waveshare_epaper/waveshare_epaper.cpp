@@ -480,7 +480,7 @@ void HOT WaveshareEPaperTypeA::display() {
   this->start_data_();
   switch (this->model_) {
     case TTGO_EPAPER_2_13_IN_B1: {  // block needed because of variable initializations
-      int16_t wb = ((this->get_width_internal()) >> 3);
+      int16_t wb = ((this->get_width_controller()) >> 3);
       for (int i = 0; i < this->get_height_internal(); i++) {
         for (int j = 0; j < wb; j++) {
           int idx = j + (this->get_height_internal() - 1 - i) * wb;
@@ -766,7 +766,7 @@ void WaveshareEPaper2P7InV2::initialize() {
   // XRAM_START_AND_END_POSITION
   this->command(0x44);
   this->data(0x00);
-  this->data(((get_width_internal() - 1) >> 3) & 0xFF);
+  this->data(((this->get_width_controller() - 1) >> 3) & 0xFF);
   // YRAM_START_AND_END_POSITION
   this->command(0x45);
   this->data(0x00);
@@ -928,8 +928,8 @@ void HOT WaveshareEPaper2P7InB::display() {
 
   // TCON_RESOLUTION
   this->command(0x61);
-  this->data(this->get_width_internal() >> 8);
-  this->data(this->get_width_internal() & 0xff);  // 176
+  this->data(this->get_width_controller() >> 8);
+  this->data(this->get_width_controller() & 0xff);  // 176
   this->data(this->get_height_internal() >> 8);
   this->data(this->get_height_internal() & 0xff);  // 264
 
@@ -994,7 +994,7 @@ void WaveshareEPaper2P7InBV2::initialize() {
   // self.SetWindows(0, 0, self.width-1, self.height-1)
   // SetWindows(self, Xstart, Ystart, Xend, Yend):
 
-  uint32_t xend = this->get_width_internal() - 1;
+  uint32_t xend = this->get_width_controller() - 1;
   uint32_t yend = this->get_height_internal() - 1;
   this->command(0x44);
   this->data(0x00);
