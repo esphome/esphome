@@ -49,7 +49,8 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
-  void set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high, uint32_t bit1_low);
+  void set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high, uint32_t bit1_low,
+                      uint32_t reset_time_high, uint32_t reset_time_low);
 
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void set_rmt_channel(rmt_channel_t channel) { this->channel_ = channel; }
@@ -75,7 +76,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   bool is_rgbw_;
   bool is_wrgb_;
 
-  rmt_item32_t bit0_, bit1_;
+  rmt_item32_t bit0_, bit1_, reset_;
   RGBOrder rgb_order_;
   rmt_channel_t channel_;
 

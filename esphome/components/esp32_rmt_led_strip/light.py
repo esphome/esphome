@@ -43,13 +43,15 @@ class LEDStripTimings:
     bit0_low: int
     bit1_high: int
     bit1_low: int
+    reset_high: int
+    reset_low: int
 
 
 CHIPSETS = {
-    "WS2812": LEDStripTimings(400, 1000, 1000, 400),
-    "SK6812": LEDStripTimings(300, 900, 600, 600),
-    "APA106": LEDStripTimings(350, 1360, 1360, 350),
-    "SM16703": LEDStripTimings(300, 900, 900, 300),
+    "WS2812": LEDStripTimings(400, 1000, 1000, 400, 0, 0),
+    "SK6812": LEDStripTimings(300, 900, 600, 600, 0, 0),
+    "APA106": LEDStripTimings(350, 1360, 1360, 350, 0, 0),
+    "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
 
@@ -58,6 +60,8 @@ CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
+CONF_RESET_HIGH = "reset_high"
+CONF_RESET_LOW = "reset_low"
 
 
 CONFIG_SCHEMA = cv.All(
@@ -88,6 +92,14 @@ CONFIG_SCHEMA = cv.All(
                 CONF_BIT1_LOW,
                 "custom",
             ): cv.positive_time_period_nanoseconds,
+            cv.Optional(
+                CONF_RESET_HIGH,
+                default="0 us",
+            ): cv.positive_time_period_nanoseconds,
+            cv.Optional(
+                CONF_RESET_LOW,
+                default="0 us",
+            ): cv.positive_time_period_nanoseconds,
         }
     ),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
@@ -113,6 +125,8 @@ async def to_code(config):
                 chipset.bit0_low,
                 chipset.bit1_high,
                 chipset.bit1_low,
+                chipset.reset_high,
+                chipset.reset_low,
             )
         )
     else:
@@ -122,6 +136,8 @@ async def to_code(config):
                 config[CONF_BIT0_LOW],
                 config[CONF_BIT1_HIGH],
                 config[CONF_BIT1_LOW],
+                config[CONF_RESET_HIGH],
+                config[CONF_RESET_LOW],
             )
         )
 
