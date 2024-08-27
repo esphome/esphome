@@ -176,6 +176,8 @@ class LvContext(LambdaContext):
     Code generation into the LVGL initialisation code (called in `setup()`)
     """
 
+    added_lambda_count = 0
+
     def __init__(self, lv_component, args=None):
         self.args = args or LVGL_COMP_ARG
         super().__init__(parameters=self.args)
@@ -183,6 +185,7 @@ class LvContext(LambdaContext):
 
     async def add_init_lambda(self):
         cg.add(self.lv_component.add_init_lambda(await self.get_lambda()))
+        LvContext.added_lambda_count += 1
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await super().__aexit__(exc_type, exc_val, exc_tb)
