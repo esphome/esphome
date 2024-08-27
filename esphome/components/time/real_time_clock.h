@@ -36,7 +36,8 @@ class RealTimeClock : public PollingComponent {
   time_t timestamp_now() { return ::time(nullptr); }
 
   void call_setup() override;
-  void apply_timezone_();
+  
+  void apply_timezone() { return this->apply_timezone_(); }
 
   void add_on_time_sync_callback(std::function<void()> callback) {
     this->time_sync_callback_.add(std::move(callback));
@@ -47,6 +48,7 @@ class RealTimeClock : public PollingComponent {
   void synchronize_epoch_(uint32_t epoch);
 
   std::string timezone_{};
+  void apply_timezone_();
 
   CallbackManager<void()> time_sync_callback_;
 };
