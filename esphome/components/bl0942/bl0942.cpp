@@ -146,10 +146,17 @@ void BL0942::received_package_(DataPacket *data) {
     return;
   }
 
+  // cf_cnt is only 24 bits, so track overflows
+  uint32_t cf_cnt = (uint24_t) data->cf_cnt;
+  cf_cnt |= this->prev_cf_cnt_ & 0xff000000;
+  if (cf_cnt < this->prev_cf_cnt_) {
+    cf_cnt += 0x1000000;
+  }
+  this->prev_cf_cnt_ = cf_cnt;
+
   float v_rms = (uint24_t) data->v_rms / voltage_reference_;
   float i_rms = (uint24_t) data->i_rms / current_reference_;
   float watt = (int24_t) data->watt / power_reference_;
-  uint32_t cf_cnt = (uint24_t) data->cf_cnt;
   float total_energy_consumption = cf_cnt / energy_reference_;
   float frequency = 1000000.0f / data->frequency;
 
