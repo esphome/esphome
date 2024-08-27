@@ -49,6 +49,7 @@ esphome/components/atm90e26/* @danieltwagner
 esphome/components/atm90e32/* @circuitsetup @descipher
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
+esphome/components/ballu_old/* @Midnighter32
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/bedjet/* @jhansche
 esphome/components/bedjet/climate/* @jhansche
