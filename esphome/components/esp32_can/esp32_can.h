@@ -12,6 +12,8 @@ class ESP32Can : public canbus::Canbus {
  public:
   void set_rx(int rx) { rx_ = rx; }
   void set_tx(int tx) { tx_ = tx; }
+  void set_tx_queue_len(int tx_queue_len) { tx_queue_len_ = optional<int>(tx_queue_len); }
+  void set_rx_queue_len(int rx_queue_len) { rx_queue_len_ = optional<int>(rx_queue_len); }
   ESP32Can(){};
 
  protected:
@@ -21,6 +23,8 @@ class ESP32Can : public canbus::Canbus {
 
   int rx_{-1};
   int tx_{-1};
+  optional<int> tx_queue_len_{};
+  optional<int> rx_queue_len_{};
 };
 
 }  // namespace esp32_can
