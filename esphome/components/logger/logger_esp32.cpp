@@ -33,7 +33,7 @@ static const char *const TAG = "logger";
 #ifdef USE_ESP_IDF
 
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
-static void init_usb_serial_jtag_() {
+static void init_usb_serial_jtag_(int tx_buffer_size, int rx_buffer_size) {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
   // Minicom, screen, idf_monitor send CR when ENTER key is pressed
@@ -46,8 +46,8 @@ static void init_usb_serial_jtag_() {
   fcntl(fileno(stdin), F_SETFL, 0);
 
   usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
-  usb_serial_jtag_config.rx_buffer_size = 512;
-  usb_serial_jtag_config.tx_buffer_size = 512;
+  usb_serial_jtag_config.tx_buffer_size = tx_buffer_size;
+  usb_serial_jtag_config.rx_buffer_size = rx_buffer_size;
 
   esp_err_t ret = ESP_OK;
   // Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes
@@ -138,7 +138,7 @@ void Logger::pre_setup() {
 #endif
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
       case UART_SELECTION_USB_SERIAL_JTAG:
-        init_usb_serial_jtag_();
+        init_usb_serial_jtag_(this->tx_buffer_size_, this->rx_buffer_size_);
         break;
 #endif
     }

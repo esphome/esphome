@@ -55,7 +55,7 @@ enum UARTSelection {
 
 class Logger : public Component {
  public:
-  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
+  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size, size_t rx_buffer_size);
 #ifdef USE_LOGGER_USB_CDC
   void loop() override;
 #endif
@@ -147,6 +147,7 @@ class Logger : public Component {
   char *tx_buffer_{nullptr};
   int tx_buffer_at_{0};
   int tx_buffer_size_{0};
+  int rx_buffer_size_{0};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   UARTSelection uart_{UART_SELECTION_UART0};
 #endif

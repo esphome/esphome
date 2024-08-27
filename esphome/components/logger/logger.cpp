@@ -140,7 +140,8 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->log_callback_.call(level, tag, msg);
 }
 
-Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
+Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, size_t rx_buffer_size)
+    : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), rx_buffer_size_(rx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)

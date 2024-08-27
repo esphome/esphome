@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_LEVEL,
     CONF_LOGS,
     CONF_ON_MESSAGE,
+    CONF_RX_BUFFER_SIZE,
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
@@ -176,6 +177,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
+            cv.Optional(CONF_RX_BUFFER_SIZE, default=512): cv.validate_bytes,
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
             cv.SplitDefault(
                 CONF_HARDWARE_UART,
@@ -225,7 +227,12 @@ CONFIG_SCHEMA = cv.All(
 @coroutine_with_priority(90.0)
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
-    log = cg.new_Pvariable(config[CONF_ID], baud_rate, config[CONF_TX_BUFFER_SIZE])
+    log = cg.new_Pvariable(
+        config[CONF_ID],
+        baud_rate,
+        config[CONF_TX_BUFFER_SIZE],
+        config[CONF_RX_BUFFER_SIZE],
+    )
     if CONF_HARDWARE_UART in config:
         cg.add(
             log.set_uart_selection(
