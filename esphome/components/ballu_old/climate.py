@@ -4,7 +4,7 @@ from esphome.components import climate_ir
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ["climate_ir"]
-CODEOWNERS = ["@bazuchan"]
+CODEOWNERS = ["@Midnighter32"]
 
 ballu_old_ns = cg.esphome_ns.namespace("ballu_old")
 BalluOldClimate = ballu_old_ns.class_("BalluOldClimate", climate_ir.ClimateIR)
