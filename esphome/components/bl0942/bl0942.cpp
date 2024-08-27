@@ -118,7 +118,7 @@ void BL0942::setup() {
 
   // Similarly for energy reference, if the power reference was set by the user
   // either implicitly or explicitly.
-  if (!this->power_reference_set_)
+  if (this->power_reference_set_ && !this->energy_reference_set_)
     this->energy_reference_ = this->power_reference_ * 3600000 / 419430.4;
 
   this->write_reg_(BL0942_REG_USR_WRPROT, BL0942_REG_USR_WRPROT_MAGIC);
