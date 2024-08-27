@@ -1172,6 +1172,9 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_media_player_supported_format: %s", msg.dump().c_str());
 #endif
       this->on_media_player_supported_format(msg);
+#endif
+      break;
+    }
     case 122: {
 #ifdef USE_VOICE_ASSISTANT
       VoiceAssistantConfiguration msg;
