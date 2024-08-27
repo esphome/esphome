@@ -1758,7 +1758,7 @@ class VoiceAssistantRequest : public ProtoMessage {
   enums::VoiceAssistantPipelineStage start_stage{};
   enums::VoiceAssistantPipelineStage end_stage{};
   std::vector<std::string> wake_word_names{};
-  std::string tts_input{};
+  std::string announce_text{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1841,7 +1841,7 @@ class VoiceAssistantTriggerPipeline : public ProtoMessage {
   enums::VoiceAssistantPipelineStage end_stage{};
   std::string wake_word_phrase{};
   std::vector<std::string> wake_word_names{};
-  std::string tts_input{};
+  std::string announce_text{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
