@@ -115,8 +115,8 @@ async def to_code(config):
         cg.add(var.set_frequency_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_address(config[CONF_ADDRESS]))
-    if config.get(CONF_CURRENT_REFERENCE):
-        cg.add(var.set_current_reference(config[CONF_CURRENT_REFERENCE]))
+    if (current_reference := config.get(CONF_CURRENT_REFERENCE, None)) is not None:
+        cg.add(var.set_current_reference(current_reference))
     if config.get(CONF_ENERGY_REFERENCE):
         cg.add(var.set_energy_reference(config[CONF_ENERGY_REFERENCE]))
     if config.get(CONF_POWER_REFERENCE):
