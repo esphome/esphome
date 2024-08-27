@@ -43,6 +43,7 @@ void PowerSupply::unrequest_high_power() {
     return;
   }
   this->active_requests_--;
+  ESP_LOGD(TAG, "Unrequesting high power, %d requests left.", this->active_requests_);
   if (this->active_requests_ == 0) {
     this->set_timeout("power-supply-off", this->keep_on_time_, [this]() {
       ESP_LOGD(TAG, "Disabling power supply.");
