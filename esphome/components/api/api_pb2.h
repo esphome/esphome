@@ -1757,7 +1757,6 @@ class VoiceAssistantRequest : public ProtoMessage {
   std::string wake_word_phrase{};
   enums::VoiceAssistantPipelineStage start_stage{};
   enums::VoiceAssistantPipelineStage end_stage{};
-  std::vector<std::string> wake_word_names{};
   std::string announce_text{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1840,8 +1839,45 @@ class VoiceAssistantTriggerPipeline : public ProtoMessage {
   enums::VoiceAssistantPipelineStage start_stage{};
   enums::VoiceAssistantPipelineStage end_stage{};
   std::string wake_word_phrase{};
-  std::vector<std::string> wake_word_names{};
   std::string announce_text{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantSetConfiguration : public ProtoMessage {
+ public:
+  std::vector<std::string> active_wake_words{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class VoiceAssistantAvailableWakeWord : public ProtoMessage {
+ public:
+  std::string wake_word{};
+  bool is_active{false};
+  std::vector<std::string> trained_languages{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantConfiguration : public ProtoMessage {
+ public:
+  std::vector<VoiceAssistantAvailableWakeWord> available_wake_words{};
+  uint32_t max_active_wake_words{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
