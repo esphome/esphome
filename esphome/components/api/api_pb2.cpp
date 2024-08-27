@@ -6832,7 +6832,7 @@ bool VoiceAssistantRequest::decode_length(uint32_t field_id, ProtoLengthDelimite
       return true;
     }
     case 9: {
-      this->tts_input = value.as_string();
+      this->announce_text = value.as_string();
       return true;
     }
     default:
@@ -6850,7 +6850,7 @@ void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->wake_word_names) {
     buffer.encode_string(8, it, true);
   }
-  buffer.encode_string(9, this->tts_input);
+  buffer.encode_string(9, this->announce_text);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantRequest::dump_to(std::string &out) const {
@@ -6891,8 +6891,8 @@ void VoiceAssistantRequest::dump_to(std::string &out) const {
     out.append("\n");
   }
 
-  out.append("  tts_input: ");
-  out.append("'").append(this->tts_input).append("'");
+  out.append("  announce_text: ");
+  out.append("'").append(this->announce_text).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -7143,7 +7143,7 @@ bool VoiceAssistantTriggerPipeline::decode_length(uint32_t field_id, ProtoLength
       return true;
     }
     case 5: {
-      this->tts_input = value.as_string();
+      this->announce_text = value.as_string();
       return true;
     }
     default:
@@ -7157,7 +7157,7 @@ void VoiceAssistantTriggerPipeline::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->wake_word_names) {
     buffer.encode_string(4, it, true);
   }
-  buffer.encode_string(5, this->tts_input);
+  buffer.encode_string(5, this->announce_text);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantTriggerPipeline::dump_to(std::string &out) const {
@@ -7181,8 +7181,8 @@ void VoiceAssistantTriggerPipeline::dump_to(std::string &out) const {
     out.append("\n");
   }
 
-  out.append("  tts_input: ");
-  out.append("'").append(this->tts_input).append("'");
+  out.append("  announce_text: ");
+  out.append("'").append(this->announce_text).append("'");
   out.append("\n");
   out.append("}");
 }

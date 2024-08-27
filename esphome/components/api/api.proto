@@ -1491,7 +1491,7 @@ message VoiceAssistantRequest {
   VoiceAssistantPipelineStage start_stage = 6;
   VoiceAssistantPipelineStage end_stage = 7;
   repeated string wake_word_names = 8;
-  string tts_input = 9;
+  string announce_text = 9;
 }
 
 message VoiceAssistantResponse {
@@ -1573,7 +1573,7 @@ message VoiceAssistantTriggerPipeline {
   VoiceAssistantPipelineStage end_stage = 2;
   string wake_word_phrase = 3;
   repeated string wake_word_names = 4;
-  string tts_input = 5;
+  string announce_text = 5;
 }
 
 // ==================== ALARM CONTROL PANEL ====================
