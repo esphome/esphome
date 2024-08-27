@@ -1491,8 +1491,7 @@ message VoiceAssistantRequest {
   string wake_word_phrase = 5;
   VoiceAssistantPipelineStage start_stage = 6;
   VoiceAssistantPipelineStage end_stage = 7;
-  repeated string wake_word_names = 8;
-  string announce_text = 9;
+  string announce_text = 8;
 }
 
 message VoiceAssistantResponse {
@@ -1573,8 +1572,30 @@ message VoiceAssistantTriggerPipeline {
   VoiceAssistantPipelineStage start_stage = 1;
   VoiceAssistantPipelineStage end_stage = 2;
   string wake_word_phrase = 3;
-  repeated string wake_word_names = 4;
-  string announce_text = 5;
+  string announce_text = 4;
+}
+
+message VoiceAssistantSetConfiguration {
+  option (id) = 121;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated string active_wake_words = 1;
+}
+
+message VoiceAssistantAvailableWakeWord {
+  string wake_word = 1;
+  bool is_active = 2;
+  repeated string trained_languages = 3;
+}
+
+message VoiceAssistantConfiguration {
+  option (id) = 122;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated VoiceAssistantAvailableWakeWord available_wake_words = 1;
+  uint32 max_active_wake_words = 2;
 }
 
 // ==================== ALARM CONTROL PANEL ====================
