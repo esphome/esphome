@@ -1,0 +1,37 @@
+dependencies:
+  esp-tflite-micro:
+    component_hash: 09acb9889f98d0e7b5d9d1aa7184d455cfd30268d627b43371b7593106d0fc4b
+    source:
+      git: https://github.com/espressif/esp-tflite-micro.git
+      path: .
+      type: git
+    version: c5d97c9577de0eb9b8f05078da84bbb9ff0f748f
+  esp32_camera:
+    component_hash: 659f1353ee3dd6db885667c61e45fad5574c6c4d832fbe6797ea224d6f61d1e3
+    source:
+      git: https://github.com/espressif/esp32-camera.git
+      path: .
+      type: git
+    version: 30aeeeed61e2b0182d673fe2cfedb1b7aa43b1b9
+  esp_modem:
+    component_hash: ece3d43c4541d88eba1484cce471e9c148052df49388dcd11bee8d453064af9a
+    source:
+      git: https://github.com/espressif/esp-protocols.git
+      path: components/esp_modem
+      type: git
+    version: 73c48307a367565f69e724df8641f8cbac45251d
+  espressif/esp-nn:
+    component_hash: b32869798bdb40dec6bc99caca48cd65d42f8a9f506b9ab9c598a076f891ede9
+    source:
+      pre_release: true
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 1.0.2
+  idf:
+    component_hash: null
+    source:
+      type: idf
+    version: 4.4.7
+manifest_hash: 9e758d00f6141ced5cecfa8032dab873feba457ffaf6cdc3fcb3337947a3c8ed
+target: esp32
+version: 1.0.0
