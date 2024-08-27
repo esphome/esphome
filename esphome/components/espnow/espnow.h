@@ -58,11 +58,11 @@ struct ESPNowPacket {
       uint16_t crc16 = 0x1234;
       uint8_t data[MAX_ESPNOW_DATA_SIZE];
       uint8_t space = 0;
-    } __attribute__((packed));
+    };
   };
 
-  ESPNowPacket() ESPHOME_ALWAYS_INLINE : retrys(0) {}
-  ESPNowPacket(uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
+  inline ESPNowPacket() ESPHOME_ALWAYS_INLINE : retrys(0) {}
+  inline ESPNowPacket(uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
 
   inline void info(std::string place);
 
