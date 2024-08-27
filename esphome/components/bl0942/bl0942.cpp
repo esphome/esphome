@@ -41,20 +41,33 @@ static const uint32_t BL0942_REG_MODE_DEFAULT =
 static const uint32_t BL0942_REG_SOFT_RESET_MAGIC = 0x5a5a5a;
 static const uint32_t BL0942_REG_USR_WRPROT_MAGIC = 0x55;
 
+// 23-byte packet, 11 bits per byte, 2400 baud: about 105ms
+static const uint32_t PKT_TIMEOUT_MS = 200;
+
 void BL0942::loop() {
   DataPacket buffer;
-  if (!this->available()) {
+  int avail = this->available();
+
+  if (!avail) {
     return;
   }
+  if (avail < sizeof(buffer)) {
+    if (!this->rx_start_) {
+      this->rx_start_ = millis();
+    } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%d bytes)", avail);
+      this->read_array((uint8_t *) &buffer, avail);
+      this->rx_start_ = 0;
+    }
+    return;
+  }
+
   if (this->read_array((uint8_t *) &buffer, sizeof(buffer))) {
     if (this->validate_checksum_(&buffer)) {
       this->received_package_(&buffer);
     }
-  } else {
-    ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
-    while (read() >= 0)
-      ;
   }
+  this->rx_start_ = 0;
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
