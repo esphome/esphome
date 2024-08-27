@@ -37,7 +37,7 @@ class RealTimeClock : public PollingComponent {
 
   void call_setup() override;
   
-  void apply_timezone() { return this->apply_timezone_(); }
+  void apply_timezone() { this->apply_timezone_(); }
 
   void add_on_time_sync_callback(std::function<void()> callback) {
     this->time_sync_callback_.add(std::move(callback));
