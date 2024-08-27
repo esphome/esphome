@@ -101,7 +101,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481[] = {
   ILI9XXX_MADCTL  , 1, MADCTL_MV | MADCTL_BGR,       // Memory Access Control
   ILI9XXX_CSCON , 1, 0x01,
   ILI9XXX_PIXFMT, 1, 0x55,  // 16 bit mode
-  ILI9XXX_INVON, 0,
   ILI9XXX_DISPON, 0x80,     // Set display on
   0x00 // end
 };
@@ -121,7 +120,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     ILI9XXX_MADCTL  , 1, MADCTL_MX| MADCTL_BGR,       // Memory Access Control
     ILI9XXX_CSCON , 1, 0x01,
     ILI9XXX_PIXFMT, 1, 0x66,  // 18 bit mode
-    ILI9XXX_INVON, 0,
     ILI9XXX_DISPON, 0x80,     // Set display on
     0x00 // end
 };
@@ -204,7 +202,6 @@ static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
 
 
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  //ILI9XXX_INVON  , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
 };

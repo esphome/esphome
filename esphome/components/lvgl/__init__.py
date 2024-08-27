@@ -23,7 +23,7 @@ from esphome.helpers import write_file_if_changed
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, update_to_code
 from .defines import CONF_SKIP
-from .encoders import ENCODERS_CONFIG, encoders_to_code
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
 from .schemas import (
@@ -266,12 +266,16 @@ async def to_code(config):
         await add_top_layer(config)
         await msgboxes_to_code(config)
         await disp_update(f"{lv_component}->get_disp()", config)
-        Widget.set_completed()
+    # At this point only the setup code should be generated
+    assert LvContext.added_lambda_count == 1
+    Widget.set_completed()
+    async with LvContext(lv_component):
         await generate_triggers(lv_component)
         for conf in config.get(CONF_ON_IDLE, ()):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
+        await initial_focus_to_code(config)
 
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")

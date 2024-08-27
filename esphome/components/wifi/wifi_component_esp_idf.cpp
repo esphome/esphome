@@ -1,5 +1,6 @@
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_ESP_IDF
 
 #include <esp_event.h>
@@ -1010,3 +1011,4 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 }  // namespace esphome
 
 #endif  // USE_ESP_IDF
+#endif

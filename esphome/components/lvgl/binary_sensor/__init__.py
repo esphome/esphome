@@ -10,7 +10,7 @@ from ..defines import CONF_LVGL_ID, CONF_WIDGET
 from ..lvcode import EVENT_ARG, LambdaContext, LvContext
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, lv_pseudo_button_t
-from ..widgets import Widget, get_widgets
+from ..widgets import Widget, get_widgets, wait_for_widgets
 
 CONFIG_SCHEMA = (
     binary_sensor_schema(BinarySensor)
@@ -29,6 +29,7 @@ async def to_code(config):
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
     assert isinstance(widget, Widget)
+    await wait_for_widgets()
     async with LambdaContext(EVENT_ARG) as pressed_ctx:
         pressed_ctx.add(sensor.publish_state(widget.is_pressed()))
     async with LvContext(paren) as ctx:
