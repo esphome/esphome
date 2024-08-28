@@ -1,31 +1,39 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_CURRENT,
     CONF_ENERGY,
+    CONF_FREQUENCY,
     CONF_ID,
+    CONF_LINE_FREQUENCY,
     CONF_POWER,
     CONF_VOLTAGE,
-    CONF_FREQUENCY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_FREQUENCY,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
+    UNIT_HERTZ,
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
-    UNIT_HERTZ,
-    STATE_CLASS_TOTAL_INCREASING,
 )
 
 DEPENDENCIES = ["uart"]
 
 bl0942_ns = cg.esphome_ns.namespace("bl0942")
 BL0942 = bl0942_ns.class_("BL0942", cg.PollingComponent, uart.UARTDevice)
+
+LineFrequency = bl0942_ns.enum("LineFrequency")
+LINE_FREQS = {
+    50: LineFrequency.LINE_FREQUENCY_50HZ,
+    60: LineFrequency.LINE_FREQUENCY_60HZ,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -61,6 +69,14 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_LINE_FREQUENCY, default="50HZ"): cv.All(
+                cv.frequency,
+                cv.enum(
+                    LINE_FREQS,
+                    int=True,
+                ),
+            ),
+            cv.Optional(CONF_ADDRESS, default=0): cv.int_range(min=0, max=3),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -88,3 +104,5 @@ async def to_code(config):
     if frequency_config := config.get(CONF_FREQUENCY):
         sens = await sensor.new_sensor(frequency_config)
         cg.add(var.set_frequency_sensor(sens))
+    cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
+    cg.add(var.set_address(config[CONF_ADDRESS]))
