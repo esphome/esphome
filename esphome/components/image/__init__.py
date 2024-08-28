@@ -6,8 +6,6 @@ import logging
 from pathlib import Path
 import re
 
-from PIL import UnidentifiedImageError
-
 from esphome import core, external_files
 import esphome.codegen as cg
 from esphome.components import font
@@ -259,7 +257,7 @@ def load_svg_image(file: bytes, resize: tuple[int, int]):
 
 async def to_code(config):
     # Local import only to allow "validate_pillow_installed" to run *before* importing it
-    from PIL import Image
+    from PIL import Image, UnidentifiedImageError
 
     conf_file = config[CONF_FILE]
 
@@ -271,6 +269,9 @@ async def to_code(config):
 
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
         path = compute_local_image_path(conf_file).as_posix()
+
+    else:
+        raise core.EsphomeError("Unknown image source type")
 
     try:
         with open(path, "rb") as f:
@@ -284,7 +285,10 @@ async def to_code(config):
         if resize:
             image.thumbnail(resize)
     except UnidentifiedImageError as exc:
-        if "<svg" in str(file_contents):
+        file_str = str(file_contents[:4096])
+        if file_str.startswith("<svg") or (
+            file_str.startswith("<?xml version=") and "<svg" in file_str
+        ):
             image = load_svg_image(file_contents, resize)
         else:
             raise core.EsphomeError(f"Could not load image file {path}") from exc
