@@ -8,6 +8,7 @@ from esphome import git
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADD_ARDUINO_COMPONENT,
     CONF_ADVANCED,
     CONF_BOARD,
     CONF_COMPONENTS,
@@ -416,6 +417,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                     }
                 )
             ),
+            cv.Optional(CONF_ADD_ARDUINO_COMPONENT, default=False): cv.boolean,
         }
     ),
     _esp_idf_check_versions,
@@ -487,7 +489,10 @@ async def to_code(config):
     )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_platformio_option("framework", "espidf")
+        if conf[CONF_ADD_ARDUINO_COMPONENT]:
+            cg.add_platformio_option("framework", "arduino, espidf")
+        else:
+            cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
         cg.add_build_flag("-Wno-nonnull-compare")
