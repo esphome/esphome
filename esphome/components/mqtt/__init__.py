@@ -49,11 +49,12 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
-DEPENDENCIES = ["network"]
 
-# required for WifiSecureClient to have current time to validate the certificate
-if CORE.is_esp8266:
-    DEPENDENCIES.append("time")
+def DEPENDENCIES():
+    if CORE.is_esp8266:
+        # required for WifiSecureClient to have current time to validate the certificate
+        return ["network", "time"]
+    return ["network"]
 
 
 def AUTO_LOAD():
