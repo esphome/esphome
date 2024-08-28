@@ -55,7 +55,7 @@ struct {
 } __attribute__((packed)) espnow_frame_format_t;
 #endif
 
-ESPNowPacket::ESPNowPacket(uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id)
+ESPNowPacket::ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t app_id)
     : mac64(mac64), size(size), app_id(app_id), retrys(0) {
   if (this->mac64 == 0)
     this->mac64 = ESPNOW_BROADCAST_ADDR;

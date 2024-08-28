@@ -5,6 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/bytebuffer.h"
 
 #include <esp_now.h>
 #include <esp_crc.h>
@@ -23,6 +24,15 @@ typedef uint8_t espnow_addr_t[6];
 
 static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
 static espnow_addr_t ESPNOW_ADDR_SELF = {0};
+
+static const uint8_t ESPNOW_DATA_HEADER = 0x00;
+static const uint8_t ESPNOW_DATA_PROTOCOL = 0x03;
+static const uint8_t ESPNOW_DATA_PACKET = 0x07;
+static const uint8_t ESPNOW_DATA_CRC = 0x08;
+static const uint8_t ESPNOW_DATA_CONTENT = 0x0A;
+
+static const uint8_t MAX_ESPNOW_DATA_SIZE = 240;
+
 static const uint8_t MAX_ESPNOW_DATA_SIZE = 240;
 
 static const uint32_t TRANSPORT_HEADER = 0xC19983;
@@ -40,63 +50,82 @@ template<typename... Args> std::string string_format(const std::string &format, 
 
 static uint8_t last_ref_id = 0;
 
-struct ESPNowPacket {
-  uint64_t mac64 = 0;
-  uint8_t size = 0;
-  uint8_t rssi = 0;
-  uint8_t retrys : 4;
-  uint8_t is_broadcast : 1;
-  uint8_t dummy : 3;
-  uint32_t timestamp = 0;
+class ESPNowPacket {
+ private:
+  espnow_addr_t peer_{0};
+  uint8_t rssi_{0};
+  uint8_t retrys_{0};
+  bool is_broadcast_{false};
+  uint32_t timestamp_{0};
+  ByteBuffer content_(251);
 
-  union {
-    uint8_t content[MAX_ESPNOW_DATA_SIZE + 11];
-    struct {
-      uint8_t header[3] = {0xC1, 0x99, 0x83};
-      uint32_t app_id = 0xFFFFFF;
-      uint8_t ref_id = 0x99;
-      uint16_t crc16 = 0x1234;
-      uint8_t data[MAX_ESPNOW_DATA_SIZE];
-      uint8_t space = 0;
-    };
-  };
+ public:
+  ESPNowPacket() ESPHOME_ALWAYS_INLINE { this->content_.put_uint24(TRANSPORT_HEADER); }
+  // Create packet to be send.
+  ESPNowPacket(espnow_addr_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
 
-  inline ESPNowPacket() ESPHOME_ALWAYS_INLINE : retrys(0) {}
-  inline ESPNowPacket(uint64_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
+  // Load received packet's.
+  ESPNowPacket(espnow_addr_t mac64, const uint8_t *data, uint8_t size);
 
-  inline void info(std::string place);
+  void info(std::string place);
 
-  inline void get_mac(espnow_addr_t *mac_addres) { std::memcpy(mac_addres, &mac64, 6); }
-  inline void set_mac(espnow_addr_t *mac_addres) { this->mac64 = this->to_mac64(mac_addres); }
+  uint8_T *peer() { return this->peer_; }
+  void peer(espnow_addr_t mac_addres) { std::memcpy(&this->peer_, &mac_addres, 6); }
 
-  uint64_t to_mac64(espnow_addr_t *mac_addres) {
-    uint64_t result;
-    std::memcpy(&result, mac_addres, 6);
-    return result;
+  uint8_T size() { return this->content_; }
+
+  bool broadcast(){return this->is_broadcast_};
+  void broadcast(bool state) { this->is_broadcast_ = state; }
+
+  uint32_t timestamp() { return this->timestamp_; };
+  void timestamp(uint32_t timestamp) { this->timestamp_ = timestamp; };
+
+  uint32_t protocol() {
+    this->content_->set_position(ESPNOW_DATA_PROTOCOL);
+    return this->content_->get_uint24();
+  }
+  void protocol(uint32_t protocol) {
+    this->content_->set_position(ESPNOW_DATA_PROTOCOL);
+    this->content_->put_uint24(protocol);
+  }
+
+  uint8_t packet_id() {
+    this->content_->set_position(ESPNOW_DATA_PACKET);
+    return this->content_->get_uint8();
+  }
+  void packet_id(uint8_t packet_id) {
+    this->content_->set_position(ESPNOW_DATA_PACKET);
+    this->content_->put_uint8(packet_id);
+  }
+
+  uint16_t crc() {
+    this->content_->set_position(ESPNOW_DATA_CRC);
+    return this->content_->get_uint16();
+  }
+  void crc(uint16_t crc) {
+    this->content_->set_position(ESPNOW_DATA_CRC);
+    this->content_->put_uint16(crc);
+  }
+
+  ByteBuffer *content() {
+    this->content_.set_position(ESPNOW_DATA_CONTENT + this->size_);
+    return &this->content_;
   }
 
   void retry() {
-    if (this->retrys < 7) {
-      retrys = retrys + 1;
+    if (this->retrys_ < 7) {
+      this->retrys_ = this->retrys_ + 1;
     }
   }
 
-  inline void recalc() {
-    crc16 = 0;
-    crc16 = esp_crc16_le(ref_id, (uint8_t *) &content, 10 + size);
+  void calc_crc() {
+    this->crc(0);
+    this->crc(esp_crc16_le(this->packet(), this->dataptr(), 10 + size()));
   }
 
   bool is_valid();
 
-  inline std::string to_str(uint64_t mac64 = 0) {
-    espnow_addr_t mac;
-    if (mac64 == 0)
-      mac64 = this->mac64;
-    memcpy((void *) &mac, &mac64, 6);
-    return string_format("{\"%02x:%02x:%02x:%02x:%02x:%02x\"}", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  }
-
-  inline uint8_t *dataptr() { return (uint8_t *) &content; }
+  uint8_t *dataptr() { return this->content_->get_data()->data(); }
 };
 
 class ESPNowComponent;
