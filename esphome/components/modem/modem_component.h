@@ -79,7 +79,7 @@ class ModemComponent : public Component {
   void enable_cmux() { this->cmux_ = true; }
   void enable_debug();
   void add_init_at_command(const std::string &cmd) { this->init_at_commands_.push_back(cmd); }
-  bool is_connected() { return this->internal_state_.connected; }
+  bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
   bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED; }
   bool is_modem_connected(bool verbose);  // this if for modem only, not PPP
   bool is_modem_connected() { return this->is_modem_connected(true); }
