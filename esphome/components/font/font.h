@@ -2,7 +2,7 @@
 
 #include "esphome/core/datatypes.h"
 #include "esphome/core/color.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 
 namespace esphome {
 namespace font {
