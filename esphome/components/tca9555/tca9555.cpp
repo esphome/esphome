@@ -94,6 +94,12 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
+  if (value) {
+    this->output_mask_ |= (1 << pin);
+  } else {
+    this->output_mask_ &= ~(1 << pin);
+  }
+
   uint8_t data[2];
   data[0] = this->output_mask_;
   data[1] = this->output_mask_ >> 8;
