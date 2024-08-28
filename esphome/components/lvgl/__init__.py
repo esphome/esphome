@@ -266,7 +266,10 @@ async def to_code(config):
         await add_top_layer(config)
         await msgboxes_to_code(config)
         await disp_update(f"{lv_component}->get_disp()", config)
-        Widget.set_completed()
+    # At this point only the setup code should be generated
+    assert LvContext.added_lambda_count == 1
+    Widget.set_completed()
+    async with LvContext(lv_component):
         await generate_triggers(lv_component)
         for conf in config.get(CONF_ON_IDLE, ()):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)

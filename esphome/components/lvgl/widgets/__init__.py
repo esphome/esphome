@@ -223,6 +223,19 @@ async def get_widget_(wid: Widget):
     return await FakeAwaitable(get_widget_generator(wid))
 
 
+def widgets_wait_generator():
+    while True:
+        if Widget.widgets_completed:
+            return
+        yield
+
+
+async def wait_for_widgets():
+    if Widget.widgets_completed:
+        return
+    await FakeAwaitable(widgets_wait_generator())
+
+
 async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
     if not config:
         return []
