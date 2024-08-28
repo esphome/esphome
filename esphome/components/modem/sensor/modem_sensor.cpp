@@ -64,14 +64,14 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
   // for 7600 (16 tokens):
   //     +CGNSSINFO: 2,04,03,00,4836.989133,N,00433.611595,W,060824,102247.0,-13.8,0.0,70.4,1.7,1.4,1.0
 
-  std::string data = gnss_info.substr(12);
-
   std::map<std::string, std::string> gnss_data;
 
-  if (data.find(",,,,,,") != std::string::npos) {
+  if (gnss_info.find(",,,,,,") != std::string::npos) {
     ESP_LOGW(TAG, "No GNSS location available");
     return gnss_data;  // empty
   }
+
+  std::string data = gnss_info.substr(12);
 
   std::vector<std::string> parts;
   char delimiter = ',';
