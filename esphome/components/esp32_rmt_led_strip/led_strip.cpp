@@ -38,7 +38,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
   }
 
   ExternalRAMAllocator<rmt_item32_t> rmt_allocator(ExternalRAMAllocator<rmt_item32_t>::ALLOW_FAILURE);
-  this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8);  // 8 bits per byte, 1 rmt_item32_t per bit
+  this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8 +
+                                          1);  // 8 bits per byte, 1 rmt_item32_t per bit + 1 rmt_item32_t for reset
 
   rmt_config_t config;
   memset(&config, 0, sizeof(config));
@@ -66,7 +67,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
-                                                 uint32_t bit1_low) {
+                                                 uint32_t bit1_low, uint32_t reset_time_high, uint32_t reset_time_low) {
   float ratio = (float) RMT_CLK_FREQ / RMT_CLK_DIV / 1e09f;
 
   // 0-bit
@@ -79,6 +80,11 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
   this->bit1_.level0 = 1;
   this->bit1_.duration1 = (uint32_t) (ratio * bit1_low);
   this->bit1_.level1 = 0;
+  // reset
+  this->reset_.duration0 = (uint32_t) (ratio * reset_time_high);
+  this->reset_.level0 = 1;
+  this->reset_.duration1 = (uint32_t) (ratio * reset_time_low);
+  this->reset_.level1 = 0;
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
@@ -116,6 +122,12 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
     }
     size++;
     psrc++;
+  }
+
+  if (this->reset_.duration0 > 0 || this->reset_.duration1 > 0) {
+    pdest->val = this->reset_.val;
+    pdest++;
+    len++;
   }
 
   if (rmt_write_items(this->channel_, this->rmt_buf_, len, false) != ESP_OK) {

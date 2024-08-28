@@ -38,7 +38,7 @@ from esphome.const import (
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent, is_ip_address
+from esphome.helpers import indent, is_ip_address, get_bool_env
 from esphome.log import Fore, color, setup_log
 from esphome.util import (
     get_serial_ports,
@@ -731,7 +731,11 @@ POST_CONFIG_ACTIONS = {
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
-        "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
+        "-v",
+        "--verbose",
+        help="Enable verbose ESPHome logs.",
+        action="store_true",
+        default=get_bool_env("ESPHOME_VERBOSE"),
     )
     options_parser.add_argument(
         "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
