@@ -1,0 +1,22 @@
+uart:
+  - id: uart_bl0942
+    tx_pin:
+      number: TX1
+    rx_pin:
+      number: RX1
+    baud_rate: 2400
+
+sensor:
+  - platform: bl0942
+    address: 0
+    line_frequency: 50Hz
+    voltage:
+      name: BL0942 Voltage
+    current:
+      name: BL0942 Current
+    power:
+      name: BL0942 Power
+    energy:
+      name: BL0942 Energy
+    frequency:
+      name: BL0942 Frequency

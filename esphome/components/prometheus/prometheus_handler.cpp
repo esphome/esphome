@@ -1,4 +1,5 @@
 #include "prometheus_handler.h"
+#ifdef USE_NETWORK
 #include "esphome/core/application.h"
 
 namespace esphome {
@@ -350,3 +351,4 @@ void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) 
 
 }  // namespace prometheus
 }  // namespace esphome
+#endif

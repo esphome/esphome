@@ -307,7 +307,7 @@ void FingerprintGrowComponent::delete_fingerprint(uint16_t finger_id) {
 
 void FingerprintGrowComponent::delete_all_fingerprints() {
   ESP_LOGI(TAG, "Deleting all stored fingerprints");
-  this->data_ = {EMPTY};
+  this->data_ = {DELETE_ALL};
   switch (this->send_command_()) {
     case OK:
       ESP_LOGI(TAG, "Deleted all fingerprints");

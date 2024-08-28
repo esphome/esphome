@@ -15,6 +15,60 @@ static void log_cb(const char *buf) {
 }
 #endif  // LV_USE_LOG
 
+static const char *const EVENT_NAMES[] = {
+    "NONE",
+    "PRESSED",
+    "PRESSING",
+    "PRESS_LOST",
+    "SHORT_CLICKED",
+    "LONG_PRESSED",
+    "LONG_PRESSED_REPEAT",
+    "CLICKED",
+    "RELEASED",
+    "SCROLL_BEGIN",
+    "SCROLL_END",
+    "SCROLL",
+    "GESTURE",
+    "KEY",
+    "FOCUSED",
+    "DEFOCUSED",
+    "LEAVE",
+    "HIT_TEST",
+    "COVER_CHECK",
+    "REFR_EXT_DRAW_SIZE",
+    "DRAW_MAIN_BEGIN",
+    "DRAW_MAIN",
+    "DRAW_MAIN_END",
+    "DRAW_POST_BEGIN",
+    "DRAW_POST",
+    "DRAW_POST_END",
+    "DRAW_PART_BEGIN",
+    "DRAW_PART_END",
+    "VALUE_CHANGED",
+    "INSERT",
+    "REFRESH",
+    "READY",
+    "CANCEL",
+    "DELETE",
+    "CHILD_CHANGED",
+    "CHILD_CREATED",
+    "CHILD_DELETED",
+    "SCREEN_UNLOAD_START",
+    "SCREEN_LOAD_START",
+    "SCREEN_LOADED",
+    "SCREEN_UNLOADED",
+    "SIZE_CHANGED",
+    "STYLE_CHANGED",
+    "LAYOUT_CHANGED",
+    "GET_SELF_SIZE",
+};
+
+std::string lv_event_code_name_for(uint8_t event_code) {
+  if (event_code < sizeof(EVENT_NAMES) / sizeof(EVENT_NAMES[0])) {
+    return EVENT_NAMES[event_code];
+  }
+  return str_sprintf("%2d", event_code);
+}
 static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   // make sure all coordinates are even
   if (area->x1 & 1)
@@ -27,7 +81,8 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
     area->y2++;
 }
 
-lv_event_code_t lv_custom_event;  // NOLINT
+lv_event_code_t lv_api_event;     // NOLINT
+lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() { ESP_LOGCONFIG(TAG, "LVGL:"); }
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
@@ -40,14 +95,17 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
   lv_obj_add_event_cb(obj, callback, event, this);
-  if (event == LV_EVENT_VALUE_CHANGED) {
-    lv_obj_add_event_cb(obj, callback, lv_custom_event, this);
-  }
 }
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2) {
   this->add_event_cb(obj, callback, event1);
   this->add_event_cb(obj, callback, event2);
+}
+void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
+                                 lv_event_code_t event2, lv_event_code_t event3) {
+  this->add_event_cb(obj, callback, event1);
+  this->add_event_cb(obj, callback, event2);
+  this->add_event_cb(obj, callback, event3);
 }
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
@@ -228,7 +286,8 @@ void LvglComponent::setup() {
   lv_log_register_print_cb(log_cb);
 #endif
   lv_init();
-  lv_custom_event = static_cast<lv_event_code_t>(lv_event_register_id());
+  lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
+  lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
   auto *display = this->displays_[0];
   size_t buffer_pixels = display->get_width() * display->get_height() / this->buffer_frac_;
   auto buf_bytes = buffer_pixels * LV_COLOR_DEPTH / 8;
@@ -288,6 +347,13 @@ void LvglComponent::loop() {
       this->write_random_();
   }
   lv_timer_handler_run_in_period(5);
+}
+bool lv_is_pre_initialise() {
+  if (!lv_is_initialized()) {
+    ESP_LOGE(TAG, "LVGL call before component is initialised");
+    return true;
+  }
+  return false;
 }
 
 #ifdef USE_LVGL_IMAGE

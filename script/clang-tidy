@@ -115,9 +115,10 @@ def clang_options(idedata):
 
 pids = set()
 
-def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
+
+def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
     while True:
-        path = queue.get()
+        path = path_queue.get()
         invocation = [executable]
 
         if tmpdir is not None:
@@ -139,17 +140,20 @@ def run_tidy(executable, args, options, tmpdir, queue, lock, failed_files):
         invocation.append("--")
         invocation.extend(options)
 
-        proc = subprocess.run(invocation, capture_output=True, encoding="utf-8")
+        proc = subprocess.run(
+            invocation, capture_output=True, encoding="utf-8", check=False
+        )
         if proc.returncode != 0:
             with lock:
                 print_error_for_file(path, proc.stdout)
                 failed_files.append(path)
-        queue.task_done()
+        path_queue.task_done()
 
 
 def progress_bar_show(value):
     if value is None:
         return ""
+    return None
 
 
 def split_list(a, n):
@@ -237,7 +241,15 @@ def main():
         for _ in range(args.jobs):
             t = threading.Thread(
                 target=run_tidy,
-                args=(executable, args, options, tmpdir, task_queue, lock, failed_files),
+                args=(
+                    executable,
+                    args,
+                    options,
+                    tmpdir,
+                    task_queue,
+                    lock,
+                    failed_files,
+                ),
             )
             t.daemon = True
             t.start()
@@ -245,14 +257,14 @@ def main():
         # Fill the queue with files.
         with click.progressbar(
             files, width=30, file=sys.stderr, item_show_func=progress_bar_show
-        ) as bar:
-            for name in bar:
+        ) as progress_bar:
+            for name in progress_bar:
                 task_queue.put(name)
 
         # Wait for all threads to be done.
         task_queue.join()
 
-    except FileNotFoundError as ex:
+    except FileNotFoundError:
         return 1
     except KeyboardInterrupt:
         print()
@@ -262,7 +274,7 @@ def main():
         # Kill subprocesses (and ourselves!)
         # No simple, clean alternative appears to be available.
         os.kill(0, 9)
-        return 2    # Will not execute.
+        return 2  # Will not execute.
 
     if args.fix and failed_files:
         print("Applying fixes ...")
@@ -272,7 +284,10 @@ def main():
             except FileNotFoundError:
                 subprocess.call(["clang-apply-replacements", tmpdir])
         except FileNotFoundError:
-                print("Error please install clang-apply-replacements-14 or clang-apply-replacements.\n", file=sys.stderr)
+            print(
+                "Error please install clang-apply-replacements-14 or clang-apply-replacements.\n",
+                file=sys.stderr,
+            )
         except:
             print("Error applying fixes.\n", file=sys.stderr)
             raise
