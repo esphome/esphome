@@ -186,7 +186,7 @@ async def datetime_date_set_to_code(config, action_id, template_arg, args):
 
     date_config = config[CONF_DATE]
     if cg.is_template(date_config):
-        template_ = await cg.templatable(date_config, [], cg.ESPTime)
+        template_ = await cg.templatable(date_config, args, cg.ESPTime)
         cg.add(action_var.set_date(template_))
     else:
         date_struct = cg.StructInitializer(
@@ -217,7 +217,7 @@ async def datetime_time_set_to_code(config, action_id, template_arg, args):
 
     time_config = config[CONF_TIME]
     if cg.is_template(time_config):
-        template_ = await cg.templatable(time_config, [], cg.ESPTime)
+        template_ = await cg.templatable(time_config, args, cg.ESPTime)
         cg.add(action_var.set_time(template_))
     else:
         time_struct = cg.StructInitializer(
@@ -248,7 +248,7 @@ async def datetime_datetime_set_to_code(config, action_id, template_arg, args):
 
     datetime_config = config[CONF_DATETIME]
     if cg.is_template(datetime_config):
-        template_ = await cg.templatable(datetime_config, [], cg.ESPTime)
+        template_ = await cg.templatable(datetime_config, args, cg.ESPTime)
         cg.add(action_var.set_datetime(template_))
     else:
         datetime_struct = cg.StructInitializer(
