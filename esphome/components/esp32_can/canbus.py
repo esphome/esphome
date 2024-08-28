@@ -94,7 +94,7 @@ async def to_code(config):
 
     cg.add(var.set_rx(config[CONF_RX_PIN]))
     cg.add(var.set_tx(config[CONF_TX_PIN]))
-    if CONF_RX_QUEUE_LEN in config:
-        cg.add(var.set_rx_queue_len(config[CONF_RX_QUEUE_LEN]))
-    if CONF_TX_QUEUE_LEN in config:
-        cg.add(var.set_tx_queue_len(config[CONF_TX_QUEUE_LEN]))
+    if (rx_queue_len := config.get(CONF_RX_QUEUE_LEN)) is not None:
+        cg.add(var.set_rx_queue_len(rx_queue_len))
+    if (tx_queue_len := config.get(CONF_TX_QUEUE_LEN)) is not None:
+        cg.add(var.set_tx_queue_len(tx_queue_len))
