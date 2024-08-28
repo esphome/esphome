@@ -8,11 +8,11 @@ namespace esphome {
 namespace mqtt {
 
 static const char *const TAG = "mqtt-backend-esp8266";
-  
+
 MQTTBackendESP8266 *object;
 
 void MQTTBackendESP8266::on_mqtt_message_wrapper_(const char *topic, unsigned char *payload, unsigned int length) {
-  object->on_mqtt_message_(topic, reinterpret_cast<const char*>(payload), length);
+  object->on_mqtt_message_(topic, reinterpret_cast<const char *>(payload), length);
 }
 
 void MQTTBackendESP8266::on_mqtt_message_(const char *topic, const char *payload, unsigned int length) {
@@ -21,7 +21,7 @@ void MQTTBackendESP8266::on_mqtt_message_(const char *topic, const char *payload
 }
 
 void MQTTBackendESP8266::initialize_() {
-  #ifdef USE_MQTT_SECURE_CLIENT
+#ifdef USE_MQTT_SECURE_CLIENT
   if (this->ca_certificate_str_.has_value()) {
     this->ca_certificate_.append(this->ca_certificate_str_.value().c_str());
     this->wifi_client_.setTrustAnchors(&this->ca_certificate_);
@@ -29,7 +29,7 @@ void MQTTBackendESP8266::initialize_() {
       this->wifi_client_.setInsecure();
     }
   }
-  #endif
+#endif
 
   object = this;
   mqtt_client_.setCallback(MQTTBackendESP8266::on_mqtt_message_wrapper_);
@@ -42,7 +42,7 @@ void MQTTBackendESP8266::loop() {
   if (this->mqtt_client_.loop()) {
     if (!this->is_connected_) {
       this->is_connected_ = true;
-      /* 
+      /*
        * PubSubClient doesn't expose session_present flag in CONNACK, passing the clean_session flag
        * assumes the broker remembered it correctly
        */
@@ -57,19 +57,26 @@ void MQTTBackendESP8266::loop() {
         case MQTT_CONNECTION_LOST:
         case MQTT_CONNECT_FAILED:
         case MQTT_DISCONNECTED:
-          reason = MQTTClientDisconnectReason::TCP_DISCONNECTED; break;
+          reason = MQTTClientDisconnectReason::TCP_DISCONNECTED;
+          break;
         case MQTT_CONNECT_BAD_PROTOCOL:
-          reason = MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION; break;
+          reason = MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION;
+          break;
         case MQTT_CONNECT_BAD_CLIENT_ID:
-          reason = MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED; break;
+          reason = MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED;
+          break;
         case MQTT_CONNECT_UNAVAILABLE:
-          reason = MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE; break;
+          reason = MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE;
+          break;
         case MQTT_CONNECT_BAD_CREDENTIALS:
-          reason = MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS; break;
+          reason = MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS;
+          break;
         case MQTT_CONNECT_UNAUTHORIZED:
-          reason = MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED; break;
+          reason = MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED;
+          break;
         case MQTT_CONNECTED:
-          assert(false); break;
+          assert(false);
+          break;
       }
       this->on_disconnect_.call(reason);
     }

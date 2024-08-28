@@ -17,15 +17,9 @@ namespace mqtt {
 
 class MQTTBackendESP8266 final : public MQTTBackend {
  public:
-  void set_keep_alive(uint16_t keep_alive) final {
-    this->keep_alive_ = keep_alive;
-  }
-  void set_client_id(const char *client_id) final {
-    this->client_id_ = client_id;
-  }
-  void set_clean_session(bool clean_session) final {
-    this->clean_session_ = clean_session;
-  }
+  void set_keep_alive(uint16_t keep_alive) final { this->keep_alive_ = keep_alive; }
+  void set_client_id(const char *client_id) final { this->client_id_ = client_id; }
+  void set_clean_session(bool clean_session) final { this->clean_session_ = clean_session; }
   void set_credentials(const char *username, const char *password) final {
     if (username)
       this->username_ = username;
@@ -41,13 +35,11 @@ class MQTTBackendESP8266 final : public MQTTBackend {
     this->lwt_retain_ = retain;
   }
   void set_server(network::IPAddress ip, uint16_t port) final {
-    ESP_LOGD("mqtt", "setting by ip");
     this->host_ = ip.str();
     this->port_ = port;
     this->mqtt_client_.setServer(ip, port);
   }
   void set_server(const char *host, uint16_t port) final {
-    ESP_LOGD("mqtt", "setting by host %s, port: %d", host, port);
     this->host_ = host;
     this->port_ = port;
     this->mqtt_client_.setServer(this->host_.c_str(), port);
@@ -72,15 +64,14 @@ class MQTTBackendESP8266 final : public MQTTBackend {
     this->on_publish_.add(std::move(callback));
   }
 
-  bool connected() const final { 
-    return this->is_connected_;
-  }
+  bool connected() const final { return this->is_connected_; }
   void connect() final {
     if (!this->is_initalized_) {
       this->initialize_();
     }
     this->mqtt_client_.connect(this->client_id_.c_str(), this->username_.c_str(), this->password_.c_str(),
-      this->lwt_topic_.c_str(), this->lwt_qos_, this->lwt_retain_, this->lwt_message_.c_str(), this->clean_session_);    
+                               this->lwt_topic_.c_str(), this->lwt_qos_, this->lwt_retain_, this->lwt_message_.c_str(),
+                               this->clean_session_);
   }
   void disconnect() final {
     if (this->is_initalized_)
@@ -90,25 +81,25 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   bool unsubscribe(const char *topic) final { return this->mqtt_client_.unsubscribe(topic); }
   bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
     /* qos parameter is ignored, as PubSubClient can only publish QoS 0 messages */
-    return this->mqtt_client_.publish(topic, reinterpret_cast<const uint8_t*>(payload), length, retain);
+    return this->mqtt_client_.publish(topic, reinterpret_cast<const uint8_t *>(payload), length, retain);
   }
   using MQTTBackend::publish;
 
   void loop() final;
 
-  void set_ca_certificate(const std::string &cert) { ca_certificate_str_ = cert; }
-  void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
+  void set_ca_certificate(const std::string &cert) { this->ca_certificate_str_ = cert; }
+  void set_skip_cert_cn_check(bool skip_check) { this->skip_cert_cn_check_ = skip_check; }
 
  protected:
   void initialize_();
   static void on_mqtt_message_wrapper_(const char *topic, unsigned char *payload, unsigned int length);
   void on_mqtt_message_(const char *topic, const char *payload, unsigned int length);
 
-  #ifdef USE_MQTT_SECURE_CLIENT
+#ifdef USE_MQTT_SECURE_CLIENT
   WiFiClientSecure wifi_client_;
-  #else
+#else
   WiFiClient wifi_client_;
-  #endif
+#endif
   PubSubClient mqtt_client_{wifi_client_};
 
   bool is_connected_{false};
