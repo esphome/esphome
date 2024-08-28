@@ -47,7 +47,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
-from esphome.core import coroutine_with_priority, CORE
+from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ["network"]
 
@@ -55,7 +55,6 @@ DEPENDENCIES = ["network"]
 if CORE.is_esp8266:
     DEPENDENCIES.append("time")
 
-AUTO_LOAD = ["json"]
 
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
