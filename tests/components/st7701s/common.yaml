@@ -40,8 +40,10 @@ display:
     pclk_pin: 21
     init_sequence:
       - 1
+      - [0x23, 0xA, 0xB]
       - delay 20ms
       - [0x23, 0xA, 0xB]
+      - delay 0.2s
     data_pins:
       - number: 0
         ignore_strapping_warning: true

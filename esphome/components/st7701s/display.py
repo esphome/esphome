@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_VSYNC_PIN,
     CONF_WIDTH,
 )
+from esphome.core import TimePeriod
 
 from .init_sequences import ST7701S_INITS, cmd
 
@@ -91,9 +92,10 @@ def map_sequence(value):
     """
     if isinstance(value, str) and value.lower().startswith("delay "):
         value = value.lower()[6:]
-        if value.endswith("ms"):
-            value = value[:-2]
-        delay = cv.int_range(min=1, max=255)(value)
+        delay = cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
+        )(value)
         return [delay, ST7701S_DELAY_FLAG]
     if not isinstance(value, list):
         value = cv.int_(value)
