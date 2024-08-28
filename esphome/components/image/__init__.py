@@ -31,6 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = "image"
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
+AUTO_LOAD = ["display"]
 
 image_ns = cg.esphome_ns.namespace("image")
 
