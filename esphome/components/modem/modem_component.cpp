@@ -98,7 +98,7 @@ AtCommandResult ModemComponent::get_imei() {
 }
 
 int ModemComponent::get_baud_rate_() {
-  AtCommandResult at_command_result = this->send_at("AT+IPR?");
+  AtCommandResult at_command_result = this->send_at("AT+IPR?", 1000);
   const std::string sep = ": ";
   size_t pos = at_command_result.output.find(sep);
   if (pos == std::string::npos) {
@@ -386,6 +386,7 @@ void ModemComponent::loop() {
                 ESP_LOGE(TAG, "modem is unable to enter PPP (time left before abort: %.0fs)", time_left_s);
                 this->stop_ppp_();
                 this->is_modem_connected();
+                next_loop_millis = millis() + 25000;  // delay to retry
               }
             } else {
               ESP_LOGW(TAG, "Waiting for the modem to be attached to a network (time left before abort: %.0fs)",
@@ -399,9 +400,8 @@ void ModemComponent::loop() {
               next_loop_millis = millis() + 1000;  // delay for next loop
 
               // connecting timeout
-              if (millis() - this->internal_state_.connect_begin > 15000) {
+              if (millis() - this->internal_state_.connect_begin > 25000) {
                 ESP_LOGW(TAG, "Connecting via Modem failed! Re-connecting...");
-                // TODO: exit data/cmux without error check
                 connecting = false;
               }
             } else {
@@ -708,18 +708,24 @@ bool ModemComponent::prepare_sim_() {
 
   ESP_LOGD(TAG, "SIM: %s", output.c_str());
 
-  if ((output.find("+CPIN: READY") != std::string::npos) || (output.find("+CPIN: SIM PIN") != std::string::npos)) {
+  if (output.find("+CPIN: READY") != std::string::npos) {
+    ESP_LOGD(TAG, "Pin already unlocked");
     return true;  // pin not needed or already unlocked
-  } else {
-    if (output.find("SIM not inserted") != std::string::npos) {
-      return false;
-    }
+  } else if (output.find("SIM not inserted") != std::string::npos) {
+    ESP_LOGE(TAG, "sim card missing?");
+    return false;
   }
 
   ESPMODEM_ERROR_CHECK(this->dce->set_pin(this->pin_code_), "Set pin error");
 
   bool pin_ok = false;
   ESPMODEM_ERROR_CHECK(this->dce->read_pin(pin_ok), "Error checking pin");
+
+  if (pin_ok) {
+    ESP_LOGD(TAG, "SIM pin unlocked");
+  } else {
+    ESP_LOGE(TAG, "SIM pin error");
+  }
 
   return pin_ok;
 }
