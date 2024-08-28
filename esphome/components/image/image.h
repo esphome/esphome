@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/color.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 
 namespace esphome {
 namespace image {
