@@ -130,6 +130,10 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "bl0906", baud_rate=19200, require_tx=True, require_rx=True
+)
+
 
 @automation.register_action(
     "bl0906.reset_energy",
