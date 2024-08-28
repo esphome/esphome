@@ -285,7 +285,7 @@ async def to_code(config):
         if resize:
             image.thumbnail(resize)
     except UnidentifiedImageError as exc:
-        file_str = str(file_contents[:4096])
+        file_str = file_contents[:4096].decode("utf-8")
         if file_str.startswith("<svg") or (
             file_str.startswith("<?xml version=") and "<svg" in file_str
         ):
