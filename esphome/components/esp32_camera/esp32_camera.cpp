@@ -336,9 +336,7 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
   this->idle_update_interval_ = idle_update_interval;
 }
 /* set frame buffer parameters */
-void ESP32Camera::set_frame_buffer_mode(camera_grab_mode_t mode) {
-  this->config_.grab_mode = mode;
-}
+void ESP32Camera::set_frame_buffer_mode(camera_grab_mode_t mode) { this->config_.grab_mode = mode; }
 void ESP32Camera::set_frame_buffer_count(uint8_t fb_count) {
   this->config_.fb_count = fb_count;
   this->set_frame_buffer_mode(fb_count > 1 ? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY);
