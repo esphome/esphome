@@ -66,7 +66,7 @@ std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &gnss_i
 
   std::map<std::string, std::string> gnss_data;
 
-  if (gnss_info.find(",,,,,,") != std::string::npos) {
+  if ((gnss_info.find(",,,,,,") != std::string::npos) || (gnss_info.find("+CGNSSINFO:") == std::string::npos)) {
     ESP_LOGW(TAG, "No GNSS location available");
     return gnss_data;  // empty
   }
