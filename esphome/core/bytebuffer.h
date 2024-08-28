@@ -117,6 +117,7 @@ class ByteBuffer {
   inline size_t get_position() const { return this->position_; }
   inline size_t get_limit() const { return this->limit_; }
   inline size_t get_remaining() const { return this->get_limit() - this->get_position(); }
+  inline size_t get_used() const { return this->used_; }
   inline Endian get_endianness() const { return this->endianness_; }
   inline void mark() { this->mark_ = this->position_; }
   inline void big_endian() { this->endianness_ = BIG; }
@@ -131,14 +132,21 @@ class ByteBuffer {
   std::vector<uint8_t> get_data() { return this->data_; };
   void rewind() { this->position_ = 0; }
   void reset() { this->position_ = this->mark_; }
+  void resize() { this->used_ = this->position_; }
 
  protected:
   ByteBuffer(std::vector<uint8_t> const &data) : data_(data), limit_(data.size()) {}
+  void update_used_() {
+    if (this->used_ < this->position_) {
+      this->resize();
+    }
+  }
   std::vector<uint8_t> data_;
   Endian endianness_{LITTLE};
   size_t position_{0};
   size_t mark_{0};
   size_t limit_{0};
+  size_t used_{0};
 };
 
 }  // namespace esphome

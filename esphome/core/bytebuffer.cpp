@@ -133,6 +133,7 @@ std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
 void ByteBuffer::put_uint8(uint8_t value) {
   assert(this->get_remaining() >= 1);
   this->data_[this->position_++] = value;
+  this->update_used_();
 }
 
 void ByteBuffer::put_uint(uint64_t value, size_t length) {
@@ -150,6 +151,7 @@ void ByteBuffer::put_uint(uint64_t value, size_t length) {
       value >>= 8;
     }
   }
+  this->update_used_();
 }
 void ByteBuffer::put_float(float value) {
   static_assert(sizeof(float) == sizeof(uint32_t), "Float sizes other than 32 bit not supported");
@@ -169,5 +171,6 @@ void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   assert(this->get_remaining() >= value.size());
   std::copy(value.begin(), value.end(), this->data_.begin() + this->position_);
   this->position_ += value.size();
+  this->update_used_();
 }
 }  // namespace esphome
