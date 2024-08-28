@@ -1,14 +1,16 @@
 #pragma once
 
+#include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/i2c/i2c.h"
-#include "cached_gpio.h"
 
 namespace esphome {
 namespace tca9555 {
 
-class TCA9555Component : public Component, public i2c::I2CDevice, public CachedGpioClient {
+class TCA9555Component : public Component,
+                         public i2c::I2CDevice,
+                         public gpio_expander::CachedGpioExpander<uint8_t, 16> {
  public:
   TCA9555Component() = default;
 
@@ -20,29 +22,23 @@ class TCA9555Component : public Component, public i2c::I2CDevice, public CachedG
 
   void dump_config() override;
 
-  /// Helper function to read the value of a pin.
-  bool digital_read(uint8_t pin);
-  /// Helper function to write the value of a pin.
-  void digital_write(uint8_t pin, bool value);
-
   void loop() override;
 
-  bool read_gpio_from_cache(uint8_t pin) override;
-  bool write_gpio_from_cache(uint8_t pin, bool value) override;
-  bool read_gpio_hw() override;
-  bool write_gpio_hw() override;
-
  protected:
+  bool digital_read_hw(uint8_t pin) override;
+  bool digital_read_cache(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
+
   /// Mask for the pin mode - 1 means output, 0 means input
   uint16_t mode_mask_{0x00};
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint16_t output_mask_{0x00};
-  /// The state read in read_gpio_hw - 1 means HIGH, 0 means LOW
+  /// The state read in digital_read_hw - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
 
- private:
-  bool read_gpio_current_config_();
-  CachedGpio cached_gpio_{this};
+  bool read_gpio_modes_();
+  bool write_gpio_modes_();
+  bool read_gpio_outputs_();
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.

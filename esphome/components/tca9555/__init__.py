@@ -13,6 +13,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@mobrembski"]
 
+AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
