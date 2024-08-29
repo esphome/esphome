@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_VALUE, CONF_ROW, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ROW
 
 from ..automation import action_to_code
 from ..defines import (
@@ -29,6 +29,7 @@ lv_tileview_t = LvType(
     "lv_tileview_t",
     largs=[(lv_obj_t_ptr, "tile")],
     lvalue=lambda w: w.get_property("tile_act"),
+    has_on_value=True,
 )
 
 tile_spec = WidgetType("lv_tileview_tile_t", lv_tile_t, (CONF_MAIN,), {})
@@ -45,13 +46,6 @@ TILEVIEW_SCHEMA = cv.Schema(
                     cv.Optional(CONF_DIR, default="ALL"): TILE_DIRECTIONS.several_of,
                 },
             )
-        ),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    automation.Trigger.template(lv_obj_t_ptr)
-                )
-            }
         ),
     }
 )
