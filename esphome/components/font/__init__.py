@@ -30,7 +30,6 @@ from esphome.helpers import copy_file_if_changed, cpp_string_escape
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "font"
-AUTO_LOAD = ["display"]
 MULTI_CONF = True
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]

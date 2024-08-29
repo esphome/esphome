@@ -3,7 +3,6 @@
 #include <utility>
 
 #include "esphome/core/application.h"
-#ifdef USE_DISPLAY
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -71,4 +70,3 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
 
 }  // namespace display
 }  // namespace esphome
-#endif
