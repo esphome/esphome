@@ -449,23 +449,6 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantRequestFlag>(en
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
-template<>
-const char *proto_enum_to_string<enums::VoiceAssistantPipelineStage>(enums::VoiceAssistantPipelineStage value) {
-  switch (value) {
-    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD:
-      return "VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD";
-    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_STT:
-      return "VOICE_ASSISTANT_PIPELINE_STAGE_STT";
-    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_INTENT:
-      return "VOICE_ASSISTANT_PIPELINE_STAGE_INTENT";
-    case enums::VOICE_ASSISTANT_PIPELINE_STAGE_TTS:
-      return "VOICE_ASSISTANT_PIPELINE_STAGE_TTS";
-    default:
-      return "UNKNOWN";
-  }
-}
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::VoiceAssistantEvent value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_ERROR:
@@ -6801,14 +6784,6 @@ bool VoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->flags = value.as_uint32();
       return true;
     }
-    case 6: {
-      this->start_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
-      return true;
-    }
-    case 7: {
-      this->end_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
-      return true;
-    }
     default:
       return false;
   }
@@ -6827,10 +6802,6 @@ bool VoiceAssistantRequest::decode_length(uint32_t field_id, ProtoLengthDelimite
       this->wake_word_phrase = value.as_string();
       return true;
     }
-    case 8: {
-      this->announce_text = value.as_string();
-      return true;
-    }
     default:
       return false;
   }
@@ -6841,9 +6812,6 @@ void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(3, this->flags);
   buffer.encode_message<VoiceAssistantAudioSettings>(4, this->audio_settings);
   buffer.encode_string(5, this->wake_word_phrase);
-  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(6, this->start_stage);
-  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(7, this->end_stage);
-  buffer.encode_string(8, this->announce_text);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantRequest::dump_to(std::string &out) const {
@@ -6868,18 +6836,6 @@ void VoiceAssistantRequest::dump_to(std::string &out) const {
 
   out.append("  wake_word_phrase: ");
   out.append("'").append(this->wake_word_phrase).append("'");
-  out.append("\n");
-
-  out.append("  start_stage: ");
-  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->start_stage));
-  out.append("\n");
-
-  out.append("  end_stage: ");
-  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->end_stage));
-  out.append("\n");
-
-  out.append("  announce_text: ");
-  out.append("'").append(this->announce_text).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -7105,179 +7061,23 @@ void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-bool VoiceAssistantTriggerPipeline::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantAnnounce::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      this->start_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
-      return true;
-    }
-    case 2: {
-      this->end_stage = value.as_enum<enums::VoiceAssistantPipelineStage>();
+      this->media_id = value.as_string();
       return true;
     }
     default:
       return false;
   }
 }
-bool VoiceAssistantTriggerPipeline::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 3: {
-      this->wake_word_phrase = value.as_string();
-      return true;
-    }
-    case 4: {
-      this->announce_text = value.as_string();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-void VoiceAssistantTriggerPipeline::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(1, this->start_stage);
-  buffer.encode_enum<enums::VoiceAssistantPipelineStage>(2, this->end_stage);
-  buffer.encode_string(3, this->wake_word_phrase);
-  buffer.encode_string(4, this->announce_text);
-}
+void VoiceAssistantAnnounce::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->media_id); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void VoiceAssistantTriggerPipeline::dump_to(std::string &out) const {
+void VoiceAssistantAnnounce::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantTriggerPipeline {\n");
-  out.append("  start_stage: ");
-  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->start_stage));
-  out.append("\n");
-
-  out.append("  end_stage: ");
-  out.append(proto_enum_to_string<enums::VoiceAssistantPipelineStage>(this->end_stage));
-  out.append("\n");
-
-  out.append("  wake_word_phrase: ");
-  out.append("'").append(this->wake_word_phrase).append("'");
-  out.append("\n");
-
-  out.append("  announce_text: ");
-  out.append("'").append(this->announce_text).append("'");
-  out.append("\n");
-  out.append("}");
-}
-#endif
-bool VoiceAssistantSetConfiguration::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->active_wake_words.push_back(value.as_string());
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-void VoiceAssistantSetConfiguration::encode(ProtoWriteBuffer buffer) const {
-  for (auto &it : this->active_wake_words) {
-    buffer.encode_string(1, it, true);
-  }
-}
-#ifdef HAS_PROTO_MESSAGE_DUMP
-void VoiceAssistantSetConfiguration::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantSetConfiguration {\n");
-  for (const auto &it : this->active_wake_words) {
-    out.append("  active_wake_words: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-  out.append("}");
-}
-#endif
-bool VoiceAssistantAvailableWakeWord::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2: {
-      this->is_active = value.as_bool();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool VoiceAssistantAvailableWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->wake_word = value.as_string();
-      return true;
-    }
-    case 3: {
-      this->trained_languages.push_back(value.as_string());
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-void VoiceAssistantAvailableWakeWord::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_string(1, this->wake_word);
-  buffer.encode_bool(2, this->is_active);
-  for (auto &it : this->trained_languages) {
-    buffer.encode_string(3, it, true);
-  }
-}
-#ifdef HAS_PROTO_MESSAGE_DUMP
-void VoiceAssistantAvailableWakeWord::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantAvailableWakeWord {\n");
-  out.append("  wake_word: ");
-  out.append("'").append(this->wake_word).append("'");
-  out.append("\n");
-
-  out.append("  is_active: ");
-  out.append(YESNO(this->is_active));
-  out.append("\n");
-
-  for (const auto &it : this->trained_languages) {
-    out.append("  trained_languages: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-  out.append("}");
-}
-#endif
-bool VoiceAssistantConfiguration::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2: {
-      this->max_active_wake_words = value.as_uint32();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-bool VoiceAssistantConfiguration::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->available_wake_words.push_back(value.as_message<VoiceAssistantAvailableWakeWord>());
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-void VoiceAssistantConfiguration::encode(ProtoWriteBuffer buffer) const {
-  for (auto &it : this->available_wake_words) {
-    buffer.encode_message<VoiceAssistantAvailableWakeWord>(1, it, true);
-  }
-  buffer.encode_uint32(2, this->max_active_wake_words);
-}
-#ifdef HAS_PROTO_MESSAGE_DUMP
-void VoiceAssistantConfiguration::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantConfiguration {\n");
-  for (const auto &it : this->available_wake_words) {
-    out.append("  available_wake_words: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-
-  out.append("  max_active_wake_words: ");
-  sprintf(buffer, "%" PRIu32, this->max_active_wake_words);
-  out.append(buffer);
+  out.append("VoiceAssistantAnnounce {\n");
+  out.append("  media_id: ");
+  out.append("'").append(this->media_id).append("'");
   out.append("\n");
   out.append("}");
 }

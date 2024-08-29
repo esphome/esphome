@@ -178,12 +178,6 @@ enum VoiceAssistantRequestFlag : uint32_t {
   VOICE_ASSISTANT_REQUEST_USE_VAD = 1,
   VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD = 2,
 };
-enum VoiceAssistantPipelineStage : uint32_t {
-  VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD = 0,
-  VOICE_ASSISTANT_PIPELINE_STAGE_STT = 1,
-  VOICE_ASSISTANT_PIPELINE_STAGE_INTENT = 2,
-  VOICE_ASSISTANT_PIPELINE_STAGE_TTS = 3,
-};
 enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_ERROR = 0,
   VOICE_ASSISTANT_RUN_START = 1,
@@ -1755,9 +1749,6 @@ class VoiceAssistantRequest : public ProtoMessage {
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
   std::string wake_word_phrase{};
-  enums::VoiceAssistantPipelineStage start_stage{};
-  enums::VoiceAssistantPipelineStage end_stage{};
-  std::string announce_text{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1834,12 +1825,9 @@ class VoiceAssistantTimerEventResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class VoiceAssistantTriggerPipeline : public ProtoMessage {
+class VoiceAssistantAnnounce : public ProtoMessage {
  public:
-  enums::VoiceAssistantPipelineStage start_stage{};
-  enums::VoiceAssistantPipelineStage end_stage{};
-  std::string wake_word_phrase{};
-  std::string announce_text{};
+  std::string media_id{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1847,45 +1835,6 @@ class VoiceAssistantTriggerPipeline : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
-};
-class VoiceAssistantSetConfiguration : public ProtoMessage {
- public:
-  std::vector<std::string> active_wake_words{};
-  void encode(ProtoWriteBuffer buffer) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-};
-class VoiceAssistantAvailableWakeWord : public ProtoMessage {
- public:
-  std::string wake_word{};
-  bool is_active{false};
-  std::vector<std::string> trained_languages{};
-  void encode(ProtoWriteBuffer buffer) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
-};
-class VoiceAssistantConfiguration : public ProtoMessage {
- public:
-  std::vector<VoiceAssistantAvailableWakeWord> available_wake_words{};
-  uint32_t max_active_wake_words{0};
-  void encode(ProtoWriteBuffer buffer) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
  public:
