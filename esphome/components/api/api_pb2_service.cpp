@@ -321,6 +321,14 @@ bool APIServerConnectionBase::send_list_entities_button_response(const ListEntit
 #ifdef USE_BUTTON
 #endif
 #ifdef USE_MEDIA_PLAYER
+bool APIServerConnectionBase::send_media_player_supported_format(const MediaPlayerSupportedFormat &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_media_player_supported_format: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<MediaPlayerSupportedFormat>(msg, 119);
+}
+#endif
+#ifdef USE_MEDIA_PLAYER
 bool APIServerConnectionBase::send_list_entities_media_player_response(const ListEntitiesMediaPlayerResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_media_player_response: %s", msg.dump().c_str());
@@ -1149,13 +1157,13 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 119: {
-#ifdef USE_API_NOISE
-      NoiseEncryptionSetKeyRequest msg;
+#ifdef USE_MEDIA_PLAYER
+      MediaPlayerSupportedFormat msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_noise_encryption_set_key_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_media_player_supported_format: %s", msg.dump().c_str());
 #endif
-      this->on_noise_encryption_set_key_request(msg);
+      this->on_media_player_supported_format(msg);
 #endif
       break;
     }
