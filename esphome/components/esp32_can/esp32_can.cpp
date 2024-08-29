@@ -111,6 +111,7 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
       .flags = flags,
       .identifier = frame->can_id,
       .data_length_code = frame->can_data_length_code,
+      .data = {},  // to suppress warning, data is initialized properly below
   };
   if (!frame->remote_transmission_request) {
     memcpy(message.data, frame->data, frame->can_data_length_code);
