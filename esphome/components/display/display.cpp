@@ -1,4 +1,5 @@
 #include "display.h"
+#ifdef USE_DISPLAY
 #include "display_color_utils.h"
 #include <utility>
 #include "esphome/core/hal.h"
@@ -708,3 +709,5 @@ const LogString *text_align_to_string(TextAlign textalign) {
 
 }  // namespace display
 }  // namespace esphome
+
+#endif
