@@ -9,7 +9,7 @@ namespace esphome {
 
 ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len, Endian endianness) {
   // there is a double copy happening here, could be optimized but at cost of clarity.
-  std::vector data(ptr, ptr + len);
+  std::vector<uint8_t> data(ptr, ptr + len);
   ByteBuffer buffer = {data};
   buffer.endianness_ = endianness;
   return buffer;
