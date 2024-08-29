@@ -1,6 +1,5 @@
 #include "bytebuffer.h"
 #include <cassert>
-#include <bit>
 #include "esphome/core/helpers.h"
 
 #include <list>
