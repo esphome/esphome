@@ -337,11 +337,25 @@ lvgl:
         - tileview:
             id: tileview_id
             scrollbar_mode: active
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tile == id(tile_1);
+                    then:
+                      - logger.log: "tile 1 is now showing"
             tiles:
-              - id: page_1
+              - id: tile_1
                 row: 0
                 column: 0
-                dir: HOR
+                dir: ALL
+                widgets:
+                  - obj:
+                      bg_color: 0x000000
+              - id: tile_2
+                row: 1
+                column: 0
+                dir: [VER, HOR]
                 widgets:
                   - obj:
                       bg_color: 0x000000
