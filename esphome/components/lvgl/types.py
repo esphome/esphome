@@ -57,7 +57,7 @@ lv_group_t = cg.global_ns.struct("lv_group_t")
 LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
 lv_obj_t = LvType("lv_obj_t")
-lv_page_t = cg.global_ns.class_("LvPageType", LvCompound)
+lv_page_t = LvType("LvPageType", parents=(LvCompound,))
 lv_img_t = LvType("lv_img_t")
 
 LV_EVENT = MockObj(base="LV_EVENT_", op="")
