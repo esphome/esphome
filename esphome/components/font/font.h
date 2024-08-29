@@ -56,8 +56,8 @@ class Font
   Font(const GlyphData *data, int data_nr, int baseline, int height, uint8_t bpp = 1);
 
   int match_next_glyph(const uint8_t *str, int *match_length);
-#ifdef USE_DISPLAY
 
+#ifdef USE_DISPLAY
   void print(int x_start, int y_start, display::Display *display, Color color, const char *text,
              Color background) override;
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) override;
