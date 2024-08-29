@@ -12,6 +12,7 @@ display:
     dc_pin: GPIO4
     reset_pin:
       number: GPIO21
+    invert_colors: false
 
 i2c:
   scl: GPIO18
