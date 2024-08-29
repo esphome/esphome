@@ -50,14 +50,14 @@ enum NAU7802CalibrationModes {
 
 class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_samples_per_second(NAU7802SPS sps) { sps_ = sps; }
-  void set_ldo_voltage(NAU7802LDO ldo) { ldo_ = ldo; }
-  void set_gain(NAU7802Gain gain) { gain_ = gain; }
-  void set_gain_calibration(float gain_calibration) { gain_calibration_ = gain_calibration; }
-  void set_offset_calibration(int32_t offset_calibration) { offset_calibration_ = offset_calibration; }
-  bool calibrate_external_offset() { return calibrate_(NAU7802_CALIBRATE_EXTERNAL_OFFSET); }
-  bool calibrate_internal_offset() { return calibrate_(NAU7802_CALIBRATE_INTERNAL_OFFSET); }
-  bool calibrate_gain() { return calibrate_(NAU7802_CALIBRATE_GAIN); }
+  void set_samples_per_second(NAU7802SPS sps) { this->sps_ = sps; }
+  void set_ldo_voltage(NAU7802LDO ldo) { this->ldo_ = ldo; }
+  void set_gain(NAU7802Gain gain) { this->gain_ = gain; }
+  void set_gain_calibration(float gain_calibration) { this->gain_calibration_ = gain_calibration; }
+  void set_offset_calibration(int32_t offset_calibration) { this->offset_calibration_ = offset_calibration; }
+  bool calibrate_external_offset() { return this->calibrate_(NAU7802_CALIBRATE_EXTERNAL_OFFSET); }
+  bool calibrate_internal_offset() { return this->calibrate_(NAU7802_CALIBRATE_INTERNAL_OFFSET); }
+  bool calibrate_gain() { return this->calibrate_(NAU7802_CALIBRATE_GAIN); }
 
   void setup() override;
   void loop() override;

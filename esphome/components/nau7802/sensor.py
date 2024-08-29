@@ -108,7 +108,7 @@ async def to_code(config):
 
 NAU7802_CALIBRATE_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(NAU7802Sensor),
+        cv.GenerateID(CONF_ID): cv.use_id(NAU7802Sensor),
     }
 )
 
