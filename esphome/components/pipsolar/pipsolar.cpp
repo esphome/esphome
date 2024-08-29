@@ -136,6 +136,9 @@ void Pipsolar::loop() {
         if (this->output_source_priority_battery_switch_) {
           this->output_source_priority_battery_switch_->publish_state(value_output_source_priority_ == 2);
         }
+        if (this->output_source_priority_hybrid_switch_) {
+          this->output_source_priority_hybrid_switch_->publish_state(value_output_source_priority_ == 3);
+        }
         if (this->charger_source_priority_) {
           this->charger_source_priority_->publish_state(value_charger_source_priority_);
         }

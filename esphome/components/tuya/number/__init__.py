@@ -8,18 +8,36 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_MULTIPLY,
     CONF_STEP,
+    CONF_INITIAL_VALUE,
 )
-from .. import tuya_ns, CONF_TUYA_ID, Tuya
+from .. import tuya_ns, CONF_TUYA_ID, Tuya, TuyaDatapointType
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@frankiboy1"]
 
+CONF_DATAPOINT_HIDDEN = "datapoint_hidden"
+CONF_DATAPOINT_TYPE = "datapoint_type"
+
 TuyaNumber = tuya_ns.class_("TuyaNumber", number.Number, cg.Component)
+
+DATAPOINT_TYPES = {
+    "int": TuyaDatapointType.INTEGER,
+    "uint": TuyaDatapointType.INTEGER,
+    "enum": TuyaDatapointType.ENUM,
+}
 
 
 def validate_min_max(config):
-    if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
+    max_value = config[CONF_MAX_VALUE]
+    min_value = config[CONF_MIN_VALUE]
+    if max_value <= min_value:
         raise cv.Invalid("max_value must be greater than min_value")
+    if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
+        if (initial_value := hidden_config.get(CONF_INITIAL_VALUE, None)) is not None:
+            if (initial_value > max_value) or (initial_value < min_value):
+                raise cv.Invalid(
+                    f"{CONF_INITIAL_VALUE} must be a value between {CONF_MAX_VALUE} and {CONF_MIN_VALUE}"
+                )
     return config
 
 
@@ -33,6 +51,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
+            cv.Optional(CONF_DATAPOINT_HIDDEN): cv.All(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_DATAPOINT_TYPE): cv.enum(
+                            DATAPOINT_TYPES, lower=True
+                        ),
+                        cv.Optional(CONF_INITIAL_VALUE): cv.float_,
+                    }
+                )
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -56,3 +84,9 @@ async def to_code(config):
     cg.add(var.set_tuya_parent(parent))
 
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))
+    if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):
+        cg.add(var.set_datapoint_type(hidden_config[CONF_DATAPOINT_TYPE]))
+        if (
+            hidden_init_value := hidden_config.get(CONF_INITIAL_VALUE, None)
+        ) is not None:
+            cg.add(var.set_datapoint_initial_value(hidden_init_value))
