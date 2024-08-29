@@ -1,35 +1,4 @@
-network:
+packages:
+  common: !include common.yaml
 
-udp:
-  - update_interval: 5s
-    id: first_udp
-    encryption: "our key goes here"
-    rolling_code_enable: true
-    ping_pong_enable: true
-    binary_sensors:
-      - binary_sensor_id1
-    sensors:
-      - sensor_id1
-    providers:
-      - name: some-device-name
-        encryption: "their key goes here"
-  - id: second_udp
-    sensors:
-      - sensor_id1
-
-sensor:
-  - platform: template
-    id: sensor_id1
-  - platform: udp
-    udp_id: first_udp
-    provider: some-device-name
-    id: our_id
-    remote_id: some_sensor_id
-
-binary_sensor:
-  - platform: udp
-    udp_id: first_udp
-    provider: unencrypted-device
-    id: other_binary_sensor_id
-  - platform: template
-    id: binary_sensor_id1
+wifi: !remove
