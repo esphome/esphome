@@ -30,6 +30,7 @@ void GT911Touchscreen::setup() {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
     if (this->interrupt_pin_ != nullptr) {
+      // The interrupt pin is used as an input during reset to select the I2C address.
       this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);
       this->interrupt_pin_->setup();
       this->interrupt_pin_->digital_write(false);
