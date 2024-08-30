@@ -1107,6 +1107,19 @@ enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_MUTE = 3;
   MEDIA_PLAYER_COMMAND_UNMUTE = 4;
 }
+enum MediaPlayerFormatPurpose {
+  MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0;
+  MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT = 1;
+}
+message MediaPlayerSupportedFormat {
+  option (id) = 119;
+  option (ifdef) = "USE_MEDIA_PLAYER";
+
+  string format = 1;
+  uint32 sample_rate = 2;
+  uint32 num_channels = 3;
+  MediaPlayerFormatPurpose purpose = 4;
+}
 message ListEntitiesMediaPlayerResponse {
   option (id) = 63;
   option (source) = SOURCE_SERVER;
@@ -1122,6 +1135,8 @@ message ListEntitiesMediaPlayerResponse {
   EntityCategory entity_category = 7;
 
   bool supports_pause = 8;
+
+  repeated MediaPlayerSupportedFormat supported_formats = 9;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;
