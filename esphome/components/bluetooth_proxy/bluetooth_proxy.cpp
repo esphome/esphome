@@ -35,6 +35,15 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
+bool BluetoothProxy::check_bda_matches(esp_ble_gap_cb_param_t::ble_scan_result_evt_param &adv) {
+  if (this->address_vec_.empty()) {
+    return true;
+  }
+
+  return std::find(this->address_vec_.begin(), this->address_vec_.end(), esp32_ble::ble_addr_to_uint64(adv.bda)) !=
+         this->address_vec_.end();
+}
+
 bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || !this->raw_advertisements_)
     return false;
@@ -42,23 +51,38 @@ bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_p
   api::BluetoothLERawAdvertisementsResponse resp;
   for (size_t i = 0; i < count; i++) {
     auto &result = advertisements[i];
-    api::BluetoothLERawAdvertisement adv;
-    adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
-    adv.rssi = result.rssi;
-    adv.address_type = result.ble_addr_type;
 
-    uint8_t length = result.adv_data_len + result.scan_rsp_len;
-    adv.data.reserve(length);
-    for (uint16_t i = 0; i < length; i++) {
-      adv.data.push_back(result.ble_adv[i]);
-    }
+#ifdef BLUETOOTH_PROXY_MAC_FILTER
+    if (this->check_bda_matches(result)) {
+#endif
+      api::BluetoothLERawAdvertisement adv;
+      adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
+      adv.rssi = result.rssi;
+      adv.address_type = result.ble_addr_type;
 
-    resp.advertisements.push_back(std::move(adv));
+      uint8_t length = result.adv_data_len + result.scan_rsp_len;
+      adv.data.reserve(length);
+      for (uint16_t i = 0; i < length; i++) {
+        adv.data.push_back(result.ble_adv[i]);
+      }
+
+      resp.advertisements.push_back(std::move(adv));
+#ifdef BLUETOOTH_PROXY_MAC_FILTER
+    }  // if bda matches mac filter
+#endif
+  }  // for each advertisement
+#ifdef BLUETOOTH_PROXY_MAC_FILTER
+  if (!resp.advertisements.empty()) {
+    ESP_LOGV(TAG, "Proxying %d packets", resp.advertisements.size());
+    this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
   }
+#else
   ESP_LOGV(TAG, "Proxying %d packets", count);
   this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
+#endif
   return true;
 }
+
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
