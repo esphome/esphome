@@ -112,10 +112,8 @@ void MICS4514Component::update() {
 
   if (this->hydrogen_sensor_ != nullptr) {
     float hydrogen = 0.0f;
-    if (red_f > 0.9f) {
+    if (red_f > 0.9f || red_f < 0.02) {  // outside the range->unlikely
       hydrogen = 0.0;
-    } else if (red_f < 0.02) {
-      hydrogen = 0.0;  // outside the range->unlikely
     } else {
       hydrogen = 0.85 / pow(red_f, 1.75);
     }
