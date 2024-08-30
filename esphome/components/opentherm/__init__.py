@@ -1,18 +1,20 @@
 from typing import Any
 
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
-from . import generate
 
 CODEOWNERS = ["@olegtarasov"]
 MULTI_CONF = True
 
+opentherm_ns = cg.esphome_ns.namespace("opentherm")
+OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(generate.OpenthermHub),
+            cv.GenerateID(): cv.declare_id(OpenthermHub),
             cv.Required("in_pin"): pins.internal_gpio_input_pin_schema,
             cv.Required("out_pin"): pins.internal_gpio_output_pin_schema,
             cv.Optional("ch_enable", True): cv.boolean,
