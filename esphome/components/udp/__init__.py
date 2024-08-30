@@ -84,7 +84,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(UDPComponent),
             cv.Optional(CONF_PORT, default=18511): cv.port,
-            cv.Optional(CONF_ADDRESSES): cv.ensure_list(cv.ipv4),
+            cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
+                cv.ipv4
+            ),
             cv.Optional(CONF_ROLLING_CODE_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_PING_PONG_ENABLE, default=False): cv.boolean,
             cv.Optional(
@@ -143,7 +145,7 @@ async def to_code(config):
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_binary_sensor(bcst_id, sensor))
-    for address in config.get(CONF_ADDRESSES, ("255.255.255.255",)):
+    for address in config[CONF_ADDRESSES]:
         cg.add(var.add_address(str(address)))
 
     if encryption := config.get(CONF_ENCRYPTION):

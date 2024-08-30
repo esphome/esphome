@@ -153,6 +153,11 @@ static void add(std::vector<uint8_t> &vec, const char *str) {
 
 void UDPComponent::setup() {
   this->name_ = App.get_name().c_str();
+  if (strlen(this->name_) > 255) {
+    this->mark_failed();
+    this->status_set_error("Device name exceeds 255 chars");
+    return;
+  }
   this->resend_ping_key_ = this->ping_pong_enable_;
   // restore the upper 32 bits of the rolling code, increment and save.
   this->pref_ = global_preferences->make_preference<uint32_t>(PREF_HASH, true);
@@ -177,11 +182,6 @@ void UDPComponent::setup() {
     });
   }
 #endif
-  if (strlen(this->name_) > 255) {
-    this->mark_failed();
-    this->status_set_error("Device name exceeds 255 chars");
-    return;
-  }
   this->should_send_ = this->ping_pong_enable_;
 #ifdef USE_SENSOR
   this->should_send_ |= !this->sensors_.empty();
