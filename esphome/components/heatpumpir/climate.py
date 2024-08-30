@@ -70,6 +70,7 @@ PROTOCOLS = {
     "airway": Protocol.PROTOCOL_AIRWAY,
     "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
     "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
+    "philco_phs32": Protocol.PROTOCOL_PHILCO_PHS32,
     "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     "r51m": Protocol.PROTOCOL_R51M,
 }
@@ -127,6 +128,6 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.27")
+    cg.add_library("tonia/HeatpumpIR", "1.0.29")
     if CORE.is_libretiny:
         CORE.add_platformio_option("lib_ignore", "IRremoteESP8266")
