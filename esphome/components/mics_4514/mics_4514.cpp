@@ -102,10 +102,8 @@ void MICS4514Component::update() {
 
   if (this->ethanol_sensor_ != nullptr) {
     float ethanol = 0.0f;
-    if (red_f > 1.0f) {
+    if (red_f > 1.0f || red_f < 0.02) {  // outside the range->unlikely
       ethanol = 0.0;
-    } else if (red_f < 0.02) {
-      ethanol = 0.0;  // outside the range->unlikely
     } else {
       ethanol = 1.52 / pow(red_f, 1.55);
     }
