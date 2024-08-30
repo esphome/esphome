@@ -17,6 +17,8 @@ void MopekaProCheck::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Reading Distance", this->distance_);
+  LOG_SENSOR("  ", "Read Quality", this->read_quality_);
+  LOG_SENSOR("  ", "Ignored Reads", this->ignored_reads_);
 }
 
 /**
@@ -66,34 +68,49 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     this->battery_level_->publish_state(level);
   }
 
+  // Get the quality value
+  SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
+  if (this->read_quality_ != nullptr) {
+    this->read_quality_->publish_state(static_cast<int>(quality_value));
+  }
+
+  // Determine if we have a good enough quality of read to report level and distance
+  // sensors.  This sensor is reported regardless of distance or level sensors being enabled
+  if (quality_value < this->min_signal_quality_) {
+    ESP_LOGW(TAG, "Read Quality too low to report distance or level");
+    this->ignored_read_count_++;
+  } else {
+    // reset to zero since read quality was sufficient
+    this->ignored_read_count_ = 0;
+  }
+  // Report number of contiguous ignored reads if sensor defined
+  if (this->ignored_reads_ != nullptr) {
+    this->ignored_reads_->publish_state(this->ignored_read_count_);
+  }
+
   // Get distance and level if either are sensors
   if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
     uint32_t distance_value = this->parse_distance_(manu_data.data);
-    SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
     ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%" PRId32 "mm)", quality_value, distance_value);
-    if (quality_value < QUALITY_HIGH) {
-      ESP_LOGW(TAG, "Poor read quality.");
-    }
-    if (quality_value < QUALITY_MED) {
-      // if really bad reading set to 0
-      ESP_LOGW(TAG, "Setting distance to 0");
-      distance_value = 0;
-    }
 
-    // update distance sensor
-    if (this->distance_ != nullptr) {
-      this->distance_->publish_state(distance_value);
-    }
-
-    // update level sensor
-    if (this->level_ != nullptr) {
-      uint8_t tank_level = 0;
-      if (distance_value >= this->full_mm_) {
-        tank_level = 100;  // cap at 100%
-      } else if (distance_value > this->empty_mm_) {
-        tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
+    // only update distance and level sensors if read quality was sufficient.  This can be determined by
+    // if the ignored_read_count is zero.
+    if (this->ignored_read_count_ == 0) {
+      // update distance sensor
+      if (this->distance_ != nullptr) {
+        this->distance_->publish_state(distance_value);
       }
-      this->level_->publish_state(tank_level);
+
+      // update level sensor
+      if (this->level_ != nullptr) {
+        uint8_t tank_level = 0;
+        if (distance_value >= this->full_mm_) {
+          tank_level = 100;  // cap at 100%
+        } else if (distance_value > this->empty_mm_) {
+          tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
+        }
+        this->level_->publish_state(tank_level);
+      }
     }
   }
 
@@ -131,6 +148,8 @@ uint32_t MopekaProCheck::parse_distance_(const std::vector<uint8_t> &message) {
 uint8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }
 
 SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t> &message) {
+  // Since a 8 bit value is being shifted and truncated to 2 bits all possible values are defined as enumeration
+  //  value and the static cast is safe.
   return static_cast<SensorReadQuality>(message[4] >> 6);
 }
 
