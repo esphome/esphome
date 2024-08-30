@@ -92,10 +92,8 @@ void MICS4514Component::update() {
 
   if (this->methane_sensor_ != nullptr) {
     float methane = 0.0f;
-    if (red_f > 0.9f) {
+    if (red_f > 0.9f || red_f < 0.5) {  // outside the range->unlikely
       methane = 0.0;
-    } else if (red_f < 0.5) {
-      methane = 0.0;  // outside the range->unlikely
     } else {
       methane = 630 / pow(red_f, 4.4);
     }
