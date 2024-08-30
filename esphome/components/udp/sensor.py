@@ -11,7 +11,7 @@ from . import (
     require_internal_with_name,
 )
 
-AUTO_LOAD = ["udp"]
+DEPENDENCIES = ["udp"]
 
 CONFIG_SCHEMA = All(
     sensor_schema().extend(SENSOR_SCHEMA),
