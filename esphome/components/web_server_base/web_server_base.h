@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include <memory>
 #include <utility>
 #include <vector>
@@ -145,3 +146,4 @@ class OTARequestHandler : public AsyncWebHandler {
 
 }  // namespace web_server_base
 }  // namespace esphome
+#endif

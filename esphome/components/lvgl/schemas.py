@@ -359,7 +359,13 @@ LVGL_SCHEMA = cv.Schema(
     }
 )
 
-ALL_STYLES = {**STYLE_PROPS, **GRID_CELL_SCHEMA, **FLEX_OBJ_SCHEMA}
+ALL_STYLES = {
+    **STYLE_PROPS,
+    **GRID_CELL_SCHEMA,
+    **FLEX_OBJ_SCHEMA,
+    cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+    cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+}
 
 
 def container_validator(schema, widget_type: WidgetType):
