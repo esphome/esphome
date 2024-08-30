@@ -89,6 +89,7 @@ class Widget:
             self.obj = MockObj(f"{self.var}->obj")
         else:
             self.obj = var
+        self.outer = None
 
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):

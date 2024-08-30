@@ -74,7 +74,8 @@ async def msgbox_to_code(conf):
     )
     lvgl_components_required.add("BUTTONMATRIX")
     messagebox_id = conf[CONF_ID]
-    outer = lv_Pvariable(lv_obj_t, messagebox_id.id)
+    outer_id = f"{messagebox_id.id}_outer"
+    outer = lv_Pvariable(lv_obj_t, messagebox_id.id + "_outer")
     buttonmatrix = new_Pvariable(
         ID(
             f"{messagebox_id.id}_buttonmatrix_",
@@ -82,8 +83,10 @@ async def msgbox_to_code(conf):
             type=lv_buttonmatrix_t,
         )
     )
-    msgbox = lv_Pvariable(lv_obj_t, f"{messagebox_id.id}_msgbox")
-    outer_widget = Widget.create(messagebox_id, outer, obj_spec, conf)
+    msgbox = lv_Pvariable(lv_obj_t, messagebox_id.id)
+    outer_widget = Widget.create(outer_id, outer, obj_spec, conf)
+    msgbox_widget = Widget.create(messagebox_id, msgbox, obj_spec, conf)
+    msgbox_widget.outer = outer_widget
     buttonmatrix_widget = Widget.create(
         str(buttonmatrix), buttonmatrix, buttonmatrix_spec, conf
     )
@@ -111,7 +114,7 @@ async def msgbox_to_code(conf):
     )
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
     lv_add(buttonmatrix.set_obj(lv_expr.msgbox_get_btns(msgbox)))
-    await set_obj_properties(outer_widget, conf)
+    await set_obj_properties(msgbox_widget, conf)
     if close_button:
         async with LambdaContext(EVENT_ARG, where=messagebox_id) as context:
             outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")

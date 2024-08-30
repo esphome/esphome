@@ -239,9 +239,10 @@ async def obj_show_to_code(config, action_id, template_arg, args):
     async def do_show(widget: Widget):
         widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
 
-    return await action_to_code(
-        await get_widgets(config), do_show, action_id, template_arg, args
-    )
+    widgets = [
+        widget.outer if widget.outer else widget for widget in await get_widgets(config)
+    ]
+    return await action_to_code(widgets, do_show, action_id, template_arg, args)
 
 
 def focused_id(value):
