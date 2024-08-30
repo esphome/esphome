@@ -3,6 +3,7 @@
 #include "list_entities.h"
 
 #include "esphome/components/web_server_base/web_server_base.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
@@ -366,3 +367,4 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 }  // namespace web_server
 }  // namespace esphome
+#endif
