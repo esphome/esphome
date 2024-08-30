@@ -122,10 +122,8 @@ void MICS4514Component::update() {
 
   if (this->ammonia_sensor_ != nullptr) {
     float ammonia = 0.0f;
-    if (red_f > 0.98f) {
+    if (red_f > 0.98f || red_f < 0.2532) {  // outside the ammonia range->unlikely
       ammonia = 0.0;
-    } else if (red_f < 0.2532) {
-      ammonia = 0.0;  // outside the ammonia range->unlikely
     } else {
       ammonia = 0.9 / pow(red_f, 4.6);
     }
