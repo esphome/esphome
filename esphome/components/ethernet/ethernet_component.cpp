@@ -457,6 +457,12 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
   if (this->manual_ip_.has_value()) {
+#if USE_NETWORK_IPV6
+    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+    if (err != ESP_OK) {
+      ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
+    }
+#endif /* USE_NETWORK_IPV6 */
     if (this->manual_ip_->dns1.is_set()) {
       ip_addr_t d;
       d = this->manual_ip_->dns1;
