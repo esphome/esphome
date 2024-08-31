@@ -1,6 +1,5 @@
 #include "ch422g.h"
 #include "esphome/core/log.h"
-#include "Helpers/Helpers.h"
 
 namespace esphome {
 namespace ch422g {
