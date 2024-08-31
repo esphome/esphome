@@ -88,12 +88,12 @@ template<typename... Ts> class IsAnnouncingCondition : public Condition<Ts...>, 
   bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING; }
 };
 
-template<typename... Ts> class isOnCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsOnCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ON; }
 };
 
-template<typename... Ts> class isOffCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsOffCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
 };
