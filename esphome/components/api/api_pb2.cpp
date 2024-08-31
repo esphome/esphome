@@ -5243,16 +5243,16 @@ bool ListEntitiesMediaPlayerResponse::decode_varint(uint32_t field_id, ProtoVarI
       this->supports_pause = value.as_bool();
       return true;
     }
-    case 9: {
-      this->supports_next_previous_track = value.as_bool();
-      return true;
-    }
     case 10: {
       this->supports_turn_off_on = value.as_bool();
       return true;
     }
     case 11: {
       this->supports_grouping = value.as_bool();
+      return true;
+    }
+    case 12: {
+      this->supports_next_previous_track = value.as_bool();
       return true;
     }
     default:
@@ -5347,16 +5347,12 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
   out.append("  supports_pause: ");
   out.append(YESNO(this->supports_pause));
   out.append("\n");
-  
+
   for (const auto &it : this->supported_formats) {
     out.append("  supported_formats: ");
     it.dump_to(out);
     out.append("\n");
   }
-
-  out.append("  supports_next_previous_track: ");
-  out.append(YESNO(this->supports_next_previous_track));
-  out.append("\n");
 
   out.append("  supports_turn_off_on: ");
   out.append(YESNO(this->supports_turn_off_on));
@@ -5364,6 +5360,10 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
 
   out.append("  supports_grouping: ");
   out.append(YESNO(this->supports_grouping));
+  out.append("\n");
+
+  out.append("  supports_next_previous_track: ");
+  out.append(YESNO(this->supports_next_previous_track));
   out.append("\n");
   out.append("}");
 }
