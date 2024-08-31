@@ -20,7 +20,9 @@ void CH422GComponent::setup() {
   }
 
   // restore defaults over whatever got saved on last boot
-  // this->write_output_(OUT_REG_DEFAULT_VAL);
+  if (!this->restore_value_) {
+    this->write_output_(OUT_REG_DEFAULT_VAL);
+  }
 
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
@@ -55,10 +57,15 @@ bool CH422GComponent::digital_read(uint8_t pin) {
   // Indicate we saw a read request for this pin in case a
   // read happens later in the same loop.
   this->was_previously_read_ |= (1 << pin);
-
-  ESP_LOGV(TAG, "digital_read(%d). Mask: %d, Contains: %d", (int) pin, (int) this->state_mask_,
-           (int) (this->state_mask_ & (1 << pin)));
   return this->state_mask_ & (1 << pin);
+}
+
+void CH422GComponent::digital_write(uint8_t pin, bool value) {
+  if (value) {
+    this->write_output_(this->state_mask_ | (1 << pin));
+  } else {
+    this->write_output_(this->state_mask_ & ~(1 << pin));
+  }
 }
 
 bool CH422GComponent::read_inputs_() {
@@ -81,21 +88,10 @@ bool CH422GComponent::read_inputs_() {
     return false;
   }
 
-  ESP_LOGV(TAG, "read_inputs_() output: %d", (int) output);
   this->state_mask_ = output;
   this->status_clear_warning();
 
   return true;
-}
-
-void CH422GComponent::digital_write(uint8_t pin, bool value) {
-  if (value) {
-    this->state_mask_ |= (1 << pin);
-  } else {
-    this->state_mask_ &= ~(1 << pin);
-  }
-  ESP_LOGV(TAG, "digital_write(%d, %d) mask: %d", (int) pin, (int) value, (int) this->state_mask_);
-  this->write_output_(this->state_mask_);
 }
 
 bool CH422GComponent::write_output_(uint8_t value) {
@@ -106,10 +102,10 @@ bool CH422GComponent::write_output_(uint8_t value) {
     return false;
   }
 
-  uint8_t writeValue = value;
-  if ((this->last_error_ = this->bus_->write(CH422G_REG_OUT, &writeValue, 1)) != esphome::i2c::ERROR_OK) {
+  uint8_t write_mask = value;
+  if ((this->last_error_ = this->bus_->write(CH422G_REG_OUT, &write_mask, 1)) != esphome::i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_output_(): I2C I/O error: %d writeValue: %d", (int) this->last_error_, (int) writeValue);
+    ESP_LOGE(TAG, "write_output_(): I2C I/O error: %d write_mask: %d", (int) this->last_error_, (int) write_mask);
     return false;
   }
 
@@ -126,16 +122,12 @@ float CH422GComponent::get_loop_priority() const { return 9.0f; }  // Just after
 
 void CH422GGPIOPin::setup() { pin_mode(flags_); }
 void CH422GGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool CH422GGPIOPin::digital_read() {
-  bool ret = this->parent_->digital_read(this->pin_);
-  ESP_LOGV(TAG, "Reading state of pin %d: %d", (int) this->pin_, (int) ret);
-  return ret != this->inverted_;
-}
+bool CH422GGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 
 void CH422GGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 std::string CH422GGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via CH422G", pin_);
+  snprintf(buffer, sizeof(buffer), "EXIO%u via CH422G", pin_);
   return buffer;
 }
 
