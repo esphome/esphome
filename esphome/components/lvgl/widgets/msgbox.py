@@ -1,11 +1,12 @@
 from esphome import config_validation as cv
-from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
+from esphome.const import CONF_BUTTON, CONF_ID, CONF_ITEMS, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import new_Pvariable, static_const_array
 from esphome.cpp_types import nullptr
 
 from ..defines import (
     CONF_BODY,
+    CONF_BUTTON_STYLE,
     CONF_BUTTONS,
     CONF_CLOSE_BUTTON,
     CONF_MSGBOXES,
@@ -25,7 +26,7 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema
+from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema, part_schema
 from ..styles import TOP_LAYER
 from ..types import LV_EVENT, char_ptr, lv_obj_t
 from . import Widget, set_obj_properties
@@ -50,6 +51,7 @@ MSGBOX_SCHEMA = container_schema(
             cv.Required(CONF_TITLE): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BODY): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BUTTONS): cv.ensure_list(BUTTONMATRIX_BUTTON_SCHEMA),
+            cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec),
             cv.Optional(CONF_CLOSE_BUTTON): lv_bool,
             cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         }
@@ -114,6 +116,9 @@ async def msgbox_to_code(conf):
     )
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
     lv_add(buttonmatrix.set_obj(lv_expr.msgbox_get_btns(msgbox)))
+    if button_style := conf.get(CONF_BUTTON_STYLE):
+        button_style = {CONF_ITEMS: button_style}
+        await set_obj_properties(buttonmatrix_widget, button_style)
     await set_obj_properties(msgbox_widget, conf)
     if close_button:
         async with LambdaContext(EVENT_ARG, where=messagebox_id) as context:
