@@ -54,6 +54,7 @@ bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_p
     }
 
     resp.advertisements.push_back(std::move(adv));
+    ESP_LOGV(TAG, "Proxying packet from %s. RSSI: %d dB", adv.address.c_str(), adv.rssi);
   }
   ESP_LOGV(TAG, "Proxying %d packets", count);
   this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
