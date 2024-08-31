@@ -1,6 +1,8 @@
 lvgl:
   log_level: TRACE
   bg_color: light_blue
+  disp_bg_color: 0xffff00
+  disp_bg_image: cat_image
   theme:
     obj:
       border_width: 1
@@ -52,6 +54,17 @@ lvgl:
       long_press_time: 500ms
   pages:
     - id: page1
+      on_load:
+        - logger.log: page loaded
+        - lvgl.widget.focus:
+            action: restore
+      on_unload:
+        - logger.log: page unloaded
+        - lvgl.widget.focus: mark
+      on_all_events:
+        logger.log:
+          format: "Event %s"
+          args: ['lv_event_code_name_for(event->code).c_str()']
       skip: true
       layout:
         type: flex
@@ -68,6 +81,10 @@ lvgl:
             repeat_count: 10
             duration: 1s
             auto_start: true
+            on_all_events:
+              logger.log:
+                format: "Event %s"
+                args: ['lv_event_code_name_for(event->code).c_str()']
         - label:
             id: hello_label
             text: Hello world
@@ -78,6 +95,9 @@ lvgl:
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
+                - lvgl.update:
+                    disp_bg_color: 0xffff00
+                    disp_bg_image: cat_image
         - label:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
@@ -224,6 +244,16 @@ lvgl:
               - label:
                   text: Button
             on_click:
+              - lvgl.widget.focus: spin_up
+              - lvgl.widget.focus: next
+              - lvgl.widget.focus: previous
+              - lvgl.widget.focus:
+                  action: previous
+                  freeze: true
+              - lvgl.widget.focus:
+                  id: spin_up
+                  freeze: true
+                  editing: true
               - lvgl.label.update:
                   id: hello_label
                   bg_color: 0x123456
@@ -304,6 +334,31 @@ lvgl:
             src: cat_image
             align: top_left
             y: 50
+        - tileview:
+            id: tileview_id
+            scrollbar_mode: active
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tile == id(tile_1);
+                    then:
+                      - logger.log: "tile 1 is now showing"
+            tiles:
+              - id: tile_1
+                row: 0
+                column: 0
+                dir: ALL
+                widgets:
+                  - obj:
+                      bg_color: 0x000000
+              - id: tile_2
+                row: 1
+                column: 0
+                dir: [VER, HOR]
+                widgets:
+                  - obj:
+                      bg_color: 0x000000
 
     - id: page2
       widgets:

@@ -63,6 +63,18 @@ enum MediaPlayerMRM : uint8_t {
 };
 const char *media_player_mrm_to_string(MediaPlayerMRM mrm);
 
+enum class MediaPlayerFormatPurpose : uint8_t {
+  PURPOSE_DEFAULT = 0,
+  PURPOSE_ANNOUNCEMENT = 1,
+};
+
+struct MediaPlayerSupportedFormat {
+  std::string format;
+  uint32_t sample_rate;
+  uint32_t num_channels;
+  MediaPlayerFormatPurpose purpose;
+};
+
 class MediaPlayer;
 
 class MediaPlayerTraits {
@@ -92,6 +104,12 @@ class MediaPlayerTraits {
   bool supports_next_previous_track_{false};
   bool supports_turn_off_on_{false};
   bool supports_grouping_{false};
+
+  std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
+
+ protected:
+  bool supports_pause_{false};
+  std::vector<MediaPlayerSupportedFormat> supported_formats_{};
 };
 
 class MediaPlayerCall {
@@ -133,7 +151,6 @@ class MediaPlayerCall {
 class MediaPlayer : public EntityBase {
  public:
   MediaPlayerState state{MEDIA_PLAYER_STATE_NONE};
-
   float volume{1.0f};
 
   MediaPlayerCall make_call() { return MediaPlayerCall(this); }

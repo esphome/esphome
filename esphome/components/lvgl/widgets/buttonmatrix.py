@@ -13,11 +13,13 @@ from ..defines import (
     CONF_KEY_CODE,
     CONF_MAIN,
     CONF_ONE_CHECKED,
+    CONF_PAD_COLUMN,
+    CONF_PAD_ROW,
     CONF_ROWS,
     CONF_SELECTED,
 )
 from ..helpers import lvgl_components_required
-from ..lv_validation import key_code, lv_bool
+from ..lv_validation import key_code, lv_bool, pixels
 from ..lvcode import lv, lv_add, lv_expr
 from ..schemas import automation_schema
 from ..types import (
@@ -57,6 +59,8 @@ BUTTONMATRIX_BUTTON_SCHEMA = cv.Schema(
 BUTTONMATRIX_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ONE_CHECKED, default=False): lv_bool,
+        cv.Optional(CONF_PAD_ROW): pixels,
+        cv.Optional(CONF_PAD_COLUMN): pixels,
         cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         cv.Required(CONF_ROWS): cv.ensure_list(
             cv.Schema(

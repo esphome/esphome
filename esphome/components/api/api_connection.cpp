@@ -179,6 +179,7 @@ void APIConnection::loop() {
       SubscribeHomeAssistantStateResponse resp;
       resp.entity_id = it.entity_id;
       resp.attribute = it.attribute.value();
+      resp.once = it.once;
       if (this->send_subscribe_home_assistant_state_response(resp)) {
         state_subs_at_++;
       }
@@ -1034,6 +1035,15 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
   msg.supports_next_previous_track = traits.get_supports_next_previous_track();
   msg.supports_turn_off_on = traits.get_supports_turn_off_on();
   msg.supports_grouping = traits.get_supports_grouping();
+
+  for (auto &supported_format : traits.get_supported_formats()) {
+    MediaPlayerSupportedFormat media_format;
+    media_format.format = supported_format.format;
+    media_format.sample_rate = supported_format.sample_rate;
+    media_format.num_channels = supported_format.num_channels;
+    media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
+    msg.supported_formats.push_back(media_format);
+  }
 
   return this->send_list_entities_media_player_response(msg);
 }

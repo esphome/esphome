@@ -423,6 +423,18 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enums::MediaPlayerFormatPurpose value) {
+  switch (value) {
+    case enums::MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT:
+      return "MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT";
+    case enums::MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT:
+      return "MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<>
 const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
@@ -5159,6 +5171,64 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool MediaPlayerSupportedFormat::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->sample_rate = value.as_uint32();
+      return true;
+    }
+    case 3: {
+      this->num_channels = value.as_uint32();
+      return true;
+    }
+    case 4: {
+      this->purpose = value.as_enum<enums::MediaPlayerFormatPurpose>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerSupportedFormat::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->format = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void MediaPlayerSupportedFormat::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->format);
+  buffer.encode_uint32(2, this->sample_rate);
+  buffer.encode_uint32(3, this->num_channels);
+  buffer.encode_enum<enums::MediaPlayerFormatPurpose>(4, this->purpose);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("MediaPlayerSupportedFormat {\n");
+  out.append("  format: ");
+  out.append("'").append(this->format).append("'");
+  out.append("\n");
+
+  out.append("  sample_rate: ");
+  sprintf(buffer, "%" PRIu32, this->sample_rate);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  num_channels: ");
+  sprintf(buffer, "%" PRIu32, this->num_channels);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  purpose: ");
+  out.append(proto_enum_to_string<enums::MediaPlayerFormatPurpose>(this->purpose));
+  out.append("\n");
+  out.append("}");
+}
+#endif
 bool ListEntitiesMediaPlayerResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {
@@ -5207,6 +5277,10 @@ bool ListEntitiesMediaPlayerResponse::decode_length(uint32_t field_id, ProtoLeng
       this->icon = value.as_string();
       return true;
     }
+    case 9: {
+      this->supported_formats.push_back(value.as_message<MediaPlayerSupportedFormat>());
+      return true;
+    }
     default:
       return false;
   }
@@ -5230,9 +5304,12 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
   buffer.encode_bool(8, this->supports_pause);
-  buffer.encode_bool(9, this->supports_next_previous_track);
+  for (auto &it : this->supported_formats) {
+    buffer.encode_message<MediaPlayerSupportedFormat>(9, it, true);
+  }
   buffer.encode_bool(10, this->supports_turn_off_on);
   buffer.encode_bool(11, this->supports_grouping);
+  buffer.encode_bool(12, this->supports_next_previous_track);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
@@ -5270,6 +5347,12 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
   out.append("  supports_pause: ");
   out.append(YESNO(this->supports_pause));
   out.append("\n");
+  
+  for (const auto &it : this->supported_formats) {
+    out.append("  supported_formats: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
 
   out.append("  supports_next_previous_track: ");
   out.append(YESNO(this->supports_next_previous_track));
