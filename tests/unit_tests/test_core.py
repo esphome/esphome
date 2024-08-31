@@ -1,10 +1,11 @@
-import pytest
+from ipaddress import AddressValueError
 
 from hypothesis import given
 from hypothesis.strategies import ip_addresses
+import pytest
 from strategies import mac_addr_strings
 
-from esphome import core, const
+from esphome import const, core
 
 
 class TestHexInt:
@@ -26,21 +27,38 @@ class TestHexInt:
         assert actual == expected
 
 
-class TestIPAddress:
-    @given(value=ip_addresses().map(str))
+class TestIP4Address:
+    @given(value=ip_addresses(v=4).map(str))
     def test_init__valid(self, value):
-        core.IPAddress(value)
+        core.IPAddress(value, allow_ipv6=False)
 
     @pytest.mark.parametrize("value", ("127.0.0", "localhost", ""))
     def test_init__invalid(self, value):
-        with pytest.raises(
-            ValueError, match=f"'{value}' does not appear to be an IPv4 or IPv6 address"
-        ):
-            core.IPAddress(value)
+        with pytest.raises((ValueError, AddressValueError)):
+            core.IPAddress(value, allow_ipv6=False)
 
-    @given(value=ip_addresses().map(str))
+    @given(value=ip_addresses(v=4).map(str))
     def test_str(self, value):
-        target = core.IPAddress(value)
+        target = core.IPAddress(value, allow_ipv6=False)
+
+        actual = str(target)
+
+        assert actual == value
+
+
+class TestIP6Address:
+    @given(value=ip_addresses(v=6).map(str))
+    def test_init__valid(self, value):
+        core.IPAddress(value, allow_ipv6=True)
+
+    @pytest.mark.parametrize("value", ("127.0.0", "localhost", "", "2001:db8::2::3"))
+    def test_init__invalid(self, value):
+        with pytest.raises((ValueError, AddressValueError)):
+            core.IPAddress(value, allow_ipv6=True)
+
+    @given(value=ip_addresses(v=6).map(str))
+    def test_str(self, value):
+        target = core.IPAddress(value, allow_ipv6=True)
 
         actual = str(target)
 

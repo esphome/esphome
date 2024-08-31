@@ -1,5 +1,5 @@
-import logging
 import ipaddress
+import logging
 import math
 import os
 import re
@@ -56,11 +56,14 @@ class HexInt(int):
 
 
 class IPAddress:
-    def __init__(self, arg):
-        self.args = ipaddress.ip_address(arg)
+    def __init__(self, arg, allow_ipv6=False):
+        if allow_ipv6:
+            self.args = str(ipaddress.ip_address(arg))
+        else:
+            self.args = str(ipaddress.IPv4Address(arg))
 
     def __str__(self):
-        return str(self.args)
+        return self.args
 
 
 class MACAddress:

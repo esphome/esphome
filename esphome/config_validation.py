@@ -1158,8 +1158,12 @@ def ssid(value):
     return value
 
 
+def ipv4address(value):
+    return IPAddress(value, allow_ipv6=False)
+
+
 def ipaddress(value):
-    return IPAddress(value)
+    return IPAddress(value, allow_ipv6=True)
 
 
 def _valid_topic(value):
