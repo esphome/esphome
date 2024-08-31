@@ -49,7 +49,7 @@ MSGBOX_SCHEMA = container_schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(lv_obj_t),
             cv.Required(CONF_TITLE): STYLED_TEXT_SCHEMA,
-            cv.Optional(CONF_BODY): STYLED_TEXT_SCHEMA,
+            cv.Optional(CONF_BODY, default=""): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BUTTONS): cv.ensure_list(BUTTONMATRIX_BUTTON_SCHEMA),
             cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec),
             cv.Optional(CONF_CLOSE_BUTTON, default=True): lv_bool,
@@ -87,6 +87,7 @@ async def msgbox_to_code(conf):
     )
     msgbox = lv_Pvariable(lv_obj_t, messagebox_id.id)
     outer_widget = Widget.create(outer_id, outer, obj_spec, conf)
+    outer_widget.move_to_foreground = True
     msgbox_widget = Widget.create(messagebox_id, msgbox, obj_spec, conf)
     msgbox_widget.outer = outer_widget
     buttonmatrix_widget = Widget.create(
@@ -97,10 +98,8 @@ async def msgbox_to_code(conf):
     )
     text_id = conf[CONF_BUTTON_TEXT_LIST_ID]
     text_list = static_const_array(text_id, text_list)
-    if (text := conf.get(CONF_BODY)) is not None:
-        text = await lv_text.process(text.get(CONF_TEXT))
-    if (title := conf.get(CONF_TITLE)) is not None:
-        title = await lv_text.process(title.get(CONF_TEXT))
+    text = await lv_text.process(conf[CONF_BODY].get(CONF_TEXT, ""))
+    title = await lv_text.process(conf[CONF_TITLE].get(CONF_TEXT, ""))
     close_button = conf[CONF_CLOSE_BUTTON]
     lv_assign(outer, lv_expr.obj_create(TOP_LAYER))
     lv_obj.set_width(outer, lv_pct(100))
@@ -120,19 +119,23 @@ async def msgbox_to_code(conf):
         button_style = {CONF_ITEMS: button_style}
         await set_obj_properties(buttonmatrix_widget, button_style)
     await set_obj_properties(msgbox_widget, conf)
+    async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
+        outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
     if close_button:
-        async with LambdaContext(EVENT_ARG, where=messagebox_id) as context:
-            outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_get_close_btn(msgbox)
         ) as close_btn:
             lv_obj.remove_event_cb(close_btn, nullptr)
             lv_obj.add_event_cb(
                 close_btn,
-                await context.get_lambda(),
+                await close_action.get_lambda(),
                 LV_EVENT.CLICKED,
                 nullptr,
             )
+    else:
+        lv_obj.add_event_cb(
+            outer, await close_action.get_lambda(), LV_EVENT.CLICKED, nullptr
+        )
 
     if len(ctrl_list) != 0 or len(width_list) != 0:
         set_btn_data(buttonmatrix.obj, ctrl_list, width_list)

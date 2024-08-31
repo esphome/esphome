@@ -239,6 +239,8 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
 async def obj_show_to_code(config, action_id, template_arg, args):
     async def do_show(widget: Widget):
         widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
+        if widget.move_to_foreground:
+            lv_obj.move_foreground(widget.obj)
 
     widgets = [
         widget.outer if widget.outer else widget for widget in await get_widgets(config)

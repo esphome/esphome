@@ -61,6 +61,9 @@ lvgl:
       body:
         text: This is a sample messagebox
         bg_color: 0x808080
+      button_style:
+        bg_color: 0xff00
+        border_width: 4
       buttons:
         - id: msgbox_button
           text: Button
@@ -69,6 +72,8 @@ lvgl:
           on_click:
             then:
               - lvgl.widget.hide: message_box
+    - id: simple_msgbox
+      title: Simple
 
   pages:
     - id: page1
