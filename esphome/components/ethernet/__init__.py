@@ -87,11 +87,11 @@ CLK_MODES = {
 
 MANUAL_IP_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_STATIC_IP): cv.ipaddress,
-        cv.Required(CONF_GATEWAY): cv.ipaddress,
-        cv.Required(CONF_SUBNET): cv.ipaddress,
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipaddress,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipaddress,
+        cv.Required(CONF_STATIC_IP): cv.ipv4address,
+        cv.Required(CONF_GATEWAY): cv.ipv4address,
+        cv.Required(CONF_SUBNET): cv.ipv4address,
+        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
+        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
     }
 )
 
@@ -203,11 +203,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 def manual_ip(config):
     return cg.StructInitializer(
         ManualIP,
-        ("static_ip", IPAddress(*config[CONF_STATIC_IP].args)),
-        ("gateway", IPAddress(*config[CONF_GATEWAY].args)),
-        ("subnet", IPAddress(*config[CONF_SUBNET].args)),
-        ("dns1", IPAddress(*config[CONF_DNS1].args)),
-        ("dns2", IPAddress(*config[CONF_DNS2].args)),
+        ("static_ip", IPAddress(config[CONF_STATIC_IP].args)),
+        ("gateway", IPAddress(config[CONF_GATEWAY].args)),
+        ("subnet", IPAddress(config[CONF_SUBNET].args)),
+        ("dns1", IPAddress(config[CONF_DNS1].args)),
+        ("dns2", IPAddress(config[CONF_DNS2].args)),
     )
 
 
