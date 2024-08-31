@@ -53,15 +53,7 @@ CH422G_PIN_SCHEMA = pins.gpio_base_schema(
 )
 
 
-def ch422g_pin_final_validate(pin_config, parent_config):
-    count = 8
-    if pin_config[CONF_NUMBER] >= count:
-        raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
-
-
-@pins.PIN_SCHEMA_REGISTRY.register(
-    CONF_CH422G, CH422G_PIN_SCHEMA, ch422g_pin_final_validate
-)
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_CH422G, CH422G_PIN_SCHEMA)
 async def ch422g_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_CH422G])
