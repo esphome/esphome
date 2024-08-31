@@ -1,5 +1,6 @@
 #include "ch422g.h"
 #include "esphome/core/log.h"
+#include "Helpers/Helpers.h"
 
 namespace esphome {
 namespace ch422g {
@@ -29,10 +30,8 @@ void CH422GComponent::setup() {
 }
 
 void CH422GComponent::loop() {
-  // The read_inputs_() method will cache the input values from the chip.
-  this->read_inputs_();
   // Clear all the previously read flags.
-  this->was_previously_read_ = 0x00;
+  this->pin_read_cache_ = 0x00;
 }
 
 void CH422GComponent::dump_config() {
@@ -43,20 +42,16 @@ void CH422GComponent::dump_config() {
   }
 }
 
-// ch422g doesn't have any flag support
+// ch422g doesn't have any flag support (needs docs?)
 void CH422GComponent::pin_mode(uint8_t pin, gpio::Flags flags) {}
 
 bool CH422GComponent::digital_read(uint8_t pin) {
-  // Note: We want to try and avoid doing any I2C bus read transactions here
-  // to conserve I2C bus bandwidth. So what we do is check to see if we
-  // have seen a read during the time esphome is running this loop. If we have,
-  // we do an I2C bus transaction to get the latest value. If we haven't
-  // we return a cached value which was read at the time loop() was called.
-  if (this->was_previously_read_ & (1 << pin))
-    this->read_inputs_();  // Force a read of a new value
-  // Indicate we saw a read request for this pin in case a
-  // read happens later in the same loop.
-  this->was_previously_read_ |= (1 << pin);
+  if (this->pin_read_cache_ == 0 || this->pin_read_cache_ & (1 << pin)) {
+    // Read values on first access or in case it's being read again in the same loop
+    this->read_inputs_();
+  }
+
+  this->pin_read_cache_ |= (1 << pin);
   return this->state_mask_ & (1 << pin);
 }
 
@@ -70,21 +65,18 @@ void CH422GComponent::digital_write(uint8_t pin, bool value) {
 
 bool CH422GComponent::read_inputs_() {
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Device marked failed");
     return false;
   }
 
   uint8_t temp = 0;
   if ((this->last_error_ = this->read(&temp, 1)) != esphome::i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
+    this->status_set_warning(str_sprintf("read_inputs_(): I2C I/O error: %d", (int) this->last_error_).c_str());
     return false;
   }
 
   uint8_t output = 0;
   if ((this->last_error_ = this->bus_->read(CH422G_REG_IN, &output, 1)) != esphome::i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
+    this->status_set_warning(str_sprintf("read_inputs_(): I2C I/O error: %d", (int) this->last_error_).c_str());
     return false;
   }
 
@@ -97,15 +89,15 @@ bool CH422GComponent::read_inputs_() {
 bool CH422GComponent::write_output_(uint8_t value) {
   const uint8_t temp = 1;
   if ((this->last_error_ = this->write(&temp, 1, false)) != esphome::i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "write_output_(): I2C I/O error: %d", (int) this->last_error_);
+    this->status_set_warning(str_sprintf("write_output_(): I2C I/O error: %d", (int) this->last_error_).c_str());
     return false;
   }
 
   uint8_t write_mask = value;
   if ((this->last_error_ = this->bus_->write(CH422G_REG_OUT, &write_mask, 1)) != esphome::i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "write_output_(): I2C I/O error: %d write_mask: %d", (int) this->last_error_, (int) write_mask);
+    this->status_set_warning(
+        str_sprintf("write_output_(): I2C I/O error: %d for write_mask: %d", (int) this->last_error_, (int) write_mask)
+            .c_str());
     return false;
   }
 
@@ -125,11 +117,7 @@ void CH422GGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->
 bool CH422GGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 
 void CH422GGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-std::string CH422GGPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "EXIO%u via CH422G", pin_);
-  return buffer;
-}
+std::string CH422GGPIOPin::dump_summary() const { return str_sprintf("EXIO%u via CH422G", pin_); }
 
 }  // namespace ch422g
 }  // namespace esphome

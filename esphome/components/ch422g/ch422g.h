@@ -38,7 +38,7 @@ class CH422GComponent : public Component, public i2c::I2CDevice {
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint8_t state_mask_{0x00};
   /// Flags to check if read previously during this loop
-  uint8_t was_previously_read_ = {0x00};
+  uint8_t pin_read_cache_ = {0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
   /// Whether we want to override stored values on expander
