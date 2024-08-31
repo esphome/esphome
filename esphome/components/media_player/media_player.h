@@ -85,6 +85,8 @@ class MediaPlayerTraits {
 
   bool get_supports_pause() const { return this->supports_pause_; }
 
+  std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
+ 
   void set_supports_next_previous_track(bool supports_next_previous_track) {
     this->supports_next_previous_track_ = supports_next_previous_track;
   }
@@ -101,15 +103,10 @@ class MediaPlayerTraits {
 
  protected:
   bool supports_pause_{false};
+  std::vector<MediaPlayerSupportedFormat> supported_formats_{};
   bool supports_next_previous_track_{false};
   bool supports_turn_off_on_{false};
   bool supports_grouping_{false};
-
-  std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
-
- protected:
-  bool supports_pause_{false};
-  std::vector<MediaPlayerSupportedFormat> supported_formats_{};
 };
 
 class MediaPlayerCall {

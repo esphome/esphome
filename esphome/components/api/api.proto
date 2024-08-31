@@ -1153,7 +1153,7 @@ message ListEntitiesMediaPlayerResponse {
   EntityCategory entity_category = 7;
 
   bool supports_pause = 8;
-  
+
   repeated MediaPlayerSupportedFormat supported_formats = 9;
   bool supports_turn_off_on = 10;
   bool supports_grouping = 11;
