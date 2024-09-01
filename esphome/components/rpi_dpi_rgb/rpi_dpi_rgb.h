@@ -36,7 +36,7 @@ class RpiDpiRgb : public display::Display {
   void set_pclk_pin(InternalGPIOPin *pclk_pin) { this->pclk_pin_ = pclk_pin; }
   void set_vsync_pin(InternalGPIOPin *vsync_pin) { this->vsync_pin_ = vsync_pin; }
   void set_hsync_pin(InternalGPIOPin *hsync_pin) { this->hsync_pin_ = hsync_pin; }
-  void set_enable_pin(GPIOPin *enable_pin) { this->reset_pin_ = enable_pin; }
+  void set_enable_pin(GPIOPin *enable_pin) { this->enable_pin_ = enable_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_width(uint16_t width) { this->width_ = width; }
   void set_dimensions(uint16_t width, uint16_t height) {
