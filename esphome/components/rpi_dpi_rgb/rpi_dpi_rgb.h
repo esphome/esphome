@@ -63,6 +63,7 @@ class RpiDpiRgb : public display::Display {
  protected:
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
+  void reset_display_() const;
   InternalGPIOPin *de_pin_{nullptr};
   InternalGPIOPin *pclk_pin_{nullptr};
   InternalGPIOPin *hsync_pin_{nullptr};
