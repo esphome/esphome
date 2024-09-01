@@ -52,9 +52,7 @@ opacity = LValidator(opacity_validator, uint32, retmapper=literal)
 def color(value):
     if value == SCHEMA_EXTRACT:
         return ["hex color value", "color ID"]
-    if isinstance(value, int):
-        return value
-    return cv.use_id(ColorStruct)(value)
+    return cv.Any(cv.int_, cv.use_id(ColorStruct))(value)
 
 
 def color_retmapper(value):
@@ -82,10 +80,10 @@ def pixels_or_percent_validator(value):
     """A length in one axis - either a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
         return ["pixels", "..%"]
+    value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
-        return cv.int_(value)
-    # Will throw an exception if not a percentage.
-    return f"lv_pct({int(cv.percentage(value) * 100)})"
+        return value
+    return f"lv_pct({int(value * 100)})"
 
 
 pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
@@ -116,10 +114,7 @@ def size_validator(value):
         if value.upper() == "SIZE_CONTENT":
             return "LV_SIZE_CONTENT"
         raise cv.Invalid("must be 'size_content', a percentage or an integer (pixels)")
-    if isinstance(value, int):
-        return cv.int_(value)
-    # Will throw an exception if not a percentage.
-    return f"lv_pct({int(cv.percentage(value) * 100)})"
+    return pixels_or_percent_validator(value)
 
 
 size = LValidator(size_validator, uint32, retmapper=literal)

@@ -26,6 +26,7 @@ display:
       mirror_x: true
       mirror_y: true
     auto_clear_enabled: false
+    invert_colors: false
 
 spi:
   clk_pin: 14

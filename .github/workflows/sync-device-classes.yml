@@ -22,7 +22,7 @@ jobs:
           path: lib/home-assistant
 
       - name: Setup Python
-        uses: actions/setup-python@v5.1.0
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: 3.12
 
