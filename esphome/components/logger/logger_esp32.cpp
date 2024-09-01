@@ -33,6 +33,15 @@ static const char *const TAG = "logger";
 #ifdef USE_ESP_IDF
 
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
+
+#ifndef USB_SERIAL_JTAG_RX_BUFFER_SIZE
+#define USB_SERIAL_JTAG_RX_BUFFER_SIZE 512
+#endif
+
+#ifndef USB_SERIAL_JTAG_TX_BUFFER_SIZE
+#define USB_SERIAL_JTAG_TX_BUFFER_SIZE 512
+#endif
+
 static void init_usb_serial_jtag_() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
@@ -46,8 +55,8 @@ static void init_usb_serial_jtag_() {
   fcntl(fileno(stdin), F_SETFL, 0);
 
   usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
-  usb_serial_jtag_config.rx_buffer_size = 512;
-  usb_serial_jtag_config.tx_buffer_size = 512;
+  usb_serial_jtag_config.rx_buffer_size = USB_SERIAL_JTAG_RX_BUFFER_SIZE;
+  usb_serial_jtag_config.tx_buffer_size = USB_SERIAL_JTAG_TX_BUFFER_SIZE;
 
   esp_err_t ret = ESP_OK;
   // Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes
