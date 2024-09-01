@@ -111,6 +111,23 @@ void RpiDpiRgb::dump_config() {
     ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
 }
 
+void RpiDpiRgb::reset_display_() const {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->setup();
+    this->reset_pin_->digital_write(false);
+    if (this->enable_pin_ != nullptr) {
+      this->enable_pin_->setup();
+      this->enable_pin_->digital_write(false);
+    }
+    delay(1);
+    this->reset_pin_->digital_write(true);
+    if (this->enable_pin_ != nullptr) {
+      delay(11);
+      this->enable_pin_->digital_write(true);
+    }
+  }
+}
+
 }  // namespace rpi_dpi_rgb
 }  // namespace esphome
 
