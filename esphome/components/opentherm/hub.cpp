@@ -98,9 +98,10 @@ void OpenthermHub::process_response(OpenthermData &data) {
 
 void OpenthermHub::setup() {
   ESP_LOGD(OT_TAG, "Setting up OpenTherm component");
-  this->opentherm_ = new OpenTherm(this->in_pin_, this->out_pin_);  // NOLINT because hub is never deleted
+  this->opentherm_ = make_unique<OpenTherm>(this->in_pin_, this->out_pin_);
   if (!this->opentherm_->initialize()) {
     ESP_LOGE(OT_TAG, "Failed to initialize OpenTherm protocol. See previous log messages for details.");
+		this->mark_failed();
     return;
   }
 
@@ -110,17 +111,13 @@ void OpenthermHub::setup() {
   this->add_repeating_message(MessageId::STATUS);
 
   this->current_message_iterator_ = this->initial_messages_.begin();
-  initialized_ = true;
 }
 
 void OpenthermHub::on_shutdown() { this->opentherm_->stop(); }
 
 void OpenthermHub::loop() {
-  if (!initialized_)
-    return;
-
-  if (sync_mode_) {
-    sync_loop_();
+  if (this->sync_mode_) {
+    this->sync_loop_();
     return;
   }
 

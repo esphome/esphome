@@ -20,7 +20,7 @@ class OpenthermHub : public Component {
   // Communication pins for the OpenTherm interface
   InternalGPIOPin *in_pin_, *out_pin_;
   // The OpenTherm interface
-  OpenTherm *opentherm_;
+  std::unique_ptr<OpenTherm> opentherm_;
 
   // The set of initial messages to send on starting communication with the boiler
   std::unordered_set<MessageId> initial_messages_;
@@ -36,7 +36,6 @@ class OpenthermHub : public Component {
   uint32_t last_conversation_end_ = 0;
   OperationMode last_mode_ = IDLE;
   OpenthermData last_request_;
-  bool initialized_ = false;
 
   // Synchronous communication mode prevents other components from disabling interrupts while
   // we are talking to the boiler. Enable if you experience random intermittent invalid response errors.
