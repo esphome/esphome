@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import binascii
 import codecs
+from datetime import datetime
 import json
 import logging
 import os
-from datetime import datetime
 
 from esphome import const
 from esphome.const import CONF_DISABLED, CONF_MDNS
