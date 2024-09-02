@@ -9,6 +9,7 @@ from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
     ENV_NOGITIGNORE,
     HEADER_FILE_EXTENSIONS,
+    PLATFORM_ESP32,
     SOURCE_FILE_EXTENSIONS,
     __version__,
 )
@@ -107,7 +108,10 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
     if old.build_path != new.build_path:
         return True
     if old.loaded_integrations != new.loaded_integrations:
-        return True
+        if new.core_platform == PLATFORM_ESP32:
+            from esphome.components.esp32 import FRAMEWORK_ESP_IDF
+
+            return new.framework == FRAMEWORK_ESP_IDF
     return False
 
 

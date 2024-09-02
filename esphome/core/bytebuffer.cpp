@@ -1,6 +1,9 @@
 #include "bytebuffer.h"
 #include <cassert>
-#include <cstring>
+#include "esphome/core/helpers.h"
+
+#include <list>
+#include <vector>
 
 namespace esphome {
 
@@ -110,18 +113,13 @@ uint32_t ByteBuffer::get_int24() {
 }
 float ByteBuffer::get_float() {
   assert(this->get_remaining() >= sizeof(float));
-  auto ui_value = this->get_uint32();
-  float value;
-  memcpy(&value, &ui_value, sizeof(float));
-  return value;
+  return bit_cast<float>(this->get_uint32());
 }
 double ByteBuffer::get_double() {
   assert(this->get_remaining() >= sizeof(double));
-  auto ui_value = this->get_uint64();
-  double value;
-  memcpy(&value, &ui_value, sizeof(double));
-  return value;
+  return bit_cast<double>(this->get_uint64());
 }
+
 std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
   assert(this->get_remaining() >= length);
   auto start = this->data_.begin() + this->position_;
@@ -154,16 +152,12 @@ void ByteBuffer::put_uint(uint64_t value, size_t length) {
 void ByteBuffer::put_float(float value) {
   static_assert(sizeof(float) == sizeof(uint32_t), "Float sizes other than 32 bit not supported");
   assert(this->get_remaining() >= sizeof(float));
-  uint32_t ui_value;
-  memcpy(&ui_value, &value, sizeof(float));  // this work-around required to silence compiler warnings
-  this->put_uint32(ui_value);
+  this->put_uint32(bit_cast<uint32_t>(value));
 }
 void ByteBuffer::put_double(double value) {
   static_assert(sizeof(double) == sizeof(uint64_t), "Double sizes other than 64 bit not supported");
   assert(this->get_remaining() >= sizeof(double));
-  uint64_t ui_value;
-  memcpy(&ui_value, &value, sizeof(double));
-  this->put_uint64(ui_value);
+  this->put_uint64(bit_cast<uint64_t>(value));
 }
 void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   assert(this->get_remaining() >= value.size());

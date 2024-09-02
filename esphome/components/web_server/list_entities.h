@@ -1,8 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
-#include "esphome/core/defines.h"
 namespace esphome {
 namespace web_server {
 
@@ -78,3 +79,4 @@ class ListEntitiesIterator : public ComponentIterator {
 
 }  // namespace web_server
 }  // namespace esphome
+#endif
