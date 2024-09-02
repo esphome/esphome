@@ -11,6 +11,7 @@ display:
     cs_pin: 12
     dc_pin: 13
     reset_pin: 21
+    invert_colors: false
     lambda: |-
       // Draw an analog clock in the center of the screen
       int centerX = it.get_width() / 2;
