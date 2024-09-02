@@ -198,7 +198,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
     if (arg->bit_pos_ == 33 || arg->bit_pos_ == 0) {  // start bit
       arg->write_bit_(1, arg->clock_);
     } else {  // data bits
-      arg->write_bit_(readBit(arg->data_, arg->bit_pos_ - 1), arg->clock_);
+      arg->write_bit_(read_bit(arg->data_, arg->bit_pos_ - 1), arg->clock_);
     }
     if (arg->clock_ == 0) {
       if (arg->bit_pos_ <= 0) {            // check termination
