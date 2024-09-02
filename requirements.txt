@@ -9,7 +9,7 @@ tornado==6.4
 tzlocal==5.2    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
-platformio==6.1.15  # When updating platformio, also update Dockerfile
+platformio==6.1.15
 esptool==4.7.0
 click==8.1.7
 esphome-dashboard==20240620.0
@@ -17,6 +17,9 @@ aioesphomeapi==24.6.2
 zeroconf==0.132.2
 python-magic==0.4.27
 ruamel.yaml==0.18.6 # dashboard_import
+pillow==10.2.0
+cairosvg==2.7.1
+
 
 # esp-idf requires this, but doesn't bundle it by default
 # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24
