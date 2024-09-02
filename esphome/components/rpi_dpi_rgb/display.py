@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
 from esphome.const import (
+    CONF_ENABLE_PIN,
     CONF_HSYNC_PIN,
     CONF_RESET_PIN,
     CONF_DATA_PINS,
@@ -112,6 +113,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Required(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_HSYNC_PULSE_WIDTH, default=10): cv.int_,
                 cv.Optional(CONF_HSYNC_BACK_PORCH, default=10): cv.int_,
@@ -163,6 +165,10 @@ async def to_code(config):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
         index += 1
+
+    if enable_pin := config.get(CONF_ENABLE_PIN):
+        enable = await cg.gpio_pin_expression(enable_pin)
+        cg.add(var.set_enable_pin(enable))
 
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)

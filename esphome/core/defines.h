@@ -28,6 +28,7 @@
 #define USE_DATETIME_DATETIME
 #define USE_DATETIME_TIME
 #define USE_DEEP_SLEEP
+#define USE_DISPLAY
 #define USE_EVENT
 #define USE_FAN
 #define USE_GRAPH
