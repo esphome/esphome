@@ -34,8 +34,8 @@ RUN \
         python3-wheel=0.38.4-2 \
         iputils-ping=3:20221126-1 \
         git=1:2.39.2-1.1 \
-        curl=7.88.1-10+deb12u6 \
-        openssh-client=1:9.2p1-2+deb12u2 \
+        curl=7.88.1-10+deb12u7 \
+        openssh-client=1:9.2p1-2+deb12u3 \
         python3-cffi=1.15.1-5 \
         libcairo2=1.16.0-7 \
         libmagic1=1:5.44-3 \
@@ -49,7 +49,7 @@ RUN \
                 zlib1g-dev=1:1.2.13.dfsg-1 \
                 libjpeg-dev=1:2.1.5-2 \
                 libfreetype-dev=2.12.1+dfsg-5+deb12u3 \
-                libssl-dev=3.0.13-1~deb12u1 \
+                libssl-dev=3.0.14-1~deb12u1 \
                 libffi-dev=3.4.4-1 \
                 libopenjp2-7=2.5.0-2 \
                 libtiff6=4.5.0-6+deb12u1 \
