@@ -47,6 +47,7 @@ IMAGE_TYPE = {
 }
 
 CONF_USE_TRANSPARENCY = "use_transparency"
+CONF_INVERT_COLORS = "invert_colors"
 
 # If the MDI file cannot be downloaded within this time, abort.
 IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
@@ -225,6 +226,7 @@ IMAGE_SCHEMA = cv.Schema(
             # Not setting default here on purpose; the default depends on the image type,
             # and thus will be set in the "validate_cross_dependencies" validator.
             cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
+            cv.Optional(CONF_INVERT_COLORS default=False): cv.boolean,
             cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
                 "NONE", "FLOYDSTEINBERG", upper=True
             ),
@@ -258,6 +260,16 @@ def load_svg_image(file: bytes, resize: tuple[int, int]):
 
     return Image.open(io.BytesIO(svg_image))
 
+def invert_image_colors(image):
+    from PIL import Image
+
+    r, g, b, a = image.split()
+
+    def invert(image):
+        return image.point(lambda p: 255 - p)
+
+    r, g, b = map(invert, (r, g, b))
+    return Image.merge(image.mode, (r, g, b, a))
 
 async def to_code(config):
     # Local import only to allow "validate_pillow_installed" to run *before* importing it
@@ -301,6 +313,7 @@ async def to_code(config):
         )
 
     transparent = config[CONF_USE_TRANSPARENCY]
+    invert_colors = config.get(CONF_INVERT_COLORS)
 
     dither = (
         Image.Dither.NONE
@@ -324,6 +337,9 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == "RGBA":
         image = image.convert("RGBA")
+        if invert_colors:
+            image = invert_image_colors(image)
+
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 4)]
         pos = 0
@@ -339,6 +355,9 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == "RGB24":
         image = image.convert("RGBA")
+        if invert_colors:
+            image = invert_image_colors(image)
+
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 3)]
         pos = 0
@@ -360,6 +379,9 @@ async def to_code(config):
 
     elif config[CONF_TYPE] in ["RGB565"]:
         image = image.convert("RGBA")
+        if invert_colors:
+            image = invert_image_colors(image)
+
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 2)]
         pos = 0
