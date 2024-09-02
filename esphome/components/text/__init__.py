@@ -1,17 +1,18 @@
 from typing import Optional
-import esphome.codegen as cg
-import esphome.config_validation as cv
+
 from esphome import automation
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_MODE,
+    CONF_MQTT_ID,
     CONF_ON_VALUE,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
     CONF_VALUE,
+    CONF_WEB_SERVER_ID,
 )
-
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
@@ -38,17 +39,21 @@ TEXT_MODES = {
     "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
 }
 
-TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextComponent),
-        cv.GenerateID(): cv.declare_id(Text),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextStateTrigger),
-            }
-        ),
-        cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
-    }
+TEXT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextComponent),
+            cv.GenerateID(): cv.declare_id(Text),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextStateTrigger),
+                }
+            ),
+            cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
+        }
+    )
 )
 
 
@@ -76,6 +81,10 @@ async def setup_text_core_(
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_text(
@@ -108,7 +117,7 @@ async def new_text(
     return var
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_TEXT")
     cg.add_global(text_ns.using)

@@ -1,13 +1,14 @@
 from __future__ import annotations
+
+from io import StringIO
 import json
 import os
-from io import StringIO
 from typing import Any
 
-from esphome.yaml_util import parse_yaml
-from esphome.config import validate_config, _format_vol_invalid, Config
-from esphome.core import CORE, DocumentRange
+from esphome.config import Config, _format_vol_invalid, validate_config
 import esphome.config_validation as cv
+from esphome.core import CORE, DocumentRange
+from esphome.yaml_util import parse_yaml
 
 
 def _get_invalid_range(res: Config, invalid: cv.Invalid) -> DocumentRange | None:

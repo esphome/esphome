@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_REVERSE_ACTIVE_ENERGY,
     CONF_VOLTAGE,
+    CONF_VOLTAGE_GAIN,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -47,7 +48,6 @@ CONF_CURRENT_GAIN = "current_gain"
 CONF_IRQ0_PIN = "irq0_pin"
 CONF_IRQ1_PIN = "irq1_pin"
 CONF_POWER_GAIN = "power_gain"
-CONF_VOLTAGE_GAIN = "voltage_gain"
 
 CONF_NEUTRAL = "neutral"
 

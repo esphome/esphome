@@ -225,7 +225,7 @@ void TM1637Display::display() {
 
   // Write display CTRL CMND + brightness
   this->start_();
-  this->send_byte_(TM1637_CMD_CTRL + ((this->intensity_ & 0x7) | 0x08));
+  this->send_byte_(TM1637_CMD_CTRL + ((this->intensity_ & 0x7) | (this->on_ ? 0x08 : 0x00)));
   this->stop_();
 }
 bool TM1637Display::send_byte_(uint8_t b) {

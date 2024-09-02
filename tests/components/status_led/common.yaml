@@ -1,0 +1,10 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+light:
+  - platform: status_led
+    name: Switch State
+    pin: 4

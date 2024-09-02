@@ -1,9 +1,8 @@
 #include "font.h"
 
+#include "esphome/core/color.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/core/color.h"
-#include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
 namespace font {
@@ -68,6 +67,7 @@ int Font::match_next_glyph(const uint8_t *str, int *match_length) {
     return -1;
   return lo;
 }
+#ifdef USE_DISPLAY
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
   *height = this->height_;
@@ -129,7 +129,13 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
 
     uint8_t bitmask = 0;
     uint8_t pixel_data = 0;
-    float bpp_max = (1 << this->bpp_) - 1;
+    uint8_t bpp_max = (1 << this->bpp_) - 1;
+    auto diff_r = (float) color.r - (float) background.r;
+    auto diff_g = (float) color.g - (float) background.g;
+    auto diff_b = (float) color.b - (float) background.b;
+    auto b_r = (float) background.r;
+    auto b_g = (float) background.g;
+    auto b_b = (float) background.g;
     for (int glyph_y = y_start + scan_y1; glyph_y != max_y; glyph_y++) {
       for (int glyph_x = x_at + scan_x1; glyph_x != max_x; glyph_x++) {
         uint8_t pixel = 0;
@@ -146,12 +152,9 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
         if (pixel == bpp_max) {
           display->draw_pixel_at(glyph_x, glyph_y, color);
         } else if (pixel != 0) {
-          float on = (float) pixel / bpp_max;
-          float off = 1.0 - on;
-          Color blended;
-          blended.r = color.r * on + background.r * off;
-          blended.g = color.r * on + background.g * off;
-          blended.b = color.r * on + background.b * off;
+          auto on = (float) pixel / (float) bpp_max;
+          auto blended =
+              Color((uint8_t) (diff_r * on + b_r), (uint8_t) (diff_g * on + b_g), (uint8_t) (diff_b * on + b_b));
           display->draw_pixel_at(glyph_x, glyph_y, blended);
         }
       }
@@ -161,6 +164,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
     i += match_length;
   }
 }
+#endif
 
 }  // namespace font
 }  // namespace esphome

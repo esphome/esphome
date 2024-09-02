@@ -59,6 +59,11 @@ class DebugComponent : public PollingComponent {
   text_sensor::TextSensor *device_info_{nullptr};
   text_sensor::TextSensor *reset_reason_{nullptr};
 #endif  // USE_TEXT_SENSOR
+
+  std::string get_reset_reason_();
+  uint32_t get_free_heap_();
+  void get_device_info_(std::string &device_info);
+  void update_platform_();
 };
 
 }  // namespace debug

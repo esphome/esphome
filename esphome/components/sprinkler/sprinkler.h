@@ -11,7 +11,7 @@
 namespace esphome {
 namespace sprinkler {
 
-const std::string min_str = "min";
+const std::string MIN_STR = "min";
 
 enum SprinklerState : uint8_t {
   // NOTE: these states are used by both SprinklerValveOperator and Sprinkler (the controller)!

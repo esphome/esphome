@@ -1,18 +1,1 @@
-esp32_ble_tracker:
-
-sensor:
-  - platform: ble_rssi
-    mac_address: AC:37:43:77:5F:4C
-    name: BLE Google Home Mini RSSI value
-  - platform: ble_rssi
-    service_uuid: 11aa
-    name: BLE Test Service 16
-  - platform: ble_rssi
-    service_uuid: "11223344"
-    name: BLE Test Service 32
-  - platform: ble_rssi
-    service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
-    name: BLE Test Service 128
-  - platform: ble_rssi
-    service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
-    name: BLE Test iBeacon UUID
+<<: !include common.yaml

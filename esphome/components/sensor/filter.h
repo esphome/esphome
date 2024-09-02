@@ -388,6 +388,7 @@ class OrFilter : public Filter {
   };
 
   std::vector<Filter *> filters_;
+  bool has_value_{false};
   PhiNode phi_;
 };
 
@@ -428,6 +429,15 @@ class RoundFilter : public Filter {
 
  protected:
   uint8_t precision_;
+};
+
+class RoundMultipleFilter : public Filter {
+ public:
+  explicit RoundMultipleFilter(float multiple);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float multiple_;
 };
 
 }  // namespace sensor
