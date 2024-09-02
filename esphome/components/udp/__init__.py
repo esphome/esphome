@@ -14,6 +14,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import ExpressionStatement, MockObj
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -45,6 +46,18 @@ def is_relocated(option):
         )
 
     return validator
+def _final_validate(config):
+    enable_ipv6 = fv.full_config.get().get("network").get("enable_ipv6")
+    if not enable_ipv6:
+        for address in config[CONF_ADDRESSES]:
+            cv.ipv4address(address)
+    return config
+
+
+def require_internal_with_name(config):
+    if CONF_NAME in config and CONF_INTERNAL not in config:
+        raise cv.Invalid("Must provide internal: config when using name:")
+    return config
 
 
 RELOCATED = {
@@ -92,6 +105,9 @@ async def register_udp_client(var, config):
     udp_var = await cg.get_variable(config[CONF_UDP_ID])
     cg.add(var.set_parent(udp_var))
     return udp_var
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
