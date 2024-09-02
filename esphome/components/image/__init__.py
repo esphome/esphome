@@ -260,6 +260,7 @@ def load_svg_image(file: bytes, resize: tuple[int, int]):
 
     return Image.open(io.BytesIO(svg_image))
 
+
 def invert_image_colors(image):
     from PIL import Image
 
@@ -270,6 +271,7 @@ def invert_image_colors(image):
 
     r, g, b = map(invert, (r, g, b))
     return Image.merge(image.mode, (r, g, b, a))
+
 
 async def to_code(config):
     # Local import only to allow "validate_pillow_installed" to run *before* importing it
