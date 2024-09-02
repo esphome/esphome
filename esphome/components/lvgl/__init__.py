@@ -327,6 +327,8 @@ CONFIG_SCHEMA = (
                     {
                         cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
                         cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                        cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                        cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
                     }
                 )
             ),
