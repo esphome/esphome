@@ -13,7 +13,7 @@ CONF_OUT_PIN = "out_pin"
 CONF_CH_ENABLE = "ch_enable"
 CONF_DHW_ENABLE = "dhw_enable"
 CONF_COOLING_ENABLE = "cooling_enable"
-CONF_OTC_ACCTIVE = "otc_active"
+CONF_OTC_ACTIVE = "otc_active"
 CONF_CH2_ACTIVE = "ch2_active"
 CONF_SYNC_MODE = "sync_mode"
 
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CH_ENABLE, True): cv.boolean,
             cv.Optional(CONF_DHW_ENABLE, True): cv.boolean,
             cv.Optional(CONF_COOLING_ENABLE, False): cv.boolean,
-            cv.Optional(CONF_OTC_ACCTIVE, False): cv.boolean,
+            cv.Optional(CONF_OTC_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_CH2_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_SYNC_MODE, False): cv.boolean,
         }
