@@ -1,4 +1,5 @@
 #include "list_entities.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -188,3 +189,4 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *update) {
 
 }  // namespace web_server
 }  // namespace esphome
+#endif

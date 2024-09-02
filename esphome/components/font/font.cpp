@@ -1,9 +1,8 @@
 #include "font.h"
 
+#include "esphome/core/color.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/core/color.h"
-#include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
 namespace font {
@@ -68,6 +67,7 @@ int Font::match_next_glyph(const uint8_t *str, int *match_length) {
     return -1;
   return lo;
 }
+#ifdef USE_DISPLAY
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
   *height = this->height_;
@@ -164,6 +164,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
     i += match_length;
   }
 }
+#endif
 
 }  // namespace font
 }  // namespace esphome
