@@ -47,7 +47,7 @@ IMAGE_TYPE = {
 }
 
 CONF_USE_TRANSPARENCY = "use_transparency"
-CONF_INVERT_COLORS = "invert_colors"
+CONF_REVERSE_COLORS = "reverse_colors"
 
 # If the MDI file cannot be downloaded within this time, abort.
 IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
@@ -226,7 +226,7 @@ IMAGE_SCHEMA = cv.Schema(
             # Not setting default here on purpose; the default depends on the image type,
             # and thus will be set in the "validate_cross_dependencies" validator.
             cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
-            cv.Optional(CONF_INVERT_COLORS default=False): cv.boolean,
+            cv.Optional(CONF_REVERSE_COLORS, default=False): cv.boolean,
             cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
                 "NONE", "FLOYDSTEINBERG", upper=True
             ),
@@ -313,7 +313,7 @@ async def to_code(config):
         )
 
     transparent = config[CONF_USE_TRANSPARENCY]
-    invert_colors = config.get(CONF_INVERT_COLORS)
+    invert_colors = config.get(CONF_REVERSE_COLORS)
 
     dither = (
         Image.Dither.NONE
