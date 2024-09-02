@@ -1,4 +1,5 @@
 #include "web_server_base.h"
+#ifdef USE_NETWORK
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -121,3 +122,4 @@ float WebServerBase::get_setup_priority() const {
 
 }  // namespace web_server_base
 }  // namespace esphome
+#endif

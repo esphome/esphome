@@ -1,18 +1,23 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import canbus
-from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN
-from esphome.components.canbus import CanbusComponent, CanSpeed, CONF_BIT_RATE
-
+from esphome.components.canbus import CONF_BIT_RATE, CanbusComponent, CanSpeed
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID,
+    CONF_RX_PIN,
+    CONF_RX_QUEUE_LEN,
+    CONF_TX_PIN,
+    CONF_TX_QUEUE_LEN,
 )
 
 CODEOWNERS = ["@Sympatron"]
@@ -77,6 +82,8 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): validate_bit_rate,
         cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
         cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_RX_QUEUE_LEN): cv.uint32_t,
+        cv.Optional(CONF_TX_QUEUE_LEN): cv.uint32_t,
     }
 )
 
@@ -87,3 +94,7 @@ async def to_code(config):
 
     cg.add(var.set_rx(config[CONF_RX_PIN]))
     cg.add(var.set_tx(config[CONF_TX_PIN]))
+    if (rx_queue_len := config.get(CONF_RX_QUEUE_LEN)) is not None:
+        cg.add(var.set_rx_queue_len(rx_queue_len))
+    if (tx_queue_len := config.get(CONF_TX_QUEUE_LEN)) is not None:
+        cg.add(var.set_tx_queue_len(tx_queue_len))
