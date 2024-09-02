@@ -1,5 +1,3 @@
-socket:
-
 wifi:
   ssid: MySSID
   password: password1

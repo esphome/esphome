@@ -51,7 +51,7 @@ void StatsdComponent::dump_config() {
   }
 }
 
-float StatsdComponent::get_setup_priority() const { return esphome::setup_priority::BEFORE_CONNECTION; }
+float StatsdComponent::get_setup_priority() const { return esphome::setup_priority::AFTER_WIFI; }
 
 #ifdef USE_SENSOR
 void StatsdComponent::register_sensor(const char *name, esphome::sensor::Sensor *sensor) {

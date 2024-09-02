@@ -9,7 +9,9 @@ from esphome.const import (
     CONF_BINARY_SENSORS,
 )
 
+AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@Links2004"]
+DEPENDENCIES = ["network"]
 
 CONF_HOST = "host"
 CONF_PREFIX = "prefix"
