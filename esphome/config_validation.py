@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from ipaddress import AddressValueError, IPv4Address, ip_address
 import logging
 import os
 import re
@@ -66,7 +67,6 @@ from esphome.const import (
 from esphome.core import (
     CORE,
     HexInt,
-    IPAddress,
     Lambda,
     TimePeriod,
     TimePeriodMicroseconds,
@@ -1159,11 +1159,19 @@ def ssid(value):
 
 
 def ipv4address(value):
-    return IPAddress(value, allow_ipv6=False)
+    try:
+        address = IPv4Address(value)
+    except AddressValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv4 address") from exc
+    return address
 
 
 def ipaddress(value):
-    return IPAddress(value, allow_ipv6=True)
+    try:
+        address = ip_address(value)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IP address") from exc
+    return address
 
 
 def _valid_topic(value):

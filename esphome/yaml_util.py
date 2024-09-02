@@ -4,6 +4,7 @@ import fnmatch
 import functools
 import inspect
 from io import TextIOWrapper
+from ipaddress import _BaseAddress
 import logging
 import math
 import os
@@ -25,7 +26,6 @@ from esphome.core import (
     CORE,
     DocumentRange,
     EsphomeError,
-    IPAddress,
     Lambda,
     MACAddress,
     TimePeriod,
@@ -576,7 +576,7 @@ ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
-ESPHomeDumper.add_multi_representer(IPAddress, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)

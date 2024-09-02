@@ -1,4 +1,3 @@
-import ipaddress
 import logging
 import math
 import os
@@ -53,17 +52,6 @@ class HexInt(int):
         if 0 <= value <= 255:
             return f"{sign}0x{value:02X}"
         return f"{sign}0x{value:X}"
-
-
-class IPAddress:
-    def __init__(self, arg, allow_ipv6=False):
-        if allow_ipv6:
-            self.args = str(ipaddress.ip_address(arg))
-        else:
-            self.args = str(ipaddress.IPv4Address(arg))
-
-    def __str__(self):
-        return self.args
 
 
 class MACAddress:
