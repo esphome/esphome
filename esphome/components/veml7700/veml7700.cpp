@@ -243,7 +243,7 @@ ErrorCode VEML7700Component::configure_() {
   }
 
   PSMRegister psm{0};
-  psm.PSM = PSM::PSM_MODE_1;
+  psm.PSM = PSMMode::PSM_MODE_1;
   psm.PSM_EN = false;
   ESP_LOGV(TAG, "Setting PSM to 0x%04X", psm.raw);
   err = this->write_register((uint8_t) CommandRegisters::PWR_SAVING, psm.raw_bytes, VEML_REG_SIZE);

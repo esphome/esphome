@@ -1,0 +1,12 @@
+host:
+  mac_address: "62:23:45:AF:B3:DD"
+
+display:
+  - platform: sdl
+    id: sdl_display
+    update_interval: 1s
+    auto_clear_enabled: false
+    show_test_card: true
+    dimensions:
+      width: 450
+      height: 600

@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import ble_client, esp32_ble_tracker, output
+import esphome.config_validation as cv
 from esphome.const import CONF_CHARACTERISTIC_UUID, CONF_ID, CONF_SERVICE_UUID
 
 from .. import ble_client_ns

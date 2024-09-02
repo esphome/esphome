@@ -1,6 +1,7 @@
 
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_RP2040
 
 #include "lwip/dns.h"
@@ -141,13 +142,29 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 
 #ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
-  // TODO:
-  return false;
+  esphome::network::IPAddress ip_address, gateway, subnet, dns;
+  if (manual_ip.has_value()) {
+    ip_address = manual_ip->static_ip;
+    gateway = manual_ip->gateway;
+    subnet = manual_ip->subnet;
+    dns = manual_ip->static_ip;
+  } else {
+    ip_address = network::IPAddress(192, 168, 4, 1);
+    gateway = network::IPAddress(192, 168, 4, 1);
+    subnet = network::IPAddress(255, 255, 255, 0);
+    dns = network::IPAddress(192, 168, 4, 1);
+  }
+  WiFi.config(ip_address, dns, gateway, subnet);
+  return true;
 }
 
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
+  if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed!");
+    return false;
+  }
 
   WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.get_channel().value_or(1));
 
@@ -201,4 +218,5 @@ void WiFiComponent::wifi_pre_setup_() {}
 }  // namespace wifi
 }  // namespace esphome
 
+#endif
 #endif

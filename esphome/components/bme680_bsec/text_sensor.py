@@ -1,11 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
+from esphome.const import CONF_IAQ_ACCURACY
 from . import BME680BSECComponent, CONF_BME680_BSEC_ID
 
 DEPENDENCIES = ["bme680_bsec"]
 
-CONF_IAQ_ACCURACY = "iaq_accuracy"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 
 TYPES = [CONF_IAQ_ACCURACY]

@@ -311,6 +311,14 @@ bool APIServerConnectionBase::send_list_entities_button_response(const ListEntit
 #ifdef USE_BUTTON
 #endif
 #ifdef USE_MEDIA_PLAYER
+bool APIServerConnectionBase::send_media_player_supported_format(const MediaPlayerSupportedFormat &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_media_player_supported_format: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<MediaPlayerSupportedFormat>(msg, 119);
+}
+#endif
+#ifdef USE_MEDIA_PLAYER
 bool APIServerConnectionBase::send_list_entities_media_player_response(const ListEntitiesMediaPlayerResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_media_player_response: %s", msg.dump().c_str());
@@ -610,6 +618,24 @@ bool APIServerConnectionBase::send_date_time_state_response(const DateTimeStateR
 }
 #endif
 #ifdef USE_DATETIME_DATETIME
+#endif
+#ifdef USE_UPDATE
+bool APIServerConnectionBase::send_list_entities_update_response(const ListEntitiesUpdateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_update_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesUpdateResponse>(msg, 116);
+}
+#endif
+#ifdef USE_UPDATE
+bool APIServerConnectionBase::send_update_state_response(const UpdateStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_update_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<UpdateStateResponse>(msg, 117);
+}
+#endif
+#ifdef USE_UPDATE
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
@@ -1109,6 +1135,28 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 118: {
+#ifdef USE_UPDATE
+      UpdateCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_update_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_update_command_request(msg);
+#endif
+      break;
+    }
+    case 119: {
+#ifdef USE_MEDIA_PLAYER
+      MediaPlayerSupportedFormat msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_media_player_supported_format: %s", msg.dump().c_str());
+#endif
+      this->on_media_player_supported_format(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1432,6 +1480,19 @@ void APIServerConnection::on_date_time_command_request(const DateTimeCommandRequ
     return;
   }
   this->datetime_command(msg);
+}
+#endif
+#ifdef USE_UPDATE
+void APIServerConnection::on_update_command_request(const UpdateCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->update_command(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY

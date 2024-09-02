@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
-import re
 from dataclasses import dataclass
+import re
 import sys
 
 

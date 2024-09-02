@@ -61,6 +61,9 @@
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
+#ifdef USE_UPDATE
+#include "esphome/components/update/update_entity.h"
+#endif
 
 namespace esphome {
 
@@ -123,6 +126,9 @@ class Controller {
 #endif
 #ifdef USE_EVENT
   virtual void on_event(event::Event *obj, const std::string &event_type){};
+#endif
+#ifdef USE_UPDATE
+  virtual void on_update(update::UpdateEntity *obj){};
 #endif
 };
 
