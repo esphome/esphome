@@ -198,13 +198,19 @@ void UDPComponent::setup() {
     this->header_.push_back(0);
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &address : this->addresses_) {
-    struct sockaddr saddr {};
-    socket::set_sockaddr(&saddr, sizeof(saddr), address, this->port_);
+    struct sockaddr_in6 saddr {};
+    auto err = socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), address, this->port_);
+    if (err == 0) {
+      ESP_LOGV(TAG, "Couldn't set sockaddr %d", errno);
+    }
     this->sockaddrs_.push_back(saddr);
   }
   // set up broadcast socket
   if (this->should_send_) {
     this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#if USE_NETWORK_IPV6
+    this->broadcast_socket6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IPV6);
+#endif
     if (this->broadcast_socket_ == nullptr) {
       this->mark_failed();
       this->status_set_error("Could not create socket");
@@ -583,9 +589,20 @@ void UDPComponent::increment_code_() {
 void UDPComponent::send_packet_(void *data, size_t len) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &saddr : this->sockaddrs_) {
-    auto result = this->broadcast_socket_->sendto(data, len, 0, &saddr, sizeof(saddr));
-    if (result < 0)
-      ESP_LOGW(TAG, "sendto() error %d", errno);
+    if (saddr.sin6_family == AF_INET) {
+      auto result =
+          this->broadcast_socket_->sendto(data, len, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
+      if (result < 0)
+        ESP_LOGW(TAG, "sendto() error %d", errno);
+    }
+#if USE_NETWORK_IPV6
+    if (saddr.sin6_family == AF_INET6) {
+      auto result =
+          this->broadcast_socket6_->sendto(data, len, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
+      if (result < 0)
+        ESP_LOGW(TAG, "sendto() error %d", errno);
+    }
+#endif
   }
 #else
   auto iface = IPAddress(0, 0, 0, 0);

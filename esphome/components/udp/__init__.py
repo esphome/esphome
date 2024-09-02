@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_SENSORS,
 )
 from esphome.cpp_generator import MockObjClass
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -85,7 +86,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(UDPComponent),
             cv.Optional(CONF_PORT, default=18511): cv.port,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-                cv.ipv4
+                cv.ipaddress
             ),
             cv.Optional(CONF_ROLLING_CODE_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_PING_PONG_ENABLE, default=False): cv.boolean,
@@ -112,6 +113,14 @@ SENSOR_SCHEMA = cv.Schema(
 )
 
 
+def _final_validate(config):
+    enable_ipv6 = fv.full_config.get().get("network").get("enable_ipv6")
+    if not enable_ipv6:
+        for address in config[CONF_ADDRESSES]:
+            cv.ipv4address(address)
+    return config
+
+
 def require_internal_with_name(config):
     if CONF_NAME in config and CONF_INTERNAL not in config:
         raise cv.Invalid("Must provide internal: config when using name:")
@@ -120,6 +129,9 @@ def require_internal_with_name(config):
 
 def hash_encryption_key(config: dict):
     return list(hashlib.sha256(config[CONF_KEY].encode()).digest())
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
