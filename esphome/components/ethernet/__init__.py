@@ -203,11 +203,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 def manual_ip(config):
     return cg.StructInitializer(
         ManualIP,
-        ("static_ip", IPAddress(config[CONF_STATIC_IP].args)),
-        ("gateway", IPAddress(config[CONF_GATEWAY].args)),
-        ("subnet", IPAddress(config[CONF_SUBNET].args)),
-        ("dns1", IPAddress(config[CONF_DNS1].args)),
-        ("dns2", IPAddress(config[CONF_DNS2].args)),
+        ("static_ip", IPAddress(str(config[CONF_STATIC_IP]))),
+        ("gateway", IPAddress(str(config[CONF_GATEWAY]))),
+        ("subnet", IPAddress(str(config[CONF_SUBNET]))),
+        ("dns1", IPAddress(str(config[CONF_DNS1]))),
+        ("dns2", IPAddress(str(config[CONF_DNS2]))),
     )
 
 
