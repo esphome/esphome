@@ -313,7 +313,7 @@ async def to_code(config):
         )
 
     transparent = config[CONF_USE_TRANSPARENCY]
-    invert_colors = config.get(CONF_REVERSE_COLORS)
+    reverse_colors = config.get(CONF_REVERSE_COLORS)
 
     dither = (
         Image.Dither.NONE
@@ -337,7 +337,7 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == "RGBA":
         image = image.convert("RGBA")
-        if invert_colors:
+        if reverse_colors:
             image = invert_image_colors(image)
 
         pixels = list(image.getdata())
@@ -355,7 +355,7 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == "RGB24":
         image = image.convert("RGBA")
-        if invert_colors:
+        if reverse_colors:
             image = invert_image_colors(image)
 
         pixels = list(image.getdata())
@@ -379,7 +379,7 @@ async def to_code(config):
 
     elif config[CONF_TYPE] in ["RGB565"]:
         image = image.convert("RGBA")
-        if invert_colors:
+        if reverse_colors:
             image = invert_image_colors(image)
 
         pixels = list(image.getdata())
