@@ -26,6 +26,8 @@ using std::bitset;
 using std::stringstream;
 using std::to_string;
 
+static const char *const TAG = "opentherm";
+
 #ifdef ESP8266
 OpenTherm *OpenTherm::instance_ = nullptr;
 #endif
@@ -45,91 +47,91 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
       bit_pos_(0),
       timeout_counter_(-1),
       device_timeout_(device_timeout) {
-  isr_in_pin_ = in_pin->to_isr();
-  isr_out_pin_ = out_pin->to_isr();
+  this->isr_in_pin_ = in_pin->to_isr();
+  this->isr_out_pin_ = out_pin->to_isr();
 }
 
 bool OpenTherm::initialize() {
 #ifdef ESP8266
-  instance_ = this;
+  OpenTherm::instance_ = this;
 #endif
-  in_pin_->pin_mode(gpio::FLAG_INPUT);
-  out_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  out_pin_->digital_write(true);
+  this->in_pin_->pin_mode(gpio::FLAG_INPUT);
+  this->out_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->out_pin_->digital_write(true);
 
 #if defined(ESP32) || defined(USE_ESP_IDF)
-  return init_esp32_timer_();
+  return this->init_esp32_timer_();
 #else
   return true;
 #endif
 }
 
 void OpenTherm::listen() {
-  stop_timer_();
-  this->timeout_counter_ = device_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
+  this->stop_timer_();
+  this->timeout_counter_ = this->device_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
 
-  mode_ = OperationMode::LISTEN;
-  data_ = 0;
-  bit_pos_ = 0;
+  this->mode_ = OperationMode::LISTEN;
+  this->data_ = 0;
+  this->bit_pos_ = 0;
 
-  start_read_timer_();
+  this->start_read_timer_();
 }
 
 void OpenTherm::send(OpenthermData &data) {
-  stop_timer_();
-  data_ = data.type;
-  data_ = (data_ << 12) | data.id;
-  data_ = (data_ << 8) | data.valueHB;
-  data_ = (data_ << 8) | data.valueLB;
-  if (!check_parity_(data_)) {
-    data_ = data_ | 0x80000000;
+  this->stop_timer_();
+  this->data_ = data.type;
+  this->data_ = (this->data_ << 12) | data.id;
+  this->data_ = (this->data_ << 8) | data.valueHB;
+  this->data_ = (this->data_ << 8) | data.valueLB;
+  if (!check_parity_(this->data_)) {
+    this->data_ = this->data_ | 0x80000000;
   }
 
-  clock_ = 1;     // clock starts at HIGH
-  bit_pos_ = 33;  // count down (33 == start bit, 32-1 data, 0 == stop bit)
-  mode_ = OperationMode::WRITE;
+  this->clock_ = 1;     // clock starts at HIGH
+  this->bit_pos_ = 33;  // count down (33 == start bit, 32-1 data, 0 == stop bit)
+  this->mode_ = OperationMode::WRITE;
 
-  start_write_timer_();
+  this->start_write_timer_();
 }
 
 bool OpenTherm::get_message(OpenthermData &data) {
-  if (mode_ == OperationMode::RECEIVED) {
-    data.type = (data_ >> 28) & 0x7;
-    data.id = (data_ >> 16) & 0xFF;
-    data.valueHB = (data_ >> 8) & 0xFF;
-    data.valueLB = data_ & 0xFF;
+  if (this->mode_ == OperationMode::RECEIVED) {
+    data.type = (this->data_ >> 28) & 0x7;
+    data.id = (this->data_ >> 16) & 0xFF;
+    data.valueHB = (this->data_ >> 8) & 0xFF;
+    data.valueLB = this->data_ & 0xFF;
     return true;
   }
   return false;
 }
 
 bool OpenTherm::get_protocol_error(OpenThermError &error) {
-  if (mode_ != OperationMode::ERROR_PROTOCOL) {
+  if (this->mode_ != OperationMode::ERROR_PROTOCOL) {
     return false;
   }
 
-  error.error_type = error_type_;
-  error.bit_pos = bit_pos_;
-  error.capture = capture_;
-  error.clock = clock_;
-  error.data = data_;
+  error.error_type = this->error_type_;
+  error.bit_pos = this->bit_pos_;
+  error.capture = this->capture_;
+  error.clock = this->clock_;
+  error.data = this->data_;
 
   return true;
 }
 
 void OpenTherm::stop() {
-  stop_timer_();
-  mode_ = OperationMode::IDLE;
+  this->stop_timer_();
+  this->mode_ = OperationMode::IDLE;
 }
 
 void IRAM_ATTR OpenTherm::read_() {
-  data_ = 0;
-  bit_pos_ = 0;
-  mode_ = OperationMode::READ;
-  capture_ = 1;         // reset counter and add as if read start bit
-  clock_ = 1;           // clock is high at the start of comm
-  start_read_timer_();  // get us into 1/4 of manchester code. 5 timer ticks constitute 1 ms, which is 1 bit period in
-                        // OpenTherm.
+  this->data_ = 0;
+  this->bit_pos_ = 0;
+  this->mode_ = OperationMode::READ;
+  this->capture_ = 1;         // reset counter and add as if read start bit
+  this->clock_ = 1;           // clock is high at the start of comm
+  this->start_read_timer_();  // get us into 1/4 of manchester code. 5 timer ticks constitute 1 ms, which is 1 bit
+                              // period in OpenTherm.
 }
 
 bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
@@ -214,27 +216,27 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
 }
 
 #ifdef ESP8266
-void IRAM_ATTR OpenTherm::esp8266_timer_isr() { timer_isr(instance_); }
+void IRAM_ATTR OpenTherm::esp8266_timer_isr() { OpenTherm::timer_isr(OpenTherm::instance_); }
 #endif
 
 void IRAM_ATTR OpenTherm::bit_read_(uint8_t value) {
-  data_ = (data_ << 1) | value;
-  bit_pos_++;
+  this->data_ = (this->data_ << 1) | value;
+  this->bit_pos_++;
 }
 
 ProtocolErrorType OpenTherm::verify_stop_bit_(uint8_t value) {
   if (value) {  // stop bit detected
-    return check_parity_(data_) ? ProtocolErrorType::NO_ERROR : ProtocolErrorType::PARITY_ERROR;
+    return check_parity_(this->data_) ? ProtocolErrorType::NO_ERROR : ProtocolErrorType::PARITY_ERROR;
   } else {  // no stop bit detected, error
     return ProtocolErrorType::INVALID_STOP_BIT;
   }
 }
 
 void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
-  if (clock == 1) {                     // left part of manchester encoding
-    isr_out_pin_.digital_write(!high);  // low means logical 1 to protocol
-  } else {                              // right part of manchester encoding
-    isr_out_pin_.digital_write(high);   // high means logical 0 to protocol
+  if (clock == 1) {                           // left part of manchester encoding
+    this->isr_out_pin_.digital_write(!high);  // low means logical 1 to protocol
+  } else {                                    // right part of manchester encoding
+    this->isr_out_pin_.digital_write(high);   // high means logical 0 to protocol
   }
 }
 
@@ -259,17 +261,17 @@ bool OpenTherm::init_esp32_timer_() {
       break;
     }
 
-    ESP_LOGD(OT_TAG, "Timer %d:%d seems to be occupied, will try another", timer_group, timer_idx);
+    ESP_LOGD(TAG, "Timer %d:%d seems to be occupied, will try another", timer_group, timer_idx);
   }
 
   if (!timer_found) {
-    ESP_LOGE(OT_TAG, "No free timer was found! OpenTherm cannot function without a timer.");
+    ESP_LOGE(TAG, "No free timer was found! OpenTherm cannot function without a timer.");
     return false;
   }
 
-  ESP_LOGD(OT_TAG, "Found free timer %d:%d", timer_group, timer_idx);
-  timer_group_ = timer_group;
-  timer_idx_ = timer_idx;
+  ESP_LOGD(TAG, "Found free timer %d:%d", timer_group, timer_idx);
+  this->timer_group_ = timer_group;
+  this->timer_idx_ = timer_idx;
 
   timer_config_t const config = {
     .alarm_en = TIMER_ALARM_EN,
@@ -285,24 +287,25 @@ bool OpenTherm::init_esp32_timer_() {
 
   esp_err_t result;
 
-  result = timer_init(timer_group_, timer_idx_, &config);
+  result = timer_init(this->timer_group_, this->timer_idx_, &config);
   if (result != ESP_OK) {
     const auto *error = esp_err_to_name(result);
-    ESP_LOGE(OT_TAG, "Failed to init timer. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to init timer. Error: %s", error);
     return false;
   }
 
-  result = timer_set_counter_value(timer_group_, timer_idx_, 0);
+  result = timer_set_counter_value(this->timer_group_, this->timer_idx_, 0);
   if (result != ESP_OK) {
     const auto *error = esp_err_to_name(result);
-    ESP_LOGE(OT_TAG, "Failed to set counter value. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to set counter value. Error: %s", error);
     return false;
   }
 
-  result = timer_isr_callback_add(timer_group_, timer_idx_, reinterpret_cast<bool (*)(void *)>(timer_isr), this, 0);
+  result = timer_isr_callback_add(this->timer_group_, this->timer_idx_, reinterpret_cast<bool (*)(void *)>(timer_isr),
+                                  this, 0);
   if (result != ESP_OK) {
     const auto *error = esp_err_to_name(result);
-    ESP_LOGE(OT_TAG, "Failed to register timer interrupt. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to register timer interrupt. Error: %s", error);
     return false;
   }
 
@@ -312,17 +315,17 @@ bool OpenTherm::init_esp32_timer_() {
 void IRAM_ATTR OpenTherm::start_esp32_timer_(uint64_t alarm_value) {
   esp_err_t result;
 
-  result = timer_set_alarm_value(timer_group_, timer_idx_, alarm_value);
+  result = timer_set_alarm_value(this->timer_group_, this->timer_idx_, alarm_value);
   if (result != ESP_OK) {
     const auto *error = esp_err_to_name(result);
-    ESP_LOGE(OT_TAG, "Failed to set alarm value. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to set alarm value. Error: %s", error);
     return;
   }
 
-  result = timer_start(timer_group_, timer_idx_);
+  result = timer_start(this->timer_group_, this->timer_idx_);
   if (result != ESP_OK) {
     const auto *error = esp_err_to_name(result);
-    ESP_LOGE(OT_TAG, "Failed to start the timer. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to start the timer. Error: %s", error);
     return;
   }
 }
@@ -330,13 +333,13 @@ void IRAM_ATTR OpenTherm::start_esp32_timer_(uint64_t alarm_value) {
 // 5 kHz timer_
 void IRAM_ATTR OpenTherm::start_read_timer_() {
   InterruptLock const lock;
-  start_esp32_timer_(200);
+  this->start_esp32_timer_(200);
 }
 
 // 2 kHz timer_
 void IRAM_ATTR OpenTherm::start_write_timer_() {
   InterruptLock const lock;
-  start_esp32_timer_(500);
+  this->start_esp32_timer_(500);
 }
 
 void IRAM_ATTR OpenTherm::stop_timer_() {
@@ -344,17 +347,17 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
 
   esp_err_t result;
 
-  result = timer_pause(timer_group_, timer_idx_);
+  result = timer_pause(this->timer_group_, this->timer_idx_);
   if (result != ESP_OK) {
     const auto *error = esp_err_to_name(result);
-    ESP_LOGE(OT_TAG, "Failed to pause the timer. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to pause the timer. Error: %s", error);
     return;
   }
 
-  result = timer_set_counter_value(timer_group_, timer_idx_, 0);
+  result = timer_set_counter_value(this->timer_group_, this->timer_idx_, 0);
   if (result != ESP_OK) {
     const auto *error = esp_err_to_name(result);
-    ESP_LOGE(OT_TAG, "Failed to set timer counter to 0 after pausing. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to set timer counter to 0 after pausing. Error: %s", error);
     return;
   }
 }
@@ -365,7 +368,7 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
 // 5 kHz timer_
 void OpenTherm::start_read_timer_() {
   InterruptLock const lock;
-  timer1_attachInterrupt(esp8266_timer_isr);
+  timer1_attachInterrupt(OpenTherm::esp8266_timer_isr);
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5MHz (5 ticks/us - 1677721.4 us max)
   timer1_write(1000);                            // 5kHz
 }
@@ -373,7 +376,7 @@ void OpenTherm::start_read_timer_() {
 // 2 kHz timer_
 void OpenTherm::start_write_timer_() {
   InterruptLock const lock;
-  timer1_attachInterrupt(esp8266_timer_isr);
+  timer1_attachInterrupt(OpenTherm::esp8266_timer_isr);
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5MHz (5 ticks/us - 1677721.4 us max)
   timer1_write(2500);                            // 2kHz
 }
@@ -516,7 +519,7 @@ string OpenTherm::debug_data(OpenthermData &data) {
   stringstream result;
   result << bitset<8>(data.type) << " " << bitset<8>(data.id) << " " << bitset<8>(data.valueHB) << " "
          << bitset<8>(data.valueLB) << "\n";
-  result << "type: " << message_type_to_str((MessageType) data.type) << "; ";
+  result << "type: " << this->message_type_to_str((MessageType) data.type) << "; ";
   result << "id: " << to_string(data.id) << "; ";
   result << "HB: " << to_string(data.valueHB) << "; ";
   result << "LB: " << to_string(data.valueLB) << "; ";
@@ -527,9 +530,9 @@ string OpenTherm::debug_data(OpenthermData &data) {
 }
 std::string OpenTherm::debug_error(OpenThermError &error) {
   stringstream result;
-  result << "type: " << protocol_error_to_to_str(error.error_type) << "; ";
+  result << "type: " << this->protocol_error_to_to_str(error.error_type) << "; ";
   result << "data: ";
-  int_to_hex(result, error.data);
+  result << format_hex(error.data);
   result << "; clock: " << to_string(clock_);
   result << "; capture: " << bitset<32>(error.capture);
   result << "; bit_pos: " << to_string(error.bit_pos);
@@ -537,28 +540,28 @@ std::string OpenTherm::debug_error(OpenThermError &error) {
   return result.str();
 }
 
-float OpenthermData::f88() { return ((float) s16()) / 256.0; }
+float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
 
-void OpenthermData::f88(float value) { s16((int16_t) (value * 256)); }
+void OpenthermData::f88(float value) { this->s16((int16_t) (value * 256)); }
 
 uint16_t OpenthermData::u16() {
-  uint16_t const value = valueHB;
-  return (value << 8) | valueLB;
+  uint16_t const value = this->valueHB;
+  return (value << 8) | this->valueLB;
 }
 
 void OpenthermData::u16(uint16_t value) {
-  valueLB = value & 0xFF;
-  valueHB = (value >> 8) & 0xFF;
+  this->valueLB = value & 0xFF;
+  this->valueHB = (value >> 8) & 0xFF;
 }
 
 int16_t OpenthermData::s16() {
-  int16_t const value = valueHB;
-  return (value << 8) | valueLB;
+  int16_t const value = this->valueHB;
+  return (value << 8) | this->valueLB;
 }
 
 void OpenthermData::s16(int16_t value) {
-  valueLB = value & 0xFF;
-  valueHB = (value >> 8) & 0xFF;
+  this->valueLB = value & 0xFF;
+  this->valueHB = (value >> 8) & 0xFF;
 }
 
 }  // namespace opentherm

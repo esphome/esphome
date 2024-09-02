@@ -17,15 +17,19 @@
 #include "driver/timer.h"
 #endif
 
-#define OT_TAG "opentherm"
-
-#define readBit(value, bit) (((value) >> (bit)) & 0x01)
-#define setBit(value, bit) ((value) |= (1UL << (bit)))
-#define clearBit(value, bit) ((value) &= ~(1UL << (bit)))
-#define writeBit(value, bit, bitvalue) ((bitvalue) ? setBit(value, bit) : clearBit(value, bit))
-
 namespace esphome {
 namespace opentherm {
+
+// TODO: Account for immutable semantics change in hub.cpp when doing later installments of OpenTherm PR
+template<class T> constexpr T read_bit(T value, uint8_t bit) { return (value >> bit) & 0x01; }
+
+template<class T> constexpr T set_bit(T value, uint8_t bit) { return value |= (1UL << bit); }
+
+template<class T> constexpr T clear_bit(T value, uint8_t bit) { return value &= ~(1UL << bit); }
+
+template<class T> constexpr T write_bit(T value, uint8_t bit, uint8_t bit_value) {
+  return bit_value ? setBit(value, bit) : clearBit(value, bit);
+}
 
 enum OperationMode {
   IDLE = 0,  // no operation
@@ -338,11 +342,6 @@ class OpenTherm {
   static OpenTherm *instance_;
 #endif
 };
-
-template<typename T> void int_to_hex(std::stringstream &stream, T i) {
-  std::ostream out(stream.rdbuf());
-  out << std::showbase << std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex << i;
-}
 
 }  // namespace opentherm
 }  // namespace esphome
