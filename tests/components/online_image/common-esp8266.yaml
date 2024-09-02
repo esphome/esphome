@@ -5,7 +5,6 @@ spi:
     clk_pin: 14
     mosi_pin: 13
     miso_pin: 12
-    invert_colors: false
 
 display:
   - platform: ili9xxx
