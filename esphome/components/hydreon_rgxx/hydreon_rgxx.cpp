@@ -236,7 +236,7 @@ void HydreonRGxxComponent::process_line_() {
   }
   bool is_data_line = false;
   for (int i = 0; i < NUM_SENSORS; i++) {
-    if (this->sensors_[i] != nullptr && this->buffer_starts_with_(PROTOCOL_NAMES[i])) {
+    if (this->sensors_[i] != nullptr && this->buffer_.find(PROTOCOL_NAMES[i]) != std::string::npos) {
       is_data_line = true;
       break;
     }
