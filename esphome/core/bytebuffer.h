@@ -92,6 +92,7 @@ class ByteBuffer {
   bool get_bool() { return this->get_uint8(); }
   // Get vector of bytes, increment by length
   std::vector<uint8_t> get_vector(size_t length);
+  void get_data(const uint8_t *data, size_t length);
 
   // Put values into the buffer, increment the position accordingly
   // put any integral value, length represents the number of bytes
@@ -112,11 +113,13 @@ class ByteBuffer {
   void put_double(double value);
   void put_bool(bool value) { this->put_uint8(value); }
   void put_vector(const std::vector<uint8_t> &value);
+  void put_array(const uint8_t *data, size_t size);
 
   inline size_t get_capacity() const { return this->data_.size(); }
   inline size_t get_position() const { return this->position_; }
   inline size_t get_limit() const { return this->limit_; }
   inline size_t get_remaining() const { return this->get_limit() - this->get_position(); }
+  inline size_t get_used() const { return this->used_; }
   inline Endian get_endianness() const { return this->endianness_; }
   inline void mark() { this->mark_ = this->position_; }
   inline void big_endian() { this->endianness_ = BIG; }
@@ -131,14 +134,21 @@ class ByteBuffer {
   std::vector<uint8_t> get_data() { return this->data_; };
   void rewind() { this->position_ = 0; }
   void reset() { this->position_ = this->mark_; }
+  void resize() { this->used_ = this->position_; }
 
  protected:
   ByteBuffer(std::vector<uint8_t> const &data) : data_(data), limit_(data.size()) {}
+  void update_used_() {
+    if (this->used_ < this->position_) {
+      this->resize();
+    }
+  }
   std::vector<uint8_t> data_;
   Endian endianness_{LITTLE};
   size_t position_{0};
   size_t mark_{0};
   size_t limit_{0};
+  size_t used_{0};
 };
 
 }  // namespace esphome

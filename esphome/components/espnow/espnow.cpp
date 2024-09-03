@@ -55,55 +55,46 @@ struct {
 } __attribute__((packed)) espnow_frame_format_t;
 #endif
 
-ESPNowPacket::ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t app_id)
-    : mac64(mac64), size(size), app_id(app_id), retrys(0) {
-  if (this->mac64 == 0)
-    this->mac64 = ESPNOW_BROADCAST_ADDR;
-  this->is_broadcast = this->mac64 == ESPNOW_BROADCAST_ADDR;
-
-  this->ref_id = 0;
-
-  this->size = std::min(MAX_ESPNOW_DATA_SIZE, size);
-  std::memcpy(&this->data, (uint8_t *) data, this->size);
+ESPNowPacket::ESPNowPacket(espnow_addr_t peer, const uint8_t *data, uint8_t size, uint32_t protocol) : ESPNowPacket() {
+  if (this->peer() == {0})
+    this->peer(ESPNOW_BROADCAST_ADDR);
+  this->is_broadcast = memcpr(&this->peer(), &ESPNOW_BROADCAST_ADDR, 6);
+  this->protocol(protocol);
+  this->content_->get_data().std::memcpy(&this->data, (uint8_t *) data, this->size);
 
   this->data[this->size + 1] = 0;
   this->recalc();
-  this->info("create");
 }
 
-inline void ESPNowPacket::info(std::string place) {
+void ESPNowPacket::info(std::string place) {
   ESP_LOGVV(TAG, "%s: M:%s A:0x%06x R:0x%02x C:0x%04x S:%02x", place.c_str(), this->to_str().c_str(), this->app_id,
             this->ref_id, this->random, this->size);
 }
 
 bool ESPNowPacket::is_valid() {
-  uint16_t crc = this->crc16;
-  recalc();
-  bool valid = (std::memcmp(&header, &TRANSPORT_HEADER, 3) == 0);
-  valid &= (this->app_id != 0);
-  valid &= (this->crc16 == crc);
+  uint16_t crc = this->crc();
+  this->calc_crc();
+  bool valid = (std::memcmp(this->header(), &TRANSPORT_HEADER, 3) == 0);
+  valid &= (this->protocol() != 0);
+  valid &= (this->crc() == crc);
   if (!valid) {
-    ESP_LOGV("Packet", "Invalid H:%02x%02x%02x A:%06x R:%02x C:%04x ipv. %04x, %d&%d&%d=%d\n", this->header[0],
-             this->header[1], this->header[2], this->app_id, this->ref_id, crc, this->crc16,
-             std::memcmp(&header, &TRANSPORT_HEADER, 3) == 0, (this->app_id != 0), (this->crc16 == crc), valid);
+    ESP_LOGV("Packet", "Invalid H:%02x%02x%02x A:%06x R:%02x C:%04x ipv. %04x\n", this->header()[0], this->header()[1],
+             this->header()[2], this->protocol(), this->packet_id(), crc, this->crc());
   }
-
-  this->crc16 = crc;
+  this->crc(crc);
   return valid;
 }
 
-void ESPNowProtocol::setup() { parent_->register_protocol(this); }
-
 bool ESPNowProtocol::write(uint64_t mac_address, const uint8_t *data, uint8_t len) {
-  ESPNowPacket packet(mac_address, data, len, this->get_app_id());
+  ESPNowPacket packet(mac_address, data, len, this->get_protocol_id());
   return this->parent_->write(packet);
 }
 bool ESPNowProtocol::write(uint64_t mac_address, std::vector<uint8_t> &data) {
-  ESPNowPacket packet(mac_address, (uint8_t *) data.data(), (uint8_t) data.size(), this->get_app_id());
+  ESPNowPacket packet(mac_address, (uint8_t *) data.data(), (uint8_t) data.size(), this->get_protocol_id());
   return this->parent_->write(packet);
 }
 bool ESPNowProtocol::write(ESPNowPacket packet) {
-  packet.app_id = this->get_app_id();
+  packet.protocol(this->get_protocol_id());
   packet.ref_id = this->get_next_ref_id();
   packet.recalc();
   return this->parent_->write(packet);
@@ -239,7 +230,6 @@ esp_err_t ESPNowComponent::del_peer(uint64_t addr) {
 ESPNowDefaultProtocol *ESPNowComponent::get_default_protocol() {
   if (this->protocols_[ESPNOW_DEFAULT_APP_ID] == nullptr) {
     ESPNowDefaultProtocol *tmp = new ESPNowDefaultProtocol();
-    this->protocols_[ESPNOW_DEFAULT_APP_ID] = tmp;
     this->register_protocol(tmp);
   }
   return (ESPNowDefaultProtocol *) this->protocols_[ESPNOW_DEFAULT_APP_ID];

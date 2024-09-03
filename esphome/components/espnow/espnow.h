@@ -22,7 +22,7 @@ namespace espnow {
 
 typedef uint8_t espnow_addr_t[6];
 
-static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
+static const espnow_addr_t ESPNOW_BROADCAST_ADDR = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static espnow_addr_t ESPNOW_ADDR_SELF = {0};
 
 static const uint8_t ESPNOW_DATA_HEADER = 0x00;
@@ -62,70 +62,76 @@ class ESPNowPacket {
  public:
   ESPNowPacket() ESPHOME_ALWAYS_INLINE { this->content_.put_uint24(TRANSPORT_HEADER); }
   // Create packet to be send.
-  ESPNowPacket(espnow_addr_t mac64, const uint8_t *data, uint8_t size, uint32_t app_id);
+  ESPNowPacket(espnow_addr_t peer, const uint8_t *data, uint8_t size, uint32_t app_id);
 
   // Load received packet's.
-  ESPNowPacket(espnow_addr_t mac64, const uint8_t *data, uint8_t size);
+  ESPNowPacket(espnow_addr_t peer, const uint8_t *data, uint8_t size);
 
-  void info(std::string place);
+  inline void info(std::string place);
 
   uint8_T *peer() { return this->peer_; }
   void peer(espnow_addr_t mac_addres) { std::memcpy(&this->peer_, &mac_addres, 6); }
 
-  uint8_T size() { return this->content_; }
+  uint8_T size() {
+    if (this->content_->get_used() <= 10) {
+      return 0;
+    }
+    return this->content_->get_used();
+  }
+}
 
   bool broadcast(){return this->is_broadcast_};
-  void broadcast(bool state) { this->is_broadcast_ = state; }
+void broadcast(bool state) { this->is_broadcast_ = state; }
 
-  uint32_t timestamp() { return this->timestamp_; };
-  void timestamp(uint32_t timestamp) { this->timestamp_ = timestamp; };
+uint32_t timestamp() { return this->timestamp_; };
+void timestamp(uint32_t timestamp) { this->timestamp_ = timestamp; };
 
-  uint32_t protocol() {
-    this->content_->set_position(ESPNOW_DATA_PROTOCOL);
-    return this->content_->get_uint24();
-  }
-  void protocol(uint32_t protocol) {
-    this->content_->set_position(ESPNOW_DATA_PROTOCOL);
-    this->content_->put_uint24(protocol);
-  }
+uint32_t protocol() {
+  this->content_->set_position(ESPNOW_DATA_PROTOCOL);
+  return this->content_->get_uint24();
+}
+void protocol(uint32_t protocol) {
+  this->content_->set_position(ESPNOW_DATA_PROTOCOL);
+  this->content_->put_uint24(protocol);
+}
 
-  uint8_t packet_id() {
-    this->content_->set_position(ESPNOW_DATA_PACKET);
-    return this->content_->get_uint8();
-  }
-  void packet_id(uint8_t packet_id) {
-    this->content_->set_position(ESPNOW_DATA_PACKET);
-    this->content_->put_uint8(packet_id);
-  }
+uint8_t packet_id() {
+  this->content_->set_position(ESPNOW_DATA_PACKET);
+  return this->content_->get_uint8();
+}
+void packet_id(uint8_t packet_id) {
+  this->content_->set_position(ESPNOW_DATA_PACKET);
+  this->content_->put_uint8(packet_id);
+}
 
-  uint16_t crc() {
-    this->content_->set_position(ESPNOW_DATA_CRC);
-    return this->content_->get_uint16();
-  }
-  void crc(uint16_t crc) {
-    this->content_->set_position(ESPNOW_DATA_CRC);
-    this->content_->put_uint16(crc);
-  }
+uint16_t crc() {
+  this->content_->set_position(ESPNOW_DATA_CRC);
+  return this->content_->get_uint16();
+}
+void crc(uint16_t crc) {
+  this->content_->set_position(ESPNOW_DATA_CRC);
+  this->content_->put_uint16(crc);
+}
 
-  ByteBuffer *content() {
-    this->content_.set_position(ESPNOW_DATA_CONTENT + this->size_);
-    return &this->content_;
+ByteBuffer *content() {
+  this->content_.set_position(ESPNOW_DATA_CONTENT + this->size_);
+  return &this->content_;
+}
+
+void retry() {
+  if (this->retrys_ < 7) {
+    this->retrys_ = this->retrys_ + 1;
   }
+}
 
-  void retry() {
-    if (this->retrys_ < 7) {
-      this->retrys_ = this->retrys_ + 1;
-    }
-  }
+void calc_crc() {
+  this->crc(0);
+  this->crc(esp_crc16_le(this->packet(), this->dataptr(), 10 + size()));
+}
 
-  void calc_crc() {
-    this->crc(0);
-    this->crc(esp_crc16_le(this->packet(), this->dataptr(), 10 + size()));
-  }
+bool is_valid();
 
-  bool is_valid();
-
-  uint8_t *dataptr() { return this->content_->get_data()->data(); }
+uint8_t *dataptr() { return this->content_->get_data()->data(); }
 };
 
 class ESPNowComponent;
@@ -136,13 +142,11 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
  public:
   ESPNowProtocol(){};
 
-  void setup();
-
   virtual void on_receive(ESPNowPacket packet){};
   virtual void on_sent(ESPNowPacket packet, bool status){};
   virtual void on_new_peer(ESPNowPacket packet){};
 
-  virtual uint32_t get_app_id() = 0;
+  virtual uint32_t get_protocol_id() = 0;
   uint8_t get_next_ref_id() { return next_ref_id_++; }
 
   bool write(uint64_t mac_address, const uint8_t *data, uint8_t len);
@@ -159,7 +163,7 @@ class ESPNowDefaultProtocol : public ESPNowProtocol {
   void on_sent(ESPNowPacket packet, bool status) override { this->on_sent_.call(packet, status); };
   void on_new_peer(ESPNowPacket packet) override { this->on_new_peer_.call(packet); };
 
-  uint32_t get_app_id() override { return ESPNOW_DEFAULT_APP_ID; };
+  uint32_t get_protocol_id() override { return ESPNOW_DEFAULT_APP_ID; };
 
   void add_on_sent_callback(std::function<void(ESPNowPacket, bool status)> &&callback) {
     this->on_sent_.add(std::move(callback));
@@ -206,7 +210,7 @@ class ESPNowComponent : public Component {
 
   void register_protocol(ESPNowProtocol *protocol) {
     protocol->set_parent(this);
-    this->protocols_[protocol->get_app_id()] = protocol;
+    this->protocols_[protocol->get_protocol_id()] = protocol;
   }
 
   esp_err_t add_peer(uint64_t addr);
