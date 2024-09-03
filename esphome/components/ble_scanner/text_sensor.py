@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, text_sensor
 import esphome.config_validation as cv
-from esphome.components import text_sensor, esp32_ble_tracker
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 
