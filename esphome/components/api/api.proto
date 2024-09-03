@@ -1570,12 +1570,6 @@ message VoiceAssistantAnnounceFinished {
   string media_id = 1;
 }
 
-message VoiceAssistantTextToSpeechFormat {
-  string format = 1;
-  uint32 sample_rate = 2;
-  uint32 num_channels = 3;
-}
-
 // ==================== ALARM CONTROL PANEL ====================
 enum AlarmControlPanelState {
   ALARM_STATE_DISARMED = 0;
