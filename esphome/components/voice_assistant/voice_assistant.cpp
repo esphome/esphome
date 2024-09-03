@@ -294,13 +294,6 @@ void VoiceAssistant::loop() {
       msg.flags = flags;
       msg.audio_settings = audio_settings;
       msg.wake_word_phrase = this->wake_word_;
-
-      if (this->use_wake_word_) {
-        msg.start_stage = api::enums::VOICE_ASSISTANT_PIPELINE_STAGE_WAKE_WORD;
-      } else {
-        msg.start_stage = api::enums::VOICE_ASSISTANT_PIPELINE_STAGE_STT;
-      }
-      msg.end_stage = api::enums::VOICE_ASSISTANT_PIPELINE_STAGE_TTS;
       this->wake_word_ = "";
 
       if (this->api_client_ == nullptr || !this->api_client_->send_voice_assistant_request(msg)) {
