@@ -146,10 +146,6 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
 #endif
 #ifdef USE_MEDIA_PLAYER
-  bool send_media_player_supported_format(const MediaPlayerSupportedFormat &msg);
-  virtual void on_media_player_supported_format(const MediaPlayerSupportedFormat &value){};
-#endif
-#ifdef USE_MEDIA_PLAYER
   bool send_list_entities_media_player_response(const ListEntitiesMediaPlayerResponse &msg);
 #endif
 #ifdef USE_MEDIA_PLAYER
