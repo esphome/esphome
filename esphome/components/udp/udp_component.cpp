@@ -13,7 +13,12 @@ static const char *const TAG = "udp";
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &address : this->addresses_) {
+#if USE_NETWORK_IPV6
     struct sockaddr_in6 saddr {};
+#else
+    struct sockaddr saddr {};
+#endif
+
     auto err = socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), address, this->port_);
     if (err == 0) {
       ESP_LOGV(TAG, "Couldn't set sockaddr %d", errno);
@@ -147,19 +152,23 @@ void UDPComponent::dump_config() {
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &saddr : this->sockaddrs_) {
+#if USE_NETWORK_IPV6
     if (saddr.sin6_family == AF_INET) {
       auto result =
           this->broadcast_socket_->sendto(data, len, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
       if (result < 0)
         ESP_LOGW(TAG, "sendto() error %d", errno);
     }
-#if USE_NETWORK_IPV6
     if (saddr.sin6_family == AF_INET6) {
       auto result =
           this->broadcast_socket6_->sendto(data, len, 0, reinterpret_cast<const sockaddr *>(&saddr), sizeof(saddr));
       if (result < 0)
         ESP_LOGW(TAG, "sendto() error %d", errno);
     }
+#else
+    auto result = this->broadcast_socket_->sendto(data, len, 0, &saddr, sizeof(saddr));
+    if (result < 0)
+      ESP_LOGW(TAG, "sendto() error %d", errno);
 #endif
   }
 #endif
