@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import climate_ir
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
 
 CODEOWNERS = ["@orestismers"]
@@ -17,6 +17,7 @@ MODELS = {
     "yaa": Model.GREE_YAA,
     "yac": Model.GREE_YAC,
     "yac1fb9": Model.GREE_YAC1FB9,
+    "yx1ff": Model.GREE_YX1FF,
 }
 
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
