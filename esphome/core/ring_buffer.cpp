@@ -20,13 +20,20 @@ std::unique_ptr<RingBuffer> RingBuffer::create(size_t len) {
     return nullptr;
   }
 
-  rb->handle_ = xStreamBufferCreateStatic(len + 1, 0, rb->storage_, &rb->structure_);
+  rb->handle_ = xStreamBufferCreateStatic(len + 1, 1, rb->storage_, &rb->structure_);
   ESP_LOGD(TAG, "Created ring buffer with size %u", len);
   return rb;
 }
 
 size_t RingBuffer::read(void *data, size_t len, TickType_t ticks_to_wait) {
-  return xStreamBufferReceive(this->handle_, data, len, ticks_to_wait);
+  if (ticks_to_wait > 0)
+    xStreamBufferSetTriggerLevel(this->handle_, len);
+
+  size_t bytes_read = xStreamBufferReceive(this->handle_, data, len, ticks_to_wait);
+
+  xStreamBufferSetTriggerLevel(this->handle_, 1);
+
+  return bytes_read;
 }
 
 size_t RingBuffer::write(void *data, size_t len) {
@@ -37,6 +44,10 @@ size_t RingBuffer::write(void *data, size_t len) {
     xStreamBufferReceive(this->handle_, discard, needed, 0);
   }
   return xStreamBufferSend(this->handle_, data, len, 0);
+}
+
+size_t RingBuffer::write_without_replacement(void *data, size_t len, TickType_t ticks_to_wait) {
+  return xStreamBufferSend(this->handle_, data, len, ticks_to_wait);
 }
 
 size_t RingBuffer::available() const { return xStreamBufferBytesAvailable(this->handle_); }

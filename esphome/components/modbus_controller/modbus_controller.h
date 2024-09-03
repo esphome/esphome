@@ -448,6 +448,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// incoming queue
   void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                   const std::vector<uint8_t> &data);
+  /// Allow a duplicate command to be sent
+  void set_allow_duplicate_commands(bool allow_duplicate_commands) {
+    this->allow_duplicate_commands_ = allow_duplicate_commands;
+  }
+  /// get if a duplicate command can be sent
+  bool get_allow_duplicate_commands() { return this->allow_duplicate_commands_; }
   /// called by esphome generated code to set the command_throttle period
   void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
   /// called by esphome generated code to set the offline_skip_updates
@@ -456,6 +462,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   size_t get_command_queue_length() { return command_queue_.size(); }
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
+  /// Set callback for commands
+  void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -480,6 +488,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   std::list<std::unique_ptr<ModbusCommandItem>> command_queue_;
   /// modbus response data waiting to get processed
   std::queue<std::unique_ptr<ModbusCommandItem>> incoming_queue_;
+  /// if duplicate commands can be sent
+  bool allow_duplicate_commands_;
   /// when was the last send operation
   uint32_t last_command_timestamp_;
   /// min time in ms between sending modbus commands
@@ -488,6 +498,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   bool module_offline_;
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_;
+  CallbackManager<void(int, int)> command_sent_callback_{};
 };
 
 /** Convert vector<uint8_t> response payload to float.

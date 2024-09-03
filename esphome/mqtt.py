@@ -1,10 +1,9 @@
 from datetime import datetime
 import hashlib
+import json
 import logging
 import ssl
-import sys
 import time
-import json
 
 import paho.mqtt.client as mqtt
 
@@ -24,9 +23,9 @@ from esphome.const import (
     CONF_USERNAME,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.log import color, Fore
+from esphome.helpers import get_int_env, get_str_env
+from esphome.log import Fore, color
 from esphome.util import safe_print
-from esphome.helpers import get_str_env, get_int_env
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,10 +102,7 @@ def prepare(
     if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
         CONF_CERTIFICATE_AUTHORITY
     ):
-        if sys.version_info >= (2, 7, 13):
-            tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
-        else:
-            tls_version = ssl.PROTOCOL_SSLv23
+        tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
         client.tls_set(
             ca_certs=None,
             certfile=None,

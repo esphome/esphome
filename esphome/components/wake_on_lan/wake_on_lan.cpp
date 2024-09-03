@@ -1,4 +1,5 @@
 #include "wake_on_lan.h"
+#ifdef USE_NETWORK
 #include "esphome/core/log.h"
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
@@ -85,3 +86,4 @@ void WakeOnLanButton::setup() {
 
 }  // namespace wake_on_lan
 }  // namespace esphome
+#endif
