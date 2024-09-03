@@ -7061,7 +7061,39 @@ void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-bool VoiceAssistantAnnounce::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->media_id = value.as_string();
+      return true;
+    }
+    case 2: {
+      this->text = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantAnnounceRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->media_id);
+  buffer.encode_string(2, this->text);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantAnnounceRequest {\n");
+  out.append("  media_id: ");
+  out.append("'").append(this->media_id).append("'");
+  out.append("\n");
+
+  out.append("  text: ");
+  out.append("'").append(this->text).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantAnnounceFinished::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
       this->media_id = value.as_string();
@@ -7071,13 +7103,62 @@ bool VoiceAssistantAnnounce::decode_length(uint32_t field_id, ProtoLengthDelimit
       return false;
   }
 }
-void VoiceAssistantAnnounce::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->media_id); }
+void VoiceAssistantAnnounceFinished::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->media_id); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void VoiceAssistantAnnounce::dump_to(std::string &out) const {
+void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantAnnounce {\n");
+  out.append("VoiceAssistantAnnounceFinished {\n");
   out.append("  media_id: ");
   out.append("'").append(this->media_id).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantTextToSpeechFormat::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->sample_rate = value.as_uint32();
+      return true;
+    }
+    case 3: {
+      this->num_channels = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantTextToSpeechFormat::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->format = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantTextToSpeechFormat::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->format);
+  buffer.encode_uint32(2, this->sample_rate);
+  buffer.encode_uint32(3, this->num_channels);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantTextToSpeechFormat::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantTextToSpeechFormat {\n");
+  out.append("  format: ");
+  out.append("'").append(this->format).append("'");
+  out.append("\n");
+
+  out.append("  sample_rate: ");
+  sprintf(buffer, "%" PRIu32, this->sample_rate);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  num_channels: ");
+  sprintf(buffer, "%" PRIu32, this->num_channels);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

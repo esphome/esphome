@@ -1213,7 +1213,7 @@ void APIConnection::on_voice_assistant_timer_event_response(const VoiceAssistant
   }
 };
 
-void APIConnection::on_voice_assistant_announce(const VoiceAssistantAnnounce &msg) {
+void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
     if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
       return;
