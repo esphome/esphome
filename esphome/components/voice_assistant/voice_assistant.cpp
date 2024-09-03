@@ -304,7 +304,8 @@ void VoiceAssistant::loop() {
         break;
       }
       this->set_state_(State::STARTING_PIPELINE);
-      this->set_timeout("reset-conversation_id", this->conversation_timeout_, [this]() { this->reset_conversation_id(); });
+      this->set_timeout("reset-conversation_id", this->conversation_timeout_,
+                        [this]() { this->reset_conversation_id(); });
       break;
     }
     case State::STARTING_PIPELINE: {
