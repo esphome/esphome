@@ -9,15 +9,12 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt-backend-esp8266";
 
-MQTTBackendESP8266 *object;
-
-void MQTTBackendESP8266::on_mqtt_message_wrapper_(const char *topic, unsigned char *payload, unsigned int length) {
-  object->on_mqtt_message_(topic, reinterpret_cast<const char *>(payload), length);
+void MQTTBackendESP8266::on_mqtt_message_wrapper_(MQTTClient *client, char topic[], char bytes[], int length) {
+  static_cast<MQTTBackendESP8266 *>(client->ref)->on_mqtt_message_(client, topic, bytes, length);
 }
 
-void MQTTBackendESP8266::on_mqtt_message_(const char *topic, const char *payload, unsigned int length) {
-  /* no fragmented messages supported, so current_data_offset = 0 and total_data_len = length*/
-  this->on_message_.call(topic, payload, length, 0, length);
+void MQTTBackendESP8266::on_mqtt_message_(MQTTClient *client, char topic[], char bytes[], int length) {
+  this->on_message_.call(topic, bytes, length, 0, length);
 }
 
 void MQTTBackendESP8266::initialize_() {
@@ -31,61 +28,72 @@ void MQTTBackendESP8266::initialize_() {
   }
 #endif
 
-  object = this;
-  mqtt_client_.setCallback(MQTTBackendESP8266::on_mqtt_message_wrapper_);
+  this->mqtt_client_.ref = this;
+  mqtt_client_.onMessageAdvanced(MQTTBackendESP8266::on_mqtt_message_wrapper_);
   this->is_initalized_ = true;
 }
 
-void MQTTBackendESP8266::loop() {
-  if (!this->is_initalized_)
-    return;
-  if (this->mqtt_client_.loop()) {
-    if (!this->is_connected_) {
-      this->is_connected_ = true;
-      /*
-       * PubSubClient doesn't expose session_present flag in CONNACK, passing the clean_session flag
-       * assumes the broker remembered it correctly
-       */
-      this->on_connect_.call(this->clean_session_);
-    }
-  } else {
-    if (this->is_connected_) {
-      this->is_connected_ = false;
-      MQTTClientDisconnectReason reason = MQTTClientDisconnectReason::TCP_DISCONNECTED;
-      switch (this->mqtt_client_.state()) {
-        case MQTT_CONNECTION_TIMEOUT:
-        case MQTT_CONNECTION_LOST:
-        case MQTT_CONNECT_FAILED:
-        case MQTT_DISCONNECTED:
-          reason = MQTTClientDisconnectReason::TCP_DISCONNECTED;
-          break;
-        case MQTT_CONNECT_BAD_PROTOCOL:
-          reason = MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION;
-          break;
-        case MQTT_CONNECT_BAD_CLIENT_ID:
-          reason = MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED;
-          break;
-        case MQTT_CONNECT_UNAVAILABLE:
-          reason = MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE;
-          break;
-        case MQTT_CONNECT_BAD_CREDENTIALS:
-          reason = MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS;
-          break;
-        case MQTT_CONNECT_UNAUTHORIZED:
-          reason = MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED;
-          break;
-        case MQTT_CONNECTED:
-          assert(false);
-          break;
-      }
-      this->on_disconnect_.call(reason);
-    }
+void MQTTBackendESP8266::handleErrors_() {
+  lwmqtt_err_t error = this->mqtt_client_.lastError();
+  lwmqtt_return_code_t return_code = this->mqtt_client_.returnCode();
+  if (error != LWMQTT_SUCCESS) {
+    ESP_LOGD(TAG, "Error: %d, returnCode: %d", error, return_code);
+
     char buffer[128];
     int code = this->wifi_client_.getLastSSLError(buffer, sizeof(buffer));
     if (code != 0) {
       ESP_LOGD(TAG, "SSL error code %d: %s", code, buffer);
-      this->disconnect();
     }
+
+    MQTTClientDisconnectReason reason = MQTTClientDisconnectReason::TCP_DISCONNECTED;
+
+    if (return_code != LWMQTT_CONNECTION_ACCEPTED) {
+      switch (return_code) {
+        case LWMQTT_CONNECTION_ACCEPTED:
+          assert(false);
+          break;
+        case LWMQTT_UNACCEPTABLE_PROTOCOL:
+          reason = MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION;
+          break;
+        case LWMQTT_IDENTIFIER_REJECTED:
+          reason = MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED;
+          break;
+        case LWMQTT_SERVER_UNAVAILABLE:
+          reason = MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE;
+          break;
+        case LWMQTT_BAD_USERNAME_OR_PASSWORD:
+          reason = MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS;
+          break;
+        case LWMQTT_NOT_AUTHORIZED:
+          reason = MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED;
+          break;
+        case LWMQTT_UNKNOWN_RETURN_CODE:
+          reason = MQTTClientDisconnectReason::TCP_DISCONNECTED;
+          break;
+      }
+    }
+    this->on_disconnect_.call(reason);
+  }
+}
+
+void MQTTBackendESP8266::connect() {
+  if (!this->is_initalized_) {
+    this->initialize_();
+  }
+  this->mqtt_client_.begin(this->host_.c_str(), this->port_, this->wifi_client_);
+  this->mqtt_client_.connect(this->client_id_.c_str(), this->username_.c_str(), this->password_.c_str());
+  this->handleErrors_();
+}
+
+void MQTTBackendESP8266::loop() {
+  this->mqtt_client_.loop();
+  if (!this->is_connected_ && this->mqtt_client_.connected()) {
+    this->is_connected_ = true;
+    this->on_connect_.call(this->clean_session_);
+  }
+  if (this->is_connected_ && !this->mqtt_client_.connected()) {
+    this->is_connected_ = false;
+    this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
   }
 }
 

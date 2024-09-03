@@ -303,7 +303,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     # Add required libraries for ESP8266 and LibreTiny
     if CORE.is_esp8266 or CORE.is_libretiny:
-        cg.add_library("knolleary/PubSubClient", "2.8")
+        cg.add_library("256dpi/MQTT", "2.5.2")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
