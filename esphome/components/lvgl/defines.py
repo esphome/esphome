@@ -148,6 +148,7 @@ LV_EVENT_MAP = {
     "DEFOCUS": "DEFOCUSED",
     "READY": "READY",
     "CANCEL": "CANCEL",
+    "ALL_EVENTS": "ALL",
 }
 
 LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)
@@ -390,6 +391,7 @@ CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"
 CONF_DISPLAYS = "displays"
+CONF_EDITING = "editing"
 CONF_ENCODERS = "encoders"
 CONF_END_ANGLE = "end_angle"
 CONF_END_VALUE = "end_value"
@@ -401,6 +403,7 @@ CONF_FLEX_ALIGN_MAIN = "flex_align_main"
 CONF_FLEX_ALIGN_CROSS = "flex_align_cross"
 CONF_FLEX_ALIGN_TRACK = "flex_align_track"
 CONF_FLEX_GROW = "flex_grow"
+CONF_FREEZE = "freeze"
 CONF_FULL_REFRESH = "full_refresh"
 CONF_GRID_CELL_ROW_POS = "grid_cell_row_pos"
 CONF_GRID_CELL_COLUMN_POS = "grid_cell_column_pos"
@@ -428,9 +431,9 @@ CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
+CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
 CONF_ON_SELECT = "on_select"
-CONF_ONE_CHECKED = "one_checked"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
 CONF_PAD_COLUMN = "pad_column"

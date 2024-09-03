@@ -20,6 +20,7 @@ modbus_controller:
   - id: modbus_controller1
     address: 0x2
     modbus_id: mod_bus1
+    allow_duplicate_commands: false
   - id: modbus_controller2
     address: 0x2
     modbus_id: mod_bus2
