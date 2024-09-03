@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import i2c
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_CALIBRATION,
@@ -9,6 +9,9 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_OFFSET_X,
+    CONF_OFFSET_Y,
+    CONF_OFFSET_Z,
     CONF_RANGE,
     CONF_RESOLUTION,
     CONF_SWAP_XY,
@@ -22,9 +25,6 @@ DEPENDENCIES = ["i2c"]
 CONF_MSA3XX_ID = "msa3xx_id"
 
 CONF_MIRROR_Z = "mirror_z"
-CONF_OFFSET_X = "offset_x"
-CONF_OFFSET_Y = "offset_y"
-CONF_OFFSET_Z = "offset_z"
 CONF_ON_ACTIVE = "on_active"
 CONF_ON_DOUBLE_TAP = "on_double_tap"
 CONF_ON_FREEFALL = "on_freefall"
