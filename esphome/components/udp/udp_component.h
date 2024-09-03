@@ -125,9 +125,11 @@ class UDPComponent : public PollingComponent {
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
 #if USE_NETWORK_IPV6
   std::unique_ptr<socket::Socket> broadcast_socket6_ = nullptr;
+  std::vector<struct sockaddr_in6> sockaddrs_{};
+#else
+  std::vector<struct sockaddr> sockaddrs_{};
 #endif
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
-  std::vector<struct sockaddr_in6> sockaddrs_{};
 #else
   std::vector<IPAddress> ipaddrs_{};
   WiFiUDP udp_client_{};
