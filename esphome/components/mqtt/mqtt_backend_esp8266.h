@@ -93,6 +93,7 @@ class MQTTBackendESP8266 final : public MQTTBackend {
 
   void set_ca_certificate(const std::string &cert) { this->ca_certificate_str_ = cert; }
   void set_skip_cert_cn_check(bool skip_check) { this->skip_cert_cn_check_ = skip_check; }
+  void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) { this->ssl_fingerprint_ = fingerprint; };
 
  protected:
   void initialize_();
@@ -119,6 +120,7 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   std::string lwt_message_;
   std::string client_id_;
   optional<std::string> ca_certificate_str_;
+  optional<std::array<uint8_t, 20>> ssl_fingerprint_;
   BearSSL::X509List ca_certificate_;
   bool skip_cert_cn_check_{false};
 

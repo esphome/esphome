@@ -22,9 +22,12 @@ void MQTTBackendESP8266::initialize_() {
   if (this->ca_certificate_str_.has_value()) {
     this->ca_certificate_.append(this->ca_certificate_str_.value().c_str());
     this->wifi_client_.setTrustAnchors(&this->ca_certificate_);
-    if (this->skip_cert_cn_check_) {
-      this->wifi_client_.setInsecure();
-    }
+  }
+  if (this->ssl_fingerprint_.has_value()) {
+    this->wifi_client_.setFingerprint(this->ssl_fingerprint_.value().data());
+  }
+  if (this->skip_cert_cn_check_) {
+    this->wifi_client_.setInsecure();
   }
 #endif
 

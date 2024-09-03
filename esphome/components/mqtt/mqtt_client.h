@@ -132,14 +132,25 @@ class MQTTClientComponent : public Component {
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
+  /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
+   *
+   * @warning This is *not* secure and *not* how SSL is usually done. You'll have to add
+   *          a separate fingerprint for every certificate you use. Additionally, the hashing
+   *          algorithm used here due to the constraints of the MCU, SHA1, is known to be insecure.
+   *
+   * @param fingerprint The SSL fingerprint as a 20 value long std::array.
+   */
+#ifdef USE_ESP8266
+  void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) {
+    this->mqtt_backend_.set_ssl_fingerprint(fingerprint);
+  };
+#endif
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
-
 #ifdef USE_ESP32
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
 #endif
-
   const Availability &get_availability();
 
   /** Set the topic prefix that will be prepended to all topics together with "/". This will, in most cases,

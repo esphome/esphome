@@ -1,3 +1,5 @@
+import re
+
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
@@ -36,6 +38,7 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
+    CONF_SSL_FINGERPRINT,
     CONF_STATE_TOPIC,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
@@ -196,6 +199,13 @@ def validate_config(value):
     return out
 
 
+def validate_fingerprint(value):
+    value = cv.string(value)
+    if re.match(r"^[0-9a-f]{40}$", value) is None:
+        raise cv.Invalid("fingerprint must be valid SHA1 hash")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -243,6 +253,9 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
+            ),
+            cv.Optional(CONF_SSL_FINGERPRINT): cv.All(
+                cv.only_on_esp8266, cv.string, validate_fingerprint
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -383,10 +396,19 @@ async def to_code(config):
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
+    if CONF_SSL_FINGERPRINT in config:
+        cg.add_define("USE_MQTT_SECURE_CLIENT")
+        fingerprint = config[CONF_SSL_FINGERPRINT]
+        arr = [cg.RawExpression(f"0x{fingerprint[i:i + 2]}") for i in range(0, 40, 2)]
+        cg.add(var.set_ssl_fingerprint(arr))
+
+    if CONF_SKIP_CERT_CN_CHECK in config:
+        cg.add_define("USE_MQTT_SECURE_CLIENT")
+        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add_define("USE_MQTT_SECURE_CLIENT")
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
-        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
         if CONF_CLIENT_CERTIFICATE in config:
             cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
