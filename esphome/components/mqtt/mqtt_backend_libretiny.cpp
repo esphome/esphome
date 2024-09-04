@@ -1,7 +1,7 @@
-#include "mqtt_backend_esp8266.h"
+#include "mqtt_backend_libretiny.h"
 
 #ifdef USE_MQTT
-#ifdef USE_ESP8266
+#ifdef USE_LIBRETINY
 
 #include <string>
 
@@ -10,46 +10,27 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *const TAG = "mqtt-backend-esp8266";
+static const char *const TAG = "mqtt-backend-libretiny";
 
-void MQTTBackendESP8266::on_mqtt_message_wrapper_(MQTTClient *client, char topic[], char bytes[], int length) {
-  static_cast<MQTTBackendESP8266 *>(client->ref)->on_mqtt_message_(client, topic, bytes, length);
+void MQTTBackendLibreTiny::on_mqtt_message_wrapper_(MQTTClient *client, char topic[], char bytes[], int length) {
+  static_cast<MQTTBackendLibreTiny *>(client->ref)->on_mqtt_message_(client, topic, bytes, length);
 }
 
-void MQTTBackendESP8266::on_mqtt_message_(MQTTClient *client, char topic[], char bytes[], int length) {
+void MQTTBackendLibreTiny::on_mqtt_message_(MQTTClient *client, char topic[], char bytes[], int length) {
   this->on_message_.call(topic, bytes, length, 0, length);
 }
 
-void MQTTBackendESP8266::initialize_() {
-#ifdef USE_MQTT_SECURE_CLIENT
-  if (this->ca_certificate_str_.has_value()) {
-    this->ca_certificate_.append(this->ca_certificate_str_.value().c_str());
-    this->wifi_client_.setTrustAnchors(&this->ca_certificate_);
-  }
-  if (this->ssl_fingerprint_.has_value()) {
-    this->wifi_client_.setFingerprint(this->ssl_fingerprint_.value().data());
-  }
-  if (this->skip_cert_cn_check_) {
-    this->wifi_client_.setInsecure();
-  }
-#endif
-
+void MQTTBackendLibreTiny::initialize_() {
   this->mqtt_client_.ref = this;
-  mqtt_client_.onMessageAdvanced(MQTTBackendESP8266::on_mqtt_message_wrapper_);
+  mqtt_client_.onMessageAdvanced(MQTTBackendLibreTiny::on_mqtt_message_wrapper_);
   this->is_initalized_ = true;
 }
 
-void MQTTBackendESP8266::handleErrors_() {
+void MQTTBackendLibreTiny::handleErrors_() {
   lwmqtt_err_t error = this->mqtt_client_.lastError();
   lwmqtt_return_code_t return_code = this->mqtt_client_.returnCode();
   if (error != LWMQTT_SUCCESS) {
     ESP_LOGD(TAG, "Error: %d, returnCode: %d", error, return_code);
-
-    char buffer[128];
-    int code = this->wifi_client_.getLastSSLError(buffer, sizeof(buffer));
-    if (code != 0) {
-      ESP_LOGD(TAG, "SSL error code %d: %s", code, buffer);
-    }
 
     MQTTClientDisconnectReason reason = MQTTClientDisconnectReason::TCP_DISCONNECTED;
 
@@ -82,7 +63,7 @@ void MQTTBackendESP8266::handleErrors_() {
   }
 }
 
-void MQTTBackendESP8266::connect() {
+void MQTTBackendLibreTiny::connect() {
   if (!this->is_initalized_) {
     this->initialize_();
   }
@@ -91,7 +72,7 @@ void MQTTBackendESP8266::connect() {
   this->handleErrors_();
 }
 
-void MQTTBackendESP8266::loop() {
+void MQTTBackendLibreTiny::loop() {
   this->mqtt_client_.loop();
   if (!this->is_connected_ && this->mqtt_client_.connected()) {
     this->is_connected_ = true;
