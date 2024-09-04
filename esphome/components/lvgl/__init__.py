@@ -21,9 +21,9 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .automation import disp_update, update_to_code
-from .defines import CONF_SKIP
-from .encoders import ENCODERS_CONFIG, encoders_to_code
+from .automation import disp_update, focused_widgets, update_to_code
+from .defines import CONF_ADJUSTABLE, CONF_SKIP
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
 from .schemas import (
@@ -47,6 +47,7 @@ from .types import (
     IdleTrigger,
     ObjUpdateAction,
     lv_font_t,
+    lv_group_t,
     lv_style_t,
     lvgl_ns,
 )
@@ -66,7 +67,7 @@ from .widgets.lv_bar import bar_spec
 from .widgets.meter import meter_spec
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
 from .widgets.obj import obj_spec
-from .widgets.page import add_pages, page_spec
+from .widgets.page import add_pages, generate_page_triggers, page_spec
 from .widgets.roller import roller_spec
 from .widgets.slider import slider_spec
 from .widgets.spinbox import spinbox_spec
@@ -181,6 +182,14 @@ def final_validation(config):
             raise cv.Invalid(
                 "Using RGBA or RGB24 in image config not compatible with LVGL", path
             )
+    for w in focused_widgets:
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if CONF_ADJUSTABLE in widget_conf and not widget_conf[CONF_ADJUSTABLE]:
+            raise cv.Invalid(
+                "A non adjustable arc may not be focused",
+                path,
+            )
 
 
 async def to_code(config):
@@ -265,12 +274,17 @@ async def to_code(config):
         await add_top_layer(config)
         await msgboxes_to_code(config)
         await disp_update(f"{lv_component}->get_disp()", config)
-        Widget.set_completed()
+    # At this point only the setup code should be generated
+    assert LvContext.added_lambda_count == 1
+    Widget.set_completed()
+    async with LvContext(lv_component):
         await generate_triggers(lv_component)
+        await generate_page_triggers(lv_component, config)
         for conf in config.get(CONF_ON_IDLE, ()):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
             await build_automation(idle_trigger, [], conf)
+        await initial_focus_to_code(config)
 
     for comp in helpers.lvgl_components_required:
         CORE.add_define(f"USE_LVGL_{comp.upper()}")
@@ -313,6 +327,8 @@ CONFIG_SCHEMA = (
                     {
                         cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
                         cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                        cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                        cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
                     }
                 )
             ),
@@ -335,8 +351,9 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
-            cv.GenerateID(df.CONF_TOUCHSCREENS): touchscreen_schema,
-            cv.GenerateID(df.CONF_ENCODERS): ENCODERS_CONFIG,
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
         }
     )
     .extend(DISP_BG_SCHEMA)

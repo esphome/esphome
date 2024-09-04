@@ -13,6 +13,7 @@ display:
     cs_pin: 12
     dc_pin: 13
     reset_pin: 21
+    invert_colors: true
     lambda: |-
       it.fill(Color(0, 0, 0));
       it.image(0, 0, id(online_rgba_image));
