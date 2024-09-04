@@ -61,8 +61,6 @@ def DEPENDENCIES():
 
 
 def AUTO_LOAD():
-    if CORE.is_esp8266 or CORE.is_libretiny:
-        return ["async_tcp", "json"]
     return ["json"]
 
 
