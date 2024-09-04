@@ -41,20 +41,33 @@ static const uint32_t BL0942_REG_MODE_DEFAULT =
 static const uint32_t BL0942_REG_SOFT_RESET_MAGIC = 0x5a5a5a;
 static const uint32_t BL0942_REG_USR_WRPROT_MAGIC = 0x55;
 
+// 23-byte packet, 11 bits per byte, 2400 baud: about 105ms
+static const uint32_t PKT_TIMEOUT_MS = 200;
+
 void BL0942::loop() {
   DataPacket buffer;
-  if (!this->available()) {
+  int avail = this->available();
+
+  if (!avail) {
     return;
   }
+  if (avail < sizeof(buffer)) {
+    if (!this->rx_start_) {
+      this->rx_start_ = millis();
+    } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%d bytes)", avail);
+      this->read_array((uint8_t *) &buffer, avail);
+      this->rx_start_ = 0;
+    }
+    return;
+  }
+
   if (this->read_array((uint8_t *) &buffer, sizeof(buffer))) {
     if (this->validate_checksum_(&buffer)) {
       this->received_package_(&buffer);
     }
-  } else {
-    ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
-    while (read() >= 0)
-      ;
   }
+  this->rx_start_ = 0;
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
@@ -133,10 +146,17 @@ void BL0942::received_package_(DataPacket *data) {
     return;
   }
 
+  // cf_cnt is only 24 bits, so track overflows
+  uint32_t cf_cnt = (uint24_t) data->cf_cnt;
+  cf_cnt |= this->prev_cf_cnt_ & 0xff000000;
+  if (cf_cnt < this->prev_cf_cnt_) {
+    cf_cnt += 0x1000000;
+  }
+  this->prev_cf_cnt_ = cf_cnt;
+
   float v_rms = (uint24_t) data->v_rms / voltage_reference_;
   float i_rms = (uint24_t) data->i_rms / current_reference_;
   float watt = (int24_t) data->watt / power_reference_;
-  uint32_t cf_cnt = (uint24_t) data->cf_cnt;
   float total_energy_consumption = cf_cnt / energy_reference_;
   float frequency = 1000000.0f / data->frequency;
 
