@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_OTA
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/ota/ota_backend.h"
@@ -41,3 +42,4 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
 };
 
 }  // namespace esphome
+#endif

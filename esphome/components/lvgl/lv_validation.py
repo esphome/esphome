@@ -1,17 +1,14 @@
 from typing import Union
 
 import esphome.codegen as cg
-from esphome.components.binary_sensor import BinarySensor
 from esphome.components.color import ColorStruct
 from esphome.components.font import Font
 from esphome.components.image import Image_
-from esphome.components.sensor import Sensor
-from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_VALUE
-from esphome.core import HexInt
+from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_TIME, CONF_VALUE
+from esphome.core import HexInt, Lambda
 from esphome.cpp_generator import MockObj
-from esphome.cpp_types import uint32
+from esphome.cpp_types import ESPTime, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
@@ -19,9 +16,11 @@ from . import types as ty
 from .defines import (
     CONF_END_VALUE,
     CONF_START_VALUE,
+    CONF_TIME_FORMAT,
     LV_FONTS,
     LValidator,
     LvConstant,
+    call_lambda,
     literal,
 )
 from .helpers import (
@@ -53,9 +52,7 @@ opacity = LValidator(opacity_validator, uint32, retmapper=literal)
 def color(value):
     if value == SCHEMA_EXTRACT:
         return ["hex color value", "color ID"]
-    if isinstance(value, int):
-        return value
-    return cv.use_id(ColorStruct)(value)
+    return cv.Any(cv.int_, cv.use_id(ColorStruct))(value)
 
 
 def color_retmapper(value):
@@ -83,10 +80,10 @@ def pixels_or_percent_validator(value):
     """A length in one axis - either a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
         return ["pixels", "..%"]
+    value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
-        return cv.int_(value)
-    # Will throw an exception if not a percentage.
-    return f"lv_pct({int(cv.percentage(value) * 100)})"
+        return value
+    return f"lv_pct({int(value * 100)})"
 
 
 pixels_or_percent = LValidator(pixels_or_percent_validator, uint32, retmapper=literal)
@@ -110,20 +107,26 @@ def angle(value):
 def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
-        return ["size_content", "pixels", "..%"]
+        return ["SIZE_CONTENT", "number of pixels", "percentage"]
     if isinstance(value, str) and value.lower().endswith("px"):
         value = cv.int_(value[:-2])
     if isinstance(value, str) and not value.endswith("%"):
         if value.upper() == "SIZE_CONTENT":
             return "LV_SIZE_CONTENT"
-        raise cv.Invalid("must be 'size_content', a pixel position or a percentage")
-    if isinstance(value, int):
-        return cv.int_(value)
-    # Will throw an exception if not a percentage.
-    return f"lv_pct({int(cv.percentage(value) * 100)})"
+        raise cv.Invalid("must be 'size_content', a percentage or an integer (pixels)")
+    return pixels_or_percent_validator(value)
 
 
 size = LValidator(size_validator, uint32, retmapper=literal)
+
+
+def pixels_validator(value):
+    if isinstance(value, str) and value.lower().endswith("px"):
+        return cv.int_(value[:-2])
+    return cv.int_(value)
+
+
+pixels = LValidator(pixels_validator, uint32, retmapper=literal)
 
 radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 
@@ -167,9 +170,7 @@ lv_image = LValidator(
     retmapper=lambda x: lv_expr.img_from(MockObj(x)),
     requires="image",
 )
-lv_bool = LValidator(
-    cv.boolean, cg.bool_, BinarySensor, "get_state()", retmapper=literal
-)
+lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
 
 
 def lv_pct(value: Union[int, float]):
@@ -185,42 +186,60 @@ def lvms_validator_(value):
 
 
 lv_milliseconds = LValidator(
-    lvms_validator_,
-    cg.int32,
-    retmapper=lambda x: x.total_milliseconds,
+    lvms_validator_, cg.int32, retmapper=lambda x: x.total_milliseconds
 )
 
 
 class TextValidator(LValidator):
     def __init__(self):
-        super().__init__(
-            cv.string,
-            cg.const_char_ptr,
-            TextSensor,
-            "get_state().c_str()",
-            lambda s: cg.safe_exp(f"{s}"),
-        )
+        super().__init__(cv.string, cg.std_string, lambda s: cg.safe_exp(f"{s}"))
 
     def __call__(self, value):
-        if isinstance(value, dict):
+        if isinstance(value, dict) and CONF_FORMAT in value:
             return value
         return super().__call__(value)
 
     async def process(self, value, args=()):
         if isinstance(value, dict):
-            args = [str(x) for x in value[CONF_ARGS]]
-            arg_expr = cg.RawExpression(",".join(args))
-            format_str = cpp_string_escape(value[CONF_FORMAT])
-            return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+            if format_str := value.get(CONF_FORMAT):
+                args = [str(x) for x in value[CONF_ARGS]]
+                arg_expr = cg.RawExpression(",".join(args))
+                format_str = cpp_string_escape(format_str)
+                return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+            if time_format := value.get(CONF_TIME_FORMAT):
+                source = value[CONF_TIME]
+                if isinstance(source, Lambda):
+                    time_format = cpp_string_escape(time_format)
+                    return cg.RawExpression(
+                        call_lambda(
+                            await cg.process_lambda(source, args, return_type=ESPTime)
+                        )
+                        + f".strftime({time_format}).c_str()"
+                    )
+                # must be an ID
+                source = await cg.get_variable(source)
+                return source.now().strftime(time_format).c_str()
+        if isinstance(value, Lambda):
+            value = call_lambda(
+                await cg.process_lambda(value, args, return_type=self.rtype)
+            )
+
+            # Was the lambda call reduced to a string?
+            if value.endswith("c_str()") or (
+                value.endswith('"') and value.startswith('"')
+            ):
+                pass
+            else:
+                # Either a std::string or a lambda call returning that. We need const char*
+                value = f"({value}).c_str()"
+            return cg.RawExpression(value)
         return await super().process(value, args)
 
 
 lv_text = TextValidator()
-lv_float = LValidator(cv.float_, cg.float_, Sensor, "get_state()")
-lv_int = LValidator(cv.int_, cg.int_, Sensor, "get_state()")
-lv_brightness = LValidator(
-    cv.percentage, cg.float_, Sensor, "get_state()", retmapper=lambda x: int(x * 255)
-)
+lv_float = LValidator(cv.float_, cg.float_)
+lv_int = LValidator(cv.int_, cg.int_)
+lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
 
 
 def is_lv_font(font):

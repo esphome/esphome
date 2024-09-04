@@ -1,9 +1,10 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_WIFI
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include <string>
@@ -443,3 +444,4 @@ template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
 
 }  // namespace wifi
 }  // namespace esphome
+#endif

@@ -1,6 +1,7 @@
 #include "wifi_component.h"
 #include "esphome/core/defines.h"
 
+#ifdef USE_WIFI
 #ifdef USE_ESP8266
 
 #include <user_interface.h>
@@ -833,4 +834,5 @@ void WiFiComponent::wifi_loop_() {}
 }  // namespace wifi
 }  // namespace esphome
 
+#endif
 #endif

@@ -175,16 +175,18 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // check if this command is already qeued.
-  // not very effective but the queue is never really large
-  for (auto &item : command_queue_) {
-    if (item->is_equal(command)) {
-      ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
-               static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
-      // update the payload of the queued command
-      // replaces a previous command
-      item->payload = command.payload;
-      return;
+  if (!this->allow_duplicate_commands_) {
+    // check if this command is already qeued.
+    // not very effective but the queue is never really large
+    for (auto &item : command_queue_) {
+      if (item->is_equal(command)) {
+        ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
+                 static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
+        // update the payload of the queued command
+        // replaces a previous command
+        item->payload = command.payload;
+        return;
+      }
     }
   }
   command_queue_.push_back(make_unique<ModbusCommandItem>(command));

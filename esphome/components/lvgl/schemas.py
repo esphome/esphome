@@ -1,5 +1,6 @@
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.time import RealTimeClock
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
@@ -8,17 +9,27 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
+    CONF_TIME,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
 from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
-from . import defines as df, lv_validation as lvalid, types as ty
+from . import defines as df, lv_validation as lvalid
+from .defines import CONF_TIME_FORMAT
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_image
-from .lvcode import LvglComponent
-from .types import WidgetType, lv_group_t
+from .lvcode import LvglComponent, lv_event_t_ptr
+from .types import (
+    LVEncoderListener,
+    LvType,
+    WidgetType,
+    lv_group_t,
+    lv_obj_t,
+    lv_pseudo_button_t,
+    lv_style_t,
+)
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
@@ -38,7 +49,13 @@ TEXT_SCHEMA = cv.Schema(
                 ),
                 validate_printf,
             ),
-            lvalid.lv_text,
+            cv.Schema(
+                {
+                    cv.Required(CONF_TIME_FORMAT): cv.string,
+                    cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
+                }
+            ),
+            cv.templatable(cv.string),
         )
     }
 )
@@ -46,7 +63,7 @@ TEXT_SCHEMA = cv.Schema(
 LIST_ACTION_SCHEMA = cv.ensure_list(
     cv.maybe_simple_value(
         {
-            cv.Required(CONF_ID): cv.use_id(ty.lv_pseudo_button_t),
+            cv.Required(CONF_ID): cv.use_id(lv_pseudo_button_t),
         },
         key=CONF_ID,
     )
@@ -59,9 +76,10 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(ty.LVEncoderListener), requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
+        cv.Optional(df.CONF_INITIAL_FOCUS): cv.use_id(lv_obj_t),
         cv.Optional(df.CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(df.CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
     }
@@ -94,6 +112,7 @@ STYLE_PROPS = {
     ).several_of,
     "border_width": cv.positive_int,
     "clip_corner": lvalid.lv_bool,
+    "color_filter_opa": lvalid.opacity,
     "height": lvalid.size,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
@@ -106,15 +125,13 @@ STYLE_PROPS = {
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
-    "outline_pad": lvalid.size,
-    "outline_width": lvalid.size,
-    "pad_all": lvalid.size,
-    "pad_bottom": lvalid.size,
-    "pad_column": lvalid.size,
-    "pad_left": lvalid.size,
-    "pad_right": lvalid.size,
-    "pad_row": lvalid.size,
-    "pad_top": lvalid.size,
+    "outline_pad": lvalid.pixels,
+    "outline_width": lvalid.pixels,
+    "pad_all": lvalid.pixels,
+    "pad_bottom": lvalid.pixels,
+    "pad_left": lvalid.pixels,
+    "pad_right": lvalid.pixels,
+    "pad_top": lvalid.pixels,
     "shadow_color": lvalid.lv_color,
     "shadow_ofs_x": cv.int_,
     "shadow_ofs_y": cv.int_,
@@ -161,7 +178,7 @@ STYLE_REMAP = {
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
     {
-        cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(ty.lv_style_t)),
+        cv.Optional(df.CONF_STYLES): cv.ensure_list(cv.use_id(lv_style_t)),
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
@@ -193,19 +210,17 @@ def part_schema(widget_type: WidgetType):
     )
 
 
-def automation_schema(typ: ty.LvType):
+def automation_schema(typ: LvType):
     if typ.has_on_value:
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
     else:
         events = df.LV_EVENT_TRIGGERS
-    if isinstance(typ, ty.LvType):
-        template = Trigger.template(typ.get_arg_type())
-    else:
-        template = Trigger.template()
+    args = [typ.get_arg_type()] if isinstance(typ, LvType) else []
+    args.append(lv_event_t_ptr)
     return {
         cv.Optional(event): validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
             }
         )
         for event in events
@@ -261,7 +276,7 @@ LAYOUT_SCHEMAS = {}
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(ty.lv_obj_t),
+            cv.Required(CONF_ID): cv.use_id(lv_obj_t),
             cv.Required(df.CONF_ALIGN): df.ALIGN_ALIGNMENTS.one_of,
             cv.Optional(df.CONF_X, default=0): lvalid.pixels_or_percent,
             cv.Optional(df.CONF_Y, default=0): lvalid.pixels_or_percent,
@@ -294,6 +309,8 @@ LAYOUT_SCHEMA = {
                 cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
                 cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
                 cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
             },
             df.TYPE_FLEX: {
                 cv.Optional(
@@ -302,6 +319,8 @@ LAYOUT_SCHEMA = {
                 cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
             },
         },
         lower=True,
@@ -328,7 +347,6 @@ DISP_BG_SCHEMA = cv.Schema(
     }
 )
 
-
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
     STYLE_SCHEMA.extend(TEXT_SCHEMA), key=CONF_TEXT
@@ -341,7 +359,13 @@ LVGL_SCHEMA = cv.Schema(
     }
 )
 
-ALL_STYLES = {**STYLE_PROPS, **GRID_CELL_SCHEMA, **FLEX_OBJ_SCHEMA}
+ALL_STYLES = {
+    **STYLE_PROPS,
+    **GRID_CELL_SCHEMA,
+    **FLEX_OBJ_SCHEMA,
+    cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+    cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+}
 
 
 def container_validator(schema, widget_type: WidgetType):
