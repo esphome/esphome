@@ -117,9 +117,9 @@ async def to_code(config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     if (current_reference := config.get(CONF_CURRENT_REFERENCE, None)) is not None:
         cg.add(var.set_current_reference(current_reference))
-    if config.get(CONF_ENERGY_REFERENCE):
-        cg.add(var.set_energy_reference(config[CONF_ENERGY_REFERENCE]))
-    if config.get(CONF_POWER_REFERENCE):
-        cg.add(var.set_power_reference(config[CONF_POWER_REFERENCE]))
-    if config.get(CONF_VOLTAGE_REFERENCE):
-        cg.add(var.set_voltage_reference(config[CONF_VOLTAGE_REFERENCE]))
+    if (voltage_reference := config.get(CONF_VOLTAGE_REFERENCE, None)) is not None:
+        cg.add(var.set_voltage_reference(voltage_reference))
+    if (power_reference := config.get(CONF_POWER_REFERENCE, None)) is not None:
+        cg.add(var.set_power_reference(power_reference))
+    if (energy_reference := config.get(CONF_ENERGY_REFERENCE, None)) is not None:
+        cg.add(var.set_energy_reference(energy_reference))
