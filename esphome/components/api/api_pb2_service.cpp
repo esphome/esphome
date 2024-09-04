@@ -493,7 +493,7 @@ bool APIServerConnectionBase::send_voice_assistant_announce_finished(const Voice
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_voice_assistant_announce_finished: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<VoiceAssistantAnnounceFinished>(msg, 121);
+  return this->send_message_<VoiceAssistantAnnounceFinished>(msg, 120);
 }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -1149,17 +1149,6 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 119: {
-#ifdef USE_MEDIA_PLAYER
-      MediaPlayerSupportedFormat msg;
-      msg.decode(msg_data, msg_size);
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_media_player_supported_format: %s", msg.dump().c_str());
-#endif
-      this->on_media_player_supported_format(msg);
-#endif
-      break;
-    }
-    case 120: {
 #ifdef USE_VOICE_ASSISTANT
       VoiceAssistantAnnounceRequest msg;
       msg.decode(msg_data, msg_size);

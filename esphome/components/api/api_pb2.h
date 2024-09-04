@@ -1839,28 +1839,12 @@ class VoiceAssistantAnnounceRequest : public ProtoMessage {
 };
 class VoiceAssistantAnnounceFinished : public ProtoMessage {
  public:
-  std::string media_id{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-};
-class VoiceAssistantTextToSpeechFormat : public ProtoMessage {
- public:
-  std::string format{};
-  uint32_t sample_rate{0};
-  uint32_t num_channels{0};
-  void encode(ProtoWriteBuffer buffer) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
  public:

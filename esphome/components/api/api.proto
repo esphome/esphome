@@ -1554,7 +1554,7 @@ message VoiceAssistantTimerEventResponse {
 }
 
 message VoiceAssistantAnnounceRequest {
-  option (id) = 120;
+  option (id) = 119;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
@@ -1563,11 +1563,9 @@ message VoiceAssistantAnnounceRequest {
 }
 
 message VoiceAssistantAnnounceFinished {
-  option (id) = 121;
+  option (id) = 120;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_VOICE_ASSISTANT";
-
-  string media_id = 1;
 }
 
 // ==================== ALARM CONTROL PANEL ====================
