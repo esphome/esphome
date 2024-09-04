@@ -7,10 +7,69 @@
 
 #include "opentherm.h"
 
+#ifdef OPENTHERM_USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+
+#ifdef OPENTHERM_USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
+#ifdef OPENTHERM_USE_SWITCH
+#include "esphome/components/opentherm/switch/switch.h"
+#endif
+
+#ifdef OPENTHERM_USE_OUTPUT
+#include "esphome/components/opentherm/output/output.h"
+#endif
+
+#ifdef OPENTHERM_USE_NUMBER
+#include "esphome/components/opentherm/number/number.h"
+#endif
+
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+
+// Ensure that all component macros are defined, even if the component is not used
+#ifndef OPENTHERM_SENSOR_LIST
+#define OPENTHERM_SENSOR_LIST(F, sep)
+#endif
+#ifndef OPENTHERM_BINARY_SENSOR_LIST
+#define OPENTHERM_BINARY_SENSOR_LIST(F, sep)
+#endif
+#ifndef OPENTHERM_SWITCH_LIST
+#define OPENTHERM_SWITCH_LIST(F, sep)
+#endif
+#ifndef OPENTHERM_NUMBER_LIST
+#define OPENTHERM_NUMBER_LIST(F, sep)
+#endif
+#ifndef OPENTHERM_OUTPUT_LIST
+#define OPENTHERM_OUTPUT_LIST(F, sep)
+#endif
+#ifndef OPENTHERM_INPUT_SENSOR_LIST
+#define OPENTHERM_INPUT_SENSOR_LIST(F, sep)
+#endif
+
+#ifndef OPENTHERM_SENSOR_MESSAGE_HANDLERS
+#define OPENTHERM_SENSOR_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
+#endif
+#ifndef OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS
+#define OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
+#endif
+#ifndef OPENTHERM_SWITCH_MESSAGE_HANDLERS
+#define OPENTHERM_SWITCH_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
+#endif
+#ifndef OPENTHERM_NUMBER_MESSAGE_HANDLERS
+#define OPENTHERM_NUMBER_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
+#endif
+#ifndef OPENTHERM_OUTPUT_MESSAGE_HANDLERS
+#define OPENTHERM_OUTPUT_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
+#endif
+#ifndef OPENTHERM_INPUT_SENSOR_MESSAGE_HANDLERS
+#define OPENTHERM_INPUT_SENSOR_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
+#endif
 
 namespace esphome {
 namespace opentherm {
@@ -22,6 +81,25 @@ class OpenthermHub : public Component {
   InternalGPIOPin *in_pin_, *out_pin_;
   // The OpenTherm interface
   std::unique_ptr<OpenTherm> opentherm_;
+
+// Use macros to create fields for every entity specified in the ESPHome configuration
+#define OPENTHERM_DECLARE_SENSOR(entity) sensor::Sensor *entity;
+  OPENTHERM_SENSOR_LIST(OPENTHERM_DECLARE_SENSOR, )
+
+#define OPENTHERM_DECLARE_BINARY_SENSOR(entity) binary_sensor::BinarySensor *entity;
+  OPENTHERM_BINARY_SENSOR_LIST(OPENTHERM_DECLARE_BINARY_SENSOR, )
+
+#define OPENTHERM_DECLARE_SWITCH(entity) OpenthermSwitch *entity;
+  OPENTHERM_SWITCH_LIST(OPENTHERM_DECLARE_SWITCH, )
+
+#define OPENTHERM_DECLARE_NUMBER(entity) OpenthermNumber *entity;
+  OPENTHERM_NUMBER_LIST(OPENTHERM_DECLARE_NUMBER, )
+
+#define OPENTHERM_DECLARE_OUTPUT(entity) OpenthermOutput *entity;
+  OPENTHERM_OUTPUT_LIST(OPENTHERM_DECLARE_OUTPUT, )
+
+#define OPENTHERM_DECLARE_INPUT_SENSOR(entity) sensor::Sensor *entity;
+  OPENTHERM_INPUT_SENSOR_LIST(OPENTHERM_DECLARE_INPUT_SENSOR, )
 
   // The set of initial messages to send on starting communication with the boiler
   std::unordered_set<MessageId> initial_messages_;
@@ -77,6 +155,30 @@ class OpenthermHub : public Component {
   // Setters for the input and output OpenTherm interface pins
   void set_in_pin(InternalGPIOPin *in_pin) { this->in_pin_ = in_pin; }
   void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin_ = out_pin; }
+
+#define OPENTHERM_SET_SENSOR(entity) \
+  void set_##entity(sensor::Sensor *sensor) { this->entity = sensor; }
+  OPENTHERM_SENSOR_LIST(OPENTHERM_SET_SENSOR, )
+
+#define OPENTHERM_SET_BINARY_SENSOR(entity) \
+  void set_##entity(binary_sensor::BinarySensor *binary_sensor) { this->entity = binary_sensor; }
+  OPENTHERM_BINARY_SENSOR_LIST(OPENTHERM_SET_BINARY_SENSOR, )
+
+#define OPENTHERM_SET_SWITCH(entity) \
+  void set_##entity(OpenthermSwitch *sw) { this->entity = sw; }
+  OPENTHERM_SWITCH_LIST(OPENTHERM_SET_SWITCH, )
+
+#define OPENTHERM_SET_NUMBER(entity) \
+  void set_##entity(OpenthermNumber *number) { this->entity = number; }
+  OPENTHERM_NUMBER_LIST(OPENTHERM_SET_NUMBER, )
+
+#define OPENTHERM_SET_OUTPUT(entity) \
+  void set_##entity(OpenthermOutput *output) { this->entity = output; }
+  OPENTHERM_OUTPUT_LIST(OPENTHERM_SET_OUTPUT, )
+
+#define OPENTHERM_SET_INPUT_SENSOR(entity) \
+  void set_##entity(sensor::Sensor *sensor) { this->entity = sensor; }
+  OPENTHERM_INPUT_SENSOR_LIST(OPENTHERM_SET_INPUT_SENSOR, )
 
   // Add a request to the set of initial requests
   void add_initial_message(MessageId message_id) { this->initial_messages_.insert(message_id); }
