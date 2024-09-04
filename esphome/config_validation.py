@@ -1,13 +1,13 @@
 """Helpers for config validation using voluptuous."""
 
+from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 import logging
 import os
 import re
-from contextlib import contextmanager
-import uuid as uuid_
-from datetime import datetime
 from string import ascii_letters, digits
+import uuid as uuid_
 
 import voluptuous as vol
 
@@ -17,37 +17,37 @@ from esphome.config_helpers import Extend, Remove
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
-    CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
+    CONF_COMMAND_TOPIC,
+    CONF_DAY,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
+    CONF_HOUR,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MINUTE,
+    CONF_MONTH,
     CONF_NAME,
+    CONF_PASSWORD,
+    CONF_PATH,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
-    CONF_RETAIN,
     CONF_QOS,
+    CONF_REF,
+    CONF_RETAIN,
+    CONF_SECOND,
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_TOPIC,
-    CONF_YEAR,
-    CONF_MONTH,
-    CONF_DAY,
-    CONF_HOUR,
-    CONF_MINUTE,
-    CONF_SECOND,
-    CONF_VALUE,
-    CONF_UPDATE_INTERVAL,
-    CONF_TYPE_ID,
     CONF_TYPE,
-    CONF_REF,
+    CONF_TYPE_ID,
+    CONF_UPDATE_INTERVAL,
     CONF_URL,
-    CONF_PATH,
     CONF_USERNAME,
-    CONF_PASSWORD,
+    CONF_VALUE,
+    CONF_YEAR,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
@@ -71,15 +71,15 @@ from esphome.core import (
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
+    TimePeriodMinutes,
     TimePeriodNanoseconds,
     TimePeriodSeconds,
-    TimePeriodMinutes,
 )
-from esphome.helpers import list_starts_with, add_class_to_obj
+from esphome.helpers import add_class_to_obj, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
-    schema_extractor_list,
     schema_extractor,
+    schema_extractor_list,
     schema_extractor_registry,
     schema_extractor_typed,
 )
@@ -91,7 +91,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=consider-using-f-string
 VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
 )
 
 # pylint: disable=invalid-name
@@ -267,6 +267,10 @@ class Required(vol.Required):
         super().__init__(key, msg=msg)
 
 
+class FinalExternalInvalid(Invalid):
+    """Represents an invalid value in the final validation phase where the path should not be prepended."""
+
+
 def check_not_templatable(value):
     if isinstance(value, Lambda):
         raise Invalid("This option is not templatable!")
@@ -366,6 +370,20 @@ def boolean(value):
     )
 
 
+def boolean_false(value):
+    """Validate the given config option to be a boolean, set to False.
+
+    This option allows a bunch of different ways of expressing boolean values:
+     - instance of boolean
+     - 'true'/'false'
+     - 'yes'/'no'
+     - 'enable'/disable
+    """
+    if boolean(value):
+        raise Invalid("Expected boolean value to be false")
+    return False
+
+
 @schema_extractor_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
@@ -460,6 +478,7 @@ zero_to_one_float = float_range(min=0, max=1)
 negative_one_to_one_float = float_range(min=-1, max=1)
 positive_int = int_range(min=0)
 positive_not_null_int = int_range(min=0, min_included=False)
+positive_not_null_float = float_range(min=0, min_included=False)
 
 
 def validate_id_name(value):
@@ -821,57 +840,49 @@ positive_not_null_time_period = All(
 
 
 def time_of_day(value):
-    return date_time(allowed_date=False, allowed_time=True)(value)
+    return date_time(date=False, time=True)(value)
 
 
-def date_time(allowed_date: bool = True, allowed_time: bool = True):
-
+def date_time(date: bool, time: bool):
     pattern_str = r"^"  # Start of string
-    if allowed_date:
+    if date:
+        pattern_str += r"\d{4}-\d{1,2}-\d{1,2}"
+        if time:
+            pattern_str += r" "
+    if time:
         pattern_str += (
-            r"("  # 1. Optional Date group
-            r"\d{4}-\d{1,2}-\d{1,2}"  # Date
-            r"(?:\s(?=.+))?"  # Space after date only if time is following
-            r")?"  # End optional Date group
-        )
-    if allowed_time:
-        pattern_str += (
-            r"("  # 2. Optional Time group
-            r"(\d{1,2}:\d{2})"  # 3. Hour/Minute
-            r"(:\d{2})?"  # 4. Seconds
-            r"("  # 5. Optional AM/PM group
-            r"(\s)?"  # 6. Optional Space
+            r"\d{1,2}:\d{2}"  # Hour/Minute
+            r"(:\d{2})?"  # 1. Seconds
+            r"("  # 2. Optional AM/PM group
+            r"(\s)?"  # 3. Optional Space
             r"(?:AM|PM|am|pm)"  # AM/PM string matching
             r")?"  # End optional AM/PM group
-            r")?"  # End optional Time group
         )
     pattern_str += r"$"  # End of string
 
     pattern = re.compile(pattern_str)
 
     exc_message = ""
-    if allowed_date:
+    if date:
         exc_message += "date"
-        if allowed_time:
-            exc_message += "/"
-    if allowed_time:
+    if time:
         exc_message += "time"
 
     schema = Schema({})
-    if allowed_date:
+    if date:
         schema = schema.extend(
             {
-                Optional(CONF_YEAR): int_range(min=1970, max=3000),
-                Optional(CONF_MONTH): int_range(min=1, max=12),
-                Optional(CONF_DAY): int_range(min=1, max=31),
+                Required(CONF_YEAR): int_range(min=1970, max=3000),
+                Required(CONF_MONTH): int_range(min=1, max=12),
+                Required(CONF_DAY): int_range(min=1, max=31),
             }
         )
-    if allowed_time:
+    if time:
         schema = schema.extend(
             {
-                Optional(CONF_HOUR): int_range(min=0, max=23),
-                Optional(CONF_MINUTE): int_range(min=0, max=59),
-                Optional(CONF_SECOND): int_range(min=0, max=59),
+                Required(CONF_HOUR): int_range(min=0, max=23),
+                Required(CONF_MINUTE): int_range(min=0, max=59),
+                Required(CONF_SECOND): int_range(min=0, max=59),
             }
         )
 
@@ -885,21 +896,21 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
             # pylint: disable=raise-missing-from
             raise Invalid(f"Invalid {exc_message}: {value}")
 
-        if allowed_date:
-            has_date = match[1] is not None
-        if allowed_time:
-            has_time = match[2] is not None
-            has_seconds = match[3] is not None
-            has_ampm = match[4] is not None
-            has_ampm_space = match[5] is not None
+        if time:
+            has_seconds = match[1] is not None
+            has_ampm = match[2] is not None
+            has_ampm_space = match[3] is not None
 
         format = ""
-        if allowed_date and has_date:
+        if date:
             format += "%Y-%m-%d"
-            if allowed_time and has_time:
+            if time:
                 format += " "
-        if allowed_time and has_time:
-            format += "%H:%M"
+        if time:
+            if has_ampm:
+                format += "%I:%M"
+            else:
+                format += "%H:%M"
             if has_seconds:
                 format += ":%S"
             if has_ampm_space:
@@ -914,12 +925,12 @@ def date_time(allowed_date: bool = True, allowed_time: bool = True):
             raise Invalid(f"Invalid {exc_message}: {err}")
 
         return_value = {}
-        if allowed_date and has_date:
+        if date:
             return_value[CONF_YEAR] = date_obj.year
             return_value[CONF_MONTH] = date_obj.month
             return_value[CONF_DAY] = date_obj.day
 
-        if allowed_time and has_time:
+        if time:
             return_value[CONF_HOUR] = date_obj.hour
             return_value[CONF_MINUTE] = date_obj.minute
             return_value[CONF_SECOND] = date_obj.second if has_seconds else 0
@@ -1690,9 +1701,9 @@ class SplitDefault(Optional):
         if CORE.is_esp32:
             from esphome.components.esp32 import get_esp32_variant
             from esphome.components.esp32.const import (
+                VARIANT_ESP32C3,
                 VARIANT_ESP32S2,
                 VARIANT_ESP32S3,
-                VARIANT_ESP32C3,
             )
 
             variant = get_esp32_variant()
@@ -1952,13 +1963,13 @@ def url(value):
     except ValueError as e:
         raise Invalid("Not a valid URL") from e
 
-    if not parsed.scheme or not parsed.netloc:
-        raise Invalid("Expected a URL scheme and host")
-    return parsed.geturl()
+    if parsed.scheme and parsed.netloc or parsed.scheme == "file":
+        return parsed.geturl()
+    raise Invalid("Expected a file scheme or a URL scheme with host")
 
 
 def git_ref(value):
-    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+    if re.match(r"[a-zA-Z0-9_./-]+", value) is None:
         raise Invalid("Not a valid git ref")
     return value
 
@@ -2034,6 +2045,7 @@ def require_framework_version(
     esp32_arduino=None,
     esp8266_arduino=None,
     rp2040_arduino=None,
+    host=None,
     max_version=False,
     extra_message=None,
 ):
@@ -2068,6 +2080,13 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = rp2040_arduino
+        elif CORE.is_host and framework == "host":
+            if host is None:
+                msg = "This feature is incompatible with host platform"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = host
         else:
             raise Invalid(
                 f"""
@@ -2124,6 +2143,7 @@ GIT_SCHEMA = Schema(
         Optional(CONF_REF): git_ref,
         Optional(CONF_USERNAME): string,
         Optional(CONF_PASSWORD): string,
+        Optional(CONF_PATH): string,
     }
 )
 LOCAL_SCHEMA = Schema(
@@ -2176,3 +2196,13 @@ SOURCE_SCHEMA = Any(
         }
     ),
 )
+
+
+def rename_key(old_key, new_key):
+    def validator(config: dict) -> dict:
+        config = config.copy()
+        if old_key in config:
+            config[new_key] = config.pop(old_key)
+        return config
+
+    return validator

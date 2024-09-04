@@ -334,6 +334,13 @@ void APIServer::on_event(event::Event *obj, const std::string &event_type) {
 }
 #endif
 
+#ifdef USE_UPDATE
+void APIServer::on_update(update::UpdateEntity *obj) {
+  for (auto &c : this->clients_)
+    c->send_update_state(obj);
+}
+#endif
+
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -352,8 +359,18 @@ void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<s
       .entity_id = std::move(entity_id),
       .attribute = std::move(attribute),
       .callback = std::move(f),
+      .once = false,
   });
 }
+void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                         std::function<void(std::string)> f) {
+  this->state_subs_.push_back(HomeAssistantStateSubscription{
+      .entity_id = std::move(entity_id),
+      .attribute = std::move(attribute),
+      .callback = std::move(f),
+      .once = true,
+  });
+};
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
 }

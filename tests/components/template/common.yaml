@@ -172,6 +172,7 @@ datetime:
     name: Date
     id: test_date
     type: date
+    initial_value: "2000-1-2"
     set_action:
       - logger.log: "set_value"
     on_value:
@@ -185,6 +186,7 @@ datetime:
     name: Time
     id: test_time
     type: time
+    initial_value: "12:34:56am"
     set_action:
       - logger.log: "set_value"
     on_value:
@@ -198,6 +200,7 @@ datetime:
     name: DateTime
     id: test_datetime
     type: datetime
+    initial_value: "2000-1-2 12:34:56"
     set_action:
       - logger.log: "set_value"
     on_value:

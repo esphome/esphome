@@ -24,7 +24,7 @@
 
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
-#define ALWAYS_INLINE __attribute__((always_inline))
+#define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
 // Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
@@ -155,7 +155,7 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 }
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
-uint8_t crc8(uint8_t *data, uint8_t len);
+uint8_t crc8(const uint8_t *data, uint8_t len);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
@@ -435,10 +435,6 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
-static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                        "abcdefghijklmnopqrstuvwxyz"
-                                        "0123456789+/";
-
 std::string base64_encode(const uint8_t *buf, size_t buf_len);
 std::string base64_encode(const std::vector<uint8_t> &buf);
 
@@ -684,7 +680,7 @@ template<class T> class ExternalRAMAllocator {
   }
 
  private:
-  Flags flags_{Flags::NONE};
+  Flags flags_{Flags::ALLOW_FAILURE};
 };
 
 /// @}

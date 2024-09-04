@@ -1,0 +1,15 @@
+esphome:
+  name: componenttestespbk72xx
+  friendly_name: $component_name
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

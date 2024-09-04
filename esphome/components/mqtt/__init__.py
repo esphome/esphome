@@ -1,10 +1,11 @@
 import re
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+import esphome.codegen as cg
 from esphome.components import logger
+from esphome.components.esp32 import add_idf_sdkconfig_option
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
     CONF_BIRTH_MESSAGE,
@@ -13,21 +14,21 @@ from esphome.const import (
     CONF_CLIENT_CERTIFICATE,
     CONF_CLIENT_CERTIFICATE_KEY,
     CONF_CLIENT_ID,
-    CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
+    CONF_COMMAND_TOPIC,
     CONF_DISCOVERY,
+    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
-    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
-    CONF_ON_JSON_MESSAGE,
-    CONF_ON_MESSAGE,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_ON_JSON_MESSAGE,
+    CONF_ON_MESSAGE,
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
@@ -45,17 +46,22 @@ from esphome.const import (
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
 )
-from esphome.core import coroutine_with_priority, CORE
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ["network"]
 
-AUTO_LOAD = ["json"]
 
+def AUTO_LOAD():
+    if CORE.is_esp8266 or CORE.is_libretiny:
+        return ["async_tcp", "json"]
+    return ["json"]
+
+
+CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 
@@ -104,6 +110,9 @@ MQTTDisconnectTrigger = mqtt_ns.class_(
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
 
+MQTTAlarmControlPanelComponent = mqtt_ns.class_(
+    "MQTTAlarmControlPanelComponent", MQTTComponent
+)
 MQTTBinarySensorComponent = mqtt_ns.class_("MQTTBinarySensorComponent", MQTTComponent)
 MQTTClimateComponent = mqtt_ns.class_("MQTTClimateComponent", MQTTComponent)
 MQTTCoverComponent = mqtt_ns.class_("MQTTCoverComponent", MQTTComponent)
@@ -121,6 +130,7 @@ MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
 MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
 MQTTEventComponent = mqtt_ns.class_("MQTTEventComponent", MQTTComponent)
+MQTTUpdateComponent = mqtt_ns.class_("MQTTUpdateComponent", MQTTComponent)
 MQTTValveComponent = mqtt_ns.class_("MQTTValveComponent", MQTTComponent)
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
@@ -219,6 +229,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
+            cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
@@ -322,8 +333,12 @@ async def to_code(config):
     discovery_prefix = config[CONF_DISCOVERY_PREFIX]
     discovery_unique_id_generator = config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
     discovery_object_id_generator = config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
+    discover_ip = config[CONF_DISCOVER_IP]
 
     if not discovery:
+        discovery_prefix = ""
+
+    if not discovery and not discover_ip:
         cg.add(var.disable_discovery())
     elif discovery == "CLEAN":
         cg.add(
@@ -332,6 +347,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
                 True,
             )
         )
@@ -342,6 +358,7 @@ async def to_code(config):
                 discovery_unique_id_generator,
                 discovery_object_id_generator,
                 discovery_retain,
+                discover_ip,
             )
         )
 

@@ -1,29 +1,31 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
+    CONF_CYCLE,
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
-    CONF_ID,
     CONF_ICON,
+    CONF_ID,
     CONF_MODE,
+    CONF_MQTT_ID,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_OPERATION,
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_MQTT_ID,
     CONF_VALUE,
-    CONF_OPERATION,
-    CONF_CYCLE,
+    CONF_WEB_SERVER_ID,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -69,8 +71,8 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
@@ -80,6 +82,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -167,26 +170,30 @@ NUMBER_OPERATION_OPTIONS = {
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.string_strict
 
-NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
-                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
-            },
-            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-        ),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-    }
+NUMBER_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                    cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
+                },
+                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+            ),
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
+            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+        }
+    )
 )
 
 _UNDEF = object()
@@ -248,6 +255,10 @@ async def setup_number_core_(
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
+
 
 async def register_number(
     var, config, *, min_value: float, max_value: float, step: float
@@ -293,7 +304,7 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_NUMBER")
     cg.add_global(number_ns.using)

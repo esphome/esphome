@@ -49,6 +49,7 @@ class TM1637Display : public PollingComponent {
   void set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_length(uint8_t length) { this->length_ = length; }
+  void set_on(bool on) { this->on_ = on; }
 
   void display();
 
@@ -76,6 +77,7 @@ class TM1637Display : public PollingComponent {
   uint8_t intensity_;
   uint8_t length_;
   bool inverted_;
+  bool on_{true};
   optional<tm1637_writer_t> writer_{};
   uint8_t buffer_[6] = {0};
 #ifdef USE_BINARY_SENSOR

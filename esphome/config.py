@@ -1,40 +1,38 @@
 from __future__ import annotations
+
 import abc
+from contextlib import contextmanager
+import contextvars
 import functools
 import heapq
 import logging
 import re
-
-from typing import Union, Any
-
-from contextlib import contextmanager
-import contextvars
+from typing import Any, Union
 
 import voluptuous as vol
 
-from esphome import core, yaml_util, loader, pins
-import esphome.core.config as core_config
+from esphome import core, loader, pins, yaml_util
+from esphome.config_helpers import Extend, Remove
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
-    CONF_ID,
-    CONF_PLATFORM,
-    CONF_PACKAGES,
-    CONF_SUBSTITUTIONS,
     CONF_EXTERNAL_COMPONENTS,
+    CONF_ID,
+    CONF_PACKAGES,
+    CONF_PLATFORM,
+    CONF_SUBSTITUTIONS,
     TARGET_PLATFORMS,
 )
-from esphome.core import CORE, EsphomeError
-from esphome.helpers import indent
-from esphome.util import safe_print, OrderedDict
-
-from esphome.config_helpers import Extend, Remove
-from esphome.loader import get_component, get_platform, ComponentManifest
-from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
-from esphome.voluptuous_schema import ExtraKeysInvalid
-from esphome.log import color, Fore
+from esphome.core import CORE, DocumentRange, EsphomeError
+import esphome.core.config as core_config
 import esphome.final_validate as fv
-import esphome.config_validation as cv
-from esphome.types import ConfigType, ConfigPathType, ConfigFragmentType
+from esphome.helpers import indent
+from esphome.loader import ComponentManifest, get_component, get_platform
+from esphome.log import Fore, color
+from esphome.types import ConfigFragmentType, ConfigType
+from esphome.util import OrderedDict, safe_print
+from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -139,7 +137,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         )
 
     def run_validation_steps(self):
-        while self._validation_tasks:
+        while self._validation_tasks and not self.errors:
             task = heapq.heappop(self._validation_tasks)
             task.step.run(self)
 
@@ -148,6 +146,8 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         path = path or []
         try:
             yield
+        except cv.FinalExternalInvalid as e:
+            self.add_error(e)
         except vol.Invalid as e:
             e.prepend(path)
             self.add_error(e)
@@ -182,7 +182,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
     def get_deepest_document_range_for_path(
         self, path: ConfigPath, get_key: bool = False
-    ) -> ESPHomeDataBase | None:
+    ) -> DocumentRange | None:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):
@@ -211,7 +211,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         return doc_range
 
     def get_nested_item(
-        self, path: ConfigPathType, raise_error: bool = False
+        self, path: ConfigPath, raise_error: bool = False
     ) -> ConfigFragmentType:
         data = self
         for item_index in path:
@@ -242,7 +242,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
                 return path
         raise KeyError(f"ID {id} not found in configuration")
 
-    def get_config_for_path(self, path: ConfigPathType) -> ConfigFragmentType:
+    def get_config_for_path(self, path: ConfigPath) -> ConfigFragmentType:
         return self.get_nested_item(path, raise_error=True)
 
     @property
@@ -883,6 +883,9 @@ def _get_parent_name(path, config):
                 # Sub-item
                 break
             return domain
+    # When processing a list, skip back over the index
+    while len(path) > 1 and isinstance(path[-1], int):
+        path = path[:-1]
     return path[-1]
 
 
@@ -1104,11 +1107,18 @@ def read_config(command_line_substitutions):
             if errline:
                 errstr += f" {errline}"
             safe_print(errstr)
-            safe_print(indent(dump_dict(res, path)[0]))
+            split_dump = dump_dict(res, path)[0].splitlines()
+            # find the last error message
+            i = len(split_dump) - 1
+            while i > 10 and "\033[" not in split_dump[i]:
+                i = i - 1
+            # discard lines more than 4 beyond the last error
+            i = min(i + 4, len(split_dump))
+            safe_print(indent("\n".join(split_dump[:i])))
 
         for err in res.errors:
             safe_print(color(Fore.BOLD_RED, err.msg))
             safe_print("")
 
         return None
-    return OrderedDict(res)
+    return res

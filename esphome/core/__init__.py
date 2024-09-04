@@ -7,26 +7,29 @@ from typing import TYPE_CHECKING, Optional, Union
 from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
-    CONF_USE_ADDRESS,
     CONF_ETHERNET,
+    CONF_PORT,
+    CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
-    CONF_PORT,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
-    PLATFORM_RP2040,
     PLATFORM_HOST,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 )
-from esphome.coroutine import FakeAwaitable as _FakeAwaitable
-from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 
 # pylint: disable=unused-import
-from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
+from esphome.coroutine import (  # noqa: F401
+    FakeAwaitable as _FakeAwaitable,
+    FakeEventLoop as _FakeEventLoop,
+    coroutine,
+    coroutine_with_priority,
+)
 from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
@@ -333,13 +336,15 @@ class ID:
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type: Optional["MockObjClass"] = type
+        self.type: Optional[MockObjClass] = type
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
 
         if self.id is None:
             base = str(self.type).replace("::", "_").lower()
+            if base == self.type:
+                base = base + "_id"
             name = "".join(c for c in base if c.isalnum() or c == "_")
             used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
             self.id = ensure_unique_string(name, used)
@@ -495,7 +500,7 @@ class EsphomeCore:
         # The relative path to where all build files are stored
         self.build_path: Optional[str] = None
         # The validated configuration, this is None until the config has been validated
-        self.config: Optional["ConfigType"] = None
+        self.config: Optional[ConfigType] = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -503,17 +508,17 @@ class EsphomeCore:
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables: dict[str, "MockObj"] = {}
+        self.variables: dict[str, MockObj] = {}
         # A list of statements that go in the main setup() block
-        self.main_statements: list["Statement"] = []
+        self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements: list["Statement"] = []
+        self.global_statements: list[Statement] = []
         # A set of platformio libraries to add to the project
         self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines: set["Define"] = set()
+        self.defines: set[Define] = set()
         # A map of all platformio options to apply
         self.platformio_options: dict[str, Union[str, list[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts

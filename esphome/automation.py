@@ -7,10 +7,10 @@ from esphome.const import (
     CONF_ELSE,
     CONF_ID,
     CONF_THEN,
+    CONF_TIME,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
-    CONF_TIME,
     CONF_UPDATE_INTERVAL,
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor

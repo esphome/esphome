@@ -8,6 +8,8 @@
 #endif
 #include <driver/ledc.h>
 
+#include <cinttypes>
+
 #define CLOCK_FREQUENCY 80e6f
 
 #ifdef USE_ARDUINO
@@ -52,12 +54,12 @@ float ledc_min_frequency_for_bit_depth(uint8_t bit_depth, bool low_frequency) {
 }
 
 optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
-  ESP_LOGD(TAG, "Calculating resolution bit-depth for frequency %f", frequency);
+  ESP_LOGV(TAG, "Calculating resolution bit-depth for frequency %f", frequency);
   for (int i = MAX_RES_BITS; i >= 1; i--) {
     const float min_frequency = ledc_min_frequency_for_bit_depth(i, (frequency < 100));
     const float max_frequency = ledc_max_frequency_for_bit_depth(i);
     if (min_frequency <= frequency && frequency <= max_frequency) {
-      ESP_LOGD(TAG, "Resolution calculated as %d", i);
+      ESP_LOGV(TAG, "Resolution calculated as %d", i);
       return i;
     }
   }
@@ -115,17 +117,22 @@ void LEDCOutput::write_state(float state) {
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
-
+  ESP_LOGV(TAG, "Setting duty: %" PRIu32 " on channel %u", duty, this->channel_);
 #ifdef USE_ARDUINO
-  ESP_LOGV(TAG, "Setting duty: %u on channel %u", duty, this->channel_);
   ledcWrite(this->channel_, duty);
 #endif
 #ifdef USE_ESP_IDF
   auto speed_mode = get_speed_mode(channel_);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
-  ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
-  ledc_update_duty(speed_mode, chan_num);
+  if (duty == max_duty) {
+    ledc_stop(speed_mode, chan_num, 1);
+  } else if (duty == 0) {
+    ledc_stop(speed_mode, chan_num, 0);
+  } else {
+    ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
+    ledc_update_duty(speed_mode, chan_num);
+  }
 #endif
 }
 

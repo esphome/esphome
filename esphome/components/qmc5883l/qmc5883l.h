@@ -56,6 +56,7 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
     COMMUNICATION_FAILED,
   } error_code_;
   bool read_byte_16_(uint8_t a_register, uint16_t *data);
+  HighFrequencyLoopRequester high_freq_;
 };
 
 }  // namespace qmc5883l

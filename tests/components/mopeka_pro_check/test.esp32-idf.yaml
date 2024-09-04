@@ -1,16 +1,1 @@
-esp32_ble_tracker:
-
-sensor:
-  - platform: mopeka_pro_check
-    mac_address: D3:75:F2:DC:16:91
-    tank_type: CUSTOM
-    custom_distance_full: 40cm
-    custom_distance_empty: 10mm
-    temperature:
-      name: Propane test temp
-    level:
-      name: Propane test level
-    distance:
-      name: Propane test distance
-    battery_level:
-      name: Propane test battery level
+<<: !include common.yaml

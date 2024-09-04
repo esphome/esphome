@@ -1,6 +1,9 @@
 #include "mpr121.h"
-#include "esphome/core/log.h"
+
+#include <cstdint>
+
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace mpr121 {
@@ -20,10 +23,7 @@ void MPR121Component::setup() {
 
   // set touch sensitivity for all 12 channels
   for (auto *channel : this->channels_) {
-    this->write_byte(MPR121_TOUCHTH_0 + 2 * channel->channel_,
-                     channel->touch_threshold_.value_or(this->touch_threshold_));
-    this->write_byte(MPR121_RELEASETH_0 + 2 * channel->channel_,
-                     channel->release_threshold_.value_or(this->release_threshold_));
+    channel->setup();
   }
   this->write_byte(MPR121_MHDR, 0x01);
   this->write_byte(MPR121_NHDR, 0x01);
@@ -44,8 +44,15 @@ void MPR121Component::setup() {
   this->write_byte(MPR121_CONFIG1, 0x10);
   // 0.5uS encoding, 1ms period
   this->write_byte(MPR121_CONFIG2, 0x20);
-  // start with first 5 bits of baseline tracking
-  this->write_byte(MPR121_ECR, 0x8F);
+
+  // Write the Electrode Configuration Register
+  // * Highest 2 bits is "Calibration Lock", which we set to a value corresponding to 5 bits.
+  // * The 2 bits below is "Proximity Enable" and are left at 0.
+  // * The 4 least significant bits control how many electrodes are enabled. Electrodes are enabled
+  //   as a range, starting at 0 up to the highest channel index used.
+  this->write_byte(MPR121_ECR, 0x80 | (this->max_touch_channel_ + 1));
+
+  this->flush_gpio_();
 }
 
 void MPR121Component::set_touch_debounce(uint8_t debounce) {
@@ -86,6 +93,72 @@ void MPR121Component::loop() {
 
   for (auto *channel : this->channels_)
     channel->process(val);
+
+  this->read_byte(MPR121_GPIODATA, &this->gpio_input_);
+}
+
+bool MPR121Component::digital_read(uint8_t ionum) { return (this->gpio_input_ & (1 << ionum)) != 0; }
+
+void MPR121Component::digital_write(uint8_t ionum, bool value) {
+  if (value) {
+    this->gpio_output_ |= (1 << ionum);
+  } else {
+    this->gpio_output_ &= ~(1 << ionum);
+  }
+  this->flush_gpio_();
+}
+
+void MPR121Component::pin_mode(uint8_t ionum, gpio::Flags flags) {
+  this->gpio_enable_ |= (1 << ionum);
+  if (flags & gpio::FLAG_INPUT) {
+    this->gpio_direction_ &= ~(1 << ionum);
+  } else if (flags & gpio::FLAG_OUTPUT) {
+    this->gpio_direction_ |= 1 << ionum;
+  }
+  this->flush_gpio_();
+}
+
+bool MPR121Component::flush_gpio_() {
+  if (this->is_failed()) {
+    return false;
+  }
+
+  // TODO: The CTL registers can configure internal pullup/pulldown resistors.
+  this->write_byte(MPR121_GPIOCTL0, 0x00);
+  this->write_byte(MPR121_GPIOCTL1, 0x00);
+  this->write_byte(MPR121_GPIOEN, this->gpio_enable_);
+  this->write_byte(MPR121_GPIODIR, this->gpio_direction_);
+
+  if (!this->write_byte(MPR121_GPIODATA, this->gpio_output_)) {
+    this->status_set_warning();
+    return false;
+  }
+
+  this->status_clear_warning();
+  return true;
+}
+
+void MPR121GPIOPin::setup() { this->pin_mode(this->flags_); }
+
+void MPR121GPIOPin::pin_mode(gpio::Flags flags) {
+  assert(this->pin_ >= 4);
+  this->parent_->pin_mode(this->pin_ - 4, flags);
+}
+
+bool MPR121GPIOPin::digital_read() {
+  assert(this->pin_ >= 4);
+  return this->parent_->digital_read(this->pin_ - 4) != this->inverted_;
+}
+
+void MPR121GPIOPin::digital_write(bool value) {
+  assert(this->pin_ >= 4);
+  this->parent_->digital_write(this->pin_ - 4, value != this->inverted_);
+}
+
+std::string MPR121GPIOPin::dump_summary() const {
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "ELE%u on MPR121", this->pin_);
+  return buffer;
 }
 
 }  // namespace mpr121

@@ -1,5 +1,7 @@
 #include "ags10.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace ags10 {
 static const char *const TAG = "ags10";
@@ -35,7 +37,7 @@ void AGS10Component::setup() {
 
   auto resistance = this->read_resistance_();
   if (resistance) {
-    ESP_LOGD(TAG, "AGS10 Sensor Resistance: 0x%08X", *resistance);
+    ESP_LOGD(TAG, "AGS10 Sensor Resistance: 0x%08" PRIX32, *resistance);
     if (this->resistance_ != nullptr) {
       this->resistance_->publish_state(*resistance);
     }

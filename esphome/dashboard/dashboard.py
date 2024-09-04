@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from asyncio import events
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import socket
 import threading
-import traceback
-from asyncio import events
-from concurrent.futures import ThreadPoolExecutor
 from time import monotonic
+import traceback
 from typing import Any
 
 from esphome.storage_json import EsphomeStorageJSON, esphome_storage_path

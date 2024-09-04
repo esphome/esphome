@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_IRQ_PIN,
     CONF_VOLTAGE,
     CONF_FREQUENCY,
+    CONF_VOLTAGE_GAIN,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_POWER,
@@ -36,7 +37,6 @@ CONF_POWER_FACTOR_B = "power_factor_b"
 CONF_VOLTAGE_PGA_GAIN = "voltage_pga_gain"
 CONF_CURRENT_PGA_GAIN_A = "current_pga_gain_a"
 CONF_CURRENT_PGA_GAIN_B = "current_pga_gain_b"
-CONF_VOLTAGE_GAIN = "voltage_gain"
 CONF_CURRENT_GAIN_A = "current_gain_a"
 CONF_CURRENT_GAIN_B = "current_gain_b"
 CONF_ACTIVE_POWER_GAIN_A = "active_power_gain_a"
