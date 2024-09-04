@@ -336,7 +336,7 @@ void LD2450Component::handle_periodic_data_(uint8_t *buffer, int len) {
     if (ss != nullptr) {
       val = this->decode_speed_(buffer[start], buffer[start + 1]);
       ts = val;
-      if (val > 0) {
+      if (val) {
         is_moving = true;
         moving_target_count++;
       }
