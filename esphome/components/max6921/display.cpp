@@ -453,15 +453,18 @@ int Display::set_text(const char *text, uint8_t start_pos) {
  */
 int Display::update_out_buf_() {
   uint visible_idx_offset = 0;
+  uint ignored_chars = 0;
+  bool ignored_char_at_1st_pos = false;
 
   for (uint pos = 0; pos < this->num_digits_; pos++) {
     char pos_char;
     uint32_t out_data;
-    bool is_get_next_char, is_clear_pos = true;
+    bool is_process_next_char, is_clear_pos = true;
     do {
       // determine character for current display position...
-      if ((pos < this->disp_text_.start_pos) ||                    // empty position before text or
-          (visible_idx_offset >= this->disp_text_.visible_len)) {  // all characters proccessed?
+      if ((pos < this->disp_text_.start_pos) ||  // empty position before text or
+          ((this->disp_text_.visible_idx + visible_idx_offset) >= strlen(this->disp_text_.text)) ||
+          (visible_idx_offset >= this->disp_text_.visible_len + ignored_chars)) {  // all characters proccessed?
         pos_char = ' ';
       } else {
         pos_char = this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset++];
@@ -469,21 +472,23 @@ int Display::update_out_buf_() {
       ESP_LOGVV(TAG, "%s(): pos=%u, current char (0x%02x)=%c", __func__, pos, pos_char, pos_char);
 
       // special handling for point segment...
-      is_get_next_char = false;
+      is_process_next_char = false;
       if (is_point_seg_only(pos_char)) {                                  // is point segment only?
         if (this->disp_text_.visible_idx + visible_idx_offset - 1 > 0) {  // not the 1st text character?
           if (!is_point_seg_only(this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset -
                                                        2])) {  // previous text character wasn't a point?
             if (pos == 0) {                                    // 1st (most left) display position?
-              is_get_next_char = true;                         // yes -> ignore point, get next character
+              is_process_next_char = true;                     // yes -> ignore point, process next character
+              ignored_char_at_1st_pos = true;
             } else {
               --pos;  // no -> add point to previous display position
               is_clear_pos = false;
             }
+            ++ignored_chars;
           }
         }
       }
-    } while (is_get_next_char);
+    } while (is_process_next_char);
     if (is_clear_pos)
       clear(pos);
 
@@ -520,8 +525,16 @@ int Display::update_out_buf_() {
     ESP_LOGVV(TAG, "%s(): display buffer of position %u: 0x%02x%02x%02x", __func__, pos + 1,
               this->out_buf_[pos * 3 + 0], this->out_buf_[pos * 3 + 1], this->out_buf_[pos * 3 + 2]);
 
-    ESP_LOGV(TAG, "%s(): pos=%u, char='%c' (0x%02x), vi-idx=%u, vi-idx-off=%u, vi-len=%u", __func__, pos, pos_char,
-             pos_char, this->disp_text_.visible_idx, visible_idx_offset, this->disp_text_.visible_len);
+    ESP_LOGV(TAG,
+             "%s(): pos=%u, char='%c' (0x%02x), vi-idx=%u, vi-idx-off=%u, vi-len=%u, ignored-chars=%u, "
+             "ignored-char-1st-pos=%u",
+             __func__, pos, pos_char, pos_char, this->disp_text_.visible_idx, visible_idx_offset,
+             this->disp_text_.visible_len, ignored_chars, ignored_char_at_1st_pos);
+  }
+
+  // increase visible text index if a char (point) was ignored at first position
+  if (ignored_char_at_1st_pos && (this->disp_text_.visible_idx < strlen(this->disp_text_.text))) {
+    ++this->disp_text_.visible_idx;
   }
 
   this->disp_text_.content_changed = true;
