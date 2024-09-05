@@ -24,6 +24,11 @@ from esphome.const import (
     UNIT_WATT,
 )
 
+CONF_CURRENT_REFERENCE = "current_reference"
+CONF_ENERGY_REFERENCE = "energy_reference"
+CONF_POWER_REFERENCE = "power_reference"
+CONF_VOLTAGE_REFERENCE = "voltage_reference"
+
 DEPENDENCIES = ["uart"]
 
 bl0942_ns = cg.esphome_ns.namespace("bl0942")
@@ -77,6 +82,10 @@ CONFIG_SCHEMA = (
                 ),
             ),
             cv.Optional(CONF_ADDRESS, default=0): cv.int_range(min=0, max=3),
+            cv.Optional(CONF_CURRENT_REFERENCE): cv.float_,
+            cv.Optional(CONF_ENERGY_REFERENCE): cv.float_,
+            cv.Optional(CONF_POWER_REFERENCE): cv.float_,
+            cv.Optional(CONF_VOLTAGE_REFERENCE): cv.float_,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -106,3 +115,11 @@ async def to_code(config):
         cg.add(var.set_frequency_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_address(config[CONF_ADDRESS]))
+    if (current_reference := config.get(CONF_CURRENT_REFERENCE, None)) is not None:
+        cg.add(var.set_current_reference(current_reference))
+    if (voltage_reference := config.get(CONF_VOLTAGE_REFERENCE, None)) is not None:
+        cg.add(var.set_voltage_reference(voltage_reference))
+    if (power_reference := config.get(CONF_POWER_REFERENCE, None)) is not None:
+        cg.add(var.set_power_reference(power_reference))
+    if (energy_reference := config.get(CONF_ENERGY_REFERENCE, None)) is not None:
+        cg.add(var.set_energy_reference(energy_reference))
