@@ -70,6 +70,9 @@ esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bme68x_bsec2/* @kbx81 @neffs
 esphome/components/bme68x_bsec2_i2c/* @kbx81 @neffs
 esphome/components/bmi160/* @flaviut
+esphome/components/bmp280_base/* @ademuri
+esphome/components/bmp280_i2c/* @ademuri
+esphome/components/bmp280_spi/* @ademuri
 esphome/components/bmp3xx/* @latonita
 esphome/components/bmp3xx_base/* @latonita @martgras
 esphome/components/bmp3xx_i2c/* @latonita
