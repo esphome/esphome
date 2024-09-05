@@ -2,9 +2,12 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEVICE,
+    CONF_DIRECTION,
     CONF_DISTANCE,
     CONF_HUMIDITY,
     CONF_ID,
+    CONF_SPEED,
     CONF_TEMPERATURE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_EMPTY,
@@ -31,10 +34,7 @@ DEPENDENCIES = ["acurite"]
 
 CONF_ACURITE_ID = "acurite_id"
 CONF_DEVICES = "devices"
-CONF_DEVICE = "device"
 CONF_RAIN = "rain"
-CONF_SPEED = "speed"
-CONF_DIRECTION = "direction"
 CONF_LIGHTNING = "lightning"
 CONF_UV = "uv"
 CONF_LUX = "lux"
