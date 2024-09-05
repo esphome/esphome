@@ -385,6 +385,7 @@ esphome/components/st7701s/* @clydebarrow
 esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
+esphome/components/statsd/* @Links2004
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
