@@ -1,6 +1,6 @@
 ARG BUILD_TYPE=docker
 
-FROM ghcr.io/esphome/docker-base:2024.09.0-pre0 AS base
+FROM ghcr.io/esphome/docker-base:2024.9.0 AS base
 
 RUN git config --system --add safe.directory "*"
 
