@@ -175,8 +175,15 @@ def get_esphome_device_ip(
                 _LOGGER.Warn("Wrong device answer")
                 return
 
-            if "ip" in data:
-                dev_ip = data["ip"]
+            dev_ip = []
+            key = "ip"
+            n = 0
+            while key in data:
+                dev_ip.append(data[key])
+                n = n + 1
+                key = "ip" + str(n)
+
+            if dev_ip:
                 client.disconnect()
 
     def on_connect(client, userdata, flags, return_code):
