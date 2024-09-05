@@ -7093,10 +7093,25 @@ void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-void VoiceAssistantAnnounceFinished::encode(ProtoWriteBuffer buffer) const {}
+bool VoiceAssistantAnnounceFinished::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->success = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantAnnounceFinished::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->success); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const {
-  out.append("VoiceAssistantAnnounceFinished {}");
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantAnnounceFinished {\n");
+  out.append("  success: ");
+  out.append(YESNO(this->success));
+  out.append("\n");
+  out.append("}");
 }
 #endif
 bool ListEntitiesAlarmControlPanelResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {

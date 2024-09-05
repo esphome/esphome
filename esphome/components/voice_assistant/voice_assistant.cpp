@@ -398,6 +398,7 @@ void VoiceAssistant::loop() {
           this->set_state_(State::IDLE, State::IDLE);
 
           api::VoiceAssistantAnnounceFinished msg;
+          msg.success = true;
           this->api_client_->send_voice_assistant_announce_finished(msg);
         });
       }

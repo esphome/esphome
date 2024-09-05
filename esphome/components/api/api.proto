@@ -1566,6 +1566,8 @@ message VoiceAssistantAnnounceFinished {
   option (id) = 120;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bool success = 1;
 }
 
 // ==================== ALARM CONTROL PANEL ====================

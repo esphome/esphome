@@ -1839,12 +1839,14 @@ class VoiceAssistantAnnounceRequest : public ProtoMessage {
 };
 class VoiceAssistantAnnounceFinished : public ProtoMessage {
  public:
+  bool success{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
  public:
