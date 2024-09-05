@@ -16,8 +16,9 @@ static const uint FONT_SIZE = 95;
 static const uint DISPLAY_TEXT_LEN = FONT_SIZE;  // at least font size for demo mode "scroll font"
 
 enum DisplayModeT {
-  DISP_MODE_PRINT,  // input by it-functions
-  DISP_MODE_OTHER,  // input by actions
+  // Used as index!
+  DISP_MODE_PRINT = 0,  // input by it-functions
+  DISP_MODE_OTHER,      // input by actions
   DISP_MODE_LAST_ENUM
 };
 
@@ -52,17 +53,16 @@ class DisplayBrightness {
 class DisplayMode {
  public:
   DisplayModeT mode;
-  uint32_t duration_ms;
   DisplayMode();
-  void set_mode(DisplayModeT mode, uint32_t duration_ms = 0);
+  DisplayModeT set_mode(DisplayModeT mode);
 
  protected:
-  uint32_t duration_ms_start_;
 };
 
 class DisplayText {
  public:
   bool content_changed;
+  bool repeat_on;                   // repetitions are enabled
   uint max_pos;                     // max. display position
   uint start_pos;                   // current display start position (0..n)
   char text[DISPLAY_TEXT_LEN + 1];  // current text to display (may be larger then display)
@@ -70,18 +70,31 @@ class DisplayText {
   uint visible_len;                 // current length of visible text
   TextAlignT align;
   TextEffectT effect;
-  uint8_t cycle_num;
+  uint32_t duration_ms;         // text/effect duration
+  uint32_t repeat_interval_ms;  // repeat interval
+  uint8_t repeat_num;           // number of repeats of showing text/effect
+  uint8_t repeat_current;       // current repeat cycle
+  uint8_t cycle_num;            // number of effect cycles
+  uint8_t cycle_current;        // current effect cycle
+  uint32_t update_interval_ms;  // effect update interval
   DisplayText();
-  void blink();
-  void scroll_left();
+  bool blink();
+  uint32_t get_duration_start() { return this->duration_ms_start_; }
+  uint32_t get_repeat_start() { return this->repeat_ms_start_; }
+  bool scroll_left();
+  void set_duration(uint32_t duration_ms);
+  void start_duration();
+  void start_repeat();
+  void set_repeats(uint8_t repeat_num, uint32_t repeat_interval_ms);
   int set_text(uint start_pos, uint max_pos, const std::string &text);
   void set_text_align(TextAlignT align);
   void set_text_align(const std::string &align);
-  void set_text_effect(TextEffectT effect, uint8_t cycle_num = 0);
-  void set_text_effect(const std::string &effect, uint8_t cycle_num = 0);
+  void set_text_effect(TextEffectT effect, uint8_t cycle_num = 0, uint32_t update_interval = 0);
+  void set_text_effect(const std::string &effect, uint8_t cycle_num = 0, uint32_t update_interval = 0);
 
  protected:
-  int effect_change_count_;
+  uint32_t duration_ms_start_;
+  uint32_t repeat_ms_start_;
   void init_text_align_();
   void init_text_effect_();
 };
@@ -96,9 +109,11 @@ class Display : public DisplayBrightness, public DisplayMode {
   void setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &pos_to_out_map);
   void set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num);
   void set_demo_mode(const std::string &mode, uint32_t interval, uint8_t cycle_num);
+  DisplayModeT set_mode(DisplayModeT mode);
   int set_text(const char *text, uint8_t start_pos);
   int set_text(const std::string &text, uint8_t start_pos, const std::string &align, uint32_t duration,
-               const std::string &effect, uint32_t interval, uint8_t cycle_num);
+               const std::string &effect, uint8_t effect_cycle_num, uint8_t repeat_num, uint32_t repeat_interval,
+               uint32_t update_interval);
   void set_update_interval(uint32_t interval_ms);
   void update();
 
@@ -112,7 +127,8 @@ class Display : public DisplayBrightness, public DisplayMode {
   size_t out_buf_size_;
   uint seg_out_smallest_;
   uint32_t refresh_period_us_;
-  DisplayText disp_text_;
+  DisplayText disp_text_ctrl_[DISP_MODE_LAST_ENUM];
+  DisplayText &disp_text_ = disp_text_ctrl_[0];
   uint32_t default_update_interval_;
   static void display_refresh_task(void *pv);
   int update_out_buf_();

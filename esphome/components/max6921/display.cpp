@@ -277,10 +277,12 @@ void Display::clear(int pos) {
  * @param interval_ms update interval in ms (optional, default=restore)
  */
 void Display::set_update_interval(uint32_t interval_ms) {
-  ESP_LOGD(TAG, "Change polling interval: %" PRIu32 "ms", interval_ms);
-  this->max6921_->stop_poller();
-  this->max6921_->set_update_interval(interval_ms);
-  this->max6921_->start_poller();
+  if ((interval_ms > 0) && (this->max6921_->get_update_interval() != interval_ms)) {
+    ESP_LOGD(TAG, "Change polling interval: %" PRIu32 "ms", interval_ms);
+    this->max6921_->stop_poller();
+    this->max6921_->set_update_interval(interval_ms);
+    this->max6921_->start_poller();
+  }
 }
 
 /**
@@ -311,39 +313,47 @@ void Display::update() {
   }
 
   // handle text effects...
-  if (this->disp_text_.effect != TEXT_EFFECT_NONE) {  // any effect enabled?
+  if ((this->mode != DISP_MODE_PRINT) && (this->disp_text_.effect != TEXT_EFFECT_NONE)) {  // any effect enabled?
     switch (this->disp_text_.effect) {
       case TEXT_EFFECT_BLINK:
         update_out_buf_();
-        this->disp_text_.blink();
+        if (this->disp_text_.blink())
+          set_mode(DISP_MODE_PRINT);
         break;
       case TEXT_EFFECT_SCROLL_LEFT:
         update_out_buf_();
-        this->disp_text_.scroll_left();
+        if (this->disp_text_.scroll_left())
+          set_mode(DISP_MODE_PRINT);
         break;
       default:
         set_mode(DISP_MODE_PRINT);
         break;
     }
-    if (this->disp_text_.effect == TEXT_EFFECT_NONE) {  // effect finished?
-      this->duration_ms = 0;
-      restore_update_interval();
-      set_mode(DISP_MODE_PRINT);  // switch back to "it" interface
-    }
   }
 
   // handle duration...
-  if (this->duration_ms > 0) {
-    if ((millis() - this->duration_ms_start_) >= this->duration_ms) {
-      ESP_LOGD(TAG, "Effect duration of %" PRIu32 "ms expired", this->duration_ms);
-      this->disp_text_.set_text_effect(TEXT_EFFECT_NONE);
+  if ((this->mode != DISP_MODE_PRINT) && (this->disp_text_.duration_ms > 0)) {
+    if ((millis() - this->disp_text_.get_duration_start()) >= this->disp_text_.duration_ms) {
+      ESP_LOGD(TAG, "Effect duration of %" PRIu32 "ms expired", this->disp_text_.duration_ms);
       set_mode(DISP_MODE_PRINT);
+    }
+  }
+
+  // handle repeats...
+  if (this->mode == DISP_MODE_PRINT) {
+    DisplayText &disp_text_other = this->disp_text_ctrl_[DISP_MODE_OTHER];
+    if (disp_text_other.repeat_on) {
+      if ((millis() - disp_text_other.get_repeat_start()) >= disp_text_other.repeat_interval_ms) {
+        ESP_LOGD(TAG, "Repeat interval of %" PRIu32 "ms expired", disp_text_other.repeat_interval_ms);
+        set_mode(DISP_MODE_OTHER);
+      }
     }
   }
 }
 
 void Display::set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num) {
   uint text_idx, font_idx;
+  DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_OTHER];
 
   ESP_LOGD(TAG, "Set demo mode: mode=%i, update-interval=%" PRIu32 "ms, cycle_num=%u", mode, interval, cycle_num);
 
@@ -351,26 +361,25 @@ void Display::set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num
     case DEMO_MODE_SCROLL_FONT:
       // generate scroll text based on font...
       for (text_idx = 0, font_idx = 0; font_idx < ARRAY_ELEM_COUNT(ASCII_TO_SEG); font_idx++) {
-        if (this->ascii_out_data_[font_idx] > 0)               // displayable character?
-          this->disp_text_.text[text_idx++] = ' ' + font_idx;  // add character to string
-        if (text_idx >= sizeof(this->disp_text_.text) - 1) {   // max. text buffer lenght reached?
+        if (this->ascii_out_data_[font_idx] > 0)        // displayable character?
+          disp_text.text[text_idx++] = ' ' + font_idx;  // add character to string
+        if (text_idx >= sizeof(disp_text.text) - 1) {   // max. text buffer lenght reached?
           ESP_LOGD(TAG, "Font too large for internal text buffer");
           break;
         }
       }
-      this->disp_text_.text[text_idx] = 0;
-      ESP_LOGV(TAG, "%s(): text: %s", __func__, this->disp_text_.text);
+      disp_text.text[text_idx] = 0;
+      ESP_LOGV(TAG, "%s(): text: %s", __func__, disp_text.text);
       // set text effect...
-      this->disp_text_.set_text_effect(TEXT_EFFECT_SCROLL_LEFT, cycle_num);
+      disp_text.set_text_effect(TEXT_EFFECT_SCROLL_LEFT, cycle_num, interval);
+      disp_text.set_duration(0);
+      disp_text.set_repeats(0, 0);
       set_mode(DISP_MODE_OTHER);
       break;
     default:
       set_mode(DISP_MODE_PRINT);
       break;
   }
-  if ((mode != DEMO_MODE_OFF) && (interval > 0))
-    set_update_interval(interval);
-  clear();
 }
 
 void Display::set_demo_mode(const std::string &mode, uint32_t interval, uint8_t cycle_num) {
@@ -384,6 +393,62 @@ void Display::set_demo_mode(const std::string &mode, uint32_t interval, uint8_t 
 }
 
 /**
+ * @brief Sets the display mode.
+ *
+ * @param mode display mode to set
+ *
+ * @return current mode
+ */
+DisplayModeT Display::set_mode(DisplayModeT mode) {
+  this->disp_text_ = this->disp_text_ctrl_[DisplayMode::set_mode(mode)];
+
+  switch (this->mode) {
+    case DISP_MODE_PRINT: {
+      clear();  // clear display buffer
+      restore_update_interval();
+      // handle repeats of "other" mode...
+      DisplayText &disp_text_other = this->disp_text_ctrl_[DISP_MODE_OTHER];
+      if (disp_text_other.repeat_on) {
+        if (disp_text_other.repeat_num > 0) {  // defined number of repeats?
+          if (disp_text_other.repeat_current < disp_text_other.repeat_num) {
+            ESP_LOGV(TAG, "Repeat cycle finished (%u left)",
+                     disp_text_other.repeat_num - disp_text_other.repeat_current);
+            ++disp_text_other.repeat_current;
+          } else {
+            ESP_LOGD(TAG, "Repeats finished");
+            disp_text_other.repeat_on = false;
+          }
+        }
+        if (disp_text_other.repeat_on)
+          disp_text_other.start_repeat();
+      }
+      break;
+    }
+
+    case DISP_MODE_OTHER: {
+      clear();  // clear display buffer
+      if (this->disp_text_.effect == TEXT_EFFECT_NONE) {
+        update_out_buf_();  // show static text again
+      } else {
+        set_update_interval(this->disp_text_.update_interval_ms);
+      }
+      this->disp_text_.start_duration();
+      break;
+    }
+
+    default:
+      ESP_LOGE(TAG, "Invalid display mode: %i", this->mode);
+      break;
+  }
+
+  ESP_LOGD(TAG, "Set display mode: mode=%i, repeat-on=%i, repeat-cur/num=%u/%u, repeat-start=%" PRIu32 "ms", this->mode,
+           this->disp_text_.repeat_on, this->disp_text_.repeat_current, this->disp_text_.repeat_num,
+           this->disp_text_.get_repeat_start());
+
+  return this->mode;
+}
+
+/**
  * @brief Triggered by action. Shows the given text on the display.
  *
  * @param text text to display
@@ -391,35 +456,55 @@ void Display::set_demo_mode(const std::string &mode, uint32_t interval, uint8_t 
  * @param align text alignment
  * @param duration text effect duration in ms
  * @param effect text effect
- * @param interval text effect update interval in ms
- * @param cycle_num text effect cycle count
+ * @param effect_cycle_num text effect cycle count
+ * @param repeat_num text repeat count (needs duration or effect_cycle_num)
+ * @param repeat_interval text repeat interval in ms (needs duration or effect_cycle_num)
+ * @param update_interval text effect update interval in ms
  *
  * @return number of characters displayed
  */
 int Display::set_text(const std::string &text, uint8_t start_pos, const std::string &align, uint32_t duration,
-                      const std::string &effect, uint32_t interval, uint8_t cycle_num) {
-  ESP_LOGD(TAG,
+                      const std::string &effect, uint8_t effect_cycle_num, uint8_t repeat_num, uint32_t repeat_interval,
+                      uint32_t update_interval) {
+  DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_OTHER];
+
+  ESP_LOGV(TAG,
            "Set text (given):  text=%s, start-pos=%u, align=%s, duration=%" PRIu32 "ms, "
-           "effect=%s, effect-update-interval=%" PRIu32 "ms, cycles=%u",
-           text.c_str(), start_pos, align.c_str(), duration, effect.c_str(), interval, cycle_num);
+           "effect=%s, cycles=%u, repeat-num=%u, repeat-interval=%" PRIu32 "ms, "
+           "effect-update-interval=%" PRIu32 "ms",
+           text.c_str(), start_pos, align.c_str(), duration, effect.c_str(), effect_cycle_num, repeat_num,
+           repeat_interval, update_interval);
 
   // store new text...
-  this->disp_text_.set_text(start_pos, this->num_digits_ - 1, text);
+  disp_text.set_text(start_pos, this->num_digits_ - 1, text);
 
   // set text align...
-  this->disp_text_.set_text_align(align);
+  disp_text.set_text_align(align);
 
   // set text effect...
-  this->disp_text_.set_text_effect(effect, cycle_num);
-  if ((this->disp_text_.effect != TEXT_EFFECT_NONE) && (interval > 0)) {
-    set_update_interval(interval);
+  disp_text.set_text_effect(effect, effect_cycle_num, update_interval);
+  if (disp_text.effect == TEXT_EFFECT_NONE)
+    effect_cycle_num = 0;
+
+  // set duration...
+  disp_text.set_duration(duration);
+  disp_text.start_duration();
+
+  // set repeats...
+  if ((effect_cycle_num == 0) && (duration == 0)) {
+    repeat_num = 0;
+    repeat_interval = 0;
   }
+  disp_text.set_repeats(repeat_num, repeat_interval);
 
   // update display mode...
-  set_mode(DISP_MODE_OTHER, duration);
+  set_mode(DISP_MODE_OTHER);
 
-  ESP_LOGD(TAG, "Set text (result): text=%s, start-pos=%u, vi-idx=%u, vi-len=%u", this->disp_text_.text,
-           this->disp_text_.start_pos, this->disp_text_.visible_idx, this->disp_text_.visible_len);
+  ESP_LOGV(TAG,
+           "Set text (result): text=%s, start-pos=%u, vi-idx=%u, vi-len=%u, "
+           "duration=%" PRIu32 "ms, repeat-on=%i, repeat-num=%u, repeat-interval=%" PRIu32 "ms",
+           disp_text.text, disp_text.start_pos, disp_text.visible_idx, disp_text.visible_len, disp_text.duration_ms,
+           disp_text.repeat_on, disp_text.repeat_num, disp_text.repeat_interval_ms);
 
   return update_out_buf_();
 }
@@ -433,14 +518,16 @@ int Display::set_text(const std::string &text, uint8_t start_pos, const std::str
  * @return number of characters displayed
  */
 int Display::set_text(const char *text, uint8_t start_pos) {
-  ESP_LOGVV(TAG, "%s(): str=%s, prev=%s", __func__, text, this->disp_text_.text);
-  if (strncmp(text, this->disp_text_.text, sizeof(this->disp_text_.text)) == 0)  // text not changed?
-    return strlen(text);                                                         // yes -> exit function
-  ESP_LOGV(TAG, "%s(): Text changed: str=%s, prev=%s", __func__, text, this->disp_text_.text);
+  DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_PRINT];
+
+  ESP_LOGVV(TAG, "%s(): str=%s, prev=%s", __func__, text, disp_text.text);
+  if (strncmp(text, disp_text.text, sizeof(disp_text.text)) == 0)  // text not changed?
+    return strlen(text);                                           // yes -> exit function
+  ESP_LOGV(TAG, "%s(): Text changed: str=%s, prev=%s", __func__, text, disp_text.text);
 
   // store new text...
   std::string text_str = text;
-  this->disp_text_.set_text(start_pos, this->num_digits_ - 1, text_str);
+  disp_text.set_text(start_pos, this->num_digits_ - 1, text_str);
 
   return update_out_buf_();
 }
@@ -554,6 +641,55 @@ DisplayText::DisplayText() {
   this->max_pos = 0;
   this->align = TEXT_ALIGN_CENTER;
   this->effect = TEXT_EFFECT_NONE;
+  this->cycle_num = 0;  // endless
+  this->cycle_current = 0;
+  this->update_interval_ms = 0;
+  this->duration_ms = 0;  // endless
+  this->repeat_on = false;
+  this->repeat_num = 0;  // endless repeats
+  this->repeat_current = 0;
+  this->repeat_interval_ms = 0;  // no repeat
+}
+
+/**
+ * @brief Sets the text display time.
+ *
+ * @param duration_ms text display time in [ms]
+ */
+void DisplayText::set_duration(uint32_t duration_ms) {
+  ESP_LOGD(TAG, "Set text duration: %" PRIu32 "ms", duration_ms);
+  this->duration_ms = duration_ms;
+}
+
+/**
+ * @brief Starts the text display time period.
+ */
+void DisplayText::start_duration() {
+  if (this->duration_ms > 0) {
+    ESP_LOGV(TAG, "Start text duration (%" PRIu32 "ms)", this->duration_ms);
+    this->duration_ms_start_ = millis();
+  }
+}
+
+/**
+ * @brief Sets the text display repeat interval(s) after duration has expired.
+ *
+ * @param repeat_num text display repeat number (0 = endless)
+ * @param repeat_interval_ms text display repeat interval [ms]
+ */
+void DisplayText::set_repeats(uint8_t repeat_num, uint32_t repeat_interval_ms) {
+  this->repeat_num = repeat_num;
+  this->repeat_current = 0;
+  this->repeat_interval_ms = repeat_interval_ms;
+  this->repeat_on = (repeat_interval_ms > 0);
+}
+
+/**
+ * @brief Starts the text display repeat period.
+ */
+void DisplayText::start_repeat() {
+  if (this->repeat_interval_ms > 0)
+    this->repeat_ms_start_ = millis();
 }
 
 /**
@@ -578,6 +714,10 @@ int DisplayText::set_text(uint start_pos, uint max_pos, const std::string &text)
   this->text[sizeof(this->text) - 1] = 0;
   this->visible_idx = 0;
   this->visible_len = std::min(strlen(this->text), this->max_pos - this->start_pos + 1);
+
+  ESP_LOGD(TAG, "Set text: start-pos=%u, vi-idx=%u, vi-len=%u, text=%s", this->start_pos, this->visible_idx,
+           this->visible_len, this->text);
+
   return strlen(this->text);
 }
 
@@ -633,7 +773,7 @@ void DisplayText::set_text_align(TextAlignT align) {
   }
   this->align = align;
   init_text_align_();
-  ESP_LOGD(TAG, "Set align: text=%s, align=%i, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u", this->text, this->align,
+  ESP_LOGD(TAG, "Set text align: align=%i, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u", this->align,
            this->start_pos, this->max_pos, this->visible_idx, this->visible_len);
 }
 
@@ -667,22 +807,31 @@ void DisplayText::set_text_align(const std::string &align) {
  *
  * @param effect text effect
  * @param cycle_num number of effect cycles (optional, default=endless)
+ * @param update_interval effect update interval in [ms] (optional, default=standard)
  */
-void DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num) {
+void DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num, uint32_t update_interval) {
   if (effect >= TEXT_EFFECT_LAST_ENUM) {
     ESP_LOGE(TAG, "Invalid display text effect: %i", effect);
     return;
   }
-  if (effect != this->effect) {
-    this->effect = effect;
-    this->cycle_num = cycle_num;
-    if (effect == TEXT_EFFECT_BLINK)
-      this->effect_change_count_ = -1;
-    init_text_effect_();
-    ESP_LOGD(TAG, "Set effect: text=%s, effect=%i, cycles=%u, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u",
-             this->text, this->effect, this->cycle_num, this->start_pos, this->max_pos, this->visible_idx,
-             this->visible_len);
+
+  this->effect = effect;
+  switch (effect) {
+    case TEXT_EFFECT_BLINK:
+    case TEXT_EFFECT_SCROLL_LEFT:
+      this->cycle_current = 1;
+      this->cycle_num = cycle_num;
+      this->update_interval_ms = update_interval;
+      break;
+    default:
+      break;
   }
+  init_text_effect_();
+  ESP_LOGD(TAG,
+           "Set text effect: effect=%i, cycles=%u, upd-interval=%" PRIu32 "ms, start-pos=%u, "
+           "max-pos=%u, vi-idx=%u, vi-len=%u",
+           this->effect, this->cycle_num, this->update_interval_ms, this->start_pos, this->max_pos, this->visible_idx,
+           this->visible_len);
 }
 
 /**
@@ -690,8 +839,9 @@ void DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num) {
  *
  * @param effect text effect (as string)
  * @param cycle_num number of effect cycles (optional, default=endless)
+ * @param update_interval effect update interval in [ms] (optional, default=standard)
  */
-void DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num) {
+void DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num, uint32_t update_interval) {
   TextEffectT text_effect = TEXT_EFFECT_LAST_ENUM;
 
   if (!effect.empty()) {
@@ -708,56 +858,61 @@ void DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num) 
     ESP_LOGW(TAG, "No text effect given");
   if (text_effect >= TEXT_EFFECT_LAST_ENUM)
     return;
-  set_text_effect(text_effect, cycle_num);
+  set_text_effect(text_effect, cycle_num, update_interval);
 }
 
 /**
  * @brief Updates the mode "blink". The display buffer must be updated before.
+ *
+ * @return true = effect cycles finished
+ *         false = effect cycles not finished
  */
-void DisplayText::blink() {
-  ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u", __func__, this->start_pos, this->visible_idx,
-           this->visible_len);
+bool DisplayText::blink() {
+  ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u, cycle-cur/num=%u/%u", __func__, this->start_pos,
+           this->visible_idx, this->visible_len, this->cycle_current, this->cycle_num);
 
-  // update effect mode...
-  if (++this->effect_change_count_ >= 2) {  // one on/off phase complete?
-    this->effect_change_count_ = 0;
-    if (this->cycle_num > 0) {
-      ESP_LOGD(TAG, "Blink cycle finished (%u left)", this->cycle_num - 1);
-      if (--this->cycle_num == 0) {
-        this->effect = TEXT_EFFECT_NONE;
-        ESP_LOGD(TAG, "Blink finished");
-        return;
-      }
-    }
+  if ((this->cycle_num > 0) && (this->cycle_current > this->cycle_num)) {  // cycles finished?
+    ESP_LOGD(TAG, "Blink finished");
+    return true;
   }
 
   // update visible text...
   if (this->visible_len > 0) {  // "on" phase?
-    this->visible_len = 0;      // yes -> switch to "off" phase
-  } else {
-    init_text_effect_();  // no -> switch to "on" phase
+    this->visible_len = 0;      // yes -> next display buffer update starts "off" phase
+  } else {                      // "off" phase...
+    ESP_LOGV(TAG, "\"Off\" phase of blink cycle started (%u cycles left)", this->cycle_num - this->cycle_current);
+    if ((this->cycle_num == 0) ||                   // endless cycles or
+        (this->cycle_current < this->cycle_num)) {  // number of cycles not finished?
+      init_text_effect_();                          // next display buffer update starts "on" phase
+    }
+    if (this->cycle_num > 0)  // defined number of cycles?
+      ++this->cycle_current;  // yes -> increase current cycle count
   }
 
-  ESP_LOGV(TAG, "%s(): EXIT:  start-idx=%u, text-idx=%u, text-len=%u", __func__, this->start_pos, this->visible_idx,
-           this->visible_len);
+  ESP_LOGV(TAG, "%s(): EXIT:  start-idx=%u, text-idx=%u, text-len=%u, cycle-cur/num=%u/%u", __func__, this->start_pos,
+           this->visible_idx, this->visible_len, this->cycle_current, this->cycle_num);
+
+  return false;
 }
 
 /**
  * @brief Updates the mode "scroll left". The display buffer must be updated before.
+ *
+ * @return true = effect cycles finished
+ *         false = effect cycles not finished
  */
-void DisplayText::scroll_left() {
+bool DisplayText::scroll_left() {
   ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u", __func__, this->start_pos, this->visible_idx,
            this->visible_len);
 
   // update effect mode...
-  if (this->visible_len == 0) {
+  if (this->visible_len == 0) {  // cycle finished?
     init_text_effect_();
-    if (this->cycle_num > 0) {
-      ESP_LOGD(TAG, "Scroll cycle finished (%u left)", this->cycle_num - 1);
-      if (--this->cycle_num == 0) {
-        this->effect = TEXT_EFFECT_NONE;
+    if (this->cycle_current <= this->cycle_num) {
+      ESP_LOGV(TAG, "Scroll cycle finished (%u left)", this->cycle_num - this->cycle_current);
+      if (this->cycle_current++ >= this->cycle_num) {
         ESP_LOGD(TAG, "Scroll finished");
-        return;
+        return true;
       }
     }
   }
@@ -775,6 +930,8 @@ void DisplayText::scroll_left() {
 
   ESP_LOGV(TAG, "%s(): EXIT:  start-idx=%u, text-idx=%u, text-len=%u", __func__, this->start_pos, this->visible_idx,
            this->visible_len);
+
+  return false;
 }
 
 /**
@@ -820,31 +977,25 @@ void DisplayBrightness::set_brightness(float percent) {
 /**
  * @brief Constructor.
  */
-DisplayMode::DisplayMode() {
-  this->mode = DISP_MODE_PRINT;
-  this->duration_ms = 0;  // endless
-}
+DisplayMode::DisplayMode() { this->mode = DISP_MODE_PRINT; }
 
 /**
  * @brief Sets the display mode.
  *
- * @param mode display start position of text (0..n)
- * @param duration duration in ms (optional, default=endless)
- *                 not applicable for "it" mode
+ * @param mode display mode to set
+ *
+ * @return current mode
  */
-void DisplayMode::set_mode(DisplayModeT mode, uint32_t duration_ms) {
+DisplayModeT DisplayMode::set_mode(DisplayModeT mode) {
   if (mode >= DISP_MODE_LAST_ENUM) {
     ESP_LOGE(TAG, "Invalid display mode: %i", mode);
-    return;
+    return this->mode;
   }
   if (mode != this->mode) {
     this->mode = mode;
-    this->duration_ms = duration_ms;
-    if (duration_ms > 0)
-      this->duration_ms_start_ = millis();
-    ESP_LOGD(TAG, "Set display mode: mode=%i, duration=%" PRIu32 "ms, duration-start=%" PRIu32 "ms", this->mode,
-             this->duration_ms, this->duration_ms_start_);
   }
+
+  return this->mode;
 }
 
 }  // namespace max6921

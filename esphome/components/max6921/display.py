@@ -44,10 +44,12 @@ CONF_POS_11_PIN = "pos_11_pin"
 CONF_POS_12_PIN = "pos_12_pin"
 # CONF_DEMO_MODE = "demo_mode"
 CONF_ALIGN = "align"
+CONF_EFFECT_CYCLE_NUM = "effect_cycle_num"
 CONF_CYCLE_NUM = "cycle_num"
 CONF_OFF = "off"
+CONF_REPEAT_INTERVAL = "repeat_interval"
+CONF_REPEAT_NUM = "repeat_num"
 CONF_SCROLL_FONT = "scroll_font"
-
 
 max6921_ns = cg.esphome_ns.namespace("max6921")
 MAX6921Component = max6921_ns.class_(
@@ -208,13 +210,27 @@ async def max6921_set_brightness_to_code(config, action_id, template_arg, args):
 
 
 def validate_action_set_text(value):
-    # duration = value.get(CONF_DURATION)
-    # cycle_num = value.get(CONF_CYCLE_NUM)
-    # if not isinstance(duration, cv.Lambda) and not isinstance(cycle_num, cv.Lambda):
-    #     if duration.total_milliseconds > 0 and cycle_num > 0:
-    #         raise cv.Invalid(
-    #             f"Only one of following config value must be set: {CONF_CYCLE_NUM}, {CONF_DURATION}"
-    #         )
+    duration = value.get(CONF_DURATION)
+    effect_cycle_num = value.get(CONF_EFFECT_CYCLE_NUM)
+    repeat_interval = value.get(CONF_REPEAT_INTERVAL)
+    repeat_num = value.get(CONF_REPEAT_NUM)
+    if (
+        not isinstance(duration, cv.Lambda)
+        and not isinstance(effect_cycle_num, cv.Lambda)
+        and not isinstance(repeat_interval, cv.Lambda)
+        and not isinstance(repeat_num, cv.Lambda)
+    ):
+        if ((repeat_interval.total_milliseconds > 0) or (repeat_num > 0)) and (
+            (effect_cycle_num == 0) and (duration.total_milliseconds == 0)
+        ):
+            raise cv.Invalid(
+                f'If "{CONF_REPEAT_INTERVAL}" or "{CONF_REPEAT_NUM}" is non-zero, '
+                f'then "{CONF_EFFECT_CYCLE_NUM}" or "{CONF_DURATION}" must be non-zero too'
+            )
+        if (repeat_num > 0) and (repeat_interval.total_milliseconds == 0):
+            raise cv.Invalid(
+                f'If "{CONF_REPEAT_NUM}" is non-zero, then "{CONF_REPEAT_INTERVAL}" must be non-zero too'
+            )
     return value
 
 
@@ -234,10 +250,16 @@ ACTION_SET_TEXT_SCHEMA = cv.All(
                         cv.positive_time_period_milliseconds
                     ),
                     cv.Optional(CONF_EFFECT, default="none"): cv.templatable(cv.string),
+                    cv.Optional(CONF_EFFECT_CYCLE_NUM, default=0): cv.templatable(
+                        cv.uint8_t
+                    ),
+                    cv.Optional(CONF_REPEAT_INTERVAL, default="0ms"): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
+                    cv.Optional(CONF_REPEAT_NUM, default=0): cv.templatable(cv.uint8_t),
                     cv.Optional(CONF_UPDATE_INTERVAL, default="150ms"): cv.templatable(
                         cv.positive_time_period_milliseconds
                     ),
-                    cv.Optional(CONF_CYCLE_NUM, default=0): cv.templatable(cv.uint8_t),
                 }
             )
         )
@@ -264,12 +286,18 @@ async def max6921_set_text_to_code(config, action_id, template_arg, args):
     if CONF_EFFECT in config:
         template_ = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
         cg.add(var.set_text_effect(template_))
+    if CONF_EFFECT_CYCLE_NUM in config:
+        template_ = await cg.templatable(config[CONF_EFFECT_CYCLE_NUM], args, cg.uint8)
+        cg.add(var.set_text_effect_cycle_num(template_))
+    if CONF_REPEAT_NUM in config:
+        template_ = await cg.templatable(config[CONF_REPEAT_NUM], args, cg.uint8)
+        cg.add(var.set_text_repeat_num(template_))
+    if CONF_REPEAT_INTERVAL in config:
+        template_ = await cg.templatable(config[CONF_REPEAT_INTERVAL], args, cg.uint32)
+        cg.add(var.set_text_repeat_interval(template_))
     if CONF_UPDATE_INTERVAL in config:
         template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, cg.uint32)
         cg.add(var.set_text_effect_update_interval(template_))
-    if CONF_CYCLE_NUM in config:
-        template_ = await cg.templatable(config[CONF_CYCLE_NUM], args, cg.uint8)
-        cg.add(var.set_text_effect_cycle_num(template_))
     return var
 
 
