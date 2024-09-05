@@ -34,6 +34,27 @@ api:
 
 switch:
   - platform: homeassistant
+    entity_id: automation.my_cool_automation
+    id: my_cool_automation
+  - platform: homeassistant
+    entity_id: fan.my_cool_fan
+    id: my_cool_fan
+  - platform: homeassistant
+    entity_id: humidifier.my_cool_humidifier
+    id: my_cool_humidifier
+  - platform: homeassistant
+    entity_id: input_boolean.my_cool_input_boolean
+    id: my_cool_input_boolean
+  - platform: homeassistant
+    entity_id: light.my_cool_light
+    id: my_cool_light
+  - platform: homeassistant
+    entity_id: remote.my_cool_remote
+    id: my_cool_remote
+  - platform: homeassistant
+    entity_id: siren.my_cool_siren
+    id: my_cool_siren
+  - platform: homeassistant
     entity_id: switch.my_cool_switch
     id: my_cool_switch
 
