@@ -32,8 +32,11 @@ bool ModbusController::send_next_command_() {
             r.skip_updates_counter = this->offline_skip_updates_;
           }
         }
+
+        this->module_offline_ = true;
+        this->offline_callback_.call((int) command->function_code, command->register_address);
       }
-      this->module_offline_ = true;
+
       ESP_LOGD(
           TAG,
           "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
@@ -70,8 +73,10 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
           r.skip_updates_counter = 0;
         }
       }
+      // Restore module online state
+      this->module_offline_ = false;
+      this->online_callback_.call((int) current_command->function_code, current_command->register_address);
     }
-    this->module_offline_ = false;
 
     // Move the commandItem to the response queue
     current_command->payload = data;
@@ -666,6 +671,14 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
 }
 
 void ModbusController::add_on_command_sent_callback(std::function<void(int, int)> &&callback) {
+  this->command_sent_callback_.add(std::move(callback));
+}
+
+void ModbusController::add_on_online_callback(std::function<void(int, int)> &&callback) {
+  this->command_sent_callback_.add(std::move(callback));
+}
+
+void ModbusController::add_on_offline_callback(std::function<void(int, int)> &&callback) {
   this->command_sent_callback_.add(std::move(callback));
 }
 
