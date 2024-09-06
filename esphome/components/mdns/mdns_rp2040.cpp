@@ -11,7 +11,10 @@
 namespace esphome {
 namespace mdns {
 
+static const char *const TAG = "mdns";
+
 void MDNSComponent::setup() {
+  global_mdns = this;
   this->compile_records_();
 
   MDNS.begin(this->hostname_.c_str());
@@ -36,6 +39,15 @@ void MDNSComponent::setup() {
   }
 }
 
+network::IPAddress MDNSComponent::resolve(const std::string &servicename) {
+  if (MDNS.queryService(servicename.c_str(), "tcp") > 0) {
+    auto ip_addr_ = network::IPAddress(MDNS.IP(0));
+    ESP_LOGVV(TAG, "Found mDNS %s", ip_addr_.str().c_str());
+    return ip_addr_;
+  }
+  return network::IPAddress();
+}
+
 void MDNSComponent::loop() { MDNS.update(); }
 
 void MDNSComponent::on_shutdown() {
@@ -43,6 +55,7 @@ void MDNSComponent::on_shutdown() {
   delay(40);
 }
 
+MDNSComponent *global_mdns = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace mdns
 }  // namespace esphome
 

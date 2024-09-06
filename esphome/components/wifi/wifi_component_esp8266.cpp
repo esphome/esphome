@@ -37,6 +37,7 @@ extern "C" {
 #include "esphome/core/hal.h"
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
+#include "esphome/components/network/util.h"
 
 namespace esphome {
 namespace wifi {

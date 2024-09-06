@@ -1,3 +1,4 @@
+#include <map>
 #include "util.h"
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK

@@ -1,0 +1,9 @@
+# IPv4 test
+192.168.1.1 other.example.com
+# IPv6 test
+2001:db8:4455:6677::35  other6.example.com
+# Empty line test
+
+# multi name test
+192.168.1.10 multi1.example.com multi1
+

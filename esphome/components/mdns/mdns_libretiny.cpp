@@ -12,6 +12,7 @@ namespace esphome {
 namespace mdns {
 
 void MDNSComponent::setup() {
+  global_mdns = this;
   this->compile_records_();
 
   MDNS.begin(this->hostname_.c_str());
@@ -36,8 +37,12 @@ void MDNSComponent::setup() {
   }
 }
 
+// Libre tiny doesn't have a "full" mDNS implementation
+network::IPAddress MDNSComponent::resolve(const std::string &servicename) { return network::IPAddress(); }
+
 void MDNSComponent::on_shutdown() {}
 
+MDNSComponent *global_mdns = nullptr;
 }  // namespace mdns
 }  // namespace esphome
 

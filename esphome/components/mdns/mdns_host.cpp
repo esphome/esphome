@@ -12,7 +12,9 @@ namespace mdns {
 void MDNSComponent::setup() { this->compile_records_(); }
 
 void MDNSComponent::on_shutdown() {}
+network::IPAddress MDNSComponent::resolve(const std::string &) { return network::IPAddress(); }
 
+MDNSComponent *global_mdns = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace mdns
 }  // namespace esphome
 

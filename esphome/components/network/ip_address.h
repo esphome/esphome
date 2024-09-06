@@ -48,7 +48,10 @@ struct IPAddress {
     this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
-  IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  explicit IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
+  bool operator==(const IPAddress &other) const { return &ip_addr_.s_addr == &other.ip_addr_.s_addr; }
+  bool operator!=(const IPAddress &other) const { return &ip_addr_.s_addr != &other.ip_addr_.s_addr; }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
@@ -56,7 +59,7 @@ struct IPAddress {
   }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
-  IPAddress(ip4_addr_t *other_ip) {
+  explicit IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
 #if USE_ESP32 && LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
@@ -132,7 +135,7 @@ struct IPAddress {
     }
     return *this;
   }
-#endif
+#endif /* USE_HOST */
 
  protected:
   ip_addr_t ip_addr_;
