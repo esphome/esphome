@@ -1,9 +1,9 @@
-#include "bmp280.h"
+#include "bmp280_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace bmp280 {
+namespace bmp280_base {
 
 static const char *const TAG = "bmp280.sensor";
 
@@ -59,6 +59,14 @@ static const char *iir_filter_to_str(BMP280IIRFilter filter) {
 void BMP280Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BMP280...");
   uint8_t chip_id = 0;
+
+  // Read the chip id twice, to work around a bug where the first read is 0.
+  // https://community.st.com/t5/stm32-mcus-products/issue-with-reading-bmp280-chip-id-using-spi/td-p/691855
+  if (!this->read_byte(0xD0, &chip_id)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return;
+  }
   if (!this->read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -122,7 +130,6 @@ void BMP280Component::setup() {
 }
 void BMP280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP280:");
-  LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
       ESP_LOGE(TAG, "Communication with BMP280 failed!");
@@ -262,5 +269,5 @@ uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bmp280
+}  // namespace bmp280_base
 }  // namespace esphome

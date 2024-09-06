@@ -1,17 +1,17 @@
+import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_component
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DISABLED,
     CONF_ID,
     CONF_PORT,
     CONF_PROTOCOL,
-    CONF_SERVICES,
     CONF_SERVICE,
+    CONF_SERVICES,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
-    CONF_DISABLED,
 )
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.core import CORE, coroutine_with_priority
-from esphome.components.esp32 import add_idf_component
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -91,7 +91,7 @@ async def to_code(config):
         add_idf_component(
             name="mdns",
             repo="https://github.com/espressif/esp-protocols.git",
-            ref="mdns-v1.2.5",
+            ref="mdns-v1.3.2",
             path="components/mdns",
         )
 
