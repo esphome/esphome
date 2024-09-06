@@ -14,5 +14,5 @@ modbus_controller:
     modbus_id: mod_bus1
     allow_duplicate_commands: true
     on_offline:
-      - then:
+      then:
         logger.log: "Module Offline"
