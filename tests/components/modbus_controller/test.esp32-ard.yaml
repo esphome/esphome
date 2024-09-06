@@ -23,7 +23,7 @@ modbus_controller:
     allow_duplicate_commands: false
     on_online:
       - then:
-        - logger.log: "Module Online"
+        logger.log: "Module Online"
   - id: modbus_controller2
     address: 0x2
     modbus_id: mod_bus2
