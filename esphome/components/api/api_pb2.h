@@ -156,6 +156,10 @@ enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_MUTE = 3,
   MEDIA_PLAYER_COMMAND_UNMUTE = 4,
 };
+enum MediaPlayerFormatPurpose : uint32_t {
+  MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0,
+  MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT = 1,
+};
 enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0,
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1,
@@ -1267,6 +1271,21 @@ class ButtonCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
+class MediaPlayerSupportedFormat : public ProtoMessage {
+ public:
+  std::string format{};
+  uint32_t sample_rate{0};
+  uint32_t num_channels{0};
+  enums::MediaPlayerFormatPurpose purpose{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 class ListEntitiesMediaPlayerResponse : public ProtoMessage {
  public:
   std::string object_id{};
@@ -1277,6 +1296,7 @@ class ListEntitiesMediaPlayerResponse : public ProtoMessage {
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
   bool supports_pause{false};
+  std::vector<MediaPlayerSupportedFormat> supported_formats{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
