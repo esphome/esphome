@@ -1,14 +1,17 @@
 from typing import Callable
 
+from voluptuous import Schema
+
 import esphome.config_validation as cv
 
 from . import const, schema, generate
+from .schema import TSchema
 
 
 def create_entities_schema(
-    entities: schema.Schema[schema.T],
-    get_entity_validation_schema: Callable[[schema.T], cv.Schema],
-) -> cv.Schema:
+    entities: dict[str, schema.EntitySchema],
+    get_entity_validation_schema: Callable[[TSchema], cv.Schema],
+) -> Schema:
     entity_schema = {}
     for key, entity in entities.items():
         entity_schema[cv.Optional(key)] = get_entity_validation_schema(entity)
@@ -16,9 +19,9 @@ def create_entities_schema(
 
 
 def create_component_schema(
-    entities: schema.Schema[schema.T],
-    get_entity_validation_schema: Callable[[schema.T], cv.Schema],
-) -> cv.Schema:
+    entities: dict[str, schema.EntitySchema],
+    get_entity_validation_schema: Callable[[TSchema], cv.Schema],
+) -> Schema:
     return (
         cv.Schema(
             {cv.GenerateID(const.CONF_OPENTHERM_ID): cv.use_id(generate.OpenthermHub)}

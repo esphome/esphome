@@ -4,6 +4,7 @@ from typing import Any, Callable, TypeVar
 import esphome.codegen as cg
 from esphome.const import CONF_ID
 from . import const, schema
+from .schema import TSchema
 
 opentherm_ns = cg.esphome_ns.namespace("esphome::opentherm")
 OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
@@ -20,11 +21,8 @@ def define_has_component(component_type: str, keys: list[str]) -> None:
         cg.add_define(f"OPENTHERM_HAS_{component_type.upper()}_{key}")
 
 
-TSchema = TypeVar("TSchema", bound=schema.EntitySchema)
-
-
 def define_message_handler(
-    component_type: str, keys: list[str], schema_: schema.Schema[TSchema]
+    component_type: str, keys: list[str], schemas: dict[str, TSchema]
 ) -> None:
     # The macros defined here should be able to generate things like this:
     # // Parsing a message and publishing to sensors
@@ -46,10 +44,10 @@ def define_message_handler(
 
     messages: dict[str, list[tuple[str, str]]] = {}
     for key in keys:
-        msg = schema_[key]["message"]
+        msg = schemas[key].message
         if msg not in messages:
             messages[msg] = []
-        messages[msg].append((key, schema_[key]["message_data"]))
+        messages[msg].append((key, schemas[key].message_data))
 
     cg.add_define(
         f"OPENTHERM_{component_type.upper()}_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)",
