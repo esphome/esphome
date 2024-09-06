@@ -1,3 +1,4 @@
+CONF_ALLOW_DUPLICATE_COMMANDS = "allow_duplicate_commands"
 CONF_BITMASK = "bitmask"
 CONF_BYTE_OFFSET = "byte_offset"
 CONF_COMMAND_THROTTLE = "command_throttle"
