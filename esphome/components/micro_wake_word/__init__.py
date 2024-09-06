@@ -4,8 +4,6 @@ import logging
 from pathlib import Path
 from urllib.parse import urljoin
 
-import requests
-
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
@@ -26,7 +24,6 @@ from esphome.const import (
     CONF_USERNAME,
     TYPE_GIT,
     TYPE_LOCAL,
-    __version__,
 )
 from esphome.core import CORE, HexInt
 
@@ -179,26 +176,6 @@ def _convert_manifest_v1_to_v2(v1_manifest):
     return v2_manifest
 
 
-def _download_file(url: str, path: Path) -> bytes:
-    if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.debug("Remote file has not changed, skipping download")
-        return path.read_bytes()
-
-    try:
-        req = requests.get(
-            url,
-            timeout=external_files.NETWORK_TIMEOUT,
-            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
-        )
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download file from {url}: {e}") from e
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
-    return req.content
-
-
 def _validate_manifest_version(manifest_data):
     if manifest_version := manifest_data.get(KEY_VERSION):
         if manifest_version == 1:
@@ -223,7 +200,7 @@ def _process_http_source(config):
 
     json_path = path / "manifest.json"
 
-    json_contents = _download_file(url, json_path)
+    json_contents = external_files.download_content(url, json_path)
 
     manifest_data = json.loads(json_contents)
     if not isinstance(manifest_data, dict):
@@ -234,7 +211,7 @@ def _process_http_source(config):
 
     model_path = path / model
 
-    _download_file(str(model_url), model_path)
+    external_files.download_content(str(model_url), model_path)
 
     return config
 

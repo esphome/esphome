@@ -312,8 +312,7 @@ void OpenthermHub::sync_loop_() {
   this->opentherm_->listen();
   if (!this->spin_wait_(1150, [&] { return this->opentherm_->is_active(); })) {
     ESP_LOGE(TAG, "Hub timeout triggered during receive");
-    this->opentherm_->stop();
-    this->last_conversation_end_ = millis();
+    this->stop_opentherm_();
     return;
   }
 
@@ -418,8 +417,8 @@ void OpenthermHub::handle_timeout_error_() {
 
 void OpenthermHub::dump_config() {
   ESP_LOGCONFIG(TAG, "OpenTherm:");
-  ESP_LOGCONFIG(TAG, "  In: GPIO%d", this->in_pin_->get_pin());
-  ESP_LOGCONFIG(TAG, "  Out: GPIO%d", this->out_pin_->get_pin());
+  LOG_PIN("  In: ", this->in_pin_);
+  LOG_PIN("  Out: ", this->out_pin_);
   ESP_LOGCONFIG(TAG, "  Sync mode: %d", this->sync_mode_);
   ESP_LOGCONFIG(TAG, "  Sensors: %s", SHOW(OPENTHERM_SENSOR_LIST(ID, )));
   ESP_LOGCONFIG(TAG, "  Binary sensors: %s", SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )));
