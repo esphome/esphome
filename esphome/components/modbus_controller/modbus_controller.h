@@ -504,9 +504,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   uint16_t offline_skip_updates_;
   /// Command sent callback
   CallbackManager<void(int, int)> command_sent_callback_{};
-  /// Slave online callback
+  /// Server online callback
   CallbackManager<void(int, int)> online_callback_{};
-  /// Slave offline callback
+  /// Server offline callback
   CallbackManager<void(int, int)> offline_callback_{};
 };
 
