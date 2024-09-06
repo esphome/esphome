@@ -1,6 +1,5 @@
 import logging
 import os
-
 from string import ascii_letters, digits
 
 import esphome.codegen as cg
@@ -8,6 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_PLATFORM_VERSION,
     CONF_SOURCE,
     CONF_VERSION,
     KEY_CORE,
@@ -15,10 +15,9 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_RP2040,
-    CONF_PLATFORM_VERSION,
 )
-from esphome.core import CORE, coroutine_with_priority, EsphomeError
-from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
+from esphome.core import CORE, EsphomeError, coroutine_with_priority
+from esphome.helpers import copy_file_if_changed, mkdir_p, write_file
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
@@ -81,19 +80,19 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 7, 2)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 9, 4)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 12, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(1, 13, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(3, 4, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(3, 4, 0), None),
+        "dev": (cv.Version(3, 9, 4), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(3, 9, 4), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
