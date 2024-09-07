@@ -38,3 +38,4 @@ switch:
     on_pin: 2
     off_pin: 3
     wait_time: 10ms
+    optimistic: true

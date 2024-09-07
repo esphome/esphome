@@ -39,3 +39,4 @@ switch:
     off_pin: 5
     pulse_length: 60ms
     wait_time: 10ms
+    optimistic: false
