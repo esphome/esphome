@@ -122,6 +122,20 @@ void BL0942::update() {
 }
 
 void BL0942::setup() {
+  // If either current or voltage references are set explicitly by the user,
+  // calculate the power reference from it unless that is also explicitly set.
+  if ((this->current_reference_set_ || this->voltage_reference_set_) && !this->power_reference_set_) {
+    this->power_reference_ = (this->voltage_reference_ * this->current_reference_ * 3537.0 / 305978.0) / 73989.0;
+    this->power_reference_set_ = true;
+  }
+
+  // Similarly for energy reference, if the power reference was set by the user
+  // either implicitly or explicitly.
+  if (this->power_reference_set_ && !this->energy_reference_set_) {
+    this->energy_reference_ = this->power_reference_ * 3600000 / 419430.4;
+    this->energy_reference_set_ = true;
+  }
+
   this->write_reg_(BL0942_REG_USR_WRPROT, BL0942_REG_USR_WRPROT_MAGIC);
   this->write_reg_(BL0942_REG_SOFT_RESET, BL0942_REG_SOFT_RESET_MAGIC);
 
@@ -184,11 +198,15 @@ void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   ESP_LOGCONFIG(TAG, "BL0942:");
   ESP_LOGCONFIG(TAG, "  Address: %d", this->address_);
   ESP_LOGCONFIG(TAG, "  Nominal line frequency: %d Hz", this->line_freq_);
+  ESP_LOGCONFIG(TAG, "  Current reference: %f", this->current_reference_);
+  ESP_LOGCONFIG(TAG, "  Energy reference: %f", this->energy_reference_);
+  ESP_LOGCONFIG(TAG, "  Power reference: %f", this->power_reference_);
+  ESP_LOGCONFIG(TAG, "  Voltage reference: %f", this->voltage_reference_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
   LOG_SENSOR("", "Energy", this->energy_sensor_);
-  LOG_SENSOR("", "frequency", this->frequency_sensor_);
+  LOG_SENSOR("", "Frequency", this->frequency_sensor_);
 }
 
 }  // namespace bl0942
