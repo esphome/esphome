@@ -58,19 +58,23 @@ void HBridgeSwitch::timer_fn_() {
           this->relay_state_ = RELAY_STATE_SWITCHING_OFF;
         }
         next_timeout = this->pulse_length_;
+        if (!this->optimistic_)
+          this->publish_state(this->desired_state_);
         break;
 
       case RELAY_STATE_SWITCHING_ON:
         this->on_pin_->digital_write(false);
         this->relay_state_ = RELAY_STATE_ON;
-        this->publish_state(true);
+        if (this->optimistic_)
+          this->publish_state(true);
         next_timeout = this->wait_time_;
         break;
 
       case RELAY_STATE_SWITCHING_OFF:
         this->off_pin_->digital_write(false);
         this->relay_state_ = RELAY_STATE_OFF;
-        this->publish_state(false);
+        if (this->optimistic_)
+          this->publish_state(false);
         next_timeout = this->wait_time_;
         break;
     }

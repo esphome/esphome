@@ -23,6 +23,7 @@ class HBridgeSwitch : public switch_::Switch, public Component {
   void set_off_pin(GPIOPin *pin) { this->off_pin_ = pin; }
   void set_pulse_length(uint32_t pulse_length) { this->pulse_length_ = pulse_length; }
   void set_wait_time(uint32_t wait_time) { this->wait_time_ = wait_time; }
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -42,6 +43,7 @@ class HBridgeSwitch : public switch_::Switch, public Component {
   GPIOPin *off_pin_;
   uint32_t pulse_length_;
   uint32_t wait_time_{0};
+  bool optimistic_{false};
 };
 
 }  // namespace hbridge
