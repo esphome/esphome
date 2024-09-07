@@ -7,26 +7,16 @@ from .. import const, schema, validate, generate
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.SENSOR
 
+_UNDEF = object()
+
 
 def get_entity_validation_schema(entity: schema.SensorSchema) -> cv.Schema:
     return sensor.sensor_schema(
-        unit_of_measurement=(
-            entity["unit_of_measurement"]
-            if "unit_of_measurement" in entity
-            else sensor._UNDEF  # pylint: disable=protected-access
-        ),
-        accuracy_decimals=entity["accuracy_decimals"],
-        device_class=(
-            entity["device_class"]
-            if "device_class" in entity
-            else sensor._UNDEF  # pylint: disable=protected-access
-        ),
-        icon=(
-            entity["icon"]
-            if "icon" in entity
-            else sensor._UNDEF  # pylint: disable=protected-access
-        ),
-        state_class=entity["state_class"],
+        unit_of_measurement=entity.unit_of_measurement or _UNDEF,
+        accuracy_decimals=entity.accuracy_decimals,
+        device_class=entity.device_class or _UNDEF,
+        icon=entity.icon or _UNDEF,
+        state_class=entity.state_class,
     )
 
 

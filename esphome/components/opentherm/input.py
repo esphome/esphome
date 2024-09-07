@@ -26,21 +26,21 @@ def validate_min_value_less_than_max_value(conf):
 def input_schema(entity: schema.InputSchema) -> cv.Schema:
     result = cv.Schema(
         {
-            cv.Optional(CONF_min_value, entity["range"][0]): cv.float_range(
-                entity["range"][0], entity["range"][1]
+            cv.Optional(CONF_min_value, entity.range[0]): cv.float_range(
+                entity.range[0], entity.range[1]
             ),
-            cv.Optional(CONF_max_value, entity["range"][1]): cv.float_range(
-                entity["range"][0], entity["range"][1]
+            cv.Optional(CONF_max_value, entity.range[1]): cv.float_range(
+                entity.range[0], entity.range[1]
             ),
         }
     )
-    if CONF_auto_min_value in entity:
-        result = result.extend({cv.Optional(CONF_auto_min_value, False): cv.boolean})
-    if CONF_auto_max_value in entity:
-        result = result.extend({cv.Optional(CONF_auto_max_value, False): cv.boolean})
-    if CONF_step in entity:
-        result = result.extend({cv.Optional(CONF_step, False): cv.float_})
     result = result.add_extra(validate_min_value_less_than_max_value)
+    result = result.extend({cv.Optional(CONF_step, False): cv.float_})
+    if entity.auto_min_value is not None:
+        result = result.extend({cv.Optional(CONF_auto_min_value, False): cv.boolean})
+    if entity.auto_max_value is not None:
+        result = result.extend({cv.Optional(CONF_auto_max_value, False): cv.boolean})
+
     return result
 
 

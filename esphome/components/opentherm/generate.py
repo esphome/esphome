@@ -1,9 +1,9 @@
 from collections.abc import Awaitable
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable
 
 import esphome.codegen as cg
 from esphome.const import CONF_ID
-from . import const, schema
+from . import const
 from .schema import TSchema
 
 opentherm_ns = cg.esphome_ns.namespace("esphome::opentherm")
@@ -77,10 +77,10 @@ def define_readers(component_type: str, keys: list[str]) -> None:
         )
 
 
-def add_messages(hub: cg.MockObj, keys: list[str], schema_: schema.Schema[TSchema]):
+def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
     messages: set[tuple[str, bool]] = set()
     for key in keys:
-        messages.add((schema_[key]["message"], schema_[key]["keep_updated"]))
+        messages.add((schemas[key].message, schemas[key].keep_updated))
     for msg, keep_updated in messages:
         msg_expr = cg.RawExpression(f"esphome::opentherm::MessageId::{msg}")
         if keep_updated:
@@ -105,7 +105,7 @@ def create_only_conf(
 
 async def component_to_code(
     component_type: str,
-    schema_: schema.Schema[TSchema],
+    schemas: dict[str, TSchema],
     type: cg.MockObjClass,
     create: Create,
     config: dict[str, Any],
@@ -137,7 +137,7 @@ async def component_to_code(
             keys.append(key)
 
     define_has_component(component_type, keys)
-    define_message_handler(component_type, keys, schema_)
-    add_messages(hub, keys, schema_)
+    define_message_handler(component_type, keys, schemas)
+    add_messages(hub, keys, schemas)
 
     return keys

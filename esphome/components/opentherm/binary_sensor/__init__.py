@@ -12,8 +12,8 @@ _UNDEF = object()
 
 def get_entity_validation_schema(entity: schema.BinarySensorSchema) -> cv.Schema:
     return binary_sensor.binary_sensor_schema(
-        device_class=(entity["device_class"] if "device_class" in entity else _UNDEF),
-        icon=(entity["icon"] if "icon" in entity else _UNDEF),
+        device_class=(entity.device_class or _UNDEF),
+        icon=(entity.icon or _UNDEF),
     )
 
 

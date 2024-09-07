@@ -46,9 +46,9 @@ def get_entity_validation_schema(entity: schema.InputSchema) -> cv.Schema:
             {
                 cv.GenerateID(): cv.declare_id(OpenthermNumber),
                 cv.Optional(
-                    CONF_UNIT_OF_MEASUREMENT, entity["unit_of_measurement"]
+                    CONF_UNIT_OF_MEASUREMENT, entity.unit_of_measurement
                 ): cv.string_strict,
-                cv.Optional(CONF_STEP, entity["step"]): cv.float_,
+                cv.Optional(CONF_STEP, entity.step): cv.float_,
                 cv.Optional(CONF_INITIAL_VALUE): cv.float_,
                 cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
             }

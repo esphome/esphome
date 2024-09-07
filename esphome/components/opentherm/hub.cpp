@@ -58,9 +58,6 @@ void write_f88(const float value, OpenthermData &data) { data.f88(value); }
 
 }  // namespace message_data
 
-#define OPENTHERM_IGNORE_1(x)
-#define OPENTHERM_IGNORE_2(x, y)
-
 OpenthermData OpenthermHub::build_request_(MessageId request_id) {
   OpenthermData data;
   data.type = 0;
@@ -146,14 +143,6 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 // because we would want to write that data if it is available, rather than
 // request a read for that type (in the case that both read and write are
 // supported).
-#define OPENTHERM_MESSAGE_WRITE_MESSAGE(msg) \
-  case MessageId::msg: { \
-    data.type = MessageType::WRITE_DATA; \
-    data.id = request_id;
-#define OPENTHERM_MESSAGE_WRITE_ENTITY(key, msg_data) message_data::write_##msg_data(this->key->state, data);
-#define OPENTHERM_MESSAGE_WRITE_POSTSCRIPT \
-  return data; \
-  }
   switch (request_id) {
     OPENTHERM_SWITCH_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
                                       OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
@@ -166,12 +155,9 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
   }
 
 // Finally, handle the simple read requests, which only change with the message id.
-#define OPENTHERM_MESSAGE_READ_MESSAGE(msg) \
-  case MessageId::msg: \
-    data.type = MessageType::READ_DATA; \
-    data.id = request_id; \
-    return data;
-  switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , ) }
+  switch (request_id) { 
+    OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , ) 
+  }
   switch (request_id) {
     OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , )
   }
@@ -192,14 +178,6 @@ void OpenthermHub::process_response(OpenthermData &data) {
            this->opentherm_->message_id_to_str((MessageId) data.id));
   ESP_LOGD(TAG, "%s", this->opentherm_->debug_data(data).c_str());
 
-// Define the handler helpers to publish the results to all sensors
-#define OPENTHERM_MESSAGE_RESPONSE_MESSAGE(msg) case MessageId::msg:
-#define OPENTHERM_MESSAGE_RESPONSE_ENTITY(key, msg_data) this->key->publish_state(message_data::parse_##msg_data(data));
-#define OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT break;
-
-  // Then use those to create a switch statement for each thing we would want
-  // to report. We use a separate switch statement for each type, because some
-  // messages include results for multiple types, like flags and a number.
   switch (data.id) {
     OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
                                       OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
@@ -410,10 +388,6 @@ void OpenthermHub::handle_timeout_error_() {
   ESP_LOGW(TAG, "Receive response timed out at a protocol level");
   this->stop_opentherm_();
 }
-
-#define ID(x) x
-#define SHOW2(x) #x
-#define SHOW(x) SHOW2(x)
 
 void OpenthermHub::dump_config() {
   ESP_LOGCONFIG(TAG, "OpenTherm:");
