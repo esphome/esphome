@@ -80,10 +80,10 @@ def compute_local_file_dir(domain: str) -> Path:
     return base_directory
 
 
-def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> None:
+def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> bytes:
     if not has_remote_file_changed(url, path):
         _LOGGER.debug("Remote file has not changed %s", url)
-        return
+        return path.read_bytes()
 
     _LOGGER.debug(
         "Remote file has changed, downloading from %s to %s",
@@ -102,4 +102,6 @@ def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> None:
         raise cv.Invalid(f"Could not download from {url}: {e}")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
+    data = req.content
+    path.write_bytes(data)
+    return data

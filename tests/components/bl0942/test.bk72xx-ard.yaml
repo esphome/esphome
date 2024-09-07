@@ -20,3 +20,7 @@ sensor:
       name: BL0942 Energy
     frequency:
       name: BL0942 Frequency
+    voltage_reference: 15968
+    current_reference: 124180
+    power_reference: 309.1
+    energy_reference: 2653
