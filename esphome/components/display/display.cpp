@@ -157,8 +157,8 @@ void Display::filled_circle(int center_x, int center_y, int radius, Color color)
   } while (dx <= 0);
 }
 void Display::filled_ring(int center_x, int center_y, int radius1, int radius2, Color color) {
-  int rmax=radius1>radius2?radius1:radius2;
-  int rmin=radius1<radius2?radius1:radius2;
+  int rmax = radius1 > radius2 ? radius1 : radius2;
+  int rmin = radius1 < radius2 ? radius1 : radius2;
   int dxmax = -int32_t(rmax), dxmin = -int32_t(rmin);
   int dymax = 0, dymin = 0;
   int errmax = 2 - 2 * rmax, errmin = 2 - 2 * rmin;
@@ -173,9 +173,9 @@ void Display::filled_ring(int center_x, int center_y, int radius1, int radius2, 
     this->draw_pixel_at(center_x - dxmax, center_y - dymax, color);
     this->draw_pixel_at(center_x + dxmin, center_y - dymin, color);
     this->draw_pixel_at(center_x - dxmin, center_y - dymin, color);
-    if(dymin<rmin) {
+    if (dymin < rmin) {
       // two parts - four lines
-      int hline_width = -(dxmax-dxmin) + 1;
+      int hline_width = -(dxmax - dxmin) + 1;
       this->horizontal_line(center_x + dxmax, center_y + dymax, hline_width, color);
       this->horizontal_line(center_x - dxmin, center_y + dymax, hline_width, color);
       this->horizontal_line(center_x + dxmax, center_y - dymax, hline_width, color);
@@ -198,8 +198,7 @@ void Display::filled_ring(int center_x, int center_y, int radius1, int radius2, 
       errmax += ++dxmax * 2 + 1;
     }
     // tune internal
-    while (dymin<dymax && dymin<rmin)
-    {
+    while (dymin < dymax && dymin < rmin) {
       e2min = errmin;
       if (e2min < dymin) {
         errmin += ++dymin * 2 + 1;
@@ -214,58 +213,63 @@ void Display::filled_ring(int center_x, int center_y, int radius1, int radius2, 
   } while (dxmax <= 0);
 }
 void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2, int progress, Color color) {
-  int rmax=radius1>radius2?radius1:radius2;
-  int rmin=radius1<radius2?radius1:radius2;
-  int dxmax = -int32_t(rmax), dxmin = -int32_t(rmin), _dxmax, _dxmin;
+  int rmax = radius1 > radius2 ? radius1 : radius2;
+  int rmin = radius1 < radius2 ? radius1 : radius2;
+  int dxmax = -int32_t(rmax), dxmin = -int32_t(rmin), upd_dxmax, upd_dxmin;
   int dymax = 0, dymin = 0;
   int errmax = 2 - 2 * rmax, errmin = 2 - 2 * rmin;
   int e2max, e2min;
-  progress=std::max(0,std::min(progress,100)); // 0..100
-  int draw_progress=progress>50?(100-progress):progress;
-  float tan_a=(progress==50)?65535:tan(float(draw_progress) * M_PI / 100); // slope
+  progress = std::max(0, std::min(progress, 100));  // 0..100
+  int draw_progress = progress > 50 ? (100 - progress) : progress;
+  float tan_a = (progress == 50) ? 65535 : tan(float(draw_progress) * M_PI / 100);  // slope
 
   do {
     // outer dots
     this->draw_pixel_at(center_x + dxmax, center_y - dymax, color);
     this->draw_pixel_at(center_x - dxmax, center_y - dymax, color);
-    if(dymin<rmin) { // side parts
-      int lhline_width = -(dxmax-dxmin) + 1;
-      if(progress>=50) {
-        if(float(dymax)<float(-dxmax)*tan_a)
-          _dxmax=ceil(float(dymax)/tan_a);
-        else _dxmax=-dxmax;
-        this->horizontal_line(center_x + dxmax, center_y - dymax, lhline_width, color); // left
-        if(!dymax)
-          this->horizontal_line(center_x - dxmin, center_y, lhline_width, color); // right horizontal border
-        if(_dxmax>-dxmin) { // right
-          int rhline_width=(_dxmax+dxmin) + 1;
-          this->horizontal_line(center_x - dxmin, center_y - dymax, rhline_width>lhline_width?lhline_width:rhline_width, color);
+    if (dymin < rmin) {  // side parts
+      int lhline_width = -(dxmax - dxmin) + 1;
+      if (progress >= 50) {
+        if (float(dymax) < float(-dxmax) * tan_a) {
+          upd_dxmax = ceil(float(dymax) / tan_a);
+        } else {
+          upd_dxmax = -dxmax;
         }
-      }else{
-        if(float(dymin)>float(-dxmin)*tan_a)
-          _dxmin=ceil(float(dymin)/tan_a);
-        else _dxmin=-dxmin;
-        lhline_width=-(dxmax+_dxmin) + 1;
-        if(!dymax)
-          this->horizontal_line(center_x - dxmin, center_y, lhline_width, color); // right horizontal border
-        if(lhline_width>0)
+        this->horizontal_line(center_x + dxmax, center_y - dymax, lhline_width, color);  // left
+        if (!dymax)
+          this->horizontal_line(center_x - dxmin, center_y, lhline_width, color);  // right horizontal border
+        if (upd_dxmax > -dxmin) {                                                  // right
+          int rhline_width = (upd_dxmax + dxmin) + 1;
+          this->horizontal_line(center_x - dxmin, center_y - dymax,
+                                rhline_width > lhline_width ? lhline_width : rhline_width, color);
+        }
+      } else {
+        if (float(dymin) > float(-dxmin) * tan_a) {
+          upd_dxmin = ceil(float(dymin) / tan_a);
+        } else {
+          upd_dxmin = -dxmin;
+        }
+        lhline_width = -(dxmax + upd_dxmin) + 1;
+        if (!dymax)
+          this->horizontal_line(center_x - dxmin, center_y, lhline_width, color);  // right horizontal border
+        if (lhline_width > 0)
           this->horizontal_line(center_x + dxmax, center_y - dymax, lhline_width, color);
       }
-    } else { // top part
+    } else {  // top part
       int hline_width = 2 * (-dxmax) + 1;
-      if(progress>=50) {
-        if(dymax<float(-dxmax)*tan_a) {
-          _dxmax=ceil(float(dymax)/tan_a);
-          hline_width=-dxmax+_dxmax+1;
+      if (progress >= 50) {
+        if (dymax < float(-dxmax) * tan_a) {
+          upd_dxmax = ceil(float(dymax) / tan_a);
+          hline_width = -dxmax + upd_dxmax + 1;
         }
-      }else{
-        if(dymax<float(-dxmax)*tan_a) {
-          _dxmax=ceil(float(dymax)/tan_a);
-          hline_width=-dxmax-_dxmax+1;
-        }else
-          hline_width=0;
+      } else {
+        if (dymax < float(-dxmax) * tan_a) {
+          upd_dxmax = ceil(float(dymax) / tan_a);
+          hline_width = -dxmax - upd_dxmax + 1;
+        } else
+          hline_width = 0;
       }
-      if(hline_width>0)
+      if (hline_width > 0)
         this->horizontal_line(center_x + dxmax, center_y - dymax, hline_width, color);
     }
     e2max = errmax;
@@ -278,8 +282,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
     if (e2max > dxmax) {
       errmax += ++dxmax * 2 + 1;
     }
-    while (dymin<=dymax && dymin<=rmin && dxmin<=0)
-    {
+    while (dymin <= dymax && dymin <= rmin && dxmin <= 0) {
       this->draw_pixel_at(center_x + dxmin, center_y - dymin, color);
       this->draw_pixel_at(center_x - dxmin, center_y - dymin, color);
       e2min = errmin;
