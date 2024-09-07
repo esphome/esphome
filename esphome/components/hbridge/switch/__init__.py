@@ -2,7 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_WAIT_TIME
+from esphome.const import CONF_PULSE_LENGTH, CONF_WAIT_TIME
 
 from .. import hbridge_ns
 
@@ -10,9 +10,8 @@ HBridgeSwitch = hbridge_ns.class_("HBridgeSwitch", switch.Switch, cg.Component)
 
 CODEOWNERS = ["@dwmw2"]
 
-CONF_ON_PIN = "on_pin"
 CONF_OFF_PIN = "off_pin"
-CONF_PULSE_LENGTH = "pulse_length"
+CONF_ON_PIN = "on_pin"
 
 CONFIG_SCHEMA = (
     switch.switch_schema(HBridgeSwitch)
