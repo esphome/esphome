@@ -16,6 +16,8 @@
 #include <esp32s2/rom/rtc.h>
 #elif defined(USE_ESP32_VARIANT_ESP32S3)
 #include <esp32s3/rom/rtc.h>
+#elif defined(USE_ESP32_VARIANT_ESP32H2)
+#include <esp32h2/rom/rtc.h>
 #endif
 #ifdef USE_ARDUINO
 #include <Esp.h>
@@ -61,7 +63,7 @@ std::string DebugComponent::get_reset_reason_() {
     case RTCWDT_SYS_RESET:
       reset_reason = "RTC Watch Dog Reset Digital Core";
       break;
-#if !defined(USE_ESP32_VARIANT_ESP32C6)
+#if !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32H2)
     case INTRUSION_RESET:
       reset_reason = "Intrusion Reset CPU";
       break;
