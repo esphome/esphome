@@ -1,7 +1,7 @@
 #include "hbridge_switch.h"
 #include "esphome/core/log.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 namespace esphome {
 namespace hbridge {
