@@ -1,9 +1,12 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "atm90e32_reg.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
-#include "atm90e32_reg.h"
+#include "esphome/core/application.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome {
 namespace atm90e32 {
@@ -20,7 +23,6 @@ class ATM90E32Component : public PollingComponent,
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-
   void set_voltage_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].voltage_sensor_ = obj; }
   void set_current_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].current_sensor_ = obj; }
   void set_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_sensor_ = obj; }
@@ -48,9 +50,11 @@ class ATM90E32Component : public PollingComponent,
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
+  void run_offset_calibrations();
+  void clear_offset_calibrations();
+  void set_enable_offset_calibration(bool flag) { enable_offset_calibration_ = flag; }
   uint16_t calibrate_voltage_offset_phase(uint8_t /*phase*/);
   uint16_t calibrate_current_offset_phase(uint8_t /*phase*/);
-
   int32_t last_periodic_millis = millis();
 
  protected:
@@ -83,10 +87,11 @@ class ATM90E32Component : public PollingComponent,
   float get_chip_temperature_();
   bool get_publish_interval_flag_() { return publish_interval_flag_; };
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
+  void restore_calibrations_();
 
   struct ATM90E32Phase {
-    uint16_t voltage_gain_{7305};
-    uint16_t ct_gain_{27961};
+    uint16_t voltage_gain_{0};
+    uint16_t ct_gain_{0};
     uint16_t voltage_offset_{0};
     uint16_t current_offset_{0};
     float voltage_{0};
@@ -114,13 +119,21 @@ class ATM90E32Component : public PollingComponent,
     uint32_t cumulative_reverse_active_energy_{0};
   } phase_[3];
 
+  struct Calibration {
+    uint16_t voltage_offset_{0};
+    uint16_t current_offset_{0};
+  } offset_phase_[3];
+
+  ESPPreferenceObject pref_;
+
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *chip_temperature_sensor_{nullptr};
   uint16_t pga_gain_{0x15};
   int line_freq_{60};
   int current_phases_{3};
-  bool publish_interval_flag_{true};
+  bool publish_interval_flag_{false};
   bool peak_current_signed_{false};
+  bool enable_offset_calibration_{false};
 };
 
 }  // namespace atm90e32

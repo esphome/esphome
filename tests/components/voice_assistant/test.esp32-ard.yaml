@@ -33,6 +33,7 @@ speaker:
 voice_assistant:
   microphone: mic_id_external
   speaker: speaker_id
+  conversation_timeout: 60s
   on_listening:
     - logger.log: "Voice assistant microphone listening"
   on_start:

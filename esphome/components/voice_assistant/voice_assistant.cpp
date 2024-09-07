@@ -171,6 +171,11 @@ void VoiceAssistant::deallocate_buffers_() {
 #endif
 }
 
+void VoiceAssistant::reset_conversation_id() {
+  this->conversation_id_ = "";
+  ESP_LOGD(TAG, "reset conversation ID");
+}
+
 int VoiceAssistant::read_microphone_() {
   size_t bytes_read = 0;
   if (this->mic_->is_running()) {  // Read audio into input buffer
@@ -299,7 +304,8 @@ void VoiceAssistant::loop() {
         break;
       }
       this->set_state_(State::STARTING_PIPELINE);
-      this->set_timeout("reset-conversation_id", 5 * 60 * 1000, [this]() { this->conversation_id_ = ""; });
+      this->set_timeout("reset-conversation_id", this->conversation_timeout_,
+                        [this]() { this->reset_conversation_id(); });
       break;
     }
     case State::STARTING_PIPELINE: {
@@ -684,7 +690,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this, text]() {
         this->tts_start_trigger_->trigger(text);
 #ifdef USE_SPEAKER
-        this->speaker_->start();
+        if (this->speaker_ != nullptr) {
+          this->speaker_->start();
+        }
 #endif
       });
       break;
