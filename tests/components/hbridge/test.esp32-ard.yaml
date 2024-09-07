@@ -35,7 +35,7 @@ fan:
 switch:
   - platform: hbridge
     id: switch_hbridge
-    on_pin: 14
-    off_pin: 15
+    on_pin: 4
+    off_pin: 5
     pulse_length: 60ms
     wait_time: 10ms
