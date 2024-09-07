@@ -271,6 +271,14 @@ bool I2SAudioMediaPlayer::connecttouri_(const std::string uri) {
   // web stream?
   if (uri.find("http://", 0) == 0 || uri.find("https://", 0) == 0) {
     ESP_LOGD(TAG, "ConnectTo WebStream '%s'", uri.c_str());
+
+    if (uri.size() > 2048) {
+      // ESP32-audioI2S limits the URI to 2048 characters
+      // (since https://github.com/schreibfaul1/ESP32-audioI2S/commit/b1b89a9f64b73b0b171493bf55e6158f37a0bccd)
+      ESP_LOGE(TAG, "WebStream URI too long");
+      return false;
+    }
+
     return this->audio_->connecttohost(uri.c_str());
   }
 

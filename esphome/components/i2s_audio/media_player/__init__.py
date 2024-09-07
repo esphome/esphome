@@ -131,6 +131,6 @@ async def to_code(config):
     cg.add_library(
         name="ESP32-audioI2S",
         version=None,
-        # Note: use a custom fork that removes the length limit on the host parameter in connecttohost()
-        repository="https://github.com/shadow578/ESP32-audioI2S.git#remove_host_length_limit",
+        # use close-to latest commit, since tagged versions are fairly irregular...
+        repository="https://github.com/schreibfaul1/ESP32-audioI2S.git#1bc79e547ebb6f917bf82b47bec9b7e6a9b7e314",
     )
