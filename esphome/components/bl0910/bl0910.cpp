@@ -56,36 +56,36 @@ int32_t BL0910::read_register(uint8_t addr) {
     return 0xFF000000;
   }
 
-  return (((int8_t) packet[2]) << 16) | (packet[3] << 8) | packet[4];
+  return encode_uint24(packet[2], packet[3], packet[4]);
 }
 
-float BL0910::getVoltage(uint8_t channel) {
+float BL0910::get_voltage(uint8_t channel) {
   return ((float) read_register(BL0910_REG_RMS[channel])) / this->voltage_reference[channel];
 }
 
-float BL0910::getCurrent(uint8_t channel) {
+float BL0910::get_current(uint8_t channel) {
   return ((float) read_register(BL0910_REG_RMS[channel])) / this->current_reference[channel];
 }
 
-float BL0910::getPower(uint8_t channel) {
+float BL0910::get_power(uint8_t channel) {
   return ((float) read_register(BL0910_REG_WATT[channel])) / this->power_reference[channel];
 }
 
-float BL0910::getEnergy(uint8_t channel) {
+float BL0910::get_energy(uint8_t channel) {
   return ((float) read_register(BL0910_REG_CF_CNT[channel])) / this->energy_reference[channel];
 }
 
-float BL0910::getFreq(void) {
+float BL0910::get_frequency(void) {
   const float freq = (float) read_register(BL0910_REG_PERIOD);
   return 10000000.0 / freq;
 }
 
-float BL0910::getTemperature(void) {
+float BL0910::get_temperature(void) {
   const float temp = (float) read_register(BL0910_REG_TPS1);
   return (temp - 64.0) * 12.5 / 59.0 - 40.0;
 }
 
-float BL0910::getPowerFactor(uint8_t channel, float freq) {
+float BL0910::get_powerfactor(uint8_t channel, float freq) {
   const float angle = (float) read_register(BL0910_REG_ANGLE[channel]);
   return (360.0f * angle * freq) / 500000.0f;
 }
@@ -97,22 +97,22 @@ void BL0910::update() {
   static float freq = 50.0;
   if (i < NUM_CHANNELS) {
     if (voltage_sensor[i])
-      voltage_sensor[i]->publish_state(getVoltage(i));
+      voltage_sensor[i]->publish_state(get_voltage(i));
     if (current_sensor[i])
-      current_sensor[i]->publish_state(getCurrent(i));
+      current_sensor[i]->publish_state(get_current(i));
     if (power_sensor[i])
-      power_sensor[i]->publish_state(getPower(i));
+      power_sensor[i]->publish_state(get_power(i));
     if (energy_sensor[i])
-      energy_sensor[i]->publish_state(getEnergy(i));
+      energy_sensor[i]->publish_state(get_energy(i));
     if (power_factor_sensor[i])
-      power_factor_sensor[i]->publish_state(getPowerFactor(i, freq));
+      power_factor_sensor[i]->publish_state(get_powerfactor(i, freq));
     i++;
   } else {
-    freq = getFreq();
+    freq = get_frequency();
     if (frequency_sensor)
       frequency_sensor->publish_state(freq);
     if (temperature_sensor)
-      temperature_sensor->publish_state(getTemperature());
+      temperature_sensor->publish_state(get_temperature());
     i = 0;
   }
 }
