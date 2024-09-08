@@ -60,33 +60,33 @@ int32_t BL0910::read_register(uint8_t addr) {
 }
 
 float BL0910::get_voltage(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_RMS[channel])) / this->voltage_reference_[channel];
+  return ((float) this->read_register(BL0910_REG_RMS[channel])) / this->voltage_reference_[channel];
 }
 
 float BL0910::get_current(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_RMS[channel])) / this->current_reference_[channel];
+  return ((float) this->read_register(BL0910_REG_RMS[channel])) / this->current_reference_[channel];
 }
 
 float BL0910::get_power(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_WATT[channel])) / this->power_reference_[channel];
+  return ((float) this->read_register(BL0910_REG_WATT[channel])) / this->power_reference_[channel];
 }
 
 float BL0910::get_energy(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_CF_CNT[channel])) / this->energy_reference_[channel];
+  return ((float) this->read_register(BL0910_REG_CF_CNT[channel])) / this->energy_reference_[channel];
 }
 
 float BL0910::get_frequency(void) {
-  const float freq = (float) read_register(BL0910_REG_PERIOD);
+  const float freq = (float) this->read_register(BL0910_REG_PERIOD);
   return 10000000.0 / freq;
 }
 
 float BL0910::get_temperature(void) {
-  const float temp = (float) read_register(BL0910_REG_TPS1);
+  const float temp = (float) this->read_register(BL0910_REG_TPS1);
   return (temp - 64.0) * 12.5 / 59.0 - 40.0;
 }
 
 float BL0910::get_powerfactor(uint8_t channel, float freq) {
-  const float angle = (float) read_register(BL0910_REG_ANGLE[channel]);
+  const float angle = (float) this->read_register(BL0910_REG_ANGLE[channel]);
   return (360.0f * angle * freq) / 500000.0f;
 }
 
@@ -95,22 +95,23 @@ void BL0910::update() { this->current_channel_ = 0; }
 void BL0910::loop() {
   if (this->current_channel_ < NUM_CHANNELS) {
     if (voltage_sensor_[this->current_channel_])
-      voltage_sensor_[this->current_channel_]->publish_state(get_voltage(this->current_channel_));
+      voltage_sensor_[this->current_channel_]->publish_state(this->get_voltage(this->current_channel_));
     if (current_sensor_[this->current_channel_])
-      current_sensor_[this->current_channel_]->publish_state(get_current(this->current_channel_));
+      current_sensor_[this->current_channel_]->publish_state(this->get_current(this->current_channel_));
     if (power_sensor_[this->current_channel_])
-      power_sensor_[this->current_channel_]->publish_state(get_power(this->current_channel_));
+      power_sensor_[this->current_channel_]->publish_state(this->get_power(this->current_channel_));
     if (energy_sensor_[this->current_channel_])
-      energy_sensor_[this->current_channel_]->publish_state(get_energy(this->current_channel_));
+      energy_sensor_[this->current_channel_]->publish_state(this->get_energy(this->current_channel_));
     if (power_factor_sensor_[this->current_channel_])
-      power_factor_sensor_[this->current_channel_]->publish_state(get_powerfactor(this->current_channel_, this->freq_));
+      power_factor_sensor_[this->current_channel_]->publish_state(
+          this->get_powerfactor(this->current_channel_, this->freq_));
     this->current_channel_++;
   } else if (this->current_channel_ == NUM_CHANNELS) {
-    this->freq_ = get_frequency();
-    if (frequency_sensor_)
-      frequency_sensor_->publish_state(this->freq_);
-    if (temperature_sensor_)
-      temperature_sensor_->publish_state(get_temperature());
+    this->freq_ = this->get_frequency();
+    if (this->frequency_sensor_)
+      this->frequency_sensor_->publish_state(this->freq_);
+    if (this->temperature_sensor_)
+      this->temperature_sensor_->publish_state(this->get_temperature());
     this->current_channel_++;
   }
 }
@@ -128,26 +129,26 @@ void BL0910::setup() {
 void BL0910::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
   ESP_LOGCONFIG(TAG, "BL0910:");
   for (int i = 0; i < NUM_CHANNELS; i++) {
-    if (voltage_sensor_[i]) {
+    if (this->voltage_sensor_[i]) {
       std::string label = str_sprintf("Voltage %d", i + 1);
-      LOG_SENSOR("", label.c_str(), voltage_sensor_[i]);
+      LOG_SENSOR("", label.c_str(), this->voltage_sensor_[i]);
     }
 
-    if (current_sensor_[i]) {
+    if (this->current_sensor_[i]) {
       std::string label = str_sprintf("Current %d", i + 1);
-      LOG_SENSOR("", label.c_str(), current_sensor_[i]);
+      LOG_SENSOR("", label.c_str(), this->current_sensor_[i]);
     }
-    if (power_sensor_[i]) {
+    if (this->power_sensor_[i]) {
       std::string label = str_sprintf("Power %d", i + 1);
-      LOG_SENSOR("", label.c_str(), power_sensor_[i]);
+      LOG_SENSOR("", label.c_str(), this->power_sensor_[i]);
     }
-    if (energy_sensor_[i]) {
+    if (this->energy_sensor_[i]) {
       std::string label = str_sprintf("Energy %d", i + 1);
-      LOG_SENSOR("", label.c_str(), energy_sensor_[i]);
+      LOG_SENSOR("", label.c_str(), this->energy_sensor_[i]);
     }
-    if (power_factor_sensor_[i]) {
+    if (this->power_factor_sensor_[i]) {
       std::string label = str_sprintf("Power Factor %d", i + 1);
-      LOG_SENSOR("", label.c_str(), power_factor_sensor_[i]);
+      LOG_SENSOR("", label.c_str(), this->power_factor_sensor_[i]);
     }
   }
   if (this->frequency_sensor_) {
