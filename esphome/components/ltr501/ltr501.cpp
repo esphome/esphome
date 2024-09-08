@@ -290,7 +290,7 @@ void LTRAlsPs501Component::configure_reset_() {
   } while (als_ctrl.sw_reset && tries--);  // while sw reset bit is on - keep waiting
 
   if (als_ctrl.sw_reset) {
-    ESP_LOGW(TAG, "Failed to finalize reset procedure");
+    ESP_LOGW(TAG, "Reset failed");
   }
 }
 
