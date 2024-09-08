@@ -28,15 +28,15 @@ const char *to_string(CountMode count_mode) {
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
 
-bool UlpProgram::setup_ulp() {
+std::unique_ptr<UlpProgram> UlpProgram::start(gpio_num_t gpio_num, microseconds sleep_duration,
+                                              CountMode rising_edge_mode, CountMode falling_edge_mode) {
   esp_err_t error = ulp_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "Loading ULP binary failed: %s", esp_err_to_name(error));
-    return false;
+    return nullptr;
   }
 
   /* GPIO used for pulse counting. */
-  auto gpio_num = static_cast<gpio_num_t>(this->pin->get_pin());
   int rtcio_num = rtc_io_number_get(gpio_num);
   if (!rtc_gpio_is_valid_gpio(gpio_num)) {
     ESP_LOGE(TAG, "GPIO used for pulse counting must be an RTC IO");
@@ -66,32 +66,16 @@ bool UlpProgram::setup_ulp() {
   /* Set ULP wake up period T
    * Minimum pulse width has to be T * (ulp_debounce_counter + 1).
    */
-  ulp_set_wakeup_period(0, this->sleep_duration_ / std::chrono::microseconds{1});
+  ulp_set_wakeup_period(0, sleep_duration / std::chrono::microseconds{1});
 
   /* Start the program */
   error = ulp_run(&ulp_entry - RTC_SLOW_MEM);
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "Starting ULP program failed: %s", esp_err_to_name(error));
-    return false;
+    return nullptr;
   }
 
-  return true;
-}
-
-bool UlpProgram::setup(InternalGPIOPin *pin) {
-  this->pin = pin;
-  this->pin->setup();
-
-  auto rising = static_cast<uint32_t>(this->rising_edge_mode);
-  auto falling = static_cast<uint32_t>(this->falling_edge_mode);
-
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
-    ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
-    return setup_ulp();
-  } else {
-    ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
-    return true;
-  }
+  return std::unique_ptr<UlpProgram>(new UlpProgram());
 }
 
 UlpProgram::state UlpProgram::pop_state() {
@@ -113,7 +97,21 @@ UlpProgram::state UlpProgram::peek_state() const {
 
 void PulseCounterUlpSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
-  if (!this->storage_.setup(this->pin_)) {
+
+  this->pin_->setup();
+
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
+    this->storage_ = UlpProgram::start(static_cast<gpio_num_t>(this->pin_->get_pin()), this->sleep_duration_,
+                                       this->rising_edge_mode, this->falling_edge_mode);
+  } else {
+    ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
+    // TODO need to store estimate in UlpProgram and load it in load. Maybe.
+    // this->storage_ = UlpProgram::load();
+    // this->last_time = clock::now() - this->storage_->peek_state().run_count * this->storage_->estimate ;
+  }
+
+  if (!this->storage_) {
     this->mark_failed();
     return;
   }
@@ -127,19 +125,26 @@ void PulseCounterUlpSensor::set_total_pulses(uint32_t pulses) {
 void PulseCounterUlpSensor::dump_config() {
   LOG_SENSOR("", "Pulse Counter", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", to_string(this->storage_.rising_edge_mode));
-  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", to_string(this->storage_.falling_edge_mode));
+  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", to_string(this->rising_edge_mode));
+  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", to_string(this->falling_edge_mode));
   LOG_UPDATE_INTERVAL(this);
 }
 
 void PulseCounterUlpSensor::update() {
-  UlpProgram::state raw = this->storage_.pop_state();
+  // Can't update if ulp program hasn't been initialised
+  if (!this->storage_) {
+    return;
+  }
+  UlpProgram::state raw = this->storage_->pop_state();
   clock::time_point now = clock::now();
   clock::duration interval = now - this->last_time_;
+  auto estimated_interval = ulp_mean_exec_time_ * raw.run_count;
   if (interval != clock::duration::zero()) {
     ulp_mean_exec_time_ = interval / static_cast<float>(raw.run_count);
     float value = std::chrono::minutes{1} * static_cast<float>(raw.edge_count) / interval;  // pulses per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
+    ESP_LOGD(TAG, "'%s': Interval: %0.2f\nEstimated: %0.2f", this->get_name().c_str(),
+             1.0f * interval / std::chrono::seconds{1}, 1.0f * estimated_interval / std::chrono::seconds{1});
     this->publish_state(value);
   }
 
