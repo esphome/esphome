@@ -130,7 +130,7 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
     data.type = MessageType::READ_DATA;
     data.id = MessageId::STATUS;
     data.valueHB = ch_enabled | (dhw_enabled << 1) | (cooling_enabled << 2) | (otc_enabled << 3) | (ch2_enabled << 4);
-    
+
     return data;
   }
 
@@ -139,10 +139,10 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch"
 
-// Next, we start with the write requests from switches and other inputs,
-// because we would want to write that data if it is available, rather than
-// request a read for that type (in the case that both read and write are
-// supported).
+  // Next, we start with the write requests from switches and other inputs,
+  // because we would want to write that data if it is available, rather than
+  // request a read for that type (in the case that both read and write are
+  // supported).
   switch (request_id) {
     OPENTHERM_SWITCH_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
                                       OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
@@ -154,10 +154,8 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
                                             OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
   }
 
-// Finally, handle the simple read requests, which only change with the message id.
-  switch (request_id) { 
-    OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , ) 
-  }
+  // Finally, handle the simple read requests, which only change with the message id.
+  switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , ) }
   switch (request_id) {
     OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE_2, , , )
   }
