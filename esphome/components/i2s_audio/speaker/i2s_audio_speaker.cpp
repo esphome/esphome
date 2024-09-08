@@ -38,15 +38,22 @@ void I2SAudioSpeaker::start() {
     ESP_LOGE(TAG, "Cannot start audio, speaker failed to setup");
     return;
   }
+  if (this->task_created_) {
+    ESP_LOGW(TAG, "Called start while task has been already created.");
+    return;
+  }
   this->state_ = speaker::STATE_STARTING;
 }
 void I2SAudioSpeaker::start_() {
+  if (this->task_created_) {
+    return;
+  }
   if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s component to return lock
   }
-  this->state_ = speaker::STATE_RUNNING;
 
   xTaskCreate(I2SAudioSpeaker::player_task, "speaker_task", 8192, (void *) this, 1, &this->player_task_handle_);
+  this->task_created_ = true;
 }
 
 void I2SAudioSpeaker::player_task(void *params) {
@@ -131,7 +138,16 @@ void I2SAudioSpeaker::player_task(void *params) {
                                 (10 / portTICK_PERIOD_MS));
       if (err != ESP_OK) {
         event = {.type = TaskEventType::WARNING, .err = err};
-        xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
+        if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
+          ESP_LOGW(TAG, "Failed to send WARNING event");
+        }
+        continue;
+      }
+      if (bytes_written != sizeof(sample)) {
+        event = {.type = TaskEventType::WARNING, .err = ESP_FAIL};
+        if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
+          ESP_LOGW(TAG, "Failed to send WARNING event");
+        }
         continue;
       }
       remaining--;
@@ -139,25 +155,36 @@ void I2SAudioSpeaker::player_task(void *params) {
     }
 
     event.type = TaskEventType::PLAYING;
-    xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
+    event.err = current;
+    if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
+      ESP_LOGW(TAG, "Failed to send PLAYING event");
+    }
+  }
+
+  event.type = TaskEventType::STOPPING;
+  if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
+    ESP_LOGW(TAG, "Failed to send STOPPING event");
   }
 
   i2s_zero_dma_buffer(this_speaker->parent_->get_port());
 
-  event.type = TaskEventType::STOPPING;
-  xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
-
   i2s_driver_uninstall(this_speaker->parent_->get_port());
 
   event.type = TaskEventType::STOPPED;
-  xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
+  if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
+    ESP_LOGW(TAG, "Failed to send STOPPED event");
+  }
 
   while (true) {
     delay(10);
   }
 }
 
-void I2SAudioSpeaker::stop() {
+void I2SAudioSpeaker::stop() { this->stop_(false); }
+
+void I2SAudioSpeaker::finish() { this->stop_(true); }
+
+void I2SAudioSpeaker::stop_(bool wait_on_empty) {
   if (this->is_failed())
     return;
   if (this->state_ == speaker::STATE_STOPPED)
@@ -169,7 +196,11 @@ void I2SAudioSpeaker::stop() {
   this->state_ = speaker::STATE_STOPPING;
   DataEvent data;
   data.stop = true;
-  xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
+  if (wait_on_empty) {
+    xQueueSend(this->buffer_queue_, &data, portMAX_DELAY);
+  } else {
+    xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
+  }
 }
 
 void I2SAudioSpeaker::watch_() {
@@ -181,6 +212,7 @@ void I2SAudioSpeaker::watch_() {
         break;
       case TaskEventType::STARTED:
         ESP_LOGD(TAG, "Started I2S Audio Speaker");
+        this->state_ = speaker::STATE_RUNNING;
         break;
       case TaskEventType::STOPPING:
         ESP_LOGD(TAG, "Stopping I2S Audio Speaker");
@@ -191,6 +223,7 @@ void I2SAudioSpeaker::watch_() {
       case TaskEventType::STOPPED:
         this->state_ = speaker::STATE_STOPPED;
         vTaskDelete(this->player_task_handle_);
+        this->task_created_ = false;
         this->player_task_handle_ = nullptr;
         this->parent_->unlock();
         xQueueReset(this->buffer_queue_);
@@ -208,7 +241,7 @@ void I2SAudioSpeaker::loop() {
   switch (this->state_) {
     case speaker::STATE_STARTING:
       this->start_();
-      break;
+      [[fallthrough]];
     case speaker::STATE_RUNNING:
     case speaker::STATE_STOPPING:
       this->watch_();

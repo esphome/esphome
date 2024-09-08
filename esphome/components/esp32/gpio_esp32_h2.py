@@ -1,8 +1,7 @@
 import logging
 
-from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
-
 import esphome.config_validation as cv
+from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 
 _ESP32H2_SPI_FLASH_PINS = {6, 7, 15, 16, 17, 18, 19, 20, 21}
 

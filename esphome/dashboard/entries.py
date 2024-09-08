@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict
 import logging
 import os
-from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from esphome import const, util

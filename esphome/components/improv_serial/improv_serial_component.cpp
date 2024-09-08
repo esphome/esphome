@@ -1,5 +1,5 @@
 #include "improv_serial_component.h"
-
+#ifdef USE_WIFI
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -57,7 +57,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
         }
       }
       break;
-#if defined(CONFIG_ESP_CONSOLE_USB_CDC) && (defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
+#if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
     case logger::UART_SELECTION_USB_CDC:
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
       if (esp_usb_console_available_for_read()) {
@@ -68,15 +68,15 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
         byte = data;
       }
       break;
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3)
+#endif  // USE_LOGGER_USB_CDC
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
     case logger::UART_SELECTION_USB_SERIAL_JTAG: {
       if (usb_serial_jtag_read_bytes((char *) &data, 1, 0)) {
         byte = data;
       }
       break;
     }
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_LOGGER_USB_SERIAL_JTAG
     default:
       break;
   }
@@ -99,19 +99,20 @@ void ImprovSerialComponent::write_data_(std::vector<uint8_t> &data) {
 #endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
       uart_write_bytes(this->uart_num_, data.data(), data.size());
       break;
-#if defined(CONFIG_ESP_CONSOLE_USB_CDC) && (defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
+#if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
     case logger::UART_SELECTION_USB_CDC: {
       const char *msg = (char *) data.data();
       esp_usb_console_write_buf(msg, data.size());
       break;
     }
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3)
+#endif  // USE_LOGGER_USB_CDC
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
     case logger::UART_SELECTION_USB_SERIAL_JTAG:
       usb_serial_jtag_write_bytes((char *) data.data(), data.size(), 20 / portTICK_PERIOD_MS);
+      delay(10);
       usb_serial_jtag_ll_txfifo_flush();  // fixes for issue in IDF 4.4.7
       break;
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_LOGGER_USB_SERIAL_JTAG
     default:
       break;
   }
@@ -169,7 +170,11 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
 }
 
 std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
+#ifdef ESPHOME_PROJECT_NAME
+  std::vector<std::string> infos = {ESPHOME_PROJECT_NAME, ESPHOME_PROJECT_VERSION, ESPHOME_VARIANT, App.get_name()};
+#else
   std::vector<std::string> infos = {"ESPHome", ESPHOME_VERSION, ESPHOME_VARIANT, App.get_name()};
+#endif
   std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_DEVICE_INFO, infos, false);
   return data;
 };
@@ -308,3 +313,4 @@ ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidel
 
 }  // namespace improv_serial
 }  // namespace esphome
+#endif

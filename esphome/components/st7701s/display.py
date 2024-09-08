@@ -1,47 +1,39 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import (
-    spi,
-    display,
-)
-from esphome.const import (
-    CONF_DC_PIN,
-    CONF_HSYNC_PIN,
-    CONF_RESET_PIN,
-    CONF_DATA_PINS,
-    CONF_ID,
-    CONF_DIMENSIONS,
-    CONF_VSYNC_PIN,
-    CONF_WIDTH,
-    CONF_HEIGHT,
-    CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
-    CONF_COLOR_ORDER,
-    CONF_TRANSFORM,
-    CONF_OFFSET_HEIGHT,
-    CONF_OFFSET_WIDTH,
-    CONF_INVERT_COLORS,
-    CONF_RED,
-    CONF_GREEN,
-    CONF_BLUE,
-    CONF_NUMBER,
-    CONF_IGNORE_STRAPPING_WARNING,
-)
-
-from esphome.components.esp32 import (
-    only_on_variant,
-    const,
-)
+import esphome.codegen as cg
+from esphome.components import display, spi
+from esphome.components.esp32 import const, only_on_variant
 from esphome.components.rpi_dpi_rgb.display import (
     CONF_PCLK_FREQUENCY,
     CONF_PCLK_INVERTED,
 )
-from .init_sequences import (
-    ST7701S_INITS,
-    cmd,
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BLUE,
+    CONF_COLOR_ORDER,
+    CONF_DATA_PINS,
+    CONF_DC_PIN,
+    CONF_DIMENSIONS,
+    CONF_GREEN,
+    CONF_HEIGHT,
+    CONF_HSYNC_PIN,
+    CONF_ID,
+    CONF_IGNORE_STRAPPING_WARNING,
+    CONF_INVERT_COLORS,
+    CONF_LAMBDA,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_NUMBER,
+    CONF_OFFSET_HEIGHT,
+    CONF_OFFSET_WIDTH,
+    CONF_RED,
+    CONF_RESET_PIN,
+    CONF_TRANSFORM,
+    CONF_VSYNC_PIN,
+    CONF_WIDTH,
 )
+from esphome.core import TimePeriod
+
+from .init_sequences import ST7701S_INITS, cmd
 
 CONF_INIT_SEQUENCE = "init_sequence"
 CONF_DE_PIN = "de_pin"
@@ -59,6 +51,7 @@ DEPENDENCIES = ["spi", "esp32"]
 st7701s_ns = cg.esphome_ns.namespace("st7701s")
 ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDevice)
 ColorOrder = display.display_ns.enum("ColorMode")
+ST7701S_DELAY_FLAG = 0xFF
 
 COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
@@ -93,18 +86,23 @@ def map_sequence(value):
     """
     An initialisation sequence can be selected from one of the pre-defined sequences in init_sequences.py,
     or can be a literal array of data bytes.
-    The format is a repeated sequence of [CMD, LEN, <data>] where <data> is LEN bytes.
+    The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
+    from the length of the sequence and should not be explicit.
+    A delay can be inserted by specifying "- delay N" where N is in ms
     """
+    if isinstance(value, str) and value.lower().startswith("delay "):
+        value = value.lower()[6:]
+        delay = cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
+        )(value)
+        return [delay, ST7701S_DELAY_FLAG]
     if not isinstance(value, list):
         value = cv.int_(value)
         value = cv.one_of(*ST7701S_INITS)(value)
         return ST7701S_INITS[value]
-    # value = cv.ensure_list(cv.uint8_t)(value)
-    data_length = len(value)
-    if data_length == 0:
-        raise cv.Invalid("Empty sequence")
-    value = cmd(*value)
-    return value
+    value = cv.Length(min=1, max=254)(value)
+    return cmd(*value)
 
 
 CONFIG_SCHEMA = cv.All(

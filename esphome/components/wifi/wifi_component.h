@@ -1,9 +1,10 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_WIFI
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include <string>
@@ -20,7 +21,11 @@
 #endif
 
 #if defined(USE_ESP_IDF) && defined(USE_WIFI_WPA2_EAP)
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#include <esp_eap_client.h>
+#else
 #include <esp_wpa2.h>
+#endif
 #endif
 
 #ifdef USE_ESP8266
@@ -438,3 +443,4 @@ template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
 
 }  // namespace wifi
 }  // namespace esphome
+#endif

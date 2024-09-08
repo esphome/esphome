@@ -43,7 +43,11 @@ bool ModbusController::send_next_command_() {
       ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
                command->register_address, command->register_count);
       command->send();
+
       this->last_command_timestamp_ = millis();
+
+      this->command_sent_callback_.call((int) command->function_code, command->register_address);
+
       // remove from queue if no handler is defined
       if (!command->on_data_func) {
         command_queue_.pop_front();
@@ -116,7 +120,8 @@ void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t 
         ESP_LOGD(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %0.1f.",
                  server_register->address, static_cast<uint8_t>(server_register->value_type),
                  server_register->register_count, value);
-        number_to_payload(sixteen_bit_response, value, server_register->value_type);
+        std::vector<uint16_t> payload = float_to_payload(value, server_register->value_type);
+        sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
         current_address += server_register->register_count;
         found = true;
         break;
@@ -170,16 +175,18 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // check if this command is already qeued.
-  // not very effective but the queue is never really large
-  for (auto &item : command_queue_) {
-    if (item->is_equal(command)) {
-      ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
-               static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
-      // update the payload of the queued command
-      // replaces a previous command
-      item->payload = command.payload;
-      return;
+  if (!this->allow_duplicate_commands_) {
+    // check if this command is already qeued.
+    // not very effective but the queue is never really large
+    for (auto &item : command_queue_) {
+      if (item->is_equal(command)) {
+        ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
+                 static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
+        // update the payload of the queued command
+        // replaces a previous command
+        item->payload = command.payload;
+        return;
+      }
     }
   }
   command_queue_.push_back(make_unique<ModbusCommandItem>(command));
@@ -656,6 +663,10 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
       break;
   }
   return value;
+}
+
+void ModbusController::add_on_command_sent_callback(std::function<void(int, int)> &&callback) {
+  this->command_sent_callback_.add(std::move(callback));
 }
 
 }  // namespace modbus_controller
