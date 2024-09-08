@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "constant.h"
 #include <cinttypes>
+#include <cstdint>
 
 namespace esphome {
 namespace bl0910 {
@@ -43,13 +44,12 @@ int32_t BL0910::read_register(uint8_t addr) {
   this->transfer_array(packet, sizeof(packet) / sizeof(packet[0]));
   this->disable();
 
-  // Verify checksum
-  uint8_t checksum = BL0910_READ_COMMAND + addr;
-  for (int i = 2; i < 5; i++) {
-    checksum += packet[i];
-  }
-  checksum &= 0xFF;
-  checksum ^= 0xFF;
+  // These bytes are swapped out with SPI transfer_array to zeros
+  // But needs to be swapped back to verify checksum
+  packet[0] = BL0910_READ_COMMAND;
+  packet[1] = addr;
+  uint8_t checksum = checksum_calc(packet);
+
   if (checksum != packet[5])  // checksum is byte 6
   {
     ESP_LOGE(TAG, "Checksum error calculated: %x != read: %x", checksum, packet[5]);
@@ -129,30 +129,25 @@ void BL0910::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   ESP_LOGCONFIG(TAG, "BL0910:");
   for (int i = 0; i < NUM_CHANNELS; i++) {
     if (voltage_sensor_[i]) {
-      char buf[20];
-      snprintf(buf, sizeof(buf), "Voltage %d", i + 1);
-      LOG_SENSOR("", buf, voltage_sensor_[i]);
+      std::string label = str_sprintf("Voltage %d", i + 1);
+      LOG_SENSOR("", label.c_str(), voltage_sensor_[i]);
     }
 
     if (current_sensor_[i]) {
-      char buf[20];
-      snprintf(buf, sizeof(buf), "Current %d", i + 1);
-      LOG_SENSOR("", buf, current_sensor_[i]);
+      std::string label = str_sprintf("Current %d", i + 1);
+      LOG_SENSOR("", label.c_str(), current_sensor_[i]);
     }
     if (power_sensor_[i]) {
-      char buf[20];
-      snprintf(buf, sizeof(buf), "Power %d", i + 1);
-      LOG_SENSOR("", buf, power_sensor_[i]);
+      std::string label = str_sprintf("Power %d", i + 1);
+      LOG_SENSOR("", label.c_str(), power_sensor_[i]);
     }
     if (energy_sensor_[i]) {
-      char buf[20];
-      snprintf(buf, sizeof(buf), "Energy %d", i + 1);
-      LOG_SENSOR("", buf, energy_sensor_[i]);
+      std::string label = str_sprintf("Energy %d", i + 1);
+      LOG_SENSOR("", label.c_str(), energy_sensor_[i]);
     }
     if (power_factor_sensor_[i]) {
-      char buf[20];
-      snprintf(buf, sizeof(buf), "Power Factor %d", i + 1);
-      LOG_SENSOR("", buf, power_factor_sensor_[i]);
+      std::string label = str_sprintf("Power Factor %d", i + 1);
+      LOG_SENSOR("", label.c_str(), power_factor_sensor_[i]);
     }
   }
   if (this->frequency_sensor_) {
