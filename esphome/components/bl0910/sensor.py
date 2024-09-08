@@ -34,7 +34,7 @@ VOLTAGE_CB = {
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
         state_class=STATE_CLASS_MEASUREMENT,
-    ).extend({cv.Optional("uref", default=1.0): cv.float_})
+    ).extend({cv.Optional("voltage_reference", default=1.0): cv.float_})
     for i in SENSOR_RANGE
 }
 
@@ -44,7 +44,7 @@ CURRENT_CV = {
         accuracy_decimals=2,
         device_class=DEVICE_CLASS_CURRENT,
         state_class=STATE_CLASS_MEASUREMENT,
-    ).extend({cv.Optional("iref", default=1.0): cv.float_})
+    ).extend({cv.Optional("current_reference", default=1.0): cv.float_})
     for i in SENSOR_RANGE
 }
 
@@ -54,7 +54,7 @@ ACTIVE_POWER_CV = {
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
-    ).extend({cv.Optional("pref", default=1.0): cv.float_})
+    ).extend({cv.Optional("power_reference", default=1.0): cv.float_})
     for i in SENSOR_RANGE
 }
 
@@ -64,7 +64,7 @@ ENERGY_CV = {
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
-    ).extend({cv.Optional("eref", default=1.0): cv.float_})
+    ).extend({cv.Optional("energy_reference", default=1.0): cv.float_})
     for i in SENSOR_RANGE
 }
 
@@ -120,16 +120,26 @@ async def to_code(config):
     for i in SENSOR_RANGE:
         if voltage_config := config.get(f"voltage_{i}"):
             sens = await sensor.new_sensor(voltage_config)
-            cg.add(var.set_voltage_sensor(sens, i, voltage_config.get("uref")))
+            cg.add(
+                var.set_voltage_sensor(sens, i, voltage_config.get("voltage_reference"))
+            )
         if current_config := config.get(f"current_{i}"):
             sens = await sensor.new_sensor(current_config)
-            cg.add(var.set_current_sensor(sens, i, current_config.get("iref")))
+            cg.add(
+                var.set_current_sensor(sens, i, current_config.get("current_reference"))
+            )
         if active_power_config := config.get(f"active_power_{i}"):
             sens = await sensor.new_sensor(active_power_config)
-            cg.add(var.set_power_sensor(sens, i, active_power_config.get("pref")))
+            cg.add(
+                var.set_power_sensor(
+                    sens, i, active_power_config.get("power_reference")
+                )
+            )
         if energy_config := config.get(f"energy_{i}"):
             sens = await sensor.new_sensor(energy_config)
-            cg.add(var.set_energy_sensor(sens, i, energy_config.get("eref")))
+            cg.add(
+                var.set_energy_sensor(sens, i, energy_config.get("energy_reference"))
+            )
         if power_factor_config := config.get(f"power_factor_{i}"):
             sens = await sensor.new_sensor(power_factor_config)
             cg.add(var.set_power_factor_sensor(sens, i))

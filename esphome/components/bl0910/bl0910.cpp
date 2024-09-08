@@ -346,19 +346,19 @@ int32_t BL0910::read_register(uint8_t addr) {
 }
 
 float BL0910::getVoltage(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_RMS[channel])) / this->uref[channel];
+  return ((float) read_register(BL0910_REG_RMS[channel])) / this->voltage_reference[channel];
 }
 
 float BL0910::getCurrent(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_RMS[channel])) / this->iref[channel];
+  return ((float) read_register(BL0910_REG_RMS[channel])) / this->current_reference[channel];
 }
 
 float BL0910::getPower(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_WATT[channel])) / this->pref[channel];
+  return ((float) read_register(BL0910_REG_WATT[channel])) / this->power_reference[channel];
 }
 
 float BL0910::getEnergy(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_CF_CNT[channel])) / this->eref[channel];
+  return ((float) read_register(BL0910_REG_CF_CNT[channel])) / this->energy_reference[channel];
 }
 
 float BL0910::getFreq(void) {

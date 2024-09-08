@@ -16,21 +16,21 @@ class BL0910 : public PollingComponent,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
                                      spi::DATA_RATE_1MHZ> {
  public:
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor_, int index, float uref_) {
+  void set_voltage_sensor(sensor::Sensor *voltage_sensor_, int index, float voltage_reference_) {
     voltage_sensor[index - 1] = voltage_sensor_;
-    uref[index - 1] = uref_;
+    voltage_reference[index - 1] = voltage_reference_;
   }
-  void set_current_sensor(sensor::Sensor *current_sensor_, int index, float iref_) {
+  void set_current_sensor(sensor::Sensor *current_sensor_, int index, float current_reference_) {
     current_sensor[index - 1] = current_sensor_;
-    iref[index - 1] = iref_;
+    current_reference[index - 1] = current_reference_;
   }
-  void set_power_sensor(sensor::Sensor *power_sensor_, int index, float pref_) {
+  void set_power_sensor(sensor::Sensor *power_sensor_, int index, float power_reference_) {
     power_sensor[index - 1] = power_sensor_;
-    pref[index - 1] = pref_;
+    power_reference[index - 1] = power_reference_;
   }
-  void set_energy_sensor(sensor::Sensor *energy_sensor_, int index, float eref_) {
+  void set_energy_sensor(sensor::Sensor *energy_sensor_, int index, float energy_reference_) {
     energy_sensor[index - 1] = energy_sensor_;
-    eref[index - 1] = eref_;
+    energy_reference[index - 1] = energy_reference_;
   }
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor_, int index) {
     power_factor_sensor[index - 1] = power_factor_sensor_;
@@ -55,10 +55,10 @@ class BL0910 : public PollingComponent,
   sensor::Sensor *frequency_sensor{nullptr};
   sensor::Sensor *temperature_sensor{nullptr};
 
-  float uref[NUM_CHANNELS] = {};
-  float iref[NUM_CHANNELS] = {};
-  float pref[NUM_CHANNELS] = {};
-  float eref[NUM_CHANNELS] = {};
+  float voltage_reference[NUM_CHANNELS] = {};
+  float current_reference[NUM_CHANNELS] = {};
+  float power_reference[NUM_CHANNELS] = {};
+  float energy_reference[NUM_CHANNELS] = {};
 
  private:
   int8_t checksum_calc(uint8_t *data);
