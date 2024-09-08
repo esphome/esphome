@@ -66,18 +66,18 @@ class BL0910 : public PollingComponent,
   uint8_t current_channel_ = 0;
   float freq_ = 50.0;
 
-  void write_register(uint8_t addr, uint32_t data) {
-    return this->write_register(addr, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF);
+  void write_register_(uint8_t addr, uint32_t data) {
+    return this->write_register_(addr, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF);
   }
-  void write_register(uint8_t addr, uint8_t data_h, uint8_t data_m, uint8_t data_l);
-  int32_t read_register(uint8_t addr);
-  float get_voltage(uint8_t channel);
-  float get_frequency();
-  float get_current(uint8_t channel);
-  float get_power(uint8_t channel);
-  float get_energy(uint8_t channel);
-  float get_temperature();
-  float get_powerfactor(uint8_t channel, float freq);
+  void write_register_(uint8_t addr, uint8_t data_h, uint8_t data_m, uint8_t data_l);
+  int32_t read_register_(uint8_t addr);
+  float get_voltage_(uint8_t channel);
+  float get_frequency_();
+  float get_current_(uint8_t channel);
+  float get_power_(uint8_t channel);
+  float get_energy_(uint8_t channel);
+  float get_temperature_();
+  float get_powerfactor_(uint8_t channel, float freq);
 };
 }  // namespace bl0910
 }  // namespace esphome
