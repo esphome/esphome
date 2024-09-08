@@ -20,8 +20,8 @@ from esphome.const import (
     UNIT_WATT,
 )
 
-# 10 sensors in range 1-11
-SENSOR_RANGE = range(1, 12)
+# 11 sensors in range 1-11
+CHANNEL_RANGE = range(1, 12)
 
 DEPENDENCIES = ["spi"]
 
@@ -35,7 +35,7 @@ VOLTAGE_CB = {
         device_class=DEVICE_CLASS_VOLTAGE,
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend({cv.Optional("voltage_reference", default=1.0): cv.float_})
-    for i in SENSOR_RANGE
+    for i in CHANNEL_RANGE
 }
 
 CURRENT_CV = {
@@ -45,7 +45,7 @@ CURRENT_CV = {
         device_class=DEVICE_CLASS_CURRENT,
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend({cv.Optional("current_reference", default=1.0): cv.float_})
-    for i in SENSOR_RANGE
+    for i in CHANNEL_RANGE
 }
 
 ACTIVE_POWER_CV = {
@@ -55,7 +55,7 @@ ACTIVE_POWER_CV = {
         device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend({cv.Optional("power_reference", default=1.0): cv.float_})
-    for i in SENSOR_RANGE
+    for i in CHANNEL_RANGE
 }
 
 ENERGY_CV = {
@@ -65,7 +65,7 @@ ENERGY_CV = {
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     ).extend({cv.Optional("energy_reference", default=1.0): cv.float_})
-    for i in SENSOR_RANGE
+    for i in CHANNEL_RANGE
 }
 
 POWER_FACTOR_CV = {
@@ -75,7 +75,7 @@ POWER_FACTOR_CV = {
         device_class=DEVICE_CLASS_POWER_FACTOR,
         state_class=STATE_CLASS_MEASUREMENT,
     )
-    for i in SENSOR_RANGE
+    for i in CHANNEL_RANGE
 }
 
 CONFIG_SCHEMA = (
@@ -117,29 +117,35 @@ async def to_code(config):
         sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
 
-    for i in SENSOR_RANGE:
-        if voltage_config := config.get(f"voltage_{i}"):
+    for channel in CHANNEL_RANGE:
+        if voltage_config := config.get(f"voltage_{channel}"):
             sens = await sensor.new_sensor(voltage_config)
             cg.add(
-                var.set_voltage_sensor(sens, i, voltage_config.get("voltage_reference"))
+                var.set_voltage_sensor(
+                    sens, channel, voltage_config.get("voltage_reference")
+                )
             )
-        if current_config := config.get(f"current_{i}"):
+        if current_config := config.get(f"current_{channel}"):
             sens = await sensor.new_sensor(current_config)
             cg.add(
-                var.set_current_sensor(sens, i, current_config.get("current_reference"))
+                var.set_current_sensor(
+                    sens, channel, current_config.get("current_reference")
+                )
             )
-        if active_power_config := config.get(f"active_power_{i}"):
+        if active_power_config := config.get(f"active_power_{channel}"):
             sens = await sensor.new_sensor(active_power_config)
             cg.add(
                 var.set_power_sensor(
-                    sens, i, active_power_config.get("power_reference")
+                    sens, channel, active_power_config.get("power_reference")
                 )
             )
-        if energy_config := config.get(f"energy_{i}"):
+        if energy_config := config.get(f"energy_{channel}"):
             sens = await sensor.new_sensor(energy_config)
             cg.add(
-                var.set_energy_sensor(sens, i, energy_config.get("energy_reference"))
+                var.set_energy_sensor(
+                    sens, channel, energy_config.get("energy_reference")
+                )
             )
-        if power_factor_config := config.get(f"power_factor_{i}"):
+        if power_factor_config := config.get(f"power_factor_{channel}"):
             sens = await sensor.new_sensor(power_factor_config)
-            cg.add(var.set_power_factor_sensor(sens, i))
+            cg.add(var.set_power_factor_sensor(sens, channel))
