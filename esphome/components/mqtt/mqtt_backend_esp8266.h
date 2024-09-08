@@ -4,8 +4,6 @@
 #ifdef USE_MQTT
 #ifdef USE_ESP8266
 
-#include "mqtt_backend.h"
-
 #include "esphome/core/log.h"
 
 #include <BearSSLHelpers.h>
@@ -96,10 +94,10 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) { this->ssl_fingerprint_ = fingerprint; };
 
  protected:
-  void initialize_();
-  void handleErrors_();
-  static void on_mqtt_message_wrapper_(MQTTClient *client, char topic[], char bytes[], int length);
-  void on_mqtt_message_(MQTTClient *client, char topic[], char bytes[], int length);
+  void initialize();
+  void handleErrors();
+  static void on_mqtt_message_wrapper(MQTTClient *client, char topic[], char bytes[], int length);
+  void on_mqtt_message(MQTTClient *client, char topic[], char bytes[], int length);
 
 #ifdef USE_MQTT_SECURE_CLIENT
   WiFiClientSecure wifi_client_;
