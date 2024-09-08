@@ -1,3 +1,9 @@
+#pragma once
+#include <cstdint>
+
+namespace esphome {
+namespace bl0910 {
+
 // Credit to JustNoot for the following constants
 // https://github.com/JustNoot/10CH-Energy-Meter/blob/main/bl0910_esp32_test.ino
 
@@ -285,3 +291,6 @@ static const uint8_t BL0910_REG_VA_OFFSET = 0xCD;
 static const uint8_t BL0910_REG_CFDIV = 0xCE;
 
 static const uint8_t BL0910_REG_OTP_CHECKSUM1 = 0xD0;
+
+}  // namespace bl0910
+}  // namespace esphome
