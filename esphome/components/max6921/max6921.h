@@ -2,7 +2,6 @@
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#include <esp32-hal-gpio.h>
 #include <string>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"

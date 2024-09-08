@@ -1,5 +1,6 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
+#include <inttypes.h>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"

@@ -3,6 +3,7 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <cinttypes>
+#include <inttypes.h>
 #include "display.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
