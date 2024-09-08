@@ -72,11 +72,11 @@ class BL0910 : public PollingComponent,
   void write_register(uint8_t addr, uint8_t data_h, uint8_t data_m, uint8_t data_l);
   int32_t read_register(uint8_t addr);
   float get_voltage(uint8_t channel);
-  float get_frequency(void);
+  float get_frequency();
   float get_current(uint8_t channel);
   float get_power(uint8_t channel);
   float get_energy(uint8_t channel);
-  float get_temperature(void);
+  float get_temperature();
   float get_powerfactor(uint8_t channel, float freq);
 };
 }  // namespace bl0910

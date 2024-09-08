@@ -10,7 +10,7 @@ namespace bl0910 {
 
 static const char *const TAG = "bl0910";
 
-static uint8_t checksum_calc(uint8_t *data) {
+static uint8_t checksum_calc(const uint8_t *data) {
   uint8_t checksum = 0;
   for (int i = 0; i < 5; i++) {
     checksum += data[i];
@@ -74,12 +74,12 @@ float BL0910::get_energy(uint8_t channel) {
   return ((float) this->read_register(BL0910_REG_CF_CNT[channel])) / this->energy_reference_[channel];
 }
 
-float BL0910::get_frequency(void) {
+float BL0910::get_frequency() {
   const float freq = (float) this->read_register(BL0910_REG_PERIOD);
   return 10000000.0 / freq;
 }
 
-float BL0910::get_temperature(void) {
+float BL0910::get_temperature() {
   const float temp = (float) this->read_register(BL0910_REG_TPS1);
   return (temp - 64.0) * 12.5 / 59.0 - 40.0;
 }
