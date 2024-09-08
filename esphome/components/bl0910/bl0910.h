@@ -10,12 +10,14 @@ namespace bl0910 {
 
 // Mode 1 Trailing clock CPHA=1, Polarity low CPOL=0
 
-#define NUM_CHANNELS 11
+static const uint8_t NUM_CHANNELS = 11;
 
 class BL0910 : public PollingComponent,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
                                      spi::DATA_RATE_1MHZ> {
  public:
+  // Sensor index is 1-based to match the BL0910 documentation
+  // but the array is 0-based to save memory and simplify code
   void set_voltage_sensor(sensor::Sensor *voltage_sensor, int index, float voltage_reference) {
     this->voltage_sensor[index - 1] = voltage_sensor;
     this->voltage_reference[index - 1] = voltage_reference;
