@@ -90,30 +90,28 @@ float BL0910::get_powerfactor(uint8_t channel, float freq) {
   return (360.0f * angle * freq) / 500000.0f;
 }
 
-void BL0910::loop() {}
+void BL0910::update() { this->current_channel_ = 0; }
 
-void BL0910::update() {
-  static int i = 0;
-  static float freq = 50.0;
-  if (i < NUM_CHANNELS) {
-    if (voltage_sensor_[i])
-      voltage_sensor_[i]->publish_state(get_voltage(i));
-    if (current_sensor_[i])
-      current_sensor_[i]->publish_state(get_current(i));
-    if (power_sensor_[i])
-      power_sensor_[i]->publish_state(get_power(i));
-    if (energy_sensor_[i])
-      energy_sensor_[i]->publish_state(get_energy(i));
-    if (power_factor_sensor_[i])
-      power_factor_sensor_[i]->publish_state(get_powerfactor(i, freq));
-    i++;
-  } else {
-    freq = get_frequency();
+void BL0910::loop() {
+  if (this->current_channel_ < NUM_CHANNELS) {
+    if (voltage_sensor_[this->current_channel_])
+      voltage_sensor_[this->current_channel_]->publish_state(get_voltage(this->current_channel_));
+    if (current_sensor_[this->current_channel_])
+      current_sensor_[this->current_channel_]->publish_state(get_current(this->current_channel_));
+    if (power_sensor_[this->current_channel_])
+      power_sensor_[this->current_channel_]->publish_state(get_power(this->current_channel_));
+    if (energy_sensor_[this->current_channel_])
+      energy_sensor_[this->current_channel_]->publish_state(get_energy(this->current_channel_));
+    if (power_factor_sensor_[this->current_channel_])
+      power_factor_sensor_[this->current_channel_]->publish_state(get_powerfactor(this->current_channel_, this->freq_));
+    this->current_channel_++;
+  } else if (this->current_channel_ == NUM_CHANNELS) {
+    this->freq_ = get_frequency();
     if (frequency_sensor_)
-      frequency_sensor_->publish_state(freq);
+      frequency_sensor_->publish_state(this->freq_);
     if (temperature_sensor_)
       temperature_sensor_->publish_state(get_temperature());
-    i = 0;
+    this->current_channel_++;
   }
 }
 
