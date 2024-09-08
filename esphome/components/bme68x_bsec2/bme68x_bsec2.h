@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/preferences.h"
 
 #ifdef USE_BSEC2
@@ -17,7 +18,13 @@
 #include <cinttypes>
 #include <queue>
 
-#include <bsec2.h>
+#include <bsec_interface_multi.h>
+#include <bme68x.h>
+
+#define BSEC_CHECK_INPUT(x, shift) (x & (1 << (shift - 1)))
+#define BSEC_TOTAL_HEAT_DUR UINT16_C(140)
+#define BSEC_INSTANCE_SIZE 3272
+#define BSEC_E_INSUFFICIENT_INSTANCE_SIZE (bsec_library_return_t) - 105
 
 namespace esphome {
 namespace bme68x_bsec2 {

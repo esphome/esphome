@@ -145,7 +145,6 @@ CONFIG_SCHEMA_BASE = (
             ): cv.positive_time_period_minutes,
         },
     )
-    .add_extra(cv.only_with_arduino)
     .add_extra(validate_bme68x)
     .add_extra(download_bme68x_blob)
 )
@@ -179,8 +178,6 @@ async def to_code_base(config):
     bsec2_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_bsec2_configuration(bsec2_arr, len(rhs)))
 
-    # Although this component does not use SPI, the BSEC2 library requires the SPI library
-    cg.add_library("SPI", None)
     cg.add_library(
         "BME68x Sensor library",
         "1.1.40407",
