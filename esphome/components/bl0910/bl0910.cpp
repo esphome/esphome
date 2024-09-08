@@ -35,7 +35,6 @@ void BL0910::write_register(uint8_t addr, uint8_t data_h, uint8_t data_m, uint8_
 }
 
 int32_t BL0910::read_register(uint8_t addr) {
-  int32_t data = 0;
   uint8_t packet[6] = {0};
 
   packet[0] = BL0910_READ_COMMAND;
@@ -94,17 +93,22 @@ void BL0910::update() { this->current_channel_ = 0; }
 
 void BL0910::loop() {
   if (this->current_channel_ < NUM_CHANNELS) {
-    if (voltage_sensor_[this->current_channel_])
+    if (voltage_sensor_[this->current_channel_]) {
       voltage_sensor_[this->current_channel_]->publish_state(this->get_voltage(this->current_channel_));
-    if (current_sensor_[this->current_channel_])
+    }
+    if (current_sensor_[this->current_channel_]) {
       current_sensor_[this->current_channel_]->publish_state(this->get_current(this->current_channel_));
-    if (power_sensor_[this->current_channel_])
+    }
+    if (power_sensor_[this->current_channel_]) {
       power_sensor_[this->current_channel_]->publish_state(this->get_power(this->current_channel_));
-    if (energy_sensor_[this->current_channel_])
+    }
+    if (energy_sensor_[this->current_channel_]) {
       energy_sensor_[this->current_channel_]->publish_state(this->get_energy(this->current_channel_));
-    if (power_factor_sensor_[this->current_channel_])
+    }
+    if (power_factor_sensor_[this->current_channel_]) {
       power_factor_sensor_[this->current_channel_]->publish_state(
           this->get_powerfactor(this->current_channel_, this->freq_));
+    }
     this->current_channel_++;
   } else if (this->current_channel_ == NUM_CHANNELS) {
     this->freq_ = this->get_frequency();

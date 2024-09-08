@@ -66,7 +66,6 @@ class BL0910 : public PollingComponent,
   uint8_t current_channel_ = 0;
   float freq_ = 50.0;
 
- protected:
   void write_register(uint8_t addr, uint32_t data) {
     return this->write_register(addr, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF);
   }
