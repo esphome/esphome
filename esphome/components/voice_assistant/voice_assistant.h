@@ -147,6 +147,8 @@ class VoiceAssistant : public Component {
   }
   void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
   void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
+  void set_conversation_timeout(uint32_t conversation_timeout) { this->conversation_timeout_ = conversation_timeout; }
+  void reset_conversation_id();
 
   Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
   Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
@@ -262,6 +264,7 @@ class VoiceAssistant : public Component {
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   float volume_multiplier_;
+  uint32_t conversation_timeout_;
 
   uint8_t *send_buffer_;
   int16_t *input_buffer_;

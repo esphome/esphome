@@ -1112,7 +1112,6 @@ enum MediaPlayerFormatPurpose {
   MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT = 1;
 }
 message MediaPlayerSupportedFormat {
-  option (id) = 119;
   option (ifdef) = "USE_MEDIA_PLAYER";
 
   string format = 1;
