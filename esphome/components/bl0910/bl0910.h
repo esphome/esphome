@@ -19,26 +19,26 @@ class BL0910 : public PollingComponent,
   // Sensor index is 1-based to match the BL0910 documentation
   // but the array is 0-based to save memory and simplify code
   void set_voltage_sensor(sensor::Sensor *voltage_sensor, int index, float voltage_reference) {
-    this->voltage_sensor[index - 1] = voltage_sensor;
-    this->voltage_reference[index - 1] = voltage_reference;
+    this->voltage_sensor_[index - 1] = voltage_sensor;
+    this->voltage_reference_[index - 1] = voltage_reference;
   }
   void set_current_sensor(sensor::Sensor *current_sensor, int index, float current_reference) {
-    this->current_sensor[index - 1] = current_sensor;
-    this->current_reference[index - 1] = current_reference;
+    this->current_sensor_[index - 1] = current_sensor;
+    this->current_reference_[index - 1] = current_reference;
   }
   void set_power_sensor(sensor::Sensor *power_sensor, int index, float power_reference) {
-    this->power_sensor[index - 1] = power_sensor;
-    this->power_reference[index - 1] = power_reference;
+    this->power_sensor_[index - 1] = power_sensor;
+    this->power_reference_[index - 1] = power_reference;
   }
   void set_energy_sensor(sensor::Sensor *energy_sensor, int index, float energy_reference) {
-    this->energy_sensor[index - 1] = energy_sensor;
-    this->energy_reference[index - 1] = energy_reference;
+    this->energy_sensor_[index - 1] = energy_sensor;
+    this->energy_reference_[index - 1] = energy_reference;
   }
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor, int index) {
-    this->power_factor_sensor[index - 1] = power_factor_sensor;
+    this->power_factor_sensor_[index - 1] = power_factor_sensor;
   }
-  void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor = frequency_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor = temperature_sensor; }
+  void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
 
   void loop() override;
 
@@ -47,20 +47,20 @@ class BL0910 : public PollingComponent,
   void dump_config() override;
 
  protected:
-  sensor::Sensor *voltage_sensor[NUM_CHANNELS] = {};
-  sensor::Sensor *current_sensor[NUM_CHANNELS] = {};
+  sensor::Sensor *voltage_sensor_[NUM_CHANNELS] = {};
+  sensor::Sensor *current_sensor_[NUM_CHANNELS] = {};
   // NB This may be negative as the circuits is seemingly able to measure
   // power in both directions
-  sensor::Sensor *power_sensor[NUM_CHANNELS] = {};
-  sensor::Sensor *energy_sensor[NUM_CHANNELS] = {};
-  sensor::Sensor *power_factor_sensor[NUM_CHANNELS] = {};
-  sensor::Sensor *frequency_sensor{nullptr};
-  sensor::Sensor *temperature_sensor{nullptr};
+  sensor::Sensor *power_sensor_[NUM_CHANNELS] = {};
+  sensor::Sensor *energy_sensor_[NUM_CHANNELS] = {};
+  sensor::Sensor *power_factor_sensor_[NUM_CHANNELS] = {};
+  sensor::Sensor *frequency_sensor_{nullptr};
+  sensor::Sensor *temperature_sensor_{nullptr};
 
-  float voltage_reference[NUM_CHANNELS] = {};
-  float current_reference[NUM_CHANNELS] = {};
-  float power_reference[NUM_CHANNELS] = {};
-  float energy_reference[NUM_CHANNELS] = {};
+  float voltage_reference_[NUM_CHANNELS] = {};
+  float current_reference_[NUM_CHANNELS] = {};
+  float power_reference_[NUM_CHANNELS] = {};
+  float energy_reference_[NUM_CHANNELS] = {};
 
  protected:
   void write_register(uint8_t addr, uint32_t data) {

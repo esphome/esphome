@@ -60,19 +60,19 @@ int32_t BL0910::read_register(uint8_t addr) {
 }
 
 float BL0910::get_voltage(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_RMS[channel])) / this->voltage_reference[channel];
+  return ((float) read_register(BL0910_REG_RMS[channel])) / this->voltage_reference_[channel];
 }
 
 float BL0910::get_current(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_RMS[channel])) / this->current_reference[channel];
+  return ((float) read_register(BL0910_REG_RMS[channel])) / this->current_reference_[channel];
 }
 
 float BL0910::get_power(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_WATT[channel])) / this->power_reference[channel];
+  return ((float) read_register(BL0910_REG_WATT[channel])) / this->power_reference_[channel];
 }
 
 float BL0910::get_energy(uint8_t channel) {
-  return ((float) read_register(BL0910_REG_CF_CNT[channel])) / this->energy_reference[channel];
+  return ((float) read_register(BL0910_REG_CF_CNT[channel])) / this->energy_reference_[channel];
 }
 
 float BL0910::get_frequency(void) {
@@ -96,23 +96,23 @@ void BL0910::update() {
   static int i = 0;
   static float freq = 50.0;
   if (i < NUM_CHANNELS) {
-    if (voltage_sensor[i])
-      voltage_sensor[i]->publish_state(get_voltage(i));
-    if (current_sensor[i])
-      current_sensor[i]->publish_state(get_current(i));
-    if (power_sensor[i])
-      power_sensor[i]->publish_state(get_power(i));
-    if (energy_sensor[i])
-      energy_sensor[i]->publish_state(get_energy(i));
-    if (power_factor_sensor[i])
-      power_factor_sensor[i]->publish_state(get_powerfactor(i, freq));
+    if (voltage_sensor_[i])
+      voltage_sensor_[i]->publish_state(get_voltage(i));
+    if (current_sensor_[i])
+      current_sensor_[i]->publish_state(get_current(i));
+    if (power_sensor_[i])
+      power_sensor_[i]->publish_state(get_power(i));
+    if (energy_sensor_[i])
+      energy_sensor_[i]->publish_state(get_energy(i));
+    if (power_factor_sensor_[i])
+      power_factor_sensor_[i]->publish_state(get_powerfactor(i, freq));
     i++;
   } else {
     freq = get_frequency();
-    if (frequency_sensor)
-      frequency_sensor->publish_state(freq);
-    if (temperature_sensor)
-      temperature_sensor->publish_state(get_temperature());
+    if (frequency_sensor_)
+      frequency_sensor_->publish_state(freq);
+    if (temperature_sensor_)
+      temperature_sensor_->publish_state(get_temperature());
     i = 0;
   }
 }
@@ -130,38 +130,38 @@ void BL0910::setup() {
 void BL0910::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
   ESP_LOGCONFIG(TAG, "BL0910:");
   for (int i = 0; i < NUM_CHANNELS; i++) {
-    if (voltage_sensor[i]) {
+    if (voltage_sensor_[i]) {
       char buf[20];
       snprintf(buf, sizeof(buf), "Voltage %d", i + 1);
-      LOG_SENSOR("", buf, voltage_sensor[i]);
+      LOG_SENSOR("", buf, voltage_sensor_[i]);
     }
 
-    if (current_sensor[i]) {
+    if (current_sensor_[i]) {
       char buf[20];
       snprintf(buf, sizeof(buf), "Current %d", i + 1);
-      LOG_SENSOR("", buf, current_sensor[i]);
+      LOG_SENSOR("", buf, current_sensor_[i]);
     }
-    if (power_sensor[i]) {
+    if (power_sensor_[i]) {
       char buf[20];
       snprintf(buf, sizeof(buf), "Power %d", i + 1);
-      LOG_SENSOR("", buf, power_sensor[i]);
+      LOG_SENSOR("", buf, power_sensor_[i]);
     }
-    if (energy_sensor[i]) {
+    if (energy_sensor_[i]) {
       char buf[20];
       snprintf(buf, sizeof(buf), "Energy %d", i + 1);
-      LOG_SENSOR("", buf, energy_sensor[i]);
+      LOG_SENSOR("", buf, energy_sensor_[i]);
     }
-    if (power_factor_sensor[i]) {
+    if (power_factor_sensor_[i]) {
       char buf[20];
       snprintf(buf, sizeof(buf), "Power Factor %d", i + 1);
-      LOG_SENSOR("", buf, power_factor_sensor[i]);
+      LOG_SENSOR("", buf, power_factor_sensor_[i]);
     }
   }
-  if (this->frequency_sensor) {
-    LOG_SENSOR("", "Frequency", this->frequency_sensor);
+  if (this->frequency_sensor_) {
+    LOG_SENSOR("", "Frequency", this->frequency_sensor_);
   }
-  if (this->temperature_sensor) {
-    LOG_SENSOR("", "Temperature", this->temperature_sensor);
+  if (this->temperature_sensor_) {
+    LOG_SENSOR("", "Temperature", this->temperature_sensor_);
   }
 }
 
