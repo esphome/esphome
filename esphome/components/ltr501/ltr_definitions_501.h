@@ -73,14 +73,6 @@ enum PsGain501 : uint8_t {
   PS_GAIN_16 = 3,
 };
 
-// // PS Mode
-// enum PsMode : uint8_t {
-//   PS_MODE_STANDBY_00 = 0,  // default
-//   PS_MODE_STANDBY_01 = 1,
-//   PS_MODE_ACTIVE_10 = 2,
-//   PS_MODE_ACTIVE_11 = 3,
-// };
-
 // LED Pulse Modulation Frequency
 enum PsLedFreq : uint8_t {
   PS_LED_FREQ_30KHZ = 0,
