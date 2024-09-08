@@ -71,6 +71,12 @@ edge_count_total:
 io_number:
 	.long 0
 
+	/* Estimate of how long each execution of the ULP program takes. Managed
+	 * entirely by main program, it is only defined here to survive deep sleep */
+	.global mean_exec_time
+mean_exec_time:
+	.long 0
+
 	/* Code goes into .text section */
 	.text
 	.global entry

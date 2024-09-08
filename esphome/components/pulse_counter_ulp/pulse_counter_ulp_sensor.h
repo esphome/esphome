@@ -20,16 +20,17 @@ using microseconds = std::chrono::duration<uint32_t, std::micro>;
 
 class UlpProgram {
  public:
-  struct state {
+  struct State {
     uint16_t edge_count;
     uint16_t run_count;
+    microseconds mean_exec_time;
   };
-  state pop_state();
-  state peek_state() const;
+  State pop_state();
+  State peek_state() const;
+  void set_mean_exec_time(microseconds mean_exec_time);
 
   static std::unique_ptr<UlpProgram> start(gpio_num_t gpio_num, microseconds sleep_duration, CountMode rising_edge_mode,
                                            CountMode falling_edge_mode);
-  // static std::unique_ptr<UlpProgram> load();
 };
 
 class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
@@ -39,11 +40,7 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(CountMode mode) { this->rising_edge_mode = mode; }
   void set_falling_edge_mode(CountMode mode) { this->falling_edge_mode = mode; }
-  void set_sleep_duration(uint32_t duration_us) {
-    this->sleep_duration_ = duration_us * microseconds{1};
-    // Initial estimate assumes sleep duration >> execution time
-    this->ulp_mean_exec_time_ = duration_us * microseconds{1};
-  }
+  void set_sleep_duration(uint32_t duration_us) { this->sleep_duration_ = duration_us * microseconds{1}; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 
   void set_total_pulses(uint32_t pulses);
@@ -60,7 +57,6 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
   CountMode falling_edge_mode{CountMode::disable};
   std::unique_ptr<UlpProgram> storage_{};
   clock::time_point last_time_{};
-  std::chrono::duration<float> ulp_mean_exec_time_{};
   microseconds sleep_duration_{20000};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_{nullptr};

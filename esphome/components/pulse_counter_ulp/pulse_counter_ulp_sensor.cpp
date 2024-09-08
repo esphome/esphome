@@ -57,6 +57,7 @@ std::unique_ptr<UlpProgram> UlpProgram::start(gpio_num_t gpio_num, microseconds 
   ulp_debounce_max_count = 3;
   ulp_next_edge = 0;
   ulp_io_number = rtcio_num; /* map from GPIO# to RTC_IO# */
+  ulp_mean_exec_time = sleep_duration / microseconds{1};
 
   /* Initialize selected GPIO as RTC IO, enable input */
   rtc_gpio_init(gpio_num);
@@ -78,19 +79,23 @@ std::unique_ptr<UlpProgram> UlpProgram::start(gpio_num_t gpio_num, microseconds 
   return std::unique_ptr<UlpProgram>(new UlpProgram());
 }
 
-UlpProgram::state UlpProgram::pop_state() {
+UlpProgram::State UlpProgram::pop_state() {
   // TODO count edges separately
-  auto edge_count = static_cast<uint16_t>(ulp_edge_count);
-  auto run_count = static_cast<uint16_t>(ulp_run_count);
+  State state = UlpProgram::peek_state();
   ulp_edge_count = 0;
   ulp_run_count = 0;
-  return {.edge_count = edge_count, .run_count = run_count};
+  return state;
 }
 
-UlpProgram::state UlpProgram::peek_state() const {
+UlpProgram::State UlpProgram::peek_state() const {
   auto edge_count = static_cast<uint16_t>(ulp_edge_count);
   auto run_count = static_cast<uint16_t>(ulp_run_count);
-  return {.edge_count = edge_count, .run_count = run_count};
+  auto mean_exec_time = microseconds{1} * static_cast<uint16_t>(ulp_mean_exec_time);
+  return {.edge_count = edge_count, .run_count = run_count, .mean_exec_time = mean_exec_time};
+}
+
+void UlpProgram::set_mean_exec_time(microseconds mean_exec_time) {
+  ulp_mean_exec_time = static_cast<uint16_t>(mean_exec_time / microseconds{1});
 }
 
 /* === END ULP ===*/
@@ -106,9 +111,9 @@ void PulseCounterUlpSensor::setup() {
                                        this->rising_edge_mode, this->falling_edge_mode);
   } else {
     ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
-    // TODO need to store estimate in UlpProgram and load it in load. Maybe.
-    // this->storage_ = UlpProgram::load();
-    // this->last_time = clock::now() - this->storage_->peek_state().run_count * this->storage_->estimate ;
+    this->storage_ = std::unique_ptr<UlpProgram>(new UlpProgram);
+    UlpProgram::State state = this->storage_->peek_state();
+    this->last_time_ = clock::now() - state.run_count * state.mean_exec_time;
   }
 
   if (!this->storage_) {
@@ -135,16 +140,13 @@ void PulseCounterUlpSensor::update() {
   if (!this->storage_) {
     return;
   }
-  UlpProgram::state raw = this->storage_->pop_state();
+  UlpProgram::State raw = this->storage_->pop_state();
   clock::time_point now = clock::now();
   clock::duration interval = now - this->last_time_;
-  auto estimated_interval = ulp_mean_exec_time_ * raw.run_count;
   if (interval != clock::duration::zero()) {
-    ulp_mean_exec_time_ = interval / static_cast<float>(raw.run_count);
+    this->storage_->set_mean_exec_time(std::chrono::duration_cast<microseconds>(interval / raw.run_count));
     float value = std::chrono::minutes{1} * static_cast<float>(raw.edge_count) / interval;  // pulses per minute
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
-    ESP_LOGD(TAG, "'%s': Interval: %0.2f\nEstimated: %0.2f", this->get_name().c_str(),
-             1.0f * interval / std::chrono::seconds{1}, 1.0f * estimated_interval / std::chrono::seconds{1});
     this->publish_state(value);
   }
 
