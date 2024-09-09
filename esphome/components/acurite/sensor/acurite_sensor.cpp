@@ -1,3 +1,4 @@
+#include "esphome/core/log.h"
 #include "acurite_sensor.h"
 
 namespace esphome {
