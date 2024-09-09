@@ -102,9 +102,6 @@ def time_schema(class_: MockObjClass, requires_time: bool = True) -> cv.Schema:
     if (requires_time):
         schema = schema.extend(
             {
-                
-
-                
                 cv.Optional(CONF_ON_TIME): automation.validate_automation(
                     {
                         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeTrigger),
