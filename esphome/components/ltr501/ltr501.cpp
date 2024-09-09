@@ -164,7 +164,7 @@ void LTRAlsPs501Component::loop() {
 
     case State::IDLE:
       if (this->is_ps_()) {
-        check_and_trigger_ps_();
+        this->check_and_trigger_ps_();
       }
       break;
 
