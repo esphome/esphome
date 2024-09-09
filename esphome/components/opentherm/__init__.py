@@ -44,8 +44,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: dict[str, Any]) -> None:
-    # Create the hub, passing the two callbacks defined below
-    # Since the hub is used in the callbacks, we need to define it first
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -59,17 +57,16 @@ async def to_code(config: dict[str, Any]) -> None:
     non_sensors = {CONF_ID, CONF_IN_PIN, CONF_OUT_PIN}
     input_sensors = []
     for key, value in config.items():
-        if key not in non_sensors:
-            if key in schema.INPUTS:
-                input_sensor = await cg.get_variable(value)
-                cg.add(
-                    getattr(var, f"set_{key}_{const.INPUT_SENSOR.lower()}")(
-                        input_sensor
-                    )
-                )
-                input_sensors.append(key)
-            else:
-                cg.add(getattr(var, f"set_{key}")(value))
+        if key in non_sensors:
+            continue
+        if key in schema.INPUTS:
+            input_sensor = await cg.get_variable(value)
+            cg.add(
+                getattr(var, f"set_{key}_{const.INPUT_SENSOR.lower()}")(input_sensor)
+            )
+            input_sensors.append(key)
+        else:
+            cg.add(getattr(var, f"set_{key}")(value))
 
     if len(input_sensors) > 0:
         generate.define_has_component(const.INPUT_SENSOR, input_sensors)

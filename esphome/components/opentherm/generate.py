@@ -39,9 +39,6 @@ def define_message_handler(
     #     return opentherm_->build_request_(MessageType::WriteData, MessageId::Message, data);
     # }
 
-    # There doesn't seem to be a way to combine the handlers for different components, so we'll
-    # have to call them seperately in C++.
-
     messages: dict[str, list[tuple[str, str]]] = {}
     for key in keys:
         msg = schemas[key].message
