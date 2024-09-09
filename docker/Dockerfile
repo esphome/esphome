@@ -97,18 +97,11 @@ RUN \
 # tmpfs is for https://github.com/rust-lang/cargo/issues/8719
 
 COPY requirements.txt requirements_optional.txt /
-RUN --mount=type=tmpfs,target=/root/.cargo \
-    ( \
-        ( \
-            [ "$TARGETARCH$TARGETVARIANT" = "armv7" ] && \
-                curl -L https://www.piwheels.org/cp311/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl -o /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
-                && pip3 install --break-system-packages --no-cache-dir /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
-                && rm /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
-        ) \
-        || [ "$TARGETARCH$TARGETVARIANT" != "armv7" ] \
-    ) \
-    && if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        curl -L https://www.piwheels.org/cp311/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl -o /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
+        && pip3 install --break-system-packages --no-cache-dir /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
+        && rm /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
+        && export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
     fi; \
     CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
     pip3 install \
