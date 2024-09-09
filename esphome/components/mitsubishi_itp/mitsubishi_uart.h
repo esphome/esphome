@@ -5,8 +5,6 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/components/climate/climate.h"
-#include "esphome/components/select/select.h"
-#include "esphome/components/sensor/sensor.h"
 #include "mitp_listener.h"
 #include "muart_packet.h"
 #include "muart_bridge.h"
