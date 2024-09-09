@@ -1,18 +1,15 @@
 from typing import Union
 
 import esphome.codegen as cg
-from esphome.components.color import ColorStruct
+from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
 from esphome.components.font import Font
 from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ARGS,
-    CONF_BLUE,
     CONF_COLOR,
     CONF_FORMAT,
-    CONF_GREEN,
     CONF_ID,
-    CONF_RED,
     CONF_TIME,
     CONF_VALUE,
 )
@@ -69,9 +66,11 @@ def color_retmapper(value):
         )
     if isinstance(value, ID):
         cval = [x for x in CORE.config[CONF_COLOR] if x[CONF_ID] == value][0]
-        return literal(
-            f"lv_color_make({int(cval[CONF_RED] * 255)}, {int(cval[CONF_GREEN] * 255)}, {int(cval[CONF_BLUE] * 255)})"
-        )
+        if CONF_HEX in cval:
+            r, g, b = cval[CONF_HEX]
+        else:
+            r, g, b, _ = from_rgbw(cval)
+        return literal(f"lv_color_make({r}, {g}, {b})")
     assert False
 
 
