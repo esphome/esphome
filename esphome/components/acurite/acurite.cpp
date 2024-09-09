@@ -238,23 +238,22 @@ void AcuRiteComponent::decode_iris_(uint8_t *data, uint8_t len) {
 }
 
 bool AcuRiteComponent::on_receive(remote_base::RemoteReceiveData data) {
-  uint32_t syncs = 0;
-  uint32_t bits = 0;
   uint8_t bytes[10] = {0};
+  uint32_t bits = 0;
+  uint32_t syncs = 0;
 
   ESP_LOGV(TAG, "Received raw data with length %d", data.size());
 
   // demodulate AcuRite OOK data
   for (auto i : data.get_raw_data()) {
-    bool sync = std::abs(600 - std::abs(i)) < 100;
-    bool zero = std::abs(200 - std::abs(i)) < 100;
-    bool one = std::abs(400 - std::abs(i)) < 100;
-    bool level = (i >= 0);
-    if ((one || zero) && syncs > 2) {
-      if (level) {
+    bool is_sync = std::abs(600 - std::abs(i)) < 100;
+    bool is_zero = std::abs(200 - std::abs(i)) < 100;
+    bool is_one = std::abs(400 - std::abs(i)) < 100;
+    if ((is_one || is_zero) && syncs > 2) {
+      if (i > 0) {
         // detect bits using on state
         bytes[bits / 8] <<= 1;
-        bytes[bits / 8] |= one ? 1 : 0;
+        bytes[bits / 8] |= is_one ? 1 : 0;
         bits += 1;
 
         // try to decode on whole bytes
@@ -273,9 +272,9 @@ bool AcuRiteComponent::on_receive(remote_base::RemoteReceiveData data) {
           syncs = 0;
         }
       }
-    } else if (sync && bits == 0) {
+    } else if (is_sync && bits == 0) {
       // count sync using off state
-      if (!level) {
+      if (i < 0) {
         syncs++;
       }
     } else {
