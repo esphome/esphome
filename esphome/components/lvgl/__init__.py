@@ -22,7 +22,7 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, focused_widgets, update_to_code
-from .defines import CONF_ADJUSTABLE, CONF_GRADIENTS, CONF_SKIP, add_define, lv_defines
+from .defines import add_define
 from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .lv_validation import lv_bool, lv_images_used
@@ -143,14 +143,14 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in lv_defines.items()]
+    definitions = [as_macro(m, v) for m, v in df.lv_defines.items()]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
 
 def final_validation(config):
     if pages := config.get(CONF_PAGES):
-        if all(p[CONF_SKIP] for p in pages):
+        if all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
     global_config = full_config.get()
     for display_id in config[df.CONF_DISPLAYS]:
@@ -175,7 +175,7 @@ def final_validation(config):
     for w in focused_widgets:
         path = global_config.get_path_for_id(w)
         widget_conf = global_config.get_config_for_path(path[:-1])
-        if CONF_ADJUSTABLE in widget_conf and not widget_conf[CONF_ADJUSTABLE]:
+        if df.CONF_ADJUSTABLE in widget_conf and not widget_conf[df.CONF_ADJUSTABLE]:
             raise cv.Invalid(
                 "A non adjustable arc may not be focused",
                 path,
@@ -342,7 +342,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
-            cv.Optional(CONF_GRADIENTS): GRADIENT_SCHEMA,
+            cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
             cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
             cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
