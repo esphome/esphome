@@ -5,8 +5,18 @@ from esphome.components.color import ColorStruct
 from esphome.components.font import Font
 from esphome.components.image import Image_
 import esphome.config_validation as cv
-from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_TIME, CONF_VALUE
-from esphome.core import HexInt, Lambda
+from esphome.const import (
+    CONF_ARGS,
+    CONF_BLUE,
+    CONF_COLOR,
+    CONF_FORMAT,
+    CONF_GREEN,
+    CONF_ID,
+    CONF_RED,
+    CONF_TIME,
+    CONF_VALUE,
+)
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import ESPTime, uint32
 from esphome.helpers import cpp_string_escape
@@ -23,12 +33,7 @@ from .defines import (
     call_lambda,
     literal,
 )
-from .helpers import (
-    esphome_fonts_used,
-    lv_fonts_used,
-    lvgl_components_required,
-    requires_component,
-)
+from .helpers import esphome_fonts_used, lv_fonts_used, requires_component
 from .lvcode import lv_expr
 from .types import lv_font_t, lv_img_t
 
@@ -59,11 +64,15 @@ def color_retmapper(value):
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
     if isinstance(value, int):
-        hexval = HexInt(value)
-        return lv_expr.color_hex(hexval)
-    # Must be an id
-    lvgl_components_required.add(CONF_COLOR)
-    return lv_expr.color_from(MockObj(value))
+        return literal(
+            f"lv_color_make({(value >> 16) & 0xFF}, {(value >> 8) & 0xFF}, {value & 0xFF})"
+        )
+    if isinstance(value, ID):
+        cval = [x for x in CORE.config[CONF_COLOR] if x[CONF_ID] == value][0]
+        return literal(
+            f"lv_color_make({int(cval[CONF_RED] * 255)}, {int(cval[CONF_GREEN] * 255)}, {int(cval[CONF_BLUE] * 255)})"
+        )
+    assert False
 
 
 def option_string(value):
