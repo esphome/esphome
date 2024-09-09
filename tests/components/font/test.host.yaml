@@ -9,6 +9,12 @@ font:
   - file: "gfonts://Roboto"
     id: roboto_web
     size: 20
+  - file: "gfonts://Roboto"
+    id: roboto_greek
+    size: 20
+    glyphsets:
+      - GF_Latin_Core
+      - GF_Greek_Core
   - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
     id: monocraft
     size: 20
@@ -21,3 +27,16 @@ font:
     id: monocraft3
     size: 28
 
+display:
+  - platform: sdl
+    id: sdl_display
+    dimensions:
+      width: 800
+      height: 600
+    lambda: |-
+      it.print(0, 0, id(roboto), "Hello, World!");
+      it.print(0, 20, id(roboto_web), "Hello, World!");
+      it.print(0, 40, id(roboto_greek), "Hello κόσμε!");
+      it.print(0, 60, id(monocraft), "Hello, World!");
+      it.print(0, 80, id(monocraft2), "Hello, World!");
+      it.print(0, 100, id(monocraft3), "Hello, World!");

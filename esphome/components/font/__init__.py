@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 
 from packaging import version
+import glyphsets
 import requests
 
 from esphome import core, external_files
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_FAMILY,
     CONF_FILE,
     CONF_GLYPHS,
+    CONF_GLYPHSETS,
     CONF_ID,
     CONF_PATH,
     CONF_RAW_DATA_ID,
@@ -71,13 +73,34 @@ def validate_glyphs(value):
     return value
 
 
+def validate_glyphsets(value):
+    if isinstance(value, list):
+        value = cv.Schema([cv.string])(value)
+    value = cv.Schema([cv.string])(list(value))
+
+    for glyphset in value:
+        if glyphset not in glyphsets.defined_glyphsets():
+            raise cv.Invalid(f"{glyphset} is not a valid glyphset")
+    return value
+
+
 font_map = {}
 
 
 def merge_glyphs(config):
     glyphs = []
     glyphs.extend(config[CONF_GLYPHS])
-    font_list = [(EFont(config[CONF_FILE], config[CONF_SIZE], config[CONF_GLYPHS]))]
+
+    for glyphset in config.get(CONF_GLYPHSETS, []):
+        for up in glyphsets.unicodes_per_glyphset(glyphset):
+            glyph = chr(up)
+            if glyph not in glyphs:
+                glyphs.append(glyph)
+
+    validate_glyphs(glyphs)
+
+    font_list = [(EFont(config[CONF_FILE], config[CONF_SIZE], glyphs.copy()))]
+
     if extras := config.get(CONF_EXTRAS):
         extra_fonts = list(
             map(
@@ -313,6 +336,7 @@ FONT_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.declare_id(Font),
         cv.Required(CONF_FILE): FILE_SCHEMA,
         cv.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,
+        cv.Optional(CONF_GLYPHSETS): validate_glyphsets,
         cv.Optional(CONF_SIZE, default=20): cv.int_range(min=1),
         cv.Optional(CONF_BPP, default=1): cv.one_of(1, 2, 4, 8),
         cv.Optional(CONF_EXTRAS): cv.ensure_list(
