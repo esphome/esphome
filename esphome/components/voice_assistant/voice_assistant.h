@@ -132,6 +132,7 @@ class VoiceAssistant : public Component {
   void on_event(const api::VoiceAssistantEventResponse &msg);
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
+  void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
