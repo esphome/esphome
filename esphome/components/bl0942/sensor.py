@@ -27,6 +27,7 @@ from esphome.const import (
 CONF_CURRENT_REFERENCE = "current_reference"
 CONF_ENERGY_REFERENCE = "energy_reference"
 CONF_POWER_REFERENCE = "power_reference"
+CONF_RESET = "reset"
 CONF_VOLTAGE_REFERENCE = "voltage_reference"
 
 DEPENDENCIES = ["uart"]
@@ -82,6 +83,7 @@ CONFIG_SCHEMA = (
                 ),
             ),
             cv.Optional(CONF_ADDRESS, default=0): cv.int_range(min=0, max=3),
+            cv.Optional(CONF_RESET, default=True): cv.boolean,
             cv.Optional(CONF_CURRENT_REFERENCE): cv.float_,
             cv.Optional(CONF_ENERGY_REFERENCE): cv.float_,
             cv.Optional(CONF_POWER_REFERENCE): cv.float_,
@@ -115,6 +117,7 @@ async def to_code(config):
         cg.add(var.set_frequency_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_address(config[CONF_ADDRESS]))
+    cg.add(var.set_reset(config[CONF_RESET]))
     if (current_reference := config.get(CONF_CURRENT_REFERENCE, None)) is not None:
         cg.add(var.set_current_reference(current_reference))
     if (voltage_reference := config.get(CONF_VOLTAGE_REFERENCE, None)) is not None:
