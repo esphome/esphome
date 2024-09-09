@@ -42,42 +42,34 @@ ICON_GAIN = "mdi:multiplication"
 ICON_PROXIMITY = "mdi:hand-wave-outline"
 UNIT_COUNTS = "#"
 
-ltr_als_ps_ns = cg.esphome_ns.namespace("ltr_als_ps")
+ltr501_ns = cg.esphome_ns.namespace("ltr501")
 
-LTRAlsPsComponent = ltr_als_ps_ns.class_(
-    "LTRAlsPsComponent", cg.PollingComponent, i2c.I2CDevice
+LTRAlsPsComponent = ltr501_ns.class_(
+    "LTRAlsPs501Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-LtrType = ltr_als_ps_ns.enum("LtrType")
+LtrType = ltr501_ns.enum("LtrType")
 LTR_TYPES = {
     "ALS": LtrType.LTR_TYPE_ALS_ONLY,
     "PS": LtrType.LTR_TYPE_PS_ONLY,
     "ALS_PS": LtrType.LTR_TYPE_ALS_AND_PS,
 }
 
-AlsGain = ltr_als_ps_ns.enum("AlsGain")
+AlsGain = ltr501_ns.enum("AlsGain501")
 ALS_GAINS = {
     "1X": AlsGain.GAIN_1,
-    "2X": AlsGain.GAIN_2,
-    "4X": AlsGain.GAIN_4,
-    "8X": AlsGain.GAIN_8,
-    "48X": AlsGain.GAIN_48,
-    "96X": AlsGain.GAIN_96,
+    "150X": AlsGain.GAIN_150,
 }
 
-IntegrationTime = ltr_als_ps_ns.enum("IntegrationTime")
+IntegrationTime = ltr501_ns.enum("IntegrationTime501")
 INTEGRATION_TIMES = {
     50: IntegrationTime.INTEGRATION_TIME_50MS,
     100: IntegrationTime.INTEGRATION_TIME_100MS,
-    150: IntegrationTime.INTEGRATION_TIME_150MS,
     200: IntegrationTime.INTEGRATION_TIME_200MS,
-    250: IntegrationTime.INTEGRATION_TIME_250MS,
-    300: IntegrationTime.INTEGRATION_TIME_300MS,
-    350: IntegrationTime.INTEGRATION_TIME_350MS,
     400: IntegrationTime.INTEGRATION_TIME_400MS,
 }
 
-MeasurementRepeatRate = ltr_als_ps_ns.enum("MeasurementRepeatRate")
+MeasurementRepeatRate = ltr501_ns.enum("MeasurementRepeatRate")
 MEASUREMENT_REPEAT_RATES = {
     50: MeasurementRepeatRate.REPEAT_RATE_50MS,
     100: MeasurementRepeatRate.REPEAT_RATE_100MS,
@@ -87,17 +79,16 @@ MEASUREMENT_REPEAT_RATES = {
     2000: MeasurementRepeatRate.REPEAT_RATE_2000MS,
 }
 
-PsGain = ltr_als_ps_ns.enum("PsGain")
+PsGain = ltr501_ns.enum("PsGain501")
 PS_GAINS = {
+    "1X": PsGain.PS_GAIN_1,
+    "4X": PsGain.PS_GAIN_4,
+    "8X": PsGain.PS_GAIN_8,
     "16X": PsGain.PS_GAIN_16,
-    "32X": PsGain.PS_GAIN_32,
-    "64X": PsGain.PS_GAIN_64,
 }
 
-LTRPsHighTrigger = ltr_als_ps_ns.class_(
-    "LTRPsHighTrigger", automation.Trigger.template()
-)
-LTRPsLowTrigger = ltr_als_ps_ns.class_("LTRPsLowTrigger", automation.Trigger.template())
+LTRPsHighTrigger = ltr501_ns.class_("LTRPsHighTrigger", automation.Trigger.template())
+LTRPsLowTrigger = ltr501_ns.class_("LTRPsLowTrigger", automation.Trigger.template())
 
 
 def validate_integration_time(value):
@@ -120,6 +111,17 @@ def validate_time_and_repeat_rate(config):
     return config
 
 
+def validate_als_gain_and_integration_time(config):
+    integraton_time = config[CONF_INTEGRATION_TIME]
+    if config[CONF_GAIN] == "1X" and integraton_time > 100:
+        raise cv.Invalid(
+            "ALS gain 1X can only be used with integration time 50ms or 100ms"
+        )
+    if config[CONF_GAIN] == "200X" and integraton_time == 50:
+        raise cv.Invalid("ALS gain 200X can not be used with integration time 50ms")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -137,7 +139,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_PS_COOLDOWN, default="5s"
             ): cv.positive_time_period_seconds,
-            cv.Optional(CONF_PS_GAIN, default="16X"): cv.enum(PS_GAINS, upper=True),
+            cv.Optional(CONF_PS_GAIN, default="1X"): cv.enum(PS_GAINS, upper=True),
             cv.Optional(CONF_PS_HIGH_THRESHOLD, default=65535): cv.int_range(
                 min=0, max=65535
             ),
@@ -215,8 +217,9 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x29)),
+    .extend(i2c.i2c_device_schema(0x23)),
     validate_time_and_repeat_rate,
+    validate_als_gain_and_integration_time,
 )
 
 
