@@ -36,6 +36,7 @@ class RpiDpiRgb : public display::Display {
   void set_pclk_pin(InternalGPIOPin *pclk_pin) { this->pclk_pin_ = pclk_pin; }
   void set_vsync_pin(InternalGPIOPin *vsync_pin) { this->vsync_pin_ = vsync_pin; }
   void set_hsync_pin(InternalGPIOPin *hsync_pin) { this->hsync_pin_ = hsync_pin; }
+  void set_enable_pin(GPIOPin *enable_pin) { this->enable_pin_ = enable_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_width(uint16_t width) { this->width_ = width; }
   void set_dimensions(uint16_t width, uint16_t height) {
@@ -62,10 +63,12 @@ class RpiDpiRgb : public display::Display {
  protected:
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
+  void reset_display_() const;
   InternalGPIOPin *de_pin_{nullptr};
   InternalGPIOPin *pclk_pin_{nullptr};
   InternalGPIOPin *hsync_pin_{nullptr};
   InternalGPIOPin *vsync_pin_{nullptr};
+  GPIOPin *enable_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *data_pins_[16] = {};
   uint16_t hsync_front_porch_ = 8;

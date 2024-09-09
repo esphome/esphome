@@ -20,7 +20,7 @@ from . import defines as df, lv_validation as lvalid
 from .defines import CONF_TIME_FORMAT
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_image
-from .lvcode import LvglComponent
+from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
     LvType,
@@ -215,14 +215,12 @@ def automation_schema(typ: LvType):
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
     else:
         events = df.LV_EVENT_TRIGGERS
-    if isinstance(typ, LvType):
-        template = Trigger.template(typ.get_arg_type())
-    else:
-        template = Trigger.template()
+    args = [typ.get_arg_type()] if isinstance(typ, LvType) else []
+    args.append(lv_event_t_ptr)
     return {
         cv.Optional(event): validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
             }
         )
         for event in events
@@ -361,7 +359,13 @@ LVGL_SCHEMA = cv.Schema(
     }
 )
 
-ALL_STYLES = {**STYLE_PROPS, **GRID_CELL_SCHEMA, **FLEX_OBJ_SCHEMA}
+ALL_STYLES = {
+    **STYLE_PROPS,
+    **GRID_CELL_SCHEMA,
+    **FLEX_OBJ_SCHEMA,
+    cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+    cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+}
 
 
 def container_validator(schema, widget_type: WidgetType):

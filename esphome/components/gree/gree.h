@@ -25,7 +25,6 @@ const uint8_t GREE_FAN_AUTO = 0x00;
 const uint8_t GREE_FAN_1 = 0x10;
 const uint8_t GREE_FAN_2 = 0x20;
 const uint8_t GREE_FAN_3 = 0x30;
-const uint8_t GREE_FAN_TURBO = 0x80;
 
 // IR Transmission
 const uint32_t GREE_IR_FREQUENCY = 38000;
@@ -70,8 +69,16 @@ const uint8_t GREE_HDIR_MIDDLE = 0x04;
 const uint8_t GREE_HDIR_MRIGHT = 0x05;
 const uint8_t GREE_HDIR_RIGHT = 0x06;
 
+// Only available on YX1FF
+// Turbo (high) fan mode + sleep preset mode
+const uint8_t GREE_FAN_TURBO = 0x80;
+const uint8_t GREE_FAN_TURBO_BIT = 0x10;
+const uint8_t GREE_PRESET_NONE = 0x00;
+const uint8_t GREE_PRESET_SLEEP = 0x01;
+const uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
+
 // Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9 };
+enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF };
 
 class GreeClimate : public climate_ir::ClimateIR {
  public:
@@ -93,6 +100,7 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t horizontal_swing_();
   uint8_t vertical_swing_();
   uint8_t temperature_();
+  uint8_t preset_();
 
   Model model_{};
 };
