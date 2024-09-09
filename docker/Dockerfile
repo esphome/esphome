@@ -1,5 +1,3 @@
-ARG BUILD_TYPE=docker
-
 FROM ghcr.io/esphome/docker-base:2024.9.0 AS base
 
 RUN git config --system --add safe.directory "*"
@@ -60,6 +58,8 @@ LABEL \
     io.hass.type="addon" \
     io.hass.version="${BUILD_VERSION}"
 
+
+ARG BUILD_TYPE=docker
 
 FROM base-${BUILD_TYPE} AS final
 
