@@ -240,7 +240,7 @@ void AcuRiteComponent::decode_iris_(uint8_t *data, uint8_t len) {
 bool AcuRiteComponent::on_receive(remote_base::RemoteReceiveData data) {
   uint32_t syncs = 0;
   uint32_t bits = 0;
-  uint8_t bytes[10];
+  uint8_t bytes[10] = {0};
 
   ESP_LOGV(TAG, "Received raw data with length %d", data.size());
 
