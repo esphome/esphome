@@ -62,19 +62,25 @@ DATETIME_MODES = [
 
 
 def datetime_schema_base(requires_time: bool) -> cv.Schema:
-    schema = cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA).extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    schema = cv.ENTITY_BASE_SCHEMA.extend(
+        web_server.WEBSERVER_SORTING_SCHEMA
+    ).extend(
+        cv.MQTT_COMMAND_COMPONENT_SCHEMA
+    )
 
-    if(requires_time):
+    if requires_time:
         schema = schema.extend(
             {
                 cv.Optional(CONF_ON_VALUE): automation.validate_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            DateTimeStateTrigger
+                        ),
                     }
                 ),
                 cv.GenerateID(CONF_TIME_ID): cv.All(
                     cv.requires_component("time"), cv.use_id(time.RealTimeClock)
-                )
+                ),
             }
         )
     return schema
@@ -99,7 +105,7 @@ def time_schema(class_: MockObjClass, requires_time: bool = True) -> cv.Schema:
             cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
         }
     )
-    if (requires_time):
+    if requires_time:
         schema = schema.extend(
             {
                 cv.Optional(CONF_ON_TIME): automation.validate_automation(
@@ -124,12 +130,14 @@ def datetime_schema(class_: MockObjClass, requires_time: bool = True) -> cv.Sche
             ),
         }
     )
-    if (requires_time):
+    if requires_time:
         schema = schema.extend(
             {
                 cv.Optional(CONF_ON_TIME): automation.validate_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnDateTimeTrigger),
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            OnDateTimeTrigger
+                        ),
                     }
                 ),
             }
@@ -150,7 +158,7 @@ async def setup_datetime_core_(var, config, requires_time: bool = True):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
 
-    if(requires_time):
+    if requires_time:
         rtc = await cg.get_variable(config[CONF_TIME_ID])
         cg.add(var.set_rtc(rtc))
 
