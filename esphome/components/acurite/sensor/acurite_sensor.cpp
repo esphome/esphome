@@ -112,7 +112,7 @@ void AcuRiteSensor::setup() {
 }
 
 void AcuRiteSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "AcuRite 0x%04x:", this->id_);
+  ESP_LOGCONFIG(TAG, "AcuRite Sensor 0x%04x:", this->id_);
   LOG_SENSOR("  ", "Speed", this->speed_sensor_);
   LOG_SENSOR("  ", "Direction", this->direction_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
