@@ -81,17 +81,11 @@ struct IRData {
 
 void DaikinClimate::transmit_state() {
   IRData irdata{{{0x16}}};
-
   irdata.mode = this->operation_mode_();
-
   irdata.fan_speed = this->fan_speed_();
-
   irdata.temperature = this->temperature_();
-
   irdata.swing = this->swing_();
-
   irdata.set_power(this->mode != climate::CLIMATE_MODE_OFF);
-
   irdata.set_checksum();
 
   auto transmit = this->transmitter_->transmit();
