@@ -22,8 +22,9 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, focused_widgets, update_to_code
-from .defines import CONF_ADJUSTABLE, CONF_SKIP
+from .defines import CONF_ADJUSTABLE, CONF_GRADIENTS, CONF_SKIP, add_define, lv_defines
 from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
+from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
 from .schemas import (
@@ -126,17 +127,6 @@ for w_type in WIDGET_TYPES.values():
         ObjUpdateAction,
         create_modify_schema(w_type),
     )(update_to_code)
-
-
-lv_defines = {}  # Dict of #defines to provide as build flags
-
-
-def add_define(macro, value="1"):
-    if macro in lv_defines and lv_defines[macro] != value:
-        LOGGER.error(
-            "Redefinition of %s - was %s now %s", macro, lv_defines[macro], value
-        )
-    lv_defines[macro] = value
 
 
 def as_macro(macro, value):
@@ -268,6 +258,7 @@ async def to_code(config):
         await encoders_to_code(lv_component, config)
         await theme_to_code(config)
         await styles_to_code(config)
+        await gradients_to_code(config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
@@ -351,6 +342,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
+            cv.Optional(CONF_GRADIENTS): GRADIENT_SCHEMA,
             cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
             cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),

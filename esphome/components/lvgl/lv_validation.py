@@ -32,7 +32,7 @@ from .defines import (
 )
 from .helpers import esphome_fonts_used, lv_fonts_used, requires_component
 from .lvcode import lv_expr
-from .types import lv_font_t, lv_img_t
+from .types import lv_font_t, lv_gradient_t, lv_img_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -140,7 +140,7 @@ radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 
 
 @schema_extractor("one_of")
-def radius_validator(value):
+def fraction_validator(value):
     if value == SCHEMA_EXTRACT:
         return radius_consts.choices
     value = cv.Any(size, cv.percentage, radius_consts.one_of)(value)
@@ -149,7 +149,7 @@ def radius_validator(value):
     return value
 
 
-radius = LValidator(radius_validator, uint32, retmapper=literal)
+lv_fraction = LValidator(fraction_validator, uint32, retmapper=literal)
 
 
 def id_name(value):
@@ -248,6 +248,21 @@ lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
 lv_int = LValidator(cv.int_, cg.int_)
 lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
+
+
+def gradient_mapper(value):
+    return MockObj(value)
+
+
+def gradient_validator(value):
+    return cv.use_id(lv_gradient_t)(value)
+
+
+lv_gradient = LValidator(
+    validator=gradient_validator,
+    rtype=lv_gradient_t,
+    retmapper=gradient_mapper,
+)
 
 
 def is_lv_font(font):
