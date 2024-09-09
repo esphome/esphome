@@ -52,6 +52,29 @@ lvgl:
     - touchscreen_id: tft_touch
       long_press_repeat_time: 200ms
       long_press_time: 500ms
+
+  msgboxes:
+    - id: message_box
+      close_button: true
+      title: Messagebox
+      bg_color: 0xffff
+      body:
+        text: This is a sample messagebox
+        bg_color: 0x808080
+      button_style:
+        bg_color: 0xff00
+        border_width: 4
+      buttons:
+        - id: msgbox_button
+          text: Button
+        - id: msgbox_apply
+          text: "Close"
+          on_click:
+            then:
+              - lvgl.widget.hide: message_box
+    - id: simple_msgbox
+      title: Simple
+
   pages:
     - id: page1
       on_load:
@@ -98,6 +121,7 @@ lvgl:
                 - lvgl.update:
                     disp_bg_color: 0xffff00
                     disp_bg_image: cat_image
+                - lvgl.widget.show: message_box
         - label:
             text: "Hello shiny day"
             text_color: 0xFFFFFF

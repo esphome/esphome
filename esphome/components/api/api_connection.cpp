@@ -1213,6 +1213,16 @@ void APIConnection::on_voice_assistant_timer_event_response(const VoiceAssistant
   }
 };
 
+void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_announce(msg);
+  }
+}
+
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
