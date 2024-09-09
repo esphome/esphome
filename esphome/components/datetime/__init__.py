@@ -62,9 +62,7 @@ DATETIME_MODES = [
 
 
 def datetime_schema_base(requires_time: bool) -> cv.Schema:
-    schema = cv.ENTITY_BASE_SCHEMA.extend(
-        web_server.WEBSERVER_SORTING_SCHEMA
-    ).extend(
+    schema = cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA).extend(
         cv.MQTT_COMMAND_COMPONENT_SCHEMA
     )
 
@@ -177,7 +175,7 @@ async def register_datetime(var, config, requires_time: bool = True):
     cg.add_define(f"USE_DATETIME_{config[CONF_TYPE]}")
 
 
-async def new_datetime(config, requires_time: bool = True, *args):
+async def new_datetime(config, *args, requires_time: bool = True):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_datetime(var, config, requires_time)
     return var
