@@ -3,7 +3,7 @@ import functools
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
-from ..defines import CONF_MAIN, literal
+from ..defines import CONF_MAIN
 from ..lvcode import lv
 from ..types import LvType
 from . import Widget, WidgetType
@@ -38,13 +38,15 @@ LINE_SCHEMA = {
 
 class LineType(WidgetType):
     def __init__(self):
-        super().__init__(CONF_LINE, LvType("lv_line_t"), (CONF_MAIN,), LINE_SCHEMA)
+        super().__init__(
+            CONF_LINE, LvType("lv_line_t"), (CONF_MAIN,), LINE_SCHEMA, modify_schema={}
+        )
 
     async def to_code(self, w: Widget, config):
         """For a line object, create and add the points"""
-        data = literal(config[CONF_POINTS])
-        points = cg.static_const_array(config[CONF_POINT_LIST_ID], data)
-        lv.line_set_points(w.obj, points, len(data))
+        if data := config.get(CONF_POINTS):
+            points = cg.static_const_array(config[CONF_POINT_LIST_ID], data)
+            lv.line_set_points(w.obj, points, len(data))
 
 
 line_spec = LineType()

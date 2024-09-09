@@ -1,43 +1,35 @@
+import functools
 import hashlib
 import logging
-
-import functools
-from pathlib import Path
 import os
+from pathlib import Path
 import re
+
 from packaging import version
 import requests
 
-from esphome import core
-from esphome import external_files
-import esphome.config_validation as cv
+from esphome import core, external_files
 import esphome.codegen as cg
-from esphome.helpers import (
-    copy_file_if_changed,
-    cpp_string_escape,
-)
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_FAMILY,
     CONF_FILE,
     CONF_GLYPHS,
     CONF_ID,
+    CONF_PATH,
     CONF_RAW_DATA_ID,
-    CONF_TYPE,
     CONF_REFRESH,
     CONF_SIZE,
-    CONF_PATH,
-    CONF_WEIGHT,
+    CONF_TYPE,
     CONF_URL,
+    CONF_WEIGHT,
 )
-from esphome.core import (
-    CORE,
-    HexInt,
-)
+from esphome.core import CORE, HexInt
+from esphome.helpers import copy_file_if_changed, cpp_string_escape
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "font"
-DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
@@ -400,10 +392,7 @@ class EFont:
 
 
 def convert_bitmap_to_pillow_font(filepath):
-    from PIL import (
-        PcfFontFile,
-        BdfFontFile,
-    )
+    from PIL import BdfFontFile, PcfFontFile
 
     local_bitmap_font_file = external_files.compute_local_file_dir(
         DOMAIN,
