@@ -46,7 +46,7 @@ display:
     lambda: |-
       it.print(0, 0, id(roboto), "Hello, World!");
       it.print(0, 20, id(roboto_web), "Hello, World!");
-      it.print(0, 40, id(roboto_greek), "Hello κόσμε!");
-      it.print(0, 60, id(monocraft), "Hello, World!");
-      it.print(0, 80, id(monocraft2), "Hello, World!");
-      it.print(0, 100, id(monocraft3), "Hello, World!");
+      it.print(0, 40, id(monocraft), "Hello, World!");
+      it.print(0, 60, id(monocraft2), "Hello, World!");
+      it.print(0, 80, id(monocraft3), "Hello, World!");
+      it.print(0, 100, id(roboto_greek), "Hello κόσμε!");
