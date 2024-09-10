@@ -64,18 +64,29 @@ def glyph_comparator(x, y):
     return 0
 
 
+def flatten(lists) -> list:
+    """
+    Given a list of lists, flatten it to a single list of all elements of all lists.
+    This wraps itertools.chain.from_iterable to make it more readable, and return a list
+    rather than a single use iterable.
+    """
+    from itertools import chain
+
+    return list(chain.from_iterable(lists))
+
+
 def validate_glyphs(config):
     # Collect all glyph codepoints and flatten to a list of chars
-    codepoint_list = sum(
-        [x[CONF_GLYPHS] for x in config[CONF_EXTRAS]], config[CONF_GLYPHS]
+    codepoints = flatten(
+        [x[CONF_GLYPHS] for x in config[CONF_EXTRAS]] + config[CONF_GLYPHS]
     )
-    codepoints = sum([list(x) for x in codepoint_list], [])
+    codepoints = flatten([list(x) for x in codepoints])
     if len(set(codepoints)) != len(codepoints):
         duplicates = list({x for x in codepoints if codepoints.count(x) > 1})
-        duplicates = ", ".join(
-            f"{x} ({x.encode('unicode_escape')})" for x in duplicates
+        dup_str = ", ".join(f"{x} ({x.encode('unicode_escape')})" for x in duplicates)
+        raise cv.Invalid(
+            f"Found duplicate glyph{'s' if len(duplicates) != 1 else ''}: {dup_str}"
         )
-        raise cv.Invalid(f"Found duplicate glyph {duplicates}")
     if not config[CONF_GLYPHS] and not config[CONF_GLYPHSETS]:
         config[CONF_GLYPHSETS] = [DEFAULT_GLYPHSET]
     return config
@@ -442,17 +453,6 @@ class GlyphInfo:
         self.offset_y = offset_y
         self.width = width
         self.height = height
-
-
-def flatten(lists) -> list:
-    """
-    Given a list of lists, flatten it to a single list of all elements of all lists.
-    This wraps itertools.chain.from_iterable to make it more readable, and return a list
-    rather than a single use iterable.
-    """
-    from itertools import chain
-
-    return list(chain.from_iterable(lists))
 
 
 async def to_code(config):
