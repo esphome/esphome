@@ -15,7 +15,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FAMILY,
     CONF_FILE,
-    CONF_GLYPHSETS,
+    CONF_GLYPHS,
     CONF_ID,
     CONF_PATH,
     CONF_RAW_DATA_ID,
@@ -44,7 +44,7 @@ GlyphData = font_ns.struct("GlyphData")
 CONF_BPP = "bpp"
 CONF_EXTRAS = "extras"
 CONF_FONTS = "fonts"
-CONF_GLYPHS = "glyphs"
+CONF_GLYPHSETS = "glyphsets"
 
 
 def glyph_comparator(x, y):
@@ -444,6 +444,17 @@ class GlyphInfo:
         self.height = height
 
 
+def flatten(lists) -> list:
+    """
+    Given a list of lists, flatten it to a single list of all elements of all lists.
+    This wraps itertools.chain.from_iterable to make it more readable, and return a list
+    rather than a single use iterable.
+    """
+    from itertools import chain
+
+    return list(chain.from_iterable(lists))
+
+
 async def to_code(config):
     """
     Collect all glyph codepoints, construct a map from a codepoint to a font file.
@@ -451,19 +462,26 @@ async def to_code(config):
     Codepoints listed in extras use the extra font and override codepoints from glyphsets.
     Achieve this by processing the base codepoints first, then the extras
     """
-    # get the base codepoints from glyphs and glyphsets as a flat de-duped list.
+
+    # get the codepoints from glyphsets and flatten to a set of chrs.
     setpoints = [glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]]
-    setpoints = [chr(x) for x in sum(setpoints, [])]
-    codepoints = list(set(sum([list(x) for x in config[CONF_GLYPHS]], setpoints)))
+    setpoints = {chr(x) for x in flatten(setpoints)}
+    # get the codepoints from the glyphs key, flatten to a list of chrs and combine with the points from glyphsets
+    glyphpoints = flatten(config[CONF_GLYPHS])
+    codepoints = setpoints.union(glyphpoints)
     size = config[CONF_SIZE]
+    # Create the codepoint to font file map
     base_font = EFont(config[CONF_FILE], size, codepoints)
     point_font_map = {c: base_font for c in codepoints}
+    # process extras, updating the map and extending the codepoint list
     for extra in config[CONF_EXTRAS]:
-        extra_points = sum([list(x) for x in extra[CONF_GLYPHS]], [])
-        codepoints.extend(extra_points)
+        extra_points = flatten(extra[CONF_GLYPHS])
+        codepoints = codepoints.union(extra_points)
         extra_font = EFont(extra[CONF_FILE], size, extra_points)
         point_font_map.update({c: extra_font for c in extra_points})
 
+    # convert the set to a list and sort in ascending Unicode order.
+    codepoints = list(codepoints)
     codepoints.sort(key=functools.cmp_to_key(glyph_comparator))
     glyph_args = {}
     data = []
@@ -474,6 +492,7 @@ async def to_code(config):
     else:
         mode = "L"
         scale = 256 // (1 << bpp)
+    # create the data array for all glyphs
     for codepoint in codepoints:
         font = point_font_map[codepoint]
         mask = font.font.getmask(codepoint, mode=mode)
