@@ -137,7 +137,8 @@ void BL0942::setup() {
   }
 
   this->write_reg_(BL0942_REG_USR_WRPROT, BL0942_REG_USR_WRPROT_MAGIC);
-  this->write_reg_(BL0942_REG_SOFT_RESET, BL0942_REG_SOFT_RESET_MAGIC);
+  if (this->reset_)
+    this->write_reg_(BL0942_REG_SOFT_RESET, BL0942_REG_SOFT_RESET_MAGIC);
 
   uint32_t mode = BL0942_REG_MODE_DEFAULT;
   mode |= BL0942_REG_MODE_RMS_UPDATE_SEL; /* 800ms refresh time */
@@ -196,6 +197,7 @@ void BL0942::received_package_(DataPacket *data) {
 
 void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
   ESP_LOGCONFIG(TAG, "BL0942:");
+  ESP_LOGCONFIG(TAG, "  Reset: %s", TRUEFALSE(this->reset_));
   ESP_LOGCONFIG(TAG, "  Address: %d", this->address_);
   ESP_LOGCONFIG(TAG, "  Nominal line frequency: %d Hz", this->line_freq_);
   ESP_LOGCONFIG(TAG, "  Current reference: %f", this->current_reference_);
