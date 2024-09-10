@@ -192,7 +192,7 @@ void DateTimeEntityRestoreState::apply(DateTimeEntity *time) {
   time->publish_state();
 }
 
-#ifdef USE_TIME
+#ifdef REQUIRES_TIME
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 

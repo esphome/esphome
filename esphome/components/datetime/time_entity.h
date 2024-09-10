@@ -113,7 +113,7 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
   }
 };
 
-#ifdef USE_TIME
+#ifdef REQUIRES_TIME
 class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:
   void loop() override;

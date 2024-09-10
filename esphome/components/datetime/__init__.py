@@ -159,6 +159,7 @@ async def setup_datetime_core_(var, config, requires_time: bool = True):
     if requires_time:
         rtc = await cg.get_variable(config[CONF_TIME_ID])
         cg.add(var.set_rtc(rtc))
+        cg.add_define("REQUIRES_TIME")
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
