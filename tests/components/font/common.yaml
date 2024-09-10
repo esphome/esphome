@@ -1,4 +1,12 @@
 font:
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: bold
+      italic: true
+    size: 32
+    id: roboto32
+
   - file: "gfonts://Roboto"
     id: roboto
     size: 20
@@ -12,9 +20,8 @@ font:
   - file: "gfonts://Roboto"
     id: roboto_greek
     size: 20
-    glyphsets:
-      - GF_Latin_Core
-      - GF_Greek_Core
+    glyphsets: GF_Latin_Core
+    glyphs: ["\u0300", "\u00C5", "\U000000C7"]
   - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
     id: monocraft
     size: 20
