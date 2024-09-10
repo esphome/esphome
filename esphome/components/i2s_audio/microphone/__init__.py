@@ -7,12 +7,13 @@ from esphome.const import CONF_ID, CONF_NUMBER
 
 from .. import (
     CONF_I2S_DIN_PIN,
+    CONF_RIGHT,
     INTERNAL_ADC_VARIANTS,
     PDM_VARIANTS,
     I2SAudioIn,
-    I2SAudioSchema,
+    i2s_audio_component_schema,
     i2s_audio_ns,
-    register_i2saudio,
+    register_i2s_audio_component,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -44,8 +45,8 @@ def validate_esp32_variant(config):
 
 
 BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
-    I2SAudioSchema(I2SAudioMicrophone, 16000, "right", "32bit")
-)
+    i2s_audio_component_schema(I2SAudioMicrophone, 16000, CONF_RIGHT, "32bit")
+).extend(cv.COMPONENT_SCHEMA)
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
@@ -71,7 +72,8 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_i2saudio(var, config)
+    await cg.register_component(var, config)
+    await register_i2s_audio_component(var, config)
     await microphone.register_microphone(var, config)
 
     if config[CONF_ADC_TYPE] == "internal":

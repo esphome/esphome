@@ -9,6 +9,7 @@ from esphome.components.esp32.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
+from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@jesserockz"]
@@ -29,12 +30,17 @@ CONF_I2S_MODE = "i2s_mode"
 CONF_PRIMARY = "primary"
 CONF_SECONDARY = "secondary"
 
+CONF_LEFT = "left"
+CONF_RIGHT = "right"
+CONF_STEREO = "stereo"
+
 i2s_audio_ns = cg.esphome_ns.namespace("i2s_audio")
 I2SAudioComponent = i2s_audio_ns.class_("I2SAudioComponent", cg.Component)
-I2SAudioIn = i2s_audio_ns.class_("I2SAudioIn", cg.Parented.template(I2SAudioComponent))
-I2SAudioOut = i2s_audio_ns.class_(
-    "I2SAudioOut", cg.Parented.template(I2SAudioComponent)
+I2SAudioBase = i2s_audio_ns.class_(
+    "I2SAudioBase", cg.Parented.template(I2SAudioComponent)
 )
+I2SAudioIn = i2s_audio_ns.class_("I2SAudioIn", I2SAudioBase)
+I2SAudioOut = i2s_audio_ns.class_("I2SAudioOut", I2SAudioBase)
 
 i2s_mode_t = cg.global_ns.enum("i2s_mode_t")
 I2S_MODE_OPTIONS = {
@@ -51,10 +57,10 @@ I2S_PORTS = {
 }
 
 i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
-CHANNELS = {
-    "left": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
-    "right": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
-    "stereo": i2s_channel_fmt_t.I2S_CHANNEL_FMT_RIGHT_LEFT,
+I2S_CHANNELS = {
+    CONF_LEFT: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
+    CONF_RIGHT: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
+    CONF_STEREO: i2s_channel_fmt_t.I2S_CHANNEL_FMT_RIGHT_LEFT,
 }
 
 i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
@@ -70,25 +76,31 @@ PDM_VARIANTS = [VARIANT_ESP32, VARIANT_ESP32S3]
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
-def I2SAudioSchema(component_id, sample_rate, channels, bits_per_sample):
+def i2s_audio_component_schema(
+    class_: MockObjClass,
+    default_sample_rate: int,
+    default_channel: str,
+    default_bits_per_sample: str,
+):
     return cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(component_id),
+            cv.GenerateID(): cv.declare_id(class_),
             cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
-            cv.Optional(CONF_CHANNEL, default=channels): cv.enum(CHANNELS),
-            cv.Optional(CONF_SAMPLE_RATE, default=sample_rate): cv.int_range(min=1),
-            cv.Optional(CONF_BITS_PER_SAMPLE, default=bits_per_sample): cv.All(
+            cv.Optional(CONF_CHANNEL, default=default_channel): cv.enum(I2S_CHANNELS),
+            cv.Optional(CONF_SAMPLE_RATE, default=default_sample_rate): cv.int_range(
+                min=1
+            ),
+            cv.Optional(CONF_BITS_PER_SAMPLE, default=default_bits_per_sample): cv.All(
                 _validate_bits, cv.enum(BITS_PER_SAMPLE)
             ),
             cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.enum(
                 I2S_MODE_OPTIONS, lower=True
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA)
+    )
 
 
-async def register_i2saudio(var, config):
-    await cg.register_component(var, config)
+async def register_i2s_audio_component(var, config):
     await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
 
     cg.add(var.set_i2s_mode(config[CONF_I2S_MODE]))

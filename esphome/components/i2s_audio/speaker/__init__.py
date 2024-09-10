@@ -6,10 +6,13 @@ from esphome.const import CONF_CHANNEL, CONF_ID
 
 from .. import (
     CONF_I2S_DOUT_PIN,
+    CONF_LEFT,
+    CONF_RIGHT,
+    CONF_STEREO,
     I2SAudioOut,
-    I2SAudioSchema,
+    i2s_audio_component_schema,
     i2s_audio_ns,
-    register_i2saudio,
+    register_i2s_audio_component,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -24,9 +27,9 @@ CONF_DAC_TYPE = "dac_type"
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 INTERNAL_DAC_OPTIONS = {
-    "left": i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
-    "right": i2s_dac_mode_t.I2S_DAC_CHANNEL_RIGHT_EN,
-    "stereo": i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
+    CONF_LEFT: i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
+    CONF_RIGHT: i2s_dac_mode_t.I2S_DAC_CHANNEL_RIGHT_EN,
+    CONF_STEREO: i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
 }
 
 
@@ -43,13 +46,13 @@ def validate_esp32_variant(config):
 
 
 BASE_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
-    I2SAudioSchema(I2SAudioSpeaker, 16000, "stereo", "16bit")
-)
+    i2s_audio_component_schema(I2SAudioSpeaker, 16000, "stereo", "16bit")
+).extend(cv.COMPONENT_SCHEMA)
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "internal": BASE_SCHEMA.extend({}),
+            "internal": BASE_SCHEMA,
             "external": BASE_SCHEMA.extend(
                 {
                     cv.Required(
@@ -66,7 +69,8 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_i2saudio(var, config)
+    await cg.register_component(var, config)
+    await register_i2s_audio_component(var, config)
     await speaker.register_speaker(var, config)
 
     if config[CONF_DAC_TYPE] == "internal":
