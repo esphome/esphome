@@ -10,6 +10,7 @@ sensor:
   - platform: bl0942
     address: 0
     line_frequency: 50Hz
+    reset: false
     voltage:
       name: BL0942 Voltage
     current:
