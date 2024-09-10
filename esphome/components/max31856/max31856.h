@@ -88,9 +88,9 @@ class MAX31856Sensor : public sensor::Sensor,
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_filter(MAX31856ConfigFilter filter) { filter_ = filter; }
+  void set_filter(MAX31856ConfigFilter filter) { this->filter_ = filter; }
   void set_thermocouple_type(MAX31856ConfigThermocoupleType thermocouple_type) {
-    thermocouple_type_ = thermocouple_type;
+    this->thermocouple_type_ = thermocouple_type;
   }
   void update() override;
 
