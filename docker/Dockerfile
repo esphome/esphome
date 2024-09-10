@@ -53,6 +53,19 @@ CMD ["dashboard", "/config"]
 
 FROM base-final AS base-hassio
 
+RUN \
+    set -x \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        nginx-light=1.22.1-9 \
+        jq \
+        xz-utils \
+    && rm -rf \
+        /tmp/* \
+        /var/{cache,log}/* \
+        /var/lib/apt/lists/* \
+        /usr/src/*
+
 ARG \
     BASHIO_VERSION=0.16.2 \
     TEMPIO_VERSION=2021.09.0 \
@@ -71,7 +84,7 @@ RUN \
         elif [ "${TARGETARCH}${TARGETVARIANT}" = "amd64" ]; then \
             export S6_ARCH="x86_64"; \
             export TEMPIO_ARCH="amd64"; \
-        elif [ "${TARGETARCH}${TARGETVARIANT}" = "arm64"]; then \
+        elif [ "${TARGETARCH}${TARGETVARIANT}" = "arm64" ]; then \
             export S6_ARCH="aarch64"; \
             export TEMPIO_ARCH="aarch64"; \
         fi \
@@ -98,18 +111,6 @@ RUN \
     && ln -s /usr/lib/bashio/bashio /usr/bin/bashio \
     \
     && rm -rf /usr/src/*
-
-RUN \
-    set -x \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        nginx-light=1.22.1-9 \
-        jq \
-    && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/* \
-        /usr/src/*
 
 
 COPY docker/ha-addon-rootfs/ /
