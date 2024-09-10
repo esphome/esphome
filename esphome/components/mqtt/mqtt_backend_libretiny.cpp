@@ -13,20 +13,20 @@ namespace mqtt {
 static const char *const TAG = "mqtt-backend-libretiny";
 
 void MQTTBackendLibreTiny::on_mqtt_message_wrapper(MQTTClient *client, char topic[], char bytes[], int length) {
-  static_cast<MQTTBackendLibreTiny *>(client->ref)->on_mqtt_message(client, topic, bytes, length);
+  static_cast<MQTTBackendLibreTiny *>(client->ref)->on_mqtt_message_(client, topic, bytes, length);
 }
 
-void MQTTBackendLibreTiny::on_mqtt_message(MQTTClient *client, char topic[], char bytes[], int length) {
+void MQTTBackendLibreTiny::on_mqtt_message_(MQTTClient *client, char topic[], char bytes[], int length) {
   this->on_message_.call(topic, bytes, length, 0, length);
 }
 
-void MQTTBackendLibreTiny::initialize() {
+void MQTTBackendLibreTiny::initialize_() {
   this->mqtt_client_.ref = this;
-  mqtt_client_.onMessageAdvanced(MQTTBackendLibreTiny::on_mqtt_message_wrapper_);
+  mqtt_client_.onMessageAdvanced(MQTTBackendLibreTiny::on_mqtt_message_wrapper);
   this->is_initalized_ = true;
 }
 
-void MQTTBackendLibreTiny::handleErrors() {
+void MQTTBackendLibreTiny::handleErrors_() {
   lwmqtt_err_t error = this->mqtt_client_.lastError();
   lwmqtt_return_code_t return_code = this->mqtt_client_.returnCode();
   if (error != LWMQTT_SUCCESS) {
@@ -65,11 +65,11 @@ void MQTTBackendLibreTiny::handleErrors() {
 
 void MQTTBackendLibreTiny::connect() {
   if (!this->is_initalized_) {
-    this->initialize();
+    this->initialize_();
   }
   this->mqtt_client_.begin(this->host_.c_str(), this->port_, this->wifi_client_);
   this->mqtt_client_.connect(this->client_id_.c_str(), this->username_.c_str(), this->password_.c_str());
-  this->handleErrors();
+  this->handleErrors_();
 }
 
 void MQTTBackendLibreTiny::loop() {

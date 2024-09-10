@@ -93,10 +93,10 @@ class MQTTBackendLibreTiny final : public MQTTBackend {
   void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) { this->ssl_fingerprint_ = fingerprint; };
 
  protected:
-  void initialize();
-  void handleErrors();
+  void initialize_();
+  void handleErrors_();
   static void on_mqtt_message_wrapper(MQTTClient *client, char topic[], char bytes[], int length);
-  void on_mqtt_message(MQTTClient *client, char topic[], char bytes[], int length);
+  void on_mqtt_message_(MQTTClient *client, char topic[], char bytes[], int length);
 
   WiFiClient wifi_client_;
   MQTTClient mqtt_client_;

@@ -13,14 +13,14 @@ namespace mqtt {
 static const char *const TAG = "mqtt-backend-esp8266";
 
 void MQTTBackendESP8266::on_mqtt_message_wrapper(MQTTClient *client, char topic[], char bytes[], int length) {
-  static_cast<MQTTBackendESP8266 *>(client->ref)->on_mqtt_message(client, topic, bytes, length);
+  static_cast<MQTTBackendESP8266 *>(client->ref)->on_mqtt_message_(client, topic, bytes, length);
 }
 
-void MQTTBackendESP8266::on_mqtt_message(MQTTClient *client, char topic[], char bytes[], int length) {
+void MQTTBackendESP8266::on_mqtt_message_(MQTTClient *client, char topic[], char bytes[], int length) {
   this->on_message_.call(topic, bytes, length, 0, length);
 }
 
-void MQTTBackendESP8266::initialize() {
+void MQTTBackendESP8266::initialize_() {
 #ifdef USE_MQTT_SECURE_CLIENT
   if (this->ca_certificate_str_.has_value()) {
     this->ca_certificate_.append(this->ca_certificate_str_.value().c_str());
@@ -35,21 +35,23 @@ void MQTTBackendESP8266::initialize() {
 #endif
 
   this->mqtt_client_.ref = this;
-  mqtt_client_.onMessageAdvanced(MQTTBackendESP8266::on_mqtt_message_wrapper_);
+  mqtt_client_.onMessageAdvanced(MQTTBackendESP8266::on_mqtt_message_wrapper);
   this->is_initalized_ = true;
 }
 
-void MQTTBackendESP8266::handleErrors() {
+void MQTTBackendESP8266::handle_errors_() {
   lwmqtt_err_t error = this->mqtt_client_.lastError();
   lwmqtt_return_code_t return_code = this->mqtt_client_.returnCode();
   if (error != LWMQTT_SUCCESS) {
     ESP_LOGD(TAG, "Error: %d, returnCode: %d", error, return_code);
 
+    /*
     char buffer[128];
     int code = this->wifi_client_.getLastSSLError(buffer, sizeof(buffer));
     if (code != 0) {
       ESP_LOGD(TAG, "SSL error code %d: %s", code, buffer);
     }
+    */
 
     MQTTClientDisconnectReason reason = MQTTClientDisconnectReason::TCP_DISCONNECTED;
 
@@ -84,11 +86,11 @@ void MQTTBackendESP8266::handleErrors() {
 
 void MQTTBackendESP8266::connect() {
   if (!this->is_initalized_) {
-    this->initialize();
+    this->initialize_();
   }
   this->mqtt_client_.begin(this->host_.c_str(), this->port_, this->wifi_client_);
   this->mqtt_client_.connect(this->client_id_.c_str(), this->username_.c_str(), this->password_.c_str());
-  this->handleErrors();
+  this->handle_errors_();
 }
 
 void MQTTBackendESP8266::loop() {
