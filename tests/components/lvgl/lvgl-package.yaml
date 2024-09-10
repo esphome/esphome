@@ -1,11 +1,31 @@
 lvgl:
   log_level: TRACE
   bg_color: light_blue
-  disp_bg_color: 0xffff00
+  disp_bg_color: color_id
   disp_bg_image: cat_image
   theme:
     obj:
       border_width: 1
+
+  gradients:
+    - id: color_bar
+      direction: hor
+      dither: err_diff
+      stops:
+        - color: 0xFF0000
+          position: 0
+        - color: 0xFFFF00
+          position: 42
+        - color: 0x00FF00
+          position: 84
+        - color: 0x00FFFF
+          position: 127
+        - color: 0x0000FF
+          position: 169
+        - color: 0xFF00FF
+          position: 212
+        - color: 0xFF0000
+          position: 255
 
   style_definitions:
     - id: style_test
@@ -31,7 +51,7 @@ lvgl:
     - id: date_style
       text_font: roboto10
       align: center
-      text_color: 0x000000
+      text_color: color_id2
       bg_opa: cover
       radius: 4
       pad_all: 2
@@ -386,6 +406,22 @@ lvgl:
 
     - id: page2
       widgets:
+        - slider:
+            min_value: 0
+            max_value: 255
+            bg_opa: cover
+            bg_grad: color_bar
+            radius: 0
+            indicator:
+              bg_opa: transp
+            knob:
+              radius: 1
+              width: 4
+              height: 10%
+              bg_color: 0x000000
+            width: 100%
+            height: 10%
+            align: top_mid
         - button:
             styles: spin_button
             id: spin_up
@@ -586,3 +622,13 @@ image:
 color:
   - id: light_blue
     hex: "3340FF"
+  - id: color_id
+    red: 0.5
+    green: 0.5
+    blue: 0.5
+    white: 0.5
+  - id: color_id2
+    red_int: 0xFF
+    green_int: 123
+    blue_int: 64
+    white_int: 255
