@@ -675,11 +675,11 @@ void ModbusController::add_on_command_sent_callback(std::function<void(int, int)
 }
 
 void ModbusController::add_on_online_callback(std::function<void(int, int)> &&callback) {
-  this->command_sent_callback_.add(std::move(callback));
+  this->online_callback_.add(std::move(callback));
 }
 
 void ModbusController::add_on_offline_callback(std::function<void(int, int)> &&callback) {
-  this->command_sent_callback_.add(std::move(callback));
+  this->offline_callback_.add(std::move(callback));
 }
 
 }  // namespace modbus_controller
