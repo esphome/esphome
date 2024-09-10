@@ -15,7 +15,7 @@ from ..lvcode import (
 )
 from ..schemas import LVGL_SCHEMA
 from ..types import LV_EVENT, LvSelect, lvgl_ns
-from ..widgets import get_widgets
+from ..widgets import get_widgets, wait_for_widgets
 
 LVGLSelect = lvgl_ns.class_("LVGLSelect", select.Select)
 
@@ -37,11 +37,13 @@ async def to_code(config):
     options = widget.config.get(CONF_OPTIONS, [])
     selector = await select.new_select(config, options=options)
     paren = await cg.get_variable(config[CONF_LVGL_ID])
+    await wait_for_widgets()
     async with LambdaContext(EVENT_ARG) as pub_ctx:
         pub_ctx.add(selector.publish_index(widget.get_value()))
     async with LambdaContext([(cg.uint16, "v")]) as control:
         await widget.set_property("selected", "v", animated=config[CONF_ANIMATED])
         lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        control.add(selector.publish_index(widget.get_value()))
     async with LvContext(paren) as ctx:
         lv_add(selector.set_control_lambda(await control.get_lambda()))
         ctx.add(

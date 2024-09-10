@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_FORWARD_ACTIVE_ENERGY,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_LINE_FREQUENCY,
     CONF_PHASE_A,
     CONF_PHASE_ANGLE,
     CONF_PHASE_B,
@@ -39,7 +40,6 @@ from esphome.const import (
 
 from . import atm90e32_ns
 
-CONF_LINE_FREQUENCY = "line_frequency"
 CONF_CHIP_TEMPERATURE = "chip_temperature"
 CONF_GAIN_PGA = "gain_pga"
 CONF_CURRENT_PHASES = "current_phases"
