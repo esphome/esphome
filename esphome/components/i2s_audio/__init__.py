@@ -64,7 +64,7 @@ I2S_CHANNELS = {
 }
 
 i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
-BITS_PER_SAMPLE = {
+I2S_BITS_PER_SAMPLE = {
     8: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_8BIT,
     16: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_16BIT,
     32: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_32BIT,
@@ -91,7 +91,7 @@ def i2s_audio_component_schema(
                 min=1
             ),
             cv.Optional(CONF_BITS_PER_SAMPLE, default=default_bits_per_sample): cv.All(
-                _validate_bits, cv.enum(BITS_PER_SAMPLE)
+                _validate_bits, cv.enum(I2S_BITS_PER_SAMPLE)
             ),
             cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.enum(
                 I2S_MODE_OPTIONS, lower=True
