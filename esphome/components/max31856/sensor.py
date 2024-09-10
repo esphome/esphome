@@ -19,16 +19,16 @@ FILTER = {
     50: MAX31865ConfigFilter.FILTER_50HZ,
     60: MAX31865ConfigFilter.FILTER_60HZ,
 }
-MAX31865ConfigThermocoupleType = max31856_ns.enum("MAX31856ConfigThermocoupleType")
+MAX31856ThermocoupleType = max31856_ns.enum("MAX31856ThermocoupleType")
 THERMOCOUPLE_TYPE = {
-    "B": MAX31865ConfigThermocoupleType.TYPE_B,
-    "E": MAX31865ConfigThermocoupleType.TYPE_E,
-    "J": MAX31865ConfigThermocoupleType.TYPE_J,
-    "K": MAX31865ConfigThermocoupleType.TYPE_K,
-    "N": MAX31865ConfigThermocoupleType.TYPE_N,
-    "R": MAX31865ConfigThermocoupleType.TYPE_R,
-    "S": MAX31865ConfigThermocoupleType.TYPE_S,
-    "T": MAX31865ConfigThermocoupleType.TYPE_T,
+    "B": MAX31856ThermocoupleType.MAX31856_TCTYPE_B,
+    "E": MAX31856ThermocoupleType.MAX31856_TCTYPE_E,
+    "J": MAX31856ThermocoupleType.MAX31856_TCTYPE_J,
+    "K": MAX31856ThermocoupleType.MAX31856_TCTYPE_K,
+    "N": MAX31856ThermocoupleType.MAX31856_TCTYPE_N,
+    "R": MAX31856ThermocoupleType.MAX31856_TCTYPE_R,
+    "S": MAX31856ThermocoupleType.MAX31856_TCTYPE_S,
+    "T": MAX31856ThermocoupleType.MAX31856_TCTYPE_T,
 }
 
 CONFIG_SCHEMA = (
