@@ -32,24 +32,7 @@ void MAX31856Sensor::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  Mains Filter: %s",
                 (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
-  if (thermocouple_type_ == TYPE_B) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: B");
-  } else if (thermocouple_type_ == TYPE_E) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: E");
-  } else if (thermocouple_type_ == TYPE_J) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: J");
-  } else if (thermocouple_type_ == TYPE_K) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: K");
-  } else if (thermocouple_type_ == TYPE_N) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: N");
-  } else if (thermocouple_type_ == TYPE_R) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: R");
-  } else if (thermocouple_type_ == TYPE_S) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: S");
-  } else if (thermocouple_type_ == TYPE_T) {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: T");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Thermocouple Type: Unknown");
+  ESP_LOGCONFIG(TAG, "  Thermocouple Type: %c", "BEJKNRST"[this->thermocouple_type_]);
   }
 
   LOG_UPDATE_INTERVAL(this);
