@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ENABLE_IPV6,
-    CONF_MIN_IPV6_ADDR_COUNT,
-    PLATFORM_ESP32,
-    PLATFORM_ESP8266,
-    PLATFORM_RP2040,
-)
+from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
@@ -26,7 +20,12 @@ CONFIG_SCHEMA = cv.Schema(
         ): cv.All(
             cv.boolean,
             cv.Any(
-                cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+                cv.require_framework_version(
+                    esp_idf=cv.Version(0, 0, 0),
+                    esp32_arduino=cv.Version(0, 0, 0),
+                    esp8266_arduino=cv.Version(0, 0, 0),
+                    rp2040_arduino=cv.Version(0, 0, 0),
+                ),
                 cv.boolean_false,
             ),
         ),
