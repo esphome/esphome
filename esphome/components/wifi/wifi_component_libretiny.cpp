@@ -1,5 +1,6 @@
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_LIBRETINY
 
 #include <utility>
@@ -468,3 +469,4 @@ void WiFiComponent::wifi_loop_() {}
 }  // namespace esphome
 
 #endif  // USE_LIBRETINY
+#endif

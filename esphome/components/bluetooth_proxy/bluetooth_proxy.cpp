@@ -54,6 +54,9 @@ bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_p
     }
 
     resp.advertisements.push_back(std::move(adv));
+
+    ESP_LOGV(TAG, "Proxying raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", result.bda[0],
+             result.bda[1], result.bda[2], result.bda[3], result.bda[4], result.bda[5], length, result.rssi);
   }
   ESP_LOGV(TAG, "Proxying %d packets", count);
   this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
@@ -87,6 +90,8 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
 void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "Bluetooth Proxy:");
   ESP_LOGCONFIG(TAG, "  Active: %s", YESNO(this->active_));
+  ESP_LOGCONFIG(TAG, "  Connections: %d", this->connections_.size());
+  ESP_LOGCONFIG(TAG, "  Raw advertisements: %s", YESNO(this->raw_advertisements_));
 }
 
 int BluetoothProxy::get_bluetooth_connections_free() {

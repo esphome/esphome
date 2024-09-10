@@ -11,6 +11,7 @@ display:
     cs_pin: 12
     dc_pin: 13
     reset_pin: 21
+    invert_colors: false
 
 # Purposely test that `animation:` does auto-load `image:`
 # Keep the `image:` undefined.

@@ -1,28 +1,28 @@
 """Constants used by esphome."""
 
-__version__ = "2024.8.0-dev"
+__version__ = "2024.9.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
+PLATFORM_BK72XX = "bk72xx"
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
-PLATFORM_RP2040 = "rp2040"
 PLATFORM_HOST = "host"
-PLATFORM_BK72XX = "bk72xx"
-PLATFORM_RTL87XX = "rtl87xx"
 PLATFORM_LIBRETINY_OLDSTYLE = "libretiny"
+PLATFORM_RP2040 = "rp2040"
+PLATFORM_RTL87XX = "rtl87xx"
 
 TARGET_PLATFORMS = [
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
     PLATFORM_HOST,
-    PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
     PLATFORM_LIBRETINY_OLDSTYLE,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 ]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
@@ -44,6 +44,7 @@ CONF_ACTIONS = "actions"
 CONF_ACTIVE = "active"
 CONF_ACTIVE_POWER = "active_power"
 CONF_ACTUAL_GAIN = "actual_gain"
+CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
 CONF_ADDRESS = "address"
 CONF_ADDRESSABLE_LIGHT_ID = "addressable_light_id"
 CONF_ADVANCED = "advanced"
@@ -95,6 +96,7 @@ CONF_BOARD_FLASH_MODE = "board_flash_mode"
 CONF_BORDER = "border"
 CONF_BRANCH = "branch"
 CONF_BRIGHTNESS = "brightness"
+CONF_BRIGHTNESS_LIMITS = "brightness_limits"
 CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_SIZE = "buffer_size"
@@ -322,6 +324,7 @@ CONF_FREQUENCY = "frequency"
 CONF_FRIENDLY_NAME = "friendly_name"
 CONF_FROM = "from"
 CONF_FULL_SPECTRUM = "full_spectrum"
+CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
 CONF_FULL_UPDATE_EVERY = "full_update_every"
 CONF_GAIN = "gain"
 CONF_GAMMA_CORRECT = "gamma_correct"
@@ -429,6 +432,8 @@ CONF_LIGHT = "light"
 CONF_LIGHT_ID = "light_id"
 CONF_LIGHTNING_ENERGY = "lightning_energy"
 CONF_LIGHTNING_THRESHOLD = "lightning_threshold"
+CONF_LIMIT_MODE = "limit_mode"
+CONF_LINE_FREQUENCY = "line_frequency"
 CONF_LINE_THICKNESS = "line_thickness"
 CONF_LINE_TYPE = "line_type"
 CONF_LOADED_INTEGRATIONS = "loaded_integrations"
@@ -727,6 +732,7 @@ CONF_RW_PIN = "rw_pin"
 CONF_RX_BUFFER_SIZE = "rx_buffer_size"
 CONF_RX_ONLY = "rx_only"
 CONF_RX_PIN = "rx_pin"
+CONF_RX_QUEUE_LEN = "rx_queue_len"
 CONF_SAFE_MODE = "safe_mode"
 CONF_SAMPLE_RATE = "sample_rate"
 CONF_SAMSUNG = "samsung"
@@ -879,6 +885,7 @@ CONF_TVOC = "tvoc"
 CONF_TX_BUFFER_SIZE = "tx_buffer_size"
 CONF_TX_PIN = "tx_pin"
 CONF_TX_POWER = "tx_power"
+CONF_TX_QUEUE_LEN = "tx_queue_len"
 CONF_TYPE = "type"
 CONF_TYPE_ID = "type_id"
 CONF_UART_ID = "uart_id"
@@ -1035,10 +1042,13 @@ UNIT_KELVIN = "K"
 UNIT_KILOGRAM = "kg"
 UNIT_KILOMETER = "km"
 UNIT_KILOMETER_PER_HOUR = "km/h"
-UNIT_KILOVOLT_AMPS_REACTIVE = "kVAr"
-UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVArh"
+UNIT_KILOVOLT_AMPS = "kVA"
+UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
+UNIT_KILOVOLT_AMPS_REACTIVE = "kVAR"
+UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
+UNIT_LITRE = "L"
 UNIT_LUX = "lx"
 UNIT_METER = "m"
 UNIT_METER_PER_SECOND_SQUARED = "m/s²"
@@ -1067,6 +1077,7 @@ UNIT_SECOND = "s"
 UNIT_STEPS = "steps"
 UNIT_VOLT = "V"
 UNIT_VOLT_AMPS = "VA"
+UNIT_VOLT_AMPS_HOURS = "VAh"
 UNIT_VOLT_AMPS_REACTIVE = "VAR"
 UNIT_VOLT_AMPS_REACTIVE_HOURS = "VARh"
 UNIT_WATT = "W"

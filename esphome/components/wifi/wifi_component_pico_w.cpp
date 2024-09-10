@@ -1,6 +1,7 @@
 
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_RP2040
 
 #include "lwip/dns.h"
@@ -217,4 +218,5 @@ void WiFiComponent::wifi_pre_setup_() {}
 }  // namespace wifi
 }  // namespace esphome
 
+#endif
 #endif
