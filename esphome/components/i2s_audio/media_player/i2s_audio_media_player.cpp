@@ -263,7 +263,7 @@ void I2SAudioMediaPlayer::dump_config() {
 #endif
 }
 
-bool I2SAudioMediaPlayer::connecttouri_(const std::string uri) {
+bool I2SAudioMediaPlayer::connecttouri_(const std::string &uri) {
   if (this->audio_ == nullptr) {
     return false;
   }
