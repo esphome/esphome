@@ -33,6 +33,10 @@ font:
   - file: $component_dir/Monocraft.ttf
     id: monocraft3
     size: 28
+  - file: MatrixChunky8X.bdf
+    id: special_font
+    glyphs: |
+      ! "#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz°
 
 i2c:
   scl: ${i2c_scl}
