@@ -8,8 +8,6 @@ from esphome.const import CONF_ID, CONF_NUMBER
 from .. import (
     CONF_I2S_DIN_PIN,
     CONF_RIGHT,
-    INTERNAL_ADC_VARIANTS,
-    PDM_VARIANTS,
     I2SAudioIn,
     i2s_audio_component_schema,
     i2s_audio_ns,
@@ -23,11 +21,12 @@ CONF_ADC_PIN = "adc_pin"
 CONF_ADC_TYPE = "adc_type"
 CONF_PDM = "pdm"
 
-CONF_USE_APLL = "use_apll"
-
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
+
+INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
+PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
 
 
 def validate_esp32_variant(config):
@@ -45,8 +44,14 @@ def validate_esp32_variant(config):
 
 
 BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
-    i2s_audio_component_schema(I2SAudioMicrophone, 16000, CONF_RIGHT, "32bit")
+    i2s_audio_component_schema(
+        I2SAudioMicrophone,
+        default_sample_rate=16000,
+        default_channel=CONF_RIGHT,
+        default_bits_per_sample="32bit",
+    )
 ).extend(cv.COMPONENT_SCHEMA)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
@@ -59,8 +64,7 @@ CONFIG_SCHEMA = cv.All(
             "external": BASE_SCHEMA.extend(
                 {
                     cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_input_pin_number,
-                    cv.Required(CONF_PDM): cv.boolean,
-                    cv.Optional(CONF_USE_APLL, default=False): cv.boolean,
+                    cv.Optional(CONF_PDM, default=False): cv.boolean,
                 }
             ),
         },
@@ -84,4 +88,3 @@ async def to_code(config):
     else:
         cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
         cg.add(var.set_pdm(config[CONF_PDM]))
-        cg.add(var.set_use_apll(config[CONF_USE_APLL]))
