@@ -20,6 +20,13 @@ using microseconds = std::chrono::duration<uint32_t, std::micro>;
 
 class UlpProgram {
  public:
+  struct Config {
+    InternalGPIOPin *pin_;
+    CountMode rising_edge_mode_;
+    CountMode falling_edge_mode_;
+    microseconds sleep_duration_;
+    uint16_t debounce_;
+  };
   struct State {
     uint16_t edge_count;
     uint16_t run_count;
@@ -29,18 +36,18 @@ class UlpProgram {
   State peek_state() const;
   void set_mean_exec_time(microseconds mean_exec_time);
 
-  static std::unique_ptr<UlpProgram> start(gpio_num_t gpio_num, microseconds sleep_duration, CountMode rising_edge_mode,
-                                           CountMode falling_edge_mode);
+  static std::unique_ptr<UlpProgram> start(const Config &config);
 };
 
 class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
  public:
   explicit PulseCounterUlpSensor() {}
 
-  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
-  void set_rising_edge_mode(CountMode mode) { this->rising_edge_mode = mode; }
-  void set_falling_edge_mode(CountMode mode) { this->falling_edge_mode = mode; }
-  void set_sleep_duration(uint32_t duration_us) { this->sleep_duration_ = duration_us * microseconds{1}; }
+  void set_pin(InternalGPIOPin *pin) { this->config_.pin_ = pin; }
+  void set_rising_edge_mode(CountMode mode) { this->config_.rising_edge_mode_ = mode; }
+  void set_falling_edge_mode(CountMode mode) { this->config_.falling_edge_mode_ = mode; }
+  void set_sleep_duration(uint32_t duration_us) { this->config_.sleep_duration_ = duration_us * microseconds{1}; }
+  void set_debounce(uint16_t debounce) { this->config_.debounce_ = debounce; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 
   void set_total_pulses(uint32_t pulses);
@@ -52,14 +59,12 @@ class PulseCounterUlpSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
 
  protected:
-  InternalGPIOPin *pin_;
-  CountMode rising_edge_mode{CountMode::increment};
-  CountMode falling_edge_mode{CountMode::disable};
+  UlpProgram::Config config_{};
+  sensor::Sensor *total_sensor_{nullptr};
+
   std::unique_ptr<UlpProgram> storage_{};
   clock::time_point last_time_{};
-  microseconds sleep_duration_{20000};
   uint32_t current_total_{0};
-  sensor::Sensor *total_sensor_{nullptr};
 };
 
 }  // namespace pulse_counter_ulp

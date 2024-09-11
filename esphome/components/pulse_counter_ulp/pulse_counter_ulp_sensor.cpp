@@ -28,8 +28,7 @@ const char *to_string(CountMode count_mode) {
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
 
-std::unique_ptr<UlpProgram> UlpProgram::start(gpio_num_t gpio_num, microseconds sleep_duration,
-                                              CountMode rising_edge_mode, CountMode falling_edge_mode) {
+std::unique_ptr<UlpProgram> UlpProgram::start(const Config &config) {
   esp_err_t error = ulp_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "Loading ULP binary failed: %s", esp_err_to_name(error));
@@ -37,6 +36,7 @@ std::unique_ptr<UlpProgram> UlpProgram::start(gpio_num_t gpio_num, microseconds 
   }
 
   /* GPIO used for pulse counting. */
+  gpio_num_t gpio_num = static_cast<gpio_num_t>(config.pin_->get_pin());
   int rtcio_num = rtc_io_number_get(gpio_num);
   if (!rtc_gpio_is_valid_gpio(gpio_num)) {
     ESP_LOGE(TAG, "GPIO used for pulse counting must be an RTC IO");
@@ -54,10 +54,10 @@ std::unique_ptr<UlpProgram> UlpProgram::start(gpio_num_t gpio_num, microseconds 
   ulp_edge_count = 0;
   ulp_run_count = 0;
   ulp_debounce_counter = 3;
-  ulp_debounce_max_count = 3;
+  ulp_debounce_max_count = config.debounce_;
   ulp_next_edge = 0;
   ulp_io_number = rtcio_num; /* map from GPIO# to RTC_IO# */
-  ulp_mean_exec_time = sleep_duration / microseconds{1};
+  ulp_mean_exec_time = config.sleep_duration_ / microseconds{1};
 
   /* Initialize selected GPIO as RTC IO, enable input */
   rtc_gpio_init(gpio_num);
@@ -67,7 +67,7 @@ std::unique_ptr<UlpProgram> UlpProgram::start(gpio_num_t gpio_num, microseconds 
   /* Set ULP wake up period T
    * Minimum pulse width has to be T * (ulp_debounce_counter + 1).
    */
-  ulp_set_wakeup_period(0, sleep_duration / std::chrono::microseconds{1});
+  ulp_set_wakeup_period(0, config.sleep_duration_ / std::chrono::microseconds{1});
 
   /* Start the program */
   error = ulp_run(&ulp_entry - RTC_SLOW_MEM);
@@ -103,12 +103,11 @@ void UlpProgram::set_mean_exec_time(microseconds mean_exec_time) {
 void PulseCounterUlpSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
 
-  this->pin_->setup();
+  this->config_.pin_->setup();
 
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
     ESP_LOGD(TAG, "Did not wake up from sleep, assuming restart or first boot and setting up ULP program");
-    this->storage_ = UlpProgram::start(static_cast<gpio_num_t>(this->pin_->get_pin()), this->sleep_duration_,
-                                       this->rising_edge_mode, this->falling_edge_mode);
+    this->storage_ = UlpProgram::start(this->config_);
   } else {
     ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
     this->storage_ = std::unique_ptr<UlpProgram>(new UlpProgram);
@@ -129,9 +128,11 @@ void PulseCounterUlpSensor::set_total_pulses(uint32_t pulses) {
 
 void PulseCounterUlpSensor::dump_config() {
   LOG_SENSOR("", "Pulse Counter", this);
-  LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", to_string(this->rising_edge_mode));
-  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", to_string(this->falling_edge_mode));
+  LOG_PIN("  Pin: ", this->config_.pin_);
+  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", to_string(this->config_.rising_edge_mode_));
+  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", to_string(this->config_.falling_edge_mode_));
+  ESP_LOGCONFIG(TAG, "  Sleep Duration: " PRIu32 " µs", this->config_.sleep_duration_ / microseconds{1});
+  ESP_LOGCONFIG(TAG, "  Debounce: " PRIu16, this->config_.debounce_);
   LOG_UPDATE_INTERVAL(this);
 }
 

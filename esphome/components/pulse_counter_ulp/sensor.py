@@ -126,6 +126,7 @@ async def to_code(config):
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
+    cg.add(var.set_debounce(config[CONF_DEBOUNCE]))
 
     if CONF_TOTAL in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL])
