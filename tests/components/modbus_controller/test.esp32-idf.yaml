@@ -16,3 +16,4 @@ modbus_controller:
     on_offline:
       then:
         logger.log: "Module Offline"
+    max_cmd_retries: 10
