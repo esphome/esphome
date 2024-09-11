@@ -44,7 +44,7 @@ RUN \
     jpeg-dev=9e-r1 \
     libffi-dev=3.4.6-r0 \
     openjpeg=2.5.2-r0 \
-    tiff-dev=4.6.0t-r0 \
+    tiff-dev=4.6.0t-r0
 
 ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
