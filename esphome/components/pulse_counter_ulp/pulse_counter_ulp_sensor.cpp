@@ -20,7 +20,7 @@ const char *to_string(CountMode count_mode) {
     case CountMode::decrement:
       return "decrement";
   }
-  return "UNKNOWM MODE";
+  return "UNKNOWN MODE";
 }
 
 /* === ULP === */
