@@ -67,7 +67,7 @@ template<typename a, typename b> const uint8_t *convert_data_format(const a *fro
     if (repeat)
       *to++ = value;
   }
-  bytes *= (sizeof(b) / sizeof(a)) * (repeat ? 2 : 1);
+  bytes *= (sizeof(b) / sizeof(a)) * (repeat ? 2 : 1);  // NOLINT
   return reinterpret_cast<const uint8_t *>(result);
 }
 
