@@ -132,7 +132,8 @@ void I2SAudioSpeaker::player_task(void *params) {
   int32_t buffer[BUFFER_SIZE];
 
   while (true) {
-    if (xQueueReceive(this_speaker->buffer_queue_, &data_event, this_speaker->timeout_) != pdTRUE) {
+    if (xQueueReceive(this_speaker->buffer_queue_, &data_event, this_speaker->timeout_ / portTICK_PERIOD_MS) !=
+        pdTRUE) {
       break;  // End of audio from main thread
     }
     if (data_event.stop) {

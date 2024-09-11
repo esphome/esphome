@@ -44,7 +44,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   void setup() override;
   void loop() override;
 
-  void set_timeout(uint32_t ms) { this->timeout_ = ms / portTICK_PERIOD_MS; }
+  void set_timeout(uint32_t ms) { this->timeout_ = ms; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = pin; }
 #if SOC_I2S_SUPPORTS_DAC
   void set_internal_dac_mode(i2s_dac_mode_t mode) { this->internal_dac_mode_ = mode; }
