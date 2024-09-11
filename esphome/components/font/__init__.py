@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 
+import freetype
 import glyphsets
 from packaging import version
 import requests
@@ -47,6 +48,16 @@ CONF_FONTS = "fonts"
 CONF_GLYPHSETS = "glyphsets"
 
 
+# Cache loaded freetype fonts
+class FontCache(dict):
+    def __missing__(self, key):
+        res = self[key] = freetype.Face(key)
+        return res
+
+
+FONT_CACHE = FontCache()
+
+
 def glyph_comparator(x, y):
     x_ = x.encode("utf-8")
     y_ = y.encode("utf-8")
@@ -75,20 +86,72 @@ def flatten(lists) -> list:
     return list(chain.from_iterable(lists))
 
 
+def check_missing_glyphs(file, codepoints: set):
+    """
+    Check that the given font file actually contains the requested glyphs
+    :param file: A Truetype font file
+    :param codepoints: A list of codepoints to check
+    """
+
+    font = FONT_CACHE[file]
+    missing = [chr(x) for x in codepoints if font.get_char_index(x) == 0]
+    if missing:
+        missing_str = ", ".join(f"{x} ({x.encode('unicode_escape')})" for x in missing)
+        raise cv.Invalid(
+            f"{Path(file).name} is missing glyph{'s' if len(missing) != 1 else ''}: {missing_str}"
+        )
+
+
 def validate_glyphs(config):
+    """
+    Check for duplicate codepoints, then check that all requested codepoints actually
+    have glyphs defined in the appropriate font file.
+    """
+
     # Collect all glyph codepoints and flatten to a list of chars
-    codepoints = flatten(
+    codepoints: list = flatten(
         [x[CONF_GLYPHS] for x in config[CONF_EXTRAS]] + config[CONF_GLYPHS]
     )
     codepoints = flatten([list(x) for x in codepoints])
     if len(set(codepoints)) != len(codepoints):
-        duplicates = list({x for x in codepoints if codepoints.count(x) > 1})
+        duplicates = {x for x in codepoints if codepoints.count(x) > 1}
         dup_str = ", ".join(f"{x} ({x.encode('unicode_escape')})" for x in duplicates)
         raise cv.Invalid(
             f"Found duplicate glyph{'s' if len(duplicates) != 1 else ''}: {dup_str}"
         )
+    fileconf = config[CONF_FILE]
+    allpoints = set(
+        flatten([glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]])
+    )
+    allpoints.update([ord(x) for x in flatten(config[CONF_GLYPHS])])
+    if fileconf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
+        # Pillow only allows 256 glyphs per bitmap font. Not sure if that is a Pillow limitation
+        # or a file format limitation
+        if any(x >= 256 for x in allpoints):
+            raise cv.Invalid("Codepoints in bitmap fonts must be in the range 0-255")
+    else:
+        # for TT fonts, check that glyphs are actually present
+        # Check extras against their own font, exclude from parent font codepoints
+        for extra in config[CONF_EXTRAS]:
+            points = {ord(x) for x in flatten(extra[CONF_GLYPHS])}
+            allpoints.difference_update(points)
+            check_missing_glyphs(extra[CONF_FILE][CONF_PATH], points)
+
+        check_missing_glyphs(fileconf[CONF_PATH], allpoints)
+
+    # Populate the default after the above checks so that use of the default doesn't trigger errors
     if not config[CONF_GLYPHS] and not config[CONF_GLYPHSETS]:
-        config[CONF_GLYPHSETS] = [DEFAULT_GLYPHSET]
+        if fileconf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
+            config[CONF_GLYPHS] = [DEFAULT_GLYPHS]
+        else:
+            # set a default glyphset, intersected with what the font actually offers
+            font = FONT_CACHE[fileconf[CONF_PATH]]
+            config[CONF_GLYPHS] = [
+                chr(x)
+                for x in glyphsets.unicodes_per_glyphset(DEFAULT_GLYPHSET)
+                if font.get_char_index(x) != 0
+            ]
+
     return config
 
 
@@ -171,11 +234,11 @@ def _compute_local_font_path(value: dict) -> Path:
     return base_dir / key
 
 
-def get_font_path(value, type) -> Path:
-    if type == TYPE_GFONTS:
+def get_font_path(value, font_type) -> Path:
+    if font_type == TYPE_GFONTS:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         return external_files.compute_local_file_dir(DOMAIN) / f"{name}.ttf"
-    if type == TYPE_WEB:
+    if font_type == TYPE_WEB:
         return _compute_local_font_path(value) / "font.ttf"
     assert False
 
@@ -307,6 +370,8 @@ def font_file_schema(value):
 
 # Default if no glyphs or glyphsets are provided
 DEFAULT_GLYPHSET = "GF_Latin_Kernel"
+# default for bitmap fonts
+DEFAULT_GLYPHS = ' !"%()+=,-.:/?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz<C2><B0>'
 
 CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
@@ -372,7 +437,7 @@ class BitmapFontWrapper:
             mask = self.getmask(glyph, mode="1")
             _, height = mask.size
             max_height = max(max_height, height)
-        return (max_height, 0)
+        return max_height, 0
 
 
 class EFont:
@@ -382,14 +447,10 @@ class EFont:
         self.name = Path(path).name
         ftype = file[CONF_TYPE]
         if ftype == TYPE_LOCAL_BITMAP:
-            font = load_bitmap_font(path)
+            self.font = load_bitmap_font(path)
         else:
-            font = load_ttf_font(path, size)
-        self.font = font
-        self.ascent, self.descent = font.getmetrics(codepoints)
-
-    def has_glyph(self, glyph):
-        return glyph in self.codepoints
+            self.font = load_ttf_font(path, size)
+        self.ascent, self.descent = self.font.getmetrics(codepoints)
 
 
 def convert_bitmap_to_pillow_font(filepath):

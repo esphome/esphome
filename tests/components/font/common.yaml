@@ -20,7 +20,6 @@ font:
   - file: "gfonts://Roboto"
     id: roboto_greek
     size: 20
-    glyphsets: GF_Latin_Core
     glyphs: ["\u0300", "\u00C5", "\U000000C7"]
   - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
     id: monocraft
@@ -35,8 +34,15 @@ font:
     size: 28
   - file: $component_dir/MatrixChunky8X.bdf
     id: special_font
-    glyphs: |
-      ! "#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz°
+    glyphs:
+      - '"'
+      - "'"
+      - '#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz°'
+
+  - file: $component_dir/MatrixChunky8X.bdf
+    id: default_font
+  - file: $component_dir/x11.pcf
+    id: pcf_font
 
 i2c:
   scl: ${i2c_scl}
