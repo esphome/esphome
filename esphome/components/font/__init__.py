@@ -273,12 +273,13 @@ def validate_file_shorthand(value):
         )
 
     if value.endswith(".pcf") or value.endswith(".bdf"):
-        return font_file_schema(
-            {
-                CONF_TYPE: TYPE_LOCAL_BITMAP,
-                CONF_PATH: value,
-            }
+        value = convert_bitmap_to_pillow_font(
+            CORE.relative_config_path(cv.file_(value))
         )
+        return {
+            CONF_TYPE: TYPE_LOCAL_BITMAP,
+            CONF_PATH: value,
+        }
 
     return font_file_schema(
         {
@@ -400,6 +401,7 @@ def convert_bitmap_to_pillow_font(filepath):
 
     copy_file_if_changed(filepath, local_bitmap_font_file)
 
+    local_pil_font_file = local_bitmap_font_file.with_suffix(".pil")
     with open(local_bitmap_font_file, "rb") as fp:
         try:
             try:
@@ -409,28 +411,22 @@ def convert_bitmap_to_pillow_font(filepath):
                 p = BdfFontFile.BdfFontFile(fp)
 
             # Convert to pillow-formatted fonts, which have a .pil and .pbm extension.
-            p.save(local_bitmap_font_file)
+            p.save(local_pil_font_file)
         except (SyntaxError, OSError) as err:
             raise core.EsphomeError(
                 f"Failed to parse as bitmap font: '{filepath}': {err}"
             )
 
-    local_pil_font_file = os.path.splitext(local_bitmap_font_file)[0] + ".pil"
-    return cv.file_(local_pil_font_file)
+    return str(local_pil_font_file)
 
 
 def load_bitmap_font(filepath):
     from PIL import ImageFont
 
-    # Convert bpf and pcf files to pillow fonts, first.
-    pil_font_path = convert_bitmap_to_pillow_font(filepath)
-
     try:
-        font = ImageFont.load(str(pil_font_path))
+        font = ImageFont.load(str(filepath))
     except Exception as e:
-        raise core.EsphomeError(
-            f"Failed to load bitmap font file: {pil_font_path} : {e}"
-        )
+        raise core.EsphomeError(f"Failed to load bitmap font file: {filepath}: {e}")
 
     return BitmapFontWrapper(font)
 
@@ -441,7 +437,7 @@ def load_ttf_font(path, size):
     try:
         font = ImageFont.truetype(str(path), size)
     except Exception as e:
-        raise core.EsphomeError(f"Could not load truetype file {path}: {e}")
+        raise core.EsphomeError(f"Could not load TrueType file {path}: {e}")
 
     return TrueTypeFontWrapper(font)
 
@@ -464,24 +460,26 @@ async def to_code(config):
     """
 
     # get the codepoints from glyphsets and flatten to a set of chrs.
-    setpoints = [glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]]
-    setpoints = {chr(x) for x in flatten(setpoints)}
+    point_set: set[str] = {
+        chr(x)
+        for x in flatten(
+            [glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]]
+        )
+    }
     # get the codepoints from the glyphs key, flatten to a list of chrs and combine with the points from glyphsets
-    glyphpoints = flatten(config[CONF_GLYPHS])
-    codepoints = setpoints.union(glyphpoints)
+    point_set.update(flatten(config[CONF_GLYPHS]))
     size = config[CONF_SIZE]
     # Create the codepoint to font file map
-    base_font = EFont(config[CONF_FILE], size, codepoints)
-    point_font_map = {c: base_font for c in codepoints}
+    base_font = EFont(config[CONF_FILE], size, point_set)
+    point_font_map: dict[str, EFont] = {c: base_font for c in point_set}
     # process extras, updating the map and extending the codepoint list
     for extra in config[CONF_EXTRAS]:
         extra_points = flatten(extra[CONF_GLYPHS])
-        codepoints = codepoints.union(extra_points)
+        point_set.update(extra_points)
         extra_font = EFont(extra[CONF_FILE], size, extra_points)
         point_font_map.update({c: extra_font for c in extra_points})
 
-    # convert the set to a list and sort in ascending Unicode order.
-    codepoints = list(codepoints)
+    codepoints = list(point_set)
     codepoints.sort(key=functools.cmp_to_key(glyph_comparator))
     glyph_args = {}
     data = []
@@ -513,6 +511,7 @@ async def to_code(config):
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
+    # Create the glyph table that points to data in the above array.
     glyph_initializer = []
     for codepoint in codepoints:
         glyph_initializer.append(
