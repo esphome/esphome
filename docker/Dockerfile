@@ -181,7 +181,7 @@ RUN \
         clang15-extra-tools=15.0.7-r19 \
         nano=8.0-r0 \
         build-base=0.5-r3 \
-        python3-dev=3.12.6-r0 \
+        python3-dev=3.12.6-r0
 
 COPY requirements_test.txt /
 RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
