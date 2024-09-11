@@ -295,7 +295,7 @@ bool I2SAudioMediaPlayer::connecttouri_(const std::string &uri) {
   if (uri.find("tts://", 0) == 0) {
     // format: tts://<lang>:<text>
     const size_t colon = uri.find(':', 6);
-    if (colon == std::string::npos || colon > 10) {
+    if (colon > 10) {
       // language code is expected to be 2-5 characters
       ESP_LOGW(TAG, "Invalid TTS URI");
       return false;
