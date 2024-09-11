@@ -8,8 +8,8 @@ from .. import (
     CONF_I2S_AUDIO_ID,
     CONF_I2S_DOUT_PIN,
     CONF_LEFT,
-    CONF_RIGHT,
     CONF_MONO,
+    CONF_RIGHT,
     CONF_STEREO,
     I2SAudioComponent,
     I2SAudioOut,
@@ -132,7 +132,7 @@ async def to_code(config):
 
     cg.add_library(
         name="ESP32-audioI2S",
+        version=None,
         # use close-to latest commit, since tagged versions are fairly irregular...
-        repository="https://github.com/schreibfaul1/ESP32-audioI2S.git#",
-        version="1bc79e547ebb6f917bf82b47bec9b7e6a9b7e314",
+        repository="https://github.com/schreibfaul1/ESP32-audioI2S.git#1bc79e547ebb6f917bf82b47bec9b7e6a9b7e314",
     )
