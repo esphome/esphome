@@ -21,7 +21,6 @@ static const size_t BUFFER_SIZE = 1024;
 enum class TaskEventType : uint8_t {
   STARTING = 0,
   STARTED,
-  PLAYING,
   STOPPING,
   STOPPED,
   WARNING = 255,
@@ -45,6 +44,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   void setup() override;
   void loop() override;
 
+  void set_timeout(uint32_t ms) { this->timeout_ = ms; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = pin; }
 #if SOC_I2S_SUPPORTS_DAC
   void set_internal_dac_mode(i2s_dac_mode_t mode) { this->internal_dac_mode_ = mode; }
@@ -69,6 +69,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   QueueHandle_t buffer_queue_;
   QueueHandle_t event_queue_;
 
+  uint32_t timeout_{0};
   uint8_t dout_pin_{0};
   bool task_created_{false};
 

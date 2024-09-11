@@ -30,6 +30,10 @@ CONF_I2S_MODE = "i2s_mode"
 CONF_PRIMARY = "primary"
 CONF_SECONDARY = "secondary"
 
+CONF_USE_APLL = "use_apll"
+CONF_BITS_PER_SAMPLE = "bits_per_sample"
+CONF_BITS_PER_CHANNEL = "bits_per_channel"
+CONF_MONO = "mono"
 CONF_LEFT = "left"
 CONF_RIGHT = "right"
 CONF_STEREO = "stereo"
@@ -58,6 +62,7 @@ I2S_PORTS = {
 
 i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
 I2S_CHANNELS = {
+    CONF_MONO: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ALL_LEFT,
     CONF_LEFT: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
     CONF_RIGHT: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
     CONF_STEREO: i2s_channel_fmt_t.I2S_CHANNEL_FMT_RIGHT_LEFT,
@@ -67,17 +72,25 @@ i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
 I2S_BITS_PER_SAMPLE = {
     8: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_8BIT,
     16: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_16BIT,
+    24: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_24BIT,
     32: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_32BIT,
 }
 
-INTERNAL_ADC_VARIANTS = [VARIANT_ESP32]
-PDM_VARIANTS = [VARIANT_ESP32, VARIANT_ESP32S3]
+i2s_bits_per_chan_t = cg.global_ns.enum("i2s_bits_per_chan_t")
+I2S_BITS_PER_CHANNEL = {
+    "default": i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_DEFAULT,
+    8: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_8BIT,
+    16: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_16BIT,
+    24: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_24BIT,
+    32: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_32BIT,
+}
 
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
 def i2s_audio_component_schema(
     class_: MockObjClass,
+    *,
     default_sample_rate: int,
     default_channel: str,
     default_bits_per_sample: str,
@@ -96,6 +109,11 @@ def i2s_audio_component_schema(
             cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.enum(
                 I2S_MODE_OPTIONS, lower=True
             ),
+            cv.Optional(CONF_USE_APLL, default=False): cv.boolean,
+            cv.Optional(CONF_BITS_PER_CHANNEL, default="default"): cv.All(
+                cv.Any(cv.float_with_unit("bits", "bit"), "default"),
+                cv.enum(I2S_BITS_PER_CHANNEL),
+            ),
         }
     )
 
@@ -107,6 +125,8 @@ async def register_i2s_audio_component(var, config):
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
+    cg.add(var.set_bits_per_channel(config[CONF_BITS_PER_CHANNEL]))
+    cg.add(var.set_use_apll(config[CONF_USE_APLL]))
 
 
 CONFIG_SCHEMA = cv.Schema(

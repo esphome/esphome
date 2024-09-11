@@ -56,6 +56,21 @@ void I2SAudioSpeaker::start_() {
   this->task_created_ = true;
 }
 
+template<typename a, typename b> const uint8_t *convert_data_format(const a *from, b *to, size_t &bytes, bool repeat) {
+  if (sizeof(a) == sizeof(b) && !repeat) {
+    return reinterpret_cast<const uint8_t *>(from);
+  }
+  const b *result = to;
+  for (size_t i = 0; i < bytes; i += sizeof(a)) {
+    b value = static_cast<b>(*from++) << (sizeof(b) - sizeof(a)) * 8;
+    *to++ = value;
+    if (repeat)
+      *to++ = value;
+  }
+  bytes *= (sizeof(b) / sizeof(a)) * (repeat ? 2 : 1);  // NOLINT
+  return reinterpret_cast<const uint8_t *>(result);
+}
+
 void I2SAudioSpeaker::player_task(void *params) {
   I2SAudioSpeaker *this_speaker = (I2SAudioSpeaker *) params;
 
@@ -71,12 +86,12 @@ void I2SAudioSpeaker::player_task(void *params) {
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 8,
-      .dma_buf_len = 128,
-      .use_apll = false,
+      .dma_buf_len = 256,
+      .use_apll = this_speaker->use_apll_,
       .tx_desc_auto_clear = true,
       .fixed_mclk = 0,
       .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-      .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
+      .bits_per_chan = this_speaker->bits_per_channel_,
   };
 #if SOC_I2S_SUPPORTS_DAC
   if (this_speaker->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
@@ -114,10 +129,11 @@ void I2SAudioSpeaker::player_task(void *params) {
   event.type = TaskEventType::STARTED;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
 
-  int16_t buffer[BUFFER_SIZE / 2];
+  int32_t buffer[BUFFER_SIZE];
 
   while (true) {
-    if (xQueueReceive(this_speaker->buffer_queue_, &data_event, 100 / portTICK_PERIOD_MS) != pdTRUE) {
+    if (xQueueReceive(this_speaker->buffer_queue_, &data_event, this_speaker->timeout_ / portTICK_PERIOD_MS) !=
+        pdTRUE) {
       break;  // End of audio from main thread
     }
     if (data_event.stop) {
@@ -125,17 +141,28 @@ void I2SAudioSpeaker::player_task(void *params) {
       xQueueReset(this_speaker->buffer_queue_);  // Flush queue
       break;
     }
-    size_t bytes_written;
 
-    memmove(buffer, data_event.data, data_event.len);
-    size_t remaining = data_event.len / 2;
-    size_t current = 0;
+    const uint8_t *data = data_event.data;
+    size_t remaining = data_event.len;
+    switch (this_speaker->bits_per_sample_) {
+      case I2S_BITS_PER_SAMPLE_8BIT:
+      case I2S_BITS_PER_SAMPLE_16BIT: {
+        data = convert_data_format(reinterpret_cast<const int16_t *>(data), reinterpret_cast<int16_t *>(buffer),
+                                   remaining, this_speaker->channel_ == I2S_CHANNEL_FMT_ALL_LEFT);
+        break;
+      }
+      case I2S_BITS_PER_SAMPLE_24BIT:
+      case I2S_BITS_PER_SAMPLE_32BIT: {
+        data = convert_data_format(reinterpret_cast<const int16_t *>(data), reinterpret_cast<int32_t *>(buffer),
+                                   remaining, this_speaker->channel_ == I2S_CHANNEL_FMT_ALL_LEFT);
+        break;
+      }
+    }
 
-    while (remaining > 0) {
-      uint32_t sample = (buffer[current] << 16) | (buffer[current] & 0xFFFF);
-
-      esp_err_t err = i2s_write(this_speaker->parent_->get_port(), &sample, sizeof(sample), &bytes_written,
-                                (10 / portTICK_PERIOD_MS));
+    while (remaining != 0) {
+      size_t bytes_written;
+      esp_err_t err =
+          i2s_write(this_speaker->parent_->get_port(), data, remaining, &bytes_written, (32 / portTICK_PERIOD_MS));
       if (err != ESP_OK) {
         event = {.type = TaskEventType::WARNING, .err = err};
         if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
@@ -143,21 +170,8 @@ void I2SAudioSpeaker::player_task(void *params) {
         }
         continue;
       }
-      if (bytes_written != sizeof(sample)) {
-        event = {.type = TaskEventType::WARNING, .err = ESP_FAIL};
-        if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
-          ESP_LOGW(TAG, "Failed to send WARNING event");
-        }
-        continue;
-      }
-      remaining--;
-      current++;
-    }
-
-    event.type = TaskEventType::PLAYING;
-    event.err = current;
-    if (xQueueSend(this_speaker->event_queue_, &event, 10 / portTICK_PERIOD_MS) != pdTRUE) {
-      ESP_LOGW(TAG, "Failed to send PLAYING event");
+      data += bytes_written;
+      remaining -= bytes_written;
     }
   }
 
@@ -213,12 +227,10 @@ void I2SAudioSpeaker::watch_() {
       case TaskEventType::STARTED:
         ESP_LOGD(TAG, "Started I2S Audio Speaker");
         this->state_ = speaker::STATE_RUNNING;
+        this->status_clear_warning();
         break;
       case TaskEventType::STOPPING:
         ESP_LOGD(TAG, "Stopping I2S Audio Speaker");
-        break;
-      case TaskEventType::PLAYING:
-        this->status_clear_warning();
         break;
       case TaskEventType::STOPPED:
         this->state_ = speaker::STATE_STOPPED;
