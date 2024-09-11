@@ -84,20 +84,6 @@ I2S_PORTS = {
     VARIANT_ESP32C3: 1,
 }
 
-i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
-I2S_CHANNELS = {
-    CONF_LEFT: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
-    CONF_RIGHT: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
-    CONF_STEREO: i2s_channel_fmt_t.I2S_CHANNEL_FMT_RIGHT_LEFT,
-}
-
-i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
-I2S_BITS_PER_SAMPLE = {
-    8: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_8BIT,
-    16: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_16BIT,
-    32: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_32BIT,
-}
-
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
