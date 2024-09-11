@@ -11,9 +11,23 @@ namespace i2s_audio {
 
 class I2SAudioComponent;
 
-class I2SAudioIn : public Parented<I2SAudioComponent> {};
+class I2SAudioBase : public Parented<I2SAudioComponent> {
+ public:
+  void set_i2s_mode(i2s_mode_t mode) { this->i2s_mode_ = mode; }
+  void set_channel(i2s_channel_fmt_t channel) { this->channel_ = channel; }
+  void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
+  void set_bits_per_sample(i2s_bits_per_sample_t bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
 
-class I2SAudioOut : public Parented<I2SAudioComponent> {};
+ protected:
+  i2s_mode_t i2s_mode_{};
+  i2s_channel_fmt_t channel_;
+  uint32_t sample_rate_;
+  i2s_bits_per_sample_t bits_per_sample_;
+};
+
+class I2SAudioIn : public I2SAudioBase {};
+
+class I2SAudioOut : public I2SAudioBase {};
 
 class I2SAudioComponent : public Component {
  public:
