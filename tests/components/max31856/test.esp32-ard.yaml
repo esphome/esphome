@@ -10,3 +10,4 @@ sensor:
     cs_pin: 12
     update_interval: 15s
     mains_filter: 50Hz
+    thermocouple_type: N

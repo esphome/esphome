@@ -23,7 +23,7 @@ enum I2SState : uint8_t {
   I2S_STATE_STOPPING,
 };
 
-class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, public I2SAudioOut {
+class I2SAudioMediaPlayer : public Component, public Parented<I2SAudioComponent>, public media_player::MediaPlayer {
  public:
   void setup() override;
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }

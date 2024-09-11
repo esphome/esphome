@@ -7,6 +7,10 @@ from esphome.const import CONF_ID, CONF_MODE
 from .. import (
     CONF_I2S_AUDIO_ID,
     CONF_I2S_DOUT_PIN,
+    CONF_LEFT,
+    CONF_RIGHT,
+    CONF_MONO,
+    CONF_STEREO,
     I2SAudioComponent,
     I2SAudioOut,
     i2s_audio_ns,
@@ -28,12 +32,12 @@ CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 
 INTERNAL_DAC_OPTIONS = {
-    "left": i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
-    "right": i2s_dac_mode_t.I2S_DAC_CHANNEL_RIGHT_EN,
-    "stereo": i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
+    CONF_LEFT: i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
+    CONF_RIGHT: i2s_dac_mode_t.I2S_DAC_CHANNEL_RIGHT_EN,
+    CONF_STEREO: i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
 }
 
-EXTERNAL_DAC_OPTIONS = ["mono", "stereo"]
+EXTERNAL_DAC_OPTIONS = [CONF_MONO, CONF_STEREO]
 
 NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
 
