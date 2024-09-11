@@ -78,6 +78,7 @@ I2S_BITS_PER_SAMPLE = {
 
 i2s_bits_per_chan_t = cg.global_ns.enum("i2s_bits_per_chan_t")
 I2S_BITS_PER_CHANNEL = {
+    "default": i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_DEFAULT,
     8: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_8BIT,
     16: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_16BIT,
     24: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_24BIT,
@@ -109,8 +110,9 @@ def i2s_audio_component_schema(
                 I2S_MODE_OPTIONS, lower=True
             ),
             cv.Optional(CONF_USE_APLL, default=False): cv.boolean,
-            cv.Optional(CONF_BITS_PER_CHANNEL): cv.All(
-                cv.float_with_unit("bits", "bit"), cv.enum(I2S_BITS_PER_CHANNEL)
+            cv.Optional(CONF_BITS_PER_CHANNEL, default="default"): cv.All(
+                cv.Any(cv.float_with_unit("bits", "bit"), "default"),
+                cv.enum(I2S_BITS_PER_CHANNEL),
             ),
         }
     )
@@ -123,10 +125,7 @@ async def register_i2s_audio_component(var, config):
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
-    bits_per_channel = config.get(
-        CONF_BITS_PER_CHANNEL, i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_DEFAULT
-    )
-    cg.add(var.set_bits_per_channel(bits_per_channel))
+    cg.add(var.set_bits_per_channel(config[CONF_BITS_PER_CHANNEL]))
     cg.add(var.set_use_apll(config[CONF_USE_APLL]))
 
 
