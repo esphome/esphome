@@ -1,31 +1,28 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display
+from esphome.components.esp32 import const, only_on_variant
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ENABLE_PIN,
-    CONF_HSYNC_PIN,
-    CONF_RESET_PIN,
+    CONF_BLUE,
+    CONF_COLOR_ORDER,
     CONF_DATA_PINS,
+    CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
+    CONF_GREEN,
+    CONF_HEIGHT,
+    CONF_HSYNC_PIN,
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
-    CONF_DIMENSIONS,
-    CONF_VSYNC_PIN,
-    CONF_WIDTH,
-    CONF_HEIGHT,
+    CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_COLOR_ORDER,
-    CONF_RED,
-    CONF_GREEN,
-    CONF_BLUE,
     CONF_NUMBER,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
-    CONF_INVERT_COLORS,
-)
-from esphome.components.esp32 import (
-    only_on_variant,
-    const,
+    CONF_RED,
+    CONF_RESET_PIN,
+    CONF_VSYNC_PIN,
+    CONF_WIDTH,
 )
 
 DEPENDENCIES = ["esp32"]

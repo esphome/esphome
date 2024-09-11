@@ -29,3 +29,4 @@ modbus_controller:
         value_type: S_DWORD_R
         read_lambda: |-
           return 42.3;
+    max_cmd_retries: 0
