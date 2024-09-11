@@ -396,6 +396,10 @@ void VoiceAssistant::loop() {
         this->set_timeout("playing", 2000, [this]() {
           this->cancel_timeout("speaker-timeout");
           this->set_state_(State::IDLE, State::IDLE);
+
+          api::VoiceAssistantAnnounceFinished msg;
+          msg.success = true;
+          this->api_client_->send_voice_assistant_announce_finished(msg);
         });
       }
       break;
@@ -864,6 +868,18 @@ void VoiceAssistant::timer_tick_() {
     res.push_back(timer);
   }
   this->timer_tick_trigger_->trigger(res);
+}
+
+void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) {
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr) {
+    this->tts_start_trigger_->trigger(msg.text);
+    this->media_player_->make_call().set_media_url(msg.media_id).set_announcement(true).perform();
+    this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+    this->tts_end_trigger_->trigger(msg.media_id);
+    this->end_trigger_->trigger();
+  }
+#endif
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
