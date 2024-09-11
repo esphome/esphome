@@ -58,7 +58,7 @@ file_types = (
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
 py_include = ("*.py",)
-ignore_types = (".ico", ".png", ".woff", ".woff2", "", ".ttf", ".otf")
+ignore_types = (".ico", ".png", ".woff", ".woff2", "", ".ttf", ".otf", ".pcf")
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
