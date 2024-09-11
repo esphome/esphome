@@ -57,7 +57,22 @@ RUN \
                 pkg-config=1.8.1-1 \
                 gcc-arm-linux-gnueabihf=4:12.2.0-3 \
         ) \
-        || [ "$TARGETARCH$TARGETVARIANT" != "armv7" ] \
+        || ( \
+            [ "$TARGETARCH$TARGETVARIANT" = "arm64" ] && \
+                apt-get install -y --no-install-recommends \
+                build-essential=12.9 \
+                python3-dev=3.11.2-1+b1 \
+                zlib1g-dev=1:1.2.13.dfsg-1 \
+                libjpeg-dev=1:2.1.5-2 \
+                libfreetype-dev=2.12.1+dfsg-5+deb12u3 \
+                libssl-dev=3.0.14-1~deb12u2 \
+                libffi-dev=3.4.4-1 \
+                libopenjp2-7=2.5.0-2 \
+                libtiff6=4.5.0-6+deb12u1 \
+                cargo=0.66.0+ds1-1 \
+                pkg-config=1.8.1-1 \
+        ) \
+        || [ "$TARGETARCH$TARGETVARIANT" = "amd64" ] \
     ) \
     && rm -rf \
         /tmp/* \
