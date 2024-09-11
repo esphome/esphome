@@ -52,6 +52,14 @@ I2S_MODE_OPTIONS = {
     CONF_SECONDARY: i2s_mode_t.I2S_MODE_SLAVE,  # NOLINT
 }
 
+# https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h
+I2S_PORTS = {
+    VARIANT_ESP32: 2,
+    VARIANT_ESP32S2: 1,
+    VARIANT_ESP32S3: 2,
+    VARIANT_ESP32C3: 1,
+}
+
 i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
 I2S_CHANNELS = {
     CONF_MONO: i2s_channel_fmt_t.I2S_CHANNEL_FMT_ALL_LEFT,
@@ -74,14 +82,6 @@ I2S_BITS_PER_CHANNEL = {
     16: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_16BIT,
     24: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_24BIT,
     32: i2s_bits_per_chan_t.I2S_BITS_PER_CHAN_32BIT,
-}
-
-# https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h
-I2S_PORTS = {
-    VARIANT_ESP32: 2,
-    VARIANT_ESP32S2: 1,
-    VARIANT_ESP32S3: 2,
-    VARIANT_ESP32C3: 1,
 }
 
 _validate_bits = cv.float_with_unit("bits", "bit")
