@@ -21,9 +21,10 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .automation import disp_update, update_to_code
-from .defines import CONF_SKIP
+from .automation import disp_update, focused_widgets, update_to_code
+from .defines import add_define
 from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
+from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
 from .schemas import (
@@ -67,7 +68,7 @@ from .widgets.lv_bar import bar_spec
 from .widgets.meter import meter_spec
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
 from .widgets.obj import obj_spec
-from .widgets.page import add_pages, page_spec
+from .widgets.page import add_pages, generate_page_triggers, page_spec
 from .widgets.roller import roller_spec
 from .widgets.slider import slider_spec
 from .widgets.spinbox import spinbox_spec
@@ -128,17 +129,6 @@ for w_type in WIDGET_TYPES.values():
     )(update_to_code)
 
 
-lv_defines = {}  # Dict of #defines to provide as build flags
-
-
-def add_define(macro, value="1"):
-    if macro in lv_defines and lv_defines[macro] != value:
-        LOGGER.error(
-            "Redefinition of %s - was %s now %s", macro, lv_defines[macro], value
-        )
-    lv_defines[macro] = value
-
-
 def as_macro(macro, value):
     if value is None:
         return f"#define {macro}"
@@ -153,14 +143,14 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in lv_defines.items()]
+    definitions = [as_macro(m, v) for m, v in df.lv_defines.items()]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
 
 def final_validation(config):
     if pages := config.get(CONF_PAGES):
-        if all(p[CONF_SKIP] for p in pages):
+        if all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
     global_config = full_config.get()
     for display_id in config[df.CONF_DISPLAYS]:
@@ -181,6 +171,14 @@ def final_validation(config):
         if image_conf[CONF_TYPE] in ("RGBA", "RGB24"):
             raise cv.Invalid(
                 "Using RGBA or RGB24 in image config not compatible with LVGL", path
+            )
+    for w in focused_widgets:
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if df.CONF_ADJUSTABLE in widget_conf and not widget_conf[df.CONF_ADJUSTABLE]:
+            raise cv.Invalid(
+                "A non adjustable arc may not be focused",
+                path,
             )
 
 
@@ -260,6 +258,7 @@ async def to_code(config):
         await encoders_to_code(lv_component, config)
         await theme_to_code(config)
         await styles_to_code(config)
+        await gradients_to_code(config)
         await set_obj_properties(lv_scr_act, config)
         await add_widgets(lv_scr_act, config)
         await add_pages(lv_component, config)
@@ -271,6 +270,7 @@ async def to_code(config):
     Widget.set_completed()
     async with LvContext(lv_component):
         await generate_triggers(lv_component)
+        await generate_page_triggers(lv_component, config)
         for conf in config.get(CONF_ON_IDLE, ()):
             templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
             idle_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], lv_component, templ)
@@ -318,6 +318,8 @@ CONFIG_SCHEMA = (
                     {
                         cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
                         cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                        cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                        cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
                     }
                 )
             ),
@@ -340,6 +342,7 @@ CONFIG_SCHEMA = (
             cv.Optional(df.CONF_THEME): cv.Schema(
                 {cv.Optional(name): obj_schema(w) for name, w in WIDGET_TYPES.items()}
             ),
+            cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
             cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
             cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),

@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.cpp_helpers import logging
 from .const import (
+    CONF_ALLOW_DUPLICATE_COMMANDS,
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
@@ -20,6 +21,7 @@ from .const import (
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_MAX_CMD_RETRIES,
     CONF_ON_COMMAND_SENT,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
@@ -126,9 +128,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusController),
+            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS, default=False): cv.boolean,
             cv.Optional(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(
                 CONF_SERVER_REGISTERS,
@@ -253,7 +257,9 @@ async def add_modbus_base_properties(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
     cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
+    cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     if CONF_SERVER_REGISTERS in config:
         for server_register in config[CONF_SERVER_REGISTERS]:

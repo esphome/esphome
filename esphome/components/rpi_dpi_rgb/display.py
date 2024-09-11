@@ -1,30 +1,28 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display
+from esphome.components.esp32 import const, only_on_variant
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_HSYNC_PIN,
-    CONF_RESET_PIN,
+    CONF_BLUE,
+    CONF_COLOR_ORDER,
     CONF_DATA_PINS,
+    CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
+    CONF_GREEN,
+    CONF_HEIGHT,
+    CONF_HSYNC_PIN,
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
-    CONF_DIMENSIONS,
-    CONF_VSYNC_PIN,
-    CONF_WIDTH,
-    CONF_HEIGHT,
+    CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_COLOR_ORDER,
-    CONF_RED,
-    CONF_GREEN,
-    CONF_BLUE,
     CONF_NUMBER,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
-    CONF_INVERT_COLORS,
-)
-from esphome.components.esp32 import (
-    only_on_variant,
-    const,
+    CONF_RED,
+    CONF_RESET_PIN,
+    CONF_VSYNC_PIN,
+    CONF_WIDTH,
 )
 
 DEPENDENCIES = ["esp32"]
@@ -112,6 +110,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Required(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Required(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
                 cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
+                cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_HSYNC_PULSE_WIDTH, default=10): cv.int_,
                 cv.Optional(CONF_HSYNC_BACK_PORCH, default=10): cv.int_,
@@ -163,6 +162,10 @@ async def to_code(config):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
         index += 1
+
+    if enable_pin := config.get(CONF_ENABLE_PIN):
+        enable = await cg.gpio_pin_expression(enable_pin)
+        cg.add(var.set_enable_pin(enable))
 
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
