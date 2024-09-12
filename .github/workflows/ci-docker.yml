@@ -61,4 +61,3 @@ jobs:
             --arch "${{ matrix.arch }}" \
             --build-type "${{ matrix.build_type }}" \
             build
-      - name: List images
