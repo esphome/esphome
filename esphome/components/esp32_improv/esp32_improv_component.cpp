@@ -1,11 +1,12 @@
 #include "esp32_improv_component.h"
 
 #include "esphome/components/esp32_ble/ble.h"
-#include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+
+static constexpr size_t MAX_UUID_LENGTH = 37;
 
 namespace esphome {
 namespace esp32_improv {
@@ -28,35 +29,72 @@ void ESP32ImprovComponent::setup() {
 #endif
 }
 
-void ESP32ImprovComponent::setup_characteristics() {
-  this->status_ = this->service_->create_characteristic(
-      improv::STATUS_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  BLEDescriptor *status_descriptor = new BLE2902();
-  this->status_->add_descriptor(status_descriptor);
+bool ESP32ImprovComponent::setup_characteristics() {
+  this->status_ =
+      this->service_->create_characteristic(improv::STATUS_UUID, strnlen(improv::STATUS_UUID, MAX_UUID_LENGTH),
+                                            BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  if (this->status_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create status characteristic");
+    return false;
+  }
 
-  this->error_ = this->service_->create_characteristic(
-      improv::ERROR_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  BLEDescriptor *error_descriptor = new BLE2902();
-  this->error_->add_descriptor(error_descriptor);
+  if (!this->status_->make_2902_descriptor()) {
+    ESP_LOGE(TAG, "Failed to create status descriptor");
+    return false;
+  }
 
-  this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
+  this->error_ =
+      this->service_->create_characteristic(improv::ERROR_UUID, strnlen(improv::ERROR_UUID, MAX_UUID_LENGTH),
+                                            BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  if (this->error_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create error characteristic");
+    return false;
+  }
+
+  if (!this->error_->make_2902_descriptor()) {
+    ESP_LOGE(TAG, "Failed to create error descriptor");
+    return false;
+  }
+
+  this->rpc_ = this->service_->create_characteristic(
+      improv::RPC_COMMAND_UUID, strnlen(improv::RPC_COMMAND_UUID, MAX_UUID_LENGTH), BLECharacteristic::PROPERTY_WRITE);
+  if (this->rpc_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create rpc characteristic");
+    return false;
+  }
   this->rpc_->on_write([this](const std::vector<uint8_t> &data) {
     if (!data.empty()) {
       this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
     }
   });
-  BLEDescriptor *rpc_descriptor = new BLE2902();
-  this->rpc_->add_descriptor(rpc_descriptor);
+  if (this->rpc_->make_2902_descriptor() == nullptr) {
+    ESP_LOGE(TAG, "Failed to create rpc descriptor");
+    return false;
+  }
 
-  this->rpc_response_ = this->service_->create_characteristic(
-      improv::RPC_RESULT_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  BLEDescriptor *rpc_response_descriptor = new BLE2902();
-  this->rpc_response_->add_descriptor(rpc_response_descriptor);
+  this->rpc_response_ =
+      this->service_->create_characteristic(improv::RPC_RESULT_UUID, strnlen(improv::RPC_RESULT_UUID, MAX_UUID_LENGTH),
+                                            BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  if (this->rpc_response_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create rpc response characteristic");
+    return false;
+  }
+  if (!this->rpc_response_->make_2902_descriptor()) {
+    ESP_LOGE(TAG, "Failed to create rpc response descriptor");
+    return false;
+  }
 
-  this->capabilities_ =
-      this->service_->create_characteristic(improv::CAPABILITIES_UUID, BLECharacteristic::PROPERTY_READ);
-  BLEDescriptor *capabilities_descriptor = new BLE2902();
-  this->capabilities_->add_descriptor(capabilities_descriptor);
+  this->capabilities_ = this->service_->create_characteristic(
+      improv::CAPABILITIES_UUID, strnlen(improv::CAPABILITIES_UUID, MAX_UUID_LENGTH), BLECharacteristic::PROPERTY_READ);
+  if (this->capabilities_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create capabilities characteristic");
+    return false;
+  }
+  if (!this->capabilities_->make_2902_descriptor()) {
+    ESP_LOGE(TAG, "Failed to create capabilities descriptor");
+    return false;
+  }
+
   uint8_t capabilities = 0x00;
 #ifdef USE_OUTPUT
   if (this->status_indicator_ != nullptr)
@@ -64,6 +102,7 @@ void ESP32ImprovComponent::setup_characteristics() {
 #endif
   this->capabilities_->set_value(capabilities);
   this->setup_complete_ = true;
+  return true;
 }
 
 void ESP32ImprovComponent::loop() {
@@ -75,9 +114,11 @@ void ESP32ImprovComponent::loop() {
   if (this->service_ == nullptr) {
     // Setup the service
     ESP_LOGD(TAG, "Creating Improv service");
-    global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
-    this->service_ = global_ble_server->get_service(ESPBTUUID::from_raw(improv::SERVICE_UUID));
-    this->setup_characteristics();
+    this->service_ = global_ble_server->create_service(ESPBTUUID::from_raw(improv::SERVICE_UUID), true);
+    if (!this->setup_characteristics()) {
+      this->mark_failed();
+      return;
+    }
   }
 
   if (!this->incoming_data_.empty())

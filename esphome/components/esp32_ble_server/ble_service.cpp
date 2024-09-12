@@ -12,31 +12,33 @@ static const char *const TAG = "esp32_ble_server.service";
 BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise)
     : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id), advertise_(advertise) {}
 
-BLEService::~BLEService() {
-  for (auto &chr : this->characteristics_)
-    delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
-}
-
-BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
-  for (auto *chr : this->characteristics_) {
+std::shared_ptr<BLECharacteristic> BLEService::get_characteristic(ESPBTUUID uuid) {
+  for (auto chr : this->characteristics_) {
     if (chr->get_uuid() == uuid)
       return chr;
   }
   return nullptr;
 }
 
-BLECharacteristic *BLEService::get_characteristic(uint16_t uuid) {
+std::shared_ptr<BLECharacteristic> BLEService::get_characteristic(uint16_t uuid) {
   return this->get_characteristic(ESPBTUUID::from_uint16(uuid));
 }
-BLECharacteristic *BLEService::create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties) {
+std::shared_ptr<BLECharacteristic> BLEService::create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties) {
   return create_characteristic(ESPBTUUID::from_uint16(uuid), properties);
 }
-BLECharacteristic *BLEService::create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties) {
+std::shared_ptr<BLECharacteristic> BLEService::create_characteristic(const std::string &uuid,
+                                                                     esp_gatt_char_prop_t properties) {
   return create_characteristic(ESPBTUUID::from_raw(uuid), properties);
 }
-BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties) {
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties);
+std::shared_ptr<BLECharacteristic> BLEService::create_characteristic(const char *uuid, size_t len,
+                                                                     esp_gatt_char_prop_t properties) {
+  return create_characteristic(ESPBTUUID::from_raw(uuid, len), properties);
+}
+std::shared_ptr<BLECharacteristic> BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties) {
+  auto characteristic = std::make_shared<BLECharacteristic>(uuid, properties);
+  if (characteristic == nullptr) {
+    return nullptr;
+  }
   this->characteristics_.push_back(characteristic);
   return characteristic;
 }
@@ -80,9 +82,9 @@ bool BLEService::do_create_characteristics_() {
   if (this->last_created_characteristic_ != nullptr && !this->last_created_characteristic_->is_created())
     return true;  // Signifies that the previous characteristic is still being created.
 
-  auto *characteristic = this->characteristics_[this->created_characteristic_count_++];
+  auto characteristic = this->characteristics_[this->created_characteristic_count_++];
   this->last_created_characteristic_ = characteristic;
-  characteristic->do_create(this);
+  characteristic->do_create(shared_from_this());
   return true;
 }
 
@@ -124,7 +126,7 @@ bool BLEService::is_failed() {
   if (this->init_state_ == FAILED)
     return true;
   bool failed = false;
-  for (auto *characteristic : this->characteristics_)
+  for (auto characteristic : this->characteristics_)
     failed |= characteristic->is_failed();
 
   if (failed)
@@ -166,7 +168,7 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
       break;
   }
 
-  for (auto *characteristic : this->characteristics_) {
+  for (auto characteristic : this->characteristics_) {
     characteristic->gatts_event_handler(event, gatts_if, param);
   }
 }

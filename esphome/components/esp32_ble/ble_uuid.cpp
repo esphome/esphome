@@ -2,9 +2,9 @@
 
 #ifdef USE_ESP32
 
-#include <cstring>
-#include <cstdio>
 #include <cinttypes>
+#include <cstdio>
+#include <cstring>
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -31,14 +31,15 @@ ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
   memcpy(ret.uuid_.uuid.uuid128, data, ESP_UUID_LEN_128);
   return ret;
 }
-ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
+ESPBTUUID ESPBTUUID::from_raw(const std::string &data) { return ESPBTUUID::from_raw(data.data(), data.length()); }
+ESPBTUUID ESPBTUUID::from_raw(const char *data, size_t len) {
   ESPBTUUID ret;
-  if (data.length() == 4) {
+  if (len == 4) {
     ret.uuid_.len = ESP_UUID_LEN_16;
     ret.uuid_.uuid.uuid16 = 0;
-    for (int i = 0; i < data.length();) {
-      uint8_t msb = data.c_str()[i];
-      uint8_t lsb = data.c_str()[i + 1];
+    for (int i = 0; i < len;) {
+      uint8_t msb = data[i];
+      uint8_t lsb = data[i + 1];
 
       if (msb > '9')
         msb -= 7;
@@ -47,12 +48,12 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
       ret.uuid_.uuid.uuid16 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (2 - i) * 4;
       i += 2;
     }
-  } else if (data.length() == 8) {
+  } else if (len == 8) {
     ret.uuid_.len = ESP_UUID_LEN_32;
     ret.uuid_.uuid.uuid32 = 0;
-    for (int i = 0; i < data.length();) {
-      uint8_t msb = data.c_str()[i];
-      uint8_t lsb = data.c_str()[i + 1];
+    for (int i = 0; i < len;) {
+      uint8_t msb = data[i];
+      uint8_t lsb = data[i + 1];
 
       if (msb > '9')
         msb -= 7;
@@ -61,20 +62,20 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
       ret.uuid_.uuid.uuid32 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (6 - i) * 4;
       i += 2;
     }
-  } else if (data.length() == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
-                                     // investigated (lack of time)
+  } else if (len == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
+                           // investigated (lack of time)
     ret.uuid_.len = ESP_UUID_LEN_128;
-    memcpy(ret.uuid_.uuid.uuid128, (uint8_t *) data.data(), 16);
-  } else if (data.length() == 36) {
+    memcpy(ret.uuid_.uuid.uuid128, (uint8_t *) data, 16);
+  } else if (len == 36) {
     // If the length of the string is 36 bytes then we will assume it is a long hex string in
     // UUID format.
     ret.uuid_.len = ESP_UUID_LEN_128;
     int n = 0;
-    for (int i = 0; i < data.length();) {
-      if (data.c_str()[i] == '-')
+    for (int i = 0; i < len;) {
+      if (data[i] == '-')
         i++;
-      uint8_t msb = data.c_str()[i];
-      uint8_t lsb = data.c_str()[i + 1];
+      uint8_t msb = data[i];
+      uint8_t lsb = data[i + 1];
 
       if (msb > '9')
         msb -= 7;
@@ -84,7 +85,7 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
       i += 2;
     }
   } else {
-    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data.c_str());
+    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data);
   }
   return ret;
 }
@@ -162,14 +163,19 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
   return false;
 }
 esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
-std::string ESPBTUUID::to_string() const {
+std::string ESPBTUUID::to_string() {
+  if (!this->string_.empty())
+    return this->string_;
+
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:
-      return str_snprintf("0x%02X%02X", 6, this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
+      this->string_ = str_snprintf("0x%02X%02X", 6, this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
+      return this->string_;
     case ESP_UUID_LEN_32:
-      return str_snprintf("0x%02" PRIX32 "%02" PRIX32 "%02" PRIX32 "%02" PRIX32, 10, (this->uuid_.uuid.uuid32 >> 24),
-                          (this->uuid_.uuid.uuid32 >> 16 & 0xff), (this->uuid_.uuid.uuid32 >> 8 & 0xff),
-                          this->uuid_.uuid.uuid32 & 0xff);
+      this->string_ = str_snprintf("0x%02" PRIX32 "%02" PRIX32 "%02" PRIX32 "%02" PRIX32, 10,
+                                   (this->uuid_.uuid.uuid32 >> 24), (this->uuid_.uuid.uuid32 >> 16 & 0xff),
+                                   (this->uuid_.uuid.uuid32 >> 8 & 0xff), this->uuid_.uuid.uuid32 & 0xff);
+      return this->string_;
     default:
     case ESP_UUID_LEN_128:
       std::string buf;
@@ -178,6 +184,7 @@ std::string ESPBTUUID::to_string() const {
         if (i == 6 || i == 8 || i == 10 || i == 12)
           buf += "-";
       }
+      this->string_ = buf;
       return buf;
   }
   return "";

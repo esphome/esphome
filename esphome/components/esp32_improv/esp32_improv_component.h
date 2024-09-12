@@ -34,7 +34,7 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   void dump_config() override;
   void loop() override;
   void setup() override;
-  void setup_characteristics();
+  bool setup_characteristics();
   void on_client_disconnect() override;
 
   float get_setup_priority() const override;
@@ -68,12 +68,12 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  BLEService *service_ = nullptr;
-  BLECharacteristic *status_;
-  BLECharacteristic *error_;
-  BLECharacteristic *rpc_;
-  BLECharacteristic *rpc_response_;
-  BLECharacteristic *capabilities_;
+  std::shared_ptr<BLEService> service_{nullptr};
+  std::shared_ptr<BLECharacteristic> status_;
+  std::shared_ptr<BLECharacteristic> error_;
+  std::shared_ptr<BLECharacteristic> rpc_;
+  std::shared_ptr<BLECharacteristic> rpc_response_;
+  std::shared_ptr<BLECharacteristic> capabilities_;
 
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *authorizer_{nullptr};

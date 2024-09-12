@@ -3,6 +3,7 @@
 #include "ble_characteristic.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 
+#include <memory>
 #include <vector>
 
 #ifdef USE_ESP32
@@ -20,19 +21,21 @@ class BLEServer;
 
 using namespace esp32_ble;
 
-class BLEService {
+class BLEService : public std::enable_shared_from_this<BLEService> {
  public:
   BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise);
-  ~BLEService();
-  BLECharacteristic *get_characteristic(ESPBTUUID uuid);
-  BLECharacteristic *get_characteristic(uint16_t uuid);
 
-  BLECharacteristic *create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties);
-  BLECharacteristic *create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties);
-  BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties);
+  std::shared_ptr<BLECharacteristic> get_characteristic(ESPBTUUID uuid);
+  std::shared_ptr<BLECharacteristic> get_characteristic(uint16_t uuid);
+
+  std::shared_ptr<BLECharacteristic> create_characteristic(const char *uuid, size_t len,
+                                                           esp_gatt_char_prop_t properties);
+  std::shared_ptr<BLECharacteristic> create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties);
+  std::shared_ptr<BLECharacteristic> create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties);
+  std::shared_ptr<BLECharacteristic> create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties);
 
   ESPBTUUID get_uuid() { return this->uuid_; }
-  BLECharacteristic *get_last_created_characteristic() { return this->last_created_characteristic_; }
+  std::shared_ptr<BLECharacteristic> get_last_created_characteristic() { return this->last_created_characteristic_; }
   uint16_t get_handle() { return this->handle_; }
 
   BLEServer *get_server() { return this->server_; }
@@ -52,8 +55,8 @@ class BLEService {
   bool is_deleted() { return this->init_state_ == DELETED; }
 
  protected:
-  std::vector<BLECharacteristic *> characteristics_;
-  BLECharacteristic *last_created_characteristic_{nullptr};
+  std::vector<std::shared_ptr<BLECharacteristic>> characteristics_;
+  std::shared_ptr<BLECharacteristic> last_created_characteristic_{nullptr};
   uint32_t created_characteristic_count_{0};
   BLEServer *server_;
   ESPBTUUID uuid_;

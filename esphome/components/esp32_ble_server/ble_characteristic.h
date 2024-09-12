@@ -1,17 +1,21 @@
 #pragma once
 
+#include "ble_2901.h"
+#include "ble_2902.h"
 #include "ble_descriptor.h"
+
 #include "esphome/components/esp32_ble/ble_uuid.h"
 
+#include <memory>
 #include <vector>
 
 #ifdef USE_ESP32
 
+#include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gatt_defs.h>
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
-#include <esp_bt_defs.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -22,7 +26,7 @@ using namespace esp32_ble;
 
 class BLEService;
 
-class BLECharacteristic {
+class BLECharacteristic : public std::enable_shared_from_this<BLECharacteristic> {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();
@@ -47,15 +51,18 @@ class BLECharacteristic {
 
   void notify(bool notification = true);
 
-  void do_create(BLEService *service);
+  void do_create(std::shared_ptr<BLEService> service);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
   void on_write(const std::function<void(const std::vector<uint8_t> &)> &&func) { this->on_write_ = func; }
 
-  void add_descriptor(BLEDescriptor *descriptor);
-  void remove_descriptor(BLEDescriptor *descriptor);
+  void add_descriptor(std::shared_ptr<BLEDescriptor> descriptor);
+  void remove_descriptor(std::shared_ptr<BLEDescriptor> descriptor);
 
-  BLEService *get_service() { return this->service_; }
+  std::shared_ptr<BLE2901> make_2901_descriptor(const std::string &value);
+  std::shared_ptr<BLE2902> make_2902_descriptor();
+
+  std::shared_ptr<BLEService> get_service() { return this->service_; }
   ESPBTUUID get_uuid() { return this->uuid_; }
   std::vector<uint8_t> &get_value() { return this->value_; }
 
@@ -71,7 +78,7 @@ class BLECharacteristic {
 
  protected:
   bool write_event_{false};
-  BLEService *service_;
+  std::shared_ptr<BLEService> service_;
   ESPBTUUID uuid_;
   esp_gatt_char_prop_t properties_;
   uint16_t handle_{0xFFFF};
@@ -80,7 +87,7 @@ class BLECharacteristic {
   std::vector<uint8_t> value_;
   SemaphoreHandle_t set_value_lock_;
 
-  std::vector<BLEDescriptor *> descriptors_;
+  std::vector<std::shared_ptr<BLEDescriptor>> descriptors_;
 
   std::function<void(const std::vector<uint8_t> &)> on_write_;
 
