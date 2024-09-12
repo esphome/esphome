@@ -1,12 +1,19 @@
 from typing import Union
 
 import esphome.codegen as cg
-from esphome.components.color import ColorStruct
+from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
 from esphome.components.font import Font
 from esphome.components.image import Image_
 import esphome.config_validation as cv
-from esphome.const import CONF_ARGS, CONF_COLOR, CONF_FORMAT, CONF_TIME, CONF_VALUE
-from esphome.core import HexInt, Lambda
+from esphome.const import (
+    CONF_ARGS,
+    CONF_COLOR,
+    CONF_FORMAT,
+    CONF_ID,
+    CONF_TIME,
+    CONF_VALUE,
+)
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import ESPTime, uint32
 from esphome.helpers import cpp_string_escape
@@ -23,14 +30,9 @@ from .defines import (
     call_lambda,
     literal,
 )
-from .helpers import (
-    esphome_fonts_used,
-    lv_fonts_used,
-    lvgl_components_required,
-    requires_component,
-)
+from .helpers import esphome_fonts_used, lv_fonts_used, requires_component
 from .lvcode import lv_expr
-from .types import lv_font_t, lv_img_t
+from .types import lv_font_t, lv_gradient_t, lv_img_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -59,11 +61,17 @@ def color_retmapper(value):
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
     if isinstance(value, int):
-        hexval = HexInt(value)
-        return lv_expr.color_hex(hexval)
-    # Must be an id
-    lvgl_components_required.add(CONF_COLOR)
-    return lv_expr.color_from(MockObj(value))
+        return literal(
+            f"lv_color_make({(value >> 16) & 0xFF}, {(value >> 8) & 0xFF}, {value & 0xFF})"
+        )
+    if isinstance(value, ID):
+        cval = [x for x in CORE.config[CONF_COLOR] if x[CONF_ID] == value][0]
+        if CONF_HEX in cval:
+            r, g, b = cval[CONF_HEX]
+        else:
+            r, g, b, _ = from_rgbw(cval)
+        return literal(f"lv_color_make({r}, {g}, {b})")
+    assert False
 
 
 def option_string(value):
@@ -132,7 +140,7 @@ radius_consts = LvConstant("LV_RADIUS_", "CIRCLE")
 
 
 @schema_extractor("one_of")
-def radius_validator(value):
+def fraction_validator(value):
     if value == SCHEMA_EXTRACT:
         return radius_consts.choices
     value = cv.Any(size, cv.percentage, radius_consts.one_of)(value)
@@ -141,7 +149,7 @@ def radius_validator(value):
     return value
 
 
-radius = LValidator(radius_validator, uint32, retmapper=literal)
+lv_fraction = LValidator(fraction_validator, uint32, retmapper=literal)
 
 
 def id_name(value):
@@ -240,6 +248,21 @@ lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
 lv_int = LValidator(cv.int_, cg.int_)
 lv_brightness = LValidator(cv.percentage, cg.float_, retmapper=lambda x: int(x * 255))
+
+
+def gradient_mapper(value):
+    return MockObj(value)
+
+
+def gradient_validator(value):
+    return cv.use_id(lv_gradient_t)(value)
+
+
+lv_gradient = LValidator(
+    validator=gradient_validator,
+    rtype=lv_gradient_t,
+    retmapper=gradient_mapper,
+)
 
 
 def is_lv_font(font):
