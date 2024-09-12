@@ -20,15 +20,14 @@ void MCP3204::dump_config() {
 }
 
 float MCP3204::read_data(uint8_t channel, bool differential) {
-
   uint8_t command, sgldiff;
   uint8_t b0, b1, b2;
 
   sgldiff = differential ? 0 : 1;
 
-  command = ((0x01 << 7) |             // start bit
-             (sgldiff << 6) |          // single or differential
-             ((channel & 0x07) << 3)); // channel number
+  command = ((0x01 << 7) |              // start bit
+             (sgldiff << 6) |           // single or differential
+             ((channel & 0x07) << 3));  // channel number
 
   this->enable();
   b0 = this->transfer_byte(command);
@@ -37,7 +36,7 @@ float MCP3204::read_data(uint8_t channel, bool differential) {
   this->disable();
 
   uint16_t digital_value = 0xFFF & ((b0 & 0x01) << 11 | (b1 & 0xFF) << 3 | (b2 & 0xE0) >> 5);
-  return float(digital_value) / 4096.000 * this->reference_voltage_; // in V
+  return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
 }
 
 }  // namespace mcp3204
