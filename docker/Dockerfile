@@ -35,16 +35,6 @@ RUN \
         git=2.45.2-r0 \
         patch=2.7.6-r10
 
-RUN \
-    # Install build tools for wheels - these will be removed after use
-    apk add --no-cache --virtual .build-deps \
-    build-base=0.5-r3 \
-    python3-dev=3.12.6-r0 \
-    zlib-dev=1.3.1-r1 \
-    jpeg-dev=9e-r1 \
-    libffi-dev=3.4.6-r0 \
-    openjpeg=2.5.2-r0 \
-    tiff-dev=4.6.0t-r0
 
 ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
@@ -86,14 +76,22 @@ RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "a
         && export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
     fi; \
     CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
-    pip3 install \
-    --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt
+    apk add --no-cache --virtual .build-deps \
+        build-base=0.5-r3 \
+        python3-dev=3.12.6-r0 \
+        zlib-dev=1.3.1-r1 \
+        jpeg-dev=9e-r1 \
+        libffi-dev=3.4.6-r0 \
+        openjpeg=2.5.2-r0 \
+        tiff-dev=4.6.0t-r0 \
+    && pip3 install \
+        --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    && apk del .build-deps
 
 COPY script/platformio_install_deps.py platformio.ini /
 RUN /platformio_install_deps.py /platformio.ini --libraries
 
 # Clean up build tools
-RUN apk del .build-deps
 
 # Avoid unsafe git error when container user and file config volume permissions don't match
 RUN git config --system --add safe.directory '*'
