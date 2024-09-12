@@ -17,13 +17,13 @@ void MCP3204Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  DIFFERENTIAL MODE: %u", this->diffmode_);
   LOG_UPDATE_INTERVAL(this);
 }
-float MCP3204Sensor::sample() 
-{ 
-  return this->parent_->read_data(this->pin_, this->diffmode_); 
+float MCP3204Sensor::sample()
+{
+  return this->parent_->read_data(this->pin_, this->diffmode_);
 }
-void MCP3204Sensor::update() 
-{ 
-  this->publish_state(this->sample()); 
+void MCP3204Sensor::update()
+{
+  this->publish_state(this->sample());
 }
 
 }  // namespace mcp3204

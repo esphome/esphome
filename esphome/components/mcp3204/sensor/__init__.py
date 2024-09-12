@@ -20,7 +20,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(CONF_MCP3204_ID): cv.use_id(MCP3204),
             cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
-            cv.Optional(CONF_DIFF_MODE, default = 'false'): cv.boolean,
+            cv.Optional(CONF_DIFF_MODE, default="false"): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))

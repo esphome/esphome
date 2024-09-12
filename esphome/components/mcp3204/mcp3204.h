@@ -8,15 +8,15 @@ namespace esphome {
 namespace mcp3204 {
 
 class MCP3204 : public Component,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, 
-                                      spi::CLOCK_POLARITY_LOW, 
+                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
+                                      spi::CLOCK_POLARITY_LOW,
                                       spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
  public:
   MCP3204() = default;
 
-  void set_reference_voltage(float reference_voltage) 
-  { 
+  void set_reference_voltage(float reference_voltage)
+  {
     this->reference_voltage_ = reference_voltage;
   }
 
