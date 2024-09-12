@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_FILE, CONF_DEVICE
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_FILE, CONF_DEVICE, CONF_VOLUME
 from esphome.components import uart
 
 DEPENDENCIES = ["uart"]
@@ -19,7 +19,6 @@ DFPlayerIsPlayingCondition = dfplayer_ns.class_(
 MULTI_CONF = True
 CONF_FOLDER = "folder"
 CONF_LOOP = "loop"
-CONF_VOLUME = "volume"
 CONF_EQ_PRESET = "eq_preset"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 

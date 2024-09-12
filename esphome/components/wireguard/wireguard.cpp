@@ -1,7 +1,5 @@
 #include "wireguard.h"
-
-#ifdef USE_ESP32
-
+#ifdef USE_WIREGUARD
 #include <cinttypes>
 #include <ctime>
 #include <functional>
@@ -11,26 +9,20 @@
 #include "esphome/core/time.h"
 #include "esphome/components/network/util.h"
 
-#include <esp_err.h>
-
 #include <esp_wireguard.h>
-
-// includes for resume/suspend wdt
-#if defined(USE_ESP_IDF)
-#include <esp_task_wdt.h>
-#if ESP_IDF_VERSION_MAJOR >= 5
-#include <spi_flash_mmap.h>
-#endif
-#elif defined(USE_ARDUINO)
-#include <esp32-hal.h>
-#endif
+#include <esp_wireguard_err.h>
 
 namespace esphome {
 namespace wireguard {
 
 static const char *const TAG = "wireguard";
 
-static const char *const LOGMSG_PEER_STATUS = "WireGuard remote peer is %s (latest handshake %s)";
+/*
+ * Cannot use `static const char*` for LOGMSG_PEER_STATUS on esp8266 platform
+ * because log messages in `Wireguard::update()` method fail.
+ */
+#define LOGMSG_PEER_STATUS "WireGuard remote peer is %s (latest handshake %s)"
+
 static const char *const LOGMSG_ONLINE = "online";
 static const char *const LOGMSG_OFFLINE = "offline";
 
@@ -47,6 +39,8 @@ void Wireguard::setup() {
 
   if (this->preshared_key_.length() > 0)
     this->wg_config_.preshared_key = this->preshared_key_.c_str();
+
+  this->publish_enabled_state();
 
   this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
 
@@ -68,6 +62,10 @@ void Wireguard::setup() {
 }
 
 void Wireguard::loop() {
+  if (!this->enabled_) {
+    return;
+  }
+
   if ((this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) && (!network::is_connected())) {
     ESP_LOGV(TAG, "local network connection has been lost, stopping WireGuard...");
     this->stop_connection_();
@@ -79,8 +77,9 @@ void Wireguard::update() {
   time_t lhs = this->get_latest_handshake();
   bool lhs_updated = (lhs > this->latest_saved_handshake_);
 
-  ESP_LOGV(TAG, "handshake: latest=%.0f, saved=%.0f, updated=%d", (double) lhs, (double) this->latest_saved_handshake_,
-           (int) lhs_updated);
+  ESP_LOGV(TAG, "enabled=%d, connected=%d, peer_up=%d, handshake: current=%.0f latest=%.0f updated=%d",
+           (int) this->enabled_, (int) (this->wg_connected_ == ESP_OK), (int) peer_up, (double) lhs,
+           (double) this->latest_saved_handshake_, (int) lhs_updated);
 
   if (lhs_updated) {
     this->latest_saved_handshake_ = lhs;
@@ -102,13 +101,13 @@ void Wireguard::update() {
     if (this->wg_peer_offline_time_ == 0) {
       ESP_LOGW(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
       this->wg_peer_offline_time_ = millis();
-    } else {
+    } else if (this->enabled_) {
       ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
       this->start_connection_();
     }
 
     // check reboot timeout every time the peer is down
-    if (this->reboot_timeout_ > 0) {
+    if (this->enabled_ && this->reboot_timeout_ > 0) {
       if (millis() - this->wg_peer_offline_time_ > this->reboot_timeout_) {
         ESP_LOGE(TAG, "WireGuard remote peer is unreachable, rebooting...");
         App.reboot();
@@ -154,7 +153,7 @@ void Wireguard::dump_config() {
 
 void Wireguard::on_shutdown() { this->stop_connection_(); }
 
-bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_up()); }
+bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_up() || !this->enabled_); }
 
 bool Wireguard::is_peer_up() const {
   return (this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) &&
@@ -187,6 +186,7 @@ void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = src
 
 #ifdef USE_BINARY_SENSOR
 void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
+void Wireguard::set_enabled_sensor(binary_sensor::BinarySensor *sensor) { this->enabled_sensor_ = sensor; }
 #endif
 
 #ifdef USE_SENSOR
@@ -199,7 +199,35 @@ void Wireguard::set_address_sensor(text_sensor::TextSensor *sensor) { this->addr
 
 void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
+void Wireguard::enable() {
+  this->enabled_ = true;
+  ESP_LOGI(TAG, "WireGuard enabled");
+  this->publish_enabled_state();
+}
+
+void Wireguard::disable() {
+  this->enabled_ = false;
+  this->defer(std::bind(&Wireguard::stop_connection_, this));  // defer to avoid blocking running loop
+  ESP_LOGI(TAG, "WireGuard disabled");
+  this->publish_enabled_state();
+}
+
+void Wireguard::publish_enabled_state() {
+#ifdef USE_BINARY_SENSOR
+  if (this->enabled_sensor_ != nullptr) {
+    this->enabled_sensor_->publish_state(this->enabled_);
+  }
+#endif
+}
+
+bool Wireguard::is_enabled() { return this->enabled_; }
+
 void Wireguard::start_connection_() {
+  if (!this->enabled_) {
+    ESP_LOGV(TAG, "WireGuard is disabled, cannot start connection");
+    return;
+  }
+
   if (this->wg_initialized_ != ESP_OK) {
     ESP_LOGE(TAG, "cannot start WireGuard, initialization in error with code %d", this->wg_initialized_);
     return;
@@ -221,20 +249,13 @@ void Wireguard::start_connection_() {
   }
 
   ESP_LOGD(TAG, "starting WireGuard connection...");
-
-  /*
-   * The function esp_wireguard_connect() contains a DNS resolution
-   * that could trigger the watchdog, so before it we suspend (or
-   * increase the time, it depends on the platform) the wdt and
-   * then we resume the normal timeout.
-   */
-  suspend_wdt();
-  ESP_LOGV(TAG, "executing esp_wireguard_connect");
   this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
-  resume_wdt();
 
   if (this->wg_connected_ == ESP_OK) {
     ESP_LOGI(TAG, "WireGuard connection started");
+  } else if (this->wg_connected_ == ESP_ERR_RETRY) {
+    ESP_LOGD(TAG, "WireGuard is waiting for endpoint IP address to be available");
+    return;
   } else {
     ESP_LOGW(TAG, "cannot start WireGuard connection, error code %d", this->wg_connected_);
     return;
@@ -264,44 +285,8 @@ void Wireguard::stop_connection_() {
   }
 }
 
-void suspend_wdt() {
-#if defined(USE_ESP_IDF)
-#if ESP_IDF_VERSION_MAJOR >= 5
-  ESP_LOGV(TAG, "temporarily increasing wdt timeout to 15000 ms");
-  esp_task_wdt_config_t wdtc;
-  wdtc.timeout_ms = 15000;
-  wdtc.idle_core_mask = 0;
-  wdtc.trigger_panic = false;
-  esp_task_wdt_reconfigure(&wdtc);
-#else
-  ESP_LOGV(TAG, "temporarily increasing wdt timeout to 15 seconds");
-  esp_task_wdt_init(15, false);
-#endif
-#elif defined(USE_ARDUINO)
-  ESP_LOGV(TAG, "temporarily disabling the wdt");
-  disableLoopWDT();
-#endif
-}
-
-void resume_wdt() {
-#if defined(USE_ESP_IDF)
-#if ESP_IDF_VERSION_MAJOR >= 5
-  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-  esp_task_wdt_reconfigure(&wdtc);
-  ESP_LOGV(TAG, "wdt resumed with %" PRIu32 " ms timeout", wdtc.timeout_ms);
-#else
-  esp_task_wdt_init(CONFIG_ESP_TASK_WDT_TIMEOUT_S, false);
-  ESP_LOGV(TAG, "wdt resumed with %d seconds timeout", CONFIG_ESP_TASK_WDT_TIMEOUT_S);
-#endif
-#elif defined(USE_ARDUINO)
-  enableLoopWDT();
-  ESP_LOGV(TAG, "wdt resumed");
-#endif
-}
-
 std::string mask_key(const std::string &key) { return (key.substr(0, 5) + "[...]="); }
 
 }  // namespace wireguard
 }  // namespace esphome
-
-#endif  // USE_ESP32
+#endif

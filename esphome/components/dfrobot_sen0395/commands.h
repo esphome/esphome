@@ -62,9 +62,9 @@ class DetRangeCfgCommand : public Command {
   // TODO: Set min max values in component, so they can be published as sensor.
 };
 
-class OutputLatencyCommand : public Command {
+class SetLatencyCommand : public Command {
  public:
-  OutputLatencyCommand(float delay_after_detection, float delay_after_disappear);
+  SetLatencyCommand(float delay_after_detection, float delay_after_disappear);
   uint8_t on_message(std::string &message) override;
 
  protected:

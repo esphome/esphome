@@ -1,0 +1,12 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ap: ~
+
+image:
+  - id: its_a_bug
+    file: "mdi:bug"

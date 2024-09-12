@@ -2,6 +2,8 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/preferences.h"
 
 #include <vector>
 
@@ -124,6 +126,27 @@ class LoopTrigger : public Trigger<>, public Component {
   void loop() override { this->trigger(); }
   float get_setup_priority() const override { return setup_priority::DATA; }
 };
+
+#ifdef ESPHOME_PROJECT_NAME
+class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
+ public:
+  void setup() override {
+    uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
+    ESPPreferenceObject pref = global_preferences->make_preference<char[30]>(hash, true);
+    char previous_version[30];
+    char current_version[30] = ESPHOME_PROJECT_VERSION_30;
+    if (pref.load(&previous_version)) {
+      int cmp = strcmp(previous_version, current_version);
+      if (cmp < 0) {
+        this->trigger(previous_version);
+      }
+    }
+    pref.save(&current_version);
+    global_preferences->sync();
+  }
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
+};
+#endif
 
 template<typename... Ts> class DelayAction : public Action<Ts...>, public Component {
  public:
@@ -255,10 +278,11 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<uint32_t, Ts...>([this](uint32_t iteration, Ts... x) {
       iteration++;
-      if (iteration >= this->count_.value(x...))
+      if (iteration >= this->count_.value(x...)) {
         this->play_next_tuple_(this->var_);
-      else
+      } else {
         this->then_.play(iteration, x...);
+      }
     }));
   }
 

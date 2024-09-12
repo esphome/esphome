@@ -14,6 +14,8 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt.component";
 
+void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
+
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
@@ -34,26 +36,26 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
 
 std::string MQTTComponent::get_state_topic_() const {
   if (this->has_custom_state_topic_)
-    return this->custom_state_topic_;
+    return this->custom_state_topic_.str();
   return this->get_default_topic_for_("state");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
   if (this->has_custom_command_topic_)
-    return this->custom_command_topic_;
+    return this->custom_command_topic_.str();
   return this->get_default_topic_for_("command");
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish(topic, payload, 0, this->retain_);
+  return global_mqtt_client->publish(topic, payload, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish_json(topic, f, 0, this->retain_);
+  return global_mqtt_client->publish_json(topic, f, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::send_discovery_() {
@@ -61,7 +63,7 @@ bool MQTTComponent::send_discovery_() {
 
   if (discovery_info.clean) {
     ESP_LOGV(TAG, "'%s': Cleaning discovery...", this->friendly_name().c_str());
-    return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, 0, true);
+    return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
   }
 
   ESP_LOGV(TAG, "'%s': Sending discovery...", this->friendly_name().c_str());
@@ -148,15 +150,45 @@ bool MQTTComponent::send_discovery_() {
         const std::string &node_area = App.get_area();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
-        device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
+        const auto mac = get_mac_address();
+        device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
-        device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
+#ifdef ESPHOME_PROJECT_NAME
+        device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_PROJECT_VERSION " (ESPHome " ESPHOME_VERSION ")";
+        const char *model = std::strchr(ESPHOME_PROJECT_NAME, '.');
+        if (model == nullptr) {  // must never happen but check anyway
+          device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
+          device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
+        } else {
+          device_info[MQTT_DEVICE_MODEL] = model + 1;
+          device_info[MQTT_DEVICE_MANUFACTURER] = std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
+        }
+#else
+        device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_VERSION " (" + App.get_compilation_time() + ")";
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
-        device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
-        device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Espressif";
+#elif defined(USE_RP2040)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Beken";
+#elif defined(USE_RTL87XX)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Realtek";
+#elif defined(USE_HOST)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Host";
+#endif
+#endif
+        if (!node_area.empty()) {
+          device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
+        }
+
+        device_info[MQTT_DEVICE_CONNECTIONS][0][0] = "mac";
+        device_info[MQTT_DEVICE_CONNECTIONS][0][1] = mac;
       },
-      0, discovery_info.retain);
+      this->qos_, discovery_info.retain);
 }
+
+uint8_t MQTTComponent::get_qos() const { return this->qos_; }
 
 bool MQTTComponent::get_retain() const { return this->retain_; }
 
@@ -180,12 +212,12 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
-void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic) {
-  this->custom_state_topic_ = custom_state_topic;
+void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
+  this->custom_state_topic_ = StringRef(custom_state_topic);
   this->has_custom_state_topic_ = true;
 }
-void MQTTComponent::set_custom_command_topic(const std::string &custom_command_topic) {
-  this->custom_command_topic_ = custom_command_topic;
+void MQTTComponent::set_custom_command_topic(const char *custom_command_topic) {
+  this->custom_command_topic_ = StringRef(custom_command_topic);
   this->has_custom_command_topic_ = true;
 }
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }

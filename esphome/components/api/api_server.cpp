@@ -255,6 +255,33 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATE
+void APIServer::on_date_update(datetime::DateEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_date_state(obj);
+}
+#endif
+
+#ifdef USE_DATETIME_TIME
+void APIServer::on_time_update(datetime::TimeEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_time_state(obj);
+}
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+void APIServer::on_datetime_update(datetime::DateTimeEntity *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_datetime_state(obj);
+}
+#endif
+
 #ifdef USE_TEXT
 void APIServer::on_text_update(text::Text *obj, const std::string &state) {
   if (obj->is_internal())
@@ -282,12 +309,35 @@ void APIServer::on_lock_update(lock::Lock *obj) {
 }
 #endif
 
+#ifdef USE_VALVE
+void APIServer::on_valve_update(valve::Valve *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_valve_state(obj);
+}
+#endif
+
 #ifdef USE_MEDIA_PLAYER
 void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
     c->send_media_player_state(obj);
+}
+#endif
+
+#ifdef USE_EVENT
+void APIServer::on_event(event::Event *obj, const std::string &event_type) {
+  for (auto &c : this->clients_)
+    c->send_event(obj, event_type);
+}
+#endif
+
+#ifdef USE_UPDATE
+void APIServer::on_update(update::UpdateEntity *obj) {
+  for (auto &c : this->clients_)
+    c->send_update_state(obj);
 }
 #endif
 
@@ -309,8 +359,18 @@ void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<s
       .entity_id = std::move(entity_id),
       .attribute = std::move(attribute),
       .callback = std::move(f),
+      .once = false,
   });
 }
+void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                         std::function<void(std::string)> f) {
+  this->state_subs_.push_back(HomeAssistantStateSubscription{
+      .entity_id = std::move(entity_id),
+      .attribute = std::move(attribute),
+      .callback = std::move(f),
+      .once = true,
+  });
+};
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
 }
@@ -319,7 +379,7 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
   for (auto &client : this->clients_) {
-    if (!client->remove_ && client->connection_state_ == APIConnection::ConnectionState::CONNECTED)
+    if (!client->remove_ && client->is_authenticated())
       client->send_time_request();
   }
 }

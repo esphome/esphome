@@ -1,0 +1,7 @@
+substitutions:
+  clock_pin: GPIO15
+  data_pin: GPIO14
+  lat_pin: GPIO13
+
+packages:
+  common: !include common.yaml

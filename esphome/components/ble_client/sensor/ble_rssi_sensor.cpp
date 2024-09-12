@@ -22,26 +22,19 @@ void BLEClientRSSISensor::dump_config() {
 void BLEClientRSSISensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                               esp_ble_gattc_cb_param_t *param) {
   switch (event) {
-    case ESP_GATTC_OPEN_EVT: {
-      if (param->open.status == ESP_GATT_OK) {
-        ESP_LOGI(TAG, "[%s] Connected successfully!", this->get_name().c_str());
-        break;
-      }
-      break;
-    }
-    case ESP_GATTC_DISCONNECT_EVT: {
-      ESP_LOGW(TAG, "[%s] Disconnected!", this->get_name().c_str());
+    case ESP_GATTC_CLOSE_EVT: {
       this->status_set_warning();
       this->publish_state(NAN);
       break;
     }
-    case ESP_GATTC_SEARCH_CMPL_EVT:
+    case ESP_GATTC_SEARCH_CMPL_EVT: {
       this->node_state = espbt::ClientState::ESTABLISHED;
       if (this->should_update_) {
         this->should_update_ = false;
         this->get_rssi_();
       }
       break;
+    }
     default:
       break;
   }

@@ -49,13 +49,13 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   for (std::vector<uint16_t>::size_type i = 0; i < data1.size() - 1; ++i) {
     int diff = data2[i] - data1[i];
     diff *= diff;
-    if (diff > 9)
+    if (rhs.delta == -1 && diff > 9)
       return false;
 
     total_diff += diff;
   }
 
-  return total_diff <= data1.size() * 3;
+  return total_diff <= (rhs.delta == -1 ? data1.size() * 3 : rhs.delta);
 }
 
 // DO NOT EXPORT from this file
@@ -201,9 +201,6 @@ std::string ProntoProtocol::compensate_and_dump_sequence_(const RawTimings &data
     out += dump_duration_(t_duration, timebase);
   }
 
-  // append minimum gap
-  out += dump_duration_(PRONTO_DEFAULT_GAP, timebase, true);
-
   return out;
 }
 
@@ -222,21 +219,23 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   prontodata += compensate_and_dump_sequence_(data, timebase);
 
   out.data = prontodata;
+  out.delta = -1;
 
   return out;
 }
 
 void ProntoProtocol::dump(const ProntoData &data) {
-  std::string first, rest;
-  if (data.data.size() < 230) {
-    first = data.data;
-  } else {
-    first = data.data.substr(0, 229);
-    rest = data.data.substr(230);
-  }
-  ESP_LOGI(TAG, "Received Pronto: data=%s", first.c_str());
-  if (!rest.empty()) {
-    ESP_LOGI(TAG, "%s", rest.c_str());
+  std::string rest;
+
+  rest = data.data;
+  ESP_LOGI(TAG, "Received Pronto: data=");
+  while (true) {
+    ESP_LOGI(TAG, "%s", rest.substr(0, 230).c_str());
+    if (rest.size() > 230) {
+      rest = rest.substr(230);
+    } else {
+      break;
+    }
   }
 }
 

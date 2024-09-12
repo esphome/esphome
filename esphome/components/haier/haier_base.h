@@ -4,6 +4,7 @@
 #include <set>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/automation.h"
 // HaierProtocol
 #include <protocol/haier_protocol.h>
 
@@ -44,7 +45,7 @@ class HaierClimateBase : public esphome::Component,
   void set_supported_modes(const std::set<esphome::climate::ClimateMode> &modes);
   void set_supported_swing_modes(const std::set<esphome::climate::ClimateSwingMode> &modes);
   void set_supported_presets(const std::set<esphome::climate::ClimatePreset> &presets);
-  bool valid_connection() { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
+  bool valid_connection() const { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
   size_t read_array(uint8_t *data, size_t len) noexcept override {
     return esphome::uart::UARTDevice::read_array(data, len) ? len : 0;
@@ -56,6 +57,7 @@ class HaierClimateBase : public esphome::Component,
   void set_answer_timeout(uint32_t timeout);
   void set_send_wifi(bool send_wifi);
   void send_custom_command(const haier_protocol::HaierMessage &message);
+  void add_status_message_callback(std::function<void(const char *, size_t)> &&callback);
 
  protected:
   enum class ProtocolPhases {
@@ -64,7 +66,7 @@ class HaierClimateBase : public esphome::Component,
     SENDING_INIT_1 = 0,
     SENDING_INIT_2,
     SENDING_FIRST_STATUS_REQUEST,
-    SENDING_ALARM_STATUS_REQUEST,
+    SENDING_FIRST_ALARM_STATUS_REQUEST,
     // FUNCTIONAL STATE
     IDLE,
     SENDING_STATUS_REQUEST,
@@ -72,13 +74,15 @@ class HaierClimateBase : public esphome::Component,
     SENDING_SIGNAL_LEVEL,
     SENDING_CONTROL,
     SENDING_ACTION_COMMAND,
+    SENDING_ALARM_STATUS_REQUEST,
     NUM_PROTOCOL_PHASES
   };
   const char *phase_to_string_(ProtocolPhases phase);
   virtual void set_handlers() = 0;
   virtual void process_phase(std::chrono::steady_clock::time_point now) = 0;
-  virtual haier_protocol::HaierMessage get_control_message() = 0;
-  virtual haier_protocol::HaierMessage get_power_message(bool state) = 0;
+  virtual haier_protocol::HaierMessage get_control_message() = 0;          // NOLINT(readability-identifier-naming)
+  virtual haier_protocol::HaierMessage get_power_message(bool state) = 0;  // NOLINT(readability-identifier-naming)
+  virtual void initialization(){};
   virtual bool prepare_pending_action();
   virtual void process_protocol_reset();
   esphome::climate::ClimateTraits traits() override;
@@ -138,11 +142,19 @@ class HaierClimateBase : public esphome::Component,
   esphome::climate::ClimateTraits traits_;
   HvacSettings current_hvac_settings_;
   HvacSettings next_hvac_settings_;
-  std::unique_ptr<uint8_t[]> last_status_message_;
+  std::unique_ptr<uint8_t[]> last_status_message_{nullptr};
   std::chrono::steady_clock::time_point last_request_timestamp_;       // For interval between messages
   std::chrono::steady_clock::time_point last_valid_status_timestamp_;  // For protocol timeout
   std::chrono::steady_clock::time_point last_status_request_;          // To request AC status
   std::chrono::steady_clock::time_point last_signal_request_;          // To send WiFI signal level
+  CallbackManager<void(const char *, size_t)> status_message_callback_{};
+};
+
+class StatusMessageTrigger : public Trigger<const char *, size_t> {
+ public:
+  explicit StatusMessageTrigger(HaierClimateBase *parent) {
+    parent->add_status_message_callback([this](const char *data, size_t data_size) { this->trigger(data, data_size); });
+  }
 };
 
 }  // namespace haier

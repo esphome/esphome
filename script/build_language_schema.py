@@ -1,9 +1,10 @@
+import argparse
+import glob
 import inspect
 import json
-import argparse
 import os
-import glob
 import re
+
 import voluptuous as vol
 
 # NOTE: Cannot import other esphome components globally as a modification in vol_schema
@@ -61,6 +62,7 @@ solve_registry = []
 
 
 def get_component_names():
+    # pylint: disable-next=redefined-outer-name,reimported
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor", "esp32", "esp8266"]
@@ -82,21 +84,23 @@ def load_components():
         components[domain] = get_component(domain)
 
 
+# pylint: disable=wrong-import-position
 from esphome.const import CONF_TYPE, KEY_CORE
 from esphome.core import CORE
+
+# pylint: enable=wrong-import-position
 
 CORE.data[KEY_CORE] = {}
 load_components()
 
 # Import esphome after loading components (so schema is tracked)
 # pylint: disable=wrong-import-position
-import esphome.core as esphome_core
-import esphome.config_validation as cv
-from esphome import automation
-from esphome import pins
+from esphome import automation, pins
 from esphome.components import remote_base
-from esphome.loader import get_platform, CORE_COMPONENTS_PATH
+import esphome.config_validation as cv
+import esphome.core as esphome_core
 from esphome.helpers import write_file_if_changed
+from esphome.loader import CORE_COMPONENTS_PATH, get_platform
 from esphome.util import Registry
 
 # pylint: enable=wrong-import-position
@@ -114,7 +118,7 @@ def write_file(name, obj):
 
 def delete_extra_files(keep_names):
     for d in os.listdir(args.output_path):
-        if d.endswith(".json") and not d[:-5] in keep_names:
+        if d.endswith(".json") and d[:-5] not in keep_names:
             os.remove(os.path.join(args.output_path, d))
             print(f"Deleted {d}")
 
@@ -552,11 +556,11 @@ def shrink():
             s = f"{domain}.{schema_name}"
             if (
                 not s.endswith("." + S_CONFIG_SCHEMA)
-                and s not in referenced_schemas.keys()
+                and s not in referenced_schemas
                 and not is_platform_schema(s)
             ):
                 print(f"Removing {s}")
-                output[domain][S_SCHEMAS].pop(schema_name)
+                domain_schemas[S_SCHEMAS].pop(schema_name)
 
 
 def build_schema():
@@ -564,7 +568,7 @@ def build_schema():
 
     # check esphome was not loaded globally (IDE auto imports)
     if len(ejs.extended_schemas) == 0:
-        raise Exception(
+        raise LookupError(
             "no data collected. Did you globally import an ESPHome component?"
         )
 
@@ -703,7 +707,7 @@ def convert(schema, config_var, path):
             if schema_instance is schema:
                 assert S_CONFIG_VARS not in config_var
                 assert S_EXTENDS not in config_var
-                if not S_TYPE in config_var:
+                if S_TYPE not in config_var:
                     config_var[S_TYPE] = S_SCHEMA
                 # assert config_var[S_TYPE] == S_SCHEMA
 
@@ -765,9 +769,9 @@ def convert(schema, config_var, path):
     elif schema == automation.validate_potentially_and_condition:
         config_var[S_TYPE] = "registry"
         config_var["registry"] = "condition"
-    elif schema == cv.int_ or schema == cv.int_range:
+    elif schema in (cv.int_, cv.int_range):
         config_var[S_TYPE] = "integer"
-    elif schema == cv.string or schema == cv.string_strict or schema == cv.valid_name:
+    elif schema in (cv.string, cv.string_strict, cv.valid_name):
         config_var[S_TYPE] = "string"
 
     elif isinstance(schema, vol.Schema):
@@ -779,6 +783,7 @@ def convert(schema, config_var, path):
         config_var |= pin_validators[repr_schema]
         config_var[S_TYPE] = "pin"
 
+    # pylint: disable-next=too-many-nested-blocks
     elif repr_schema in ejs.hidden_schemas:
         schema_type = ejs.hidden_schemas[repr_schema]
 
@@ -844,9 +849,11 @@ def convert(schema, config_var, path):
 
             config_var["id_type"] = {
                 "class": str(data.base),
-                "parents": [str(x.base) for x in parents]
-                if isinstance(parents, list)
-                else None,
+                "parents": (
+                    [str(x.base) for x in parents]
+                    if isinstance(parents, list)
+                    else None
+                ),
             }
         elif schema_type == "use_id":
             if inspect.ismodule(data):
@@ -869,7 +876,7 @@ def convert(schema, config_var, path):
                     config_var["use_id_type"] = str(data.base)
                     config_var[S_TYPE] = "use_id"
         else:
-            raise Exception("Unknown extracted schema type")
+            raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
         if path.startswith("i2c/CONFIG_SCHEMA/") and path.endswith("/id"):
             config_var["id_type"] = {
@@ -884,7 +891,7 @@ def convert(schema, config_var, path):
         elif path == "pins/esp32/val 1/id":
             config_var["id_type"] = "pin"
         else:
-            raise Exception("Cannot determine id_type for " + path)
+            raise TypeError("Cannot determine id_type for " + path)
 
     elif repr_schema in ejs.registry_schemas:
         solve_registry.append((ejs.registry_schemas[repr_schema], config_var))
@@ -948,11 +955,7 @@ def convert_keys(converted, schema, path):
             result["key"] = "GeneratedID"
         elif isinstance(k, cv.Required):
             result["key"] = "Required"
-        elif (
-            isinstance(k, cv.Optional)
-            or isinstance(k, cv.Inclusive)
-            or isinstance(k, cv.Exclusive)
-        ):
+        elif isinstance(k, (cv.Optional, cv.Inclusive, cv.Exclusive)):
             result["key"] = "Optional"
         else:
             converted["key"] = "String"

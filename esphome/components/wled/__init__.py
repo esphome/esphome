@@ -10,6 +10,9 @@ WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
 AUTO_LOAD = ["socket"]
 CONFIG_SCHEMA = cv.Schema({})
 
+CONF_SYNC_GROUP_MASK = "sync_group_mask"
+CONF_BLANK_ON_START = "blank_on_start"
+
 
 @register_addressable_effect(
     "wled",
@@ -17,10 +20,13 @@ CONFIG_SCHEMA = cv.Schema({})
     "WLED",
     {
         cv.Optional(CONF_PORT, default=21324): cv.port,
+        cv.Optional(CONF_SYNC_GROUP_MASK, default=0): cv.int_range(min=0, max=255),
+        cv.Optional(CONF_BLANK_ON_START, default=True): cv.boolean,
     },
 )
 async def wled_light_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_port(config[CONF_PORT]))
-
+    cg.add(effect.set_sync_group_mask(config[CONF_SYNC_GROUP_MASK]))
+    cg.add(effect.set_blank_on_start(config[CONF_BLANK_ON_START]))
     return effect

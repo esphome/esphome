@@ -1,3 +1,19 @@
 ---
-ignore: |
-  venv/
+extends: default
+
+ignore-from-file: .gitignore
+
+rules:
+  document-start: disable
+  empty-lines:
+    level: error
+    max: 1
+    max-start: 0
+    max-end: 1
+  indentation:
+    level: error
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+  line-length: disable
+  truthy: disable

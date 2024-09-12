@@ -1,5 +1,6 @@
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_LIBRETINY
 
 #include <utility>
@@ -81,10 +82,19 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
-  return {WiFi.localIP()};
+  network::IPAddresses addresses;
+  addresses[0] = WiFi.localIP();
+#if USE_NETWORK_IPV6
+  int i = 1;
+  auto v6_addresses = WiFi.allLocalIPv6();
+  for (auto address : v6_addresses) {
+    addresses[i++] = network::IPAddress(address.toString().c_str());
+  }
+#endif /* USE_NETWORK_IPV6 */
+  return addresses;
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
@@ -320,6 +330,11 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       s_sta_connecting = false;
       break;
     }
+    case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
+      // auto it = info.got_ip.ip_info;
+      ESP_LOGV(TAG, "Event: Got IPv6");
+      break;
+    }
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
       break;
@@ -468,3 +483,4 @@ void WiFiComponent::wifi_loop_() {}
 }  // namespace esphome
 
 #endif  // USE_LIBRETINY
+#endif

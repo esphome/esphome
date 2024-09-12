@@ -1,35 +1,37 @@
+from __future__ import annotations
+
 import fnmatch
 import functools
 import inspect
+from io import TextIOWrapper
 import logging
 import math
 import os
-
+from typing import Any
 import uuid
+
 import yaml
+from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
 
+try:
+    from yaml import CSafeLoader as FastestAvailableSafeLoader
+except ImportError:
+    FastestAvailableSafeLoader = PurePythonLoader
+
 from esphome import core
-from esphome.config_helpers import read_config_file, Extend, Remove
+from esphome.config_helpers import Extend, Remove
 from esphome.core import (
+    CORE,
+    DocumentRange,
     EsphomeError,
     IPAddress,
     Lambda,
     MACAddress,
     TimePeriod,
-    DocumentRange,
-    CORE,
 )
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
-
-try:
-    from yaml import CSafeLoader as FastestAvailableSafeLoader
-except ImportError:
-    from yaml import (  # type: ignore[assignment]
-        SafeLoader as FastestAvailableSafeLoader,
-    )
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,7 +99,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(FastestAvailableSafeLoader):
+class ESPHomeLoaderMixin:
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
@@ -282,8 +284,8 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
             return file, vars
 
         def substitute_vars(config, vars):
-            from esphome.const import CONF_SUBSTITUTIONS
             from esphome.components import substitutions
+            from esphome.const import CONF_DEFAULTS, CONF_SUBSTITUTIONS
 
             org_subs = None
             result = config
@@ -294,7 +296,15 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
             elif CONF_SUBSTITUTIONS in result:
                 org_subs = result.pop(CONF_SUBSTITUTIONS)
 
+            defaults = {}
+            if CONF_DEFAULTS in result:
+                defaults = result.pop(CONF_DEFAULTS)
+
             result[CONF_SUBSTITUTIONS] = vars
+            for k, v in defaults.items():
+                if k not in result[CONF_SUBSTITUTIONS]:
+                    result[CONF_SUBSTITUTIONS][k] = v
+
             # Ignore missing vars that refer to the top level substitutions
             substitutions.do_substitution_pass(result, None, ignore_missing=True)
             result.pop(CONF_SUBSTITUTIONS)
@@ -311,8 +321,9 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
             file, vars = node.value, None
 
         result = _load_yaml_internal(self._rel_path(file))
-        if vars:
-            result = substitute_vars(result, vars)
+        if not vars:
+            vars = {}
+        result = substitute_vars(result, vars)
         return result
 
     @_add_data_ref
@@ -367,50 +378,76 @@ class ESPHomeLoader(FastestAvailableSafeLoader):
         return Remove(str(node.value))
 
 
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:int", ESPHomeLoader.construct_yaml_int)
-ESPHomeLoader.add_constructor(
-    "tag:yaml.org,2002:float", ESPHomeLoader.construct_yaml_float
-)
-ESPHomeLoader.add_constructor(
-    "tag:yaml.org,2002:binary", ESPHomeLoader.construct_yaml_binary
-)
-ESPHomeLoader.add_constructor(
-    "tag:yaml.org,2002:omap", ESPHomeLoader.construct_yaml_omap
-)
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:str", ESPHomeLoader.construct_yaml_str)
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:seq", ESPHomeLoader.construct_yaml_seq)
-ESPHomeLoader.add_constructor("tag:yaml.org,2002:map", ESPHomeLoader.construct_yaml_map)
-ESPHomeLoader.add_constructor("!env_var", ESPHomeLoader.construct_env_var)
-ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
-ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
-ESPHomeLoader.add_constructor(
-    "!include_dir_list", ESPHomeLoader.construct_include_dir_list
-)
-ESPHomeLoader.add_constructor(
-    "!include_dir_merge_list", ESPHomeLoader.construct_include_dir_merge_list
-)
-ESPHomeLoader.add_constructor(
-    "!include_dir_named", ESPHomeLoader.construct_include_dir_named
-)
-ESPHomeLoader.add_constructor(
-    "!include_dir_merge_named", ESPHomeLoader.construct_include_dir_merge_named
-)
-ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
-ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
-ESPHomeLoader.add_constructor("!extend", ESPHomeLoader.construct_extend)
-ESPHomeLoader.add_constructor("!remove", ESPHomeLoader.construct_remove)
+class ESPHomeLoader(ESPHomeLoaderMixin, FastestAvailableSafeLoader):
+    """Loader class that keeps track of line numbers."""
 
 
-def load_yaml(fname, clear_secrets=True):
+class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
+    """Loader class that keeps track of line numbers."""
+
+
+for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
+    _loader.add_constructor("tag:yaml.org,2002:int", _loader.construct_yaml_int)
+    _loader.add_constructor("tag:yaml.org,2002:float", _loader.construct_yaml_float)
+    _loader.add_constructor("tag:yaml.org,2002:binary", _loader.construct_yaml_binary)
+    _loader.add_constructor("tag:yaml.org,2002:omap", _loader.construct_yaml_omap)
+    _loader.add_constructor("tag:yaml.org,2002:str", _loader.construct_yaml_str)
+    _loader.add_constructor("tag:yaml.org,2002:seq", _loader.construct_yaml_seq)
+    _loader.add_constructor("tag:yaml.org,2002:map", _loader.construct_yaml_map)
+    _loader.add_constructor("!env_var", _loader.construct_env_var)
+    _loader.add_constructor("!secret", _loader.construct_secret)
+    _loader.add_constructor("!include", _loader.construct_include)
+    _loader.add_constructor("!include_dir_list", _loader.construct_include_dir_list)
+    _loader.add_constructor(
+        "!include_dir_merge_list", _loader.construct_include_dir_merge_list
+    )
+    _loader.add_constructor("!include_dir_named", _loader.construct_include_dir_named)
+    _loader.add_constructor(
+        "!include_dir_merge_named", _loader.construct_include_dir_merge_named
+    )
+    _loader.add_constructor("!lambda", _loader.construct_lambda)
+    _loader.add_constructor("!force", _loader.construct_force)
+    _loader.add_constructor("!extend", _loader.construct_extend)
+    _loader.add_constructor("!remove", _loader.construct_remove)
+
+
+def load_yaml(fname: str, clear_secrets: bool = True) -> Any:
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
     return _load_yaml_internal(fname)
 
 
-def _load_yaml_internal(fname):
-    content = read_config_file(fname)
-    loader = ESPHomeLoader(content)
+def parse_yaml(file_name: str, file_handle: TextIOWrapper) -> Any:
+    """Parse a YAML file."""
+    try:
+        return _load_yaml_internal_with_type(ESPHomeLoader, file_name, file_handle)
+    except EsphomeError:
+        # Loading failed, so we now load with the Python loader which has more
+        # readable exceptions
+        # Rewind the stream so we can try again
+        file_handle.seek(0, 0)
+        return _load_yaml_internal_with_type(
+            ESPHomePurePythonLoader, file_name, file_handle
+        )
+
+
+def _load_yaml_internal(fname: str) -> Any:
+    """Load a YAML file."""
+    try:
+        with open(fname, encoding="utf-8") as f_handle:
+            return parse_yaml(fname, f_handle)
+    except (UnicodeDecodeError, OSError) as err:
+        raise EsphomeError(f"Error reading file {fname}: {err}") from err
+
+
+def _load_yaml_internal_with_type(
+    loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
+    fname: str,
+    content: TextIOWrapper,
+) -> Any:
+    """Load a YAML file."""
+    loader = loader_type(content)
     loader.name = fname
     try:
         return loader.get_single_data() or OrderedDict()

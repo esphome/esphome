@@ -104,6 +104,60 @@ class SPIDelegateHw : public SPIDelegate {
     }
   }
 
+  /**
+   * Write command, address and data
+   * @param cmd_bits Number of bits to write in the command phase
+   * @param cmd The command value to write
+   * @param addr_bits Number of bits to write in addr phase
+   * @param address Address data
+   * @param data Remaining data bytes
+   * @param length Number of data bytes
+   * @param bus_width The number of data lines to use
+   */
+  void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
+                           size_t length, uint8_t bus_width) override {
+    spi_transaction_ext_t desc = {};
+    if (length == 0 && cmd_bits == 0 && addr_bits == 0) {
+      esph_log_w(TAG, "Nothing to transfer");
+      return;
+    }
+    desc.base.flags = SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_DUMMY;
+    if (bus_width == 4) {
+      desc.base.flags |= SPI_TRANS_MODE_QIO;
+    } else if (bus_width == 8) {
+      desc.base.flags |= SPI_TRANS_MODE_OCT;
+    }
+    desc.command_bits = cmd_bits;
+    desc.address_bits = addr_bits;
+    desc.dummy_bits = 0;
+    desc.base.rxlength = 0;
+    desc.base.cmd = cmd;
+    desc.base.addr = address;
+    do {
+      size_t chunk_size = std::min(length, MAX_TRANSFER_SIZE);
+      if (data != nullptr && chunk_size != 0) {
+        desc.base.length = chunk_size * 8;
+        desc.base.tx_buffer = data;
+        length -= chunk_size;
+        data += chunk_size;
+      } else {
+        length = 0;
+        desc.base.length = 0;
+      }
+      esp_err_t err = spi_device_polling_start(this->handle_, (spi_transaction_t *) &desc, portMAX_DELAY);
+      if (err == ESP_OK) {
+        err = spi_device_polling_end(this->handle_, portMAX_DELAY);
+      }
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Transmit failed - err %X", err);
+        return;
+      }
+      // if more data is to be sent, skip the command and address phases.
+      desc.command_bits = 0;
+      desc.address_bits = 0;
+    } while (length != 0);
+  }
+
   void transfer(uint8_t *ptr, size_t length) override { this->transfer(ptr, ptr, length); }
 
   uint8_t transfer(uint8_t data) override {
@@ -142,13 +196,27 @@ class SPIDelegateHw : public SPIDelegate {
 
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel, std::vector<uint8_t> data_pins)
+      : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
-    buscfg.mosi_io_num = Utility::get_pin_no(sdo);
-    buscfg.miso_io_num = Utility::get_pin_no(sdi);
     buscfg.sclk_io_num = Utility::get_pin_no(clk);
-    buscfg.quadwp_io_num = -1;
-    buscfg.quadhd_io_num = -1;
+    buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK;
+    if (data_pins.empty()) {
+      buscfg.mosi_io_num = Utility::get_pin_no(sdo);
+      buscfg.miso_io_num = Utility::get_pin_no(sdi);
+      buscfg.quadwp_io_num = -1;
+      buscfg.quadhd_io_num = -1;
+    } else {
+      buscfg.data0_io_num = data_pins[0];
+      buscfg.data1_io_num = data_pins[1];
+      buscfg.data2_io_num = data_pins[2];
+      buscfg.data3_io_num = data_pins[3];
+      buscfg.data4_io_num = -1;
+      buscfg.data5_io_num = -1;
+      buscfg.data6_io_num = -1;
+      buscfg.data7_io_num = -1;
+      buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
+    }
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK)
@@ -166,8 +234,9 @@ class SPIBusHw : public SPIBus {
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
-  return new SPIBusHw(clk, sdo, sdi, interface);
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
+  return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
 }
 
 #endif

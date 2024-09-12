@@ -1,24 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Set up ESPHome dev environment
 
 set -e
 
 cd "$(dirname "$0")/.."
-
+location="venv/bin/activate"
 if [ ! -n "$DEVCONTAINER" ] && [ ! -n "$VIRTUAL_ENV" ] && [ ! "$ESPHOME_NO_VENV" ]; then
   python3 -m venv venv
-  source venv/bin/activate
+  if [ -f venv/Scripts/activate ]; then
+    location="venv/Scripts/activate"
+  fi
+  source $location
 fi
 
-# Avoid unsafe git error when running inside devcontainer
-if [ -n "$DEVCONTAINER" ];then
-  git config --global --add safe.directory "$PWD"
-fi
-
-pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt -r requirements_dev.txt
 pip3 install setuptools wheel
-pip3 install --no-use-pep517 -e .
+pip3 install -e ".[dev,test,displays]" --config-settings editable_mode=compat
 
 pre-commit install
 
 script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
+
+echo
+echo
+echo "Virtual environment created. Run 'source $location' to use it."

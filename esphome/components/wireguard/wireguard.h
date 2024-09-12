@@ -1,7 +1,6 @@
 #pragma once
-
-#ifdef USE_ESP32
-
+#include "esphome/core/defines.h"
+#ifdef USE_WIREGUARD
 #include <ctime>
 #include <vector>
 #include <tuple>
@@ -26,6 +25,7 @@
 namespace esphome {
 namespace wireguard {
 
+/// Main Wireguard component class.
 class Wireguard : public PollingComponent {
  public:
   void setup() override;
@@ -53,6 +53,7 @@ class Wireguard : public PollingComponent {
 
 #ifdef USE_BINARY_SENSOR
   void set_status_sensor(binary_sensor::BinarySensor *sensor);
+  void set_enabled_sensor(binary_sensor::BinarySensor *sensor);
 #endif
 
 #ifdef USE_SENSOR
@@ -65,6 +66,18 @@ class Wireguard : public PollingComponent {
 
   /// Block the setup step until peer is connected.
   void disable_auto_proceed();
+
+  /// Enable the WireGuard component.
+  void enable();
+
+  /// Stop any running connection and disable the WireGuard component.
+  void disable();
+
+  /// Publish the enabled state if the enabled binary sensor is configured.
+  void publish_enabled_state();
+
+  /// Return if the WireGuard component is or is not enabled.
+  bool is_enabled();
 
   bool is_peer_up() const;
   time_t get_latest_handshake() const;
@@ -87,6 +100,7 @@ class Wireguard : public PollingComponent {
 
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *status_sensor_ = nullptr;
+  binary_sensor::BinarySensor *enabled_sensor_ = nullptr;
 #endif
 
 #ifdef USE_SENSOR
@@ -99,6 +113,9 @@ class Wireguard : public PollingComponent {
 
   /// Set to false to block the setup step until peer is connected.
   bool proceed_allowed_ = true;
+
+  /// When false the wireguard link will not be established
+  bool enabled_ = true;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
   wireguard_ctx_t wg_ctx_ = ESP_WIREGUARD_CONTEXT_DEFAULT();
@@ -128,7 +145,30 @@ void resume_wdt();
 /// Strip most part of the key only for secure printing
 std::string mask_key(const std::string &key);
 
+/// Condition to check if remote peer is online.
+template<typename... Ts> class WireguardPeerOnlineCondition : public Condition<Ts...>, public Parented<Wireguard> {
+ public:
+  bool check(Ts... x) override { return this->parent_->is_peer_up(); }
+};
+
+/// Condition to check if Wireguard component is enabled.
+template<typename... Ts> class WireguardEnabledCondition : public Condition<Ts...>, public Parented<Wireguard> {
+ public:
+  bool check(Ts... x) override { return this->parent_->is_enabled(); }
+};
+
+/// Action to enable Wireguard component.
+template<typename... Ts> class WireguardEnableAction : public Action<Ts...>, public Parented<Wireguard> {
+ public:
+  void play(Ts... x) override { this->parent_->enable(); }
+};
+
+/// Action to disable Wireguard component.
+template<typename... Ts> class WireguardDisableAction : public Action<Ts...>, public Parented<Wireguard> {
+ public:
+  void play(Ts... x) override { this->parent_->disable(); }
+};
+
 }  // namespace wireguard
 }  // namespace esphome
-
-#endif  // USE_ESP32
+#endif

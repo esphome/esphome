@@ -1,20 +1,20 @@
-import operator
 from functools import reduce
-import esphome.config_validation as cv
-from esphome.core import CORE, ID
+import operator
 
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_INPUT,
+    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
-    CONF_IGNORE_STRAPPING_WARNING,
-    CONF_ALLOW_OTHER_USES,
-    CONF_INVERTED,
 )
+from esphome.core import CORE
 
 
 class PinRegistry(dict):
@@ -25,15 +25,16 @@ class PinRegistry(dict):
     def reset(self):
         self.pins_used = {}
 
-    def get_count(self, key, number):
+    def get_count(self, key, id, number):
         """
         Get the number of places a given pin is used.
-        :param key: The ID of the defining component
+        :param key: The key of the registered pin schema.
+        :param id: The ID of the defining component
         :param number: The pin number
         :return: The number of places the pin is used.
         """
-        pin_key = (key, number)
-        return self.pins_used[pin_key] if pin_key in self.pins_used else 0
+        pin_key = (key, id, number)
+        return len(self.pins_used[pin_key]) if pin_key in self.pins_used else 0
 
     def register(self, name, schema, final_validate=None):
         """
@@ -65,9 +66,10 @@ class PinRegistry(dict):
         result = self[key][1](conf)
         if CONF_NUMBER in result:
             # key maps to the pin schema
-            if isinstance(key, ID):
-                key = key.id
-            pin_key = (key, result[CONF_NUMBER])
+            if key != CORE.target_platform:
+                pin_key = (key, conf[key], result[CONF_NUMBER])
+            else:
+                pin_key = (key, key, result[CONF_NUMBER])
             if pin_key not in self.pins_used:
                 self.pins_used[pin_key] = []
             # client_id identifies the instance of the providing component
@@ -101,7 +103,7 @@ class PinRegistry(dict):
         Run the final validation for all pins, and check for reuse
         :param fconf: The full config
         """
-        for (key, _), pin_list in self.pins_used.items():
+        for (key, _, _), pin_list in self.pins_used.items():
             count = len(pin_list)  # number of places same pin used.
             final_val_fun = self[key][2]  # final validation function
             for pin_path, client_id, pin_config in pin_list:
@@ -309,14 +311,24 @@ def gpio_base_schema(
         map(lambda m: (cv.Optional(m, default=mode_default), cv.boolean), modes)
     )
 
+    def _number_validator(value):
+        if isinstance(value, str) and value.upper().startswith("GPIOX"):
+            raise cv.Invalid(
+                f"Found placeholder '{value}' when expecting a GPIO pin number.\n"
+                "You must replace this with an actual pin number."
+            )
+        return number_validator(value)
+
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(pin_type),
-            cv.Required(CONF_NUMBER): number_validator,
+            cv.Required(CONF_NUMBER): _number_validator,
             cv.Optional(CONF_ALLOW_OTHER_USES): cv.boolean,
             cv.Optional(CONF_MODE, default={}): cv.All(mode_dict, mode_validator),
         }
     )
+
     if invertable:
         return schema.extend({cv.Optional(CONF_INVERTED, default=False): cv.boolean})
+
     return schema

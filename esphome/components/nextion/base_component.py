@@ -1,12 +1,11 @@
 from string import ascii_letters, digits
-import esphome.config_validation as cv
+
 import esphome.codegen as cg
 from esphome.components import color
-from esphome.const import (
-    CONF_VISIBLE,
-)
-from . import CONF_NEXTION_ID
-from . import Nextion
+import esphome.config_validation as cv
+from esphome.const import CONF_BACKGROUND_COLOR, CONF_FOREGROUND_COLOR, CONF_VISIBLE
+
+from . import CONF_NEXTION_ID, Nextion
 
 CONF_VARIABLE_NAME = "variable_name"
 CONF_COMPONENT_NAME = "component_name"
@@ -24,23 +23,21 @@ CONF_WAKE_UP_PAGE = "wake_up_page"
 CONF_START_UP_PAGE = "start_up_page"
 CONF_AUTO_WAKE_ON_TOUCH = "auto_wake_on_touch"
 CONF_WAVE_MAX_LENGTH = "wave_max_length"
-CONF_BACKGROUND_COLOR = "background_color"
 CONF_BACKGROUND_PRESSED_COLOR = "background_pressed_color"
-CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_FOREGROUND_PRESSED_COLOR = "foreground_pressed_color"
 CONF_FONT_ID = "font_id"
 CONF_EXIT_REPARSE_ON_START = "exit_reparse_on_start"
 
 
 def NextionName(value):
-    valid_chars = f"{ascii_letters + digits}."
+    valid_chars = f"{ascii_letters + digits + '_'}."
     if not isinstance(value, str) or len(value) > 29:
         raise cv.Invalid("Must be a string less than 29 characters")
 
     for char in value:
         if char not in valid_chars:
             raise cv.Invalid(
-                f"Must only consist of upper/lowercase characters, numbers and the period '.'. The character '{char}' cannot be used."
+                f"Must only consist of upper/lowercase characters, numbers, the underscore '_', and the period '.'. The character '{char}' cannot be used."
             )
 
     return value

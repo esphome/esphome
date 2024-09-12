@@ -26,12 +26,11 @@ DECLARE_REMOTE_PROTOCOL(Haier)
 
 template<typename... Ts> class HaierAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, data)
+  TEMPLATABLE_VALUE(std::vector<uint8_t>, code)
 
-  void set_code(const std::vector<uint8_t> &code) { data_ = code; }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     HaierData data{};
-    data.data = this->data_.value(x...);
+    data.data = this->code_.value(x...);
     HaierProtocol().encode(dst, data);
   }
 };

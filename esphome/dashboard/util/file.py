@@ -1,7 +1,7 @@
 import logging
 import os
-import tempfile
 from pathlib import Path
+import tempfile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ def write_file(
     """
 
     tmp_filename = ""
+    missing_fchmod = False
     try:
         # Modern versions of Python tempfile create this file with mode 0o600
         with tempfile.NamedTemporaryFile(
@@ -38,8 +39,15 @@ def write_file(
             fdesc.write(utf8_data)
             tmp_filename = fdesc.name
             if not private:
-                os.fchmod(fdesc.fileno(), 0o644)
+                try:
+                    os.fchmod(fdesc.fileno(), 0o644)
+                except AttributeError:
+                    # os.fchmod is not available on Windows
+                    missing_fchmod = True
+
         os.replace(tmp_filename, filename)
+        if missing_fchmod:
+            os.chmod(filename, 0o644)
     finally:
         if os.path.exists(tmp_filename):
             try:

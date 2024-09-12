@@ -1,0 +1,10 @@
+uart:
+  - id: uart_wl_134
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+text_sensor:
+  - platform: wl_134
+    name: Transponder Code
+    reset: true

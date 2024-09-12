@@ -1,0 +1,4 @@
+# Useful stuff when working in a development environment
+clang-format==13.0.1  # also change in .pre-commit-config.yaml and Dockerfile when updating
+clang-tidy==14.0.6  # When updating clang-tidy, also update Dockerfile
+yamllint==1.35.1  # also change in .pre-commit-config.yaml when updating

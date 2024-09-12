@@ -1,0 +1,14 @@
+binary_sensor:
+  - platform: gpio
+    pin: 2
+    id: gpio_binary_sensor
+
+output:
+  - platform: gpio
+    pin: 3
+    id: gpio_output
+
+switch:
+  - platform: gpio
+    pin: 4
+    id: gpio_switch

@@ -16,7 +16,6 @@ static const uint16_t BIT_ZERO_LOW_US = BITWISE;
 static const uint16_t TRAILER = BITWISE;
 
 void AEHAProtocol::encode(RemoteTransmitData *dst, const AEHAData &data) {
-  dst->set_carrier_frequency(38000);
   dst->reserve(2 + 32 + (data.data.size() * 2) + 1);
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);

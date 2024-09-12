@@ -1,0 +1,13 @@
+dependencies:
+  esp-tflite-micro:
+    git: https://github.com/espressif/esp-tflite-micro.git
+    version: v1.3.1
+  esp32_camera:
+    git: https://github.com/espressif/esp32-camera.git
+    version: v2.0.9
+  mdns:
+    git: https://github.com/espressif/esp-protocols.git
+    version: mdns-v1.3.2
+    path: components/mdns
+    rules:
+      - if: "idf_version >=5.0"

@@ -1,0 +1,61 @@
+binary_sensor:
+  - platform: template
+    id: bin1
+    lambda: |-
+      if (millis() > 10000) {
+        return true;
+      } else {
+        return false;
+      }
+  - platform: template
+    id: bin2
+    lambda: |-
+      if (millis() > 20000) {
+        return true;
+      } else {
+        return false;
+      }
+  - platform: template
+    id: bin3
+    lambda: |-
+      if (millis() > 30000) {
+        return true;
+      } else {
+        return false;
+      }
+
+sensor:
+  - platform: binary_sensor_map
+    name: Binary Sensor Map
+    type: group
+    channels:
+      - binary_sensor: bin1
+        value: 10.0
+      - binary_sensor: bin2
+        value: 15.0
+      - binary_sensor: bin3
+        value: 100.0
+  - platform: binary_sensor_map
+    name: Binary Sensor Map
+    type: sum
+    channels:
+      - binary_sensor: bin1
+        value: 10.0
+      - binary_sensor: bin2
+        value: 15.0
+      - binary_sensor: bin3
+        value: 100.0
+  - platform: binary_sensor_map
+    name: Binary Sensor Map
+    type: bayesian
+    prior: 0.4
+    observations:
+      - binary_sensor: bin1
+        prob_given_true: 0.9
+        prob_given_false: 0.4
+      - binary_sensor: bin2
+        prob_given_true: 0.7
+        prob_given_false: 0.05
+      - binary_sensor: bin3
+        prob_given_true: 0.8
+        prob_given_false: 0.2

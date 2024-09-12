@@ -101,7 +101,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481[] = {
   ILI9XXX_MADCTL  , 1, MADCTL_MV | MADCTL_BGR,       // Memory Access Control
   ILI9XXX_CSCON , 1, 0x01,
   ILI9XXX_PIXFMT, 1, 0x55,  // 16 bit mode
-  ILI9XXX_INVON, 0,
   ILI9XXX_DISPON, 0x80,     // Set display on
   0x00 // end
 };
@@ -121,7 +120,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     ILI9XXX_MADCTL  , 1, MADCTL_MX| MADCTL_BGR,       // Memory Access Control
     ILI9XXX_CSCON , 1, 0x01,
     ILI9XXX_PIXFMT, 1, 0x66,  // 18 bit mode
-    ILI9XXX_INVON, 0,
     ILI9XXX_DISPON, 0x80,     // Set display on
     0x00 // end
 };
@@ -141,7 +139,8 @@ static const uint8_t PROGMEM INITCMD_ILI9486[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9488[] = {
+
+static const uint8_t INITCMD_ILI9488[] = {
   ILI9XXX_GMCTRP1,15, 0x0f, 0x24, 0x1c, 0x0a, 0x0f, 0x08, 0x43, 0x88, 0x32, 0x0f, 0x10, 0x06, 0x0f, 0x07, 0x00,
   ILI9XXX_GMCTRN1,15, 0x0F, 0x38, 0x30, 0x09, 0x0f, 0x0f, 0x4e, 0x77, 0x3c, 0x07, 0x10, 0x05, 0x23, 0x1b, 0x00,
 
@@ -153,26 +152,25 @@ static const uint8_t PROGMEM INITCMD_ILI9488[] = {
   ILI9XXX_FRMCTR1, 1, 0xA0,  // Frame rate = 60Hz
   ILI9XXX_INVCTR,  1, 0x02,  // Display Inversion Control = 2dot
 
-  ILI9XXX_DFUNCTR, 2, 0x02, 0x02, // Nomal scan
-
   0xE9, 1, 0x00,   // Set Image Functio. Disable 24 bit data
 
   ILI9XXX_ADJCTL3, 4, 0xA9, 0x51, 0x2C, 0x82,  // Adjust Control 3
-
-  ILI9XXX_MADCTL,  1, 0x28,
-  //ILI9XXX_PIXFMT,  1, 0x55,  // Interface Pixel Format = 16bit
   ILI9XXX_PIXFMT, 1, 0x66,   //ILI9488 only supports 18-bit pixel format in 4/3 wire SPI mode
-
-
-
-  // 5 frames
-  //ILI9XXX_ETMOD,   1, 0xC6,  //
-
-
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  //ILI9XXX_INVON  , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
+};
+
+static const uint8_t INITCMD_WAVESHARE_RES_3_5[] = {
+    ILI9XXX_PWCTR3, 1, 0x33,
+    ILI9XXX_VMCTR1, 3, 0x00, 0x1e, 0x80,
+    ILI9XXX_FRMCTR1, 1, 0xA0,
+    ILI9XXX_GMCTRP1, 15, 0x0, 0x13, 0x18, 0x04, 0x0F, 0x06, 0x3a, 0x56, 0x4d, 0x03, 0x0a, 0x06, 0x30, 0x3e, 0x0f,
+    ILI9XXX_GMCTRN1, 15, 0x0, 0x13, 0x18, 0x01, 0x11, 0x06, 0x38, 0x34, 0x4d, 0x06, 0x0d, 0x0b, 0x31, 0x37, 0x0f,
+    ILI9XXX_PIXFMT, 1, 0x55,
+    ILI9XXX_SLPOUT, 0x80,   // slpout, delay
+    ILI9XXX_DISPON, 0,
+    0x00                                   // End of list
 };
 
 static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
@@ -204,7 +202,6 @@ static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
 
 
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  //ILI9XXX_INVON  , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
 };
@@ -314,6 +311,111 @@ static const uint8_t PROGMEM INITCMD_ST7789V[] = {
   0x1e,
   ILI9XXX_DISPON  , 0x80,                // Display on
   0x00                                   // End of list
+};
+
+static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
+  0xEF, 0,
+  0xEB, 1, 0x14, // ?
+  0xFE, 0,
+  0xEF, 0,
+  0xEB, 1, 0x14, // ?
+  0x84, 1, 0x40, // ?
+  0x85, 1, 0xFF, // ?
+  0x86, 1, 0xFF, // ?
+  0x87, 1, 0xFF, // ?
+  0x88, 1, 0x0A, // ?
+  0x89, 1, 0x21, // ?
+  0x8A, 1, 0x00, // ?
+  0x8B, 1, 0x80, // ?
+  0x8C, 1, 0x01, // ?
+  0x8D, 1, 0x01, // ?
+  0x8E, 1, 0xFF, // ?
+  0x8F, 1, 0xFF, // ?
+  0xB6, 2, 0x00, 0x00, // ?
+  0x90, 4, 0x08, 0x08, 0x08, 0x08, // ?
+  ILI9XXX_PIXFMT  , 1, 0x05,
+  ILI9XXX_MADCTL  , 1, MADCTL_MX| MADCTL_BGR,       // Memory Access Control
+  0xBD, 1, 0x06, // ?
+  0xBC, 1, 0x00, // ?
+  0xFF, 3, 0x60, 0x01, 0x04, // ?
+  0xC3, 1, 0x13,
+  0xC4, 1, 0x13,
+  0xF9, 1, 0x22,
+  0xBE, 1, 0x11, // ?
+  0xE1, 2, 0x10, 0x0E, // ?
+  0xDF, 3, 0x21, 0x0c, 0x02, // ?
+  0xF0, 6, 0x45, 0x09, 0x08, 0x08, 0x26, 0x2A,
+  0xF1, 6, 0x43, 0x70, 0x72, 0x36, 0x37, 0x6F,
+  0xF2, 6, 0x45, 0x09, 0x08, 0x08, 0x26, 0x2A,
+  0xF3, 6, 0x43, 0x70, 0x72, 0x36, 0x37, 0x6F,
+  0xED, 2, 0x1B, 0x0B, // ?
+  0xAE, 1, 0x77, // ?
+  0xCD, 1, 0x63, // ?
+  0xE8, 1, 0x34,
+  0x62, 12, 0x18, 0x0D, 0x71, 0xED, 0x70, 0x70, // ?
+            0x18, 0x0F, 0x71, 0xEF, 0x70, 0x70,
+  0x63, 12, 0x18, 0x11, 0x71, 0xF1, 0x70, 0x70, // ?
+            0x18, 0x13, 0x71, 0xF3, 0x70, 0x70,
+  0x64, 7, 0x28, 0x29, 0xF1, 0x01, 0xF1, 0x00, 0x07, // ?
+  0x66, 10, 0x3C, 0x00, 0xCD, 0x67, 0x45, 0x45, 0x10, 0x00, 0x00, 0x00, // ?
+  0x67, 10, 0x00, 0x3C, 0x00, 0x00, 0x00, 0x01, 0x54, 0x10, 0x32, 0x98, // ?
+  0x74, 7, 0x10, 0x85, 0x80, 0x00, 0x00, 0x4E, 0x00, // ?
+  0x98, 2, 0x3e, 0x07, // ?
+  0x35, 0,
+  ILI9XXX_SLPOUT  , 0x80,                // Exit Sleep
+  ILI9XXX_DISPON  , 0x80,                // Display on
+  0x00                  // End of list
+};
+
+static const uint8_t PROGMEM INITCMD_ST7735[] = {
+    ILI9XXX_SWRESET, 0,         // Soft reset, then delay 10ms
+    ILI9XXX_DELAY(10),
+    ILI9XXX_SLPOUT  , 0,                // Exit Sleep, delay
+    ILI9XXX_DELAY(10),
+    ILI9XXX_PIXFMT  , 1, 0x05,
+    ILI9XXX_FRMCTR1, 3, //  4: Frame rate control, 3 args + delay:
+    0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+    ILI9XXX_FRMCTR2, 3,              //  4: Framerate ctrl - idle mode, 3 args:
+    0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+    ILI9XXX_FRMCTR3, 6,              //  5: Framerate - partial mode, 6 args:
+    0x01, 0x2C, 0x2D,             //     Dot inversion mode
+    0x01, 0x2C, 0x2D,             //     Line inversion mode
+
+    ILI9XXX_INVCTR, 1,              //  7: Display inversion control, 1 arg:
+    0x7,                          //     Line inversion
+    ILI9XXX_PWCTR1,  3,              //  7: Power control, 3 args, no delay:
+    0xA2,
+    0x02,                         //     -4.6V
+    0x84,                         //     AUTO mode
+    ILI9XXX_PWCTR2,  1,              //  8: Power control, 1 arg, no delay:
+    0xC5,                         //     VGH25=2.4C VGSEL=-10 VGH=3 * AVDD
+    ILI9XXX_PWCTR3,  2,              //  9: Power control, 2 args, no delay:
+    0x0A,                         //     Opamp current small
+    0x00,                         //     Boost frequency
+    ILI9XXX_PWCTR4,  2,              // 10: Power control, 2 args, no delay:
+    0x8A,                         //     BCLK/2,
+    0x2A,                         //     opamp current small & medium low
+    ILI9XXX_PWCTR5,  2,              // 11: Power control, 2 args, no delay:
+    0x8A, 0xEE,
+
+    ILI9XXX_VMCTR1, 1, // 11: Power control, 2 args + delay:
+    0x0E,
+    ILI9XXX_GMCTRP1, 16,              // 13: Gamma Adjustments (pos. polarity), 16 args + delay:
+    0x02, 0x1c, 0x07, 0x12,       //     (Not entirely necessary, but provides
+    0x37, 0x32, 0x29, 0x2d,       //      accurate colors)
+    0x29, 0x25, 0x2B, 0x39,
+    0x00, 0x01, 0x03, 0x10,
+    ILI9XXX_GMCTRN1, 16, // 14: Gamma Adjustments (neg. polarity), 16 args + delay:
+    0x03, 0x1d, 0x07, 0x06,       //     (Not entirely necessary, but provides
+    0x2E, 0x2C, 0x29, 0x2D,       //      accurate colors)
+    0x2E, 0x2E, 0x37, 0x3F,
+    0x00, 0x00, 0x02, 0x10,
+    ILI9XXX_MADCTL  , 1, 0x00,             // Memory Access Control, BGR
+    ILI9XXX_NORON  , 0,
+    ILI9XXX_DELAY(10),
+    ILI9XXX_DISPON  , 0,                // Display on
+    ILI9XXX_DELAY(10),
+    00,   // endo of list
 };
 
 // clang-format on
