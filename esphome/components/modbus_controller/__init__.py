@@ -302,17 +302,17 @@ async def to_code(config):
     for conf in config.get(CONF_ON_COMMAND_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(int, "function_code"), (int, "address")], conf
+            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
         )
     for conf in config.get(CONF_ON_ONLINE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(int, "function_code"), (int, "address")], conf
+            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
         )
     for conf in config.get(CONF_ON_OFFLINE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(int, "function_code"), (int, "address")], conf
+            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
         )
 
 
