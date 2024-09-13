@@ -67,6 +67,7 @@ class DaikinArcClimate : public climate_ir::ClimateIR {
   uint16_t fan_speed_();
   uint8_t temperature_();
   uint8_t humidity_();
+  uint8_t transmit_flag_ = 0;
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
