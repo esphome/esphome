@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LED
-from ..display import tm1638_ns, TM1638Component, CONF_TM1638_ID
+
+from ..display import CONF_TM1638_ID, TM1638Component, tm1638_ns
 
 TM1638OutputLed = tm1638_ns.class_("TM1638OutputLed", output.BinaryOutput, cg.Component)
 
