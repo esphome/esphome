@@ -56,7 +56,7 @@ void DaikinArcClimate::transmit_query_() {
 void DaikinArcClimate::transmit_state() {
   // 0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
   // 0x42, 0x49, 0x05, 0xA2,
-                                                            // a2 c3 03 80 21: 時刻設定
+  // a2 c3 03 80 21: 時刻設定
   uint8_t remote_header[20] = {0x11, 0xDA, 0x27, 0x00, 0x02, 0xd0, 0x02, 0x03, 0x80, 0x03, 0x82, 0x30, 0x41, 0x1f, 0x82,
                                0xf4,
                                /*                                                      とつど */
@@ -101,17 +101,20 @@ void DaikinArcClimate::transmit_state() {
     remote_header[9] = 0x13;
   uint16_t fan_speed = this->fan_speed_();
   if (transmit_flag_ == 4)
-      remote_header[9] = 0x07;
+    remote_header[9] = 0x07;
   remote_state[8] = fan_speed >> 8;
   remote_state[9] = fan_speed & 0xff;
 
-
-  if (transmit_flag_ == 5)
-  {
-      remote_header[9] = 0x06;
-      // remote_header[9] = 0x16;  水平
-      remote_header[12] = (this->swing_mode == climate::CLIMATE_SWING_BOTH || this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ? 0xf1 : 0xe1;
-      remote_header[13] = (this->swing_mode == climate::CLIMATE_SWING_BOTH || this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL) ? 0x1e : 0x01;
+  if (transmit_flag_ == 5) {
+    remote_header[9] = 0x06;
+    // remote_header[9] = 0x16;  水平
+    remote_header[12] =
+        (this->swing_mode == climate::CLIMATE_SWING_BOTH || this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ? 0xf1
+                                                                                                                 : 0xe1;
+    remote_header[13] =
+        (this->swing_mode == climate::CLIMATE_SWING_BOTH || this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL)
+            ? 0x1e
+            : 0x01;
   }
 
   // Calculate checksum
@@ -257,9 +260,9 @@ climate::ClimateTraits DaikinArcClimate::traits() {
   traits.set_supports_current_temperature(true);
   traits.set_supports_current_humidity(false);
   traits.set_supports_target_humidity(true);
-  std::set<climate::ClimateSwingMode> supported_swing_modes = {
-      climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
-      climate::CLIMATE_SWING_HORIZONTAL};
+  std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
+                                                               climate::CLIMATE_SWING_VERTICAL,
+                                                               climate::CLIMATE_SWING_HORIZONTAL};
   traits.set_supported_swing_modes(std::move(supported_swing_modes));
   traits.set_visual_min_humidity(38);
   traits.set_visual_max_humidity(52);
@@ -494,17 +497,13 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
     }
   }
-  if (is_extend_state_frame)
-  {
-    if ((state_frame[12] == 0xf1 || state_frame[12] == 0xc1) && (state_frame[13] == 0x1e || state_frame[13] == 0x1f))
-    {
-        this->swing_mode = climate::CLIMATE_SWING_BOTH;
-    } else if (state_frame[12] == 0xf1 || state_frame[12] == 0xc1)
-    {
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    } else if (state_frame[13] == 0x1e || state_frame[13] == 0x1f)
-    {
-        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+  if (is_extend_state_frame) {
+    if ((state_frame[12] == 0xf1 || state_frame[12] == 0xc1) && (state_frame[13] == 0x1e || state_frame[13] == 0x1f)) {
+      this->swing_mode = climate::CLIMATE_SWING_BOTH;
+    } else if (state_frame[12] == 0xf1 || state_frame[12] == 0xc1) {
+      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+    } else if (state_frame[13] == 0x1e || state_frame[13] == 0x1f) {
+      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
     }
     this->publish_state();
     return true;
@@ -514,8 +513,7 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
 
 void DaikinArcClimate::control(const climate::ClimateCall &call) {
   transmit_flag_ = 0;
-  if (call.get_mode().has_value())
-  {
+  if (call.get_mode().has_value()) {
     transmit_flag_ = 1;
   }
   if (call.get_target_temperature().has_value())
