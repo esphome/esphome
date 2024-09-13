@@ -401,7 +401,8 @@ async def to_code(config):
         cg.add(var.set_ssl_fingerprint(arr))
 
     if CONF_SKIP_CERT_CN_CHECK in config:
-        cg.add_define("USE_MQTT_SECURE_CLIENT")
+        if config[CONF_SKIP_CERT_CN_CHECK]:
+            cg.add_define("USE_MQTT_SECURE_CLIENT")
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
 
     if CONF_CERTIFICATE_AUTHORITY in config:
