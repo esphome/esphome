@@ -1553,6 +1553,23 @@ message VoiceAssistantTimerEventResponse {
   bool is_active = 6;
 }
 
+message VoiceAssistantAnnounceRequest {
+  option (id) = 119;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  string media_id = 1;
+  string text = 2;
+}
+
+message VoiceAssistantAnnounceFinished {
+  option (id) = 120;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bool success = 1;
+}
+
 // ==================== ALARM CONTROL PANEL ====================
 enum AlarmControlPanelState {
   ALARM_STATE_DISARMED = 0;

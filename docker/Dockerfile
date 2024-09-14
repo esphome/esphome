@@ -49,7 +49,7 @@ RUN \
                 zlib1g-dev=1:1.2.13.dfsg-1 \
                 libjpeg-dev=1:2.1.5-2 \
                 libfreetype-dev=2.12.1+dfsg-5+deb12u3 \
-                libssl-dev=3.0.14-1~deb12u1 \
+                libssl-dev=3.0.14-1~deb12u2 \
                 libffi-dev=3.4.4-1 \
                 libopenjp2-7=2.5.0-2 \
                 libtiff6=4.5.0-6+deb12u1 \
@@ -96,14 +96,19 @@ RUN \
 # First install requirements to leverage caching when requirements don't change
 # tmpfs is for https://github.com/rust-lang/cargo/issues/8719
 
-COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
+COPY requirements.txt requirements_optional.txt /
 RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
-        export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
+        curl -L https://www.piwheels.org/cp311/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl -o /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
+        && pip3 install --break-system-packages --no-cache-dir /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
+        && rm /tmp/cryptography-43.0.0-cp37-abi3-linux_armv7l.whl \
+        && export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
     fi; \
     CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
     pip3 install \
-    --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
-    && /platformio_install_deps.py /platformio.ini --libraries
+    --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt
+
+COPY script/platformio_install_deps.py platformio.ini /
+RUN /platformio_install_deps.py /platformio.ini --libraries
 
 # Avoid unsafe git error when container user and file config volume permissions don't match
 RUN git config --system --add safe.directory '*'
