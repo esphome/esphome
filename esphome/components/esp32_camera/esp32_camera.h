@@ -145,6 +145,9 @@ class ESP32Camera : public Component, public EntityBase {
   /* -- framerates */
   void set_max_update_interval(uint32_t max_update_interval);
   void set_idle_update_interval(uint32_t idle_update_interval);
+  /* -- frame buffer */
+  void set_frame_buffer_mode(camera_grab_mode_t mode);
+  void set_frame_buffer_count(uint8_t fb_count);
 
   /* public API (derivated) */
   void setup() override;

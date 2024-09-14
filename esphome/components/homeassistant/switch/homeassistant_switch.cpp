@@ -42,9 +42,9 @@ void HomeassistantSwitch::write_state(bool state) {
 
   api::HomeassistantServiceResponse resp;
   if (state) {
-    resp.service = "switch.turn_on";
+    resp.service = "homeassistant.turn_on";
   } else {
-    resp.service = "switch.turn_off";
+    resp.service = "homeassistant.turn_off";
   }
 
   api::HomeassistantServiceMap entity_id_kv;
