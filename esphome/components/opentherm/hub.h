@@ -32,7 +32,7 @@
 #include <unordered_set>
 #include <functional>
 
-#include "macro.h"
+#include "opentherm_macros.h"
 
 namespace esphome {
 namespace opentherm {
@@ -78,7 +78,7 @@ class OpenthermHub : public Component {
   bool sync_mode_ = false;
 
   // Create OpenTherm messages based on the message id
-  OpenthermData build_request_(MessageId request_id);
+  OpenthermData build_request_(MessageId request_id) const;
   void handle_protocol_write_error_();
   void handle_protocol_read_error_();
   void handle_timeout_error_();

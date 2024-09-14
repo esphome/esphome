@@ -58,73 +58,23 @@ void write_f88(const float value, OpenthermData &data) { data.f88(value); }
 
 }  // namespace message_data
 
-OpenthermData OpenthermHub::build_request_(MessageId request_id) {
+OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
   OpenthermData data;
   data.type = 0;
   data.id = 0;
   data.valueHB = 0;
   data.valueLB = 0;
 
-  // First, handle the status request. This requires special logic, because we
-  // wouldn't want to inadvertently disable domestic hot water, for example.
-  // It is also included in the macro-generated code below, but that will
-  // never be executed, because we short-circuit it here.
+  // We need this special logic for STATUS message because we have two options for specifying boiler modes:
+  // with static config values in the hub, or with separate switches. 
   if (request_id == MessageId::STATUS) {
     // NOLINTBEGIN
-    bool const ch_enabled = this->ch_enable &&
-#ifdef OPENTHERM_READ_ch_enable
-                            OPENTHERM_READ_ch_enable
-#else
-                            true
-#endif
-                            &&
-#ifdef OPENTHERM_READ_t_set
-                            OPENTHERM_READ_t_set > 0.0
-#else
-                            true
-#endif
-        ;
-
-    bool dhw_enabled = this->dhw_enable &&
-#ifdef OPENTHERM_READ_dhw_enable
-                       OPENTHERM_READ_dhw_enable
-#else
-                       true
-#endif
-        ;
-    bool cooling_enabled = this->cooling_enable &&
-#ifdef OPENTHERM_READ_cooling_enable
-                           OPENTHERM_READ_cooling_enable
-#else
-                           true
-#endif
-                           &&
-#ifdef OPENTHERM_READ_cooling_control
-                           OPENTHERM_READ_cooling_control > 0.0
-#else
-                           true
-#endif
-        ;
-    bool otc_enabled = this->otc_active &&
-#ifdef OPENTHERM_READ_otc_active
-                       OPENTHERM_READ_otc_active
-#else
-                       true
-#endif
-        ;
-    bool ch2_enabled = this->ch2_active &&
-#ifdef OPENTHERM_READ_ch2_active
-                       OPENTHERM_READ_ch2_active
-#else
-                       true
-#endif
-                       &&
-#ifdef OPENTHERM_READ_t_set_ch2
-                       OPENTHERM_READ_t_set_ch2 > 0.0
-#else
-                       true
-#endif
-        ;
+    bool const ch_enabled = this->ch_enable && OPENTHERM_READ_ch_enable && OPENTHERM_READ_t_set > 0.0;
+    bool const dhw_enabled = this->dhw_enable && OPENTHERM_READ_dhw_enable;
+    bool const cooling_enabled = this->cooling_enable && OPENTHERM_READ_cooling_enable 
+                           && OPENTHERM_READ_cooling_control > 0.0;
+    bool const otc_enabled = this->otc_active && OPENTHERM_READ_otc_active;
+    bool const ch2_enabled = this->ch2_active && OPENTHERM_READ_ch2_active && OPENTHERM_READ_t_set_ch2 > 0.0;
     // NOLINTEND
 
     data.type = MessageType::READ_DATA;
@@ -166,10 +116,10 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) {
   // log an error and just return a 0 message.
   ESP_LOGE(TAG, "Tried to create a request with unknown id %d. This should never happen, so please open an issue.",
            request_id);
-  return OpenthermData();
+  return {};
 }
 
-OpenthermHub::OpenthermHub() : Component() {}
+OpenthermHub::OpenthermHub() : Component(), in_pin_{}, out_pin_{} {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
   ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s)", data.id,

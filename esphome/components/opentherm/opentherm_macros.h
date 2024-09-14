@@ -107,6 +107,32 @@
 
 #define OPENTHERM_IGNORE(x, y)
 
+// Default macros for STATUS entities
+#ifndef OPENTHERM_READ_ch_enable
+#define OPENTHERM_READ_ch_enable true
+#endif
+#ifndef OPENTHERM_READ_dhw_enable
+#define OPENTHERM_READ_dhw_enable true
+#endif
+#ifndef OPENTHERM_READ_t_set
+#define OPENTHERM_READ_t_set 0.0
+#endif
+#ifndef OPENTHERM_READ_cooling_enable
+#define OPENTHERM_READ_cooling_enable false
+#endif
+#ifndef OPENTHERM_READ_cooling_control
+#define OPENTHERM_READ_cooling_control 0.0
+#endif
+#ifndef OPENTHERM_READ_otc_active
+#define OPENTHERM_READ_otc_active false
+#endif
+#ifndef OPENTHERM_READ_ch2_active
+#define OPENTHERM_READ_ch2_active false
+#endif
+#ifndef OPENTHERM_READ_t_set_ch2
+#define OPENTHERM_READ_t_set_ch2 0.0
+#endif
+
 // These macros utilize the structure of *_LIST macros in order 
 #define ID(x) x
 #define SHOW_INNER(x) #x
