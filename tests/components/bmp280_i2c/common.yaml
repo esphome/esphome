@@ -1,15 +1,17 @@
 i2c:
   - id: i2c_bmp280
-    scl: 5
-    sda: 4
+    scl: ${scl_pin}
+    sda: ${sda_pin}
 
 sensor:
-  - platform: bmp280
+  - platform: bmp280_i2c
+    i2c_id: i2c_bmp280
     address: 0x77
     temperature:
+      id: bmp280_temperature
       name: Outside Temperature
-      oversampling: 16x
     pressure:
       name: Outside Pressure
+      id: bmp280_pressure
     iir_filter: 16x
     update_interval: 15s

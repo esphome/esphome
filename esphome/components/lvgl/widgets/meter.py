@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_COLOR,
     CONF_COUNT,
     CONF_ID,
+    CONF_ITEMS,
     CONF_LENGTH,
     CONF_LOCAL,
     CONF_RANGE_FROM,
@@ -17,6 +18,7 @@ from esphome.const import (
 from ..automation import action_to_code
 from ..defines import (
     CONF_END_VALUE,
+    CONF_INDICATOR,
     CONF_MAIN,
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
@@ -165,7 +167,12 @@ METER_SCHEMA = {cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA)}
 
 class MeterType(WidgetType):
     def __init__(self):
-        super().__init__(CONF_METER, lv_meter_t, (CONF_MAIN,), METER_SCHEMA)
+        super().__init__(
+            CONF_METER,
+            lv_meter_t,
+            (CONF_MAIN, CONF_INDICATOR, CONF_TICKS, CONF_ITEMS),
+            METER_SCHEMA,
+        )
 
     async def to_code(self, w: Widget, config):
         """For a meter object, create and set parameters"""
