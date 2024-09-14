@@ -7,9 +7,9 @@ ARG BASEIMGTYPE=docker
 
 
 # https://github.com/hassio-addons/addon-debian-base/releases
-FROM ghcr.io/hassio-addons/debian-base:7.2.0 AS base-hassio
-# https://hub.docker.com/_/debian?tab=tags&page=1&name=bookworm
-FROM debian:12.2-slim AS base-docker
+FROM ghcr.io/hassio-addons/base:16.1.2 AS base-hassio
+# FROM debian:12.2-slim AS base-docker
+FROM ghcr.io/hassio-addons/base:16.1.2 AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
@@ -25,44 +25,16 @@ ARG TARGETVARIANT
 # system packages because we are running in an isolated container.
 
 RUN \
-    apt-get update \
+    apk update \
     # Use pinned versions so that we get updates with build caching
-    && apt-get install -y --no-install-recommends \
-        python3-pip=23.0.1+dfsg-1 \
-        python3-setuptools=66.1.1-1 \
-        python3-venv=3.11.2-1+b1 \
-        python3-wheel=0.38.4-2 \
-        iputils-ping=3:20221126-1 \
-        git=1:2.39.2-1.1 \
-        curl=7.88.1-10+deb12u7 \
-        openssh-client=1:9.2p1-2+deb12u3 \
-        python3-cffi=1.15.1-5 \
-        libcairo2=1.16.0-7 \
-        libmagic1=1:5.44-3 \
-        patch=2.7.6-7 \
-    && ( \
-        ( \
-            [ "$TARGETARCH$TARGETVARIANT" = "armv7" ] && \
-                apt-get install -y --no-install-recommends \
-                build-essential=12.9 \
-                python3-dev=3.11.2-1+b1 \
-                zlib1g-dev=1:1.2.13.dfsg-1 \
-                libjpeg-dev=1:2.1.5-2 \
-                libfreetype-dev=2.12.1+dfsg-5+deb12u3 \
-                libssl-dev=3.0.14-1~deb12u2 \
-                libffi-dev=3.4.4-1 \
-                libopenjp2-7=2.5.0-2 \
-                libtiff6=4.5.0-6+deb12u1 \
-                cargo=0.66.0+ds1-1 \
-                pkg-config=1.8.1-1 \
-                gcc-arm-linux-gnueabihf=4:12.2.0-3 \
-        ) \
-        || [ "$TARGETARCH$TARGETVARIANT" != "armv7" ] \
-    ) \
-    && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
+    && apk add --no-cache \
+        python3=3.12.6-r0 \
+        py3-pip=24.0-r2 \
+        py3-setuptools=70.3.0-r0 \
+        libmagic=5.45-r1 \
+        git=2.45.2-r0 \
+        patch=2.7.6-r10
+
 
 ENV \
   # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
@@ -104,11 +76,22 @@ RUN --mount=type=tmpfs,target=/root/.cargo if [ "$TARGETARCH$TARGETVARIANT" = "a
         && export PIP_EXTRA_INDEX_URL="https://www.piwheels.org/simple"; \
     fi; \
     CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse CARGO_HOME=/root/.cargo \
-    pip3 install \
-    --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt
+    apk add --no-cache --virtual .build-deps \
+        build-base=0.5-r3 \
+        python3-dev=3.12.6-r0 \
+        zlib-dev=1.3.1-r1 \
+        jpeg-dev=9e-r1 \
+        libffi-dev=3.4.6-r0 \
+        openjpeg=2.5.2-r0 \
+        tiff-dev=4.6.0t-r0 \
+    && pip3 install \
+        --break-system-packages --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    && apk del .build-deps
 
 COPY script/platformio_install_deps.py platformio.ini /
 RUN /platformio_install_deps.py /platformio.ini --libraries
+
+# Clean up build tools
 
 # Avoid unsafe git error when container user and file config volume permissions don't match
 RUN git config --system --add safe.directory '*'
@@ -124,6 +107,7 @@ RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
   fi; \
   pip3 install \
   --break-system-packages --no-cache-dir -e /esphome
+
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -153,14 +137,10 @@ CMD ["dashboard", "/config"]
 FROM base AS hassio
 
 RUN \
-    apt-get update \
+    apk update \
     # Use pinned versions so that we get updates with build caching
-    && apt-get install -y --no-install-recommends \
-        nginx-light=1.22.1-9 \
-    && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
+    && apk add --no-cache \
+        nginx=1.26.2-r0
 
 ARG BUILD_VERSION=dev
 
@@ -193,20 +173,13 @@ ENV \
   PLATFORMIO_CORE_DIR=/esphome/.temp/platformio
 
 RUN \
-    apt-get update \
+    apk update \
     # Use pinned versions so that we get updates with build caching
-    && apt-get install -y --no-install-recommends \
-        clang-format-13=1:13.0.1-11+b2 \
-        clang-tidy-14=1:14.0.6-12 \
-        patch=2.7.6-7 \
-        software-properties-common=0.99.30-4.1~deb12u1 \
-        nano=7.2-1+deb12u1 \
-        build-essential=12.9 \
-        python3-dev=3.11.2-1+b1 \
-    && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
+    && apk add --no-cache \
+        clang15-extra-tools=15.0.7-r19 \
+        nano=8.0-r0 \
+        build-base=0.5-r3 \
+        python3-dev=3.12.6-r0
 
 COPY requirements_test.txt /
 RUN if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
