@@ -66,13 +66,13 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
   data.valueLB = 0;
 
   // We need this special logic for STATUS message because we have two options for specifying boiler modes:
-  // with static config values in the hub, or with separate switches. 
+  // with static config values in the hub, or with separate switches.
   if (request_id == MessageId::STATUS) {
     // NOLINTBEGIN
     bool const ch_enabled = this->ch_enable && OPENTHERM_READ_ch_enable && OPENTHERM_READ_t_set > 0.0;
     bool const dhw_enabled = this->dhw_enable && OPENTHERM_READ_dhw_enable;
-    bool const cooling_enabled = this->cooling_enable && OPENTHERM_READ_cooling_enable 
-                           && OPENTHERM_READ_cooling_control > 0.0;
+    bool const cooling_enabled =
+        this->cooling_enable && OPENTHERM_READ_cooling_enable && OPENTHERM_READ_cooling_control > 0.0;
     bool const otc_enabled = this->otc_active && OPENTHERM_READ_otc_active;
     bool const ch2_enabled = this->ch2_active && OPENTHERM_READ_ch2_active && OPENTHERM_READ_t_set_ch2 > 0.0;
     // NOLINTEND

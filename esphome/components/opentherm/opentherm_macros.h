@@ -57,11 +57,12 @@
 // ===== hub.cpp macros =====
 
 // *_MESSAGE_HANDLERS are generated in defines.h and look like this:
-// OPENTHERM_NUMBER_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep) MESSAGE(COOLING_CONTROL) ENTITY(cooling_control_number, f88) postscript msg_sep
-// They contain placeholders for message part and entities parts, since one message can contain multiple entities.
-// MESSAGE part is substituted with OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_READ_MESSAGE or OPENTHERM_MESSAGE_RESPONSE_MESSAGE.
-// ENTITY part is substituted with OPENTHERM_MESSAGE_WRITE_ENTITY or OPENTHERM_MESSAGE_RESPONSE_ENTITY.
-// OPENTHERM_IGNORE is used for sensor read requests since no data needs to be sent or processed, just the data id.
+// OPENTHERM_NUMBER_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep) MESSAGE(COOLING_CONTROL)
+// ENTITY(cooling_control_number, f88) postscript msg_sep They contain placeholders for message part and entities parts,
+// since one message can contain multiple entities. MESSAGE part is substituted with OPENTHERM_MESSAGE_WRITE_MESSAGE,
+// OPENTHERM_MESSAGE_READ_MESSAGE or OPENTHERM_MESSAGE_RESPONSE_MESSAGE. ENTITY part is substituted with
+// OPENTHERM_MESSAGE_WRITE_ENTITY or OPENTHERM_MESSAGE_RESPONSE_ENTITY. OPENTHERM_IGNORE is used for sensor read
+// requests since no data needs to be sent or processed, just the data id.
 
 // In order for things not to break, we define empty lists here in case some platforms are not used in config.
 #ifndef OPENTHERM_SENSOR_MESSAGE_HANDLERS
@@ -133,7 +134,7 @@
 #define OPENTHERM_READ_t_set_ch2 0.0
 #endif
 
-// These macros utilize the structure of *_LIST macros in order 
+// These macros utilize the structure of *_LIST macros in order
 #define ID(x) x
 #define SHOW_INNER(x) #x
 #define SHOW(x) SHOW_INNER(x)
