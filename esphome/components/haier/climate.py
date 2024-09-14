@@ -38,6 +38,9 @@ PROTOCOL_MAX_TEMPERATURE = 30.0
 PROTOCOL_TARGET_TEMPERATURE_STEP = 1.0
 PROTOCOL_CURRENT_TEMPERATURE_STEP = 0.5
 PROTOCOL_CONTROL_PACKET_SIZE = 10
+PROTOCOL_MIN_SENSORS_PACKET_SIZE = 18
+PROTOCOL_DEFAULT_SENSORS_PACKET_SIZE = 22
+PROTOCOL_STATUS_MESSAGE_HEADER_SIZE = 0
 
 CODEOWNERS = ["@paveldn"]
 DEPENDENCIES = ["climate", "uart"]
@@ -48,6 +51,9 @@ CONF_CONTROL_PACKET_SIZE = "control_packet_size"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_ON_ALARM_START = "on_alarm_start"
 CONF_ON_ALARM_END = "on_alarm_end"
+CONF_ON_STATUS_MESSAGE = "on_status_message"
+CONF_SENSORS_PACKET_SIZE = "sensors_packet_size"
+CONF_STATUS_MESSAGE_HEADER_SIZE = "status_message_header_size"
 CONF_VERTICAL_AIRFLOW = "vertical_airflow"
 CONF_WIFI_SIGNAL = "wifi_signal"
 
@@ -129,6 +135,11 @@ HaierAlarmEndTrigger = haier_ns.class_(
     automation.Trigger.template(cg.uint8, cg.const_char_ptr),
 )
 
+StatusMessageTrigger = haier_ns.class_(
+    "StatusMessageTrigger",
+    automation.Trigger.template(cg.const_char_ptr, cg.size_t),
+)
+
 
 def validate_visual(config):
     if CONF_VISUAL in config:
@@ -193,6 +204,11 @@ BASE_CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_ANSWER_TIMEOUT,
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StatusMessageTrigger),
+                }
+            ),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -228,6 +244,14 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_CONTROL_PACKET_SIZE, default=PROTOCOL_CONTROL_PACKET_SIZE
                     ): cv.int_range(min=PROTOCOL_CONTROL_PACKET_SIZE, max=50),
+                    cv.Optional(
+                        CONF_SENSORS_PACKET_SIZE,
+                        default=PROTOCOL_DEFAULT_SENSORS_PACKET_SIZE,
+                    ): cv.int_range(min=PROTOCOL_MIN_SENSORS_PACKET_SIZE, max=50),
+                    cv.Optional(
+                        CONF_STATUS_MESSAGE_HEADER_SIZE,
+                        default=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE,
+                    ): cv.int_range(min=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE),
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
                         default=["BOOST", "ECO", "SLEEP"],  # No AWAY by default
@@ -468,6 +492,16 @@ async def to_code(config):
                 config[CONF_CONTROL_PACKET_SIZE] - PROTOCOL_CONTROL_PACKET_SIZE
             )
         )
+    if CONF_SENSORS_PACKET_SIZE in config:
+        cg.add(
+            var.set_extra_sensors_packet_bytes_size(
+                config[CONF_SENSORS_PACKET_SIZE] - PROTOCOL_MIN_SENSORS_PACKET_SIZE
+            )
+        )
+    if CONF_STATUS_MESSAGE_HEADER_SIZE in config:
+        cg.add(
+            var.set_status_message_header_size(config[CONF_STATUS_MESSAGE_HEADER_SIZE])
+        )
     for conf in config.get(CONF_ON_ALARM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
@@ -478,5 +512,10 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
         )
+    for conf in config.get(CONF_ON_STATUS_MESSAGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")], conf
+        )
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.28")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.31")

@@ -3,6 +3,7 @@
 #include "list_entities.h"
 
 #include "esphome/components/web_server_base/web_server_base.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
@@ -334,7 +335,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Override the web handler's handleRequest method.
   void handleRequest(AsyncWebServerRequest *request) override;
   /// This web handle is not trivial.
-  bool isRequestHandlerTrivial() override;
+  bool isRequestHandlerTrivial() override;  // NOLINT(readability-identifier-naming)
 
   void add_entity_to_sorting_list(EntityBase *entity, float weight);
 
@@ -366,3 +367,4 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 }  // namespace web_server
 }  // namespace esphome
+#endif
