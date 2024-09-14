@@ -755,7 +755,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           message = std::move(arg.value);
         }
       }
-      if (code == "wake-word-timeout" || code == "wake_word_detection_aborted") {
+      if (code == "wake-word-timeout" || code == "wake_word_detection_aborted" || code == "no_wake_word") {
         // Don't change state here since either the "tts-end" or "run-end" events will do it.
         return;
       } else if (code == "wake-provider-missing" || code == "wake-engine-missing") {
