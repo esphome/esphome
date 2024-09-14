@@ -1,35 +1,36 @@
 from __future__ import annotations
 
 import gzip
+
 import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTH,
     CONF_CSS_INCLUDE,
     CONF_CSS_URL,
+    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
     CONF_ID,
+    CONF_INCLUDE_INTERNAL,
     CONF_JS_INCLUDE,
     CONF_JS_URL,
-    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
-    CONF_PORT,
-    CONF_AUTH,
-    CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_INCLUDE_INTERNAL,
-    CONF_OTA,
-    CONF_LOG,
-    CONF_VERSION,
     CONF_LOCAL,
+    CONF_LOG,
+    CONF_OTA,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_VERSION,
     CONF_WEB_SERVER_ID,
     CONF_WEB_SERVER_SORTING_WEIGHT,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
+import esphome.final_validate as fv
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -208,7 +209,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
-    cg.add_define("USE_WEBSERVER")
     version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))

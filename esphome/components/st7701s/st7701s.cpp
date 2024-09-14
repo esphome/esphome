@@ -138,11 +138,16 @@ void ST7701S::write_init_sequence_() {
   for (size_t i = 0; i != this->init_sequence_.size();) {
     uint8_t cmd = this->init_sequence_[i++];
     size_t len = this->init_sequence_[i++];
-    this->write_sequence_(cmd, len, &this->init_sequence_[i]);
-    i += len;
-    esph_log_v(TAG, "Command %X, %d bytes", cmd, len);
-    if (cmd == SW_RESET_CMD)
-      delay(6);
+    if (len == ST7701S_DELAY_FLAG) {
+      ESP_LOGV(TAG, "Delay %dms", cmd);
+      delay(cmd);
+    } else {
+      this->write_sequence_(cmd, len, &this->init_sequence_[i]);
+      i += len;
+      ESP_LOGV(TAG, "Command %X, %d bytes", cmd, len);
+      if (cmd == SW_RESET_CMD)
+        delay(6);
+    }
   }
   // st7701 does not appear to support axis swapping
   this->write_sequence_(CMD2_BKSEL, sizeof(CMD2_BK0), CMD2_BK0);
@@ -153,7 +158,7 @@ void ST7701S::write_init_sequence_() {
     val |= 0x10;
   this->write_command_(MADCTL_CMD);
   this->write_data_(val);
-  esph_log_d(TAG, "write MADCTL %X", val);
+  ESP_LOGD(TAG, "write MADCTL %X", val);
   this->write_command_(this->invert_colors_ ? INVERT_ON : INVERT_OFF);
   this->set_timeout(120, [this] {
     this->write_command_(SLEEP_OUT);

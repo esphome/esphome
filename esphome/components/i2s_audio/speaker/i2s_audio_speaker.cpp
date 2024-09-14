@@ -65,19 +65,19 @@ void I2SAudioSpeaker::start_() {
   i2s_port_t port = this->parent_->get_port();
 
   i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX),
-      .sample_rate = 16000,
-      .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
-      .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
+      .mode = (i2s_mode_t) (this_speaker->i2s_mode_ | I2S_MODE_TX),
+      .sample_rate = this_speaker->sample_rate_,
+      .bits_per_sample = this_speaker->bits_per_sample_,
+      .channel_format = this_speaker->channel_,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 8,
-      .dma_buf_len = 128,
-      .use_apll = false,
+      .dma_buf_len = 256,
+      .use_apll = this_speaker->use_apll_,
       .tx_desc_auto_clear = true,
-      .fixed_mclk = I2S_PIN_NO_CHANGE,
+      .fixed_mclk = 0,
       .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-      .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
+      .bits_per_chan = this_speaker->bits_per_channel_,
   };
 #if SOC_I2S_SUPPORTS_DAC
   if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {

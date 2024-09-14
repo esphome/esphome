@@ -10,7 +10,7 @@ SmlFile::SmlFile(bytes buffer) : buffer_(std::move(buffer)) {
   this->pos_ = 0;
   while (this->pos_ < this->buffer_.size()) {
     if (this->buffer_[this->pos_] == 0x00)
-      break;  // fill byte detected -> no more messages
+      break;  // EndOfSmlMsg
 
     SmlNode message = SmlNode();
     if (!this->setup_node(&message))
@@ -20,40 +20,66 @@ SmlFile::SmlFile(bytes buffer) : buffer_(std::move(buffer)) {
 }
 
 bool SmlFile::setup_node(SmlNode *node) {
-  uint8_t type = this->buffer_[this->pos_] >> 4;      // type including overlength info
-  uint8_t length = this->buffer_[this->pos_] & 0x0f;  // length including TL bytes
-  bool is_list = (type & 0x07) == SML_LIST;
-  bool has_extended_length = type & 0x08;  // we have a long list/value (>15 entries)
-  uint8_t parse_length = length;
-  if (has_extended_length) {
-    length = (length << 4) + (this->buffer_[this->pos_ + 1] & 0x0f);
-    parse_length = length;
+  // If the TL field is 0x00, this is the end of the message
+  // (see 6.3.1 of SML protocol definition)
+  if (this->buffer_[this->pos_] == 0x00) {
+    // Increment past this byte and signal that the message is done
     this->pos_ += 1;
+    return true;
   }
 
-  if (this->pos_ + parse_length >= this->buffer_.size())
+  // Extract data from initial TL field
+  uint8_t type = (this->buffer_[this->pos_] >> 4) & 0x07;     // type without overlength info
+  bool overlength = (this->buffer_[this->pos_] >> 4) & 0x08;  // overlength information
+  uint8_t length = this->buffer_[this->pos_] & 0x0f;          // length (including TL bytes)
+
+  // Check if we need additional length bytes
+  if (overlength) {
+    // Shift the current length to the higher nibble
+    // and add the lower nibble of the next byte to the length
+    length = (length << 4) + (this->buffer_[this->pos_ + 1] & 0x0f);
+    // We are basically done with the first TL field now,
+    // so increment past that, we now point to the second TL field
+    this->pos_ += 1;
+    // Decrement the length for value fields (not lists),
+    // since the byte we just handled is counted as part of the field
+    // in case of values but not for lists
+    if (type != SML_LIST)
+      length -= 1;
+
+    // Technically, this is not enough, the standard allows for more than two length fields.
+    // However I don't think it is very common to have more than 255 entries in a list
+  }
+
+  // We are done with the last TL field(s), so advance the position
+  this->pos_ += 1;
+  // and decrement the length for non-list fields
+  if (type != SML_LIST)
+    length -= 1;
+
+  // Check if the buffer length is long enough
+  if (this->pos_ + length > this->buffer_.size())
     return false;
 
-  node->type = type & 0x07;
+  node->type = type;
   node->nodes.clear();
   node->value_bytes.clear();
 
-  // if the list is a has_extended_length list with e.g. 16 elements this is a 0x00 byte but not the end of message
-  if (!has_extended_length && this->buffer_[this->pos_] == 0x00) {  // end of message
-    this->pos_ += 1;
-  } else if (is_list) {  // list
-    this->pos_ += 1;
-    node->nodes.reserve(parse_length);
-    for (size_t i = 0; i != parse_length; i++) {
+  if (type == SML_LIST) {
+    node->nodes.reserve(length);
+    for (size_t i = 0; i != length; i++) {
       SmlNode child_node = SmlNode();
       if (!this->setup_node(&child_node))
         return false;
       node->nodes.emplace_back(child_node);
     }
-  } else {  // value
-    node->value_bytes =
-        bytes(this->buffer_.begin() + this->pos_ + 1, this->buffer_.begin() + this->pos_ + parse_length);
-    this->pos_ += parse_length;
+  } else {
+    // Value starts at the current position
+    // Value ends "length" bytes later,
+    // (since the TL field is counted but already subtracted from length)
+    node->value_bytes = bytes(this->buffer_.begin() + this->pos_, this->buffer_.begin() + this->pos_ + length);
+    // Increment the pointer past all consumed bytes
+    this->pos_ += length;
   }
   return true;
 }
@@ -101,7 +127,7 @@ int64_t bytes_to_int(const bytes &buffer) {
   // see https://stackoverflow.com/questions/42534749/signed-extension-from-24-bit-to-32-bit-in-c
   if (buffer.size() < 8) {
     const int bits = buffer.size() * 8;
-    const uint64_t m = 1u << (bits - 1);
+    const uint64_t m = 1ull << (bits - 1);
     tmp = (tmp ^ m) - m;
   }
 

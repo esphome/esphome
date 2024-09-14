@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
 namespace esphome {
 namespace speaker {
 
@@ -17,7 +21,12 @@ class Speaker {
 
   virtual void start() = 0;
   virtual void stop() = 0;
+
+  // In compare between *STOP()* and *FINISH()*; *FINISH()* will stop after emptying the play buffer,
+  // while *STOP()* will break directly.
+  // When finish() is not implemented on the plateform component it should just do a normal stop.virtual void finish() { this->stop(); }
   virtual void finish() { this->stop(); }
+
   virtual void flush() {}
 
   virtual bool has_buffered_data() const = 0;

@@ -1,12 +1,10 @@
 from esphome import automation
-import esphome.config_validation as cv
-import esphome.codegen as cg
-
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_DATA
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_DATA, CONF_ID
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
-
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -82,9 +80,15 @@ automation.register_action("speaker.stop", StopAction, SPEAKER_AUTOMATION_SCHEMA
 automation.register_action("speaker.finish", FinishAction, SPEAKER_AUTOMATION_SCHEMA)(
     speaker_action
 )
+
+
 automation.register_condition(
     "speaker.is_playing", IsPlayingCondition, SPEAKER_AUTOMATION_SCHEMA
 )(speaker_action)
+automation.register_condition(
+    "speaker.is_stopped", IsStoppedCondition, SPEAKER_AUTOMATION_SCHEMA
+)(speaker_action)
+
 automation.register_condition(
     "speaker.is_stopped", IsStoppedCondition, SPEAKER_AUTOMATION_SCHEMA
 )(speaker_action)

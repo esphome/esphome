@@ -632,6 +632,7 @@ void MQTTClientComponent::disable_discovery() {
   this->discovery_info_ = MQTTDiscoveryInfo{
       .prefix = "",
       .retain = false,
+      .discover_ip = false,
       .clean = false,
       .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
       .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
