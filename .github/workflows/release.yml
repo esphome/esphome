@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.1.7
       - name: Set up Python
-        uses: actions/setup-python@v5.1.0
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: "3.x"
       - name: Set up python environment
@@ -65,7 +65,7 @@ jobs:
           pip3 install build
           python3 -m build
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@v1.9.0
+        uses: pypa/gh-action-pypi-publish@v1.10.1
 
   deploy-docker:
     name: Build ESPHome ${{ matrix.platform }}
@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.1.7
       - name: Set up Python
-        uses: actions/setup-python@v5.1.0
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: "3.9"
 
@@ -141,7 +141,7 @@ jobs:
           echo name=$(cat /tmp/platform) >> $GITHUB_OUTPUT
 
       - name: Upload digests
-        uses: actions/upload-artifact@v4.3.4
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: digests-${{ steps.sanitize.outputs.name }}
           path: /tmp/digests

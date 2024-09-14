@@ -127,3 +127,11 @@ binary_sensor:
   - platform: lvgl
     name: LVGL checkbox
     widget: checkbox_id
+
+wifi:
+  ssid: SSID
+  password: PASSWORD123
+
+time:
+  platform: sntp
+  id: time_id

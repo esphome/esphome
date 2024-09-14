@@ -20,6 +20,8 @@ from ..defines import (
     CONF_GRID_ROWS,
     CONF_LAYOUT,
     CONF_MAIN,
+    CONF_PAD_COLUMN,
+    CONF_PAD_ROW,
     CONF_SCROLLBAR_MODE,
     CONF_STYLES,
     CONF_WIDGETS,
@@ -29,6 +31,7 @@ from ..defines import (
     TYPE_FLEX,
     TYPE_GRID,
     LValidator,
+    call_lambda,
     join_enums,
     literal,
 )
@@ -86,6 +89,8 @@ class Widget:
             self.obj = MockObj(f"{self.var}->obj")
         else:
             self.obj = var
+        self.outer = None
+        self.move_to_foreground = False
 
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):
@@ -115,7 +120,14 @@ class Widget:
     def clear_flag(self, flag):
         return lv_obj.clear_flag(self.obj, literal(flag))
 
-    async def set_property(self, prop, value, animated: bool = None):
+    async def set_property(self, prop, value, animated: bool = None, lv_name=None):
+        """
+        Set a property of the widget.
+        :param prop:  The property name
+        :param value:  The value
+        :param animated:  If the change should be animated
+        :param lv_name:  The base type of the widget e.g. "obj"
+        """
         if isinstance(value, dict):
             value = value.get(prop)
             if isinstance(ALL_STYLES.get(prop), LValidator):
@@ -128,11 +140,12 @@ class Widget:
             value = value.total_milliseconds
         if isinstance(value, str):
             value = literal(value)
+        lv_name = lv_name or self.type.lv_name
         if animated is None or self.type.animated is not True:
-            lv.call(f"{self.type.lv_name}_set_{prop}", self.obj, value)
+            lv.call(f"{lv_name}_set_{prop}", self.obj, value)
         else:
             lv.call(
-                f"{self.type.lv_name}_set_{prop}",
+                f"{lv_name}_set_{prop}",
                 self.obj,
                 value,
                 literal("LV_ANIM_ON" if animated else "LV_ANIM_OFF"),
@@ -214,10 +227,23 @@ def get_widget_generator(wid):
         yield
 
 
-async def get_widget_(wid: Widget):
+async def get_widget_(wid):
     if obj := widget_map.get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
+
+
+def widgets_wait_generator():
+    while True:
+        if Widget.widgets_completed:
+            return
+        yield
+
+
+async def wait_for_widgets():
+    if Widget.widgets_completed:
+        return
+    await FakeAwaitable(widgets_wait_generator())
 
 
 async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
@@ -273,6 +299,10 @@ async def set_obj_properties(w: Widget, config):
         layout_type: str = layout[CONF_TYPE]
         add_lv_use(layout_type)
         lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
+        if (pad_row := layout.get(CONF_PAD_ROW)) is not None:
+            w.set_style(CONF_PAD_ROW, pad_row, 0)
+        if (pad_column := layout.get(CONF_PAD_COLUMN)) is not None:
+            w.set_style(CONF_PAD_COLUMN, pad_column, 0)
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
             rows = [str(x) for x in layout[CONF_GRID_ROWS]]
@@ -299,8 +329,15 @@ async def set_obj_properties(w: Widget, config):
             lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
     for part, states in parts.items():
+        part = "LV_PART_" + part.upper()
         for state, props in states.items():
-            lv_state = join_enums((f"LV_STATE_{state}", f"LV_PART_{part}"))
+            state = "LV_STATE_" + state.upper()
+            if state == "LV_STATE_DEFAULT":
+                lv_state = literal(part)
+            elif part == "LV_PART_MAIN":
+                lv_state = literal(state)
+            else:
+                lv_state = join_enums((state, part))
             for style_id in props.get(CONF_STYLES, ()):
                 lv_obj.add_style(w.obj, MockObj(style_id), lv_state)
             for prop, value in {
@@ -313,11 +350,14 @@ async def set_obj_properties(w: Widget, config):
     if group := config.get(CONF_GROUP):
         group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)
-    flag_clr = set()
-    flag_set = set()
     props = parts[CONF_MAIN][CONF_DEFAULT]
+    lambs = {}
+    flag_set = set()
+    flag_clr = set()
     for prop, value in {k: v for k, v in props.items() if k in OBJ_FLAGS}.items():
-        if value:
+        if isinstance(value, cv.Lambda):
+            lambs[prop] = value
+        elif value:
             flag_set.add(prop)
         else:
             flag_clr.add(prop)
@@ -327,6 +367,13 @@ async def set_obj_properties(w: Widget, config):
     if flag_clr:
         clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
         w.clear_flag(clrs)
+    for key, value in lambs.items():
+        lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+        flag = f"LV_OBJ_FLAG_{key.upper()}"
+        with LvConditional(call_lambda(lamb)) as cond:
+            w.add_flag(flag)
+            cond.else_()
+            w.clear_flag(flag)
 
     if states := config.get(CONF_STATE):
         adds = set()
@@ -348,11 +395,11 @@ async def set_obj_properties(w: Widget, config):
         for key, value in lambs.items():
             lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
             state = f"LV_STATE_{key.upper()}"
-            with LvConditional(f"{lamb}()") as cond:
+            with LvConditional(call_lambda(lamb)) as cond:
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
-    await w.set_property(CONF_SCROLLBAR_MODE, config)
+    await w.set_property(CONF_SCROLLBAR_MODE, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):

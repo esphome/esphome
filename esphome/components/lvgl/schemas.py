@@ -1,5 +1,6 @@
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.time import RealTimeClock
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
@@ -8,6 +9,7 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
+    CONF_TIME,
     CONF_TRIGGER_ID,
     CONF_TYPE,
 )
@@ -15,9 +17,10 @@ from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
+from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import lv_color, lv_font, lv_image
-from .lvcode import LvglComponent
+from .lv_validation import lv_color, lv_font, lv_gradient, lv_image
+from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
     LvType,
@@ -46,7 +49,13 @@ TEXT_SCHEMA = cv.Schema(
                 ),
                 validate_printf,
             ),
-            lvalid.lv_text,
+            cv.Schema(
+                {
+                    cv.Required(CONF_TIME_FORMAT): cv.string,
+                    cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
+                }
+            ),
+            cv.templatable(cv.string),
         )
     }
 )
@@ -85,9 +94,10 @@ STYLE_PROPS = {
     "arc_width": cv.positive_int,
     "anim_time": lvalid.lv_milliseconds,
     "bg_color": lvalid.lv_color,
+    "bg_grad": lv_gradient,
     "bg_grad_color": lvalid.lv_color,
     "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
-    "bg_grad_dir": df.LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER").one_of,
+    "bg_grad_dir": LV_GRAD_DIR.one_of,
     "bg_grad_stop": lvalid.stop_value,
     "bg_image_opa": lvalid.opacity,
     "bg_image_recolor": lvalid.lv_color,
@@ -116,15 +126,13 @@ STYLE_PROPS = {
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
-    "outline_pad": lvalid.size,
-    "outline_width": lvalid.size,
-    "pad_all": lvalid.size,
-    "pad_bottom": lvalid.size,
-    "pad_column": lvalid.size,
-    "pad_left": lvalid.size,
-    "pad_right": lvalid.size,
-    "pad_row": lvalid.size,
-    "pad_top": lvalid.size,
+    "outline_pad": lvalid.pixels,
+    "outline_width": lvalid.pixels,
+    "pad_all": lvalid.pixels,
+    "pad_bottom": lvalid.pixels,
+    "pad_left": lvalid.pixels,
+    "pad_right": lvalid.pixels,
+    "pad_top": lvalid.pixels,
     "shadow_color": lvalid.lv_color,
     "shadow_ofs_x": cv.int_,
     "shadow_ofs_y": cv.int_,
@@ -153,7 +161,7 @@ STYLE_PROPS = {
     "max_width": lvalid.pixels_or_percent,
     "min_height": lvalid.pixels_or_percent,
     "min_width": lvalid.pixels_or_percent,
-    "radius": lvalid.radius,
+    "radius": lvalid.lv_fraction,
     "width": lvalid.size,
     "x": lvalid.pixels_or_percent,
     "y": lvalid.pixels_or_percent,
@@ -208,14 +216,12 @@ def automation_schema(typ: LvType):
         events = df.LV_EVENT_TRIGGERS + (CONF_ON_VALUE,)
     else:
         events = df.LV_EVENT_TRIGGERS
-    if isinstance(typ, LvType):
-        template = Trigger.template(typ.get_arg_type())
-    else:
-        template = Trigger.template()
+    args = [typ.get_arg_type()] if isinstance(typ, LvType) else []
+    args.append(lv_event_t_ptr)
     return {
         cv.Optional(event): validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(template),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template(*args)),
             }
         )
         for event in events
@@ -304,6 +310,8 @@ LAYOUT_SCHEMA = {
                 cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
                 cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
                 cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
             },
             df.TYPE_FLEX: {
                 cv.Optional(
@@ -312,6 +320,8 @@ LAYOUT_SCHEMA = {
                 cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
             },
         },
         lower=True,
@@ -338,7 +348,6 @@ DISP_BG_SCHEMA = cv.Schema(
     }
 )
 
-
 # A style schema that can include text
 STYLED_TEXT_SCHEMA = cv.maybe_simple_value(
     STYLE_SCHEMA.extend(TEXT_SCHEMA), key=CONF_TEXT
@@ -351,7 +360,13 @@ LVGL_SCHEMA = cv.Schema(
     }
 )
 
-ALL_STYLES = {**STYLE_PROPS, **GRID_CELL_SCHEMA, **FLEX_OBJ_SCHEMA}
+ALL_STYLES = {
+    **STYLE_PROPS,
+    **GRID_CELL_SCHEMA,
+    **FLEX_OBJ_SCHEMA,
+    cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
+    cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+}
 
 
 def container_validator(schema, widget_type: WidgetType):

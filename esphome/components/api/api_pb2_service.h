@@ -247,6 +247,12 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &value){};
 #endif
+#ifdef USE_VOICE_ASSISTANT
+  virtual void on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &value){};
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  bool send_voice_assistant_announce_finished(const VoiceAssistantAnnounceFinished &msg);
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_list_entities_alarm_control_panel_response(const ListEntitiesAlarmControlPanelResponse &msg);
 #endif
