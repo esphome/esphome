@@ -1277,6 +1277,7 @@ class MediaPlayerSupportedFormat : public ProtoMessage {
   uint32_t sample_rate{0};
   uint32_t num_channels{0};
   enums::MediaPlayerFormatPurpose purpose{};
+  uint32_t sample_bytes{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
