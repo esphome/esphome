@@ -45,7 +45,7 @@ I2C_COMM_FMT_OPTIONS = {
     "i2s_lsb": i2s_comm_format_t.I2S_COMM_FORMAT_I2S_LSB,
     "pcm": i2s_comm_format_t.I2S_COMM_FORMAT_PCM,
     "pcm_short": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_SHORT,
-    "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG
+    "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
 }
 
 NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
