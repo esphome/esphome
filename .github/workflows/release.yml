@@ -111,8 +111,8 @@ jobs:
         uses: ./.github/actions/build-image
         with:
           platform: ${{ matrix.platform }}
-          target: docker
-          baseimg: docker
+          target: final
+          build_type: docker
           suffix: ""
           version: ${{ needs.init.outputs.tag }}
 
@@ -120,8 +120,8 @@ jobs:
         uses: ./.github/actions/build-image
         with:
           platform: ${{ matrix.platform }}
-          target: hassio
-          baseimg: hassio
+          target: final
+          build_type: hassio
           suffix: "hassio"
           version: ${{ needs.init.outputs.tag }}
 
@@ -130,7 +130,7 @@ jobs:
         with:
           platform: ${{ matrix.platform }}
           target: lint
-          baseimg: docker
+          build_type: docker
           suffix: lint
           version: ${{ needs.init.outputs.tag }}
 

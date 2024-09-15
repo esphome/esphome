@@ -7,11 +7,11 @@ inputs:
   target:
     description: "Target to build"
     required: true
-    example: "docker"
-  baseimg:
-    description: "Base image type"
+    example: "final / lint"
+  build_type:
+    description: "Image type to build"
     required: true
-    example: "docker"
+    example: "docker / hassio"
   suffix:
     description: "Suffix to add to tags"
     required: true
@@ -58,7 +58,7 @@ runs:
         cache-from: type=gha
         cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
-          BASEIMGTYPE=${{ inputs.baseimg }}
+          BUILD_TYPE=${{ inputs.build_type }}
           BUILD_VERSION=${{ inputs.version }}
         outputs: |
           type=image,name=ghcr.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
@@ -84,7 +84,7 @@ runs:
         cache-from: type=gha
         cache-to: ${{ steps.cache-to.outputs.value }}
         build-args: |
-          BASEIMGTYPE=${{ inputs.baseimg }}
+          BUILD_TYPE=${{ inputs.build_type }}
           BUILD_VERSION=${{ inputs.version }}
         outputs: |
           type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
