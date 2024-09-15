@@ -1,9 +1,9 @@
 #pragma once
 #include "esphome/core/defines.h"
 
-#ifdef USE_LVGL_BINARY_SENSOR
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#endif  // USE_LVGL_BINARY_SENSOR
+#endif  // USE_BINARY_SENSOR
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER
@@ -19,6 +19,7 @@
 #include "esphome/core/log.h"
 #include <lvgl.h>
 #include <vector>
+#include <map>
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
 #endif  // USE_LVGL_IMAGE
@@ -37,10 +38,10 @@
 namespace esphome {
 namespace lvgl {
 
-extern lv_event_code_t lv_custom_event;  // NOLINT
-#ifdef USE_LVGL_COLOR
-inline lv_color_t lv_color_from(Color color) { return lv_color_make(color.red, color.green, color.blue); }
-#endif  // USE_LVGL_COLOR
+extern lv_event_code_t lv_api_event;     // NOLINT
+extern lv_event_code_t lv_update_event;  // NOLINT
+extern std::string lv_event_code_name_for(uint8_t event_code);
+extern bool lv_is_pre_initialise();
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -132,12 +133,21 @@ class LvglComponent : public PollingComponent {
   void set_paused(bool paused, bool show_snow);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
   void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
+  void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
+                    lv_event_code_t event3);
   bool is_paused() const { return this->paused_; }
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
+  void set_focus_mark(lv_group_t *group) { this->focus_marks_[group] = lv_group_get_focused(group); }
+  void restore_focus_mark(lv_group_t *group) {
+    auto *mark = this->focus_marks_[group];
+    if (mark != nullptr) {
+      lv_group_focus_obj(mark);
+    }
+  }
 
  protected:
   void write_random_();
@@ -153,6 +163,7 @@ class LvglComponent : public PollingComponent {
   bool show_snow_{};
   lv_coord_t snow_line_{};
   bool page_wrap_{true};
+  std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   std::vector<std::function<void(LvglComponent *lv_component)>> init_lambdas_;
   CallbackManager<void(uint32_t)> idle_callbacks_{};
@@ -203,7 +214,7 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 };
 #endif  // USE_LVGL_TOUCHSCREEN
 
-#ifdef USE_LVGL_ROTARY_ENCODER
+#ifdef USE_LVGL_KEY_LISTENER
 class LVEncoderListener : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t lpt, uint16_t lprt);
@@ -219,9 +230,11 @@ class LVEncoderListener : public Parented<LvglComponent> {
     enter_button->add_on_state_callback([this](bool state) { this->event(LV_KEY_ENTER, state); });
   }
 
+#ifdef USE_LVGL_ROTARY_ENCODER
   void set_sensor(rotary_encoder::RotaryEncoderSensor *sensor) {
     sensor->register_listener([this](int32_t count) { this->set_count(count); });
   }
+#endif  // USE_LVGL_ROTARY_ENCODER
 
   void event(int key, bool pressed) {
     if (!this->parent_->is_paused()) {
@@ -244,9 +257,10 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int32_t last_count_{};
   int key_{};
 };
-#endif  // USE_LVGL_ROTARY_ENCODER
+#endif  //  USE_LVGL_KEY_LISTENER
+
 #ifdef USE_LVGL_BUTTONMATRIX
-class LvBtnmatrixType : public key_provider::KeyProvider, public LvCompound {
+class LvButtonMatrixType : public key_provider::KeyProvider, public LvCompound {
  public:
   void set_obj(lv_obj_t *lv_obj) override;
   uint16_t get_selected() { return lv_btnmatrix_get_selected_btn(this->obj); }

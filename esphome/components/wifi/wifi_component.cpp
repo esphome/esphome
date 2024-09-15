@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#ifdef USE_WIFI
 #include <cinttypes>
 #include <map>
 
@@ -856,3 +857,4 @@ WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-con
 
 }  // namespace wifi
 }  // namespace esphome
+#endif

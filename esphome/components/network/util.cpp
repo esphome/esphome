@@ -1,6 +1,6 @@
 #include "util.h"
 #include "esphome/core/defines.h"
-
+#ifdef USE_NETWORK
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
 #endif
@@ -63,3 +63,4 @@ std::string get_use_address() {
 
 }  // namespace network
 }  // namespace esphome
+#endif

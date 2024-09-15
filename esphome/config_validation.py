@@ -91,7 +91,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=consider-using-f-string
 VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
 )
 
 # pylint: disable=invalid-name
@@ -368,6 +368,20 @@ def boolean(value):
     raise Invalid(
         f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
     )
+
+
+def boolean_false(value):
+    """Validate the given config option to be a boolean, set to False.
+
+    This option allows a bunch of different ways of expressing boolean values:
+     - instance of boolean
+     - 'true'/'false'
+     - 'yes'/'no'
+     - 'enable'/disable
+    """
+    if boolean(value):
+        raise Invalid("Expected boolean value to be false")
+    return False
 
 
 @schema_extractor_list
@@ -2031,6 +2045,7 @@ def require_framework_version(
     esp32_arduino=None,
     esp8266_arduino=None,
     rp2040_arduino=None,
+    bk72xx_libretiny=None,
     host=None,
     max_version=False,
     extra_message=None,
@@ -2045,6 +2060,13 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = esp_idf
+        elif CORE.is_bk72xx and framework == "arduino":
+            if bk72xx_libretiny is None:
+                msg = "This feature is incompatible with BK72XX"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = bk72xx_libretiny
         elif CORE.is_esp32 and framework == "arduino":
             if esp32_arduino is None:
                 msg = "This feature is incompatible with ESP32 using arduino framework"

@@ -472,13 +472,13 @@ void EthernetComponent::start_connect_() {
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
-#if USE_NETWORK_IPV6
-    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-    if (err != ESP_OK) {
-      ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
-    }
-#endif /* USE_NETWORK_IPV6 */
   }
+#if USE_NETWORK_IPV6
+  err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  if (err != ESP_OK) {
+    ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
+  }
+#endif /* USE_NETWORK_IPV6 */
 
   this->connect_begin_ = millis();
   this->status_set_warning();

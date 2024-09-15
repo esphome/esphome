@@ -1,10 +1,10 @@
 import sys
 
 from esphome import automation, codegen as cg
-from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_VALUE
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj, MockObjClass
 
-from .defines import CONF_TEXT, lvgl_ns
+from .defines import lvgl_ns
 from .lvcode import lv_expr
 
 
@@ -57,8 +57,9 @@ lv_group_t = cg.global_ns.struct("lv_group_t")
 LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
 lv_obj_t = LvType("lv_obj_t")
-lv_page_t = cg.global_ns.class_("LvPageType", LvCompound)
+lv_page_t = LvType("LvPageType", parents=(LvCompound,))
 lv_img_t = LvType("lv_img_t")
+lv_gradient_t = LvType("lv_grad_dsc_t")
 
 LV_EVENT = MockObj(base="LV_EVENT_", op="")
 LV_STATE = MockObj(base="LV_STATE_", op="")
