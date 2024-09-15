@@ -32,7 +32,7 @@ from .schemas import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
     LAYOUT_SCHEMAS,
-    STYLE_SCHEMA,
+    STATE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
@@ -313,7 +313,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
                 cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
-                .extend(STYLE_SCHEMA)
+                .extend(STATE_SCHEMA)
                 .extend(
                     {
                         cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
