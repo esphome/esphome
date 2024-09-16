@@ -1,27 +1,29 @@
 import binascii
-import esphome.codegen as cg
-import esphome.config_validation as cv
+
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import modbus
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ID,
-    CONF_NAME,
     CONF_LAMBDA,
+    CONF_NAME,
     CONF_OFFSET,
     CONF_TRIGGER_ID,
 )
 from esphome.cpp_helpers import logging
+
 from .const import (
     CONF_ALLOW_DUPLICATE_COMMANDS,
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
-    CONF_OFFLINE_SKIP_UPDATES,
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
-    CONF_MODBUS_CONTROLLER_ID,
     CONF_MAX_CMD_RETRIES,
+    CONF_MODBUS_CONTROLLER_ID,
+    CONF_OFFLINE_SKIP_UPDATES,
     CONF_ON_COMMAND_SENT,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
