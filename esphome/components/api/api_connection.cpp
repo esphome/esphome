@@ -1032,6 +1032,7 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
     media_format.sample_rate = supported_format.sample_rate;
     media_format.num_channels = supported_format.num_channels;
     media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
+    media_format.sample_bytes = supported_format.sample_bytes;
     msg.supported_formats.push_back(media_format);
   }
 
