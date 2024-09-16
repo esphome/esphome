@@ -205,7 +205,9 @@ COLOR_NAMES = {
 def color(value):
     if value == SCHEMA_EXTRACT:
         return ["hex color value", "color ID"]
-    return cv.Any(cv.int_, cv.one_of(*COLOR_NAMES), cv.use_id(ColorStruct))(value)
+    return cv.Any(cv.int_, cv.one_of(*COLOR_NAMES, lower=True), cv.use_id(ColorStruct))(
+        value
+    )
 
 
 def color_retmapper(value):
