@@ -1,0 +1,22 @@
+output:
+  - platform: esp8266_pwm
+    id: light_output_1
+    pin: 12
+  - platform: esp8266_pwm
+    id: light_output_2
+    pin: 13
+  - platform: esp8266_pwm
+    id: light_output_3
+    pin: 14
+  - platform: esp8266_pwm
+    id: light_output_4
+    pin: 15
+
+light:
+  - platform: rgbw
+    name: RGBW Light
+    red: light_output_1
+    green: light_output_2
+    blue: light_output_3
+    white: light_output_4
+    color_interlock: true

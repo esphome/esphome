@@ -11,14 +11,14 @@ void TouchscreenBinarySensor::setup() {
 void TouchscreenBinarySensor::touch(TouchPoint tp) {
   bool touched = (tp.x >= this->x_min_ && tp.x <= this->x_max_ && tp.y >= this->y_min_ && tp.y <= this->y_max_);
 
-  if (this->page_ != nullptr) {
-    touched &= this->page_ == this->parent_->get_display()->get_active_page();
+  if (!this->pages_.empty()) {
+    auto *current_page = this->parent_->get_display()->get_active_page();
+    touched &= std::find(this->pages_.begin(), this->pages_.end(), current_page) != this->pages_.end();
   }
-
   if (touched) {
     this->publish_state(true);
   } else {
-    release();
+    this->release();
   }
 }
 

@@ -1,11 +1,13 @@
 
 #include "wifi_component.h"
 
+#ifdef USE_WIFI
 #ifdef USE_RP2040
 
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "lwip/netif.h"
+#include <AddrList.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -70,11 +72,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     return true;
   }
 
-  IPAddress ip_address = IPAddress(manual_ip->static_ip);
-  IPAddress gateway = IPAddress(manual_ip->gateway);
-  IPAddress subnet = IPAddress(manual_ip->subnet);
+  IPAddress ip_address = manual_ip->static_ip;
+  IPAddress gateway = manual_ip->gateway;
+  IPAddress subnet = manual_ip->subnet;
 
-  IPAddress dns = IPAddress(manual_ip->dns1);
+  IPAddress dns = manual_ip->dns1;
 
   WiFi.config(ip_address, dns, gateway, subnet);
   return true;
@@ -138,20 +140,39 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   return true;
 }
 
+#ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
-  // TODO:
-  return false;
+  esphome::network::IPAddress ip_address, gateway, subnet, dns;
+  if (manual_ip.has_value()) {
+    ip_address = manual_ip->static_ip;
+    gateway = manual_ip->gateway;
+    subnet = manual_ip->subnet;
+    dns = manual_ip->static_ip;
+  } else {
+    ip_address = network::IPAddress(192, 168, 4, 1);
+    gateway = network::IPAddress(192, 168, 4, 1);
+    subnet = network::IPAddress(255, 255, 255, 0);
+    dns = network::IPAddress(192, 168, 4, 1);
+  }
+  WiFi.config(ip_address, dns, gateway, subnet);
+  return true;
 }
 
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
+  if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed!");
+    return false;
+  }
 
   WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.get_channel().value_or(1));
 
   return true;
 }
-network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.localIP()}; }
+
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
+#endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
   int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
@@ -170,12 +191,19 @@ std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() { return {WiFi.localIP()}; }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
+  network::IPAddresses addresses;
+  uint8_t index = 0;
+  for (auto addr : addrList) {
+    addresses[index++] = addr.ipFromNetifNum();
+  }
+  return addresses;
+}
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
-  return {dns_ip->addr};
+  return network::IPAddress(dns_ip);
 }
 
 void WiFiComponent::wifi_loop_() {
@@ -190,4 +218,5 @@ void WiFiComponent::wifi_pre_setup_() {}
 }  // namespace wifi
 }  // namespace esphome
 
+#endif
 #endif

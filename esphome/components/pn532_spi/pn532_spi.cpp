@@ -21,6 +21,14 @@ void PN532Spi::setup() {
   PN532::setup();
 }
 
+bool PN532Spi::is_read_ready() {
+  this->enable();
+  this->write_byte(0x02);
+  bool ready = this->read_byte() == 0x01;
+  this->disable();
+  return ready;
+}
+
 bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
   this->enable();
   delay(2);
@@ -34,24 +42,8 @@ bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
 }
 
 bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
-  ESP_LOGV(TAG, "Waiting for ready byte...");
-
-  uint32_t start_time = millis();
-  while (true) {
-    this->enable();
-    // First byte, communication mode: Read state
-    this->write_byte(0x02);
-    bool ready = this->read_byte() == 0x01;
-    this->disable();
-    if (ready)
-      break;
-    ESP_LOGV(TAG, "Not ready yet...");
-
-    if (millis() - start_time > 100) {
-      ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
-      return false;
-    }
-    yield();
+  if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
+    return false;
   }
 
   // Read data (transmission from the PN532 to the host)
@@ -72,22 +64,8 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
 bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Reading response");
 
-  uint32_t start_time = millis();
-  while (true) {
-    this->enable();
-    // First byte, communication mode: Read state
-    this->write_byte(0x02);
-    bool ready = this->read_byte() == 0x01;
-    this->disable();
-    if (ready)
-      break;
-    ESP_LOGV(TAG, "Not ready yet...");
-
-    if (millis() - start_time > 100) {
-      ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
-      return false;
-    }
-    yield();
+  if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
+    return false;
   }
 
   this->enable();

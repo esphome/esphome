@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 
-from helpers import (
-    print_error_for_file,
-    get_output,
-    filter_grep,
-    build_all_include,
-    temp_header_file,
-    git_ls_files,
-    filter_changed,
-    load_idedata,
-    root_path,
-    basepath,
-)
 import argparse
-import click
-import colorama
 import multiprocessing
 import os
 import queue
@@ -24,6 +10,21 @@ import subprocess
 import sys
 import tempfile
 import threading
+
+import click
+import colorama
+from helpers import (
+    basepath,
+    build_all_include,
+    filter_changed,
+    filter_grep,
+    get_binary,
+    git_ls_files,
+    load_idedata,
+    print_error_for_file,
+    root_path,
+    temp_header_file,
+)
 
 
 def clang_options(idedata):
@@ -99,8 +100,10 @@ def clang_options(idedata):
     # add library include directories using -isystem to suppress their errors
     for directory in sorted(set(idedata["includes"]["build"])):
         # skip our own directories, we add those later
-        if not directory.startswith(f"{root_path}/") or directory.startswith(
-            f"{root_path}/.pio/"
+        if (
+            not directory.startswith(f"{root_path}/")
+            or directory.startswith(f"{root_path}/.pio/")
+            or directory.startswith(f"{root_path}/managed_components/")
         ):
             cmd.extend(["-isystem", directory])
 
@@ -110,10 +113,13 @@ def clang_options(idedata):
     return cmd
 
 
-def run_tidy(args, options, tmpdir, queue, lock, failed_files):
+pids = set()
+
+
+def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
     while True:
-        path = queue.get()
-        invocation = ["clang-tidy-14"]
+        path = path_queue.get()
+        invocation = [executable]
 
         if tmpdir is not None:
             invocation.append("--export-fixes")
@@ -134,17 +140,20 @@ def run_tidy(args, options, tmpdir, queue, lock, failed_files):
         invocation.append("--")
         invocation.extend(options)
 
-        proc = subprocess.run(invocation, capture_output=True, encoding="utf-8")
+        proc = subprocess.run(
+            invocation, capture_output=True, encoding="utf-8", check=False
+        )
         if proc.returncode != 0:
             with lock:
                 print_error_for_file(path, proc.stdout)
                 failed_files.append(path)
-        queue.task_done()
+        path_queue.task_done()
 
 
 def progress_bar_show(value):
     if value is None:
         return ""
+    return None
 
 
 def split_list(a, n):
@@ -193,22 +202,6 @@ def main():
     )
     args = parser.parse_args()
 
-    try:
-        get_output("clang-tidy-14", "-version")
-    except:
-        print(
-            """
-        Oops. It looks like clang-tidy-14 is not installed.
-
-        Please check you can run "clang-tidy-14 -version" in your terminal and install
-        clang-tidy (v14) if necessary.
-
-        Note you can also upload your code as a pull request on GitHub and see the CI check
-        output to apply clang-tidy.
-        """
-        )
-        return 1
-
     idedata = load_idedata(args.environment)
     options = clang_options(idedata)
 
@@ -242,12 +235,21 @@ def main():
 
     failed_files = []
     try:
+        executable = get_binary("clang-tidy", 14)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
             t = threading.Thread(
                 target=run_tidy,
-                args=(args, options, tmpdir, task_queue, lock, failed_files),
+                args=(
+                    executable,
+                    args,
+                    options,
+                    tmpdir,
+                    task_queue,
+                    lock,
+                    failed_files,
+                ),
             )
             t.daemon = True
             t.start()
@@ -255,30 +257,43 @@ def main():
         # Fill the queue with files.
         with click.progressbar(
             files, width=30, file=sys.stderr, item_show_func=progress_bar_show
-        ) as bar:
-            for name in bar:
+        ) as progress_bar:
+            for name in progress_bar:
                 task_queue.put(name)
 
         # Wait for all threads to be done.
         task_queue.join()
 
+    except FileNotFoundError:
+        return 1
     except KeyboardInterrupt:
         print()
         print("Ctrl-C detected, goodbye.")
         if tmpdir:
             shutil.rmtree(tmpdir)
+        # Kill subprocesses (and ourselves!)
+        # No simple, clean alternative appears to be available.
         os.kill(0, 9)
+        return 2  # Will not execute.
 
     if args.fix and failed_files:
         print("Applying fixes ...")
         try:
-            subprocess.call(["clang-apply-replacements-14", tmpdir])
+            try:
+                subprocess.call(["clang-apply-replacements-14", tmpdir])
+            except FileNotFoundError:
+                subprocess.call(["clang-apply-replacements", tmpdir])
+        except FileNotFoundError:
+            print(
+                "Error please install clang-apply-replacements-14 or clang-apply-replacements.\n",
+                file=sys.stderr,
+            )
         except:
             print("Error applying fixes.\n", file=sys.stderr)
             raise
 
-    sys.exit(len(failed_files))
+    return len(failed_files)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

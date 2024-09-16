@@ -14,6 +14,7 @@
 #endif
 
 #include <vector>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace display_menu_base {
@@ -28,6 +29,9 @@ enum MenuItemType {
   MENU_ITEM_COMMAND,
   MENU_ITEM_CUSTOM,
 };
+
+/// @brief Returns a string representation of a menu item type suitable for logging
+const LogString *menu_item_type_to_string(MenuItemType type);
 
 class MenuItem;
 class MenuItemMenu;

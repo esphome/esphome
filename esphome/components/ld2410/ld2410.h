@@ -7,9 +7,26 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+
+#include <map>
 
 namespace esphome {
 namespace ld2410 {
@@ -19,10 +36,63 @@ namespace ld2410 {
 // Commands
 static const uint8_t CMD_ENABLE_CONF = 0x00FF;
 static const uint8_t CMD_DISABLE_CONF = 0x00FE;
+static const uint8_t CMD_ENABLE_ENG = 0x0062;
+static const uint8_t CMD_DISABLE_ENG = 0x0063;
 static const uint8_t CMD_MAXDIST_DURATION = 0x0060;
 static const uint8_t CMD_QUERY = 0x0061;
 static const uint8_t CMD_GATE_SENS = 0x0064;
 static const uint8_t CMD_VERSION = 0x00A0;
+static const uint8_t CMD_QUERY_DISTANCE_RESOLUTION = 0x00AB;
+static const uint8_t CMD_SET_DISTANCE_RESOLUTION = 0x00AA;
+static const uint8_t CMD_QUERY_LIGHT_CONTROL = 0x00AE;
+static const uint8_t CMD_SET_LIGHT_CONTROL = 0x00AD;
+static const uint8_t CMD_SET_BAUD_RATE = 0x00A1;
+static const uint8_t CMD_BT_PASSWORD = 0x00A9;
+static const uint8_t CMD_MAC = 0x00A5;
+static const uint8_t CMD_RESET = 0x00A2;
+static const uint8_t CMD_RESTART = 0x00A3;
+static const uint8_t CMD_BLUETOOTH = 0x00A4;
+
+enum BaudRateStructure : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8
+};
+
+static const std::map<std::string, uint8_t> BAUD_RATE_ENUM_TO_INT{
+    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
+    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
+    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800}};
+
+enum DistanceResolutionStructure : uint8_t { DISTANCE_RESOLUTION_0_2 = 0x01, DISTANCE_RESOLUTION_0_75 = 0x00 };
+
+static const std::map<std::string, uint8_t> DISTANCE_RESOLUTION_ENUM_TO_INT{{"0.2m", DISTANCE_RESOLUTION_0_2},
+                                                                            {"0.75m", DISTANCE_RESOLUTION_0_75}};
+static const std::map<uint8_t, std::string> DISTANCE_RESOLUTION_INT_TO_ENUM{{DISTANCE_RESOLUTION_0_2, "0.2m"},
+                                                                            {DISTANCE_RESOLUTION_0_75, "0.75m"}};
+
+enum LightFunctionStructure : uint8_t {
+  LIGHT_FUNCTION_OFF = 0x00,
+  LIGHT_FUNCTION_BELOW = 0x01,
+  LIGHT_FUNCTION_ABOVE = 0x02
+};
+
+static const std::map<std::string, uint8_t> LIGHT_FUNCTION_ENUM_TO_INT{
+    {"off", LIGHT_FUNCTION_OFF}, {"below", LIGHT_FUNCTION_BELOW}, {"above", LIGHT_FUNCTION_ABOVE}};
+static const std::map<uint8_t, std::string> LIGHT_FUNCTION_INT_TO_ENUM{
+    {LIGHT_FUNCTION_OFF, "off"}, {LIGHT_FUNCTION_BELOW, "below"}, {LIGHT_FUNCTION_ABOVE, "above"}};
+
+enum OutPinLevelStructure : uint8_t { OUT_PIN_LEVEL_LOW = 0x00, OUT_PIN_LEVEL_HIGH = 0x01 };
+
+static const std::map<std::string, uint8_t> OUT_PIN_LEVEL_ENUM_TO_INT{{"low", OUT_PIN_LEVEL_LOW},
+                                                                      {"high", OUT_PIN_LEVEL_HIGH}};
+static const std::map<uint8_t, std::string> OUT_PIN_LEVEL_INT_TO_ENUM{{OUT_PIN_LEVEL_LOW, "low"},
+                                                                      {OUT_PIN_LEVEL_HIGH, "high"}};
 
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
@@ -44,7 +114,7 @@ Target states: 9th byte
     Detect distance: 16~17th bytes
 */
 enum PeriodicDataStructure : uint8_t {
-  DATA_TYPES = 5,
+  DATA_TYPES = 6,
   TARGET_STATES = 8,
   MOVING_TARGET_LOW = 9,
   MOVING_TARGET_HIGH = 10,
@@ -54,6 +124,10 @@ enum PeriodicDataStructure : uint8_t {
   STILL_ENERGY = 14,
   DETECT_DISTANCE_LOW = 15,
   DETECT_DISTANCE_HIGH = 16,
+  MOVING_SENSOR_START = 19,
+  STILL_SENSOR_START = 28,
+  LIGHT_SENSOR = 37,
+  OUT_PIN_SENSOR = 38,
 };
 enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
@@ -66,80 +140,97 @@ class LD2410Component : public Component, public uart::UARTDevice {
   SUB_SENSOR(still_target_distance)
   SUB_SENSOR(moving_target_energy)
   SUB_SENSOR(still_target_energy)
+  SUB_SENSOR(light)
   SUB_SENSOR(detection_distance)
+#endif
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(target)
+  SUB_BINARY_SENSOR(moving_target)
+  SUB_BINARY_SENSOR(still_target)
+  SUB_BINARY_SENSOR(out_pin_presence_status)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(version)
+  SUB_TEXT_SENSOR(mac)
+#endif
+#ifdef USE_SELECT
+  SUB_SELECT(distance_resolution)
+  SUB_SELECT(baud_rate)
+  SUB_SELECT(light_function)
+  SUB_SELECT(out_pin_level)
+#endif
+#ifdef USE_SWITCH
+  SUB_SWITCH(engineering_mode)
+  SUB_SWITCH(bluetooth)
+#endif
+#ifdef USE_BUTTON
+  SUB_BUTTON(reset)
+  SUB_BUTTON(restart)
+  SUB_BUTTON(query)
+#endif
+#ifdef USE_NUMBER
+  SUB_NUMBER(max_still_distance_gate)
+  SUB_NUMBER(max_move_distance_gate)
+  SUB_NUMBER(timeout)
+  SUB_NUMBER(light_threshold)
 #endif
 
  public:
+  LD2410Component();
   void setup() override;
   void dump_config() override;
   void loop() override;
-
-#ifdef USE_BINARY_SENSOR
-  void set_target_sensor(binary_sensor::BinarySensor *sens) { this->target_binary_sensor_ = sens; };
-  void set_moving_target_sensor(binary_sensor::BinarySensor *sens) { this->moving_binary_sensor_ = sens; };
-  void set_still_target_sensor(binary_sensor::BinarySensor *sens) { this->still_binary_sensor_ = sens; };
+  void set_light_out_control();
+#ifdef USE_NUMBER
+  void set_gate_still_threshold_number(int gate, number::Number *n);
+  void set_gate_move_threshold_number(int gate, number::Number *n);
+  void set_max_distances_timeout();
+  void set_gate_threshold(uint8_t gate);
 #endif
-
-  void set_timeout(uint16_t value) { this->timeout_ = value; };
-  void set_max_move_distance(uint8_t value) { this->max_move_distance_ = value; };
-  void set_max_still_distance(uint8_t value) { this->max_still_distance_ = value; };
-  void set_range_config(int rg0_move, int rg0_still, int rg1_move, int rg1_still, int rg2_move, int rg2_still,
-                        int rg3_move, int rg3_still, int rg4_move, int rg4_still, int rg5_move, int rg5_still,
-                        int rg6_move, int rg6_still, int rg7_move, int rg7_still, int rg8_move, int rg8_still) {
-    this->rg0_move_threshold_ = rg0_move;
-    this->rg0_still_threshold_ = rg0_still;
-    this->rg1_move_threshold_ = rg1_move;
-    this->rg1_still_threshold_ = rg1_still;
-    this->rg2_move_threshold_ = rg2_move;
-    this->rg2_still_threshold_ = rg2_still;
-    this->rg3_move_threshold_ = rg3_move;
-    this->rg3_still_threshold_ = rg3_still;
-    this->rg4_move_threshold_ = rg4_move;
-    this->rg4_still_threshold_ = rg4_still;
-    this->rg5_move_threshold_ = rg5_move;
-    this->rg5_still_threshold_ = rg5_still;
-    this->rg6_move_threshold_ = rg6_move;
-    this->rg6_still_threshold_ = rg6_still;
-    this->rg7_move_threshold_ = rg7_move;
-    this->rg7_still_threshold_ = rg7_still;
-    this->rg8_move_threshold_ = rg8_move;
-    this->rg8_still_threshold_ = rg8_still;
-  };
-  int moving_sensitivities[9] = {0};
-  int still_sensitivities[9] = {0};
-
-  int32_t last_periodic_millis = millis();
+#ifdef USE_SENSOR
+  void set_gate_move_sensor(int gate, sensor::Sensor *s);
+  void set_gate_still_sensor(int gate, sensor::Sensor *s);
+#endif
+  void set_throttle(uint16_t value) { this->throttle_ = value; };
+  void set_bluetooth_password(const std::string &password);
+  void set_engineering_mode(bool enable);
+  void read_all_info();
+  void restart_and_read_all_info();
+  void set_bluetooth(bool enable);
+  void set_distance_resolution(const std::string &state);
+  void set_baud_rate(const std::string &state);
+  void factory_reset();
 
  protected:
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *target_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *moving_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *still_binary_sensor_{nullptr};
-#endif
-
-  std::vector<uint8_t> rx_buffer_;
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
-  void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
-
-  void set_max_distances_timeout_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,
-                                  uint16_t timeout);
-  void set_gate_threshold_(uint8_t gate, uint8_t motionsens, uint8_t stillsens);
+  void send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len);
   void set_config_mode_(bool enable);
   void handle_periodic_data_(uint8_t *buffer, int len);
-  void handle_ack_data_(uint8_t *buffer, int len);
+  bool handle_ack_data_(uint8_t *buffer, int len);
   void readline_(int readch, uint8_t *buffer, int len);
   void query_parameters_();
   void get_version_();
+  void get_mac_();
+  void get_distance_resolution_();
+  void get_light_control_();
+  void restart_();
 
-  uint16_t timeout_;
-  uint8_t max_move_distance_;
-  uint8_t max_still_distance_;
-
-  uint8_t version_[6];
-  uint8_t rg0_move_threshold_, rg0_still_threshold_, rg1_move_threshold_, rg1_still_threshold_, rg2_move_threshold_,
-      rg2_still_threshold_, rg3_move_threshold_, rg3_still_threshold_, rg4_move_threshold_, rg4_still_threshold_,
-      rg5_move_threshold_, rg5_still_threshold_, rg6_move_threshold_, rg6_still_threshold_, rg7_move_threshold_,
-      rg7_still_threshold_, rg8_move_threshold_, rg8_still_threshold_;
+  int32_t last_periodic_millis_ = millis();
+  int32_t last_engineering_mode_change_millis_ = millis();
+  uint16_t throttle_;
+  std::string version_;
+  std::string mac_;
+  std::string out_pin_level_;
+  std::string light_function_;
+  float light_threshold_ = -1;
+#ifdef USE_NUMBER
+  std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(9);
+  std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(9);
+#endif
+#ifdef USE_SENSOR
+  std::vector<sensor::Sensor *> gate_still_sensors_ = std::vector<sensor::Sensor *>(9);
+  std::vector<sensor::Sensor *> gate_move_sensors_ = std::vector<sensor::Sensor *>(9);
+#endif
 };
 
 }  // namespace ld2410

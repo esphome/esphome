@@ -4,6 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace sht4x {
 

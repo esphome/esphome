@@ -16,6 +16,30 @@ static const char *const TAG = "esp32_can";
 
 static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config) {
   switch (bitrate) {
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H6)
+    case canbus::CAN_1KBPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_1KBITS();
+      return true;
+    case canbus::CAN_5KBPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_5KBITS();
+      return true;
+    case canbus::CAN_10KBPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_10KBITS();
+      return true;
+    case canbus::CAN_12K5BPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_12_5KBITS();
+      return true;
+    case canbus::CAN_16KBPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_16KBITS();
+      return true;
+    case canbus::CAN_20KBPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_20KBITS();
+      return true;
+#endif
+    case canbus::CAN_25KBPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_25KBITS();
+      return true;
     case canbus::CAN_50KBPS:
       *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_50KBITS();
       return true;
@@ -31,6 +55,9 @@ static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config
     case canbus::CAN_500KBPS:
       *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_500KBITS();
       return true;
+    case canbus::CAN_800KBPS:
+      *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_800KBITS();
+      return true;
     case canbus::CAN_1000KBPS:
       *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_1MBITS();
       return true;
@@ -42,6 +69,13 @@ static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config
 bool ESP32Can::setup_internal() {
   twai_general_config_t g_config =
       TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, TWAI_MODE_NORMAL);
+  if (this->tx_queue_len_.has_value()) {
+    g_config.tx_queue_len = this->tx_queue_len_.value();
+  }
+  if (this->rx_queue_len_.has_value()) {
+    g_config.rx_queue_len = this->rx_queue_len_.value();
+  }
+
   twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
   twai_timing_config_t t_config;
 
@@ -84,6 +118,7 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
       .flags = flags,
       .identifier = frame->can_id,
       .data_length_code = frame->can_data_length_code,
+      .data = {},  // to suppress warning, data is initialized properly below
   };
   if (!frame->remote_transmission_request) {
     memcpy(message.data, frame->data, frame->can_data_length_code);

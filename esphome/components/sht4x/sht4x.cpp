@@ -20,7 +20,7 @@ void SHT4XComponent::setup() {
 
   if (this->duty_cycle_ > 0.0) {
     uint32_t heater_interval = (uint32_t) (this->heater_time_ / this->duty_cycle_);
-    ESP_LOGD(TAG, "Heater interval: %i", heater_interval);
+    ESP_LOGD(TAG, "Heater interval: %" PRIu32, heater_interval);
 
     if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
       if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {

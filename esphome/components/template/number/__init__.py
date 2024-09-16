@@ -11,14 +11,13 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_RESTORE_VALUE,
     CONF_STEP,
+    CONF_SET_ACTION,
 )
 from .. import template_ns
 
 TemplateNumber = template_ns.class_(
     "TemplateNumber", number.Number, cg.PollingComponent
 )
-
-CONF_SET_ACTION = "set_action"
 
 
 def validate_min_max(config):

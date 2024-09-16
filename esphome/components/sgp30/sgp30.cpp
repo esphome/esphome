@@ -73,9 +73,10 @@ void SGP30Component::setup() {
     return;
   }
 
-  // Hash with compilation time
+  // Hash with compilation time and serial number
   // This ensures the baseline storage is cleared after OTA
-  uint32_t hash = fnv1_hash(App.get_compilation_time());
+  // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
+  uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(this->serial_number_));
   this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
   if (this->pref_.load(&this->baselines_storage_)) {
@@ -255,7 +256,7 @@ void SGP30Component::dump_config() {
     } else {
       ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
     }
-    ESP_LOGCONFIG(TAG, "  Warm up time: %us", this->required_warm_up_time_);
+    ESP_LOGCONFIG(TAG, "  Warm up time: %" PRIu32 "s", this->required_warm_up_time_);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "eCO2 sensor", this->eco2_sensor_);

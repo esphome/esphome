@@ -25,6 +25,7 @@ class BLEService;
 class BLECharacteristic {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
+  ~BLECharacteristic();
 
   void set_value(const uint8_t *data, size_t length);
   void set_value(std::vector<uint8_t> value);
@@ -52,6 +53,7 @@ class BLECharacteristic {
   void on_write(const std::function<void(const std::vector<uint8_t> &)> &&func) { this->on_write_ = func; }
 
   void add_descriptor(BLEDescriptor *descriptor);
+  void remove_descriptor(BLEDescriptor *descriptor);
 
   BLEService *get_service() { return this->service_; }
   ESPBTUUID get_uuid() { return this->uuid_; }

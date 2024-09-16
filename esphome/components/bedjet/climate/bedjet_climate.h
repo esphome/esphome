@@ -28,6 +28,8 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
 
   /** Sets the default strategy to use for climate::CLIMATE_MODE_HEAT. */
   void set_heating_mode(BedjetHeatMode mode) { this->heating_mode_ = mode; }
+  /** Sets the temperature source to use for the climate entity's current temperature */
+  void set_temperature_source(BedjetTemperatureSource source) { this->temperature_source_ = source; }
 
   climate::ClimateTraits traits() override {
     auto traits = climate::ClimateTraits();
@@ -74,6 +76,7 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
   void control(const climate::ClimateCall &call) override;
 
   BedjetHeatMode heating_mode_ = HEAT_MODE_HEAT;
+  BedjetTemperatureSource temperature_source_ = TEMPERATURE_SOURCE_AMBIENT;
 
   void reset_state_();
   bool update_status_();

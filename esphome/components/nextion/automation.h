@@ -33,5 +33,14 @@ class PageTrigger : public Trigger<uint8_t> {
   }
 };
 
+class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
+ public:
+  explicit TouchTrigger(Nextion *nextion) {
+    nextion->add_touch_event_callback([this](uint8_t page_id, uint8_t component_id, bool touch_event) {
+      this->trigger(page_id, component_id, touch_event);
+    });
+  }
+};
+
 }  // namespace nextion
 }  // namespace esphome

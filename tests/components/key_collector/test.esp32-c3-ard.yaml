@@ -1,0 +1,28 @@
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: 1
+    - pin: 2
+  columns:
+    - pin: 3
+    - pin: 4
+  keys: "1234"
+  has_pulldowns: true
+
+key_collector:
+  - id: reader
+    source_id: keypad
+    min_length: 4
+    max_length: 4
+    on_progress:
+      - logger.log:
+          format: "input progress: '%s', started by '%c'"
+          args: ['x.c_str()', "(start == 0 ? '~' : start)"]
+    on_result:
+      - logger.log:
+          format: "input result: '%s', started by '%c', ended by '%c'"
+          args: ['x.c_str()', "(start == 0 ? '~' : start)", "(end == 0 ? '~' : end)"]
+    on_timeout:
+      - logger.log:
+          format: "input timeout: '%s', started by '%c'"
+          args: ['x.c_str()', "(start == 0 ? '~' : start)"]

@@ -4,6 +4,7 @@ import esphome.final_validate as fv
 from esphome import pins
 from esphome.const import (
     CONF_FREQUENCY,
+    CONF_TIMEOUT,
     CONF_ID,
     CONF_INPUT,
     CONF_OUTPUT,
@@ -12,6 +13,9 @@ from esphome.const import (
     CONF_SDA,
     CONF_ADDRESS,
     CONF_I2C_ID,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -36,29 +40,32 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
-pin_with_input_and_output_support = cv.All(
-    pins.internal_gpio_pin_number({CONF_INPUT: True}),
-    pins.internal_gpio_pin_number({CONF_OUTPUT: True}),
+pin_with_input_and_output_support = pins.internal_gpio_pin_number(
+    {CONF_OUTPUT: True, CONF_INPUT: True}
 )
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): _bus_declare_type,
-        cv.Optional(CONF_SDA, default="SDA"): pin_with_input_and_output_support,
-        cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
-            cv.only_with_esp_idf, cv.boolean
-        ),
-        cv.Optional(CONF_SCL, default="SCL"): pin_with_input_and_output_support,
-        cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
-            cv.only_with_esp_idf, cv.boolean
-        ),
-        cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
-            cv.frequency, cv.Range(min=0, min_included=False)
-        ),
-        cv.Optional(CONF_SCAN, default=True): cv.boolean,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): _bus_declare_type,
+            cv.Optional(CONF_SDA, default="SDA"): pin_with_input_and_output_support,
+            cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
+                cv.only_with_esp_idf, cv.boolean
+            ),
+            cv.Optional(CONF_SCL, default="SCL"): pin_with_input_and_output_support,
+            cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
+                cv.only_with_esp_idf, cv.boolean
+            ),
+            cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
+                cv.frequency, cv.Range(min=0, min_included=False)
+            ),
+            cv.Optional(CONF_TIMEOUT): cv.positive_time_period,
+            cv.Optional(CONF_SCAN, default=True): cv.boolean,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+)
 
 
 @coroutine_with_priority(1.0)
@@ -76,6 +83,8 @@ async def to_code(config):
 
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
     cg.add(var.set_scan(config[CONF_SCAN]))
+    if CONF_TIMEOUT in config:
+        cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
     if CORE.using_arduino:
         cg.add_library("Wire", None)
 
@@ -114,21 +123,54 @@ async def register_i2c_device(var, config):
 
 
 def final_validate_device_schema(
-    name: str, *, min_frequency: cv.frequency = None, max_frequency: cv.frequency = None
+    name: str,
+    *,
+    min_frequency: cv.frequency = None,
+    max_frequency: cv.frequency = None,
+    min_timeout: cv.time_period = None,
+    max_timeout: cv.time_period = None,
 ):
     hub_schema = {}
-    if min_frequency is not None:
+    if (min_frequency is not None) and (max_frequency is not None):
+        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
+            min=cv.frequency(min_frequency),
+            min_included=True,
+            max=cv.frequency(max_frequency),
+            max_included=True,
+            msg=f"Component {name} requires a frequency between {min_frequency} and {max_frequency} for the I2C bus",
+        )
+    elif min_frequency is not None:
         hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
             min=cv.frequency(min_frequency),
             min_included=True,
             msg=f"Component {name} requires a minimum frequency of {min_frequency} for the I2C bus",
         )
-
-    if max_frequency is not None:
+    elif max_frequency is not None:
         hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
             max=cv.frequency(max_frequency),
             max_included=True,
             msg=f"Component {name} cannot be used with a frequency of over {max_frequency} for the I2C bus",
+        )
+
+    if (min_timeout is not None) and (max_timeout is not None):
+        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
+            min=cv.time_period(min_timeout),
+            min_included=True,
+            max=cv.time_period(max_timeout),
+            max_included=True,
+            msg=f"Component {name} requires a timeout between {min_timeout} and {max_timeout} for the I2C bus",
+        )
+    elif min_timeout is not None:
+        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
+            min=cv.time_period(min_timeout),
+            min_included=True,
+            msg=f"Component {name} requires a minimum timeout of {min_timeout} for the I2C bus",
+        )
+    elif max_timeout is not None:
+        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
+            max=cv.time_period(max_timeout),
+            max_included=True,
+            msg=f"Component {name} cannot be used with a timeout of over {max_timeout} for the I2C bus",
         )
 
     return cv.Schema(

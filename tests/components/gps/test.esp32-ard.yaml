@@ -1,0 +1,14 @@
+uart:
+  - id: uart_gps
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+    parity: EVEN
+
+gps:
+
+time:
+  - platform: gps
+    on_time_sync:
+      then:
+        logger.log: "It's time!"

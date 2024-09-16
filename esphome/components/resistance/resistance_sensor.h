@@ -1,7 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "esphome/components/resistance_sampler/resistance_sampler.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace resistance {
@@ -11,7 +12,7 @@ enum ResistanceConfiguration {
   DOWNSTREAM,
 };
 
-class ResistanceSensor : public Component, public sensor::Sensor {
+class ResistanceSensor : public Component, public sensor::Sensor, resistance_sampler::ResistanceSampler {
  public:
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_configuration(ResistanceConfiguration configuration) { configuration_ = configuration; }

@@ -1,32 +1,32 @@
-import logging
 from importlib import resources
+import logging
 from typing import Optional
 
 import tzlocal
 
+from esphome import automation
+from esphome.automation import Condition
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.const import (
-    CONF_ID,
+    CONF_AT,
     CONF_CRON,
     CONF_DAYS_OF_MONTH,
     CONF_DAYS_OF_WEEK,
+    CONF_HOUR,
     CONF_HOURS,
+    CONF_ID,
+    CONF_MINUTE,
     CONF_MINUTES,
     CONF_MONTHS,
     CONF_ON_TIME,
     CONF_ON_TIME_SYNC,
+    CONF_SECOND,
     CONF_SECONDS,
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
-    CONF_AT,
-    CONF_SECOND,
-    CONF_HOUR,
-    CONF_MINUTE,
 )
 from esphome.core import coroutine_with_priority
-from esphome.automation import Condition
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +37,6 @@ time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
 SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
-ESPTime = time_ns.struct("ESPTime")
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 
@@ -50,7 +49,7 @@ def _load_tzdata(iana_key: str) -> Optional[bytes]:
     package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
-        return resources.read_binary(package, resource)
+        return (resources.files(package) / resource).read_bytes()
     except (FileNotFoundError, ModuleNotFoundError):
         return None
 

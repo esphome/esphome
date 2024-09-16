@@ -20,6 +20,7 @@ class ESPBTUUID {
   static ESPBTUUID from_uint32(uint32_t uuid);
 
   static ESPBTUUID from_raw(const uint8_t *data);
+  static ESPBTUUID from_raw_reversed(const uint8_t *data);
 
   static ESPBTUUID from_raw(const std::string &data);
 

@@ -1,0 +1,10 @@
+time:
+  - platform: host
+    id: esptime
+    timezone: Australia/Sydney
+
+logger:
+  level: VERBOSE
+
+host:
+  mac_address: "62:23:45:AF:B3:DD"

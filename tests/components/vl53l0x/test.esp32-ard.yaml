@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_vl53l0x
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: vl53l0x
+    name: VL53L0x Distance
+    address: 0x29
+    enable_pin: 3
+    timeout: 200us
+    update_interval: 60s

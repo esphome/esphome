@@ -29,6 +29,8 @@ std::string build_json(const json_build_t &f) {
   const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 #elif defined(USE_RP2040)
   const size_t free_heap = rp2040.getFreeHeap();
+#elif defined(USE_LIBRETINY)
+  const size_t free_heap = lt_heap_get_free();
 #endif
 
   size_t request_size = std::min(free_heap, (size_t) 512);
@@ -60,7 +62,7 @@ std::string build_json(const json_build_t &f) {
   }
 }
 
-void parse_json(const std::string &data, const json_parse_t &f) {
+bool parse_json(const std::string &data, const json_parse_t &f) {
   // Here we are allocating 1.5 times the data size,
   // with the heap size minus 2kb to be safe if less than that
   // as we can not have a true dynamic sized document.
@@ -71,15 +73,16 @@ void parse_json(const std::string &data, const json_parse_t &f) {
   const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 #elif defined(USE_RP2040)
   const size_t free_heap = rp2040.getFreeHeap();
+#elif defined(USE_LIBRETINY)
+  const size_t free_heap = lt_heap_get_free();
 #endif
-  bool pass = false;
   size_t request_size = std::min(free_heap, (size_t) (data.size() * 1.5));
-  do {
+  while (true) {
     DynamicJsonDocument json_document(request_size);
     if (json_document.capacity() == 0) {
       ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, free heap: %u", request_size,
                free_heap);
-      return;
+      return false;
     }
     DeserializationError err = deserializeJson(json_document, data);
     json_document.shrinkToFit();
@@ -87,21 +90,21 @@ void parse_json(const std::string &data, const json_parse_t &f) {
     JsonObject root = json_document.as<JsonObject>();
 
     if (err == DeserializationError::Ok) {
-      pass = true;
-      f(root);
+      return f(root);
     } else if (err == DeserializationError::NoMemory) {
       if (request_size * 2 >= free_heap) {
         ESP_LOGE(TAG, "Can not allocate more memory for deserialization. Consider making source string smaller");
-        return;
+        return false;
       }
       ESP_LOGV(TAG, "Increasing memory allocation.");
       request_size *= 2;
       continue;
     } else {
       ESP_LOGE(TAG, "JSON parse error: %s", err.c_str());
-      return;
+      return false;
     }
-  } while (!pass);
+  };
+  return false;
 }
 
 }  // namespace json

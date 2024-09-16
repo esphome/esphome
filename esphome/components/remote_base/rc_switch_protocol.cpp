@@ -54,7 +54,7 @@ void RCSwitchBase::sync(RemoteTransmitData *dst) const {
   }
 }
 void RCSwitchBase::transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len) const {
-  dst->set_carrier_frequency(0);
+  dst->set_carrier_frequency(38000);
   this->sync(dst);
   for (int16_t i = len - 1; i >= 0; i--) {
     if (code & ((uint64_t) 1 << i)) {
@@ -258,7 +258,7 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
         buffer[j] = (out_data & ((uint64_t) 1 << (out_nbits - j - 1))) ? '1' : '0';
 
       buffer[out_nbits] = '\0';
-      ESP_LOGD(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", i, buffer);
+      ESP_LOGI(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", i, buffer);
 
       // only send first decoded protocol
       return true;

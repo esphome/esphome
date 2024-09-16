@@ -1,14 +1,17 @@
-import logging
+from __future__ import annotations
 
+import hashlib
 import io
+import logging
 from pathlib import Path
 import re
-import requests
 
-from esphome import core
+from magic import Magic
+
+from esphome import core, external_files
+import esphome.codegen as cg
 from esphome.components import font
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_DITHER,
     CONF_FILE,
@@ -19,6 +22,7 @@ from esphome.const import (
     CONF_RESIZE,
     CONF_SOURCE,
     CONF_TYPE,
+    CONF_URL,
 )
 from esphome.core import CORE, HexInt
 
@@ -27,6 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = "image"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
+MULTI_CONF_NO_DEFAULT = True
 
 image_ns = cg.esphome_ns.namespace("image")
 
@@ -43,34 +48,49 @@ IMAGE_TYPE = {
 CONF_USE_TRANSPARENCY = "use_transparency"
 
 # If the MDI file cannot be downloaded within this time, abort.
-MDI_DOWNLOAD_TIMEOUT = 30  # seconds
+IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
 
 SOURCE_LOCAL = "local"
 SOURCE_MDI = "mdi"
+SOURCE_WEB = "web"
+
 
 Image_ = image_ns.class_("Image")
 
 
-def _compute_local_icon_path(value) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN / "mdi"
+def _compute_local_icon_path(value: dict) -> Path:
+    base_dir = external_files.compute_local_file_dir(DOMAIN) / "mdi"
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
+def compute_local_image_path(value: dict) -> Path:
+    url = value[CONF_URL]
+    h = hashlib.new("sha256")
+    h.update(url.encode())
+    key = h.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(DOMAIN)
+    return base_dir / key
+
+
 def download_mdi(value):
+    validate_cairosvg_installed(value)
+
     mdi_id = value[CONF_ICON]
     path = _compute_local_icon_path(value)
-    if path.is_file():
-        return value
-    url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
-    _LOGGER.debug("Downloading %s MDI image from %s", mdi_id, url)
-    try:
-        req = requests.get(url, timeout=MDI_DOWNLOAD_TIMEOUT)
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download MDI image {mdi_id} from {url}: {e}")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
+    url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
+
+    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
+
+    return value
+
+
+def download_image(value):
+    url = value[CONF_URL]
+    path = compute_local_image_path(value)
+
+    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
+
     return value
 
 
@@ -139,6 +159,13 @@ def validate_file_shorthand(value):
                 CONF_ICON: icon,
             }
         )
+    if value.startswith("http://") or value.startswith("https://"):
+        return FILE_SCHEMA(
+            {
+                CONF_SOURCE: SOURCE_WEB,
+                CONF_URL: value,
+            }
+        )
     return FILE_SCHEMA(
         {
             CONF_SOURCE: SOURCE_LOCAL,
@@ -160,10 +187,18 @@ MDI_SCHEMA = cv.All(
     download_mdi,
 )
 
+WEB_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_URL): cv.string,
+    },
+    download_image,
+)
+
 TYPED_FILE_SCHEMA = cv.typed_schema(
     {
         SOURCE_LOCAL: LOCAL_SCHEMA,
         SOURCE_MDI: MDI_SCHEMA,
+        SOURCE_WEB: WEB_SCHEMA,
     },
     key=CONF_SOURCE,
 )
@@ -201,28 +236,29 @@ IMAGE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
-def load_svg_image(file: str, resize: tuple[int, int]):
-    from PIL import Image
-
+def load_svg_image(file: bytes, resize: tuple[int, int]):
+    # Local import only to allow "validate_pillow_installed" to run *before* importing it
     # This import is only needed in case of SVG images; adding it
     # to the top would force configurations not using SVG to also have it
     # installed for no reason.
     from cairosvg import svg2png
+    from PIL import Image
 
     if resize:
         req_width, req_height = resize
         svg_image = svg2png(
-            url=file,
+            file,
             output_width=req_width,
             output_height=req_height,
         )
     else:
-        svg_image = svg2png(url=file)
+        svg_image = svg2png(file)
 
     return Image.open(io.BytesIO(svg_image))
 
 
 async def to_code(config):
+    # Local import only to allow "validate_pillow_installed" to run *before* importing it
     from PIL import Image
 
     conf_file = config[CONF_FILE]
@@ -233,16 +269,28 @@ async def to_code(config):
     elif conf_file[CONF_SOURCE] == SOURCE_MDI:
         path = _compute_local_icon_path(conf_file).as_posix()
 
+    elif conf_file[CONF_SOURCE] == SOURCE_WEB:
+        path = compute_local_image_path(conf_file).as_posix()
+
+    else:
+        raise core.EsphomeError(f"Unknown image source: {conf_file[CONF_SOURCE]}")
+
     try:
-        resize = config.get(CONF_RESIZE)
-        if path.lower().endswith(".svg"):
-            image = load_svg_image(path, resize)
-        else:
-            image = Image.open(path)
-            if resize:
-                image.thumbnail(resize)
+        with open(path, "rb") as f:
+            file_contents = f.read()
     except Exception as e:
         raise core.EsphomeError(f"Could not load image file {path}: {e}")
+
+    mime = Magic(mime=True)
+    file_type = mime.from_buffer(file_contents)
+
+    resize = config.get(CONF_RESIZE)
+    if "svg" in file_type:
+        image = load_svg_image(file_contents, resize)
+    else:
+        image = Image.open(io.BytesIO(file_contents))
+        if resize:
+            image.thumbnail(resize)
 
     width, height = image.size
 
@@ -255,7 +303,11 @@ async def to_code(config):
 
     transparent = config[CONF_USE_TRANSPARENCY]
 
-    dither = Image.NONE if config[CONF_DITHER] == "NONE" else Image.FLOYDSTEINBERG
+    dither = (
+        Image.Dither.NONE
+        if config[CONF_DITHER] == "NONE"
+        else Image.Dither.FLOYDSTEINBERG
+    )
     if config[CONF_TYPE] == "GRAYSCALE":
         image = image.convert("LA", dither=dither)
         pixels = list(image.getdata())

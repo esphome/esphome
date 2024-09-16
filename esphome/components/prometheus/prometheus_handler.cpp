@@ -1,6 +1,5 @@
-#ifdef USE_ARDUINO
-
 #include "prometheus_handler.h"
+#ifdef USE_NETWORK
 #include "esphome/core/application.h"
 
 namespace esphome {
@@ -67,8 +66,8 @@ std::string PrometheusHandler::relabel_name_(EntityBase *obj) {
 // Type-specific implementation
 #ifdef USE_SENSOR
 void PrometheusHandler::sensor_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_sensor_value GAUGE\n"));
-  stream->print(F("#TYPE esphome_sensor_failed GAUGE\n"));
+  stream->print(F("#TYPE esphome_sensor_value gauge\n"));
+  stream->print(F("#TYPE esphome_sensor_failed gauge\n"));
 }
 void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor *obj) {
   if (obj->is_internal() && !this->include_internal_)
@@ -89,7 +88,7 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
     stream->print(obj->get_unit_of_measurement().c_str());
     stream->print(F("\"} "));
     stream->print(value_accuracy_to_string(obj->state, obj->get_accuracy_decimals()).c_str());
-    stream->print('\n');
+    stream->print(F("\n"));
   } else {
     // Invalid state
     stream->print(F("esphome_sensor_failed{id=\""));
@@ -104,8 +103,8 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
 // Type-specific implementation
 #ifdef USE_BINARY_SENSOR
 void PrometheusHandler::binary_sensor_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_binary_sensor_value GAUGE\n"));
-  stream->print(F("#TYPE esphome_binary_sensor_failed GAUGE\n"));
+  stream->print(F("#TYPE esphome_binary_sensor_value gauge\n"));
+  stream->print(F("#TYPE esphome_binary_sensor_failed gauge\n"));
 }
 void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_sensor::BinarySensor *obj) {
   if (obj->is_internal() && !this->include_internal_)
@@ -124,7 +123,7 @@ void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_s
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->state);
-    stream->print('\n');
+    stream->print(F("\n"));
   } else {
     // Invalid state
     stream->print(F("esphome_binary_sensor_failed{id=\""));
@@ -138,10 +137,10 @@ void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_s
 
 #ifdef USE_FAN
 void PrometheusHandler::fan_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_fan_value GAUGE\n"));
-  stream->print(F("#TYPE esphome_fan_failed GAUGE\n"));
-  stream->print(F("#TYPE esphome_fan_speed GAUGE\n"));
-  stream->print(F("#TYPE esphome_fan_oscillation GAUGE\n"));
+  stream->print(F("#TYPE esphome_fan_value gauge\n"));
+  stream->print(F("#TYPE esphome_fan_failed gauge\n"));
+  stream->print(F("#TYPE esphome_fan_speed gauge\n"));
+  stream->print(F("#TYPE esphome_fan_oscillation gauge\n"));
 }
 void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
   if (obj->is_internal() && !this->include_internal_)
@@ -158,7 +157,7 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
   stream->print(relabel_name_(obj).c_str());
   stream->print(F("\"} "));
   stream->print(obj->state);
-  stream->print('\n');
+  stream->print(F("\n"));
   // Speed if available
   if (obj->get_traits().supports_speed()) {
     stream->print(F("esphome_fan_speed{id=\""));
@@ -167,7 +166,7 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->speed);
-    stream->print('\n');
+    stream->print(F("\n"));
   }
   // Oscillation if available
   if (obj->get_traits().supports_oscillation()) {
@@ -177,16 +176,16 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->oscillating);
-    stream->print('\n');
+    stream->print(F("\n"));
   }
 }
 #endif
 
 #ifdef USE_LIGHT
 void PrometheusHandler::light_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_light_state GAUGE\n"));
-  stream->print(F("#TYPE esphome_light_color GAUGE\n"));
-  stream->print(F("#TYPE esphome_light_effect_active GAUGE\n"));
+  stream->print(F("#TYPE esphome_light_state gauge\n"));
+  stream->print(F("#TYPE esphome_light_color gauge\n"));
+  stream->print(F("#TYPE esphome_light_effect_active gauge\n"));
 }
 void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightState *obj) {
   if (obj->is_internal() && !this->include_internal_)
@@ -261,8 +260,8 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
 
 #ifdef USE_COVER
 void PrometheusHandler::cover_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_cover_value GAUGE\n"));
-  stream->print(F("#TYPE esphome_cover_failed GAUGE\n"));
+  stream->print(F("#TYPE esphome_cover_value gauge\n"));
+  stream->print(F("#TYPE esphome_cover_failed gauge\n"));
 }
 void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *obj) {
   if (obj->is_internal() && !this->include_internal_)
@@ -281,7 +280,7 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
     stream->print(relabel_name_(obj).c_str());
     stream->print(F("\"} "));
     stream->print(obj->position);
-    stream->print('\n');
+    stream->print(F("\n"));
     if (obj->get_traits().get_supports_tilt()) {
       stream->print(F("esphome_cover_tilt{id=\""));
       stream->print(relabel_id_(obj).c_str());
@@ -289,7 +288,7 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
       stream->print(relabel_name_(obj).c_str());
       stream->print(F("\"} "));
       stream->print(obj->tilt);
-      stream->print('\n');
+      stream->print(F("\n"));
     }
   } else {
     // Invalid state
@@ -304,8 +303,8 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
 
 #ifdef USE_SWITCH
 void PrometheusHandler::switch_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_switch_value GAUGE\n"));
-  stream->print(F("#TYPE esphome_switch_failed GAUGE\n"));
+  stream->print(F("#TYPE esphome_switch_value gauge\n"));
+  stream->print(F("#TYPE esphome_switch_failed gauge\n"));
 }
 void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch *obj) {
   if (obj->is_internal() && !this->include_internal_)
@@ -322,14 +321,14 @@ void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch
   stream->print(relabel_name_(obj).c_str());
   stream->print(F("\"} "));
   stream->print(obj->state);
-  stream->print('\n');
+  stream->print(F("\n"));
 }
 #endif
 
 #ifdef USE_LOCK
 void PrometheusHandler::lock_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_lock_value GAUGE\n"));
-  stream->print(F("#TYPE esphome_lock_failed GAUGE\n"));
+  stream->print(F("#TYPE esphome_lock_value gauge\n"));
+  stream->print(F("#TYPE esphome_lock_failed gauge\n"));
 }
 void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) {
   if (obj->is_internal() && !this->include_internal_)
@@ -346,11 +345,10 @@ void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) 
   stream->print(relabel_name_(obj).c_str());
   stream->print(F("\"} "));
   stream->print(obj->state);
-  stream->print('\n');
+  stream->print(F("\n"));
 }
 #endif
 
 }  // namespace prometheus
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
+#endif

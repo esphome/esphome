@@ -1,0 +1,10 @@
+sensor:
+  - platform: veml7700
+    address: 0x10
+    i2c_id: i2c_veml7700
+    ambient_light: Ambient light
+    ambient_light_counts: Ambient light counts
+    full_spectrum: Full spectrum
+    full_spectrum_counts: Full spectrum counts
+    actual_integration_time: Actual integration time
+    actual_gain: Actual gain

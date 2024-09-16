@@ -13,6 +13,8 @@ namespace esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
 
+static const uint32_t RMT_CLK_FREQ = 80000000;
+
 static const uint8_t RMT_CLK_DIV = 2;
 
 void ESP32RMTLEDStripLightOutput::setup() {
@@ -36,7 +38,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
   }
 
   ExternalRAMAllocator<rmt_item32_t> rmt_allocator(ExternalRAMAllocator<rmt_item32_t>::ALLOW_FAILURE);
-  this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8);  // 8 bits per byte, 1 rmt_item32_t per bit
+  this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8 +
+                                          1);  // 8 bits per byte, 1 rmt_item32_t per bit + 1 rmt_item32_t for reset
 
   rmt_config_t config;
   memset(&config, 0, sizeof(config));
@@ -64,8 +67,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
-                                                 uint32_t bit1_low) {
-  float ratio = (float) APB_CLK_FREQ / RMT_CLK_DIV / 1e09f;
+                                                 uint32_t bit1_low, uint32_t reset_time_high, uint32_t reset_time_low) {
+  float ratio = (float) RMT_CLK_FREQ / RMT_CLK_DIV / 1e09f;
 
   // 0-bit
   this->bit0_.duration0 = (uint32_t) (ratio * bit0_high);
@@ -77,6 +80,11 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
   this->bit1_.level0 = 1;
   this->bit1_.duration1 = (uint32_t) (ratio * bit1_low);
   this->bit1_.level1 = 0;
+  // reset
+  this->reset_.duration0 = (uint32_t) (ratio * reset_time_high);
+  this->reset_.level0 = 1;
+  this->reset_.duration1 = (uint32_t) (ratio * reset_time_low);
+  this->reset_.level1 = 0;
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
@@ -114,6 +122,12 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
     }
     size++;
     psrc++;
+  }
+
+  if (this->reset_.duration0 > 0 || this->reset_.duration1 > 0) {
+    pdest->val = this->reset_.val;
+    pdest++;
+    len++;
   }
 
   if (rmt_write_items(this->channel_, this->rmt_buf_, len, false) != ESP_OK) {
@@ -158,11 +172,13 @@ light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index
       b = 0;
       break;
   }
-  uint8_t multiplier = this->is_rgbw_ ? 4 : 3;
-  return {this->buf_ + (index * multiplier) + r,
-          this->buf_ + (index * multiplier) + g,
-          this->buf_ + (index * multiplier) + b,
-          this->is_rgbw_ ? this->buf_ + (index * multiplier) + 3 : nullptr,
+  uint8_t multiplier = this->is_rgbw_ || this->is_wrgb_ ? 4 : 3;
+  uint8_t white = this->is_wrgb_ ? 0 : 3;
+
+  return {this->buf_ + (index * multiplier) + r + this->is_wrgb_,
+          this->buf_ + (index * multiplier) + g + this->is_wrgb_,
+          this->buf_ + (index * multiplier) + b + this->is_wrgb_,
+          this->is_rgbw_ || this->is_wrgb_ ? this->buf_ + (index * multiplier) + white : nullptr,
           &this->effect_data_[index],
           &this->correction_};
 }

@@ -1,46 +1,52 @@
+# PYTHON_ARGCOMPLETE_OK
 import argparse
+from datetime import datetime
 import functools
 import logging
 import os
 import re
 import sys
 import time
-from datetime import datetime
+
+import argcomplete
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.config import iter_components, read_config, strip_default_ids
+from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
+    CONF_DISABLED,
+    CONF_ESPHOME,
     CONF_LOGGER,
+    CONF_MDNS,
+    CONF_MQTT,
     CONF_NAME,
     CONF_OTA,
-    CONF_MQTT,
-    CONF_MDNS,
-    CONF_DISABLED,
     CONF_PASSWORD,
-    CONF_PORT,
-    CONF_ESPHOME,
+    CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_PORT,
     CONF_SUBSTITUTIONS,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent, is_ip_address
+from esphome.helpers import indent, is_ip_address, get_bool_env
+from esphome.log import Fore, color, setup_log
 from esphome.util import (
+    get_serial_ports,
+    list_yaml_files,
     run_external_command,
     run_external_process,
     safe_print,
-    list_yaml_files,
-    get_serial_ports,
 )
-from esphome.log import color, setup_log, Fore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,7 +66,7 @@ def choose_prompt(options, purpose: str = None):
         f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
     )
     for i, (desc, _) in enumerate(options):
-        safe_print(f"  [{i+1}] {desc}")
+        safe_print(f"  [{i + 1}] {desc}")
 
     while True:
         opt = input("(number): ")
@@ -83,6 +89,8 @@ def choose_upload_log_host(
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
+    if default == "SERIAL":
+        return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
@@ -108,6 +116,7 @@ def get_port_type(port):
 
 def run_miniterm(config, port):
     import serial
+
     from esphome import platformio_api
 
     if CONF_LOGGER not in config:
@@ -189,7 +198,7 @@ def write_cpp(config):
 def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
-    for name, component, conf in iter_components(CORE.config):
+    for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
             coro = wrap_to_code(name, component)
             CORE.add_job(coro, conf)
@@ -216,14 +225,16 @@ def compile_program(args, config):
     return 0 if idedata is not None else 1
 
 
-def upload_using_esptool(config, port):
+def upload_using_esptool(config, port, file):
     from esphome import platformio_api
 
     first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", 460800
     )
 
-    def run_esptool(baud_rate):
+    if file is not None:
+        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+    else:
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
@@ -234,12 +245,13 @@ def upload_using_esptool(config, port):
             *idedata.extra_flash_images,
         ]
 
-        mcu = "esp8266"
-        if CORE.is_esp32:
-            from esphome.components.esp32 import get_esp32_variant
+    mcu = "esp8266"
+    if CORE.is_esp32:
+        from esphome.components.esp32 import get_esp32_variant
 
-            mcu = get_esp32_variant().lower()
+        mcu = get_esp32_variant().lower()
 
+    def run_esptool(baud_rate):
         cmd = [
             "esptool.py",
             "--before",
@@ -278,39 +290,69 @@ def upload_using_esptool(config, port):
     return run_esptool(115200)
 
 
+def upload_using_platformio(config, port):
+    from esphome import platformio_api
+
+    upload_args = ["-t", "upload", "-t", "nobuild"]
+    if port is not None:
+        upload_args += ["--upload-port", port]
+    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
+def check_permissions(port):
+    if os.name == "posix" and get_port_type(port) == "SERIAL":
+        # Check if we can open selected serial port
+        if not os.access(port, os.F_OK):
+            raise EsphomeError(
+                "The selected serial port does not exist. To resolve this issue, "
+                "check that the device is connected to this computer with a USB cable and that "
+                "the USB cable can be used for data and is not a power-only cable."
+            )
+        if not (os.access(port, os.R_OK | os.W_OK)):
+            raise EsphomeError(
+                "You do not have read or write permission on the selected serial port. "
+                "To resolve this issue, you can add your user to the dialout group "
+                f"by running the following command: sudo usermod -a -G dialout {os.getlogin()}. "
+                "You will need to log out & back in or reboot to activate the new group access."
+            )
+
+
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
+        check_permissions(host)
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
-            return upload_using_esptool(config, host)
+            file = getattr(args, "file", None)
+            return upload_using_esptool(config, host, file)
 
         if CORE.target_platform in (PLATFORM_RP2040):
-            from esphome import platformio_api
+            return upload_using_platformio(config, args.device)
 
-            upload_args = ["-t", "upload"]
-            if args.device is not None:
-                upload_args += ["--upload-port", args.device]
-            return platformio_api.run_platformio_cli_run(
-                config, CORE.verbose, *upload_args
-            )
+        if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
+            return upload_using_platformio(config, host)
 
         return 1  # Unknown target platform
 
-    if CONF_OTA not in config:
+    ota_conf = {}
+    for ota_item in config.get(CONF_OTA, []):
+        if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
+            ota_conf = ota_item
+            break
+
+    if not ota_conf:
         raise EsphomeError(
-            "Cannot upload Over the Air as the config does not include the ota: "
-            "component"
+            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not present or does not include {CONF_PLATFORM}: {CONF_ESPHOME}"
         )
 
     from esphome import espota2
 
-    ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        not is_ip_address(CORE.address)
+        not is_ip_address(CORE.address)  # pylint: disable=too-many-boolean-expressions
         and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
         and CONF_MQTT in config
+        and (not args.device or args.device in ("MQTT", "OTA"))
     ):
         from esphome import mqtt
 
@@ -328,6 +370,7 @@ def show_logs(config, args, port):
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
+        check_permissions(port)
         return run_miniterm(config, port)
     if get_port_type(port) == "NETWORK" and "api" in config:
         if config[CONF_MDNS][CONF_DISABLED] and CONF_MQTT in config:
@@ -371,9 +414,10 @@ def command_config(args, config):
     # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
         output = re.sub(
-            r"(password|key|psk|ssid)\:\s(.*)", r"\1: \\033[5m\2\\033[6m", output
+            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
         )
-    safe_print(output)
+    if not CORE.quiet:
+        safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 
@@ -445,6 +489,15 @@ def command_run(args, config):
     if exit_code != 0:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        idedata = get_idedata(config)
+        if idedata is None:
+            return 1
+        program_path = idedata.raw["prog_path"]
+        return run_external_process(program_path)
+
     port = choose_upload_log_host(
         default=args.device,
         check_default=None,
@@ -498,7 +551,7 @@ def command_clean(args, config):
 def command_dashboard(args):
     from esphome.dashboard import dashboard
 
-    return dashboard.start_web_server(args)
+    return dashboard.start_dashboard(args)
 
 
 def command_update_all(args):
@@ -544,8 +597,9 @@ def command_update_all(args):
 
 
 def command_idedata(args, config):
-    from esphome import platformio_api
     import json
+
+    from esphome import platformio_api
 
     logging.disable(logging.INFO)
     logging.disable(logging.WARNING)
@@ -643,7 +697,8 @@ def command_rename(args, config):
         os.remove(new_path)
         return 1
 
-    os.remove(CORE.config_path)
+    if CORE.config_path != new_path:
+        os.remove(CORE.config_path)
 
     print(color(Fore.BOLD_GREEN, "SUCCESS"))
     print()
@@ -676,7 +731,11 @@ POST_CONFIG_ACTIONS = {
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
-        "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
+        "-v",
+        "--verbose",
+        help="Enable verbose ESPHome logs.",
+        action="store_true",
+        default=get_bool_env("ESPHOME_VERBOSE"),
     )
     options_parser.add_argument(
         "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
@@ -694,7 +753,14 @@ def parse_args(argv):
     )
 
     parser = argparse.ArgumentParser(
-        description=f"ESPHome v{const.__version__}", parents=[options_parser]
+        description=f"ESPHome {const.__version__}", parents=[options_parser]
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"Version: {const.__version__}",
+        help="Print the ESPHome version and exit.",
     )
 
     mqtt_options = argparse.ArgumentParser(add_help=False)
@@ -731,7 +797,9 @@ def parse_args(argv):
     )
 
     parser_upload = subparsers.add_parser(
-        "upload", help="Validate the configuration and upload the latest binary."
+        "upload",
+        help="Validate the configuration and upload the latest binary.",
+        parents=[mqtt_options],
     )
     parser_upload.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
@@ -748,6 +816,7 @@ def parse_args(argv):
     parser_logs = subparsers.add_parser(
         "logs",
         help="Validate the configuration and show all logs.",
+        aliases=["log"],
         parents=[mqtt_options],
     )
     parser_logs.add_argument(
@@ -892,67 +961,7 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
-    # On Python 3.9+ we can simply set exit_on_error=False in the constructor
-    def _raise(x):
-        raise argparse.ArgumentError(None, x)
-
-    # First, try new-style parsing, but don't exit in case of failure
-    try:
-        # duplicate parser so that we can use the original one to raise errors later on
-        current_parser = argparse.ArgumentParser(add_help=False, parents=[parser])
-        current_parser.set_defaults(deprecated_argv_suggestion=None)
-        current_parser.error = _raise
-        return current_parser.parse_args(arguments)
-    except argparse.ArgumentError:
-        pass
-
-    # Second, try compat parsing and rearrange the command-line if it succeeds
-    # Disable argparse's built-in help option and add it manually to prevent this
-    # parser from printing the help messagefor the old format when invoked with -h.
-    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
-    compat_parser.add_argument("-h", "--help", action="store_true")
-    compat_parser.add_argument("configuration", nargs="*")
-    compat_parser.add_argument(
-        "command",
-        choices=[
-            "config",
-            "compile",
-            "upload",
-            "logs",
-            "run",
-            "clean-mqtt",
-            "wizard",
-            "mqtt-fingerprint",
-            "version",
-            "clean",
-            "dashboard",
-            "vscode",
-            "update-all",
-        ],
-    )
-
-    try:
-        compat_parser.error = _raise
-        result, unparsed = compat_parser.parse_known_args(argv[1:])
-        last_option = len(arguments) - len(unparsed) - 1 - len(result.configuration)
-        unparsed = [
-            "--device" if arg in ("--upload-port", "--serial-port") else arg
-            for arg in unparsed
-        ]
-        arguments = (
-            arguments[0:last_option]
-            + [result.command]
-            + result.configuration
-            + unparsed
-        )
-        deprecated_argv_suggestion = arguments
-    except argparse.ArgumentError:
-        # old-style parsing failed, don't suggest any argument
-        deprecated_argv_suggestion = None
-
-    # Finally, run the new-style parser again with the possibly swapped arguments,
-    # and let it error out if the command is unparsable.
-    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    argcomplete.autocomplete(parser)
     return parser.parse_args(arguments)
 
 
@@ -966,20 +975,6 @@ def run_esphome(argv):
         # Show timestamp for dashboard access logs
         args.command == "dashboard",
     )
-    if args.deprecated_argv_suggestion is not None and args.command != "vscode":
-        _LOGGER.warning(
-            "Calling ESPHome with the configuration before the command is deprecated "
-            "and will be removed in the future. "
-        )
-        _LOGGER.warning("Please instead use:")
-        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
-
-    if sys.version_info < (3, 8, 0):
-        _LOGGER.error(
-            "You're running ESPHome with Python <3.8. ESPHome is no longer compatible "
-            "with this Python version. Please reinstall ESPHome with Python 3.8+"
-        )
-        return 1
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:

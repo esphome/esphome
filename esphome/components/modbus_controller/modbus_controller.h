@@ -8,6 +8,7 @@
 #include <list>
 #include <queue>
 #include <set>
+#include <utility>
 #include <vector>
 
 namespace esphome {
@@ -251,6 +252,21 @@ class SensorItem {
   bool force_new_range{false};
 };
 
+class ServerRegister {
+ public:
+  ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count,
+                 std::function<float()> read_lambda) {
+    this->address = address;
+    this->value_type = value_type;
+    this->register_count = register_count;
+    this->read_lambda = std::move(read_lambda);
+  }
+  uint16_t address;
+  SensorValueType value_type;
+  uint8_t register_count;
+  std::function<float()> read_lambda;
+};
+
 // ModbusController::create_register_ranges_ tries to optimize register range
 // for this the sensors must be ordered by register_type, start_address and bitmask
 class SensorItemsComparator {
@@ -296,7 +312,6 @@ struct RegisterRange {
 class ModbusCommandItem {
  public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
-  static const uint8_t MAX_SEND_REPEATS = 5;
   ModbusController *modbusdevice;
   uint16_t register_address;
   uint16_t register_count;
@@ -306,9 +321,9 @@ class ModbusCommandItem {
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
-  // wrong commands (esp. custom commands) can block the send queue
-  // limit the number of repeats
-  uint8_t send_countdown{MAX_SEND_REPEATS};
+  /// Check if the command should be retried based on the max_retries parameter
+  bool should_retry(uint8_t max_retries) { return this->send_count_ <= max_retries; };
+
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
@@ -397,6 +412,11 @@ class ModbusCommandItem {
           &&handler = nullptr);
 
   bool is_equal(const ModbusCommandItem &other);
+
+ protected:
+  // wrong commands (esp. custom commands) can block the send queue, limit the number of repeats.
+  /// How many times this command has been sent
+  uint8_t send_count_{0};
 };
 
 /** Modbus controller class.
@@ -409,7 +429,6 @@ class ModbusCommandItem {
 
 class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  public:
-  ModbusController(uint16_t throttle = 0) : command_throttle_(throttle){};
   void dump_config() override;
   void loop() override;
   void setup() override;
@@ -419,18 +438,40 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void queue_command(const ModbusCommandItem &command);
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
+  /// Registers a server register with the controller. Called by esphomes code generator
+  void add_server_register(ServerRegister *server_register) { server_registers_.push_back(server_register); }
   /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
+  /// called when a modbus request (function code 3 or 4) was parsed without errors
+  void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers) final;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
   void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the
   /// incoming queue
   void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                   const std::vector<uint8_t> &data);
+  /// Allow a duplicate command to be sent
+  void set_allow_duplicate_commands(bool allow_duplicate_commands) {
+    this->allow_duplicate_commands_ = allow_duplicate_commands;
+  }
+  /// get if a duplicate command can be sent
+  bool get_allow_duplicate_commands() { return this->allow_duplicate_commands_; }
   /// called by esphome generated code to set the command_throttle period
   void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
+  /// called by esphome generated code to set the offline_skip_updates
+  void set_offline_skip_updates(uint16_t offline_skip_updates) { this->offline_skip_updates_ = offline_skip_updates; }
+  /// get the number of queued modbus commands (should be mostly empty)
+  size_t get_command_queue_length() { return command_queue_.size(); }
+  /// get if the module is offline, didn't respond the last command
+  bool get_module_offline() { return module_offline_; }
+  /// Set callback for commands
+  void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
+  /// called by esphome generated code to set the max_cmd_retries.
+  void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
+  /// get how many times a command will be (re)sent if no response is received
+  uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -443,22 +484,31 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void process_modbus_data_(const ModbusCommandItem *response);
   /// send the next modbus command from the send queue
   bool send_next_command_();
-  /// get the number of queued modbus commands (should be mostly empty)
-  size_t get_command_queue_length_() { return command_queue_.size(); }
   /// dump the parsed sensormap for diagnostics
   void dump_sensors_();
   /// Collection of all sensors for this component
   SensorSet sensorset_;
+  /// Collection of all server registers for this component
+  std::vector<ServerRegister *> server_registers_;
   /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_;
   /// Hold the pending requests to be sent
   std::list<std::unique_ptr<ModbusCommandItem>> command_queue_;
   /// modbus response data waiting to get processed
   std::queue<std::unique_ptr<ModbusCommandItem>> incoming_queue_;
+  /// if duplicate commands can be sent
+  bool allow_duplicate_commands_;
   /// when was the last send operation
   uint32_t last_command_timestamp_;
   /// min time in ms between sending modbus commands
   uint16_t command_throttle_;
+  /// if module didn't respond the last command
+  bool module_offline_;
+  /// how many updates to skip if module is offline
+  uint16_t offline_skip_updates_;
+  /// How many times we will retry a command if we get no response
+  uint8_t max_cmd_retries_{4};
+  CallbackManager<void(int, int)> command_sent_callback_{};
 };
 
 /** Convert vector<uint8_t> response payload to float.

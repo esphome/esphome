@@ -19,11 +19,12 @@ enum SSD1306Model {
   SH1106_MODEL_96_16,
   SH1106_MODEL_64_48,
   SH1107_MODEL_128_64,
+  SH1107_MODEL_128_128,
   SSD1305_MODEL_128_32,
   SSD1305_MODEL_128_64,
 };
 
-class SSD1306 : public PollingComponent, public display::DisplayBuffer {
+class SSD1306 : public display::DisplayBuffer {
  public:
   void setup() override;
 
@@ -35,7 +36,9 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_external_vcc(bool external_vcc) { this->external_vcc_ = external_vcc; }
   void init_contrast(float contrast) { this->contrast_ = contrast; }
+  float get_contrast();
   void set_contrast(float contrast);
+  float get_brightness();
   void init_brightness(float brightness) { this->brightness_ = brightness; }
   void set_brightness(float brightness);
   void init_flip_x(bool flip_x) { this->flip_x_ = flip_x; }
@@ -43,6 +46,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void init_offset_x(uint8_t offset_x) { this->offset_x_ = offset_x; }
   void init_offset_y(uint8_t offset_y) { this->offset_y_ = offset_y; }
   void init_invert(bool invert) { this->invert_ = invert; }
+  void set_invert(bool invert);
   bool is_on();
   void turn_on();
   void turn_off();
@@ -57,6 +61,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void init_reset_();
 
   bool is_sh1106_() const;
+  bool is_sh1107_() const;
   bool is_ssd1305_() const;
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;

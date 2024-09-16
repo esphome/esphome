@@ -1,0 +1,20 @@
+spi:
+  - id: spi_as3935
+    clk_pin: 16
+    mosi_pin: 17
+    miso_pin: 15
+
+as3935_spi:
+  cs_pin: 12
+  irq_pin: 13
+
+binary_sensor:
+  - platform: as3935
+    name: Storm Alert
+
+sensor:
+  - platform: as3935
+    lightning_energy:
+      name: Lightning Energy
+    distance:
+      name: Distance Storm

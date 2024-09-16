@@ -1,8 +1,9 @@
 #pragma once
+#include "mqtt_backend.h"
 
+#ifdef USE_MQTT
 #ifdef USE_ESP8266
 
-#include "mqtt_backend.h"
 #include <AsyncMqttClient.h>
 
 namespace esphome {
@@ -19,9 +20,7 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   void set_will(const char *topic, uint8_t qos, bool retain, const char *payload) final {
     mqtt_client_.setWill(topic, qos, retain, payload);
   }
-  void set_server(network::IPAddress ip, uint16_t port) final {
-    mqtt_client_.setServer(IPAddress(static_cast<uint32_t>(ip)), port);
-  }
+  void set_server(network::IPAddress ip, uint16_t port) final { mqtt_client_.setServer(ip, port); }
   void set_server(const char *host, uint16_t port) final { mqtt_client_.setServer(host, port); }
 #if ASYNC_TCP_SSL_ENABLED
   void set_secure(bool secure) { mqtt_client.setSecure(secure); }
@@ -72,3 +71,4 @@ class MQTTBackendESP8266 final : public MQTTBackend {
 }  // namespace esphome
 
 #endif  // defined(USE_ESP8266)
+#endif

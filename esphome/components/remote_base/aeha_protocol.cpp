@@ -16,7 +16,6 @@ static const uint16_t BIT_ZERO_LOW_US = BITWISE;
 static const uint16_t TRAILER = BITWISE;
 
 void AEHAProtocol::encode(RemoteTransmitData *dst, const AEHAData &data) {
-  dst->set_carrier_frequency(38000);
   dst->reserve(2 + 32 + (data.data.size() * 2) + 1);
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
@@ -96,7 +95,7 @@ std::string AEHAProtocol::format_data_(const std::vector<uint8_t> &data) {
 
 void AEHAProtocol::dump(const AEHAData &data) {
   auto data_str = format_data_(data.data);
-  ESP_LOGD(TAG, "Received AEHA: address=0x%04X, data=[%s]", data.address, data_str.c_str());
+  ESP_LOGI(TAG, "Received AEHA: address=0x%04X, data=[%s]", data.address, data_str.c_str());
 }
 
 }  // namespace remote_base

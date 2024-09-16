@@ -1,0 +1,29 @@
+i2c:
+  - id: i2c_bme680
+    scl: 16
+    sda: 17
+
+bme680_bsec:
+  address: 0x77
+
+sensor:
+  - platform: bme680_bsec
+    temperature:
+      name: BME680 Temperature
+    pressure:
+      name: BME680 Pressure
+    humidity:
+      name: BME680 Humidity
+    gas_resistance:
+      name: BME680 Gas Sensor
+    iaq:
+      name: BME680 IAQ
+    co2_equivalent:
+      name: BME680 eCO2
+    breath_voc_equivalent:
+      name: BME680 Breath eVOC
+
+text_sensor:
+  - platform: bme680_bsec
+    iaq_accuracy:
+      name: BME680 Accuracy

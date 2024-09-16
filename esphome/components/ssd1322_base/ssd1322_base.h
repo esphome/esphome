@@ -11,7 +11,7 @@ enum SSD1322Model {
   SSD1322_MODEL_256_64 = 0,
 };
 
-class SSD1322 : public PollingComponent, public display::DisplayBuffer {
+class SSD1322 : public display::DisplayBuffer {
  public:
   void setup() override;
 

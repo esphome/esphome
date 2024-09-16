@@ -1,15 +1,16 @@
+from esphome import automation
 import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
 from esphome.core import CORE
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant, const
 
 DEPENDENCIES = ["esp32"]
-CODEOWNERS = ["@jesserockz"]
-CONFLICTS_WITH = ["esp32_ble_beacon"]
+CODEOWNERS = ["@jesserockz", "@Rapsssito"]
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
+CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
@@ -20,6 +21,10 @@ GAPEventHandler = esp32_ble_ns.class_("GAPEventHandler")
 GATTcEventHandler = esp32_ble_ns.class_("GATTcEventHandler")
 GATTsEventHandler = esp32_ble_ns.class_("GATTsEventHandler")
 
+BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
+BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
+BLEDisableAction = esp32_ble_ns.class_("BLEDisableAction", automation.Action)
+
 IoCapability = esp32_ble_ns.enum("IoCapability")
 IO_CAPABILITY = {
     "none": IoCapability.IO_CAP_NONE,
@@ -29,12 +34,29 @@ IO_CAPABILITY = {
     "display_yes_no": IoCapability.IO_CAP_IO,
 }
 
+esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
+
+TX_POWER_LEVELS = {
+    -12: esp_power_level_t.ESP_PWR_LVL_N12,
+    -9: esp_power_level_t.ESP_PWR_LVL_N9,
+    -6: esp_power_level_t.ESP_PWR_LVL_N6,
+    -3: esp_power_level_t.ESP_PWR_LVL_N3,
+    0: esp_power_level_t.ESP_PWR_LVL_N0,
+    3: esp_power_level_t.ESP_PWR_LVL_P3,
+    6: esp_power_level_t.ESP_PWR_LVL_P6,
+    9: esp_power_level_t.ESP_PWR_LVL_P9,
+}
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32BLE),
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
+        cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+        cv.Optional(
+            CONF_ADVERTISING_CYCLE_TIME, default="10s"
+        ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -50,9 +72,28 @@ FINAL_VALIDATE_SCHEMA = validate_variant
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
+    cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
+    await cg.register_component(var, config)
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+
+    cg.add_define("USE_ESP32_BLE")
+
+
+@automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
+async def ble_enabled_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_action("ble.enable", BLEEnableAction, cv.Schema({}))
+async def ble_enable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action("ble.disable", BLEDisableAction, cv.Schema({}))
+async def ble_disable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)

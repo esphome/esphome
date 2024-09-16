@@ -1,0 +1,7 @@
+sensor:
+  - platform: internal_temperature
+    name: Internal Temperature
+
+esp32:
+  framework:
+    version: 2.0.9

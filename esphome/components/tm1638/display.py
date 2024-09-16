@@ -1,13 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLK_PIN,
+    CONF_DIO_PIN,
     CONF_ID,
     CONF_INTENSITY,
     CONF_LAMBDA,
-    CONF_CLK_PIN,
-    CONF_DIO_PIN,
     CONF_STB_PIN,
 )
 
@@ -33,7 +33,6 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
@@ -52,4 +51,4 @@ async def to_code(config):
             config[CONF_LAMBDA], [(TM1638ComponentRef, "it")], return_type=cg.void
         )
 
-    cg.add(var.set_writer(lambda_))
+        cg.add(var.set_writer(lambda_))

@@ -41,8 +41,8 @@ struct GasTuning {
 };
 
 struct TemperatureCompensation {
-  uint16_t offset;
-  uint16_t normalized_offset_slope;
+  int16_t offset;
+  int16_t normalized_offset_slope;
   uint16_t time_constant;
 };
 
@@ -70,27 +70,33 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
-    voc_tuning_params_.value().index_offset = index_offset;
-    voc_tuning_params_.value().learning_time_offset_hours = learning_time_offset_hours;
-    voc_tuning_params_.value().learning_time_gain_hours = learning_time_gain_hours;
-    voc_tuning_params_.value().gating_max_duration_minutes = gating_max_duration_minutes;
-    voc_tuning_params_.value().std_initial = std_initial;
-    voc_tuning_params_.value().gain_factor = gain_factor;
+    GasTuning tuning_params;
+    tuning_params.index_offset = index_offset;
+    tuning_params.learning_time_offset_hours = learning_time_offset_hours;
+    tuning_params.learning_time_gain_hours = learning_time_gain_hours;
+    tuning_params.gating_max_duration_minutes = gating_max_duration_minutes;
+    tuning_params.std_initial = std_initial;
+    tuning_params.gain_factor = gain_factor;
+    voc_tuning_params_ = tuning_params;
   }
   void set_nox_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t gain_factor) {
-    nox_tuning_params_.value().index_offset = index_offset;
-    nox_tuning_params_.value().learning_time_offset_hours = learning_time_offset_hours;
-    nox_tuning_params_.value().learning_time_gain_hours = learning_time_gain_hours;
-    nox_tuning_params_.value().gating_max_duration_minutes = gating_max_duration_minutes;
-    nox_tuning_params_.value().std_initial = 50;
-    nox_tuning_params_.value().gain_factor = gain_factor;
+    GasTuning tuning_params;
+    tuning_params.index_offset = index_offset;
+    tuning_params.learning_time_offset_hours = learning_time_offset_hours;
+    tuning_params.learning_time_gain_hours = learning_time_gain_hours;
+    tuning_params.gating_max_duration_minutes = gating_max_duration_minutes;
+    tuning_params.std_initial = 50;
+    tuning_params.gain_factor = gain_factor;
+    nox_tuning_params_ = tuning_params;
   }
   void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
-    temperature_compensation_.value().offset = offset * 200;
-    temperature_compensation_.value().normalized_offset_slope = normalized_offset_slope * 100;
-    temperature_compensation_.value().time_constant = time_constant;
+    TemperatureCompensation temp_comp;
+    temp_comp.offset = offset * 200;
+    temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
+    temp_comp.time_constant = time_constant;
+    temperature_compensation_ = temp_comp;
   }
   bool start_fan_cleaning();
 

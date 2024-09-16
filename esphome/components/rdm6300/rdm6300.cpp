@@ -57,7 +57,7 @@ void rdm6300::RDM6300Component::loop() {
           trig->process(result);
 
         if (report) {
-          ESP_LOGD(TAG, "Found new tag with ID %u", result);
+          ESP_LOGD(TAG, "Found new tag with ID %" PRIu32, result);
         }
       }
     }

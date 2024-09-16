@@ -18,7 +18,6 @@ SSD1331_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 
 
 async def setup_ssd1331(var, config):
-    await cg.register_component(var, config)
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:

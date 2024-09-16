@@ -1,4 +1,5 @@
 #include "e131.h"
+#ifdef USE_NETWORK
 #include "e131_addressable_light_effect.h"
 #include "esphome/core/log.h"
 
@@ -40,7 +41,6 @@ void E131Component::setup() {
     this->mark_failed();
     return;
   }
-  server.ss_family = AF_INET;
 
   err = this->socket_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {
@@ -119,3 +119,4 @@ bool E131Component::process_(int universe, const E131Packet &packet) {
 
 }  // namespace e131
 }  // namespace esphome
+#endif

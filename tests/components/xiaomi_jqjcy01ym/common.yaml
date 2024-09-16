@@ -1,0 +1,13 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_jqjcy01ym
+    mac_address: 7A:80:8E:19:36:BA
+    temperature:
+      name: JQJCY01YM Temperature
+    humidity:
+      name: JQJCY01YM Humidity
+    formaldehyde:
+      name: JQJCY01YM Formaldehyde
+    battery_level:
+      name: JQJCY01YM Battery Level

@@ -120,6 +120,35 @@ struct iovec {
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP
 
+#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
+
+// standard lwIP's compatibility macros will interfere
+// with Socket class function names - disable the macros
+// and use real function names instead
+#undef LWIP_COMPAT_SOCKETS
+#define LWIP_COMPAT_SOCKETS 0
+
+#include "lwip/sockets.h"
+#include <sys/types.h>
+
+#ifdef USE_ARDUINO
+// arduino-esp32 declares a global var called INADDR_NONE which is replaced
+// by the define
+#ifdef INADDR_NONE
+#undef INADDR_NONE
+#endif
+// not defined for ESP32
+using socklen_t = uint32_t;
+
+#define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
+#define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
+#else  // !USE_ESP32
+#define ESPHOME_INADDR_ANY INADDR_ANY
+#define ESPHOME_INADDR_NONE INADDR_NONE
+#endif
+
+#endif  // USE_SOCKET_IMPL_LWIP_SOCKETS
+
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
 #include <cstdint>

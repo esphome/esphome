@@ -5,19 +5,20 @@ from esphome.const import (
     CONF_ID,
     CONF_MODEL,
     CONF_MOISTURE,
+    CONF_RESOLUTION,
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRECIPITATION,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
+    UNIT_MILLIMETER,
     ICON_THERMOMETER,
 )
 
-from . import RGModel, HydreonRGxxComponent
+from . import RGModel, RG15Resolution, HydreonRGxxComponent
 
 UNIT_INTENSITY = "intensity"
-UNIT_MILLIMETERS = "mm"
 UNIT_MILLIMETERS_PER_HOUR = "mm/h"
 
 CONF_ACC = "acc"
@@ -25,20 +26,33 @@ CONF_EVENT_ACC = "event_acc"
 CONF_TOTAL_ACC = "total_acc"
 CONF_R_INT = "r_int"
 
+CONF_DISABLE_LED = "disable_led"
+
 RG_MODELS = {
     "RG_9": RGModel.RG9,
     "RG_15": RGModel.RG15,
-    # https://rainsensors.com/wp-content/uploads/sites/3/2020/07/rg-15_instructions_sw_1.000.pdf
-    # https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2020.08.25-rg-9_instructions.pdf
-    # https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2021.03.11-rg-9_instructions.pdf
+    # RG-15
+    # 1.000 - https://rainsensors.com/wp-content/uploads/sites/3/2020/07/rg-15_instructions_sw_1.000.pdf
+    # RG-9
+    # 1.000 - https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2020.08.25-rg-9_instructions.pdf
+    # 1.100 - https://rainsensors.com/wp-content/uploads/sites/3/2021/03/2021.03.11-rg-9_instructions.pdf
+    # 1.200 - https://rainsensors.com/wp-content/uploads/sites/3/2022/03/2022.02.17-rev-1.200-rg-9_instructions.pdf
 }
-SUPPORTED_SENSORS = {
+
+RG15_RESOLUTION = {
+    "low": RG15Resolution.FORCE_LOW,
+    "high": RG15Resolution.FORCE_HIGH,
+}
+
+SUPPORTED_OPTIONS = {
     CONF_ACC: ["RG_15"],
     CONF_EVENT_ACC: ["RG_15"],
     CONF_TOTAL_ACC: ["RG_15"],
     CONF_R_INT: ["RG_15"],
+    CONF_RESOLUTION: ["RG_15"],
     CONF_MOISTURE: ["RG_9"],
     CONF_TEMPERATURE: ["RG_9"],
+    CONF_DISABLE_LED: ["RG_9"],
 }
 PROTOCOL_NAMES = {
     CONF_MOISTURE: "R",
@@ -51,7 +65,7 @@ PROTOCOL_NAMES = {
 
 
 def _validate(config):
-    for conf, models in SUPPORTED_SENSORS.items():
+    for conf, models in SUPPORTED_OPTIONS.items():
         if conf in config:
             if config[CONF_MODEL] not in models:
                 raise cv.Invalid(
@@ -69,20 +83,21 @@ CONFIG_SCHEMA = cv.All(
                 upper=True,
                 space="_",
             ),
+            cv.Optional(CONF_RESOLUTION): cv.enum(RG15_RESOLUTION, upper=False),
             cv.Optional(CONF_ACC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIMETERS,
+                unit_of_measurement=UNIT_MILLIMETER,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_EVENT_ACC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIMETERS,
+                unit_of_measurement=UNIT_MILLIMETER,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TOTAL_ACC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIMETERS,
+                unit_of_measurement=UNIT_MILLIMETER,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
@@ -105,6 +120,7 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_THERMOMETER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_DISABLE_LED): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -131,4 +147,11 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[conf])
             cg.add(var.set_sensor(sens, i))
 
+    cg.add(var.set_model(config[CONF_MODEL]))
+    if CONF_RESOLUTION in config:
+        cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+
     cg.add(var.set_request_temperature(CONF_TEMPERATURE in config))
+
+    if CONF_DISABLE_LED in config:
+        cg.add(var.set_disable_led(config[CONF_DISABLE_LED]))

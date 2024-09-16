@@ -1,0 +1,38 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart:
+  - id: uponor_uart
+    baud_rate: 19200
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+
+time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 192.168.178.1
+
+uponor_smatrix:
+  uart_id: uponor_uart
+  address: 0x110B
+  time_id: sntp_time
+  time_device_address: 0xDE13
+
+climate:
+  - platform: uponor_smatrix
+    address: 0xDE13
+    name: Thermostat Living Room
+
+sensor:
+  - platform: uponor_smatrix
+    address: 0xDE13
+    humidity:
+      name: Thermostat Humidity Living Room
+    temperature:
+      name: Thermostat Temperature Living Room
+    external_temperature:
+      name: Thermostat Floor Temperature Living Room

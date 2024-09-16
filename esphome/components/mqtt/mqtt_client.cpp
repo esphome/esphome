@@ -66,31 +66,42 @@ void MQTTClientComponent::setup() {
   }
 #endif
 
-  this->subscribe(
-      "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
-      2);
+  if (this->is_discovery_ip_enabled()) {
+    this->subscribe(
+        "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
+        2);
 
-  std::string topic = "esphome/ping/";
-  topic.append(App.get_name());
-  this->subscribe(
-      topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+    std::string topic = "esphome/ping/";
+    topic.append(App.get_name());
+    this->subscribe(
+        topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+  }
 
   this->last_connected_ = millis();
   this->start_dnslookup_();
 }
 
 void MQTTClientComponent::send_device_info_() {
-  if (!this->is_connected()) {
+  if (!this->is_connected() or !this->is_discovery_ip_enabled()) {
     return;
   }
   std::string topic = "esphome/discover/";
   topic.append(App.get_name());
+
   this->publish_json(
       topic,
       [](JsonObject root) {
-        auto ip = network::get_ip_address();
-        root["ip"] = ip.str();
+        uint8_t index = 0;
+        for (auto &ip : network::get_ip_addresses()) {
+          if (ip.is_set()) {
+            root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
+            index++;
+          }
+        }
         root["name"] = App.get_name();
+        if (!App.get_friendly_name().empty()) {
+          root["friendly_name"] = App.get_friendly_name();
+        }
 #ifdef USE_API
         root["port"] = api::global_api_server->get_port();
 #endif
@@ -102,6 +113,9 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 #ifdef USE_ESP32
         root["platform"] = "ESP32";
+#endif
+#ifdef USE_LIBRETINY
+        root["platform"] = lt_cpu_get_model_name();
 #endif
 
         root["board"] = ESPHOME_BOARD;
@@ -119,6 +133,10 @@ void MQTTClientComponent::send_device_info_() {
 #ifdef USE_DASHBOARD_IMPORT
         root["package_import_url"] = dashboard_import::get_package_import_url();
 #endif
+
+#ifdef USE_API_NOISE
+        root["api_encryption"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
+#endif
       },
       2, this->discovery_info_.retain);
 }
@@ -129,6 +147,9 @@ void MQTTClientComponent::dump_config() {
                 this->ip_.str().c_str());
   ESP_LOGCONFIG(TAG, "  Username: " LOG_SECRET("'%s'"), this->credentials_.username.c_str());
   ESP_LOGCONFIG(TAG, "  Client ID: " LOG_SECRET("'%s'"), this->credentials_.client_id.c_str());
+  if (this->is_discovery_ip_enabled()) {
+    ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
+  }
   if (!this->discovery_info_.prefix.empty()) {
     ESP_LOGCONFIG(TAG, "  Discovery prefix: '%s'", this->discovery_info_.prefix.c_str());
     ESP_LOGCONFIG(TAG, "  Discovery retain: %s", YESNO(this->discovery_info_.retain));
@@ -141,7 +162,7 @@ void MQTTClientComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Availability: '%s'", this->availability_.topic.c_str());
   }
 }
-bool MQTTClientComponent::can_proceed() { return this->is_connected(); }
+bool MQTTClientComponent::can_proceed() { return network::is_disabled() || this->is_connected(); }
 
 void MQTTClientComponent::start_dnslookup_() {
   for (auto &subscription : this->subscriptions_) {
@@ -153,28 +174,18 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#ifdef USE_ESP32
+#if USE_NETWORK_IPV6
+  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
+                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+#else
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
-#endif
-#ifdef USE_ESP8266
-  err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
-                                esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
-#endif
+#endif /* USE_NETWORK_IPV6 */
   switch (err) {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#ifdef USE_ESP32
-#if LWIP_IPV6
-      this->ip_ = addr.u_addr.ip4.addr;
-#else
-      this->ip_ = addr.addr;
-#endif
-#endif
-#ifdef USE_ESP8266
-      this->ip_ = addr.addr;
-#endif
+      this->ip_ = network::IPAddress(&addr);
       this->start_connect_();
       return;
     }
@@ -186,11 +197,7 @@ void MQTTClientComponent::start_dnslookup_() {
     default:
     case ERR_ARG: {
       // error
-#if defined(USE_ESP8266)
-      ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %ld", err);
-#else
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %d", err);
-#endif
       break;
     }
   }
@@ -225,16 +232,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#ifdef USE_ESP32
-#if LWIP_IPV6
-    a_this->ip_ = ipaddr->u_addr.ip4.addr;
-#else
-    a_this->ip_ = ipaddr->addr;
-#endif
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
-    a_this->ip_ = ipaddr->addr;
-#endif
+    a_this->ip_ = network::IPAddress(ipaddr);
     a_this->dns_resolved_ = true;
   }
 }
@@ -422,7 +420,10 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
 
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject root) { callback(topic, root); });
+    json::parse_json(payload, [topic, callback](JsonObject root) -> bool {
+      callback(topic, root);
+      return true;
+    });
   };
   MQTTSubscription subscription{
       .topic = topic,
@@ -482,8 +483,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 
   if (!logging_topic) {
     if (ret) {
-      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", message.topic.c_str(), message.payload.c_str(),
-               message.retain);
+      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
+               message.retain, message.qos);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", message.topic.c_str(),
                message.payload.length());
@@ -590,6 +591,7 @@ void MQTTClientComponent::disable_shutdown_message() {
   this->recalculate_availability_();
 }
 bool MQTTClientComponent::is_discovery_enabled() const { return !this->discovery_info_.prefix.empty(); }
+bool MQTTClientComponent::is_discovery_ip_enabled() const { return this->discovery_info_.discover_ip; }
 const Availability &MQTTClientComponent::get_availability() { return this->availability_; }
 void MQTTClientComponent::recalculate_availability_() {
   if (this->birth_message_.topic.empty() || this->birth_message_.topic != this->last_will_.topic) {
@@ -615,8 +617,9 @@ void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->sh
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
-                                             bool clean) {
+                                             bool discover_ip, bool clean) {
   this->discovery_info_.prefix = std::move(prefix);
+  this->discovery_info_.discover_ip = discover_ip;
   this->discovery_info_.unique_id_generator = unique_id_generator;
   this->discovery_info_.object_id_generator = object_id_generator;
   this->discovery_info_.retain = retain;
@@ -629,6 +632,7 @@ void MQTTClientComponent::disable_discovery() {
   this->discovery_info_ = MQTTDiscoveryInfo{
       .prefix = "",
       .retain = false,
+      .discover_ip = false,
       .clean = false,
       .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
       .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,

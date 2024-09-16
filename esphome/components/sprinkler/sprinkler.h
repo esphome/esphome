@@ -11,7 +11,7 @@
 namespace esphome {
 namespace sprinkler {
 
-const std::string min_str = "min";
+const std::string MIN_STR = "min";
 
 enum SprinklerState : uint8_t {
   // NOTE: these states are used by both SprinklerValveOperator and Sprinkler (the controller)!
@@ -204,11 +204,11 @@ class SprinklerValveRunRequest {
 
 class Sprinkler : public Component {
  public:
+  Sprinkler();
+  Sprinkler(const std::string &name);
   void setup() override;
   void loop() override;
   void dump_config() override;
-
-  void set_name(const std::string &name) { this->name_ = name; }
 
   /// add a valve to the controller
   void add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw = nullptr);

@@ -173,7 +173,7 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
 }
 
 void RC6Protocol::dump(const RC6Data &data) {
-  ESP_LOGD(RC6_TAG, "Received RC6: mode=0x%X, address=0x%02X, command=0x%02X, toggle=0x%X", data.mode, data.address,
+  ESP_LOGI(RC6_TAG, "Received RC6: mode=0x%X, address=0x%02X, command=0x%02X, toggle=0x%X", data.mode, data.address,
            data.command, data.toggle);
 }
 

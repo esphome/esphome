@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
     CONF_HEAT_ACTION,
+    CONF_HUMIDITY_SENSOR,
     CONF_ID,
     CONF_IDLE_ACTION,
     CONF_SENSOR,
@@ -22,6 +23,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(BangBangClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
@@ -46,6 +48,10 @@ async def to_code(config):
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
+
+    if CONF_HUMIDITY_SENSOR in config:
+        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
+        cg.add(var.set_humidity_sensor(sens))
 
     normal_config = BangBangClimateTargetTempConfig(
         config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],

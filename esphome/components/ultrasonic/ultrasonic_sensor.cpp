@@ -30,14 +30,14 @@ void UltrasonicSensorComponent::update() {
     ;
   const uint32_t pulse_end = micros();
 
-  ESP_LOGV(TAG, "Echo took %uµs", pulse_end - pulse_start);
+  ESP_LOGV(TAG, "Echo took %" PRIu32 "µs", pulse_end - pulse_start);
 
   if (pulse_end - start >= timeout_us_) {
     ESP_LOGD(TAG, "'%s' - Distance measurement timed out!", this->name_.c_str());
     this->publish_state(NAN);
   } else {
     float result = UltrasonicSensorComponent::us_to_m(pulse_end - pulse_start);
-    ESP_LOGD(TAG, "'%s' - Got distance: %.2f m", this->name_.c_str(), result);
+    ESP_LOGD(TAG, "'%s' - Got distance: %.3f m", this->name_.c_str(), result);
     this->publish_state(result);
   }
 }
@@ -45,8 +45,8 @@ void UltrasonicSensorComponent::dump_config() {
   LOG_SENSOR("", "Ultrasonic Sensor", this);
   LOG_PIN("  Echo Pin: ", this->echo_pin_);
   LOG_PIN("  Trigger Pin: ", this->trigger_pin_);
-  ESP_LOGCONFIG(TAG, "  Pulse time: %u µs", this->pulse_time_us_);
-  ESP_LOGCONFIG(TAG, "  Timeout: %u µs", this->timeout_us_);
+  ESP_LOGCONFIG(TAG, "  Pulse time: %" PRIu32 " µs", this->pulse_time_us_);
+  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 " µs", this->timeout_us_);
   LOG_UPDATE_INTERVAL(this);
 }
 float UltrasonicSensorComponent::us_to_m(uint32_t us) {

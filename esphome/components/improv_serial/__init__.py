@@ -1,10 +1,12 @@
-from esphome.components.logger import USB_CDC, USB_SERIAL_JTAG
-from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_LOGGER
 import esphome.codegen as cg
+from esphome.components import improv_base
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32S3
+from esphome.components.logger import USB_CDC
 import esphome.config_validation as cv
+from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_LOGGER
 from esphome.core import CORE
 import esphome.final_validate as fv
-from esphome.components import improv_base
 
 AUTO_LOAD = ["improv_base"]
 CODEOWNERS = ["@esphome/core"]
@@ -15,11 +17,7 @@ improv_serial_ns = cg.esphome_ns.namespace("improv_serial")
 ImprovSerialComponent = improv_serial_ns.class_("ImprovSerialComponent", cg.Component)
 
 CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ImprovSerialComponent),
-        }
-    )
+    cv.Schema({cv.GenerateID(): cv.declare_id(ImprovSerialComponent)})
     .extend(improv_base.IMPROV_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
@@ -30,7 +28,10 @@ def validate_logger(config):
     if logger_conf[CONF_BAUD_RATE] == 0:
         raise cv.Invalid("improv_serial requires the logger baud_rate to be not 0")
     if CORE.using_esp_idf:
-        if logger_conf[CONF_HARDWARE_UART] in [USB_SERIAL_JTAG, USB_CDC]:
+        if (
+            logger_conf[CONF_HARDWARE_UART] == USB_CDC
+            and get_esp32_variant() == VARIANT_ESP32S3
+        ):
             raise cv.Invalid(
                 "improv_serial does not support the selected logger hardware_uart"
             )

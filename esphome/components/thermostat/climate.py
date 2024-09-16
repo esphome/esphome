@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import climate, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_MODE,
     CONF_AWAY_CONFIG,
@@ -15,15 +15,15 @@ from esphome.const import (
     CONF_DRY_ACTION,
     CONF_DRY_MODE,
     CONF_FAN_MODE,
-    CONF_FAN_MODE_ON_ACTION,
-    CONF_FAN_MODE_OFF_ACTION,
     CONF_FAN_MODE_AUTO_ACTION,
+    CONF_FAN_MODE_DIFFUSE_ACTION,
+    CONF_FAN_MODE_FOCUS_ACTION,
+    CONF_FAN_MODE_HIGH_ACTION,
     CONF_FAN_MODE_LOW_ACTION,
     CONF_FAN_MODE_MEDIUM_ACTION,
-    CONF_FAN_MODE_HIGH_ACTION,
     CONF_FAN_MODE_MIDDLE_ACTION,
-    CONF_FAN_MODE_FOCUS_ACTION,
-    CONF_FAN_MODE_DIFFUSE_ACTION,
+    CONF_FAN_MODE_OFF_ACTION,
+    CONF_FAN_MODE_ON_ACTION,
     CONF_FAN_MODE_QUIET_ACTION,
     CONF_FAN_ONLY_ACTION,
     CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER,
@@ -35,6 +35,7 @@ from esphome.const import (
     CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
+    CONF_HUMIDITY_SENSOR,
     CONF_ID,
     CONF_IDLE_ACTION,
     CONF_MAX_COOLING_RUN_TIME,
@@ -49,8 +50,8 @@ from esphome.const import (
     CONF_MIN_HEATING_RUN_TIME,
     CONF_MIN_IDLE_TIME,
     CONF_MIN_TEMPERATURE,
-    CONF_NAME,
     CONF_MODE,
+    CONF_NAME,
     CONF_OFF_MODE,
     CONF_PRESET,
     CONF_SENSOR,
@@ -519,6 +520,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ThermostatClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_COOL_ACTION): automation.validate_automation(single=True),
             cv.Optional(
@@ -591,11 +593,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
                 CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
-            ): cv.temperature,
-            cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature,
-            cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature,
-            cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature,
-            cv.Optional(CONF_HEAT_OVERRUN, default=0.5): cv.temperature,
+            ): cv.temperature_delta,
+            cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature_delta,
+            cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature_delta,
+            cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature_delta,
+            cv.Optional(CONF_HEAT_OVERRUN, default=0.5): cv.temperature_delta,
             cv.Optional(CONF_MAX_COOLING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MAX_HEATING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_COOLING_OFF_TIME): cv.positive_time_period_seconds,
@@ -608,8 +610,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_HEATING_OFF_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_HEATING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Required(CONF_MIN_IDLE_TIME): cv.positive_time_period_seconds,
-            cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature,
-            cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature,
+            cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature_delta,
+            cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature_delta,
             cv.Optional(
                 CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER, default=False
             ): cv.boolean,
@@ -657,6 +659,10 @@ async def to_code(config):
         )
     )
     cg.add(var.set_sensor(sens))
+
+    if CONF_HUMIDITY_SENSOR in config:
+        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
+        cg.add(var.set_humidity_sensor(sens))
 
     cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
@@ -886,7 +892,7 @@ async def to_code(config):
             if name.upper() in climate.CLIMATE_PRESETS:
                 standard_preset = climate.CLIMATE_PRESETS[name.upper()]
 
-            if two_points_available is True:
+            if two_points_available:
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
@@ -899,6 +905,8 @@ async def to_code(config):
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
                 )
+            else:
+                preset_target_config = None
 
             preset_target_variable = cg.new_variable(
                 preset_config[CONF_ID], preset_target_config

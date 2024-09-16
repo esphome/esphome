@@ -30,7 +30,7 @@ void STS3XComponent::setup() {
     return;
   }
   uint32_t serial_number = (uint32_t(raw_serial_number[0]) << 16);
-  ESP_LOGV(TAG, "    Serial Number: 0x%08X", serial_number);
+  ESP_LOGV(TAG, "    Serial Number: 0x%08" PRIX32, serial_number);
 }
 void STS3XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "STS3x:");
