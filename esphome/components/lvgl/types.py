@@ -1,8 +1,11 @@
-from esphome import codegen as cg
-from esphome.core import ID
-from esphome.cpp_generator import MockObjClass
+import sys
 
-from .defines import CONF_TEXT
+from esphome import automation, codegen as cg
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
+from esphome.cpp_generator import MockObj, MockObjClass
+
+from .defines import lvgl_ns
+from .lvcode import lv_expr
 
 
 class LvType(cg.MockObjClass):
@@ -18,28 +21,49 @@ class LvType(cg.MockObjClass):
         return self.args[0][0] if len(self.args) else None
 
 
+class LvNumber(LvType):
+    def __init__(self, *args):
+        super().__init__(
+            *args,
+            largs=[(cg.float_, "x")],
+            lvalue=lambda w: w.get_number_value(),
+            has_on_value=True,
+        )
+        self.value_property = CONF_VALUE
+
+
 uint16_t_ptr = cg.uint16.operator("ptr")
-lvgl_ns = cg.esphome_ns.namespace("lvgl")
 char_ptr = cg.global_ns.namespace("char").operator("ptr")
 void_ptr = cg.void.operator("ptr")
-LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
-lv_event_code_t = cg.global_ns.namespace("lv_event_code_t")
+lv_coord_t = cg.global_ns.namespace("lv_coord_t")
+lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
+lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 FontEngine = lvgl_ns.class_("FontEngine")
+IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
+ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
+LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
+LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
+lv_lambda_t = lvgl_ns.class_("LvLambdaType")
 LvCompound = lvgl_ns.class_("LvCompound")
 lv_font_t = cg.global_ns.class_("lv_font_t")
 lv_style_t = cg.global_ns.struct("lv_style_t")
+# fake parent class for first class widgets and matrix buttons
 lv_pseudo_button_t = lvgl_ns.class_("LvPseudoButton")
 lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
-lv_disp_t_ptr = cg.global_ns.struct("lv_disp_t").operator("ptr")
+lv_disp_t = cg.global_ns.struct("lv_disp_t")
 lv_color_t = cg.global_ns.struct("lv_color_t")
+lv_group_t = cg.global_ns.struct("lv_group_t")
 LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
 lv_obj_t = LvType("lv_obj_t")
+lv_page_t = LvType("LvPageType", parents=(LvCompound,))
+lv_img_t = LvType("lv_img_t")
+lv_gradient_t = LvType("lv_grad_dsc_t")
 
-
-# this will be populated later, in __init__.py to avoid circular imports.
-WIDGET_TYPES: dict = {}
+LV_EVENT = MockObj(base="LV_EVENT_", op="")
+LV_STATE = MockObj(base="LV_STATE_", op="")
+LV_BTNMATRIX_CTRL = MockObj(base="LV_BTNMATRIX_CTRL_", op="")
 
 
 class LvText(LvType):
@@ -47,7 +71,8 @@ class LvText(LvType):
         super().__init__(
             *args,
             largs=[(cg.std_string, "text")],
-            lvalue=lambda w: w.get_property("text")[0],
+            lvalue=lambda w: w.get_property("text"),
+            has_on_value=True,
             **kwargs,
         )
         self.value_property = CONF_TEXT
@@ -64,7 +89,15 @@ class LvBoolean(LvType):
         )
 
 
-CUSTOM_EVENT = ID("lv_custom_event", False, type=lv_event_code_t)
+class LvSelect(LvType):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            largs=[(cg.int_, "x")],
+            lvalue=lambda w: w.get_property("selected"),
+            has_on_value=True,
+            **kwargs,
+        )
 
 
 class WidgetType:
@@ -72,7 +105,15 @@ class WidgetType:
     Describes a type of Widget, e.g. "bar" or "line"
     """
 
-    def __init__(self, name, w_type, parts, schema=None, modify_schema=None):
+    def __init__(
+        self,
+        name: str,
+        w_type: LvType,
+        parts: tuple,
+        schema=None,
+        modify_schema=None,
+        lv_name=None,
+    ):
         """
         :param name: The widget name, e.g. "bar"
         :param w_type: The C type of the widget
@@ -81,13 +122,18 @@ class WidgetType:
         :param modify_schema: A schema to update the widget
         """
         self.name = name
+        self.lv_name = lv_name or name
         self.w_type = w_type
         self.parts = parts
-        self.schema = schema or {}
+        if schema is None:
+            self.schema = {}
+        else:
+            self.schema = schema
         if modify_schema is None:
-            self.modify_schema = schema
+            self.modify_schema = self.schema
         else:
             self.modify_schema = modify_schema
+        self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
 
     @property
     def animated(self):
@@ -107,7 +153,7 @@ class WidgetType:
         :param config: Its configuration
         :return: Generated code as a list of text lines
         """
-        raise NotImplementedError(f"No to_code defined for {self.name}")
+        return []
 
     def obj_creator(self, parent: MockObjClass, config: dict):
         """
@@ -116,7 +162,7 @@ class WidgetType:
         :param config:  Its configuration
         :return: Generated code as a single text line
         """
-        return f"lv_{self.name}_create({parent})"
+        return lv_expr.call(f"{self.lv_name}_create", parent)
 
     def get_uses(self):
         """
@@ -124,3 +170,23 @@ class WidgetType:
         :return:
         """
         return ()
+
+    def get_max(self, config: dict):
+        return sys.maxsize
+
+    def get_min(self, config: dict):
+        return -sys.maxsize
+
+    def get_step(self, config: dict):
+        return 1
+
+    def get_scale(self, config: dict):
+        return 1.0
+
+
+class NumberType(WidgetType):
+    def get_max(self, config: dict):
+        return int(config[CONF_MAX_VALUE] or 100)
+
+    def get_min(self, config: dict):
+        return int(config[CONF_MIN_VALUE] or 0)

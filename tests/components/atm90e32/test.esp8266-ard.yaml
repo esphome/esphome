@@ -7,6 +7,7 @@ spi:
 sensor:
   - platform: atm90e32
     cs_pin: 5
+    id: chip1
     phase_a:
       voltage:
         name: EMON Line Voltage A
@@ -49,3 +50,42 @@ sensor:
     line_frequency: 60Hz
     current_phases: 3
     gain_pga: 2X
+    enable_offset_calibration: True
+  - platform: atm90e32
+    cs_pin: 4
+    id: chip2
+    phase_a:
+      voltage:
+        name: EMON Line Voltage A
+      current:
+        name: EMON CT1 Current
+      power:
+        name: EMON Active Power CT1
+      reactive_power:
+        name: EMON Reactive Power CT1
+      power_factor:
+        name: EMON Power Factor CT1
+      gain_voltage: 7305
+      gain_ct: 27961
+    phase_c:
+      voltage:
+        name: EMON Line Voltage C
+      current:
+        name: EMON CT2 Current
+      power:
+        name: EMON Active Power CT2
+      reactive_power:
+        name: EMON Reactive Power CT2
+      power_factor:
+        name: EMON Power Factor CT2
+      gain_voltage: 7305
+      gain_ct: 27961
+    line_frequency: 60Hz
+    current_phases: 2
+button:
+  - platform: atm90e32
+    id: chip1
+    run_offset_calibration:
+      name: "Chip1 - Run Offset Calibration"
+    clear_offset_calibration:
+      name: "Chip1 - Clear Offset Calibration"

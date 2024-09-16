@@ -462,14 +462,16 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
   }
   for (auto &data : this->manufacturer_datas_) {
-    ESP_LOGVV(TAG, "  Manufacturer data: %s", format_hex_pretty(data.data).c_str());
-    if (this->get_ibeacon().has_value()) {
-      auto ibeacon = this->get_ibeacon().value();
-      ESP_LOGVV(TAG, "    iBeacon data:");
-      ESP_LOGVV(TAG, "      UUID: %s", ibeacon.get_uuid().to_string().c_str());
-      ESP_LOGVV(TAG, "      Major: %u", ibeacon.get_major());
-      ESP_LOGVV(TAG, "      Minor: %u", ibeacon.get_minor());
-      ESP_LOGVV(TAG, "      TXPower: %d", ibeacon.get_signal_power());
+    auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(data);
+    if (ibeacon.has_value()) {
+      ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
+      ESP_LOGVV(TAG, "    UUID: %s", ibeacon.value().get_uuid().to_string().c_str());
+      ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
+      ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
+      ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
+    } else {
+      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", data.uuid.to_string().c_str(),
+                format_hex_pretty(data.data).c_str());
     }
   }
   for (auto &data : this->service_datas_) {
@@ -478,7 +480,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
     ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty(data.data).c_str());
   }
 
-  ESP_LOGVV(TAG, "Adv data: %s", format_hex_pretty(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
+  ESP_LOGVV(TAG, "  Adv data: %s", format_hex_pretty(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {

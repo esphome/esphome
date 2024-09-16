@@ -1,10 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome.components import binary_sensor, display
-from esphome.const import CONF_PAGE_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_PAGE_ID, CONF_PAGES
 
-from .. import touchscreen_ns, CONF_TOUCHSCREEN_ID, Touchscreen, TouchListener
+from .. import CONF_TOUCHSCREEN_ID, TouchListener, Touchscreen, touchscreen_ns
 
 DEPENDENCIES = ["touchscreen"]
 
@@ -22,7 +21,7 @@ CONF_Y_MIN = "y_min"
 CONF_Y_MAX = "y_max"
 
 
-def validate_coords(config):
+def _validate_coords(config):
     if (
         config[CONF_X_MAX] < config[CONF_X_MIN]
         or config[CONF_Y_MAX] < config[CONF_Y_MIN]
@@ -30,6 +29,15 @@ def validate_coords(config):
         raise cv.Invalid(
             f"{CONF_X_MAX} is less than {CONF_X_MIN} or {CONF_Y_MAX} is less than {CONF_Y_MIN}"
         )
+    return config
+
+
+def _set_pages(config: dict) -> dict:
+    if CONF_PAGES in config or CONF_PAGE_ID not in config:
+        return config
+
+    config = config.copy()
+    config[CONF_PAGES] = [config.pop(CONF_PAGE_ID)]
     return config
 
 
@@ -42,11 +50,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MAX): cv.int_range(min=0, max=2000),
-            cv.Optional(CONF_PAGE_ID): cv.use_id(display.DisplayPage),
+            cv.Exclusive(CONF_PAGE_ID, group_of_exclusion=CONF_PAGES): cv.use_id(
+                display.DisplayPage
+            ),
+            cv.Exclusive(CONF_PAGES, group_of_exclusion=CONF_PAGES): cv.ensure_list(
+                cv.use_id(display.DisplayPage)
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    validate_coords,
+    _validate_coords,
+    _set_pages,
 )
 
 
@@ -64,6 +78,6 @@ async def to_code(config):
         )
     )
 
-    if CONF_PAGE_ID in config:
-        page = await cg.get_variable(config[CONF_PAGE_ID])
-        cg.add(var.set_page(page))
+    for page_id in config.get(CONF_PAGES, []):
+        page = await cg.get_variable(page_id)
+        cg.add(var.add_page(page))

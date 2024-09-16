@@ -1,20 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_ID,
-    CONF_MULTIPLY,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_MULTIPLY
 
 from .. import (
-    modbus_controller_ns,
-    modbus_calc_properties,
+    SENSOR_VALUE_TYPE,
     ModbusItemBaseSchema,
     SensorItem,
-    SENSOR_VALUE_TYPE,
+    modbus_calc_properties,
+    modbus_controller_ns,
 )
-
 from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
@@ -65,6 +60,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 async def to_code(config):
     byte_offset, reg_count = modbus_calc_properties(config)
     # Binary Output
+    write_template = None
     if config[CONF_REGISTER_TYPE] == "coil":
         var = cg.new_Pvariable(
             config[CONF_ID],
@@ -72,7 +68,7 @@ async def to_code(config):
             byte_offset,
         )
         if CONF_WRITE_LAMBDA in config:
-            template_ = await cg.process_lambda(
+            write_template = await cg.process_lambda(
                 config[CONF_WRITE_LAMBDA],
                 [
                     (ModbusBinaryOutput.operator("ptr"), "item"),
@@ -92,7 +88,7 @@ async def to_code(config):
         )
         cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))
         if CONF_WRITE_LAMBDA in config:
-            template_ = await cg.process_lambda(
+            write_template = await cg.process_lambda(
                 config[CONF_WRITE_LAMBDA],
                 [
                     (ModbusFloatOutput.operator("ptr"), "item"),
@@ -105,5 +101,5 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
     cg.add(var.set_parent(parent))
-    if CONF_WRITE_LAMBDA in config:
-        cg.add(var.set_write_template(template_))
+    if write_template:
+        cg.add(var.set_write_template(write_template))

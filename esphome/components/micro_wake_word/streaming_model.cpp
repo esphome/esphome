@@ -148,7 +148,7 @@ WakeWordModel::WakeWordModel(const uint8_t *model_start, float probability_cutof
 };
 
 bool WakeWordModel::determine_detected() {
-  int32_t sum = 0;
+  uint32_t sum = 0;
   for (auto &prob : this->recent_streaming_probabilities_) {
     sum += prob;
   }
@@ -175,12 +175,14 @@ VADModel::VADModel(const uint8_t *model_start, float probability_cutoff, size_t 
 };
 
 bool VADModel::determine_detected() {
-  uint8_t max = 0;
+  uint32_t sum = 0;
   for (auto &prob : this->recent_streaming_probabilities_) {
-    max = std::max(prob, max);
+    sum += prob;
   }
 
-  return max > this->probability_cutoff_;
+  float sliding_window_average = static_cast<float>(sum) / static_cast<float>(255 * this->sliding_window_size_);
+
+  return sliding_window_average > this->probability_cutoff_;
 }
 
 }  // namespace micro_wake_word
