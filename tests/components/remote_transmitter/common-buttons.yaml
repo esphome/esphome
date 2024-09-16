@@ -18,6 +18,12 @@ button:
         address: 0x4242
         command: 0x8484
   - platform: template
+    name: NEC short
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0x32
+        command: 0x02
+  - platform: template
     name: LG
     on_press:
       remote_transmitter.transmit_lg:

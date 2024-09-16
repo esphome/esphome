@@ -13,8 +13,17 @@ static const uint32_t BIT_ONE_LOW_US = 1690;
 static const uint32_t BIT_ZERO_LOW_US = 560;
 
 void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
-  ESP_LOGD(TAG, "Sending NEC: address=0x%04X, command=0x%04X command_repeats=%d", data.address, data.command,
-           data.command_repeats);
+  // If the address or command is <= 0xFF the user has only supplied one byte
+  // We need to generate parity bits to pad the value to 2 bytes
+  // The NEC protocol requires us to prepend the inverse byte, e.g. 0x21 -> 0xDE21
+  uint16_t address = data.address <= 0xFF
+    ? data.address | ((uint16_t)(~data.address) << 8)
+    : data.address;
+  uint16_t command = data.command <= 0xFF
+    ? data.command | ((uint16_t)(~data.command) << 8)
+    : data.command;
+
+  ESP_LOGD(TAG, "Sending NEC: address=0x%04X, command=0x%04X command_repeats=%d", address, command, data.command_repeats);
 
   dst->reserve(2 + 32 + 32 * data.command_repeats + 2);
   dst->set_carrier_frequency(38000);
@@ -22,7 +31,7 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
 
   for (uint16_t mask = 1; mask; mask <<= 1) {
-    if (data.address & mask) {
+    if (address & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
@@ -31,7 +40,7 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
 
   for (uint16_t repeats = 0; repeats < data.command_repeats; repeats++) {
     for (uint16_t mask = 1; mask; mask <<= 1) {
-      if (data.command & mask) {
+      if (command & mask) {
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
       } else {
         dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
