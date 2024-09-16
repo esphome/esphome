@@ -5149,6 +5149,10 @@ bool MediaPlayerSupportedFormat::decode_varint(uint32_t field_id, ProtoVarInt va
       this->purpose = value.as_enum<enums::MediaPlayerFormatPurpose>();
       return true;
     }
+    case 5: {
+      this->sample_bytes = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5168,6 +5172,7 @@ void MediaPlayerSupportedFormat::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(2, this->sample_rate);
   buffer.encode_uint32(3, this->num_channels);
   buffer.encode_enum<enums::MediaPlayerFormatPurpose>(4, this->purpose);
+  buffer.encode_uint32(5, this->sample_bytes);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
@@ -5189,6 +5194,11 @@ void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
 
   out.append("  purpose: ");
   out.append(proto_enum_to_string<enums::MediaPlayerFormatPurpose>(this->purpose));
+  out.append("\n");
+
+  out.append("  sample_bytes: ");
+  sprintf(buffer, "%" PRIu32, this->sample_bytes);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
