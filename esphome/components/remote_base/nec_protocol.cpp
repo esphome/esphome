@@ -16,14 +16,11 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
   // If the address or command is <= 0xFF the user has only supplied one byte
   // We need to generate parity bits to pad the value to 2 bytes
   // The NEC protocol requires us to prepend the inverse byte, e.g. 0x21 -> 0xDE21
-  uint16_t address = data.address <= 0xFF
-    ? data.address | ((uint16_t)(~data.address) << 8)
-    : data.address;
-  uint16_t command = data.command <= 0xFF
-    ? data.command | ((uint16_t)(~data.command) << 8)
-    : data.command;
+  uint16_t address = data.address <= 0xFF ? data.address | ((uint16_t) (~data.address) << 8) : data.address;
+  uint16_t command = data.command <= 0xFF ? data.command | ((uint16_t) (~data.command) << 8) : data.command;
 
-  ESP_LOGD(TAG, "Sending NEC: address=0x%04X, command=0x%04X command_repeats=%d", address, command, data.command_repeats);
+  ESP_LOGD(TAG, "Sending NEC: address=0x%04X, command=0x%04X command_repeats=%d", address, command,
+           data.command_repeats);
 
   dst->reserve(2 + 32 + 32 * data.command_repeats + 2);
   dst->set_carrier_frequency(38000);
