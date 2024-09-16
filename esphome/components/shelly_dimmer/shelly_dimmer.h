@@ -20,7 +20,7 @@ class ShellyDimmer : public PollingComponent, public light::LightOutput, public 
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
 
-  void is_running_configured_version() const;
+  bool is_running_configured_version() const;
   void handle_firmware();
   void setup() override;
   void update() override;

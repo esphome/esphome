@@ -64,7 +64,7 @@ uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
   return std::accumulate<decltype(buf), uint16_t>(buf, buf + len, 0);
 }
 
-void ShellyDimmer::is_running_configured_version() const {
+bool ShellyDimmer::is_running_configured_version() const {
   return this->version_major_ == USE_SHD_FIRMWARE_MAJOR_VERSION &&
       this->version_minor_ == USE_SHD_FIRMWARE_MINOR_VERSION;
 
