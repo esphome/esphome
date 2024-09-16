@@ -1571,6 +1571,36 @@ message VoiceAssistantAnnounceFinished {
   bool success = 1;
 }
 
+message VoiceAssistantWakeWord {
+  uint32 id = 1;
+  string wake_word = 2;
+  repeated string trained_languages = 3;
+}
+
+message VoiceAssistantConfigurationRequest {
+  option (id) = 121;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+}
+
+message VoiceAssistantConfigurationResponse {
+  option (id) = 122;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated VoiceAssistantWakeWord available_wake_words = 1;
+  repeated uint32 active_wake_words = 2;
+  uint32 max_active_wake_words = 3;
+}
+
+message VoiceAssistantSetConfiguration {
+  option (id) = 123;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated uint32 active_wake_words = 1;
+}
+
 // ==================== ALARM CONTROL PANEL ====================
 enum AlarmControlPanelState {
   ALARM_STATE_DISARMED = 0;

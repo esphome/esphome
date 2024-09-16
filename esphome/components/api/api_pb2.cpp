@@ -7124,6 +7124,149 @@ void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool VoiceAssistantWakeWord::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->id = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->wake_word = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->trained_languages.push_back(value.as_string());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantWakeWord::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->id);
+  buffer.encode_string(2, this->wake_word);
+  for (auto &it : this->trained_languages) {
+    buffer.encode_string(3, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantWakeWord::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantWakeWord {\n");
+  out.append("  id: ");
+  sprintf(buffer, "%" PRIu32, this->id);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  wake_word: ");
+  out.append("'").append(this->wake_word).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->trained_languages) {
+    out.append("  trained_languages: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+void VoiceAssistantConfigurationRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {
+  out.append("VoiceAssistantConfigurationRequest {}");
+}
+#endif
+bool VoiceAssistantConfigurationResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->active_wake_words.push_back(value.as_uint32());
+      return true;
+    }
+    case 3: {
+      this->max_active_wake_words = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool VoiceAssistantConfigurationResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->available_wake_words.push_back(value.as_message<VoiceAssistantWakeWord>());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer buffer) const {
+  for (auto &it : this->available_wake_words) {
+    buffer.encode_message<VoiceAssistantWakeWord>(1, it, true);
+  }
+  for (auto &it : this->active_wake_words) {
+    buffer.encode_uint32(2, it, true);
+  }
+  buffer.encode_uint32(3, this->max_active_wake_words);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantConfigurationResponse {\n");
+  for (const auto &it : this->available_wake_words) {
+    out.append("  available_wake_words: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+
+  for (const auto &it : this->active_wake_words) {
+    out.append("  active_wake_words: ");
+    sprintf(buffer, "%" PRIu32, it);
+    out.append(buffer);
+    out.append("\n");
+  }
+
+  out.append("  max_active_wake_words: ");
+  sprintf(buffer, "%" PRIu32, this->max_active_wake_words);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool VoiceAssistantSetConfiguration::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->active_wake_words.push_back(value.as_uint32());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void VoiceAssistantSetConfiguration::encode(ProtoWriteBuffer buffer) const {
+  for (auto &it : this->active_wake_words) {
+    buffer.encode_uint32(1, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void VoiceAssistantSetConfiguration::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("VoiceAssistantSetConfiguration {\n");
+  for (const auto &it : this->active_wake_words) {
+    out.append("  active_wake_words: ");
+    sprintf(buffer, "%" PRIu32, it);
+    out.append(buffer);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
 bool ListEntitiesAlarmControlPanelResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {
