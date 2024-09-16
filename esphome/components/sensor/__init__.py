@@ -1,22 +1,27 @@
 import math
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DEVICE_CLASS,
     CONF_ABOVE,
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
+    CONF_FORCE_UPDATE,
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
     CONF_IGNORE_OUT_OF_RANGE,
+    CONF_MAX_VALUE,
+    CONF_METHOD,
+    CONF_MIN_VALUE,
+    CONF_MQTT_ID,
     CONF_MULTIPLE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
@@ -30,14 +35,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_WINDOW_SIZE,
-    CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
-    CONF_FORCE_UPDATE,
     CONF_VALUE,
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-    CONF_METHOD,
+    CONF_WEB_SERVER_ID,
+    CONF_WINDOW_SIZE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,

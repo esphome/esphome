@@ -67,7 +67,7 @@ lvgl:
   displays:
     - tft_display
     - second_display
-  rotary_encoders:
+  encoders:
     sensor: encoder
     enter_button: pushbutton
     group: general

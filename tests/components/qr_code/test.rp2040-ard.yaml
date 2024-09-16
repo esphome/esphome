@@ -11,6 +11,7 @@ display:
     cs_pin: 20
     dc_pin: 21
     reset_pin: 22
+    invert_colors: false
     lambda: |-
       // Draw a QR code in the center of the screen
       auto scale = 2;
