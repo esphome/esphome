@@ -1224,6 +1224,26 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
+void APIConnection::on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    this->send_voice_assistant_configuration_response(voice_assistant::global_voice_assistant->get_configuration());
+  }
+}
+
+void APIConnection::on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_set_configuration(msg);
+  }
+}
+
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

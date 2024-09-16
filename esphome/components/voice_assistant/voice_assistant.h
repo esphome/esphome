@@ -133,6 +133,8 @@ class VoiceAssistant : public Component {
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
+  void on_set_configuration(const api::VoiceAssistantSetConfiguration &msg){};
+  const api::VoiceAssistantConfigurationResponse &get_configuration() { return this->config_response_; };
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -279,6 +281,8 @@ class VoiceAssistant : public Component {
   AudioMode audio_mode_{AUDIO_MODE_UDP};
   bool udp_socket_running_{false};
   bool start_udp_socket_();
+
+  api::VoiceAssistantConfigurationResponse config_response_{};
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
