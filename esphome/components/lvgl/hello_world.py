@@ -14,7 +14,7 @@ CONFIG = """
         id: hello_world_spinner_
         align: center
         indicator:
-          arc_color: 0xF000FF
+          arc_color: tomato
         height: 100
         width: 100
         spin_time: 2s
@@ -26,7 +26,7 @@ CONFIG = """
         on_click:
             lvgl.spinner.update:
               id: hello_world_spinner_
-              arc_color: 0x00FF00
+              arc_color: springgreen
     - checkbox:
         pad_all: 8
         text: Checkbox
