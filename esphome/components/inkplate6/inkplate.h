@@ -84,8 +84,7 @@ class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
                                              {1, 2, 1, 2, 1, 1, 1, 2, 0},
                                              {0, 1, 1, 1, 2, 0, 1, 2, 0},
                                              {1, 1, 1, 2, 2, 2, 1, 2, 0},
-                                             {0, 0, 0, 0, 0, 0, 0, 0, 0}}
-};
+                                             {0, 0, 0, 0, 0, 0, 0, 0, 0}}};
 
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
