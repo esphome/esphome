@@ -1,24 +1,22 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_PRESSURE,
-    STATE_CLASS_MEASUREMENT,
-    DEVICE_CLASS_TEMPERATURE,
+    CONF_MODEL,
+    CONF_PRESSURE,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_TEMPERATURE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PASCAL,
-    CONF_UPDATE_INTERVAL,
-    CONF_PRESSURE,
-    CONF_MODEL,
 )
 
 DEPENDENCIES = ["i2c"]
-# AUTO_LOAD = ["sensor"]
 
 ams5915_ns = cg.esphome_ns.namespace("ams5915")
-TRANSDUCER = ams5915_ns.enum("Ams5915::Transducer")
+TRANSDUCER = ams5915_ns.enum("Transducer")
 TRANSDUCER_TYPE = {
     "AMS5915_0005_D": TRANSDUCER.AMS5915_0005_D,
     "AMS5915_0010_D": TRANSDUCER.AMS5915_0010_D,
@@ -64,7 +62,7 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema(CONF_UPDATE_INTERVAL))
+    .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x28))
 )
 

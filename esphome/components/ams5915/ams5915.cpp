@@ -8,41 +8,6 @@ static const char *const TAG = "ams5915";
 
 void Ams5915::set_transducer_type(Transducer model) { type_ = model; }
 
-/* starts the I2C communication and sets the pressure and temperature ranges using getTransducer */
-int Ams5915::begin_() {
-  // setting the min and max pressure based on the chip
-  this->get_transducer_();
-  // checking to see if we can talk with the sensor
-  for (size_t i = 0; i < max_attempts_; i++) {
-    status_ = read_bytes_(&pressure_counts_, &temperature_counts_);
-    if (status_ > 0) {
-      break;
-    }
-    delay(10);
-  }
-  return status_;
-}
-
-/* reads data from the sensor */
-int Ams5915::read_sensor_() {
-  // get pressure and temperature counts off transducer
-  this->status_ = read_bytes_(&this->pressure_counts_, &this->temperature_counts_);
-  // convert counts to pressure, PA
-  this->data_.pressure_pa_ =
-      (((float) (this->pressure_counts_ - this->dig_out_p_min_)) /
-           (((float) (this->dig_out_p_max_ - this->dig_out_p_min_)) / ((float) (this->p_max_ - this->p_min_))) +
-       (float) this->p_min_);
-  // convert counts to temperature, C
-  this->data_.temperature_c_ = (float) ((this->temperature_counts_ * 200)) / 2048.0f - 50.0f;
-  return this->status_;
-}
-
-/* returns the pressure value, PA */
-float Ams5915::get_pressure_pa_() { return this->data_.pressure_pa_; }
-
-/* returns the temperature value, C */
-float Ams5915::get_temperature_c_() { return this->data_.temperature_c_; }
-
 /* sets the pressure range based on the chip */
 void Ams5915::get_transducer_() {
   // setting the min and max pressures based on which transducer it is
@@ -139,35 +104,55 @@ void Ams5915::get_transducer_() {
 }
 
 /* reads pressure and temperature and returns values in counts */
-int Ams5915::read_bytes_(uint16_t *pressure_counts, uint16_t *temperature_counts) {
+bool Ams5915::read_raw_data_(uint16_t *pressure_counts, uint16_t *temperature_counts) {
   i2c::ErrorCode err = this->read(this->buffer_, sizeof(this->buffer_));
   if (err != i2c::ERROR_OK) {
-    this->status_ = -1;
+    return false;
   } else {
     *pressure_counts = (((uint16_t) (this->buffer_[0] & 0x3F)) << 8) + (((uint16_t) this->buffer_[1]));
     *temperature_counts = (((uint16_t) (this->buffer_[2])) << 3) + (((uint16_t) this->buffer_[3] & 0xE0) >> 5);
-    this->status_ = 1;
+    return true;
   }
-  return this->status_;
 }
 
 void Ams5915::setup() {
-  if (this->begin_() < 0) {
-    ESP_LOGE(TAG, "Failed to read pressure from Ams5915");
-    this->mark_failed();
+  bool read_success = false;
+  // setting the min and max pressure based on the chip
+  this->get_transducer_();
+  // check to see if we can talk with the sensor
+  for (size_t i = 0; i < this->max_attempts_; i++) {
+    read_success = read_raw_data_(&raw_pressure_data_, &raw_temperature_data_);
+    if (read_success) {
+      return;
+    }
+    delay(10);
   }
+  // read failed
+  ESP_LOGE(TAG, "Failed to read from Ams5915");
+  this->mark_failed();
 }
 
 void Ams5915::update() {
-  this->read_sensor_();
-  float temperature = this->get_temperature_c_();
-  float pressure = this->get_pressure_pa_();
+  // get raw pressure and temperature data off transducer
+  bool read_success = read_raw_data_(&this->raw_pressure_data_, &this->raw_temperature_data_);
+  if (read_success) {
+    if (this->pressure_sensor_ != nullptr) {
+      // convert raw_pressure_data_ to pressure, PA as noted in datasheet
+      float pressure =
+          (((float) (this->raw_pressure_data_ - this->dig_out_p_min_)) /
+               (((float) (this->dig_out_p_max_ - this->dig_out_p_min_)) / ((float) (this->p_max_ - this->p_min_))) +
+           (float) this->p_min_);
+      this->pressure_sensor_->publish_state(pressure * this->mbar_to_pa_);
+    }
 
-  ESP_LOGD(TAG, "Got pressure=%.3fmBar %.3fpa temperature=%.1f°C", pressure, pressure * this->mbar_to_pa_, temperature);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure * this->mbar_to_pa_);
+    if (this->temperature_sensor_ != nullptr) {
+      // convert raw_temperature_data_ temperature, C as noted in datasheet
+      float temperature = (float) ((this->raw_temperature_data_ * 200)) / 2048.0f - 50.0f;
+      this->temperature_sensor_->publish_state(temperature);
+    }
+  } else {
+    ESP_LOGE(TAG, "Failed to read from Ams5915");
+  }
 }
 
 void Ams5915::dump_config() {
