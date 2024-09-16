@@ -4,12 +4,15 @@ from typing import Callable
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TIMEOUT
+from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
+from esphome.cpp_generator import RawExpression, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
     CONF_DISP_BG_COLOR,
     CONF_DISP_BG_IMAGE,
+    CONF_EDITING,
+    CONF_FREEZE,
     CONF_LVGL_ID,
     CONF_SHOW_SNOW,
     literal,
@@ -26,8 +29,10 @@ from .lvcode import (
     add_line_marks,
     lv,
     lv_add,
+    lv_expr,
     lv_obj,
     lvgl_comp,
+    static_cast,
 )
 from .schemas import DISP_BG_SCHEMA, LIST_ACTION_SCHEMA, LVGL_SCHEMA
 from .types import (
@@ -36,9 +41,20 @@ from .types import (
     LvglCondition,
     ObjUpdateAction,
     lv_disp_t,
+    lv_group_t,
     lv_obj_t,
+    lv_pseudo_button_t,
 )
-from .widgets import Widget, get_widgets, lv_scr_act, set_obj_properties
+from .widgets import (
+    Widget,
+    get_widgets,
+    lv_scr_act,
+    set_obj_properties,
+    wait_for_widgets,
+)
+
+# Record widgets that are used in a focused action here
+focused_widgets = set()
 
 
 async def action_to_code(
@@ -48,10 +64,12 @@ async def action_to_code(
     template_arg,
     args,
 ):
+    await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
+        with LvConditional(lv_expr.is_pre_initialise()):
+            context.add(RawExpression("return"))
         for widget in widgets:
-            with LvConditional(widget.obj != nullptr):
-                await action(widget)
+            await action(widget)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     return var
 
@@ -147,7 +165,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
     w = widgets[0]
     disp = f"{w.obj}->get_disp()"
-    async with LambdaContext(parameters=args, where=action_id) as context:
+    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
         await disp_update(disp, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
@@ -211,16 +229,89 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
         widget.add_flag("LV_OBJ_FLAG_HIDDEN")
 
-    return await action_to_code(
-        await get_widgets(config), do_hide, action_id, template_arg, args
-    )
+    widgets = [
+        widget.outer if widget.outer else widget for widget in await get_widgets(config)
+    ]
+    return await action_to_code(widgets, do_hide, action_id, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.show", ObjUpdateAction, LIST_ACTION_SCHEMA)
 async def obj_show_to_code(config, action_id, template_arg, args):
     async def do_show(widget: Widget):
         widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
+        if widget.move_to_foreground:
+            lv_obj.move_foreground(widget.obj)
 
-    return await action_to_code(
-        await get_widgets(config), do_show, action_id, template_arg, args
-    )
+    widgets = [
+        widget.outer if widget.outer else widget for widget in await get_widgets(config)
+    ]
+    return await action_to_code(widgets, do_show, action_id, template_arg, args)
+
+
+def focused_id(value):
+    value = cv.use_id(lv_pseudo_button_t)(value)
+    focused_widgets.add(value)
+    return value
+
+
+@automation.register_action(
+    "lvgl.widget.focus",
+    ObjUpdateAction,
+    cv.Any(
+        cv.maybe_simple_value(
+            {
+                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
+                cv.Required(CONF_ACTION): cv.one_of(
+                    "MARK", "RESTORE", "NEXT", "PREVIOUS", upper=True
+                ),
+                cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
+                cv.Optional(CONF_FREEZE, default=False): cv.boolean,
+            },
+            key=CONF_ACTION,
+        ),
+        cv.maybe_simple_value(
+            {
+                cv.Required(CONF_ID): focused_id,
+                cv.Optional(CONF_FREEZE, default=False): cv.boolean,
+                cv.Optional(CONF_EDITING, default=False): cv.boolean,
+            },
+            key=CONF_ID,
+        ),
+    ),
+)
+async def widget_focus(config, action_id, template_arg, args):
+    widget = await get_widgets(config)
+    if widget:
+        widget = widget[0]
+        group = static_cast(
+            lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
+        )
+    elif group := config.get(CONF_GROUP):
+        group = await get_variable(group)
+    else:
+        group = lv_expr.group_get_default()
+
+    async with LambdaContext(parameters=args, where=action_id) as context:
+        if widget:
+            lv.group_focus_freeze(group, False)
+            lv.group_focus_obj(widget.obj)
+            if config[CONF_EDITING]:
+                lv.group_set_editing(group, True)
+        else:
+            action = config[CONF_ACTION]
+            lv_comp = await get_variable(config[CONF_LVGL_ID])
+            if action == "MARK":
+                context.add(lv_comp.set_focus_mark(group))
+            else:
+                lv.group_focus_freeze(group, False)
+                if action == "RESTORE":
+                    context.add(lv_comp.restore_focus_mark(group))
+                elif action == "NEXT":
+                    lv.group_focus_next(group)
+                else:
+                    lv.group_focus_prev(group)
+
+        if config[CONF_FREEZE]:
+            lv.group_focus_freeze(group, True)
+        var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+        return var
