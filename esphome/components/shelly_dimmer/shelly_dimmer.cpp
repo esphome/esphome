@@ -66,16 +66,15 @@ uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
 
 bool ShellyDimmer::is_running_configured_version() const {
   return this->version_major_ == USE_SHD_FIRMWARE_MAJOR_VERSION &&
-      this->version_minor_ == USE_SHD_FIRMWARE_MINOR_VERSION;
-
+         this->version_minor_ == USE_SHD_FIRMWARE_MINOR_VERSION;
 }
 
 void ShellyDimmer::handle_firmware() {
   // Reset the STM32 and check the firmware version.
   this->reset_normal_boot_();
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
-    ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
-             this->version_minor_, USE_SHD_FIRMWARE_MAJOR_VERSION, USE_SHD_FIRMWARE_MINOR_VERSION);
+  ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
+           this->version_minor_, USE_SHD_FIRMWARE_MAJOR_VERSION, USE_SHD_FIRMWARE_MINOR_VERSION);
 
   if (!is_running_configured_version()) {
 #ifdef USE_SHD_FIRMWARE_DATA
@@ -88,7 +87,7 @@ void ShellyDimmer::handle_firmware() {
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
     if (!is_running_configured_version()) {
-        ESP_LOGE(TAG, "STM32 firmware upgrade already performed, but version is still incorrect");
+      ESP_LOGE(TAG, "STM32 firmware upgrade already performed, but version is still incorrect");
       this->mark_failed();
       return;
     }
@@ -103,7 +102,6 @@ void ShellyDimmer::setup() {
   this->pin_boot0_->setup();
 
   ESP_LOGI(TAG, "Initializing Shelly Dimmer...");
-
 
   this->handle_firmware();
 
