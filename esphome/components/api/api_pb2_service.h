@@ -434,6 +434,13 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_VOICE_ASSISTANT
   virtual void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) = 0;
 #endif
+#ifdef USE_VOICE_ASSISTANT
+  virtual VoiceAssistantConfigurationResponse voice_assistant_get_configuration(
+      const VoiceAssistantConfigurationRequest &msg) = 0;
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  virtual void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) = 0;
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) = 0;
 #endif
@@ -534,6 +541,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_VOICE_ASSISTANT
   void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) override;
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  void on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg) override;
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  void on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) override;
