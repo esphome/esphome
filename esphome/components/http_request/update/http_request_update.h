@@ -33,7 +33,7 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
   HttpRequestComponent *request_parent_;
   OtaHttpRequestComponent *ota_parent_;
   std::string source_url_;
-  std::function<bool(const update::UpdateInfo &)> check_update_{[](const update::UpdateInfo &) { return true; }};
+  std::function<bool(const update::UpdateInfo &)> check_update_{};
 };
 
 }  // namespace http_request
