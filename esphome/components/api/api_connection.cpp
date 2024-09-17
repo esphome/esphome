@@ -1237,7 +1237,7 @@ VoiceAssistantConfigurationResponse APIConnection::voice_assistant_get_configura
       VoiceAssistantWakeWord resp_wake_word;
       resp_wake_word.id = wake_word.id;
       resp_wake_word.wake_word = wake_word.wake_word;
-      for (auto lang : wake_word.trained_languages) {
+      for (const auto lang : wake_word.trained_languages) {
         resp_wake_word.trained_languages.push_back(lang);
       }
       resp.available_wake_words.push_back(std::move(resp_wake_word));
