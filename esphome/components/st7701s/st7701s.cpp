@@ -9,14 +9,6 @@ void ST7701S::setup() {
   esph_log_config(TAG, "Setting up ST7701S");
   this->spi_setup();
   this->write_init_sequence_();
-}
-
-// called after a delay after writing the init sequence
-void ST7701S::complete_setup_() {
-  this->write_command_(SLEEP_OUT);
-  this->write_command_(DISPLAY_ON);
-  this->spi_teardown();  // SPI not needed after this
-  delay(10);
 
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
@@ -179,7 +171,12 @@ void ST7701S::write_init_sequence_() {
   this->write_data_(val);
   ESP_LOGD(TAG, "write MADCTL %X", val);
   this->write_command_(this->invert_colors_ ? INVERT_ON : INVERT_OFF);
-  this->set_timeout(120, [this] { this->complete_setup_(); });
+  // can't avoid this inline delay due to the need to complete setup before anything else tries to draw.
+  delay(120);  // NOLINT
+  this->write_command_(SLEEP_OUT);
+  this->write_command_(DISPLAY_ON);
+  this->spi_teardown();  // SPI not needed after this
+  delay(10);
 }
 
 void ST7701S::dump_config() {
