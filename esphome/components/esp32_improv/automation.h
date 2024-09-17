@@ -54,9 +54,9 @@ class ESP32ImprovProvisioningTrigger : public Trigger<> {
   }
 };
 
-class ESP32ImprovStateChangeTrigger : public Trigger<improv::State> {
+class ESP32ImprovStateTrigger : public Trigger<improv::State> {
  public:
-  explicit ESP32ImprovStateChangeTrigger(ESP32ImprovComponent *parent) {
+  explicit ESP32ImprovStateTrigger(ESP32ImprovComponent *parent) {
     parent->add_on_state_callback([this, parent](improv::State state) {
       if (!parent->is_failed()) {
         trigger(state);

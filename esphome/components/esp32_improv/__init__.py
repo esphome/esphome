@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble_server, output
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
 
 AUTO_LOAD = ["esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
@@ -16,7 +16,6 @@ CONF_ON_AUTHORIZED = "on_authorized"
 CONF_ON_AWAITING_AUTHORIZATION = "on_awaiting_authorization"
 CONF_ON_PROVISIONED = "on_provisioned"
 CONF_ON_PROVISIONING = "on_provisioning"
-CONF_ON_STATE_CHANGE = "on_state_change"
 CONF_ON_STOPPED = "on_stopped"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
@@ -40,8 +39,8 @@ ESP32ImprovProvisionedTrigger = esp32_improv_ns.class_(
 ESP32ImprovProvisioningTrigger = esp32_improv_ns.class_(
     "ESP32ImprovProvisioningTrigger", automation.Trigger.template()
 )
-ESP32ImprovStateChangeTrigger = esp32_improv_ns.class_(
-    "ESP32ImprovStateChangeTrigger", automation.Trigger.template()
+ESP32ImprovStateTrigger = esp32_improv_ns.class_(
+    "ESP32ImprovStateTrigger", automation.Trigger.template()
 )
 ESP32ImprovStoppedTrigger = esp32_improv_ns.class_(
     "ESP32ImprovStoppedTrigger", automation.Trigger.template()
@@ -93,11 +92,9 @@ CONFIG_SCHEMA = cv.Schema(
                 ),
             }
         ),
-        cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
+        cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    ESP32ImprovStateChangeTrigger
-                ),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESP32ImprovStateTrigger),
             }
         ),
         cv.Optional(CONF_ON_STOPPED): automation.validate_automation(
@@ -151,7 +148,7 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
         use_state_callback = True
-    for conf in config.get(CONF_ON_STATE_CHANGE, []):
+    for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(State, "state")], conf)
         use_state_callback = True
