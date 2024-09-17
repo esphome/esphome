@@ -130,7 +130,7 @@ std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
   this->update_used_();
   return {start, start + length};
 }
-void ByteBuffer::get_data(const uint8_t *data, size_t length) {
+void ByteBuffer::get_bytes(const uint8_t *data, size_t length) {
   assert(this->get_remaining() >= length);
   auto start = this->data_.begin() + this->position_;
   copy(start, start + length, data);
@@ -178,7 +178,7 @@ void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   this->position_ += value.size();
   this->update_used_();
 }
-void ByteBuffer::put_array(const uint8_t *data, size_t size) {
+void ByteBuffer::put_bytes(const uint8_t *data, size_t size) {
   assert(this->get_remaining() >= size);
   std::copy(data[0], data[size], this->data_.begin() + this->position_);
   this->position_ += size;

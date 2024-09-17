@@ -92,7 +92,7 @@ class ByteBuffer {
   bool get_bool() { return this->get_uint8(); }
   // Get vector of bytes, increment by length
   std::vector<uint8_t> get_vector(size_t length);
-  void get_data(const uint8_t *data, size_t length);
+  void get_bytes(const uint8_t *data, size_t length);
 
   // Put values into the buffer, increment the position accordingly
   // put any integral value, length represents the number of bytes
@@ -113,7 +113,7 @@ class ByteBuffer {
   void put_double(double value);
   void put_bool(bool value) { this->put_uint8(value); }
   void put_vector(const std::vector<uint8_t> &value);
-  void put_array(const uint8_t *data, size_t size);
+  void put_bytes(const uint8_t *data, size_t size);
 
   inline size_t get_capacity() const { return this->data_.size(); }
   inline size_t get_position() const { return this->position_; }
