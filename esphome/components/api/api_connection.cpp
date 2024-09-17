@@ -1226,13 +1226,13 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
 
 VoiceAssistantConfigurationResponse APIConnection::voice_assistant_get_configuration(
     const VoiceAssistantConfigurationRequest &msg) {
+  VoiceAssistantConfigurationResponse resp;
   if (voice_assistant::global_voice_assistant != nullptr) {
     if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
-      return;
+      return resp;
     }
 
     auto &config = voice_assistant::global_voice_assistant->get_configuration();
-    VoiceAssistantConfigurationResponse resp;
     for (auto &wake_word : config.available_wake_words) {
       VoiceAssistantWakeWord resp_wake_word;
       resp_wake_word.id = wake_word.id;
@@ -1243,8 +1243,8 @@ VoiceAssistantConfigurationResponse APIConnection::voice_assistant_get_configura
       resp.available_wake_words.push_back(std::move(resp_wake_word));
     }
     resp.max_active_wake_words = config.max_active_wake_words;
-    this->send_voice_assistant_configuration_response(resp);
   }
+  return resp;
 }
 
 void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
