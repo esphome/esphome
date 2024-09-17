@@ -68,7 +68,12 @@ void ESP32ImprovComponent::setup_characteristics() {
 
 void ESP32ImprovComponent::loop() {
   if (!global_ble_server->is_running()) {
-    this->state_ = improv::STATE_STOPPED;
+    if (this->state_ != improv::STATE_STOPPED) {
+      this->state_ = improv::STATE_STOPPED;
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+      this->state_callback_.call(this->state_);
+#endif
+    }
     this->incoming_data_.clear();
     return;
   }
