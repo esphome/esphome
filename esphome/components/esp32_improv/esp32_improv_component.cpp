@@ -217,6 +217,9 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
   service_data[7] = 0x00;  // Reserved
 
   esp32_ble::global_ble->advertising_set_service_data(service_data);
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+  this->state_callback_.call(state);
+#endif
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {

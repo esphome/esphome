@@ -1,7 +1,8 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble_server, output
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TRIGGER_ID
 
 AUTO_LOAD = ["esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
@@ -11,12 +12,39 @@ CONF_AUTHORIZED_DURATION = "authorized_duration"
 CONF_AUTHORIZER = "authorizer"
 CONF_BLE_SERVER_ID = "ble_server_id"
 CONF_IDENTIFY_DURATION = "identify_duration"
+CONF_ON_AUTHORIZED = "on_authorized"
+CONF_ON_AWAITING_AUTHORIZATION = "on_awaiting_authorization"
+CONF_ON_PROVISIONED = "on_provisioned"
+CONF_ON_PROVISIONING = "on_provisioning"
+CONF_ON_STATE_CHANGE = "on_state_change"
+CONF_ON_STOPPED = "on_stopped"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
+
+improv_ns = cg.esphome_ns.namespace("improv")
+State = improv_ns.enum("State")
 
 esp32_improv_ns = cg.esphome_ns.namespace("esp32_improv")
 ESP32ImprovComponent = esp32_improv_ns.class_(
     "ESP32ImprovComponent", cg.Component, esp32_ble_server.BLEServiceComponent
+)
+ESP32ImprovAuthorizedTrigger = esp32_improv_ns.class_(
+    "ESP32ImprovAuthorizedTrigger", automation.Trigger.template()
+)
+ESP32ImprovAwaitingAuthorizationTrigger = esp32_improv_ns.class_(
+    "ESP32ImprovAwaitingAuthorizationTrigger", automation.Trigger.template()
+)
+ESP32ImprovProvisionedTrigger = esp32_improv_ns.class_(
+    "ESP32ImprovProvisionedTrigger", automation.Trigger.template()
+)
+ESP32ImprovProvisioningTrigger = esp32_improv_ns.class_(
+    "ESP32ImprovProvisioningTrigger", automation.Trigger.template()
+)
+ESP32ImprovStateChangeTrigger = esp32_improv_ns.class_(
+    "ESP32ImprovStateChangeTrigger", automation.Trigger.template()
+)
+ESP32ImprovStoppedTrigger = esp32_improv_ns.class_(
+    "ESP32ImprovStoppedTrigger", automation.Trigger.template()
 )
 
 
@@ -37,6 +65,48 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_WIFI_TIMEOUT, default="1min"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ON_AUTHORIZED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32ImprovAuthorizedTrigger
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_AWAITING_AUTHORIZATION): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32ImprovAwaitingAuthorizationTrigger
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_PROVISIONED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32ImprovProvisionedTrigger
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_PROVISIONING): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32ImprovProvisioningTrigger
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32ImprovStateChangeTrigger
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_STOPPED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32ImprovStoppedTrigger
+                ),
+            }
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -63,3 +133,31 @@ async def to_code(config):
     if CONF_STATUS_INDICATOR in config:
         status_indicator = await cg.get_variable(config[CONF_STATUS_INDICATOR])
         cg.add(var.set_status_indicator(status_indicator))
+
+    use_state_callback = False
+    for conf in config.get(CONF_ON_AUTHORIZED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_AWAITING_AUTHORIZATION, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_PROVISIONED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_PROVISIONING, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_STATE_CHANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(State, "state")], conf)
+        use_state_callback = True
+    for conf in config.get(CONF_ON_STOPPED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+        use_state_callback = True
+    if use_state_callback:
+        cg.add_define("USE_ESP32_IMPROV_STATE_CALLBACK")
