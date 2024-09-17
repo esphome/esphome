@@ -1,4 +1,6 @@
 #pragma once
+namespace esphome {
+namespace opentherm {
 
 // ===== hub.h macros =====
 
@@ -138,3 +140,6 @@
 #define ID(x) x
 #define SHOW_INNER(x) #x
 #define SHOW(x) SHOW_INNER(x)
+
+}  // namespace opentherm
+}  // namespace esphome
