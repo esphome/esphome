@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_ESP32
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
 #include "esp32_improv_component.h"
 
@@ -77,4 +78,5 @@ class ESP32ImprovStoppedTrigger : public Trigger<> {
 
 }  // namespace esp32_improv
 }  // namespace esphome
+#endif
 #endif
