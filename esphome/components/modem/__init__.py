@@ -78,30 +78,38 @@ def _validate(config):
         config[CONF_USE_ADDRESS] = use_address
     return config
 
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ModemComponent),
+        cv.Required(CONF_TYPE): cv.enum(MODEM_TYPES, upper=True),
+        cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
+        cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ModemComponent),
-            cv.Required(CONF_TYPE): cv.enum(MODEM_TYPES, upper=True),
-            #cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
-            # cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
-            # cv.Optional(CONF_CLK_MODE, default="GPIO0_IN"): cv.enum(
-            #     CLK_MODES, upper=True, space="_"
-            # ),
-            # cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
-            # cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
-            # cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
-            cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
-            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            # cv.Optional("enable_mdns"): cv.invalid(
-            #     "This option has been removed. Please use the [disabled] option under the "
-            #     "new mdns component instead."
-            # ),
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
-    _validate,
-)
+# cv.All(
+#     cv.Schema(
+#         {
+#             cv.GenerateID(): cv.declare_id(ModemComponent),
+#             cv.Required(CONF_TYPE): cv.enum(MODEM_TYPES, upper=True),
+#             #cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
+#             # cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
+#             # cv.Optional(CONF_CLK_MODE, default="GPIO0_IN"): cv.enum(
+#             #     CLK_MODES, upper=True, space="_"
+#             # ),
+#             # cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+#             # cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
+#             # cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
+#             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
+#             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+#             # cv.Optional("enable_mdns"): cv.invalid(
+#             #     "This option has been removed. Please use the [disabled] option under the "
+#             #     "new mdns component instead."
+#             # ),
+#         }
+#     ).extend(cv.COMPONENT_SCHEMA),
+#     _validate,
+# )
 
 
 # def manual_ip(config):
