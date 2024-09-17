@@ -67,6 +67,7 @@ WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
 WiFiSetSTAAction = wifi_ns.class_("WiFiSetSTAAction", automation.Action, cg.Component)
 
+
 def validate_password(value):
     value = cv.string_strict(value)
     if not value:
@@ -515,8 +516,6 @@ async def wifi_set_sta_to_code(config, action_id, template_arg, args):
             var.get_connect_trigger(), [], on_connect_config
         )
     if on_error_config := config.get(CONF_ON_ERROR):
-        await automation.build_automation(
-            var.get_error_trigger(), [], on_error_config
-        )
+        await automation.build_automation(var.get_error_trigger(), [], on_error_config)
     await cg.register_component(var, config)
     return var

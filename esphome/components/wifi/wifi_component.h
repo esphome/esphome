@@ -457,7 +457,7 @@ template<typename... Ts> class WiFiSetSTAAction : public Action<Ts...>, public C
     // If already connected to the same AP, do nothing
     if (global_wifi_component->wifi_ssid() == ssid) {
       // Callback to notify the user that the connection was successful
-      this->connect_trigger_->trigger(); 
+      this->connect_trigger_->trigger();
       return;
     }
     // Set the state to connecting
@@ -506,7 +506,7 @@ template<typename... Ts> class WiFiSetSTAAction : public Action<Ts...>, public C
       }
     }
   }
- 
+
  protected:
   bool connecting_{false};
   WiFiAP new_sta_;
