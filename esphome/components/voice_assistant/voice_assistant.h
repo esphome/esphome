@@ -77,6 +77,18 @@ struct Timer {
   }
 };
 
+struct WakeWord {
+  std::string id;
+  std::string wake_word;
+  std::vector<std::string> trained_languages;
+};
+
+struct Configuration {
+  std::vector<WakeWord> available_wake_words;
+  std::vector<std::string> active_wake_words;
+  uint32_t max_active_wake_words;
+};
+
 class VoiceAssistant : public Component {
  public:
   void setup() override;
@@ -133,8 +145,8 @@ class VoiceAssistant : public Component {
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
-  void on_set_configuration(const api::VoiceAssistantSetConfiguration &msg){};
-  const api::VoiceAssistantConfigurationResponse &get_configuration() { return this->config_response_; };
+  void on_set_configuration(const std::vector<std::string> &active_wake_words){};
+  const Configuration &get_configuration() { return this->config_; };
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -282,7 +294,7 @@ class VoiceAssistant : public Component {
   bool udp_socket_running_{false};
   bool start_udp_socket_();
 
-  api::VoiceAssistantConfigurationResponse config_response_{};
+  Configuration config_{};
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
