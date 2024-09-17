@@ -1,9 +1,10 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_WIFI
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include <string>
@@ -17,6 +18,14 @@
 
 #ifdef USE_LIBRETINY
 #include <WiFi.h>
+#endif
+
+#if defined(USE_ESP_IDF) && defined(USE_WIFI_WPA2_EAP)
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#include <esp_eap_client.h>
+#else
+#include <esp_wpa2.h>
+#endif
 #endif
 
 #ifdef USE_ESP8266
@@ -102,6 +111,10 @@ struct EAPAuth {
   // used for EAP-TLS
   const char *client_cert;
   const char *client_key;
+// used for EAP-TTLS
+#ifdef USE_ESP_IDF
+  esp_eap_ttls_phase2_types ttls_phase_2;
+#endif
 };
 #endif  // USE_WIFI_WPA2_EAP
 
@@ -371,6 +384,7 @@ class WiFiComponent : public Component {
   std::vector<WiFiSTAPriority> sta_priorities_;
   WiFiAP selected_ap_;
   bool fast_connect_{false};
+  bool retry_hidden_{false};
 
   bool has_ap_{false};
   WiFiAP ap_;
@@ -429,3 +443,4 @@ template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
 
 }  // namespace wifi
 }  // namespace esphome
+#endif

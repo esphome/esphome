@@ -1,0 +1,28 @@
+i2c:
+  id: i2c_bus
+  scl: ${scl_pin}
+  sda: ${sda_pin}
+  scan: true
+  frequency: 600kHz
+
+wk2204_i2c:
+  - id: wk2204_i2c_id
+    i2c_id: i2c_bus
+    address: 0x70
+    uart:
+      - id: wk2204_id_0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - id: wk2204_id_1
+        channel: 1
+        baud_rate: 19200
+      - id: wk2204_id_2
+        channel: 2
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - id: wk2204_id_3
+        channel: 3
+        baud_rate: 19200

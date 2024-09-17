@@ -1,0 +1,6 @@
+substitutions:
+  pin: GPIO2
+  rmt_channel: "2"
+
+packages:
+  common: !include esp32-common.yaml

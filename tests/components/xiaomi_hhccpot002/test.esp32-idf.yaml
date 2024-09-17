@@ -1,9 +1,1 @@
-esp32_ble_tracker:
-
-sensor:
-  - platform: xiaomi_hhccpot002
-    mac_address: 94:2B:FF:5C:91:61
-    moisture:
-      name: HHCCPOT002 Moisture
-    conductivity:
-      name: HHCCPOT002 Soil Conductivity
+<<: !include common.yaml

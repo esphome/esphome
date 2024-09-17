@@ -13,9 +13,9 @@ namespace mqtt {
 
 class MQTTDateComponent : public mqtt::MQTTComponent {
  public:
-  /** Construct this MQTTDatetimeComponent instance with the provided friendly_name and datetime
+  /** Construct this MQTTDateComponent instance with the provided friendly_name and date
    *
-   * @param datetime The datetime component.
+   * @param date The date component.
    */
   explicit MQTTDateComponent(datetime::DateEntity *date);
 

@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
+    CONF_HEADING,
     CONF_ID,
     ICON_MAGNET,
     STATE_CLASS_MEASUREMENT,
@@ -18,8 +19,6 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 mmc5603_ns = cg.esphome_ns.namespace("mmc5603")
-
-CONF_HEADING = "heading"
 
 MMC5603Component = mmc5603_ns.class_(
     "MMC5603Component", cg.PollingComponent, i2c.I2CDevice

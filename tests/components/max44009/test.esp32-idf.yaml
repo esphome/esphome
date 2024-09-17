@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_max44009
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: max44009
+    name: MAX44009 Brightness
+    internal: true
+    mode: low_power
+    address: 0x4A
+    update_interval: 30s

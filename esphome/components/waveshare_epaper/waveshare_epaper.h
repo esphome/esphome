@@ -163,6 +163,7 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
   WAVESHARE_EPAPER_7_5_IN_B_V2,
+  WAVESHARE_EPAPER_13_3_IN_K,
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
@@ -227,7 +228,7 @@ class WaveshareEPaper2P7InBV2 : public WaveshareEPaperBWR {
   int get_height_internal() override;
 };
 
-class GDEY029T94 : public WaveshareEPaper {
+class GDEW029T5 : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -371,6 +372,30 @@ class WaveshareEPaper2P9InV2R2 : public WaveshareEPaper {
 
  private:
   void reset_();
+};
+
+class WaveshareEPaper2P9InDKE : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x10);
+    this->data(0x01);
+  }
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+  int get_width_internal() override;
+
+  int get_height_internal() override;
 };
 
 class WaveshareEPaper4P2In : public WaveshareEPaper {
@@ -745,5 +770,28 @@ class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
   bool is_busy_{false};
   void write_lut_(const uint8_t *lut);
 };
+
+class WaveshareEPaper13P3InK : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x10);
+    this->data(0x01);
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+};
+
 }  // namespace waveshare_epaper
 }  // namespace esphome

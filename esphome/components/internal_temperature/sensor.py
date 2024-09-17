@@ -14,6 +14,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PLATFORM_RP2040,
+    PLATFORM_BK72XX,
 )
 from esphome.core import CORE
 
@@ -51,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ).extend(cv.polling_component_schema("60s")),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040, PLATFORM_BK72XX]),
     validate_config,
 )
 

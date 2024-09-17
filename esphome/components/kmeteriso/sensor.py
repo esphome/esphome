@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
+    CONF_INTERNAL_TEMPERATURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
@@ -10,7 +11,6 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
-CONF_INTERNAL_TEMPERATURE = "internal_temperature"
 DEPENDENCIES = ["i2c"]
 
 kmeteriso_ns = cg.esphome_ns.namespace("kmeteriso")

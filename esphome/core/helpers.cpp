@@ -78,7 +78,7 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
 
 // STL backports
 
-#if _GLIBCXX_RELEASE < 7
+#if _GLIBCXX_RELEASE < 8
 std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
 std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
 std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
@@ -93,7 +93,7 @@ std::string to_string(long double value) { return str_snprintf("%Lf", 32, value)
 // Mathematics
 
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
-uint8_t crc8(uint8_t *data, uint8_t len) {
+uint8_t crc8(const uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
   while ((len--) != 0u) {
@@ -431,6 +431,107 @@ int8_t step_to_accuracy_decimals(float step) {
     return 0;
 
   return str.length() - dot_pos - 1;
+}
+
+static const std::string BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        "abcdefghijklmnopqrstuvwxyz"
+                                        "0123456789+/";
+
+static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
+
+std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
+
+std::string base64_encode(const uint8_t *buf, size_t buf_len) {
+  std::string ret;
+  int i = 0;
+  int j = 0;
+  char char_array_3[3];
+  char char_array_4[4];
+
+  while (buf_len--) {
+    char_array_3[i++] = *(buf++);
+    if (i == 3) {
+      char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+      char_array_4[3] = char_array_3[2] & 0x3f;
+
+      for (i = 0; (i < 4); i++)
+        ret += BASE64_CHARS[char_array_4[i]];
+      i = 0;
+    }
+  }
+
+  if (i) {
+    for (j = i; j < 3; j++)
+      char_array_3[j] = '\0';
+
+    char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+    char_array_4[3] = char_array_3[2] & 0x3f;
+
+    for (j = 0; (j < i + 1); j++)
+      ret += BASE64_CHARS[char_array_4[j]];
+
+    while ((i++ < 3))
+      ret += '=';
+  }
+
+  return ret;
+}
+
+size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
+  std::vector<uint8_t> decoded = base64_decode(encoded_string);
+  if (decoded.size() > buf_len) {
+    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+    decoded.resize(buf_len);
+  }
+  memcpy(buf, decoded.data(), decoded.size());
+  return decoded.size();
+}
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
+  int in_len = encoded_string.size();
+  int i = 0;
+  int j = 0;
+  int in = 0;
+  uint8_t char_array_4[4], char_array_3[3];
+  std::vector<uint8_t> ret;
+
+  while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
+    char_array_4[i++] = encoded_string[in];
+    in++;
+    if (i == 4) {
+      for (i = 0; i < 4; i++)
+        char_array_4[i] = BASE64_CHARS.find(char_array_4[i]);
+
+      char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+      char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+      char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+      for (i = 0; (i < 3); i++)
+        ret.push_back(char_array_3[i]);
+      i = 0;
+    }
+  }
+
+  if (i) {
+    for (j = i; j < 4; j++)
+      char_array_4[j] = 0;
+
+    for (j = 0; j < 4; j++)
+      char_array_4[j] = BASE64_CHARS.find(char_array_4[j]);
+
+    char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+    char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+    char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+    for (j = 0; (j < i - 1); j++)
+      ret.push_back(char_array_3[j]);
+  }
+
+  return ret;
 }
 
 // Colors

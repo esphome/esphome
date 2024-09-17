@@ -1,4 +1,5 @@
 #include "list_entities.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -86,6 +87,15 @@ bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) {
 }
 #endif
 
+#ifdef USE_VALVE
+bool ListEntitiesIterator::on_valve(valve::Valve *valve) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->valve_json(valve, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_CLIMATE
 bool ListEntitiesIterator::on_climate(climate::Climate *climate) {
   if (this->web_server_->events_.count() == 0)
@@ -109,6 +119,22 @@ bool ListEntitiesIterator::on_date(datetime::DateEntity *date) {
   if (this->web_server_->events_.count() == 0)
     return true;
   this->web_server_->events_.send(this->web_server_->date_json(date, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
+#ifdef USE_DATETIME_TIME
+bool ListEntitiesIterator::on_time(datetime::TimeEntity *time) {
+  this->web_server_->events_.send(this->web_server_->time_json(time, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *datetime) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->datetime_json(datetime, DETAIL_ALL).c_str(), "state");
   return true;
 }
 #endif
@@ -143,5 +169,24 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 }
 #endif
 
+#ifdef USE_EVENT
+bool ListEntitiesIterator::on_event(event::Event *event) {
+  // Null event type, since we are just iterating over entities
+  const std::string null_event_type = "";
+  this->web_server_->events_.send(this->web_server_->event_json(event, null_event_type, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
+#ifdef USE_UPDATE
+bool ListEntitiesIterator::on_update(update::UpdateEntity *update) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->update_json(update, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 }  // namespace web_server
 }  // namespace esphome
+#endif

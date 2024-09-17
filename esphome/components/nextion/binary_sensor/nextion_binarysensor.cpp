@@ -27,7 +27,7 @@ void NextionBinarySensor::process_touch(uint8_t page_id, uint8_t component_id, b
 }
 
 void NextionBinarySensor::update() {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
 
   if (this->variable_name_.empty())  // This is a touch component
@@ -37,7 +37,7 @@ void NextionBinarySensor::update() {
 }
 
 void NextionBinarySensor::set_state(bool state, bool publish, bool send_to_nextion) {
-  if (!this->nextion_->is_setup())
+  if (!this->nextion_->is_setup() || this->nextion_->is_updating())
     return;
 
   if (this->component_id_ == 0)  // This is a legacy touch component

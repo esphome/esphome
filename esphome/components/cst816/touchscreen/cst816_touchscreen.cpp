@@ -15,6 +15,7 @@ void CST816Touchscreen::continue_setup_() {
   }
   switch (this->chip_id_) {
     case CST820_CHIP_ID:
+    case CST826_CHIP_ID:
     case CST716_CHIP_ID:
     case CST816S_CHIP_ID:
     case CST816D_CHIP_ID:
@@ -89,6 +90,9 @@ void CST816Touchscreen::dump_config() {
   switch (this->chip_id_) {
     case CST820_CHIP_ID:
       name = "CST820";
+      break;
+    case CST826_CHIP_ID:
+      name = "CST826";
       break;
     case CST816S_CHIP_ID:
       name = "CST816S";

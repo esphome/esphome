@@ -1,0 +1,62 @@
+uart:
+  - id: uart_bl0906
+    tx_pin:
+      number: ${tx_pin}
+    rx_pin:
+      number: ${rx_pin}
+    baud_rate: 19200
+
+sensor:
+  - platform: bl0906
+    frequency:
+      name: 'Frequency'
+    temperature:
+      name: 'Temperature'
+    voltage:
+      name: 'Voltage'
+    channel_1:
+      current:
+        name: 'Current_1'
+      power:
+        name: 'Power_1'
+      energy:
+        name: 'Energy_1'
+    channel_2:
+      current:
+        name: 'Current_2'
+      power:
+        name: 'Power_2'
+      energy:
+        name: 'Energy_2'
+    channel_3:
+      current:
+        name: 'Current_3'
+      power:
+        name: 'Power_3'
+      energy:
+        name: 'Energy_3'
+    channel_4:
+      current:
+        name: 'Current_4'
+      power:
+        name: 'Power_4'
+      energy:
+        name: 'Energy_4'
+    channel_5:
+      current:
+        name: 'Current_5'
+      power:
+        name: 'Power_5'
+      energy:
+        name: 'Energy_5'
+    channel_6:
+      current:
+        name: 'Current_6'
+      power:
+        name: 'Power_6'
+      energy:
+        name: 'Energy_6'
+    total_energy:
+      name: 'Total_Energy'
+    total_power:
+      name: 'Total_Power'

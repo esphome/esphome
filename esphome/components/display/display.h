@@ -8,6 +8,7 @@
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/time.h"
+#include "esphome/core/log.h"
 #include "display_color_utils.h"
 
 #ifdef USE_GRAPH
@@ -631,6 +632,9 @@ class Display : public PollingComponent {
    */
   bool clip(int x, int y);
 
+  void test_card();
+  void show_test_card() { this->show_test_card_ = true; }
+
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
@@ -659,6 +663,7 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+  bool show_test_card_{false};
 };
 
 class DisplayPage {
@@ -732,6 +737,8 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
   DisplayPage *from_{nullptr};
   DisplayPage *to_{nullptr};
 };
+
+const LogString *text_align_to_string(TextAlign textalign);
 
 }  // namespace display
 }  // namespace esphome

@@ -22,7 +22,6 @@ CONF_AT581X_ID = "at581x_id"
 
 
 CONF_SENSING_DISTANCE = "sensing_distance"
-CONF_SENSITIVITY = "sensitivity"
 CONF_POWERON_SELFCHECK_TIME = "poweron_selfcheck_time"
 CONF_PROTECT_TIME = "protect_time"
 CONF_TRIGGER_BASE = "trigger_base"

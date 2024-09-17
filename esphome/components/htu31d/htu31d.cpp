@@ -12,6 +12,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace htu31d {
 
@@ -204,7 +206,7 @@ uint32_t HTU31DComponent::read_serial_num_() {
     return 0;
   }
 
-  ESP_LOGD(TAG, "Found serial: 0x%X", serial);
+  ESP_LOGD(TAG, "Found serial: 0x%" PRIX32, serial);
 
   return serial;
 }

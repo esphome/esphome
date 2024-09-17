@@ -68,7 +68,7 @@ class EntityBase {
   StringRef device_name_;
 };
 
-class EntityBase_DeviceClass {
+class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the device class, using the manual override if set.
   std::string get_device_class();
@@ -79,7 +79,7 @@ class EntityBase_DeviceClass {
   const char *device_class_{nullptr};  ///< Device class override
 };
 
-class EntityBase_UnitOfMeasurement {
+class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
  public:
   /// Get the unit of measurement, using the manual override if set.
   std::string get_unit_of_measurement();

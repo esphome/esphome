@@ -3,16 +3,16 @@ from __future__ import annotations
 import fnmatch
 import functools
 import inspect
+from io import TextIOWrapper
 import logging
 import math
 import os
-import uuid
-from io import TextIOWrapper
 from typing import Any
+import uuid
 
 import yaml
-import yaml.constructor
 from yaml import SafeLoader as PurePythonLoader
+import yaml.constructor
 
 try:
     from yaml import CSafeLoader as FastestAvailableSafeLoader
@@ -321,8 +321,9 @@ class ESPHomeLoaderMixin:
             file, vars = node.value, None
 
         result = _load_yaml_internal(self._rel_path(file))
-        if vars:
-            result = substitute_vars(result, vars)
+        if not vars:
+            vars = {}
+        result = substitute_vars(result, vars)
         return result
 
     @_add_data_ref
