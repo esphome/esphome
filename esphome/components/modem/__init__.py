@@ -150,6 +150,6 @@ async def to_code(config):
         add_idf_component(
             name="esp_modem",
             repo="https://github.com/espressif/esp-protocols.git",
-            ref="^1.1.0",
+            ref="modem-v1.1.0",
             path="components/esp_modem",
         )
