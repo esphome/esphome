@@ -127,7 +127,7 @@ void HttpRequestUpdate::update() {
 
   if (this->update_info_.latest_version.empty() ||
       this->update_info_.latest_version == this->update_info_.current_version ||
-      !this->check_update_(this->update_info_)) {
+      (this->check_update_ != nullptr && !this->check_update_(this->update_info_))) {
     this->state_ = update::UPDATE_STATE_NO_UPDATE;
 
     this->update_info_.latest_version = this->update_info_.current_version;
