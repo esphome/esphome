@@ -2,10 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace bmp280 {
+namespace bmp280_base {
 
 /// Internal struct storing the calibration values of an BMP280.
 struct BMP280CalibrationData {
@@ -50,8 +49,8 @@ enum BMP280IIRFilter {
   BMP280_IIR_FILTER_16X = 0b100,
 };
 
-/// This class implements support for the BMP280 Temperature+Pressure i2c sensor.
-class BMP280Component : public PollingComponent, public i2c::I2CDevice {
+/// This class implements support for the BMP280 Temperature+Pressure sensor.
+class BMP280Component : public PollingComponent {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
@@ -67,6 +66,11 @@ class BMP280Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+
+  virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
+  virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool read_byte_16(uint8_t a_register, uint16_t *data) = 0;
 
  protected:
   /// Read the temperature value and store the calculated ambient temperature in t_fine.
@@ -90,5 +94,5 @@ class BMP280Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace bmp280
+}  // namespace bmp280_base
 }  // namespace esphome
