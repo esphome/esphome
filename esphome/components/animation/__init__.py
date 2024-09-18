@@ -1,26 +1,26 @@
 import logging
 
 from esphome import automation, core
+import esphome.codegen as cg
 from esphome.components import font
 import esphome.components.image as espImage
 from esphome.components.image import (
     CONF_USE_TRANSPARENCY,
     LOCAL_SCHEMA,
-    WEB_SCHEMA,
-    SOURCE_WEB,
     SOURCE_LOCAL,
+    SOURCE_WEB,
+    WEB_SCHEMA,
 )
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_FILE,
     CONF_ID,
+    CONF_PATH,
     CONF_RAW_DATA_ID,
     CONF_REPEAT,
     CONF_RESIZE,
-    CONF_TYPE,
     CONF_SOURCE,
-    CONF_PATH,
+    CONF_TYPE,
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
@@ -172,6 +172,9 @@ async def to_code(config):
         path = CORE.relative_config_path(conf_file[CONF_PATH])
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
         path = espImage.compute_local_image_path(conf_file).as_posix()
+    else:
+        raise core.EsphomeError(f"Unknown animation source: {conf_file[CONF_SOURCE]}")
+
     try:
         image = Image.open(path)
     except Exception as e:
@@ -183,13 +186,12 @@ async def to_code(config):
         new_width_max, new_height_max = config[CONF_RESIZE]
         ratio = min(new_width_max / width, new_height_max / height)
         width, height = int(width * ratio), int(height * ratio)
-    else:
-        if width > 500 or height > 500:
-            _LOGGER.warning(
-                'The image "%s" you requested is very big. Please consider'
-                " using the resize parameter.",
-                path,
-            )
+    elif width > 500 or height > 500:
+        _LOGGER.warning(
+            'The image "%s" you requested is very big. Please consider'
+            " using the resize parameter.",
+            path,
+        )
 
     transparent = config[CONF_USE_TRANSPARENCY]
 
@@ -306,6 +308,8 @@ async def to_code(config):
             if transparent:
                 alpha = image.split()[-1]
                 has_alpha = alpha.getextrema()[0] < 0xFF
+            else:
+                has_alpha = False
             frame = image.convert("1", dither=Image.Dither.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])

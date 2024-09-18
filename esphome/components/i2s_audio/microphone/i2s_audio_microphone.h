@@ -30,8 +30,6 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   }
 #endif
 
-  void set_use_apll(uint32_t use_apll) { this->use_apll_ = use_apll; }
-
  protected:
   void start_();
   void stop_();
@@ -43,8 +41,6 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   bool adc_{false};
 #endif
   bool pdm_{false};
-
-  bool use_apll_;
 
   HighFrequencyLoopRequester high_freq_;
 };
