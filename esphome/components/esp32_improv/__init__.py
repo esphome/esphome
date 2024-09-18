@@ -21,6 +21,7 @@ CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
 
 improv_ns = cg.esphome_ns.namespace("improv")
+Error = improv_ns.enum("Error")
 State = improv_ns.enum("State")
 
 esp32_improv_ns = cg.esphome_ns.namespace("esp32_improv")
@@ -150,7 +151,9 @@ async def to_code(config):
         use_state_callback = True
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(State, "state")], conf)
+        await automation.build_automation(
+            trigger, [(State, "state"), (Error, "error")], conf
+        )
         use_state_callback = True
     for conf in config.get(CONF_ON_STOPPED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

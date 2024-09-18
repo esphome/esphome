@@ -71,7 +71,7 @@ void ESP32ImprovComponent::loop() {
     if (this->state_ != improv::STATE_STOPPED) {
       this->state_ = improv::STATE_STOPPED;
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
-      this->state_callback_.call(this->state_);
+      this->state_callback_.call(this->state_, this->error_state_);
 #endif
     }
     this->incoming_data_.clear();
@@ -223,7 +223,7 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 
   esp32_ble::global_ble->advertising_set_service_data(service_data);
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
-  this->state_callback_.call(state);
+  this->state_callback_.call(this->state_, this->error_state_);
 #endif
 }
 

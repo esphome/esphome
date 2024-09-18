@@ -63,8 +63,8 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   uint32_t get_wifi_timeout() const { return this->wifi_timeout_; }
 
   improv::State get_improv_state() const { return this->state_; }
-   improv::State get_improv_error_state() const { return this->error_; }
-   
+  improv::Error get_improv_error_state() const { return this->error_state_; }
+
  protected:
   bool should_start_{false};
   bool setup_complete_{false};
@@ -96,7 +96,7 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   improv::State state_{improv::STATE_STOPPED};
   improv::Error error_state_{improv::ERROR_NONE};
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
-  CallbackManager<void(improv::State)> state_callback_{};
+  CallbackManager<void(improv::State, improv::Error)> state_callback_{};
 #endif
 
   bool status_indicator_state_{false};
