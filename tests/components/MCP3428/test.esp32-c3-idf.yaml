@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_mcp3428
+    scl: 5
+    sda: 4
+
+mcp3428:
+  address: 0x68
+
+sensor:
+  - platform: mcp3428
+    multiplexer: 1
+    id: mcp3428_sensor
