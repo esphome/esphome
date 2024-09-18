@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 import functools
 import hashlib
 import logging
@@ -46,6 +47,7 @@ CONF_BPP = "bpp"
 CONF_EXTRAS = "extras"
 CONF_FONTS = "fonts"
 CONF_GLYPHSETS = "glyphsets"
+CONF_IGNORE_MISSING_GLYPHS = "ignore_missing_glyphs"
 
 
 # Cache loaded freetype fonts
@@ -86,20 +88,31 @@ def flatten(lists) -> list:
     return list(chain.from_iterable(lists))
 
 
-def check_missing_glyphs(file, codepoints: set):
+def check_missing_glyphs(file, codepoints: Iterable, warning: bool = False):
     """
     Check that the given font file actually contains the requested glyphs
     :param file: A Truetype font file
     :param codepoints: A list of codepoints to check
+    :param warning: If true, log a warning instead of raising an exception
     """
 
     font = FONT_CACHE[file]
     missing = [chr(x) for x in codepoints if font.get_char_index(x) == 0]
     if missing:
-        missing_str = ", ".join(f"{x} ({x.encode('unicode_escape')})" for x in missing)
-        raise cv.Invalid(
-            f"{Path(file).name} is missing glyph{'s' if len(missing) != 1 else ''}: {missing_str}"
+        # Only list up to 10 missing glyphs
+        missing.sort(key=functools.cmp_to_key(glyph_comparator))
+        count = len(missing)
+        missing = missing[:10]
+        missing_str = "\n    ".join(
+            f"{x} ({x.encode('unicode_escape')})" for x in missing
         )
+        if count > 10:
+            missing_str += f"\n    and {count - 10} more."
+        message = f"Font {Path(file).name} is missing {count} glyph{'s' if count != 1 else ''}:\n    {missing_str}"
+        if warning:
+            _LOGGER.warning(message)
+        else:
+            raise cv.Invalid(message)
 
 
 def validate_glyphs(config):
@@ -109,35 +122,43 @@ def validate_glyphs(config):
     """
 
     # Collect all glyph codepoints and flatten to a list of chars
-    codepoints: list = flatten(
+    glyphspoints = flatten(
         [x[CONF_GLYPHS] for x in config[CONF_EXTRAS]] + config[CONF_GLYPHS]
     )
-    codepoints = flatten([list(x) for x in codepoints])
-    if len(set(codepoints)) != len(codepoints):
-        duplicates = {x for x in codepoints if codepoints.count(x) > 1}
+    # Convert a list of strings to a list of chars (one char strings)
+    glyphspoints = flatten([list(x) for x in glyphspoints])
+    if len(set(glyphspoints)) != len(glyphspoints):
+        duplicates = {x for x in glyphspoints if glyphspoints.count(x) > 1}
         dup_str = ", ".join(f"{x} ({x.encode('unicode_escape')})" for x in duplicates)
         raise cv.Invalid(
             f"Found duplicate glyph{'s' if len(duplicates) != 1 else ''}: {dup_str}"
         )
+    # convert to codepoints
+    glyphspoints = {ord(x) for x in glyphspoints}
     fileconf = config[CONF_FILE]
-    allpoints = set(
+    setpoints = set(
         flatten([glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]])
     )
-    allpoints.update([ord(x) for x in flatten(config[CONF_GLYPHS])])
+    # Make setpoints and glyphspoints disjoint
+    setpoints.difference_update(glyphspoints)
     if fileconf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
         # Pillow only allows 256 glyphs per bitmap font. Not sure if that is a Pillow limitation
         # or a file format limitation
-        if any(x >= 256 for x in allpoints):
+        if any(x >= 256 for x in setpoints.copy().union(glyphspoints)):
             raise cv.Invalid("Codepoints in bitmap fonts must be in the range 0-255")
     else:
         # for TT fonts, check that glyphs are actually present
         # Check extras against their own font, exclude from parent font codepoints
         for extra in config[CONF_EXTRAS]:
             points = {ord(x) for x in flatten(extra[CONF_GLYPHS])}
-            allpoints.difference_update(points)
+            glyphspoints.difference_update(points)
             check_missing_glyphs(extra[CONF_FILE][CONF_PATH], points)
 
-        check_missing_glyphs(fileconf[CONF_PATH], allpoints)
+        # A named glyph that can't be provided is an error
+        check_missing_glyphs(fileconf[CONF_PATH], glyphspoints)
+        # A missing glyph from a set is a warning.
+        if not config[CONF_IGNORE_MISSING_GLYPHS]:
+            check_missing_glyphs(fileconf[CONF_PATH], setpoints, warning=True)
 
     # Populate the default after the above checks so that use of the default doesn't trigger errors
     if not config[CONF_GLYPHS] and not config[CONF_GLYPHSETS]:
@@ -383,6 +404,7 @@ FONT_SCHEMA = cv.Schema(
         cv.Optional(CONF_GLYPHSETS, default=[]): cv.ensure_list(
             cv.one_of(*glyphsets.defined_glyphsets())
         ),
+        cv.Optional(CONF_IGNORE_MISSING_GLYPHS, default=False): cv.boolean,
         cv.Optional(CONF_SIZE, default=20): cv.int_range(min=1),
         cv.Optional(CONF_BPP, default=1): cv.one_of(1, 2, 4, 8),
         cv.Optional(CONF_EXTRAS, default=[]): cv.ensure_list(
