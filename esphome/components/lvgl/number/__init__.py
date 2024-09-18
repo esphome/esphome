@@ -50,6 +50,7 @@ async def to_code(config):
             "value", MockObj("v") * MockObj(widget.get_scale()), config[CONF_ANIMATED]
         )
         lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        control.add(var.publish_state(widget.get_value()))
     async with LambdaContext(EVENT_ARG) as event:
         event.add(var.publish_state(widget.get_value()))
     event_code = (

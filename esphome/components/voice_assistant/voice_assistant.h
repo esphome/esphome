@@ -77,6 +77,18 @@ struct Timer {
   }
 };
 
+struct WakeWord {
+  std::string id;
+  std::string wake_word;
+  std::vector<std::string> trained_languages;
+};
+
+struct Configuration {
+  std::vector<WakeWord> available_wake_words;
+  std::vector<std::string> active_wake_words;
+  uint32_t max_active_wake_words;
+};
+
 class VoiceAssistant : public Component {
  public:
   void setup() override;
@@ -132,6 +144,9 @@ class VoiceAssistant : public Component {
   void on_event(const api::VoiceAssistantEventResponse &msg);
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
+  void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
+  void on_set_configuration(const std::vector<std::string> &active_wake_words){};
+  const Configuration &get_configuration() { return this->config_; };
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -147,6 +162,8 @@ class VoiceAssistant : public Component {
   }
   void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
   void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
+  void set_conversation_timeout(uint32_t conversation_timeout) { this->conversation_timeout_ = conversation_timeout; }
+  void reset_conversation_id();
 
   Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
   Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
@@ -262,6 +279,7 @@ class VoiceAssistant : public Component {
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   float volume_multiplier_;
+  uint32_t conversation_timeout_;
 
   uint8_t *send_buffer_;
   int16_t *input_buffer_;
@@ -275,6 +293,8 @@ class VoiceAssistant : public Component {
   AudioMode audio_mode_{AUDIO_MODE_UDP};
   bool udp_socket_running_{false};
   bool start_udp_socket_();
+
+  Configuration config_{};
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {

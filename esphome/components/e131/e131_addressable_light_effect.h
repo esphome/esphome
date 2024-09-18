@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light_effect.h"
-
+#ifdef USE_NETWORK
 namespace esphome {
 namespace e131 {
 
@@ -42,3 +42,4 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
 
 }  // namespace e131
 }  // namespace esphome
+#endif

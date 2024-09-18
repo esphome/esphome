@@ -28,6 +28,7 @@
 #define USE_DATETIME_DATETIME
 #define USE_DATETIME_TIME
 #define USE_DEEP_SLEEP
+#define USE_DISPLAY
 #define USE_EVENT
 #define USE_FAN
 #define USE_GRAPH
@@ -75,6 +76,7 @@
 #define USE_VALVE
 #define USE_WIFI
 #define USE_WIFI_AP
+#define USE_WIREGUARD
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
