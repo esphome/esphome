@@ -403,9 +403,14 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTSetDiscoveryAction : public Action<Ts...> {
+template<typename... Ts> class MQTTSetConnectionInfoAction : public Action<Ts...> {
  public:
-  MQTTSetDiscoveryAction(MQTTClientComponent *parent) : parent_(parent) {}
+  MQTTSetConnectionInfoAction(MQTTClientComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, broker_address)
+  TEMPLATABLE_VALUE(uint16_t, broker_port)
+  TEMPLATABLE_VALUE(std::string, username)
+  TEMPLATABLE_VALUE(std::string, password)
+  TEMPLATABLE_VALUE(std::string, client_id)
   TEMPLATABLE_VALUE(bool, enable)
   TEMPLATABLE_VALUE(std::string, prefix)
   TEMPLATABLE_VALUE(bool, retain)
@@ -422,6 +427,11 @@ template<typename... Ts> class MQTTSetDiscoveryAction : public Action<Ts...> {
   void set_clean(bool clean) { this->clean_ = clean; }
 
   void play(Ts... x) override {
+    this->parent_->set_broker_address(this->broker_address_.value(x...));
+    this->parent_->set_broker_port(this->broker_port_.value(x...));
+    this->parent_->set_username(this->username_.value(x...));
+    this->parent_->set_password(this->password_.value(x...));
+    this->parent_->set_client_id(this->client_id_.value(x...));
     bool enable = this->enable_.value(x...);
     bool discover_ip = this->discover_ip_.value(x...);
     if (!enable and !discover_ip) {
@@ -442,27 +452,6 @@ template<typename... Ts> class MQTTSetDiscoveryAction : public Action<Ts...> {
   MQTTDiscoveryUniqueIdGenerator unique_id_generator_{MQTT_LEGACY_UNIQUE_ID_GENERATOR};
   MQTTDiscoveryObjectIdGenerator object_id_generator_{MQTT_NONE_OBJECT_ID_GENERATOR};
   bool clean_{false};
-};
-
-template<typename... Ts> class MQTTSetConnectionInfoAction : public Action<Ts...> {
- public:
-  MQTTSetConnectionInfoAction(MQTTClientComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, broker_address)
-  TEMPLATABLE_VALUE(uint16_t, broker_port)
-  TEMPLATABLE_VALUE(std::string, username)
-  TEMPLATABLE_VALUE(std::string, password)
-  TEMPLATABLE_VALUE(std::string, client_id)
-
-  void play(Ts... x) override {
-    this->parent_->set_broker_address(this->broker_address_.value(x...));
-    this->parent_->set_broker_port(this->broker_port_.value(x...));
-    this->parent_->set_username(this->username_.value(x...));
-    this->parent_->set_password(this->password_.value(x...));
-    this->parent_->set_client_id(this->client_id_.value(x...));
-  }
-
- protected:
-  MQTTClientComponent *parent_;
 };
 
 template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> {

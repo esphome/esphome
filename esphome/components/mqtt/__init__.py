@@ -64,7 +64,6 @@ def AUTO_LOAD():
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
-CONF_DISCOVERY_ACTION_ID_ = "discovery_action_id_"
 CONF_CONNECTION_INFO_ACTION_ID_ = "connection_info_action_id_"
 
 
@@ -231,9 +230,6 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
-            cv.GenerateID(CONF_DISCOVERY_ACTION_ID_): cv.declare_id(
-                MQTTSetDiscoveryAction
-            ),
             cv.GenerateID(CONF_CONNECTION_INFO_ACTION_ID_): cv.declare_id(
                 MQTTSetConnectionInfoAction
             ),
@@ -364,47 +360,43 @@ async def to_code(config):
                 await cg.templatable(config[CONF_CLIENT_ID], [], cg.std_string)
             )
         )
-    cg.add(connection_info_action.play())
 
-    discovery_action = cg.new_Pvariable(
-        config[CONF_DISCOVERY_ACTION_ID_], cg.TemplateArguments(None), var
-    )
     if config[CONF_DISCOVERY] == "CLEAN":
-        cg.add(discovery_action.set_enable(True))
-        cg.add(discovery_action.set_clean(True))
+        cg.add(connection_info_action.set_enable(True))
+        cg.add(connection_info_action.set_clean(True))
     else:
         cg.add(
-            discovery_action.set_enable(
+            connection_info_action.set_enable(
                 await cg.templatable(config[CONF_DISCOVERY], [], bool)
             )
         )
-        cg.add(discovery_action.set_clean(False))
+        cg.add(connection_info_action.set_clean(False))
     cg.add(
-        discovery_action.set_prefix(
+        connection_info_action.set_prefix(
             await cg.templatable(config[CONF_DISCOVERY_PREFIX], [], cg.std_string)
         )
     )
     cg.add(
-        discovery_action.set_retain(
+        connection_info_action.set_retain(
             await cg.templatable(config[CONF_DISCOVERY_RETAIN], [], bool)
         )
     )
     cg.add(
-        discovery_action.set_unique_id_generator(
+        connection_info_action.set_unique_id_generator(
             config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
         )
     )
     cg.add(
-        discovery_action.set_discover_ip(
+        connection_info_action.set_discover_ip(
             await cg.templatable(config[CONF_DISCOVER_IP], [], bool)
         )
     )
     cg.add(
-        discovery_action.set_object_id_generator(
+        connection_info_action.set_object_id_generator(
             config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
         )
     )
-    cg.add(discovery_action.play())
+    cg.add(connection_info_action.play())
 
     cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 
