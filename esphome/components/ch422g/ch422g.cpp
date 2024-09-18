@@ -5,25 +5,24 @@ namespace esphome {
 namespace ch422g {
 
 static const uint8_t CH422G_REG_MODE = 0x24;
-static const uint8_t CH422G_IO_OE = 0x01;  // enables output mode on 0-7
-static const uint8_t CH422G_IO_OD = 0x04;  // enables open drain mode on 8-11
-static const uint8_t CH422G_REG_IN = 0x26;
-static const uint8_t CH422G_REG_OUT = 0x38;
-static const uint8_t CH422G_REG_OD_OUT = 0x23;
+static const uint8_t CH422G_MODE_OUTPUT = 0x01;      // enables output mode on 0-7
+static const uint8_t CH422G_MODE_OPEN_DRAIN = 0x04;  // enables open drain mode on 8-11
+static const uint8_t CH422G_REG_IN = 0x26;           // read reg for input bits
+static const uint8_t CH422G_REG_OUT = 0x38;          // write reg for output bits 0-7
+static const uint8_t CH422G_REG_OUT_UPPER = 0x23;    // write reg for output bits 8-11
 
 static const char *const TAG = "ch422g";
 
 void CH422GComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up CH422G...");
-  // Test to see if device exists
-  if (!this->read_inputs_()) {
+  // set outputs before mode
+  this->write_outputs_();
+  // Set mode and check for errors
+  if (!this->set_mode_(this->mode_value_) || !this->read_inputs_()) {
     ESP_LOGE(TAG, "CH422G not detected at 0x%02X", this->address_);
     this->mark_failed();
     return;
   }
-  // set outputs before mode
-  this->set_mode_(this->mode_value_);
-  this->write_outputs_();
 
   ESP_LOGCONFIG(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
                 this->status_has_error());
@@ -43,11 +42,14 @@ void CH422GComponent::dump_config() {
 }
 
 void CH422GComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
-  if (pin <= 8 && flags & gpio::FLAG_OUTPUT) {
-    this->mode_value_ |= CH422G_IO_OE;
-  }
-  if (pin >= 8 && flags & gpio::FLAG_OPEN_DRAIN) {
-    this->mode_value_ |= CH422G_IO_OD;
+  if (pin < 8) {
+    if (flags & gpio::FLAG_OUTPUT) {
+      this->mode_value_ |= CH422G_MODE_OUTPUT;
+    }
+  } else {
+    if (flags & gpio::FLAG_OPEN_DRAIN) {
+      this->mode_value_ |= CH422G_MODE_OPEN_DRAIN;
+    }
   }
 }
 
@@ -75,8 +77,9 @@ bool CH422GComponent::read_inputs_() {
     return false;
   }
   uint8_t result;
-  if (this->mode_value_ & CH422G_IO_OE) {
-    this->set_mode_(this->mode_value_ & ~CH422G_IO_OE);
+  // reading inputs requires the chip to be in input mode, possibly temporarily.
+  if (this->mode_value_ & CH422G_MODE_OUTPUT) {
+    this->set_mode_(this->mode_value_ & ~CH422G_MODE_OUTPUT);
     result = this->read_reg_(CH422G_REG_IN);
     this->set_mode_(this->mode_value_);
   } else {
@@ -86,6 +89,8 @@ bool CH422GComponent::read_inputs_() {
   this->status_clear_warning();
   return true;
 }
+
+// Write a register. Can't use the standard write_byte() method because there is no single pre-configured i2c address.
 bool CH422GComponent::write_reg_(uint8_t reg, uint8_t value) {
   auto err = this->bus_->write(reg, &value, 1);
   if (err != i2c::ERROR_OK) {
@@ -103,6 +108,7 @@ uint8_t CH422GComponent::read_reg_(uint8_t reg) {
     this->status_set_warning(str_sprintf("read failed for register 0x%X, error %d", reg, err).c_str());
     return 0;
   }
+  this->status_clear_warning();
   return value;
 }
 
@@ -110,7 +116,7 @@ bool CH422GComponent::set_mode_(uint8_t mode) { return this->write_reg_(CH422G_R
 
 bool CH422GComponent::write_outputs_() {
   return this->write_reg_(CH422G_REG_OUT, static_cast<uint8_t>(this->output_bits_)) &&
-         this->write_reg_(CH422G_REG_OD_OUT, static_cast<uint8_t>(this->output_bits_ >> 8));
+         this->write_reg_(CH422G_REG_OUT_UPPER, static_cast<uint8_t>(this->output_bits_ >> 8));
 }
 
 float CH422GComponent::get_setup_priority() const { return setup_priority::IO; }

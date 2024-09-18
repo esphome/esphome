@@ -38,10 +38,12 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    # Can't use register_i2c_device because there is no CONF_ADDRESS
     parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_bus(parent))
 
 
+# This is used as a final validation step so that modes have been fully transformed.
 def pin_mode_check(pin_config, _):
     if pin_config[CONF_MODE][CONF_INPUT] and pin_config[CONF_NUMBER] >= 8:
         raise cv.Invalid("CH422G only supports input on pins 0-7")
