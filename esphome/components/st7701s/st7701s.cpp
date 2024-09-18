@@ -8,8 +8,22 @@ namespace st7701s {
 void ST7701S::setup() {
   esph_log_config(TAG, "Setting up ST7701S");
   this->spi_setup();
+  this->write_init_sequence_();
+}
+
+// called after a delay after writing the init sequence
+void ST7701S::complete_setup_() {
+  this->write_command_(SLEEP_OUT);
+  this->write_command_(DISPLAY_ON);
+  this->spi_teardown();  // SPI not needed after this
+  delay(10);
+
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
+#if ESP_IDF_VERSION_MAJOR >= 5
+  config.bounce_buffer_size_px = this->width_ * 10;
+  config.num_fbs = 1;
+#endif  // ESP_IDF_VERSION_MAJOR
   config.timings.h_res = this->width_;
   config.timings.v_res = this->height_;
   config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -21,7 +35,6 @@ void ST7701S::setup() {
   config.timings.flags.pclk_active_neg = this->pclk_inverted_;
   config.timings.pclk_hz = this->pclk_frequency_;
   config.clk_src = LCD_CLK_SRC_PLL160M;
-  config.sram_trans_align = 64;
   config.psram_trans_align = 64;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
@@ -34,13 +47,19 @@ void ST7701S::setup() {
   config.de_gpio_num = this->de_pin_->get_pin();
   config.pclk_gpio_num = this->pclk_pin_->get_pin();
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
+  ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
+  ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
   if (err != ESP_OK) {
     esph_log_e(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
   }
-  ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
-  ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
-  this->write_init_sequence_();
   esph_log_config(TAG, "ST7701S setup complete");
+}
+
+void ST7701S::loop() {
+#if ESP_IDF_VERSION_MAJOR >= 5
+  if (this->handle_ != nullptr)
+    esp_lcd_rgb_panel_restart(this->handle_);
+#endif  // ESP_IDF_VERSION_MAJOR
 }
 
 void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -160,10 +179,7 @@ void ST7701S::write_init_sequence_() {
   this->write_data_(val);
   ESP_LOGD(TAG, "write MADCTL %X", val);
   this->write_command_(this->invert_colors_ ? INVERT_ON : INVERT_OFF);
-  this->set_timeout(120, [this] {
-    this->write_command_(SLEEP_OUT);
-    this->write_command_(DISPLAY_ON);
-  });
+  this->set_timeout(120, [this] { this->complete_setup_(); });
 }
 
 void ST7701S::dump_config() {

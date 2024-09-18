@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2024.9.0-dev"
+__version__ = "2024.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -854,6 +854,7 @@ CONF_TEMPERATURE_STEP = "temperature_step"
 CONF_TEXT = "text"
 CONF_TEXT_SENSORS = "text_sensors"
 CONF_THEN = "then"
+CONF_THERMOCOUPLE_TYPE = "thermocouple_type"
 CONF_THRESHOLD = "threshold"
 CONF_THROTTLE = "throttle"
 CONF_TILT = "tilt"

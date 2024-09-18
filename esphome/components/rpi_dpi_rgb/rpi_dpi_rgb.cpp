@@ -6,9 +6,14 @@ namespace esphome {
 namespace rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
-  esph_log_config(TAG, "Setting up RPI_DPI_RGB");
+  ESP_LOGCONFIG(TAG, "Setting up RPI_DPI_RGB");
+  this->reset_display_();
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
+#if ESP_IDF_VERSION_MAJOR >= 5
+  config.bounce_buffer_size_px = this->width_ * 10;
+  config.num_fbs = 1;
+#endif  // ESP_IDF_VERSION_MAJOR
   config.timings.h_res = this->width_;
   config.timings.v_res = this->height_;
   config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -20,7 +25,6 @@ void RpiDpiRgb::setup() {
   config.timings.flags.pclk_active_neg = this->pclk_inverted_;
   config.timings.pclk_hz = this->pclk_frequency_;
   config.clk_src = LCD_CLK_SRC_PLL160M;
-  config.sram_trans_align = 64;
   config.psram_trans_align = 64;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
@@ -34,11 +38,19 @@ void RpiDpiRgb::setup() {
   config.pclk_gpio_num = this->pclk_pin_->get_pin();
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
   if (err != ESP_OK) {
-    esph_log_e(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
   }
   ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
   ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
-  esph_log_config(TAG, "RPI_DPI_RGB setup complete");
+  ESP_LOGCONFIG(TAG, "RPI_DPI_RGB setup complete");
+}
+void RpiDpiRgb::loop() {
+#if ESP_IDF_VERSION_MAJOR >= 5
+  if (this->handle_ != nullptr)
+    esp_lcd_rgb_panel_restart(this->handle_);
+#endif  // ESP_IDF_VERSION_MAJOR
 }
 
 void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -53,7 +65,7 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
   }
   x_start += this->offset_x_;
   y_start += this->offset_y_;
-  esp_err_t err;
+  esp_err_t err = ESP_OK;
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
   if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
     // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
@@ -69,7 +81,7 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
     }
   }
   if (err != ESP_OK)
-    esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
 }
 
 void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
