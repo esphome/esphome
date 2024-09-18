@@ -17,9 +17,9 @@ from esphome.core import TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT
+from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
 from .helpers import add_lv_use, requires_component, validate_printf
-from .lv_validation import lv_color, lv_font, lv_image
+from .lv_validation import lv_color, lv_font, lv_gradient, lv_image
 from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
@@ -94,9 +94,10 @@ STYLE_PROPS = {
     "arc_width": cv.positive_int,
     "anim_time": lvalid.lv_milliseconds,
     "bg_color": lvalid.lv_color,
+    "bg_grad": lv_gradient,
     "bg_grad_color": lvalid.lv_color,
     "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
-    "bg_grad_dir": df.LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER").one_of,
+    "bg_grad_dir": LV_GRAD_DIR.one_of,
     "bg_grad_stop": lvalid.stop_value,
     "bg_image_opa": lvalid.opacity,
     "bg_image_recolor": lvalid.lv_color,
@@ -160,7 +161,7 @@ STYLE_PROPS = {
     "max_width": lvalid.pixels_or_percent,
     "min_height": lvalid.pixels_or_percent,
     "min_width": lvalid.pixels_or_percent,
-    "radius": lvalid.radius,
+    "radius": lvalid.lv_fraction,
     "width": lvalid.size,
     "x": lvalid.pixels_or_percent,
     "y": lvalid.pixels_or_percent,
