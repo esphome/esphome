@@ -1,4 +1,8 @@
 substitutions:
-  network_enable_ipv6: "false"
+  network_enable_ipv6: "true"
+
+bk72xx:
+  framework:
+    version: 1.7.0
 
 <<: !include common.yaml
