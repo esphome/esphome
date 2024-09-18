@@ -62,6 +62,8 @@ service APIConnection {
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
+  rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
+  rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration) returns (void) {}
 
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
 }
@@ -1572,7 +1574,7 @@ message VoiceAssistantAnnounceFinished {
 }
 
 message VoiceAssistantWakeWord {
-  uint32 id = 1;
+  string id = 1;
   string wake_word = 2;
   repeated string trained_languages = 3;
 }
@@ -1589,7 +1591,7 @@ message VoiceAssistantConfigurationResponse {
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   repeated VoiceAssistantWakeWord available_wake_words = 1;
-  repeated uint32 active_wake_words = 2;
+  repeated string active_wake_words = 2;
   uint32 max_active_wake_words = 3;
 }
 
@@ -1598,7 +1600,7 @@ message VoiceAssistantSetConfiguration {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
-  repeated uint32 active_wake_words = 1;
+  repeated string active_wake_words = 1;
 }
 
 // ==================== ALARM CONTROL PANEL ====================
