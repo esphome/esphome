@@ -12,6 +12,10 @@
 #include "esp_netif.h"
 #include "esp_mac.h"
 
+#ifdef USE_ETHERNET_ENC28J60
+#include <driver/spi_master.h>
+#endif
+
 namespace esphome {
 namespace ethernet {
 
@@ -25,6 +29,7 @@ enum EthernetType {
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
   ETHERNET_TYPE_W5500,
+  ETHERNET_TYPE_ENC28J60,
 };
 
 struct ManualIP {
@@ -66,6 +71,9 @@ class EthernetComponent : public Component {
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
   void set_clock_speed(int clock_speed);
+#ifdef USE_ETHERNET_ENC28J60
+  void set_full_duplex(bool full_duplex);
+#endif
 #else
   void set_phy_addr(uint8_t phy_addr);
   void set_power_pin(int power_pin);
@@ -111,6 +119,9 @@ class EthernetComponent : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
+#ifdef USE_ETHERNET_ENC28J60
+  bool full_duplex_{false};
+#endif
 #else
   uint8_t phy_addr_{0};
   int power_pin_{-1};
@@ -139,6 +150,13 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
+#ifdef USE_ETHERNET_ENC28J60
+extern "C" esp_eth_mac_t *esp_eth_mac_new_enc28j60(const spi_device_handle_t spi_hdl, const int int_gpio,
+                                                   const eth_mac_config_t *mac_config);
+extern "C" esp_eth_phy_t *esp_eth_phy_new_enc28j60(const eth_phy_config_t *config);
+extern "C" esp_err_t enc28j60_set_phy_duplex(esp_eth_phy_t *phy, eth_duplex_t duplex);
+extern "C" int emac_enc28j60_get_chip_info(esp_eth_mac_t *mac);
+#endif
 
 }  // namespace ethernet
 }  // namespace esphome

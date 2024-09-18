@@ -46,6 +46,7 @@ CONF_MDIO_PIN = "mdio_pin"
 CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
 CONF_PHY_REGISTERS = "phy_registers"
+CONF_FULL_DUPLEX = "full_duplex"
 
 CONF_CLOCK_SPEED = "clock_speed"
 
@@ -59,9 +60,10 @@ ETHERNET_TYPES = {
     "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
+    "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
 }
 
-SPI_ETHERNET_TYPES = ["W5500"]
+SPI_ETHERNET_TYPES = ["W5500", "ENC28J60"]
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
@@ -160,6 +162,14 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
     ),
 )
 
+SPI_SCHEMA_ENC = SPI_SCHEMA.extend(
+    cv.Schema(
+        {
+            cv.Optional(CONF_FULL_DUPLEX): cv.boolean,
+        }
+    ),
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -171,6 +181,7 @@ CONFIG_SCHEMA = cv.All(
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
             "W5500": SPI_SCHEMA,
+            "ENC28J60": SPI_SCHEMA_ENC,
         },
         upper=True,
     ),
@@ -237,9 +248,29 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
+        cg.add_define("USE_ETHERNET_W5500")
         if CORE.using_esp_idf:
             add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
             add_idf_sdkconfig_option("CONFIG_ETH_SPI_ETHERNET_W5500", True)
+    elif config[CONF_TYPE] == "ENC28J60":
+        cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
+        cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
+        cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+        cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
+        if CONF_INTERRUPT_PIN in config:
+            cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
+
+        if CONF_RESET_PIN in config:
+            cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+        if CONF_FULL_DUPLEX in config:
+            cg.add(var.set_full_duplex(config[CONF_FULL_DUPLEX]))
+        cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
+
+        cg.add_define("USE_ETHERNET_SPI")
+        cg.add_define("USE_ETHERNET_ENC28J60")
+        if CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+            add_idf_sdkconfig_option("CONFIG_ETH_SPI_ETHERNET_ENC28J60", True)
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
