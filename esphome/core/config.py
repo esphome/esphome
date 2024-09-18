@@ -100,9 +100,6 @@ def valid_include(value):
 def valid_project_name(value: str):
     if value.count(".") != 1:
         raise cv.Invalid("project name needs to have a namespace")
-
-    value = value.replace(" ", "_")
-
     return value
 
 

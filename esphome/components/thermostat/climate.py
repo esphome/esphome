@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import climate, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_MODE,
     CONF_AWAY_CONFIG,
@@ -15,15 +15,15 @@ from esphome.const import (
     CONF_DRY_ACTION,
     CONF_DRY_MODE,
     CONF_FAN_MODE,
-    CONF_FAN_MODE_ON_ACTION,
-    CONF_FAN_MODE_OFF_ACTION,
     CONF_FAN_MODE_AUTO_ACTION,
+    CONF_FAN_MODE_DIFFUSE_ACTION,
+    CONF_FAN_MODE_FOCUS_ACTION,
+    CONF_FAN_MODE_HIGH_ACTION,
     CONF_FAN_MODE_LOW_ACTION,
     CONF_FAN_MODE_MEDIUM_ACTION,
-    CONF_FAN_MODE_HIGH_ACTION,
     CONF_FAN_MODE_MIDDLE_ACTION,
-    CONF_FAN_MODE_FOCUS_ACTION,
-    CONF_FAN_MODE_DIFFUSE_ACTION,
+    CONF_FAN_MODE_OFF_ACTION,
+    CONF_FAN_MODE_ON_ACTION,
     CONF_FAN_MODE_QUIET_ACTION,
     CONF_FAN_ONLY_ACTION,
     CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER,
@@ -50,8 +50,8 @@ from esphome.const import (
     CONF_MIN_HEATING_RUN_TIME,
     CONF_MIN_IDLE_TIME,
     CONF_MIN_TEMPERATURE,
-    CONF_NAME,
     CONF_MODE,
+    CONF_NAME,
     CONF_OFF_MODE,
     CONF_PRESET,
     CONF_SENSOR,
@@ -892,7 +892,7 @@ async def to_code(config):
             if name.upper() in climate.CLIMATE_PRESETS:
                 standard_preset = climate.CLIMATE_PRESETS[name.upper()]
 
-            if two_points_available is True:
+            if two_points_available:
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
@@ -905,6 +905,8 @@ async def to_code(config):
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
                 )
+            else:
+                preset_target_config = None
 
             preset_target_variable = cg.new_variable(
                 preset_config[CONF_ID], preset_target_config
