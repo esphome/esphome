@@ -10,28 +10,6 @@
 namespace esphome {
 namespace esp32_improv {
 
-class ESP32ImprovAuthorizedTrigger : public Trigger<> {
- public:
-  explicit ESP32ImprovAuthorizedTrigger(ESP32ImprovComponent *parent) {
-    parent->add_on_state_callback([this, parent](improv::State state, improv::Error error) {
-      if (state == improv::STATE_AUTHORIZED && !parent->is_failed()) {
-        trigger();
-      }
-    });
-  }
-};
-
-class ESP32ImprovAwaitingAuthorizationTrigger : public Trigger<> {
- public:
-  explicit ESP32ImprovAwaitingAuthorizationTrigger(ESP32ImprovComponent *parent) {
-    parent->add_on_state_callback([this, parent](improv::State state, improv::Error error) {
-      if (state == improv::STATE_AWAITING_AUTHORIZATION && !parent->is_failed()) {
-        trigger();
-      }
-    });
-  }
-};
-
 class ESP32ImprovProvisionedTrigger : public Trigger<> {
  public:
   explicit ESP32ImprovProvisionedTrigger(ESP32ImprovComponent *parent) {
@@ -48,6 +26,18 @@ class ESP32ImprovProvisioningTrigger : public Trigger<> {
   explicit ESP32ImprovProvisioningTrigger(ESP32ImprovComponent *parent) {
     parent->add_on_state_callback([this, parent](improv::State state, improv::Error error) {
       if (state == improv::STATE_PROVISIONING && !parent->is_failed()) {
+        trigger();
+      }
+    });
+  }
+};
+
+class ESP32ImprovStartTrigger : public Trigger<> {
+ public:
+  explicit ESP32ImprovStartTrigger(ESP32ImprovComponent *parent) {
+    parent->add_on_state_callback([this, parent](improv::State state, improv::Error error) {
+      if ((state == improv::STATE_AUTHORIZED || state == improv::STATE_AWAITING_AUTHORIZATION) &&
+          !parent->is_failed()) {
         trigger();
       }
     });
