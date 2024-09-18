@@ -24,8 +24,18 @@ class HttpContainerIDF : public HttpContainer {
 
 class HttpRequestIDF : public HttpRequestComponent {
  public:
+  void dump_config() override;
+
   std::shared_ptr<HttpContainer> start(std::string url, std::string method, std::string body,
                                        std::list<Header> headers) override;
+
+  void set_buffer_size_rx(uint16_t buffer_size_rx) { this->buffer_size_rx_ = buffer_size_rx; }
+  void set_buffer_size_tx(uint16_t buffer_size_tx) { this->buffer_size_tx_ = buffer_size_tx; }
+
+ protected:
+  // if zero ESP-IDF will use DEFAULT_HTTP_BUF_SIZE
+  uint16_t buffer_size_rx_{};
+  uint16_t buffer_size_tx_{};
 };
 
 }  // namespace http_request
