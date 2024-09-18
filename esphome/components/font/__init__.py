@@ -152,6 +152,7 @@ def validate_glyphs(config):
         for extra in config[CONF_EXTRAS]:
             points = {ord(x) for x in flatten(extra[CONF_GLYPHS])}
             glyphspoints.difference_update(points)
+            setpoints.difference_update(points)
             check_missing_glyphs(extra[CONF_FILE][CONF_PATH], points)
 
         # A named glyph that can't be provided is an error
