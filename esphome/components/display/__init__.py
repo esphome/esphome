@@ -1,15 +1,15 @@
+from esphome import automation, core
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import core, automation
-from esphome.automation import maybe_simple_id
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_FROM,
     CONF_ID,
     CONF_LAMBDA,
-    CONF_PAGES,
     CONF_PAGE_ID,
+    CONF_PAGES,
     CONF_ROTATION,
-    CONF_FROM,
     CONF_TO,
     CONF_TRIGGER_ID,
 )
@@ -195,3 +195,4 @@ async def display_is_displaying_page_to_code(config, condition_id, template_arg,
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(display_ns.using)
+    cg.add_define("USE_DISPLAY")
