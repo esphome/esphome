@@ -46,10 +46,11 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   void stop() override;
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
 
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
   void add_on_state_callback(std::function<void(improv::State, improv::Error)> &&callback) {
     this->state_callback_.add(std::move(callback));
   }
-
+#endif
 #ifdef USE_BINARY_SENSOR
   void set_authorizer(binary_sensor::BinarySensor *authorizer) { this->authorizer_ = authorizer; }
 #endif
