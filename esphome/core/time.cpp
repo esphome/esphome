@@ -191,10 +191,6 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
 void ESPTime::recalc_timestamp_local(bool use_day_of_year) {
   this->recalc_timestamp_utc(use_day_of_year);
   this->timestamp -= ESPTime::timezone_offset();
-  ESPTime temp = ESPTime::from_epoch_local(this->timestamp);
-  if (temp.is_dst) {
-    this->timestamp -= 3600;
-  }
 }
 
 int32_t ESPTime::timezone_offset() {
