@@ -364,6 +364,7 @@ void Rtttl::finish_() {
   ESP_LOGD(TAG, "Playback finished");
 }
 
+#if defined(USE_OUTPUT) || defined(USE_SPEAKER)
 static const LogString *state_to_string(State state) {
   switch (state) {
     case STATE_STOPPED:
@@ -387,6 +388,7 @@ void Rtttl::set_state_(State state) {
   ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
            LOG_STR_ARG(state_to_string(state)));
 }
+#endif
 
 }  // namespace rtttl
 }  // namespace esphome
