@@ -364,28 +364,29 @@ void Rtttl::finish_() {
   ESP_LOGD(TAG, "Playback finished");
 }
 
-static const LogString *state_to_string(State state) {
+const char *Rtttl::state_to_string(State state) {
   switch (state) {
     case STATE_STOPPED:
-      return LOG_STR("STATE_STOPPED");
+      return "STATE_STOPPED";
     case STATE_STARTING:
-      return LOG_STR("STATE_STARTING");
+      return "STATE_STARTING";
     case STATE_RUNNING:
-      return LOG_STR("STATE_RUNNING");
+      return "STATE_RUNNING";
     case STATE_STOPPING:
-      return LOG_STR("STATE_STOPPING");
+      return "STATE_STOPPING";
     case STATE_INIT:
-      return LOG_STR("STATE_INIT");
+      return "STATE_INIT";
     default:
-      return LOG_STR("UNKNOWN");
+      return "UNKNOWN";
   }
-};
+}
 
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
-           LOG_STR_ARG(state_to_string(state)));
+  ESP_LOGD(TAG, "State changed from %s to %s",
+           LOG_STR_ARG(this->state_to_string(old_state)),
+           LOG_STR_ARG(this->state_to_string(state)));
 }
 
 }  // namespace rtttl
