@@ -32,6 +32,14 @@ struct WriteBuffer {
   size_t len;           ///< length of the buffer
 };
 
+/// @brief Error codes returned by I2CBus::recover method
+enum RecoveryCode {
+  RECOVERY_COMPLETED = 0,
+  RECOVERY_FAILURE_OTHER,
+  RECOVERY_FAILED_SCL_LOW,
+  RECOVERY_FAILED_SDA_LOW,
+};
+
 /// @brief This Class provides the methods to read and write bytes from an I2CBus.
 /// @note The I2CBus virtual class follows a *Factory design pattern* that provides all the interfaces methods required
 /// by clients while deferring the actual implementation of these methods to a subclasses. I2C-bus specification and
@@ -90,6 +98,8 @@ class I2CBus {
   /// @return an i2c::ErrorCode
   /// @details This is a pure virtual method that must be implemented in the subclass.
   virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t count, bool stop) = 0;
+
+  virtual RecoveryCode recover() = 0;
 
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair

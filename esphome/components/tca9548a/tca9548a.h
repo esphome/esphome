@@ -16,6 +16,7 @@ class TCA9548AChannel : public i2c::I2CBus {
 
   i2c::ErrorCode readv(uint8_t address, i2c::ReadBuffer *buffers, size_t cnt) override;
   i2c::ErrorCode writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt, bool stop) override;
+  i2c::RecoveryCode recover() override;
 
  protected:
   uint8_t channel_;

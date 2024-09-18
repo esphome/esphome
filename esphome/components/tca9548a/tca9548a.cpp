@@ -22,6 +22,29 @@ i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffer
   this->parent_->disable_all_channels();
   return err;
 }
+i2c::RecoveryCode TCA9548AChannel::recover() {
+  auto err = this->parent_->switch_to_channel(channel_);
+
+  if (err == i2c::ERROR_TIMEOUT) {
+    ESP_LOGW(TAG, "TCA9548A is not answering. Recovering parent bus.");
+    auto recover_result = this->parent_->recover();
+    if (recover_result != i2c::RECOVERY_COMPLETED) {
+      ESP_LOGE(TAG, "Recovering parent bus failed with code %d.", recover_result);
+      return recover_result;
+    }
+    err = this->parent_->switch_to_channel(channel_);
+  }
+
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Can't switch channel to recover. Returned %d.", err);
+    return RECOVERY_FAILURE_OTHER;
+  }
+
+  auto recover_result = this->parent_->recover();
+
+  this->parent_->disable_all_channels();
+  return recover_result;
+}
 
 void TCA9548AComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TCA9548A...");
@@ -33,6 +56,7 @@ void TCA9548AComponent::setup() {
   }
   ESP_LOGD(TAG, "Channels currently open: %d", status);
 }
+
 void TCA9548AComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9548A:");
   LOG_I2C_DEVICE(this);
