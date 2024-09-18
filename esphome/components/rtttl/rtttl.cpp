@@ -384,8 +384,7 @@ const char *Rtttl::state_to_string(State state) {
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %s to %s",
-           LOG_STR_ARG(this->state_to_string(old_state)),
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(this->state_to_string(old_state)),
            LOG_STR_ARG(this->state_to_string(state)));
 }
 
