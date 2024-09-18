@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/pulse_counter/pulse_counter_sensor.h"
 
 #include <cinttypes>
 
@@ -18,16 +17,9 @@ enum HLW8012SensorModels {
   HLW8012_SENSOR_MODEL_BL0937
 };
 
-#ifdef HAS_PCNT
-#define USE_PCNT true
-#else
-#define USE_PCNT false
-#endif
-
 class HLW8012Component : public PollingComponent {
  public:
-  HLW8012Component()
-      : cf_store_(*pulse_counter::get_storage(USE_PCNT)), cf1_store_(*pulse_counter::get_storage(USE_PCNT)) {}
+  HLW8012Component() {}
 
   void setup() override;
   void dump_config() override;
@@ -49,6 +41,9 @@ class HLW8012Component : public PollingComponent {
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
   void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
 
+  static void cf_intr(HLW8012Component *arg);
+  static void cf1_intr(HLW8012Component *arg);
+
  protected:
   uint32_t nth_value_{0};
   bool current_mode_{false};
@@ -60,9 +55,13 @@ class HLW8012Component : public PollingComponent {
   uint64_t cf_total_pulses_{0};
   GPIOPin *sel_pin_;
   InternalGPIOPin *cf_pin_;
-  pulse_counter::PulseCounterStorageBase &cf_store_;
+  uint32_t cf_first_pulse_micros_{0};
+  uint32_t cf_last_pulse_micros_{0};
+  uint32_t cf_pulses_{0};
   InternalGPIOPin *cf1_pin_;
-  pulse_counter::PulseCounterStorageBase &cf1_store_;
+  uint32_t cf1_first_pulse_micros_{0};
+  uint32_t cf1_last_pulse_micros_{0};
+  uint32_t cf1_pulses_{0};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
