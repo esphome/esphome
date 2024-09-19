@@ -1,6 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/log.h"
+#include "config.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -10,11 +14,6 @@
 #include <utility>
 #include <vector>
 #include <map>
-#include "esphome/core/helpers.h"
-#include "esphome/components/uart/uart.h"
-#include "esphome/core/log.h"
-#include "config.h"
-
 
 namespace esphome {
 namespace ebyte_lora {
@@ -51,14 +50,13 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
-
 #ifdef USE_SENSOR
   void add_sensor(const char *id, sensor::Sensor *sensor) {
     Sensor st{sensor, id, true};
     this->sensors_.push_back(st);
   }
   void add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
-    //this->add_provider(hostname);
+    // this->add_provider(hostname);
     this->remote_sensors_[hostname][remote_id] = sensor;
   }
 #endif
@@ -69,7 +67,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   }
 
   void add_remote_binary_sensor(const char *hostname, const char *remote_id, binary_sensor::BinarySensor *sensor) {
-   // this->add_provider(hostname);
+    // this->add_provider(hostname);
     this->remote_binary_sensors_[hostname][remote_id] = sensor;
   }
 #endif

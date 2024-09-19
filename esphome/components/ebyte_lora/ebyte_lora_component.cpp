@@ -414,24 +414,24 @@ void EbyteLoraComponent::loop() {
         this->repeat_message_(data);
       }
       // only configs with switches should sent too
-// #ifdef USE_SWITCH
-//       // Make sure it is not itself
-//       if (network_id_ != data[1]) {
-//         ESP_LOGD(TAG, "Got switch info to process");
-//         // last data bit is rssi
-//         for (int i = 2; i < data.size() - 1; i = i + 2) {
-//           uint8_t pin = data[i];
-//           bool value = data[i + 1];
-//           for (auto *sensor : this->sensors_) {
-//             if (pin == sensor->get_pin()) {
-//               sensor->publish_state(value);
-//             }
-//           }
-//         }
-//         ESP_LOGD(TAG, "Updated all");
-//         this->send_switch_info();
-//       }
-// #endif
+      // #ifdef USE_SWITCH
+      //       // Make sure it is not itself
+      //       if (network_id_ != data[1]) {
+      //         ESP_LOGD(TAG, "Got switch info to process");
+      //         // last data bit is rssi
+      //         for (int i = 2; i < data.size() - 1; i = i + 2) {
+      //           uint8_t pin = data[i];
+      //           bool value = data[i + 1];
+      //           for (auto *sensor : this->sensors_) {
+      //             if (pin == sensor->get_pin()) {
+      //               sensor->publish_state(value);
+      //             }
+      //           }
+      //         }
+      //         ESP_LOGD(TAG, "Updated all");
+      //         this->send_switch_info();
+      //       }
+      // #endif
       break;
     case PROGRAM_CONF:
       ESP_LOGD(TAG, "GOT PROGRAM_CONF");
