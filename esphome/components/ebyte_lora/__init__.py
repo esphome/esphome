@@ -1,25 +1,34 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import sensor, uart
+from esphome.components.binary_sensor import BinarySensor
+from esphome.components.sensor import Sensor
+from esphome.components import uart
 
 from esphome.const import (
+    CONF_BINARY_SENSORS,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
     CONF_ID,
+    CONF_INTERNAL,
+    CONF_NAME,
     UNIT_PERCENT,
     CONF_CHANNEL,
+    CONF_SENSORS,
 )
+from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@danielkoek"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["uart", "sensor"]
+AUTO_LOAD = ["uart"]
 MULTI_CONF = True
 
 ebyte_lora_ns = cg.esphome_ns.namespace("ebyte_lora")
 EbyteLoraComponent = ebyte_lora_ns.class_(
     "EbyteLoraComponent", cg.PollingComponent, uart.UARTDevice
 )
+CONF_REMOTE_ID = "remote_id"
+CONF_PROVIDER = "provider"
 WorPeriod = ebyte_lora_ns.enum("WorPeriod")
 WOR_PERIOD_OPTIONS = {
     "WOR_500": WorPeriod.WOR_500,
@@ -85,6 +94,7 @@ ENABLE_OPTIONS = {
 
 
 CONF_EBYTE_LORA_COMPONENT_ID = "ebyte_lora_component_id"
+CONF_BROADCAST_ID = "broadcast_id"
 CONF_PIN_AUX = "pin_aux"
 CONF_PIN_M0 = "pin_m0"
 CONF_PIN_M1 = "pin_m1"
@@ -104,8 +114,30 @@ CONF_SUB_PACKET = "sub_packet"
 CONF_SENT_SWITCH_STATE = "sent_switch_state"
 CONF_REPEATER = "repeater"
 CONF_NETWORK_ID = "network_id"
-CONFIG_SCHEMA = (
-    cv.Schema(
+
+
+def sensor_validation(cls: MockObjClass):
+    return cv.maybe_simple_value(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(cls),
+                cv.Optional(CONF_BROADCAST_ID): cv.validate_id_name,
+            }
+        ),
+        key=CONF_ID,
+    )
+
+
+def require_internal_with_name(config):
+    if CONF_NAME in config and CONF_INTERNAL not in config:
+        raise cv.Invalid("Must provide internal: config when using name:")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.polling_component_schema("15s")
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(
         {
             cv.GenerateID(): cv.declare_id(EbyteLoraComponent),
             # for communication to let us know that we can receive data
@@ -116,10 +148,13 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_PIN_M1): pins.internal_gpio_output_pin_schema,
             # to be able to repeater hop
             cv.Required(CONF_NETWORK_ID): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_SENT_SWITCH_STATE, default=True): cv.boolean,
             cv.Optional(CONF_REPEATER, default=False): cv.boolean,
+            cv.Optional(CONF_SENSORS): cv.ensure_list(sensor_validation(Sensor)),
+            cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
+                sensor_validation(BinarySensor)
+            ),
             # if you want to see the rssi
-            cv.Optional(CONF_LORA_RSSI): sensor.sensor_schema(
+            cv.Optional(CONF_LORA_RSSI): Sensor.sensor_schema(
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=1,
@@ -163,24 +198,28 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+)
+
+SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_REMOTE_ID): cv.string_strict,
+        cv.Required(CONF_PROVIDER): cv.valid_name,
+        cv.GenerateID(CONF_EBYTE_LORA_COMPONENT_ID): cv.use_id(EbyteLoraComponent),
+    }
 )
 
 
 async def to_code(config):
+    cg.add_global(ebyte_lora_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-
     pin_aux = await cg.gpio_pin_expression(config[CONF_PIN_AUX])
     cg.add(var.set_pin_aux(pin_aux))
-
     pin_m0 = await cg.gpio_pin_expression(config[CONF_PIN_M0])
     cg.add(var.set_pin_m0(pin_m0))
     pin_m1 = await cg.gpio_pin_expression(config[CONF_PIN_M1])
     cg.add(var.set_pin_m1(pin_m1))
-    cg.add(var.set_sent_switch_state(config[CONF_SENT_SWITCH_STATE]))
     cg.add(var.set_repeater(config[CONF_REPEATER]))
     cg.add(var.set_network_id(config[CONF_NETWORK_ID]))
     cg.add(var.set_addh(config[CONF_ADDH]))
@@ -196,7 +235,16 @@ async def to_code(config):
     cg.add(var.set_enable_lbt(config[CONF_ENABLE_LBT]))
     cg.add(var.set_transmission_mode(config[CONF_TRANSMISSION_MODE]))
     cg.add(var.set_enable_rssi(config[CONF_ENABLE_RSSI]))
-
+    for sens_conf in config.get(CONF_SENSORS, ()):
+        sens_id = sens_conf[CONF_ID]
+        sensor = await cg.get_variable(sens_id)
+        bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
+        cg.add(var.add_sensor(bcst_id, sensor))
+    for sens_conf in config.get(CONF_BINARY_SENSORS, ()):
+        sens_id = sens_conf[CONF_ID]
+        sensor = await cg.get_variable(sens_id)
+        bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
+        cg.add(var.add_binary_sensor(bcst_id, sensor))
     if CONF_LORA_RSSI in config:
-        sens = await sensor.new_sensor(config[CONF_LORA_RSSI])
+        sens = await Sensor.new_sensor(config[CONF_LORA_RSSI])
         cg.add(var.set_rssi_sensor(sens))

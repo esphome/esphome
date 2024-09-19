@@ -1,18 +1,40 @@
 #pragma once
+
+#include "esphome/core/component.h"
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #include <utility>
 #include <vector>
-#include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
+#include <map>
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
 #include "config.h"
-#ifdef USE_SWITCH
-#include "esphome/components/switch/switch.h"
-#endif
+
 
 namespace esphome {
 namespace ebyte_lora {
+
+#ifdef USE_SENSOR
+struct Sensor {
+  sensor::Sensor *sensor;
+  const char *id;
+  bool updated;
+};
+#endif
+
+#ifdef USE_BINARY_SENSOR
+struct BinarySensor {
+  binary_sensor::BinarySensor *sensor;
+  const char *id;
+  bool updated;
+};
+#endif
+
 static const char *const TAG = "ebyte_lora";
 static const int MAX_SIZE_TX_PACKET = 200;
 
@@ -21,8 +43,6 @@ enum ModeType { NORMAL = 0, WOR_SEND = 1, WOR_RECEIVER = 2, CONFIGURATION = 3, M
 // 1 byte, 8 bits in total
 // note that the data sheets shows the order in reverse
 
-// has to be defined first, will be implemented later
-class EbyteLoraSwitch;
 class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
@@ -31,10 +51,35 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
+
+#ifdef USE_SENSOR
+  void add_sensor(const char *id, sensor::Sensor *sensor) {
+    Sensor st{sensor, id, true};
+    this->sensors_.push_back(st);
+  }
+  void add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
+    //this->add_provider(hostname);
+    this->remote_sensors_[hostname][remote_id] = sensor;
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  void add_binary_sensor(const char *id, binary_sensor::BinarySensor *sensor) {
+    BinarySensor st{sensor, id, true};
+    this->binary_sensors_.push_back(st);
+  }
+
+  void add_remote_binary_sensor(const char *hostname, const char *remote_id, binary_sensor::BinarySensor *sensor) {
+   // this->add_provider(hostname);
+    this->remote_binary_sensors_[hostname][remote_id] = sensor;
+  }
+#endif
+
   void send_switch_info();
+
+#ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
+#endif
   void set_pin_aux(InternalGPIOPin *pin_aux) { pin_aux_ = pin_aux; }
-  void set_switch(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
   void set_pin_m0(InternalGPIOPin *pin_m0) { pin_m0_ = pin_m0; }
   void set_pin_m1(InternalGPIOPin *pin_m1) { pin_m1_ = pin_m1; }
   void set_addh(uint8_t addh) { expected_config_.addh = addh; }
@@ -55,7 +100,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_network_id(int id) { network_id_ = id; }
 
  private:
-  std::vector<EbyteLoraSwitch *> sensors_;
   ModeType mode_ = MODE_INIT;
   // set WOR mode
   void set_mode_(ModeType mode);
@@ -85,26 +129,20 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   std::string raw_message_;
   RegisterConfig current_config_;
   RegisterConfig expected_config_;
+#ifdef USE_SENSOR
+  std::vector<Sensor> sensors_{};
+  std::map<std::string, std::map<std::string, sensor::Sensor *>> remote_sensors_{};
+#endif
+#ifdef USE_BINARY_SENSOR
+  std::vector<BinarySensor> binary_sensors_{};
+  std::map<std::string, std::map<std::string, binary_sensor::BinarySensor *>> remote_binary_sensors_{};
+#endif
+#ifdef USE_SENSOR
   sensor::Sensor *rssi_sensor_{nullptr};
+#endif
   InternalGPIOPin *pin_aux_{nullptr};
   InternalGPIOPin *pin_m0_{nullptr};
   InternalGPIOPin *pin_m1_{nullptr};
 };
-#ifdef USE_SWITCH
-class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraComponent> {
- public:
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  uint8_t get_pin() { return pin_; }
-
- protected:
-  void write_state(bool state) override {
-    // set it first
-    this->publish_state(state);
-    // then tell the world about it
-    this->parent_->send_switch_info();
-  }
-  uint8_t pin_;
-};
-#endif
 }  // namespace ebyte_lora
 }  // namespace esphome

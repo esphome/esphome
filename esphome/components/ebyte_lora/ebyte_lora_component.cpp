@@ -414,24 +414,24 @@ void EbyteLoraComponent::loop() {
         this->repeat_message_(data);
       }
       // only configs with switches should sent too
-#ifdef USE_SWITCH
-      // Make sure it is not itself
-      if (network_id_ != data[1]) {
-        ESP_LOGD(TAG, "Got switch info to process");
-        // last data bit is rssi
-        for (int i = 2; i < data.size() - 1; i = i + 2) {
-          uint8_t pin = data[i];
-          bool value = data[i + 1];
-          for (auto *sensor : this->sensors_) {
-            if (pin == sensor->get_pin()) {
-              sensor->publish_state(value);
-            }
-          }
-        }
-        ESP_LOGD(TAG, "Updated all");
-        this->send_switch_info();
-      }
-#endif
+// #ifdef USE_SWITCH
+//       // Make sure it is not itself
+//       if (network_id_ != data[1]) {
+//         ESP_LOGD(TAG, "Got switch info to process");
+//         // last data bit is rssi
+//         for (int i = 2; i < data.size() - 1; i = i + 2) {
+//           uint8_t pin = data[i];
+//           bool value = data[i + 1];
+//           for (auto *sensor : this->sensors_) {
+//             if (pin == sensor->get_pin()) {
+//               sensor->publish_state(value);
+//             }
+//           }
+//         }
+//         ESP_LOGD(TAG, "Updated all");
+//         this->send_switch_info();
+//       }
+// #endif
       break;
     case PROGRAM_CONF:
       ESP_LOGD(TAG, "GOT PROGRAM_CONF");
@@ -444,7 +444,9 @@ void EbyteLoraComponent::loop() {
 
   // RSSI is always found whenever it is not program info
   if (data[0] != PROGRAM_CONF) {
+#ifdef USE_SENSOR
     this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
+#endif
     ESP_LOGD(TAG, "RSSI: %f", (data[data.size() - 1] / 255.0) * 100);
   }
 }
@@ -497,10 +499,10 @@ void EbyteLoraComponent::send_switch_info() {
   std::vector<uint8_t> data;
   data.push_back(SWITCH_INFO);
   data.push_back(network_id_);
-  for (auto *sensor : this->sensors_) {
-    data.push_back(sensor->get_pin());
-    data.push_back(sensor->state);
-  }
+  // for (auto *sensor : this->sensors_) {
+  //   data.push_back(sensor->get_pin());
+  //   data.push_back(sensor->state);
+  // }
   ESP_LOGD(TAG, "Sending switch info");
   this->write_array(data);
   this->setup_wait_response_(5000);
