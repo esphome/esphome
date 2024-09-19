@@ -87,13 +87,13 @@ bool ESPNowPacket::is_valid() {
 
 /* ESPNowProtocol ********************************************************************** */
 
-bool ESPNowProtocol::write(uint64_t mac_address, const uint8_t *data, uint8_t len) {
-  ESPNowPacket *packet = new ESPNowPacket(mac_address, data, len, this->get_protocol_id());
+bool ESPNowProtocol::write(uint64_t peer, const uint8_t *data, uint8_t len) {
+  ESPNowPacket *packet = new ESPNowPacket(peer, data, len, this->get_protocol_id());
   return this->parent_->write(packet);
 }
-bool ESPNowProtocol::write(uint64_t mac_address, std::vector<uint8_t> &data) {
+bool ESPNowProtocol::write(uint64_t peer, std::vector<uint8_t> &data) {
   ESPNowPacket *packet =
-      new ESPNowPacket(mac_address, (uint8_t *) data.data(), (uint8_t) data.size(), this->get_protocol_id());
+      new ESPNowPacket(peer, (uint8_t *) data.data(), (uint8_t) data.size(), this->get_protocol_id());
   return this->parent_->write(packet);
 }
 bool ESPNowProtocol::write(ESPNowPacket *packet) {
@@ -289,8 +289,12 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
 #endif
   ESPNowPacket packet((uint64_t) *addr, data, size);
   packet.broadcast(broadcast);
-  packet.rssi(rx_ctrl->rssi);
-  packet.timestamp(rx_ctrl->timestamp);
+  if (rx_ctrl != nullptr) {
+    packet.rssi(rx_ctrl->rssi);
+    packet.timestamp(rx_ctrl->timestamp);
+  } else {
+    packet.timestamp(millis());
+  }
   ESP_LOGVV(TAG, "Read: %s |H:%02x%02x%02x  A:%02x%02x%02x %02x  T:%02x  C:%02x%02x S:%02d", packet.content_bytes(),
             packet.content(0), packet.content(1), packet.content(2), packet.content(3), packet.content(4),
             packet.content(5), packet.content(6), packet.content(7), packet.content(8), packet.content(9),
@@ -346,7 +350,7 @@ void ESPNowComponent::runner() {
 
       if (!esp_now_is_peer_exist(mac)) {
         if (!this->auto_add_peer_) {
-          this->defer([this, packet, mac]() { this->on_new_peer_((ESPNowPacket *) &packet); });
+          this->defer([this, packet]() { this->on_new_peer_((ESPNowPacket *) &packet); });
         } else {
           this->add_peer(packet->peer());
         }

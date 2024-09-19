@@ -7,9 +7,9 @@
 
 namespace esphome {
 
-ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len, Endian endianness) {
+ByteBuffer ByteBuffer::wrap(const uint8_t *value, size_t length, Endian endianness) {
   // there is a double copy happening here, could be optimized but at cost of clarity.
-  std::vector<uint8_t> data(ptr, ptr + len);
+  std::vector<uint8_t> data(value, value + length);
   ByteBuffer buffer = {data};
   buffer.endianness_ = endianness;
   return buffer;
@@ -131,11 +131,11 @@ std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
   this->update_used_space_();
   return {start, start + length};
 }
-void ByteBuffer::get_bytes(uint8_t *data, size_t length) {
+void ByteBuffer::get_bytes(uint8_t *value, size_t length) {
   size_t index = 0;
   assert(this->get_remaining() >= length);
   while (length-- != 0) {
-    *(data + index++) = this->data_[this->position_++];
+    *(value + index++) = this->data_[this->position_++];
   }
   this->update_used_space_();
 }
@@ -180,11 +180,11 @@ void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   this->position_ += value.size();
   this->update_used_space_();
 }
-void ByteBuffer::put_bytes(const uint8_t *data, size_t length) {
+void ByteBuffer::put_bytes(const uint8_t *value, size_t length) {
   assert(this->get_remaining() >= length);
   auto index = 0;
   while (length-- != 0) {
-    this->data_[this->position_++] = static_cast<uint8_t>(*(data + index++));
+    this->data_[this->position_++] = static_cast<uint8_t>(*(value + index++));
   }
   this->update_used_space_();
 }

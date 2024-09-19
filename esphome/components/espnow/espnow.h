@@ -42,28 +42,23 @@ static const uint32_t ESPNOW_MAIN_PROTOCOL_ID = 0x11CFAF;
 static uint8_t last_ref_id = 0;
 
 struct ESPNowData {
-  union {
-    struct {
-      uint64_t peer{0};
-      uint8_t rssi{0};
-      uint8_t attempts{0};
-      bool is_broadcast{false};
-      uint32_t timestamp{0};
-      uint8_t size{0};
-      uint8_t content[251]{0};
-    };
-    uint8_t bytes[251 + 16];
-  };
+  uint64_t peer{0};
+  uint8_t rssi{0};
+  uint8_t attempts{0};
+  bool is_broadcast{false};
+  uint32_t timestamp{0};
+  uint8_t size{0};
+  uint8_t content[251]{0};
 };
 class ESPNowPacket {
  public:
   ESPNowPacket() {
-    memset((void *) &(this->data_.bytes), 0, sizeof(this->data_));
+    memset((void *) &(this->data_), 0, sizeof(ESPNowData));
     this->content_ = new ByteBuffer(251);
     this->content_->put_uint24(TRANSPORT_HEADER);
   };
   // Create packet to be send.
-  ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t app_id);
+  ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t protocol);
 
   // Load received packet's.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size);
@@ -71,7 +66,7 @@ class ESPNowPacket {
   ESPNowPacket(ESPNowData data) : ESPNowPacket() { this->store(data); }
 
   void store(ESPNowData data) {
-    memcpy((void *) &(this->data_.bytes), (void *) &(data.bytes), sizeof(ESPNowData));
+    memcpy((void *) &(this->data_), (void *) &(data), sizeof(ESPNowData));
     this->content_->clear();
     this->content_->put_bytes((uint8_t *) &(data.content), data.size);
   }
@@ -79,7 +74,7 @@ class ESPNowPacket {
   uint8_t *retrieve() {
     memcpy((void *) &(this->data_.content), this->content_bytes(), this->size());
     this->data_.size = this->size();
-    return (uint8_t *) &(this->data_.bytes);
+    return (uint8_t *) &(this->data_);
   }
 
   uint64_t peer() { return this->data_.peer; }
