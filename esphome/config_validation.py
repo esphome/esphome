@@ -91,7 +91,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=consider-using-f-string
 VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
 )
 
 # pylint: disable=invalid-name
@@ -370,6 +370,20 @@ def boolean(value):
     )
 
 
+def boolean_false(value):
+    """Validate the given config option to be a boolean, set to False.
+
+    This option allows a bunch of different ways of expressing boolean values:
+     - instance of boolean
+     - 'true'/'false'
+     - 'yes'/'no'
+     - 'enable'/disable
+    """
+    if boolean(value):
+        raise Invalid("Expected boolean value to be false")
+    return False
+
+
 @schema_extractor_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
@@ -464,6 +478,7 @@ zero_to_one_float = float_range(min=0, max=1)
 negative_one_to_one_float = float_range(min=-1, max=1)
 positive_int = int_range(min=0)
 positive_not_null_int = int_range(min=0, min_included=False)
+positive_not_null_float = float_range(min=0, min_included=False)
 
 
 def validate_id_name(value):
@@ -2030,6 +2045,7 @@ def require_framework_version(
     esp32_arduino=None,
     esp8266_arduino=None,
     rp2040_arduino=None,
+    bk72xx_libretiny=None,
     host=None,
     max_version=False,
     extra_message=None,
@@ -2044,6 +2060,13 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = esp_idf
+        elif CORE.is_bk72xx and framework == "arduino":
+            if bk72xx_libretiny is None:
+                msg = "This feature is incompatible with BK72XX"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = bk72xx_libretiny
         elif CORE.is_esp32 and framework == "arduino":
             if esp32_arduino is None:
                 msg = "This feature is incompatible with ESP32 using arduino framework"
@@ -2181,3 +2204,13 @@ SOURCE_SCHEMA = Any(
         }
     ),
 )
+
+
+def rename_key(old_key, new_key):
+    def validator(config: dict) -> dict:
+        config = config.copy()
+        if old_key in config:
+            config[new_key] = config.pop(old_key)
+        return config
+
+    return validator
