@@ -107,7 +107,7 @@ ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 
 void ESPNowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "esp_now:");
-  ESP_LOGCONFIG(TAG, "  MAC Address: " MACSTR, MAC2STR(ESPNOW_ADDR_SELF));
+  ESP_LOGCONFIG(TAG, "  MAC Address: 0x12x.", ESPNOW_ADDR_SELF);
   ESPNowPacket *packet = new ESPNowPacket(0x112233445566, (uint8_t *) TAG, 6, 0xabcdef);
   ESP_LOGI(TAG, "test: %s |H:%02x%02x%02x  A:%02x%02x%02x %02x  T:%02x  C:%02x%02x S:%02d", packet->content_bytes(),
            packet->content(0), packet->content(1), packet->content(2), packet->content(3), packet->content(4),
