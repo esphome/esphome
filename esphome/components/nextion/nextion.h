@@ -927,6 +927,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_exit_reparse_on_start(bool exit_reparse);
 
   /**
+   * Sets whether the Nextion display should skip the connection handshake process.
+   * @param skip_handshake True or false. When skip_connection_handshake is true,
+   * the connection will be established without performing the handshake.
+   * This can be useful when using Nextion Simulator.
+   *
+   * Example:
+   * ```cpp
+   * it.set_skip_connection_handshake(true);
+   * ```
+   *
+   * When set to true, the display will be marked as connected without performing a handshake.
+   */
+  void set_skip_connection_handshake(bool skip_handshake) { this->skip_connection_handshake_ = skip_handshake; }
+
+  /**
    * Sets Nextion mode between sleep and awake
    * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
    */
@@ -1221,6 +1236,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   int16_t start_up_page_ = -1;
   bool auto_wake_on_touch_ = true;
   bool exit_reparse_on_start_ = false;
+  bool skip_connection_handshake_ = false;
 
   /**
    * Manually send a raw command to the display and don't wait for an acknowledgement packet.
