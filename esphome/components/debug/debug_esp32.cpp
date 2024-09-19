@@ -59,11 +59,11 @@ std::string DebugComponent::get_reset_reason_() {
     case TG0WDT_SYS_RESET:
       reset_reason = "Timer Group 0 Watch Dog Reset Digital Core";
       break;
-#if !defined(USE_ESP32_VARIANT_ESP32C2)    
+#if !defined(USE_ESP32_VARIANT_ESP32C2)
     case TG1WDT_SYS_RESET:
       reset_reason = "Timer Group 1 Watch Dog Reset Digital Core";
       break;
-#endif    
+#endif
     case RTCWDT_SYS_RESET:
       reset_reason = "RTC Watch Dog Reset Digital Core";
       break;
@@ -175,7 +175,7 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 #if defined(USE_ESP32_VARIANT_ESP32)
   model = "ESP32";
 #elif defined(USE_ESP32_VARIANT_ESP32C2)
-  model = "ESP32-C2";  
+  model = "ESP32-C2";
 #elif defined(USE_ESP32_VARIANT_ESP32C3)
   model = "ESP32-C3";
 #elif defined(USE_ESP32_VARIANT_ESP32C6)
@@ -262,11 +262,11 @@ void DebugComponent::get_device_info_(std::string &device_info) {
     case UART1_TRIG:
       wakeup_reason = "UART1";
       break;
-#if !defined(USE_ESP32_VARIANT_ESP32C2)    
+#if !defined(USE_ESP32_VARIANT_ESP32C2)
     case TOUCH_TRIG:
       wakeup_reason = "Touch";
       break;
-#endif    
+#endif
     case SAR_TRIG:
       wakeup_reason = "SAR";
       break;
