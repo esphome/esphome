@@ -91,16 +91,20 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(ESPNowPacket, "it")], conf)
+        await automation.build_automation(
+            trigger, [(ESPNowPacketPtrConst, "packet"), (bool, "status")], conf
+        )
 
     for conf in config.get(CONF_ON_RECEIVE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(ESPNowPacket, "it")], conf)
+        await automation.build_automation(
+            trigger, [(ESPNowPacketPtrConst, "packet")], conf
+        )
 
     for conf in config.get(CONF_ON_NEW_PEER, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(ESPNowPacket, "it"), (bool, "status")], conf
+            trigger, [(ESPNowPacketPtrConst, "packet")], conf
         )
 
     for conf in config.get(CONF_PEERS, []):

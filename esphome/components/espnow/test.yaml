@@ -19,7 +19,7 @@ espnow:
   on_receive:
     - logger.log:
         format: "Received: %s  RSSI: %d"
-        args: [it->data().data(), it->rssi()]
+        args: [packet->contest_bytes(), packet->rssi()]
 
 binary_sensor:
   - platform: gpio

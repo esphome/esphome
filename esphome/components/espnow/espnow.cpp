@@ -114,7 +114,7 @@ void ESPNowComponent::dump_config() {
            packet->content(5), packet->content(6), packet->content(7), packet->content(8), packet->content(9),
            packet->size());
 
-  ESP_LOGI(TAG, "test: A:%06x  R:%02x  C:%04x S:%02d", packet->app_id(), packet->packet_id(), packet->crc16(),
+  ESP_LOGI(TAG, "test: A:%06x  R:%02x  C:%04x S:%02d", packet->protocol_id(), packet->packet_id(), packet->crc(),
            packet->size());
   ESP_LOGI(TAG, "test: is_valid: %s",
            packet->is_valid() ? "Yes" : "No");  // ESP_LOGCONFIG(TAG, "  WiFi Channel: %n", WiFi.channel());
@@ -232,11 +232,11 @@ esp_err_t ESPNowComponent::del_peer(uint64_t addr) {
 }
 
 ESPNowDefaultProtocol *ESPNowComponent::get_default_protocol() {
-  if (this->protocols_[ESPNOW_DEFAULT_APP_ID] == nullptr) {
+  if (this->protocols_[ESPNOW_MAIN_PROTOCOL_ID] == nullptr) {
     ESPNowDefaultProtocol *tmp = new ESPNowDefaultProtocol();
     this->register_protocol(tmp);
   }
-  return (ESPNowDefaultProtocol *) this->protocols_[ESPNOW_DEFAULT_APP_ID];
+  return (ESPNowDefaultProtocol *) this->protocols_[ESPNOW_MAIN_PROTOCOL_ID];
 }
 
 ESPNowProtocol *ESPNowComponent::get_protocol_(uint32_t protocol) {
@@ -317,7 +317,7 @@ bool ESPNowComponent::write(ESPNowPacket *packet) {
     ESP_LOGW(TAG, "Packet is invalid. maybe you need to ::calc_crc(). the packat before writing.");
   } else if (this->use_sent_check_) {
     xQueueSendToBack(this->send_queue_, packet->retrieve(), 10);
-    ESP_LOGVV(TAG, "Send (0x%04x.%d): 0x%12x. Buffer Used: %d", packet->packet_id, packet->attempts(), packet->peer(),
+    ESP_LOGVV(TAG, "Send (0x%04x.%d): 0x%12x. Buffer Used: %d", packet->packet_id(), packet->attempts(), packet->peer(),
               this->send_queue_used());
     return true;
   } else {
@@ -376,7 +376,7 @@ void ESPNowComponent::runner() {
           ESP_LOGV(TAG, "S: 0x%04x.%d. Wait for conformation. M: %s", packet->packet_id(), packet->attempts(),
                    packet->content_bytes());
         } else {
-          ESP_LOGE(TAG, "S: 0x%04x.%d B: %d.", packet->packet_id(), packet->attempts(), this.send_queue_used());
+          ESP_LOGE(TAG, "S: 0x%04x.%d B: %d.", packet->packet_id(), packet->attempts(), this->send_queue_used());
           this->unlock();
         }
       }
@@ -398,7 +398,7 @@ void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_
       ESP_LOGE(TAG, "sent packet failed (0x%04x.%d)", packet->packet_id(), packet->attempts());
     } else if (packet->peer() != mac64) {
       ESP_LOGE(TAG, " Invalid mac address. (0x%04x.%d) expected: 0x%12x got: 0x%12x", packet->packet_id(),
-               packet->retrys, packet->peer(), mac64);
+               packet->attempts(), packet->peer(), mac64);
     } else {
       ESP_LOGV(TAG, "Confirm sent (0x%04x.%d)", packet->packet_id(), packet->attempts());
       global_esp_now->defer([packet]() {

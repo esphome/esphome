@@ -37,7 +37,7 @@ static const uint8_t MAX_ESPNOW_DATA_SIZE = 240;
 static const uint8_t MAX_NUMBER_OF_RETRYS = 5;
 
 static const uint32_t TRANSPORT_HEADER = 0xC19983;
-static const uint32_t ESPNOW_DEFAULT_APP_ID = 0x11CFAF;
+static const uint32_t ESPNOW_MAIN_PROTOCOL_ID = 0x11CFAF;
 
 static uint8_t last_ref_id = 0;
 
@@ -188,7 +188,7 @@ class ESPNowDefaultProtocol : public ESPNowProtocol {
   void on_sent(ESPNowPacket *packet, bool status) override { this->on_sent_.call(packet, status); };
   void on_new_peer(ESPNowPacket *packet) override { this->on_new_peer_.call(packet); };
 
-  uint32_t get_protocol_id() override { return ESPNOW_DEFAULT_APP_ID; };
+  uint32_t get_protocol_id() override { return ESPNOW_MAIN_PROTOCOL_ID; };
 
   void add_on_sent_callback(std::function<void(ESPNowPacket *, bool status)> &&callback) {
     this->on_sent_.add(std::move(callback));
@@ -303,6 +303,52 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};
+};
+
+template<typename... Ts> class NewPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+ public:
+  template<typename V> void set_mac(V mac) { this->mac_ = mac; }
+  void play(Ts... x) override {
+    auto mac = this->mac_.value(x...);
+    parent_->add_peer(mac);
+  }
+
+ protected:
+  TemplatableValue<uint64_t, Ts...> mac_{};
+};
+
+template<typename... Ts> class DelPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+ public:
+  template<typename V> void set_mac(V mac) { this->mac_ = mac; }
+  void play(Ts... x) override {
+    auto mac = this->mac_.value(x...);
+    parent_->del_peer(mac);
+  }
+
+ protected:
+  TemplatableValue<uint64_t, Ts...> mac_{};
+};
+
+class ESPNowSentTrigger : public Trigger<ESPNowPacket *, bool> {
+ public:
+  explicit ESPNowSentTrigger(ESPNowComponent *parent) {
+    parent->get_default_protocol()->add_on_sent_callback(
+        [this](ESPNowPacket *packet, bool status) { this->trigger(packet, status); });
+  }
+};
+
+class ESPNowReceiveTrigger : public Trigger<ESPNowPacket *> {
+ public:
+  explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
+    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
+  }
+};
+
+class ESPNowNewPeerTrigger : public Trigger<ESPNowPacket *> {
+ public:
+  explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
+    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
+  }
 };
 
 extern ESPNowComponent *global_esp_now;
