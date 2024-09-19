@@ -108,11 +108,11 @@ class ESPNowPacket {
     return this->content_->get_used_space();
   }
 
-  uint32_t protocol() {
+  uint32_t protocol_id() {
     this->content_->set_position(ESPNOW_DATA_PROTOCOL);
     return this->content_->get_uint24();
   }
-  void protocol(uint32_t protocol) {
+  void protocol_id(uint32_t protocol) {
     this->content_->set_position(ESPNOW_DATA_PROTOCOL);
     this->content_->put_uint24(protocol);
   }

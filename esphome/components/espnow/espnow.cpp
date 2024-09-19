@@ -63,7 +63,7 @@ ESPNowPacket::ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uin
   this->peer(peer);
 
   this->broadcast(std::memcmp((const void *) this->peer_as_bytes(), (const void *) &ESPNOW_BROADCAST_ADDR, 6) == 0);
-  this->protocol(protocol);
+  this->protocol_id(protocol);
   this->content()->put_bytes(data, size);
 
   this->calc_crc();
@@ -79,7 +79,7 @@ bool ESPNowPacket::is_valid() {
   uint16_t crc = this->crc();
   this->calc_crc();
   bool valid = (memcmp((const void *) this->content_bytes(), (const void *) &TRANSPORT_HEADER, 3) == 0);
-  valid &= (this->protocol() != 0);
+  valid &= (this->protocol_id() != 0);
   valid &= (this->crc() == crc);
   this->crc(crc);
   return valid;
@@ -97,7 +97,7 @@ bool ESPNowProtocol::write(uint64_t mac_address, std::vector<uint8_t> &data) {
   return this->parent_->write(packet);
 }
 bool ESPNowProtocol::write(ESPNowPacket *packet) {
-  packet->protocol(this->get_protocol_id());
+  packet->protocol_id(this->get_protocol_id());
   packet->packet_id(this->get_next_ref_id());
   packet->calc_crc();
   return this->parent_->write(packet);
@@ -114,7 +114,7 @@ void ESPNowComponent::dump_config() {
            packet->content(5), packet->content(6), packet->content(7), packet->content(8), packet->content(9),
            packet->size());
 
-  ESP_LOGI(TAG, "test: A:%06x  R:%02x  C:%04x S:%02d", packet->protocol_id(), packet->packet_id(), packet->crc(),
+  ESP_LOGI(TAG, "test: A:%06x  R:%02x  C:%04x S:%d", packet->protocol_id(), packet->packet_id(), packet->crc(),
            packet->size());
   ESP_LOGI(TAG, "test: is_valid: %s",
            packet->is_valid() ? "Yes" : "No");  // ESP_LOGCONFIG(TAG, "  WiFi Channel: %n", WiFi.channel());
@@ -248,21 +248,21 @@ ESPNowProtocol *ESPNowComponent::get_protocol_(uint32_t protocol) {
 }
 
 void ESPNowComponent::on_receive_(ESPNowPacket *packet) {
-  ESPNowProtocol *protocol = this->get_protocol_(packet->protocol());
+  ESPNowProtocol *protocol = this->get_protocol_(packet->protocol_id());
   if (protocol != nullptr) {
     protocol->on_receive(packet);
   }
 }
 
 void ESPNowComponent::on_sent_(ESPNowPacket *packet, bool status) {
-  ESPNowProtocol *protocol = this->get_protocol_(packet->protocol());
+  ESPNowProtocol *protocol = this->get_protocol_(packet->protocol_id());
   if (protocol != nullptr) {
     protocol->on_sent(packet, status);
   }
 }
 
 void ESPNowComponent::on_new_peer_(ESPNowPacket *packet) {
-  ESPNowProtocol *protocol = this->get_protocol_(packet->protocol());
+  ESPNowProtocol *protocol = this->get_protocol_(packet->protocol_id());
   if (protocol != nullptr) {
     protocol->on_new_peer(packet);
   }
