@@ -275,18 +275,20 @@ void ESPNowComponent::on_data_received(const esp_now_recv_info_t *recv_info, con
 void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data, int size)
 #endif
 {
-  ESPNowPacket packet((uint64_t) *addr, data, size);
+  bool broadcast = false;
   wifi_pkt_rx_ctrl_t *rx_ctrl = nullptr;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
   uint8_t *addr = recv_info->src_addr;
-  packet.broadcast(*recv_info->des_addr == ESPNOW_BROADCAST_ADDR);
+  broadcast = ((uint64_t) *recv_info->des_addr & ESPNOW_BROADCAST_ADDR) == ESPNOW_BROADCAST_ADDR;
   rx_ctrl = recv_info->rx_ctrl;
 #else
   wifi_promiscuous_pkt_t *promiscuous_pkt =
       (wifi_promiscuous_pkt_t *) (data - sizeof(wifi_pkt_rx_ctrl_t) - sizeof(espnow_frame_format_t));
   rx_ctrl = &promiscuous_pkt->rx_ctrl;
 #endif
+  ESPNowPacket packet((uint64_t) *addr, data, size);
+  packet.broadcast(broadcast);
   packet.rssi(rx_ctrl->rssi);
   packet.timestamp(rx_ctrl->timestamp);
   ESP_LOGVV(TAG, "Read: %s |H:%02x%02x%02x  A:%02x%02x%02x %02x  T:%02x  C:%02x%02x S:%02d", packet.content_bytes(),
