@@ -1,8 +1,11 @@
 #pragma once
 
-#include "esphome/core/datatypes.h"
 #include "esphome/core/color.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/core/datatypes.h"
+#include "esphome/core/defines.h"
+#ifdef USE_DISPLAY
+#include "esphome/components/display/display.h"
+#endif
 
 namespace esphome {
 namespace font {
@@ -38,7 +41,11 @@ class Glyph {
   const GlyphData *glyph_data_;
 };
 
-class Font : public display::BaseFont {
+class Font
+#ifdef USE_DISPLAY
+    : public display::BaseFont
+#endif
+{
  public:
   /** Construct the font with the given glyphs.
    *
@@ -50,9 +57,11 @@ class Font : public display::BaseFont {
 
   int match_next_glyph(const uint8_t *str, int *match_length);
 
+#ifdef USE_DISPLAY
   void print(int x_start, int y_start, display::Display *display, Color color, const char *text,
              Color background) override;
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) override;
+#endif
   inline int get_baseline() { return this->baseline_; }
   inline int get_height() { return this->height_; }
   inline int get_bpp() { return this->bpp_; }

@@ -172,6 +172,19 @@ def add_idf_component(
             KEY_COMPONENTS: components,
             KEY_SUBMODULES: submodules,
         }
+    else:
+        component_config = CORE.data[KEY_ESP32][KEY_COMPONENTS][name]
+        if components is not None:
+            component_config[KEY_COMPONENTS] = list(
+                set(component_config[KEY_COMPONENTS] + components)
+            )
+        if submodules is not None:
+            if component_config[KEY_SUBMODULES] is None:
+                component_config[KEY_SUBMODULES] = submodules
+            else:
+                component_config[KEY_SUBMODULES] = list(
+                    set(component_config[KEY_SUBMODULES] + submodules)
+                )
 
 
 def add_extra_script(stage: str, filename: str, path: str):
@@ -226,7 +239,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 7)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 8)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32

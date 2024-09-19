@@ -156,6 +156,10 @@ enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_MUTE = 3,
   MEDIA_PLAYER_COMMAND_UNMUTE = 4,
 };
+enum MediaPlayerFormatPurpose : uint32_t {
+  MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0,
+  MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT = 1,
+};
 enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0,
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1,
@@ -836,6 +840,7 @@ class SubscribeHomeAssistantStateResponse : public ProtoMessage {
  public:
   std::string entity_id{};
   std::string attribute{};
+  bool once{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -843,6 +848,7 @@ class SubscribeHomeAssistantStateResponse : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class HomeAssistantStateResponse : public ProtoMessage {
  public:
@@ -1265,6 +1271,22 @@ class ButtonCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
+class MediaPlayerSupportedFormat : public ProtoMessage {
+ public:
+  std::string format{};
+  uint32_t sample_rate{0};
+  uint32_t num_channels{0};
+  enums::MediaPlayerFormatPurpose purpose{};
+  uint32_t sample_bytes{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 class ListEntitiesMediaPlayerResponse : public ProtoMessage {
  public:
   std::string object_id{};
@@ -1275,6 +1297,7 @@ class ListEntitiesMediaPlayerResponse : public ProtoMessage {
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
   bool supports_pause{false};
+  std::vector<MediaPlayerSupportedFormat> supported_formats{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1802,6 +1825,76 @@ class VoiceAssistantTimerEventResponse : public ProtoMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantAnnounceRequest : public ProtoMessage {
+ public:
+  std::string media_id{};
+  std::string text{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class VoiceAssistantAnnounceFinished : public ProtoMessage {
+ public:
+  bool success{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantWakeWord : public ProtoMessage {
+ public:
+  std::string id{};
+  std::string wake_word{};
+  std::vector<std::string> trained_languages{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class VoiceAssistantConfigurationRequest : public ProtoMessage {
+ public:
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class VoiceAssistantConfigurationResponse : public ProtoMessage {
+ public:
+  std::vector<VoiceAssistantWakeWord> available_wake_words{};
+  std::vector<std::string> active_wake_words{};
+  uint32_t max_active_wake_words{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantSetConfiguration : public ProtoMessage {
+ public:
+  std::vector<std::string> active_wake_words{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
  public:

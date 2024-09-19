@@ -155,7 +155,7 @@ async def to_code(config):
         decoded = base64.b64decode(encryption_config[CONF_KEY])
         cg.add(var.set_noise_psk(list(decoded)))
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.4")
+        cg.add_library("esphome/noise-c", "0.1.6")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 

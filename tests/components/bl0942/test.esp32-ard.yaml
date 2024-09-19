@@ -8,6 +8,7 @@ uart:
 
 sensor:
   - platform: bl0942
+    reset: true
     voltage:
       name: BL0942 Voltage
     current:

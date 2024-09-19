@@ -28,6 +28,7 @@
 #define USE_DATETIME_DATETIME
 #define USE_DATETIME_TIME
 #define USE_DEEP_SLEEP
+#define USE_DISPLAY
 #define USE_EVENT
 #define USE_FAN
 #define USE_GRAPH
@@ -51,6 +52,7 @@
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
+#define USE_NETWORK
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_ONLINE_IMAGE_PNG_SUPPORT
@@ -74,6 +76,7 @@
 #define USE_VALVE
 #define USE_WIFI
 #define USE_WIFI_AP
+#define USE_WIREGUARD
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
@@ -158,6 +161,7 @@
 #endif
 
 // Disabled feature flags
-// #define USE_BSEC  // Requires a library with proprietary license.
+// #define USE_BSEC   // Requires a library with proprietary license
+// #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT

@@ -118,6 +118,7 @@ void ILI9XXXDisplay::dump_config() {
   ESP_LOGCONFIG(TAG, "  Swap_xy: %s", YESNO(this->swap_xy_));
   ESP_LOGCONFIG(TAG, "  Mirror_x: %s", YESNO(this->mirror_x_));
   ESP_LOGCONFIG(TAG, "  Mirror_y: %s", YESNO(this->mirror_y_));
+  ESP_LOGCONFIG(TAG, "  Invert colors: %s", YESNO(this->pre_invertcolors_));
 
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
@@ -154,7 +155,6 @@ void ILI9XXXDisplay::fill(Color color) {
         }
       }
       return;
-      break;
     default:
       new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
       break;
