@@ -1,0 +1,57 @@
+#pragma once
+
+#include "esphome/components/esphome/esphome.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+
+namespace esphome {
+namespace espnow {
+
+template<typename... Ts> class NewPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+ public:
+  template<typename V> void set_mac(V mac) { this->mac_ = mac; }
+  void play(Ts... x) override {
+    auto mac = this->mac_.value(x...);
+    parent_->add_peer(mac);
+  }
+
+ protected:
+  TemplatableValue<uint64_t, Ts...> mac_{};
+};
+
+template<typename... Ts> class DelPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+ public:
+  template<typename V> void set_mac(V mac) { this->mac_ = mac; }
+  void play(Ts... x) override {
+    auto mac = this->mac_.value(x...);
+    parent_->del_peer(mac);
+  }
+
+ protected:
+  TemplatableValue<uint64_t, Ts...> mac_{};
+};
+
+class ESPNowSentTrigger : public Trigger<ESPNowPacket *, bool> {
+ public:
+  explicit ESPNowSentTrigger(ESPNowComponent *parent) {
+    parent->get_default_protocol()->add_on_sent_callback(
+        [this](ESPNowPacket *packet, bool status) { this->trigger(packet, status); });
+  }
+};
+
+class ESPNowReceiveTrigger : public Trigger<ESPNowPacket *> {
+ public:
+  explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
+    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
+  }
+};
+
+class ESPNowNewPeerTrigger : public Trigger<ESPNowPacket *> {
+ public:
+  explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
+    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
+  }
+};
+
+}
+}

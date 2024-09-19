@@ -22,8 +22,9 @@ namespace espnow {
 
 typedef uint8_t espnow_addr_t[6];
 
-static const espnow_addr_t ESPNOW_BROADCAST_ADDR = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-static espnow_addr_t ESPNOW_ADDR_SELF = {0};
+static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
+
+static uint64_t ESPNOW_ADDR_SELF = {0};
 
 static const uint8_t ESPNOW_DATA_HEADER = 0x00;
 static const uint8_t ESPNOW_DATA_PROTOCOL = 0x03;
@@ -33,111 +34,134 @@ static const uint8_t ESPNOW_DATA_CONTENT = 0x0A;
 
 static const uint8_t MAX_ESPNOW_DATA_SIZE = 240;
 
+static const uint8_t MAX_NUMBER_OF_RETRYS = 5;
+
 static const uint32_t TRANSPORT_HEADER = 0xC19983;
+static const uint32_t ESPNOW_DEFAULT_APP_ID = 0x11CFAF;
 
 static uint8_t last_ref_id = 0;
 
+struct ESPNowData {
+  union {
+    struct {
+      uint64_t peer{0};
+      uint8_t rssi{0};
+      uint8_t attempts{0};
+      bool is_broadcast{false};
+      uint32_t timestamp{0};
+      uint8_t size{0};
+      uint8_t content[251]{0};
+    };
+    uint8_t bytes[251 + 16];
+  };
+};
 class ESPNowPacket {
- private:
-  espnow_addr_t peer_{0};
-  uint8_t rssi_{0};
-  uint8_t retrys_{0};
-  bool is_broadcast_{false};
-  uint32_t timestamp_{0};
-  ByteBuffer *content_;
-
  public:
   ESPNowPacket() {
+    memset((void *) &(this->data_.bytes), 0, sizeof(this->data_));
     this->content_ = new ByteBuffer(251);
     this->content_->put_uint24(TRANSPORT_HEADER);
   };
   // Create packet to be send.
-  ESPNowPacket(espnow_addr_t peer, const uint8_t *data, uint8_t size, uint32_t app_id);
+  ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t app_id);
 
   // Load received packet's.
-  ESPNowPacket(espnow_addr_t *peer, const uint8_t *data, uint8_t size);
+  ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size);
 
-  espnow_addr_t *peer() { return &this->peer_; }
-  void peer(espnow_addr_t *peer) {
-    if (*peer[0] == 0) {
-      std::memcpy(&this->peer_, &ESPNOW_BROADCAST_ADDR, 6);
+  ESPNowPacket(ESPNowData data) : ESPNowPacket() { this->store(data); }
+
+  void store(ESPNowData data) {
+    memcpy((void *) &(this->data_.bytes), (void *) &(data.bytes), sizeof(ESPNowData));
+    this->content_->clear();
+    this->content_->put_bytes((uint8_t *) &(data.content), data.size);
+  }
+
+  uint8_t *retrieve() {
+    memcpy((void *) &(this->data_.content), this->content_bytes(), this->size());
+    this->data_.size = this->size();
+    return (uint8_t *) &(this->data_.bytes);
+  }
+
+  uint64_t peer() { return this->data_.peer; }
+  uint8_t *peer_as_bytes() { return (uint8_t *) &(this->data_.peer); }
+  void peer(uint64_t peer) {
+    if (peer == 0) {
+      this->data_.peer = ESPNOW_BROADCAST_ADDR;
+    } else {
+      this->data_.peer = peer;
     }
   }
-  else {
-    std::memcpy(&this->peer_, &peer, 6);
+
+  bool broadcast() { return this->data_.is_broadcast; };
+  void broadcast(bool state) { this->data_.is_broadcast = state; }
+
+  uint32_t timestamp() { return this->data_.timestamp; };
+  void timestamp(uint32_t timestamp) { this->data_.timestamp = timestamp; };
+
+  uint8_t rssi() { return this->data_.rssi; }
+  void rssi(uint8_t rssi) { this->data_.rssi = rssi; }
+
+  uint8_t size() {
+    if (this->content_->get_used_space() <= ESPNOW_DATA_CONTENT) {
+      return ESPNOW_DATA_CONTENT;
+    }
+    return this->content_->get_used_space();
   }
-}
 
-uint8_t
-size() {
-  if (this->content_->get_used() <= ESPNOW_DATA_CONTENT) {
-    return ESPNOW_DATA_CONTENT;
+  uint32_t protocol() {
+    this->content_->set_position(ESPNOW_DATA_PROTOCOL);
+    return this->content_->get_uint24();
   }
-  return this->content_->get_used();
-}
-
-bool broadcast(){return this->is_broadcast_};
-void broadcast(bool state) { this->is_broadcast_ = state; }
-
-uint32_t timestamp() { return this->timestamp_; };
-void timestamp(uint32_t timestamp) { this->timestamp_ = timestamp; };
-
-uint32_t protocol() {
-  this->content_->set_position(ESPNOW_DATA_PROTOCOL);
-  return this->content_->get_uint24();
-}
-void protocol(uint32_t protocol) {
-  this->content_->set_position(ESPNOW_DATA_PROTOCOL);
-  this->content_->put_uint24(protocol);
-}
-
-uint8_t packet_id() {
-  this->content_->set_position(ESPNOW_DATA_PACKET);
-  return this->content_->get_uint8();
-}
-void packet_id(uint8_t packet_id) {
-  this->content_->set_position(ESPNOW_DATA_PACKET);
-  this->content_->put_uint8(packet_id);
-}
-
-uint16_t crc() {
-  this->content_->set_position(ESPNOW_DATA_CRC);
-  return this->content_->get_uint16();
-}
-void crc(uint16_t crc) {
-  this->content_->set_position(ESPNOW_DATA_CRC);
-  this->content_->put_uint16(crc);
-}
-
-ByteBuffer *content() {
-  this->content_->set_position(this->size());
-  return &this->content_;
-}
-
-uint8_t content(uint8_t pos) {
-  this->content_->set_position(pos);
-  return this->content_->get_uint8();
-}
-uint8_t *content_bytes() { return this->content_->get_data()->data(); };
-
-void retry() {
-  if (this->retrys_ < 7) {
-    this->retrys_ = this->retrys_ + 1;
+  void protocol(uint32_t protocol) {
+    this->content_->set_position(ESPNOW_DATA_PROTOCOL);
+    this->content_->put_uint24(protocol);
   }
-}
 
-void calc_crc() {
-  this->crc(0);
-  this->crc(esp_crc16_le(this->packet(), this->dataptr(), this->size()));
-}
+  uint8_t packet_id() {
+    this->content_->set_position(ESPNOW_DATA_PACKET);
+    return this->content_->get_uint8();
+  }
+  void packet_id(uint8_t packet_id) {
+    this->content_->set_position(ESPNOW_DATA_PACKET);
+    this->content_->put_uint8(packet_id);
+  }
 
-bool is_valid();
+  uint16_t crc() {
+    this->content_->set_position(ESPNOW_DATA_CRC);
+    return this->content_->get_uint16();
+  }
+  void crc(uint16_t crc) {
+    this->content_->set_position(ESPNOW_DATA_CRC);
+    this->content_->put_uint16(crc);
+  }
 
+  ByteBuffer *content() {
+    this->content_->set_position(this->size());
+    return this->content_;
+  }
+
+  uint8_t content(uint8_t pos) {
+    this->content_->set_position(pos);
+    return this->content_->get_uint8();
+  }
+  uint8_t *content_bytes() { return this->content_->get_data().data(); };
+
+  void retry() { this->data_.attempts++; }
+  uint8_t attempts() { return this->data_.attempts; }
+
+  void calc_crc() {
+    this->crc(0);
+    this->crc(esp_crc16_le(this->packet_id(), this->content_bytes(), this->size()));
+  }
+
+  bool is_valid();
+
+ private:
+  ByteBuffer *content_{nullptr};
+  ESPNowData data_;
 };
 
 class ESPNowComponent;
-
-static const uint32_t ESPNOW_DEFAULT_APP_ID = 0x11CFAF;
 
 class ESPNowProtocol : public Parented<ESPNowComponent> {
  public:
@@ -150,8 +174,8 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
   virtual uint32_t get_protocol_id() = 0;
   uint8_t get_next_ref_id() { return next_ref_id_++; }
 
-  bool write(uint64_t mac_address, const uint8_t *data, uint8_t len);
-  bool write(uint64_t mac_address, std::vector<uint8_t> &data);
+  bool write(uint64_t peer, const uint8_t *data, uint8_t len);
+  bool write(uint64_t peer, std::vector<uint8_t> &data);
   bool write(ESPNowPacket *packet);
 
  protected:
@@ -279,52 +303,6 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};
-};
-
-template<typename... Ts> class NewPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
- public:
-  template<typename V> void set_mac(V mac) { this->mac_ = mac; }
-  void play(Ts... x) override {
-    auto mac = this->mac_.value(x...);
-    parent_->add_peer(mac);
-  }
-
- protected:
-  TemplatableValue<uint64_t, Ts...> mac_{};
-};
-
-template<typename... Ts> class DelPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
- public:
-  template<typename V> void set_mac(V mac) { this->mac_ = mac; }
-  void play(Ts... x) override {
-    auto mac = this->mac_.value(x...);
-    parent_->del_peer(mac);
-  }
-
- protected:
-  TemplatableValue<uint64_t, Ts...> mac_{};
-};
-
-class ESPNowSentTrigger : public Trigger<ESPNowPacket *, bool> {
- public:
-  explicit ESPNowSentTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_sent_callback(
-        [this](ESPNowPacket *packet, bool status) { this->trigger(packet, status); });
-  }
-};
-
-class ESPNowReceiveTrigger : public Trigger<ESPNowPacket *> {
- public:
-  explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
-  }
-};
-
-class ESPNowNewPeerTrigger : public Trigger<ESPNowPacket *> {
- public:
-  explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
-  }
 };
 
 extern ESPNowComponent *global_esp_now;
