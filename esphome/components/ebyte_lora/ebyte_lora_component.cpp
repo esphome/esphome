@@ -525,7 +525,7 @@ void EbyteLoraComponent::request_repeater_info_() {
   }
   uint8_t data[2];
   data[0] = REQUEST_REPEATER_INFO;  // Request
-  data[1] = this->network_id_;       // for unique id
+  data[1] = this->network_id_;      // for unique id
   ESP_LOGD(TAG, "Asking for repeater info");
   this->write_array(data, sizeof(data));
   this->setup_wait_response_(5000);
