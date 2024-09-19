@@ -49,7 +49,8 @@ struct ESPNowData {
   uint32_t timestamp{0};
   uint8_t size{0};
   uint8_t content[251]{0};
-};
+} __attribute__((packed));
+
 class ESPNowPacket {
  public:
   ESPNowPacket() {
