@@ -15,7 +15,7 @@ CONF_IDENTIFY_DURATION = "identify_duration"
 CONF_ON_PROVISIONED = "on_provisioned"
 CONF_ON_PROVISIONING = "on_provisioning"
 CONF_ON_START = "on_start"
-CONF_ON_STOPPED = "on_stopped"
+CONF_ON_STOP = "on_stop"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
 
@@ -85,7 +85,7 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESP32ImprovStateTrigger),
             }
         ),
-        cv.Optional(CONF_ON_STOPPED): automation.validate_automation(
+        cv.Optional(CONF_ON_STOP): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                     ESP32ImprovStoppedTrigger
@@ -138,7 +138,7 @@ async def to_code(config):
             trigger, [(State, "state"), (Error, "error")], conf
         )
         use_state_callback = True
-    for conf in config.get(CONF_ON_STOPPED, []):
+    for conf in config.get(CONF_ON_STOP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
         use_state_callback = True
