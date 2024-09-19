@@ -364,7 +364,7 @@ void Rtttl::finish_() {
   ESP_LOGD(TAG, "Playback finished");
 }
 
-const char *Rtttl::state_to_string_(State state) {
+std::string Rtttl::state_to_string_(State state) {
   switch (state) {
     case STATE_STOPPED:
       return "STATE_STOPPED";

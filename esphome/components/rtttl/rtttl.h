@@ -67,7 +67,7 @@ class Rtttl : public Component {
   }
   void finish_();
   void set_state_(State state);
-  const char *state_to_string_(State state);
+  std::string state_to_string_(State state);
 
   std::string rtttl_{""};
   size_t position_{0};
