@@ -114,7 +114,7 @@ void ESPNowComponent::dump_config() {
            packet->content(5), packet->content(6), packet->content(7), packet->content(8), packet->content(9),
            packet->size());
 
-  ESP_LOGI(TAG, "test: A:%06lx  R:%02x  C:%04x S:%d", packet->protocol_id(), packet->packet_id(), packet->crc(),
+  ESP_LOGI(TAG, "test: A:%06" PRIx32 "  R:%02x  C:%04x S:%d", packet->protocol_id(), packet->packet_id(), packet->crc(),
            packet->size());
   ESP_LOGI(TAG, "test: is_valid: %s",
            packet->is_valid() ? "Yes" : "No");  // ESP_LOGCONFIG(TAG, "  WiFi Channel: %n", WiFi.channel());
@@ -241,7 +241,7 @@ ESPNowDefaultProtocol *ESPNowComponent::get_default_protocol() {
 
 ESPNowProtocol *ESPNowComponent::get_protocol_(uint32_t protocol) {
   if (this->protocols_[protocol] == nullptr) {
-    ESP_LOGE(TAG, "Protocol for '0x%06lx' is not registered", protocol);
+    ESP_LOGE(TAG, "Protocol for '0x%06" PRIx32 "' is not registered", protocol);
     return nullptr;
   }
   return this->protocols_[protocol];
