@@ -1224,6 +1224,39 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
+VoiceAssistantConfigurationResponse APIConnection::voice_assistant_get_configuration(
+    const VoiceAssistantConfigurationRequest &msg) {
+  VoiceAssistantConfigurationResponse resp;
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return resp;
+    }
+
+    auto &config = voice_assistant::global_voice_assistant->get_configuration();
+    for (auto &wake_word : config.available_wake_words) {
+      VoiceAssistantWakeWord resp_wake_word;
+      resp_wake_word.id = wake_word.id;
+      resp_wake_word.wake_word = wake_word.wake_word;
+      for (const auto &lang : wake_word.trained_languages) {
+        resp_wake_word.trained_languages.push_back(lang);
+      }
+      resp.available_wake_words.push_back(std::move(resp_wake_word));
+    }
+    resp.max_active_wake_words = config.max_active_wake_words;
+  }
+  return resp;
+}
+
+void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_set_configuration(msg.active_wake_words);
+  }
+}
+
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
