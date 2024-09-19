@@ -384,8 +384,8 @@ std::string Rtttl::state_to_string_(State state) {
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(this->state_to_string_(old_state)),
-           LOG_STR_ARG(this->state_to_string_(state)));
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_LITERAL(this->state_to_string_(old_state)),
+           LOG_STR_LITERAL(this->state_to_string_(state)));
 }
 
 }  // namespace rtttl
