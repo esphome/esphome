@@ -225,11 +225,11 @@ void EbyteLoraComponent::update() {
     this->set_mode_(NORMAL);
   }
 
-  if (this->sent_switch_state)
-    this->send_switch_info_();
+  if (this->sent_switch_state_)
+    this->send_switch_info();
   // we always request repeater info, since nodes will response too that they are around
   // you can see it more of a health info
-  this->request_repeater_info();
+  this->request_repeater_info_();
 }
 void EbyteLoraComponent::set_config_() {
   uint8_t data[11];
@@ -379,13 +379,13 @@ void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
 void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
   ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id);
-  if (!this->repeater_ && !this->sent_switch_state) {
+  if (!this->repeater_ && !this->sent_switch_state_) {
     ESP_LOGCONFIG(TAG, "  Normal mode");
   }
   if (this->repeater_) {
     ESP_LOGCONFIG(TAG, "  Repeater mode");
   }
-  if (this->sent_switch_state) {
+  if (this->sent_switch_state_) {
     ESP_LOGCONFIG(TAG, "  Remote switch mode");
   }
 };
@@ -404,19 +404,19 @@ void EbyteLoraComponent::loop() {
   switch (data[0]) {
     case REQUEST_REPEATER_INFO:
       ESP_LOGD(TAG, "Got request for repeater info from network id %u", data[1]);
-      this->send_repeater_info();
+      this->send_repeater_info_();
       break;
     case REPEATER_INFO:
       ESP_LOGD(TAG, "Got some repeater info from network %u ", data[2]);
       break;
     case SWITCH_INFO:
       if (this->repeater_) {
-        this->repeat_message(data);
+        this->repeat_message_(data);
       }
       // only configs with switches should sent too
 #ifdef USE_SWITCH
       // Make sure it is not itself
-      if (network_id != data[1]) {
+      if (network_id_ != data[1]) {
         ESP_LOGD(TAG, "Got switch info to process");
         // last data bit is rssi
         for (int i = 2; i < data.size() - 1; i = i + 2) {
@@ -429,7 +429,7 @@ void EbyteLoraComponent::loop() {
           }
         }
         ESP_LOGD(TAG, "Updated all");
-        this->send_switch_info_();
+        this->send_switch_info();
       }
 #endif
       break;
@@ -489,14 +489,14 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
   }
 }
 
-void EbyteLoraComponent::send_switch_info_() {
+void EbyteLoraComponent::send_switch_info() {
 #ifdef USE_SWITCH
   if (!this->can_send_message_()) {
     return;
   }
   std::vector<uint8_t> data;
   data.push_back(SWITCH_INFO);
-  data.push_back(network_id);
+  data.push_back(network_id_);
   for (auto *sensor : this->sensors_) {
     data.push_back(sensor->get_pin());
     data.push_back(sensor->state);
@@ -507,35 +507,35 @@ void EbyteLoraComponent::send_switch_info_() {
 #endif
 }
 
-void EbyteLoraComponent::send_repeater_info() {
+void EbyteLoraComponent::send_repeater_info_() {
   if (!this->can_send_message_()) {
     return;
   }
   uint8_t data[3];
   data[0] = REPEATER_INFO;  // response
   data[1] = this->repeater_;
-  data[2] = network_id;
+  data[2] = network_id_;
   ESP_LOGD(TAG, "Telling system if i am a repeater and what my network_id is");
   this->write_array(data, sizeof(data));
   this->setup_wait_response_(5000);
 }
-void EbyteLoraComponent::request_repeater_info() {
+void EbyteLoraComponent::request_repeater_info_() {
   if (!this->can_send_message_()) {
     return;
   }
   uint8_t data[2];
   data[0] = REQUEST_REPEATER_INFO;  // Request
-  data[1] = this->network_id;       // for unique id
+  data[1] = this->network_id_;       // for unique id
   ESP_LOGD(TAG, "Asking for repeater info");
   this->write_array(data, sizeof(data));
   this->setup_wait_response_(5000);
 }
-void EbyteLoraComponent::repeat_message(std::vector<uint8_t> data) {
+void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
   ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
   if (!this->can_send_message_()) {
     return;
   }
-  this->write_array(data.data(), sizeof(data));
+  this->write_array(data.data(), data.size());
   this->setup_wait_response_(5000);
 }
 

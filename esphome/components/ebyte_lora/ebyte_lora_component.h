@@ -31,7 +31,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
-  void send_switch_info_();
+  void send_switch_info();
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
   void set_pin_aux(InternalGPIOPin *pin_aux) { pin_aux_ = pin_aux; }
   void set_switch(EbyteLoraSwitch *obj) { this->sensors_.push_back(obj); }
@@ -50,9 +50,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_enable_lbt(EnableByte enable) { expected_config_.enable_lbt = enable; }
   void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_enable_rssi(EnableByte enable) { expected_config_.enable_rssi = enable; }
-  void set_sent_switch_state(bool enable) { sent_switch_state = enable; }
+  void set_sent_switch_state(bool enable) { sent_switch_state_ = enable; }
   void set_repeater(bool enable) { repeater_ = enable; }
-  void set_network_id(int id) { network_id = id; }
+  void set_network_id(int id) { network_id_ = id; }
 
  private:
   std::vector<EbyteLoraSwitch *> sensors_;
@@ -67,18 +67,18 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_config_();
   void get_current_config_();
   void setup_conf_(std::vector<uint8_t> data);
-  void request_repeater_info();
-  void send_repeater_info();
-  void repeat_message(std::vector<uint8_t> data);
+  void request_repeater_info_();
+  void send_repeater_info_();
+  void repeat_message_(std::vector<uint8_t> data);
 
  protected:
   bool update_needed_ = false;
   // if enabled will sent information about itself
-  bool sent_switch_state = false;
+  bool sent_switch_state_ = false;
   // if set it will function as a repeater
   bool repeater_ = false;
   // used to tell one lora device apart from another
-  int network_id = 0;
+  int network_id_ = 0;
   int rssi_ = 0;
   uint32_t starting_to_check_;
   uint32_t time_out_after_;
@@ -101,7 +101,7 @@ class EbyteLoraSwitch : public switch_::Switch, public Parented<EbyteLoraCompone
     // set it first
     this->publish_state(state);
     // then tell the world about it
-    this->parent_->send_switch_info_();
+    this->parent_->send_switch_info();
   }
   uint8_t pin_;
 };
