@@ -1,0 +1,29 @@
+esphome:
+  name: espnow-test
+  friendly_name: espnow test
+  name_add_mac_suffix: true
+  project:
+    name: LumenSoft.espnow_test
+    version: "0.25"
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: esp-idf
+    version: 4.4.8
+
+espnow:
+  auto_add_peer: true
+  peers:
+    - FF:FF:FF:FF:FF:FF
+  on_receive:
+    - logger.log:
+        format: "Received: %s  RSSI: %d"
+        args: [it->data().data(), it->rssi()]
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO39
+    name: Button
+    on_click:
+      - espnow.send: "hallo everyone"

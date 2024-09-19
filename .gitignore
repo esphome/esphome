@@ -139,5 +139,3 @@ sdkconfig.*
 
 /components
 /managed_components
-
-esphome/components/espnow/test.yaml
