@@ -222,267 +222,154 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       break;
     case STATE_CSQ_RESPONSE:
       if (message.compare(0, 5, "+CSQ:") == 0) {
-        size_t comma = message.find(',', 6);
-        if (comma != 6) {
-          int rssi = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
+        size_t comma_pos = message.find(',');
+        int rssi_value = atoi(message.substr(6, comma_pos - 6).c_str());
+        float quality = 0.0f;
 
-#ifdef USE_SENSOR
-          if (this->rssi_sensor_ != nullptr) {
-            this->rssi_sensor_->publish_state(rssi);
-          } else {
-            ESP_LOGD(TAG, "RSSI: %d", rssi);
-          }
-#else
-          ESP_LOGD(TAG, "RSSI: %d", rssi);
-#endif
+        if (rssi_value >= 2 && rssi_value <= 30) {
+          quality = ((rssi_value - 2.0f) / 30.0f) * 100.0f;
+        }
+
+        if (this->rssi_sensor_ != nullptr) {
+          this->rssi_sensor_->publish_state(quality);
         }
       }
+
+      // ICCID Bilgisini Al
+      send_cmd_("AT+CCID");
+      this->state_ = STATE_GET_ICCID;
       this->expect_ack_ = true;
+      break;
+    case STATE_GET_ICCID:
+      if (message.compare(0, 7, "+CCID:") == 0) {
+        std::string iccid = message.substr(7);
+        iccid.erase(std::remove(iccid.begin(), iccid.end(), '\r'), iccid.end());
+        iccid.erase(std::remove(iccid.begin(), iccid.end(), '\n'), iccid.end());
+
+        if (this->iccid_sensor_ != nullptr) {
+          this->iccid_sensor_->publish_state(iccid);
+        }
+      }
+
+      // Durumu Sıfırla ve SMS kontrolüne geç
       this->state_ = STATE_CHECK_SMS;
       break;
-    case STATE_PARSE_SMS_RESPONSE:
-      if (message.compare(0, 6, "+CMGL:") == 0 && this->parse_index_ == 0) {
-        size_t start = 7;
-        size_t end = message.find(',', start);
-        uint8_t item = 0;
-        while (end != start) {
-          item++;
-          if (item == 1) {  // Slot Index
-            this->parse_index_ = parse_number<uint8_t>(message.substr(start, end - start)).value_or(0);
-          }
-          // item 2 = STATUS, usually "REC UNREAD"
-          if (item == 3) {  // recipient
-            // Add 1 and remove 2 from substring to get rid of "quotes"
-            this->sender_ = message.substr(start + 1, end - start - 2);
-            this->message_.clear();
-            break;
-          }
-          // item 4 = ""
-          // item 5 = Received timestamp
-          start = end + 1;
-          end = message.find(',', start);
-        }
-
-        if (item < 2) {
-          ESP_LOGD(TAG, "Invalid message %d %s", this->state_, message.c_str());
-          return;
-        }
-        this->state_ = STATE_RECEIVE_SMS;
-      }
-      // Otherwise we receive another OK
-      if (ok) {
-        send_cmd_("AT+CLCC");
-        this->state_ = STATE_CHECK_CALL;
-      }
-      break;
-    case STATE_CHECK_CALL:
-      if (message.compare(0, 6, "+CLCC:") == 0 && this->parse_index_ == 0) {
-        this->expect_ack_ = true;
-        size_t start = 7;
-        size_t end = message.find(',', start);
-        uint8_t item = 0;
-        while (end != start) {
-          item++;
-          // item 1 call index for +CHLD
-          // item 2 dir 0 Mobile originated; 1 Mobile terminated
-          if (item == 3) {  // stat
-            uint8_t current_call_state = parse_number<uint8_t>(message.substr(start, end - start)).value_or(6);
-            if (current_call_state != this->call_state_) {
-              ESP_LOGD(TAG, "Call state is now: %d", current_call_state);
-              if (current_call_state == 0)
-                this->call_connected_callback_.call();
-            }
-            this->call_state_ = current_call_state;
-            break;
-          }
-          // item 4 = ""
-          // item 5 = Received timestamp
-          start = end + 1;
-          end = message.find(',', start);
-        }
-
-        if (item < 2) {
-          ESP_LOGD(TAG, "Invalid message %d %s", this->state_, message.c_str());
-          return;
-        }
-      } else if (ok) {
-        if (this->call_state_ != 6) {
-          // no call in progress
-          this->call_state_ = 6;  // Disconnect
-          this->call_disconnected_callback_.call();
-        }
-      }
-      this->state_ = STATE_INIT;
-      break;
-    case STATE_RECEIVE_SMS:
-      /* Our recipient is set and the message body is in message
-        kick ESPHome callback now
-      */
-      if (ok || message.compare(0, 6, "+CMGL:") == 0) {
-        ESP_LOGD(TAG, "Received SMS from: %s", this->sender_.c_str());
-        ESP_LOGD(TAG, "%s", this->message_.c_str());
-        this->sms_received_callback_.call(this->message_, this->sender_);
-        this->state_ = STATE_RECEIVED_SMS;
-      } else {
-        if (this->message_.length() > 0)
-          this->message_ += "\n";
-        this->message_ += message;
-      }
-      break;
-    case STATE_RECEIVED_SMS:
-    case STATE_RECEIVED_USSD:
-      // Let the buffer flush. Next poll will request to delete the parsed index message.
-      break;
     case STATE_SENDING_SMS_1:
-      this->send_cmd_("AT+CMGS=\"" + this->recipient_ + "\"");
+      send_cmd_("AT+CMGS=\"" + this->send_to_ + "\"");
       this->state_ = STATE_SENDING_SMS_2;
       break;
     case STATE_SENDING_SMS_2:
-      if (message == ">") {
-        // Send sms body
-        ESP_LOGI(TAG, "Sending to %s message: '%s'", this->recipient_.c_str(), this->outgoing_message_.c_str());
-        this->write_str(this->outgoing_message_.c_str());
-        this->write(26);
-        this->state_ = STATE_SENDING_SMS_3;
-      } else {
-        set_registered_(false);
-        this->state_ = STATE_INIT;
-        this->send_cmd_("AT+CMEE=2");
-        this->write(26);
-      }
+      send_cmd_(this->message_ + std::string(1, static_cast<char>(26)));
+      this->state_ = STATE_SENDING_SMS_WAIT;
       break;
-    case STATE_SENDING_SMS_3:
-      if (message.compare(0, 6, "+CMGS:") == 0) {
-        ESP_LOGD(TAG, "SMS Sent OK: %s", message.c_str());
+    case STATE_SENDING_SMS_WAIT:
+      if (message == "OK") {
+        ESP_LOGI(TAG, "Send SMS: '%s' ok", this->message_.c_str());
+        this->state_ = STATE_INIT;
         this->send_pending_ = false;
-        this->state_ = STATE_CHECK_SMS;
-        this->expect_ack_ = true;
+      } else {
+        this->state_ = STATE_INIT;
+        this->set_registered_(false);
+        ESP_LOGW(TAG, "Send SMS: '%s' failed", this->message_.c_str());
       }
       break;
     case STATE_DIALING1:
-      this->send_cmd_("ATD" + this->recipient_ + ';');
+      send_cmd_("ATD" + this->send_to_ + ";");
       this->state_ = STATE_DIALING2;
       break;
     case STATE_DIALING2:
-      if (ok) {
-        ESP_LOGI(TAG, "Dialing: '%s'", this->recipient_.c_str());
+      if (message == "OK") {
+        ESP_LOGI(TAG, "Dial ok");
+        this->state_ = STATE_INIT;
         this->dial_pending_ = false;
       } else {
-        this->set_registered_(false);
-        this->send_cmd_("AT+CMEE=2");
-        this->write(26);
-      }
-      this->state_ = STATE_INIT;
-      break;
-    case STATE_PARSE_CLIP:
-      if (message.compare(0, 6, "+CLIP:") == 0) {
-        std::string caller_id;
-        size_t start = 7;
-        size_t end = message.find(',', start);
-        uint8_t item = 0;
-        while (end != start) {
-          item++;
-          if (item == 1) {  // Slot Index
-            // Add 1 and remove 2 from substring to get rid of "quotes"
-            caller_id = message.substr(start + 1, end - start - 2);
-            break;
-          }
-          // item 4 = ""
-          // item 5 = Received timestamp
-          start = end + 1;
-          end = message.find(',', start);
-        }
-        if (this->call_state_ != 4) {
-          this->call_state_ = 4;
-          ESP_LOGI(TAG, "Incoming call from %s", caller_id.c_str());
-          incoming_call_callback_.call(caller_id);
-        }
         this->state_ = STATE_INIT;
+        this->set_registered_(false);
+        ESP_LOGW(TAG, "Dial: '%s' failed", this->send_to_.c_str());
       }
       break;
     case STATE_ATA_SENT:
-      ESP_LOGI(TAG, "Call connected");
-      if (this->call_state_ != 0) {
-        this->call_state_ = 0;
-        this->call_connected_callback_.call();
+      if (message == "OK") {
+        ESP_LOGI(TAG, "Connect OK");
+        this->state_ = STATE_INIT;
+        this->call_state_ = 5;
+        this->call_received_callback_.call();
+      } else if (message == "NO CARRIER") {
+        this->state_ = STATE_INIT;
+        ESP_LOGW(TAG, "Connect failed");
       }
-      this->state_ = STATE_INIT;
+      break;
+    case STATE_RECEIVE_SMS:
+      this->state_ = STATE_PARSE_SMS;
+      this->incoming_sms_.clear();
+      this->incoming_sms_.append(message);
+      break;
+    case STATE_PARSE_SMS:
+      if (message.empty()) {
+        ESP_LOGW(TAG, "Invalid SMS message");
+        this->state_ = STATE_INIT;
+      } else if (message == "OK") {
+        this->state_ = STATE_RECEIVED_SMS;
+        ESP_LOGI(TAG, "Received SMS: '%s'", this->incoming_sms_.c_str());
+        if (this->sms_received_callback_)
+          this->sms_received_callback_.call(this->incoming_sms_);
+      } else {
+        this->incoming_sms_.append(message);
+        this->incoming_sms_.append("\n");
+      }
+      break;
+    case STATE_PARSE_SMS_RESPONSE:
+      if (message.compare(0, 6, "+CMGL:") == 0) {
+        // Example response:
+        // +CMGL: 1,"REC UNREAD","+31612345678",,"17/06/28,21:04:40+08"
+        // This matches the response index
+        this->parse_index_ = atoi(message.substr(7).c_str());
+        this->state_ = STATE_RECEIVE_SMS;
+        this->expect_ack_ = true;
+        this->parse_index_ = message[7] - '0';
+      } else if (message == "OK") {
+        this->state_ = STATE_INIT;
+      }
+      break;
+    case STATE_CHECK_CALL:
+      if (message.compare(0, 6, "+CLCC:") == 0) {
+        this->state_ = STATE_INIT;
+        int comma_index = message.find(',', 7);
+        if (comma_index != std::string::npos) {
+          if (message[comma_index + 1] == '0') {  // Outgoing call in progress
+            if (this->call_state_ != 0) {
+              this->call_state_ = 0;
+              this->call_dialing_callback_.call();
+            }
+          } else if (message[comma_index + 1] == '6') {  // Call alerting
+            if (this->call_state_ != 1) {
+              this->call_state_ = 1;
+              this->call_dialing_callback_.call();
+            }
+          } else if (message[comma_index + 1] == '2') {  // Incoming call
+            if (this->call_state_ != 2) {
+              this->call_state_ = 2;
+              this->call_received_callback_.call();
+            }
+          } else if (message[comma_index + 1] == '3') {  // Call active
+            if (this->call_state_ != 3) {
+              this->call_state_ = 3;
+              this->call_received_callback_.call();
+            }
+          } else if (message[comma_index + 1] == '0') {  // Call disconnected
+            if (this->call_state_ != 6) {
+              this->call_state_ = 6;
+              this->call_disconnected_callback_.call();
+            }
+          }
+        }
+      } else if (message == "OK") {
+        this->state_ = STATE_INIT;
+      }
       break;
     default:
-      ESP_LOGW(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
-      break;
+      ESP_LOGW(TAG, "Unhandled state %d", this->state_);
   }
-}  // namespace sim800l
-
-void Sim800LComponent::loop() {
-  // Read message
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-
-    if (this->read_pos_ == SIM800L_READ_BUFFER_LENGTH)
-      this->read_pos_ = 0;
-
-    ESP_LOGVV(TAG, "Buffer pos: %u %d", this->read_pos_, byte);  // NOLINT
-
-    if (byte == ASCII_CR)
-      continue;
-    if (byte >= 0x7F)
-      byte = '?';  // need to be valid utf8 string for log functions.
-    this->read_buffer_[this->read_pos_] = byte;
-
-    if (this->state_ == STATE_SENDING_SMS_2 && this->read_pos_ == 0 && byte == '>')
-      this->read_buffer_[++this->read_pos_] = ASCII_LF;
-
-    if (this->read_buffer_[this->read_pos_] == ASCII_LF) {
-      this->read_buffer_[this->read_pos_] = 0;
-      this->read_pos_ = 0;
-      this->parse_cmd_(this->read_buffer_);
-    } else {
-      this->read_pos_++;
-    }
-  }
-  if (state_ == STATE_INIT && this->registered_ &&
-      (this->call_state_ != 6  // A call is in progress
-       || this->send_pending_ || this->dial_pending_ || this->connect_pending_ || this->disconnect_pending_)) {
-    this->update();
-  }
-}
-
-void Sim800LComponent::send_sms(const std::string &recipient, const std::string &message) {
-  this->recipient_ = recipient;
-  this->outgoing_message_ = message;
-  this->send_pending_ = true;
-}
-
-void Sim800LComponent::send_ussd(const std::string &ussd_code) {
-  ESP_LOGD(TAG, "Sending USSD code: %s", ussd_code.c_str());
-  this->ussd_ = ussd_code;
-  this->send_ussd_pending_ = true;
-  this->update();
-}
-void Sim800LComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "SIM800L:");
-#ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Registered", this->registered_binary_sensor_);
-#endif
-#ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Rssi", this->rssi_sensor_);
-#endif
-}
-void Sim800LComponent::dial(const std::string &recipient) {
-  this->recipient_ = recipient;
-  this->dial_pending_ = true;
-}
-void Sim800LComponent::connect() { this->connect_pending_ = true; }
-void Sim800LComponent::disconnect() { this->disconnect_pending_ = true; }
-
-void Sim800LComponent::set_registered_(bool registered) {
-  this->registered_ = registered;
-#ifdef USE_BINARY_SENSOR
-  if (this->registered_binary_sensor_ != nullptr)
-    this->registered_binary_sensor_->publish_state(registered);
-#endif
 }
 
 }  // namespace sim800l

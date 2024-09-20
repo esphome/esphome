@@ -12,6 +12,7 @@ from . import CONF_SIM800L_ID, Sim800LComponent
 DEPENDENCIES = ["sim800l"]
 
 CONF_RSSI = "rssi"
+CONF_ICCID = "iccid"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_SIM800L_ID): cv.use_id(Sim800LComponent),
@@ -22,6 +23,7 @@ CONFIG_SCHEMA = {
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
+    cv.Optional(CONF_ICCID): sensor.sensor_schema(),
 }
 
 
@@ -31,3 +33,7 @@ async def to_code(config):
     if CONF_RSSI in config:
         sens = await sensor.new_sensor(config[CONF_RSSI])
         cg.add(sim800l_component.set_rssi_sensor(sens))
+
+    if CONF_ICCID in config:
+        sens = await sensor.new_sensor(config[CONF_ICCID])
+        cg.add(sim800l_component.set_iccid_sensor(sens))
