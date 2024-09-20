@@ -656,6 +656,7 @@ template<class T> class ExternalRAMAllocator {
     NONE = 0,
     REFUSE_INTERNAL = 1 << 0,  ///< Refuse falling back to internal memory when external RAM is full or unavailable.
     ALLOW_FAILURE = 1 << 1,    ///< Don't abort when memory allocation fails.
+    FORCE_INTERNAL = 1 << 2,   ///< Force using internal allocator at runtime
   };
 
   ExternalRAMAllocator() = default;
@@ -666,7 +667,9 @@ template<class T> class ExternalRAMAllocator {
     size_t size = n * sizeof(T);
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if ((this->flags_ & Flags::FORCE_INTERNAL) == 0) {
+      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    }
 #endif
     if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
       ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
