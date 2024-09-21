@@ -2,3 +2,21 @@ interval:
   - interval: 1s
     then:
       - logger.log: Tick
+  - interval: 2s
+    id: toggleable_interval
+    autostart: false
+    then:
+      - logger.log: "Not ticking"
+  - interval: 3s
+    startup_delay: 10s
+    then:
+      - logger.log: "delayed ticking"
+
+switch:
+  - platform: template
+    id: pause_interval
+    optimistic: true
+    turn_on_action:
+      - interval.start: toggleable_interval
+    turn_off_action:
+      - interval.stop: toggleable_interval
