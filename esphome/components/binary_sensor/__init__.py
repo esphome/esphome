@@ -4,8 +4,10 @@ import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_COUNT,
     CONF_DELAY,
     CONF_DEVICE_CLASS,
+    CONF_DURATION,
     CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
     CONF_ICON,
@@ -103,6 +105,8 @@ DEFAULT_DELAY = "1s"
 DEFAULT_TIME_OFF = "100ms"
 DEFAULT_TIME_ON = "900ms"
 
+DEFAULT_COUNT = "2"
+DEFAULT_DURATION = "250ms"
 
 binary_sensor_ns = cg.esphome_ns.namespace("binary_sensor")
 BinarySensor = binary_sensor_ns.class_("BinarySensor", cg.EntityBase)
@@ -143,6 +147,7 @@ InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter, cg.Component)
+GlitchFilter = binary_sensor_ns.class_("GlitchFilter", Filter, cg.Component)
 
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
@@ -271,6 +276,30 @@ async def settle_filter_to_code(config, filter_id):
     await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
+    return var
+
+
+@register_filter(
+    "glitch",
+    GlitchFilter,
+    cv.Schema(
+        {
+            cv.Optional(CONF_DURATION, default=DEFAULT_DURATION): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+            cv.Optional(CONF_COUNT, default=DEFAULT_COUNT): cv.templatable(
+                cv.int_range(min=2)
+            ),
+        }
+    ),
+)
+async def delayed_glitch_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id)
+    await cg.register_component(var, {})
+    template_ = await cg.templatable(config[CONF_DURATION], [], cg.uint32)
+    cg.add(var.set_duration(template_))
+    template_ = await cg.templatable(config[CONF_COUNT], [], cg.uint32)
+    cg.add(var.set_count(template_))
     return var
 
 

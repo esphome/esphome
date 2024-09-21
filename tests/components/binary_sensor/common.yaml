@@ -1,0 +1,17 @@
+binary_sensor:
+  - platform: template
+    id: button1
+    filters:
+      - glitch
+      - settle: 500ms
+    on_press:
+      - logger.log: Button1 pressed
+  - platform: template
+    id: button2
+    filters:
+      - glitch:
+        count: 3
+        duration: 100ms
+      - settle: 250ms
+    on_press:
+      - logger.log: Button2 pressed

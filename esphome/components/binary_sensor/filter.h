@@ -121,6 +121,22 @@ class SettleFilter : public Filter, public Component {
   bool steady_{true};
 };
 
+class GlitchFilter : public Filter, public Component {
+ public:
+  optional<bool> new_value(bool value, bool is_initial) override;
+
+  float get_setup_priority() const override;
+
+  template<typename T> void set_duration(T duration) { this->timeout_ = duration; }
+  template<typename T> void set_count(T count) { this->count_ = count; }
+
+ protected:
+  TemplatableValue<uint32_t> timeout_{};
+  TemplatableValue<uint32_t> count_{};
+  uint32_t repeats_{0};
+  Deduplicator<bool> leadDedup_;
+};
+
 }  // namespace binary_sensor
 
 }  // namespace esphome

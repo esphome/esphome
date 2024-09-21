@@ -128,6 +128,21 @@ optional<bool> SettleFilter::new_value(bool value, bool is_initial) {
 
 float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
+optional<bool> GlitchFilter::new_value(bool value, bool is_initial) {
+  if (repeats_ >= count_.value()) {
+    this->set_timeout("REPEAT", this->timeout_.value(), [this]() { this->repeats_ = 0; });
+    this->output(value, is_initial);
+  } else {
+    if (this->dedup_.next(value)) {
+      this->set_timeout("REPEAT", this->timeout_.value(), [this]() { this->repeats_ = 0; });
+      this->repeats_++;
+    }
+  }
+  return {};
+}
+
+float GlitchFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 }  // namespace binary_sensor
 
 }  // namespace esphome
