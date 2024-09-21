@@ -10,8 +10,8 @@ binary_sensor:
     id: button2
     filters:
       - glitch:
-        count: 3
-        duration: 100ms
+          count: 3
+          duration: 100ms
       - settle: 250ms
     on_press:
       - logger.log: Button2 pressed

@@ -134,7 +134,6 @@ class GlitchFilter : public Filter, public Component {
   TemplatableValue<uint32_t> timeout_{};
   TemplatableValue<uint32_t> count_{};
   uint32_t repeats_{0};
-  Deduplicator<bool> leadDedup_;
 };
 
 }  // namespace binary_sensor
