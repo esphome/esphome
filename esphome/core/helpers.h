@@ -660,7 +660,7 @@ template<class T> class ExternalRAMAllocator {
   };
 
   ExternalRAMAllocator() = default;
-  ExternalRAMAllocator(Flags flags) : flags_{flags} {}
+  ExternalRAMAllocator(uint8_t flags) : flags_{flags} {}
   template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
@@ -683,7 +683,7 @@ template<class T> class ExternalRAMAllocator {
   }
 
  private:
-  Flags flags_{Flags::ALLOW_FAILURE};
+  uint8_t flags_{Flags::ALLOW_FAILURE};
 };
 
 /// @}
