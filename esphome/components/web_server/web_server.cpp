@@ -1,5 +1,5 @@
 #include "web_server.h"
-
+#ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -1012,6 +1012,16 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
       call.set_mode(mode.c_str());
     }
 
+    if (request->hasParam("fan_mode")) {
+      auto mode = request->getParam("fan_mode")->value();
+      call.set_fan_mode(mode.c_str());
+    }
+
+    if (request->hasParam("swing_mode")) {
+      auto mode = request->getParam("swing_mode")->value();
+      call.set_swing_mode(mode.c_str());
+    }
+
     if (request->hasParam("target_temperature_high")) {
       auto target_temperature_high = parse_number<float>(request->getParam("target_temperature_high")->value().c_str());
       if (target_temperature_high.has_value())
@@ -1659,3 +1669,4 @@ void WebServer::schedule_(std::function<void()> &&f) {
 
 }  // namespace web_server
 }  // namespace esphome
+#endif

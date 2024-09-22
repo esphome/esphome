@@ -15,6 +15,7 @@ CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
+TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
 Tuya = tuya_ns.class_("Tuya", cg.Component, uart.UARTDevice)
 
 DPTYPE_ANY = "any"
