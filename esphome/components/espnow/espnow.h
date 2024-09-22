@@ -110,6 +110,11 @@ struct ESPNowPacket {
     // this->update_payload_();
     return this->content.payload[this->size];
   }
+  uint8_t calc_crc() {
+    uint8_t crc = esp_crc8_le(0, (const uint8_t *) &(this->content.protocol), 2);
+    crc = esp_crc8_le(crc, this->peer_as_bytes(), 6);
+    return esp_crc8_le(crc, (const uint8_t *) &this->content, this->size);
+  }
 
   void retry() { this->attempts++; }
   bool is_valid();
@@ -117,19 +122,13 @@ struct ESPNowPacket {
  private:
   ByteBuffer *payload_buffer_{nullptr};
 
-  uint8_t calc_crc_() {
-    uint8_t crc = esp_crc8_le(0, (const uint8_t *) &(this->content.protocol), 2);
-    crc = esp_crc8_le(crc, this->peer_as_bytes(), 6);
-    return esp_crc8_le(crc, (const uint8_t *) &this->content, this->size);
-  }
-
   void update_payload_() {
     if (this->payload_buffer_->is_changed()) {
       this->payload_buffer_->flip();
       this->payload_buffer_->get_bytes((uint8_t *) &(this->content.payload), this->payload_buffer_->get_used_space());
       this->size = this->payload_buffer_->get_used_space() + this->prefix_size();
     }
-    this->content.payload[this->size] = this->calc_crc_();
+    this->content.payload[this->size] = this->calc_crc();
   }
 };
 
