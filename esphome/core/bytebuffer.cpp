@@ -85,7 +85,7 @@ void ByteBuffer::flip() {
 uint8_t ByteBuffer::get_uint8() {
   assert(this->get_remaining() >= 1);
   this->position_++;
-  this->update_used_space_();
+  this->update_();
   return this->data_[this->position_];
 }
 uint64_t ByteBuffer::get_uint(size_t length) {
@@ -104,7 +104,7 @@ uint64_t ByteBuffer::get_uint(size_t length) {
       value |= this->data_[this->position_++];
     }
   }
-  this->update_used_space_();
+  this->update_();
   return value;
 }
 
@@ -128,7 +128,7 @@ std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
   assert(this->get_remaining() >= length);
   auto start = this->data_.begin() + this->position_;
   this->position_ += length;
-  this->update_used_space_();
+  this->update_();
   return {start, start + length};
 }
 void ByteBuffer::get_bytes(uint8_t *value, size_t length) {
@@ -137,14 +137,14 @@ void ByteBuffer::get_bytes(uint8_t *value, size_t length) {
   while (length-- != 0) {
     *(value + index++) = this->data_[this->position_++];
   }
-  this->update_used_space_();
+  this->update_();
 }
 
 /// Putters
 void ByteBuffer::put_uint8(uint8_t value) {
   assert(this->get_remaining() >= 1);
   this->data_[this->position_++] = value;
-  this->update_used_space_();
+  this->update_();
 }
 
 void ByteBuffer::put_uint(uint64_t value, size_t length) {
@@ -162,7 +162,7 @@ void ByteBuffer::put_uint(uint64_t value, size_t length) {
       value >>= 8;
     }
   }
-  this->update_used_space_();
+  this->update_();
 }
 void ByteBuffer::put_float(float value) {
   static_assert(sizeof(float) == sizeof(uint32_t), "Float sizes other than 32 bit not supported");
@@ -178,7 +178,7 @@ void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   assert(this->get_remaining() >= value.size());
   std::copy(value.begin(), value.end(), this->data_.begin() + this->position_);
   this->position_ += value.size();
-  this->update_used_space_();
+  this->update_();
 }
 void ByteBuffer::put_bytes(const uint8_t *value, size_t length) {
   assert(this->get_remaining() >= length);
@@ -186,7 +186,7 @@ void ByteBuffer::put_bytes(const uint8_t *value, size_t length) {
   while (length-- != 0) {
     this->data_[this->position_++] = static_cast<uint8_t>(*(value + index++));
   }
-  this->update_used_space_();
+  this->update_();
 }
 
 }  // namespace esphome

@@ -136,9 +136,16 @@ class ByteBuffer {
   void reset() { this->position_ = this->mark_; }
   void resize() { this->used_space_ = this->position_; }
 
+  bool is_changed() {
+    bool changed = this->is_changed_;
+    this->is_changed_ = false;
+    return changed;
+  }
+
  protected:
   ByteBuffer(std::vector<uint8_t> const &data) : data_(data), limit_(data.size()) {}
-  void update_used_space_() {
+  void update_() {
+    this->is_changed_ = true;
     if (this->used_space_ < this->position_) {
       this->resize();
     }
@@ -149,6 +156,7 @@ class ByteBuffer {
   size_t mark_{0};
   size_t limit_{0};
   size_t used_space_{0};
+  bool is_changed_{false};
 };
 
 }  // namespace esphome
