@@ -321,23 +321,21 @@ class ESPNowSentTrigger : public Trigger<ESPNowPacket *, bool> {
  public:
   explicit ESPNowSentTrigger(ESPNowComponent *parent) {
     parent->get_default_protocol()->add_on_sent_callback(
-        [this](ESPNowPacket *packet, bool status) { this->trigger(std::move(packet), status); });
+        [this](ESPNowPacket *packet, bool status) { this->trigger(packet, status); });
   }
 };
 
 class ESPNowReceiveTrigger : public Trigger<ESPNowPacket *> {
  public:
   explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_receive_callback(
-        [this](ESPNowPacket *packet) { this->trigger(std::move(packet)); });
+    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
   }
 };
 
 class ESPNowNewPeerTrigger : public Trigger<ESPNowPacket *> {
  public:
   explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_peer_callback(
-        [this](ESPNowPacket *packet) { this->trigger(std::move(packet)); });
+    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
   }
 };
 

@@ -69,7 +69,7 @@ bool ESPNowPacket::is_valid() {
 bool ESPNowProtocol::write(uint64_t peer, const uint8_t *data, uint8_t len) {
   ESPNowPacket *packet = new ESPNowPacket(peer, data, len, this->get_protocol_id());
   packet->set_sequents(this->get_next_sequents());
-  return this->parent_->write(std::move(packet));
+  return this->parent_->write(packet);
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
@@ -216,21 +216,21 @@ ESPNowProtocol *ESPNowComponent::get_protocol_(uint32_t protocol) {
 void ESPNowComponent::on_receive_(ESPNowPacket *packet) {
   ESPNowProtocol *protocol = this->get_protocol_(packet->get_protocol());
   if (protocol != nullptr) {
-    protocol->on_receive(std::move(packet));
+    protocol->on_receive(packet);
   }
 }
 
 void ESPNowComponent::on_sent_(ESPNowPacket *packet, bool status) {
   ESPNowProtocol *protocol = this->get_protocol_(packet->get_protocol());
   if (protocol != nullptr) {
-    protocol->on_sent(std::move(packet), status);
+    protocol->on_sent(packet, status);
   }
 }
 
 void ESPNowComponent::on_new_peer_(ESPNowPacket *packet) {
   ESPNowProtocol *protocol = this->get_protocol_(packet->get_protocol());
   if (protocol != nullptr) {
-    protocol->on_new_peer(std::move(packet));
+    protocol->on_new_peer(packet);
   }
 }
 
@@ -298,7 +298,7 @@ bool ESPNowComponent::write(ESPNowPacket *packet) {
     esp_err_t err = esp_now_send((uint8_t *) &mac, packet->content_bytes(), packet->get_size());
     ESP_LOGVV(TAG, "S: 0x%04x.%d B: %d%s.", packet->get_sequents(), packet->attempts, this->send_queue_used(),
               (err == ESP_OK) ? "" : " FAILED");
-    this->defer([this, packet, err]() { this->on_sent_(std::move(packet), err == ESP_OK); });
+    this->defer([this, packet, err]() { this->on_sent_(packet, err == ESP_OK); });
     return true;
   }
 
@@ -309,24 +309,22 @@ void ESPNowComponent::runner() {
   ESPNowPacket *packet{nullptr};
 
   for (;;) {
-    if (packet != nullptr)
-      delete packet;
+    delete packet;
     packet = new ESPNowPacket();
     if (xQueueReceive(this->receive_queue_, packet, (TickType_t) 1) == pdTRUE) {
       uint8_t *mac = packet->peer_as_bytes();
 
       if (!esp_now_is_peer_exist(mac)) {
         if (!this->auto_add_peer_) {
-          this->defer([this, packet]() { this->on_new_peer_(std::move(packet)); });
+          this->defer([this, packet]() { this->on_new_peer_(packet); });
           continue;
         } else {
           this->add_peer(packet->peer);
         }
       }
-      this->defer([this, packet]() { this->on_receive_(std::move(packet)); });
+      this->defer([this, packet]() { this->on_receive_(packet); });
     }
-    if (packet != nullptr)
-      delete packet;
+    delete packet;
     packet = new ESPNowPacket();
     if (xQueueReceive(this->send_queue_, packet, (TickType_t) 1) == pdTRUE) {
       if (packet->attempts > MAX_NUMBER_OF_RETRYS) {
@@ -374,7 +372,7 @@ void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_
     } else {
       ESP_LOGV(TAG, "Confirm sent (0x%04x.%d)", packet->get_sequents(), packet->attempts);
       global_esp_now->defer([packet]() {
-        global_esp_now->on_sent_(std::move(packet), true);
+        global_esp_now->on_sent_(packet, true);
         delete packet;
         ESPNowPacket tmp;
         xQueueReceive(global_esp_now->send_queue_, &tmp, 10 / portTICK_PERIOD_MS);
@@ -384,7 +382,7 @@ void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_
       return;
     }
     global_esp_now->defer([packet]() {
-      global_esp_now->on_sent_(std::move(packet), false);
+      global_esp_now->on_sent_(packet, false);
       ESPNowPacket tmp;
       xQueueReceive(global_esp_now->send_queue_, &tmp, 10 / portTICK_PERIOD_MS);
       xQueueSendToFront(global_esp_now->send_queue_, &tmp, 10 / portTICK_PERIOD_MS);
