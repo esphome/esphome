@@ -120,6 +120,8 @@ void EthernetComponent::setup() {
   phy_config.reset_gpio_num = this->reset_pin_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+#elif defined(USE_ETHERNET_OPENETH)
+  esp_eth_mac_t *mac = esp_eth_mac_new_openeth(&mac_config);
 #else
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
@@ -143,6 +145,13 @@ void EthernetComponent::setup() {
 #endif
 
   switch (this->type_) {
+#ifdef USE_ETHERNET_OPENETH
+    case ETHERNET_TYPE_OPENETH: {
+      phy_config.autonego_timeout_ms = 1000;
+      this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
+      break;
+    }
+#endif
 #if CONFIG_ETH_USE_ESP32_EMAC
     case ETHERNET_TYPE_LAN8720: {
       this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
@@ -300,6 +309,10 @@ void EthernetComponent::dump_config() {
 
     case ETHERNET_TYPE_W5500:
       eth_type = "W5500";
+      break;
+
+    case ETHERNET_TYPE_OPENETH:
+      eth_type = "OPENETH";
       break;
 
     default:
