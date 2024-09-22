@@ -31,6 +31,7 @@ cover:
     close_endstop: close_endstop_sensor
     close_sensor: close_sensor
     close_obstacle_sensor: close_obstacle_sensor
+    overshoot_duration: 2s
     open_action:
       - logger.log: Open Action
     close_action:
