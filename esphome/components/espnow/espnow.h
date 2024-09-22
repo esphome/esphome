@@ -20,8 +20,6 @@
 namespace esphome {
 namespace espnow {
 
-typedef uint8_t espnow_addr_t[6];
-
 static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
 
 static uint64_t ESPNOW_ADDR_SELF = {0};
@@ -38,8 +36,6 @@ static const uint8_t MAX_NUMBER_OF_RETRYS = 5;
 static const uint32_t TRANSPORT_HEADER = 0xC19983;
 static const uint32_t ESPNOW_MAIN_PROTOCOL_ID = 0x11CFAF;
 
-static uint8_t last_ref_id = 0;
-
 struct ESPNowPacket {
   uint64_t peer{0};
   uint8_t rssi{0};
@@ -54,7 +50,8 @@ struct ESPNowPacket {
     uint8_t payload[MAX_ESPNOW_DATA_SIZE + 2]{0};
   } __attribute__((packed)) content;
 
-  ESPNowPacket() { this->payload_buffer_ = new ByteBuffer(MAX_ESPNOW_DATA_SIZE); };
+  ESPNowPacket(){};
+  ~ESPNowPacket(){};
 
   // Create packet to be send.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t protocol);
@@ -91,7 +88,7 @@ struct ESPNowPacket {
   }
 
   ByteBuffer *payload() {
-    this->payload_buffer_->set_position(this->payload_buffer_->get_used_space());
+    this->payload_buffer_.set_position(this->payload_buffer_.get_used_space());
     return this->payload_buffer_;
   }
 
@@ -120,13 +117,13 @@ struct ESPNowPacket {
   bool is_valid();
 
  private:
-  ByteBuffer *payload_buffer_{nullptr};
+  ByteBuffer payload_buffer_(MAX_ESPNOW_DATA_SIZE);
 
   void update_payload_() {
-    if (this->payload_buffer_->is_changed()) {
-      this->payload_buffer_->flip();
-      this->payload_buffer_->get_bytes((uint8_t *) &(this->content.payload), this->payload_buffer_->get_used_space());
-      this->size = this->payload_buffer_->get_used_space() + this->prefix_size();
+    if (this->payload_buffer_.is_changed()) {
+      this->payload_buffer_.flip();
+      this->payload_buffer_.get_bytes((uint8_t *) &(this->content.payload), this->payload_buffer_.get_used_space());
+      this->size = this->payload_buffer_.get_used_space() + this->prefix_size();
     }
     this->content.payload[this->size] = this->calc_crc();
   }
@@ -138,9 +135,9 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
  public:
   ESPNowProtocol(){};
 
-  virtual void on_receive(ESPNowPacket *data_packet){};
-  virtual void on_sent(ESPNowPacket *data_packet, bool status){};
-  virtual void on_new_peer(ESPNowPacket *data_packet){};
+  virtual void on_receive(ESPNowPacket *packet){};
+  virtual void on_sent(ESPNowPacket *packet, bool status){};
+  virtual void on_new_peer(ESPNowPacket *packet){};
 
   virtual uint32_t get_protocol_id() = 0;
   uint8_t get_next_sequents() {
@@ -174,17 +171,17 @@ class ESPNowDefaultProtocol : public ESPNowProtocol {
   void add_on_receive_callback(std::function<void(ESPNowPacket *)> &&callback) {
     this->on_receive_.add(std::move(callback));
   }
-  void on_receive(ESPNowPacket *data_packet) override { this->on_receive_.call(packet); };
+  void on_receive(ESPNowPacket *packet) override { this->on_receive_.call(packet); };
 
   void add_on_sent_callback(std::function<void(ESPNowPacket *, bool status)> &&callback) {
     this->on_sent_.add(std::move(callback));
   }
-  void on_sent(ESPNowPacket *data_packet, bool status) override { this->on_sent_.call(packet, status); };
+  void on_sent(ESPNowPacket *packet, bool status) override { this->on_sent_.call(packet, status); };
 
   void add_on_peer_callback(std::function<void(ESPNowPacket *)> &&callback) {
     this->on_new_peer_.add(std::move(callback));
   }
-  void on_new_peer(ESPNowPacket *data_packet) override { this->on_new_peer_.call(packet); };
+  void on_new_peer(ESPNowPacket *packet) override { this->on_new_peer_.call(packet); };
 
  protected:
   CallbackManager<void(ESPNowPacket *, bool)> on_sent_;
@@ -216,7 +213,7 @@ class ESPNowComponent : public Component {
 
   void runner();
 
-  bool write(ESPNowPacket *data_packet);
+  bool write(ESPNowPacket *packet);
 
   void register_protocol(ESPNowProtocol *protocol) {
     protocol->set_parent(this);
@@ -247,9 +244,9 @@ class ESPNowComponent : public Component {
   bool use_sent_check_{true};
   bool lock_{false};
 
-  void on_receive_(ESPNowPacket *data_packet);
-  void on_sent_(ESPNowPacket *data_packet, bool status);
-  void on_new_peer_(ESPNowPacket *data_packet);
+  void on_receive_(ESPNowPacket *packet);
+  void on_sent_(ESPNowPacket *packet, bool status);
+  void on_new_peer_(ESPNowPacket *packet);
 
   QueueHandle_t receive_queue_{};
   QueueHandle_t send_queue_{};
