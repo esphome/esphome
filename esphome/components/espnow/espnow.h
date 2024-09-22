@@ -50,14 +50,15 @@ struct ESPNowPacket {
     uint8_t payload[MAX_ESPNOW_DATA_SIZE + 2]{0};
   } __attribute__((packed)) content;
 
-  ESPNowPacket(){};
-  ~ESPNowPacket(){};
+  ESPNowPacket() { this->payload_buffer_ = make_unique(new ByteBuffer(MAX_ESPNOW_DATA_SIZE)); };
 
   // Create packet to be send.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t protocol);
 
   // Load received packet's.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size);
+
+  ~ESPNowPacket() { delete this->payload_buffer_; }
 
   uint8_t *peer_as_bytes() { return (uint8_t *) &(this->peer); }
   void set_peer(uint64_t peer) {
@@ -88,7 +89,7 @@ struct ESPNowPacket {
   }
 
   ByteBuffer *payload() {
-    this->payload_buffer_.set_position(this->payload_buffer_.get_used_space());
+    this->payload_buffer_->set_position(this->payload_buffer_->get_used_space());
     return this->payload_buffer_;
   }
 
@@ -117,13 +118,13 @@ struct ESPNowPacket {
   bool is_valid();
 
  private:
-  ByteBuffer payload_buffer_(MAX_ESPNOW_DATA_SIZE);
+  std::unique<ByteBuffer> payload_buffer_{nullptr};
 
   void update_payload_() {
-    if (this->payload_buffer_.is_changed()) {
-      this->payload_buffer_.flip();
-      this->payload_buffer_.get_bytes((uint8_t *) &(this->content.payload), this->payload_buffer_.get_used_space());
-      this->size = this->payload_buffer_.get_used_space() + this->prefix_size();
+    if (this->payload_buffer_->is_changed()) {
+      this->payload_buffer_->flip();
+      this->payload_buffer_->get_bytes((uint8_t *) &(this->content.payload), this->payload_buffer_->get_used_space());
+      this->size = this->payload_buffer_->get_used_space() + this->prefix_size();
     }
     this->content.payload[this->size] = this->calc_crc();
   }
