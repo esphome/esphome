@@ -23,6 +23,7 @@ CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
 CONF_INFER_ENDSTOP_FROM_MOVEMENT = "infer_endstop_from_movement"
 CONF_DIRECTION_CHANGE_WAIT_TIME = "direction_change_wait_time"
 CONF_ACCELERATION_WAIT_TIME = "acceleration_wait_time"
+CONF_OVERSHOOT_DURATION = "overshoot_duration"
 CONF_OBSTACLE_ROLLBACK = "obstacle_rollback"
 
 endstop_ns = cg.esphome_ns.namespace("feedback")
@@ -80,6 +81,9 @@ CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
             ): cv.positive_time_period_milliseconds,
             cv.Optional(
                 CONF_ACCELERATION_WAIT_TIME, "0s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_OVERSHOOT_DURATION, "0s"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
         },
@@ -159,4 +163,5 @@ async def to_code(config):
             var.set_direction_change_waittime(config[CONF_DIRECTION_CHANGE_WAIT_TIME])
         )
     cg.add(var.set_acceleration_wait_time(config[CONF_ACCELERATION_WAIT_TIME]))
+    cg.add(var.set_overshoot_duration(config[CONF_OVERSHOOT_DURATION]))
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))
