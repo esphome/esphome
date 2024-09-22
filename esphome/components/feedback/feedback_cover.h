@@ -35,6 +35,7 @@ class FeedbackCover : public cover::Cover, public Component {
   void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
+  void set_overshoot_duration(uint32_t overshoot_duration) { this->overshoot_duration_ = overshoot_duration; }
   void set_obstacle_rollback(float obstacle_rollback) { this->obstacle_rollback_ = obstacle_rollback; }
   void set_update_interval(uint32_t interval) { this->update_interval_ = interval; }
   void set_infer_endstop(bool infer_endstop) { this->infer_endstop_ = infer_endstop; }
@@ -69,6 +70,7 @@ class FeedbackCover : public cover::Cover, public Component {
   uint32_t open_duration_{0};
   uint32_t close_duration_{0};
   uint32_t max_duration_{UINT32_MAX};
+  uint32_t overshoot_duration_{0};
   optional<uint32_t> direction_change_waittime_{};
   uint32_t acceleration_wait_time_{0};
   bool has_built_in_endstop_{false};
@@ -82,6 +84,7 @@ class FeedbackCover : public cover::Cover, public Component {
   uint32_t last_recompute_time_{0};
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
+  uint32_t start_overshoot_time_{0};
   float target_position_{0};
   uint32_t update_interval_{1000};
 };
