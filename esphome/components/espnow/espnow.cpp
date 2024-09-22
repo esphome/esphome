@@ -43,7 +43,7 @@ void show_packet(std::string title, ESPNowPacket *packet) {
   ESP_LOGVV(TAG, "%s packet: M:%s H:%cx%cx%c  P:%c%c%c 0x%02x  S:%02x  C:ox%02x~0x%02x S:%02d V:%s", title,
             format_mac_addr(packet->peer_as_bytes()).c_str(), packet->content_at(0), packet->content_at(1),
             packet->content_at(2), packet->content_at(3), packet->content_at(4), packet->content_at(5),
-            packet->content_at(6), packet->content_at(7), packet->crc(), packet->calc_crc() packet->get_size(),
+            packet->content_at(6), packet->content_at(7), packet->crc(), packet->calc_crc(), packet->get_size(),
             packet->is_valid() ? "Yes" : "No");
 }
 
