@@ -107,7 +107,7 @@ struct ESPNowPacket {
   }
 
   uint8_t crc() {
-    this->update_payload_();
+    // this->update_payload_();
     return this->content.payload[this->size];
   }
 
@@ -175,19 +175,17 @@ class ESPNowDefaultProtocol : public ESPNowProtocol {
   void add_on_receive_callback(std::function<void(ESPNowPacket *)> &&callback) {
     this->on_receive_.add(std::move(callback));
   }
-  void on_receive(ESPNowPacket *data_packet) override { this->on_receive_.call(std::move(data_packet)); };
+  void on_receive(ESPNowPacket *data_packet) override { this->on_receive_.call(packet); };
 
   void add_on_sent_callback(std::function<void(ESPNowPacket *, bool status)> &&callback) {
     this->on_sent_.add(std::move(callback));
   }
-  void on_sent(ESPNowPacket *data_packet, bool status) override {
-    this->on_sent_.call(std::move(data_packet), status);
-  };
+  void on_sent(ESPNowPacket *data_packet, bool status) override { this->on_sent_.call(packet, status); };
 
   void add_on_peer_callback(std::function<void(ESPNowPacket *)> &&callback) {
     this->on_new_peer_.add(std::move(callback));
   }
-  void on_new_peer(ESPNowPacket *data_packet) override { this->on_new_peer_.call(std::move(data_packet)); };
+  void on_new_peer(ESPNowPacket *data_packet) override { this->on_new_peer_.call(packet); };
 
  protected:
   CallbackManager<void(ESPNowPacket *, bool)> on_sent_;
