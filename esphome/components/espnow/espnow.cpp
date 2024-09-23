@@ -39,12 +39,12 @@ std::string format_mac_addr(const uint8_t *mac) {
   sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return buf;
 }
-void show_packet(const std::string &title, const ESPNowPacketPtr &packet) {
+void show_packet(const std::string &title, const ESPNowPacket &packet) {
   ESP_LOGVV(TAG, "%s packet: M:%s H:%cx%cx%c  P:%c%c%c 0x%02x  S:%02x  C:ox%02x~0x%02x S:%02d V:%s", "test",
-            format_mac_addr(packet->peer_as_bytes()).c_str(), packet->content_at(0), packet->content_at(1),
-            packet->content_at(2), packet->content_at(3), packet->content_at(4), packet->content_at(5),
-            packet->content_at(6), packet->content_at(7), packet->crc(), packet->calc_crc(), packet->get_size(),
-            packet->is_valid() ? "Yes" : "No");
+            format_mac_addr(packet.peer_as_bytes()).c_str(), packet.content_at(0), packet.content_at(1),
+            packet.content_at(2), packet.content_at(3), packet.content_at(4), packet.content_at(5),
+            packet.content_at(6), packet.content_at(7), packet.crc(), packet.calc_crc(), packet.get_size(),
+            packet.is_valid() ? "Yes" : "No");
 }
 
 /* ESPNowPacket ********************************************************************** */
@@ -78,7 +78,7 @@ bool ESPNowPacket::is_valid() {
 /* ESPNowProtocol ********************************************************************** */
 
 bool ESPNowProtocol::write(uint64_t peer, const uint8_t *data, uint8_t len) {
-  ESPNowPacketPtr packet = std::make_shared<ESPNowPacket>(peer, data, len, this->get_protocol_id());
+  std::shared_ptr<ESPNowPacket> packet = std::make_shared<ESPNowPacket>(peer, data, len, this->get_protocol_id());
   packet->set_sequents(this->get_next_sequents());
   return this->parent_->write(packet);
 }
@@ -215,21 +215,21 @@ ESPNowProtocol *ESPNowComponent::get_protocol_(uint32_t protocol) {
   return this->protocols_[protocol];
 }
 
-void ESPNowComponent::on_receive_(const ESPNowPacketPtr &packet) {
+void ESPNowComponent::on_receive_(const std::shared_ptr<ESPNowPacket> packet) {
   ESPNowProtocol *protocol = this->get_protocol_(packet->get_protocol());
   if (protocol != nullptr) {
     protocol->on_receive(packet);
   }
 }
 
-void ESPNowComponent::on_sent_(const ESPNowPacketPtr &packet, bool status) {
+void ESPNowComponent::on_sent_(const std::shared_ptr<ESPNowPacket> packet, bool status) {
   ESPNowProtocol *protocol = this->get_protocol_(packet->get_protocol());
   if (protocol != nullptr) {
     protocol->on_sent(packet, status);
   }
 }
 
-void ESPNowComponent::on_new_peer_(const ESPNowPacketPtr &packet) {
+void ESPNowComponent::on_new_peer_(const std::shared_ptr<ESPNowPacket> packet) {
   ESPNowProtocol *protocol = this->get_protocol_(packet->get_protocol());
   if (protocol != nullptr) {
     protocol->on_new_peer(packet);
@@ -255,7 +255,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
       (wifi_promiscuous_pkt_t *) (data - sizeof(wifi_pkt_rx_ctrl_t) - 39);  // = sizeof (espnow_frame_format_t)
   rx_ctrl = &promiscuous_pkt->rx_ctrl;
 #endif
-  ESPNowPacketPtr packet = std::make_shared<ESPNowPacket>((uint64_t) *addr, data, (uint8_t) size);
+  std::shared_ptr<ESPNowPacket> packet = std::make_shared<ESPNowPacket>((uint64_t) *addr, data, (uint8_t) size);
   packet->is_broadcast = broadcast;
   if (rx_ctrl != nullptr) {
     packet->rssi = rx_ctrl->rssi;
@@ -272,7 +272,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
   }
 }
 
-bool ESPNowComponent::write(const ESPNowPacketPtr &packet) {
+bool ESPNowComponent::write(const std::shared_ptr<ESPNowPacket> packet) {
   uint8_t *mac = packet->peer_as_bytes();
   show_packet("Write", packet);
   if (this->is_failed()) {
@@ -293,7 +293,7 @@ bool ESPNowComponent::write(const ESPNowPacketPtr &packet) {
     esp_err_t err = esp_now_send((uint8_t *) &mac, packet->content_bytes(), packet->get_size());
     ESP_LOGVV(TAG, "S: 0x%04x.%d B: %d%s.", packet->get_sequents(), packet->attempts, this->send_queue_used(),
               (err == ESP_OK) ? "" : " FAILED");
-    this->defer([this, packet, err]() { this->on_sent_(packet, err == ESP_OK); });  // std::move(packet)
+    this->defer([this, packet, err]() { this->on_sent_(packet, err == ESP_OK); });
     return true;
   }
 
@@ -301,7 +301,7 @@ bool ESPNowComponent::write(const ESPNowPacketPtr &packet) {
 }
 
 void ESPNowComponent::runner() {
-  ESPNowPacketPtr packet{nullptr};
+  std::shared_ptr<ESPNowPacket> packet{nullptr};
 
   for (;;) {
     packet = std::make_shared<ESPNowPacket>();
@@ -351,7 +351,7 @@ void ESPNowComponent::runner() {
 }
 
 void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  ESPNowPacketPtr packet = std::make_shared<ESPNowPacket>();
+  std::shared_ptr<ESPNowPacket> packet = std::make_shared<ESPNowPacket>();
   if (!global_esp_now->use_sent_check_) {
     return;
   }
