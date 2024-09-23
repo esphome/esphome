@@ -139,7 +139,7 @@ struct ESPNowPacket {
   std::shared_ptr<ByteBuffer> payload_buffer_;
 };
 
-using ESPNowPacketPtr = std::shared_ptr<ESPNowPacket>;
+typedef std::shared_ptr<ESPNowPacket> ESPNowPacketPtr;
 
 class ESPNowComponent;
 
