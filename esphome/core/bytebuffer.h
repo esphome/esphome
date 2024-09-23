@@ -34,6 +34,7 @@ class ByteBuffer {
  public:
   // Default constructor (compatibility with TEMPLATABLE_VALUE)
   ByteBuffer() : ByteBuffer(std::vector<uint8_t>()) {}
+  ~ByteBuffer() = default;
   /**
    * Create a new Bytebuffer with the given capacity
    */

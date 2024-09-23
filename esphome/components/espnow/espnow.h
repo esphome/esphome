@@ -50,7 +50,7 @@ struct ESPNowPacket {
     uint8_t payload[MAX_ESPNOW_DATA_SIZE + 2]{0};
   } __attribute__((packed)) content;
 
-  ESPNowPacket() { this->payload_buffer_ = make_unique(new ByteBuffer(MAX_ESPNOW_DATA_SIZE)); };
+  ESPNowPacket() { this->payload_buffer_ = std::make_shared<ByteBuffer>(MAX_ESPNOW_DATA_SIZE); };
 
   // Create packet to be send.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t protocol);
@@ -58,7 +58,7 @@ struct ESPNowPacket {
   // Load received packet's.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size);
 
-  ~ESPNowPacket() { delete this->payload_buffer_; }
+  ~ESPNowPacket() {}  // this->payload_buffer_ = nullptr;
 
   uint8_t *peer_as_bytes() { return (uint8_t *) &(this->peer); }
   void set_peer(uint64_t peer) {
@@ -88,11 +88,6 @@ struct ESPNowPacket {
     this->update_payload_();
   }
 
-  ByteBuffer *payload() {
-    this->payload_buffer_->set_position(this->payload_buffer_->get_used_space());
-    return this->payload_buffer_;
-  }
-
   uint8_t content_at(uint8_t pos) {
     this->update_payload_();
     assert(pos < this->size);
@@ -117,8 +112,13 @@ struct ESPNowPacket {
   void retry() { this->attempts++; }
   bool is_valid();
 
+  std::shared_ptr<ByteBuffer> payload() {
+    this->payload_buffer_->set_position(this->payload_buffer_->get_used_space());
+    return this->payload_buffer_;
+  }
+
  private:
-  std::unique<ByteBuffer> payload_buffer_{nullptr};
+  std::shared_ptr<ByteBuffer> payload_buffer_;
 
   void update_payload_() {
     if (this->payload_buffer_->is_changed()) {
