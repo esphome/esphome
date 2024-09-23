@@ -30,6 +30,8 @@ enum Endian { LITTLE, BIG };
  * data from a buffer after it has been written.
  *
  */
+
+class ByteBuffer;
 class ByteBuffer {
  public:
   // Default constructor (compatibility with TEMPLATABLE_VALUE)
@@ -141,6 +143,11 @@ class ByteBuffer {
     bool changed = this->is_changed_;
     this->is_changed_ = false;
     return changed;
+  }
+
+  ByteBuffer &operator[](size_t idx) {
+    this->set_position(idx);
+    return *this;
   }
 
  protected:
