@@ -196,7 +196,7 @@ class ESPNowDefaultProtocol : public ESPNowProtocol {
   void add_on_peer_callback(std::function<void(const std::shared_ptr<ESPNowPacket>)> &&callback) {
     this->on_new_peer_.add(std::move(callback));
   }
-  void on_new_peer(const std::shared_ptr<ESPNowPacket> packet) override { this->on_new_peer_.call(std::move(packet)); };
+  void on_new_peer(const std::shared_ptr<ESPNowPacket> packet) override { this->on_new_peer_.call(packet); };
 
  protected:
   CallbackManager<void(const std::shared_ptr<ESPNowPacket>, bool)> on_sent_;
@@ -228,7 +228,7 @@ class ESPNowComponent : public Component {
 
   void runner();
 
-  bool write(const std::shared_ptr<ESPNowPacket> packet);
+  bool write(const std::shared_ptr<ESPNowPacket> &packet);
 
   void register_protocol(ESPNowProtocol *protocol) {
     protocol->set_parent(this);
@@ -261,9 +261,9 @@ class ESPNowComponent : public Component {
   bool use_sent_check_{true};
   bool lock_{false};
 
-  void on_receive_(const std::shared_ptr<ESPNowPacket> packet);
-  void on_sent_(const std::shared_ptr<ESPNowPacket> packet, bool status);
-  void on_new_peer_(const std::shared_ptr<ESPNowPacket> packet);
+  void on_receive_(const std::shared_ptr<ESPNowPacket> &packet);
+  void on_sent_(const std::shared_ptr<ESPNowPacket> &packet, bool status);
+  void on_new_peer_(const std::shared_ptr<ESPNowPacket> &packet);
 
   QueueHandle_t receive_queue_{};
   QueueHandle_t send_queue_{};
