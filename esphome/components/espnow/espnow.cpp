@@ -263,7 +263,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
   } else {
     packet->timestamp = millis();
   }
-  show_packet("Receive", packet);
+  show_packet("Receive", *packet);
 
   if (packet->is_valid()) {
     xQueueSendToBack(global_esp_now->receive_queue_, packet.get(), 10);
@@ -274,7 +274,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
 
 bool ESPNowComponent::write(const std::shared_ptr<ESPNowPacket> packet) {
   uint8_t *mac = packet->peer_as_bytes();
-  show_packet("Write", packet);
+  show_packet("Write", *packet);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Cannot send espnow packet, espnow failed to setup");
   } else if (this->send_queue_full()) {

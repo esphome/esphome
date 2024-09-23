@@ -326,27 +326,27 @@ template<typename... Ts> class DelPeerAction : public Action<Ts...>, public Pare
   TemplatableValue<uint64_t, Ts...> mac_{};
 };
 
-class ESPNowSentTrigger : public Trigger<ESPNowPacketPtr, bool> {
+class ESPNowSentTrigger : public Trigger<std::shared_ptr<ESPNowPacket>, bool> {
  public:
   explicit ESPNowSentTrigger(ESPNowComponent *parent) {
     parent->get_default_protocol()->add_on_sent_callback(
-        [this](std::shared_ptr<ESPNowPacket> packet, bool status) { this->trigger(packet, status); });
+        [this](std::shared_ptr<ESPNowPacket> packet, bool status) { this->trigger(std::move(packet), status); });
   }
 };
 
-class ESPNowReceiveTrigger : public Trigger<ESPNowPacketPtr> {
+class ESPNowReceiveTrigger : public Trigger<std::shared_ptr<ESPNowPacket>> {
  public:
   explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
     parent->get_default_protocol()->add_on_receive_callback(
-        [this](std::shared_ptr<ESPNowPacket> packet) { this->trigger(packet); });
+        [this](std::shared_ptr<ESPNowPacket> packet) { this->trigger(std::move(packet)); });
   }
 };
 
-class ESPNowNewPeerTrigger : public Trigger<ESPNowPacketPtr> {
+class ESPNowNewPeerTrigger : public Trigger<std::shared_ptr<ESPNowPacket>> {
  public:
   explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
     parent->get_default_protocol()->add_on_peer_callback(
-        [this](std::shared_ptr<ESPNowPacket> packet) { this->trigger(packet); });
+        [this](std::shared_ptr<ESPNowPacket> packet) { this->trigger(std::move(packet)); });
   }
 };
 
