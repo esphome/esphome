@@ -139,7 +139,7 @@ struct ESPNowPacket {
   std::shared_ptr<ByteBuffer> payload_buffer_;
 };
 
-using ESPNowPacketPtr = std::shared_ptr<ESPNowPacket>;
+typedef ESPNowPacketPtr = std::shared_ptr<ESPNowPacket>;
 
 class ESPNowComponent;
 
@@ -184,22 +184,22 @@ class ESPNowDefaultProtocol : public ESPNowProtocol {
   void add_on_receive_callback(std::function<void(const ESPNowPacketPtr &)> &&callback) {
     this->on_receive_.add(std::move(callback));
   }
-  void on_receive(const ESPNowPacketPtr &packet) override { this->on_receive_.call(std::move(packet)); };
+  void on_receive(const ESPNowPacketPtr &packet) override { this->on_receive_.call(packet); };
 
   void add_on_sent_callback(std::function<void(const ESPNowPacketPtr &, bool status)> &&callback) {
     this->on_sent_.add(std::move(callback));
   }
-  void on_sent(const ESPNowPacketPtr &packet, bool status) override { this->on_sent_.call(std::move(packet), status); };
+  void on_sent(const ESPNowPacketPtr &packet, bool status) override { this->on_sent_.call(packet, status); };
 
   void add_on_peer_callback(std::function<void(const ESPNowPacketPtr &)> &&callback) {
     this->on_new_peer_.add(std::move(callback));
   }
-  void on_new_peer(const ESPNowPacketPtr &packet) override { this->on_new_peer_.call(std::move(packet)); };
+  void on_new_peer(const ESPNowPacketPtr &packet) override { this->on_new_peer_.call(packet); };
 
  protected:
-  CallbackManager<void(ESPNowPacketPtr, bool)> on_sent_;
-  CallbackManager<void(ESPNowPacketPtr)> on_receive_;
-  CallbackManager<void(ESPNowPacketPtr)> on_new_peer_;
+  CallbackManager<void(const ESPNowPacketPtr &, bool)> on_sent_;
+  CallbackManager<void(const ESPNowPacketPtr &)> on_receive_;
+  CallbackManager<void(const ESPNowPacketPtr &)> on_new_peer_;
 };
 
 class ESPNowComponent : public Component {
