@@ -11,7 +11,7 @@ ESPNowComponent = espnow_ns.class_("ESPNowComponent", cg.Component)
 ESPNowListener = espnow_ns.class_("ESPNowListener")
 
 ESPNowPacket = espnow_ns.class_("ESPNowPacket")
-ESPNowPacketPtrConst = ESPNowPacket.operator("ptr")  # .operator("const")
+
 
 ESPNowInterface = espnow_ns.class_(
     "ESPNowInterface", cg.Component, cg.Parented.template(ESPNowComponent)
@@ -92,19 +92,21 @@ async def to_code(config):
     for conf in config.get(CONF_ON_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(ESPNowPacketPtrConst, "packet"), (bool, "status")], conf
+            trigger,
+            [(cg.std_shared_ptr.template(ESPNowPacket), "packet"), (bool, "status")],
+            conf,
         )
 
     for conf in config.get(CONF_ON_RECEIVE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(ESPNowPacketPtrConst, "packet")], conf
+            trigger, [(cg.std_shared_ptr.template(ESPNowPacket), "packet")], conf
         )
 
     for conf in config.get(CONF_ON_NEW_PEER, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(ESPNowPacketPtrConst, "packet")], conf
+            trigger, [(cg.std_shared_ptr.template(ESPNowPacket), "packet")], conf
         )
 
     for conf in config.get(CONF_PEERS, []):

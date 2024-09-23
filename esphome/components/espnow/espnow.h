@@ -58,7 +58,7 @@ struct ESPNowPacket {
   // Load received packet's.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size);
 
-  ~ESPNowPacket() {}  // this->payload_buffer_ = nullptr;
+  ~ESPNowPacket() { this->payload_buffer_.reset(); }  // this->payload_buffer_ = nullptr;
 
   uint8_t *peer_as_bytes() { return (uint8_t *) &(this->peer); }
   void set_peer(uint64_t peer) {
@@ -72,35 +72,35 @@ struct ESPNowPacket {
   inline uint8_t prefix_size() { return sizeof(this->content) - sizeof(this->content.payload); }
 
   uint8_t get_size() {
-    this->update_payload_();
+    this->update_payload();
     return this->size;
   };
 
   inline uint32_t get_protocol() { return this->content.protocol; }
   void set_protocol(uint32_t protocol) {
     this->content.protocol = protocol;
-    this->update_payload_();
+    this->update_payload();
   }
 
   inline uint8_t get_sequents() { return this->content.sequents; }
   void set_sequents(uint8_t sequents) {
     this->content.sequents = sequents;
-    this->update_payload_();
+    this->update_payload();
   }
 
   uint8_t content_at(uint8_t pos) {
-    this->update_payload_();
+    this->update_payload();
     assert(pos < this->size);
     return *(((uint8_t *) &this->content) + pos);
   }
 
   uint8_t *content_bytes() {
-    this->update_payload_();
+    this->update_payload();
     return (uint8_t *) &(this->content);
   }
 
   uint8_t crc() {
-    // this->update_payload_();
+    // this->update_payload();
     return this->content.payload[this->size];
   }
   uint8_t calc_crc() {
@@ -113,22 +113,33 @@ struct ESPNowPacket {
   bool is_valid();
 
   std::shared_ptr<ByteBuffer> payload() {
+    if (!this->payload_buffer_) {
+      this->reload();
+    }
     this->payload_buffer_->set_position(this->payload_buffer_->get_used_space());
     return this->payload_buffer_;
   }
 
- private:
-  std::shared_ptr<ByteBuffer> payload_buffer_;
+  void reload() {
+    this->payload_buffer_ = std::make_shared<ByteBuffer>(MAX_ESPNOW_DATA_SIZE);
+    this->payload_buffer_->put_bytes((const uint8_t *) &this->content.payload, this->size - (this->prefix_size() + 1));
+    this->payload_buffer_->is_changed();
+  }
 
-  void update_payload_() {
-    if (this->payload_buffer_->is_changed()) {
+  void update_payload() {
+    if (this->payload_buffer_ && this->payload_buffer_->is_changed()) {
       this->payload_buffer_->flip();
       this->payload_buffer_->get_bytes((uint8_t *) &(this->content.payload), this->payload_buffer_->get_used_space());
       this->size = this->payload_buffer_->get_used_space() + this->prefix_size();
     }
     this->content.payload[this->size] = this->calc_crc();
   }
+
+ protected:
+  std::shared_ptr<ByteBuffer> payload_buffer_;
 };
+
+using ESPNowPacketPtr = std::shared_ptr<ESPNowPacket>;
 
 class ESPNowComponent;
 
@@ -136,9 +147,9 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
  public:
   ESPNowProtocol(){};
 
-  virtual void on_receive(ESPNowPacket *packet){};
-  virtual void on_sent(ESPNowPacket *packet, bool status){};
-  virtual void on_new_peer(ESPNowPacket *packet){};
+  virtual void on_receive(ESPNowPacketPtr packet){};
+  virtual void on_sent(ESPNowPacketPtr packet, bool status){};
+  virtual void on_new_peer(ESPNowPacketPtr packet){};
 
   virtual uint32_t get_protocol_id() = 0;
   uint8_t get_next_sequents() {
@@ -165,29 +176,30 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
  protected:
   uint8_t next_sequents_{255};
 };
+
 class ESPNowDefaultProtocol : public ESPNowProtocol {
  public:
   uint32_t get_protocol_id() override { return ESPNOW_MAIN_PROTOCOL_ID; };
 
-  void add_on_receive_callback(std::function<void(ESPNowPacket *)> &&callback) {
+  void add_on_receive_callback(std::function<void(ESPNowPacketPtr)> &&callback) {
     this->on_receive_.add(std::move(callback));
   }
-  void on_receive(ESPNowPacket *packet) override { this->on_receive_.call(packet); };
+  void on_receive(ESPNowPacketPtr packet) override { this->on_receive_.call(packet); };
 
-  void add_on_sent_callback(std::function<void(ESPNowPacket *, bool status)> &&callback) {
+  void add_on_sent_callback(std::function<void(ESPNowPacketPtr, bool status)> &&callback) {
     this->on_sent_.add(std::move(callback));
   }
-  void on_sent(ESPNowPacket *packet, bool status) override { this->on_sent_.call(packet, status); };
+  void on_sent(ESPNowPacketPtr packet, bool status) override { this->on_sent_.call(packet, status); };
 
-  void add_on_peer_callback(std::function<void(ESPNowPacket *)> &&callback) {
+  void add_on_peer_callback(std::function<void(ESPNowPacketPtr)> &&callback) {
     this->on_new_peer_.add(std::move(callback));
   }
-  void on_new_peer(ESPNowPacket *packet) override { this->on_new_peer_.call(packet); };
+  void on_new_peer(ESPNowPacketPtr packet) override { this->on_new_peer_.call(packet); };
 
  protected:
-  CallbackManager<void(ESPNowPacket *, bool)> on_sent_;
-  CallbackManager<void(ESPNowPacket *)> on_receive_;
-  CallbackManager<void(ESPNowPacket *)> on_new_peer_;
+  CallbackManager<void(ESPNowPacketPtr, bool)> on_sent_;
+  CallbackManager<void(ESPNowPacketPtr)> on_receive_;
+  CallbackManager<void(ESPNowPacketPtr)> on_new_peer_;
 };
 
 class ESPNowComponent : public Component {
@@ -214,7 +226,7 @@ class ESPNowComponent : public Component {
 
   void runner();
 
-  bool write(ESPNowPacket *packet);
+  bool write(ESPNowPacketPtr packet);
 
   void register_protocol(ESPNowProtocol *protocol) {
     protocol->set_parent(this);
@@ -245,9 +257,9 @@ class ESPNowComponent : public Component {
   bool use_sent_check_{true};
   bool lock_{false};
 
-  void on_receive_(ESPNowPacket *packet);
-  void on_sent_(ESPNowPacket *packet, bool status);
-  void on_new_peer_(ESPNowPacket *packet);
+  void on_receive_(ESPNowPacketPtr packet);
+  void on_sent_(ESPNowPacketPtr packet, bool status);
+  void on_new_peer_(ESPNowPacketPtr packet);
 
   QueueHandle_t receive_queue_{};
   QueueHandle_t send_queue_{};
@@ -312,25 +324,25 @@ template<typename... Ts> class DelPeerAction : public Action<Ts...>, public Pare
   TemplatableValue<uint64_t, Ts...> mac_{};
 };
 
-class ESPNowSentTrigger : public Trigger<ESPNowPacket *, bool> {
+class ESPNowSentTrigger : public Trigger<ESPNowPacketPtr, bool> {
  public:
   explicit ESPNowSentTrigger(ESPNowComponent *parent) {
     parent->get_default_protocol()->add_on_sent_callback(
-        [this](ESPNowPacket *packet, bool status) { this->trigger(packet, status); });
+        [this](ESPNowPacketPtr packet, bool status) { this->trigger(packet, status); });
   }
 };
 
-class ESPNowReceiveTrigger : public Trigger<ESPNowPacket *> {
+class ESPNowReceiveTrigger : public Trigger<ESPNowPacketPtr> {
  public:
   explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
+    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacketPtr packet) { this->trigger(packet); });
   }
 };
 
-class ESPNowNewPeerTrigger : public Trigger<ESPNowPacket *> {
+class ESPNowNewPeerTrigger : public Trigger<ESPNowPacketPtr> {
  public:
   explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
+    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacketPtr packet) { this->trigger(packet); });
   }
 };
 
