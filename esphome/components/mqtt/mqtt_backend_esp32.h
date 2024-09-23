@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mqtt_backend.h"
+#ifdef USE_MQTT
 #ifdef USE_ESP32
 
 #include <string>
@@ -7,7 +9,6 @@
 #include <mqtt_client.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
-#include "mqtt_backend.h"
 
 namespace esphome {
 namespace mqtt {
@@ -173,4 +174,5 @@ class MQTTBackendESP32 final : public MQTTBackend {
 }  // namespace mqtt
 }  // namespace esphome
 
+#endif
 #endif

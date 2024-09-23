@@ -65,7 +65,8 @@ void EthernetComponent::setup() {
       .intr_flags = 0,
   };
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6)
   auto host = SPI2_HOST;
 #else
   auto host = SPI3_HOST;
@@ -119,6 +120,8 @@ void EthernetComponent::setup() {
   phy_config.reset_gpio_num = this->reset_pin_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+#elif defined(USE_ETHERNET_OPENETH)
+  esp_eth_mac_t *mac = esp_eth_mac_new_openeth(&mac_config);
 #else
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
@@ -142,6 +145,13 @@ void EthernetComponent::setup() {
 #endif
 
   switch (this->type_) {
+#ifdef USE_ETHERNET_OPENETH
+    case ETHERNET_TYPE_OPENETH: {
+      phy_config.autonego_timeout_ms = 1000;
+      this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
+      break;
+    }
+#endif
 #if CONFIG_ETH_USE_ESP32_EMAC
     case ETHERNET_TYPE_LAN8720: {
       this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
@@ -195,9 +205,9 @@ void EthernetComponent::setup() {
     // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
     this->ksz8081_set_clock_reference_(mac);
   }
-  if (this->type_ == ETHERNET_TYPE_RTL8201 && this->clk_mode_ == EMAC_CLK_EXT_IN) {
-    // Change in default behavior of RTL8201FI may require register setting to enable external clock
-    this->rtl8201_set_rmii_mode_(mac);
+
+  for (const auto &phy_register : this->phy_registers_) {
+    this->write_phy_register_(mac, phy_register);
   }
 #endif
 
@@ -301,6 +311,10 @@ void EthernetComponent::dump_config() {
       eth_type = "W5500";
       break;
 
+    case ETHERNET_TYPE_OPENETH:
+      eth_type = "OPENETH";
+      break;
+
     default:
       eth_type = "Unknown";
       break;
@@ -393,7 +407,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
 #else
   global_eth_component->connected_ = true;
@@ -406,8 +420,12 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   global_eth_component->ipv6_count_ += 1;
+#if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+#else
+  global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
+#endif
 }
 #endif /* USE_NETWORK_IPV6 */
 
@@ -467,13 +485,13 @@ void EthernetComponent::start_connect_() {
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
-#if USE_NETWORK_IPV6
-    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-    if (err != ESP_OK) {
-      ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
-    }
-#endif /* USE_NETWORK_IPV6 */
   }
+#if USE_NETWORK_IPV6
+  err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  if (err != ESP_OK) {
+    ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
+  }
+#endif /* USE_NETWORK_IPV6 */
 
   this->connect_begin_ = millis();
   this->status_set_warning();
@@ -527,6 +545,7 @@ void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_
   this->clk_mode_ = clk_mode;
   this->clk_gpio_ = clk_gpio;
 }
+void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
 #endif
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
@@ -613,44 +632,27 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
     ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
   }
 }
-constexpr uint8_t RTL8201_RMSR_REG_ADDR = 0x10;
-void EthernetComponent::rtl8201_set_rmii_mode_(esp_eth_mac_t *mac) {
+
+void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;
-  uint32_t phy_rmii_mode;
-  err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x07);
-  ESPHL_ERROR_CHECK(err, "Setting Page 7 failed");
+  constexpr uint8_t eth_phy_psr_reg_addr = 0x1F;
 
-  /*
-   * RTL8201 RMII Mode Setting Register (RMSR)
-   * Page 7 Register 16
-   *
-   * bit 0      Reserved            0
-   * bit 1      Rg_rmii_rxdsel      1 (default)
-   * bit 2      Rg_rmii_rxdv_sel:   0 (default)
-   * bit 3      RMII Mode:          1 (RMII Mode)
-   * bit 4~7    Rg_rmii_rx_offset:  1111 (default)
-   * bit 8~11   Rg_rmii_tx_offset:  1111 (default)
-   * bit 12     Rg_rmii_clkdir:     1 (Input)
-   * bit 13~15  Reserved            000
-   *
-   * Binary: 0001 1111 1111 1010
-   * Hex: 0x1FFA
-   *
-   */
+  if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
+    ESP_LOGD(TAG, "Select PHY Register Page: 0x%02" PRIX32, register_data.page);
+    err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, register_data.page);
+    ESPHL_ERROR_CHECK(err, "Select PHY Register page failed");
+  }
 
-  err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
-  ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
-  ESP_LOGV(TAG, "Hardware default RTL8201 RMII Mode Register is: 0x%04" PRIX32, phy_rmii_mode);
+  ESP_LOGD(TAG, "Writing to PHY Register Address: 0x%02" PRIX32, register_data.address);
+  ESP_LOGD(TAG, "Writing to PHY Register Value: 0x%04" PRIX32, register_data.value);
+  err = mac->write_phy_reg(mac, this->phy_addr_, register_data.address, register_data.value);
+  ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 
-  err = mac->write_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, 0x1FFA);
-  ESPHL_ERROR_CHECK(err, "Setting Register 16 RMII Mode Setting failed");
-
-  err = mac->read_phy_reg(mac, this->phy_addr_, RTL8201_RMSR_REG_ADDR, &(phy_rmii_mode));
-  ESPHL_ERROR_CHECK(err, "Read PHY RMSR Register failed");
-  ESP_LOGV(TAG, "Setting RTL8201 RMII Mode Register to: 0x%04" PRIX32, phy_rmii_mode);
-
-  err = mac->write_phy_reg(mac, this->phy_addr_, 0x1f, 0x0);
-  ESPHL_ERROR_CHECK(err, "Setting Page 0 failed");
+  if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
+    ESP_LOGD(TAG, "Select PHY Register Page 0x00");
+    err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, 0x0);
+    ESPHL_ERROR_CHECK(err, "Select PHY Register Page 0 failed");
+  }
 }
 
 #endif

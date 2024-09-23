@@ -1,31 +1,31 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import core, pins
-from esphome.components import display, spi, font
+import esphome.codegen as cg
+from esphome.components import display, font, spi
 from esphome.components.display import validate_rotation
-from esphome.core import CORE, HexInt
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_COLOR_ORDER,
     CONF_COLOR_PALETTE,
     CONF_DC_PIN,
-    CONF_ID,
-    CONF_LAMBDA,
-    CONF_MODEL,
-    CONF_RAW_DATA_ID,
-    CONF_PAGES,
-    CONF_RESET_PIN,
     CONF_DIMENSIONS,
-    CONF_WIDTH,
     CONF_HEIGHT,
-    CONF_ROTATION,
+    CONF_ID,
+    CONF_INVERT_COLORS,
+    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
-    CONF_SWAP_XY,
-    CONF_COLOR_ORDER,
+    CONF_MODEL,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
+    CONF_PAGES,
+    CONF_RAW_DATA_ID,
+    CONF_RESET_PIN,
+    CONF_ROTATION,
+    CONF_SWAP_XY,
     CONF_TRANSFORM,
-    CONF_INVERT_COLORS,
+    CONF_WIDTH,
 )
+from esphome.core import CORE, HexInt
 
 DEPENDENCIES = ["spi"]
 
@@ -69,6 +69,7 @@ MODELS = {
     "ILI9486": ili9xxx_ns.class_("ILI9XXXILI9486", ILI9XXXDisplay),
     "ILI9488": ili9xxx_ns.class_("ILI9XXXILI9488", ILI9XXXDisplay),
     "ILI9488_A": ili9xxx_ns.class_("ILI9XXXILI9488A", ILI9XXXDisplay),
+    "ST7735": ili9xxx_ns.class_("ILI9XXXST7735", ILI9XXXDisplay),
     "ST7796": ili9xxx_ns.class_("ILI9XXXST7796", ILI9XXXDisplay),
     "ST7789V": ili9xxx_ns.class_("ILI9XXXST7789V", ILI9XXXDisplay),
     "S3BOX": ili9xxx_ns.class_("ILI9XXXS3Box", ILI9XXXDisplay),
@@ -134,6 +135,7 @@ def _validate(config):
         "ILI9341",
         "ILI9342",
         "ST7789V",
+        "ST7735",
     ]:
         raise cv.Invalid("Selected model can't run on ESP8266.")
 
@@ -175,7 +177,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
                 "'invert_display' has been replaced by 'invert_colors'"
             ),
-            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
+            cv.Required(CONF_INVERT_COLORS): cv.boolean,
             cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
             cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
             cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
@@ -285,5 +287,4 @@ async def to_code(config):
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
 
-    if CONF_INVERT_COLORS in config:
-        cg.add(var.invert_colors(config[CONF_INVERT_COLORS]))
+    cg.add(var.invert_colors(config[CONF_INVERT_COLORS]))

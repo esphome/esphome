@@ -3,12 +3,13 @@
 #include "list_entities.h"
 
 #include "esphome/components/web_server_base/web_server_base.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
 
-#include <vector>
 #include <map>
+#include <vector>
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -319,12 +320,22 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
 
+#ifdef USE_UPDATE
+  void on_update(update::UpdateEntity *obj) override;
+
+  /// Handle a update request under '/update/<id>'.
+  void handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the update state with its value as a JSON string.
+  std::string update_json(update::UpdateEntity *obj, JsonDetail start_config);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
   void handleRequest(AsyncWebServerRequest *request) override;
   /// This web handle is not trivial.
-  bool isRequestHandlerTrivial() override;
+  bool isRequestHandlerTrivial() override;  // NOLINT(readability-identifier-naming)
 
   void add_entity_to_sorting_list(EntityBase *entity, float weight);
 
@@ -356,3 +367,4 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 }  // namespace web_server
 }  // namespace esphome
+#endif

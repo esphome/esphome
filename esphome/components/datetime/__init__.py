@@ -1,31 +1,29 @@
-import esphome.codegen as cg
-
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt, web_server, time
+import esphome.codegen as cg
+from esphome.components import mqtt, time, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DATE,
+    CONF_DATETIME,
+    CONF_DAY,
+    CONF_HOUR,
     CONF_ID,
+    CONF_MINUTE,
+    CONF_MONTH,
+    CONF_MQTT_ID,
     CONF_ON_TIME,
     CONF_ON_VALUE,
+    CONF_SECOND,
+    CONF_TIME,
     CONF_TIME_ID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
-    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
-    CONF_DATE,
-    CONF_DATETIME,
-    CONF_TIME,
     CONF_YEAR,
-    CONF_MONTH,
-    CONF_DAY,
-    CONF_SECOND,
-    CONF_HOUR,
-    CONF_MINUTE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
-
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
 DEPENDENCIES = ["time"]
@@ -188,7 +186,7 @@ async def datetime_date_set_to_code(config, action_id, template_arg, args):
 
     date_config = config[CONF_DATE]
     if cg.is_template(date_config):
-        template_ = await cg.templatable(date_config, [], cg.ESPTime)
+        template_ = await cg.templatable(date_config, args, cg.ESPTime)
         cg.add(action_var.set_date(template_))
     else:
         date_struct = cg.StructInitializer(
@@ -219,7 +217,7 @@ async def datetime_time_set_to_code(config, action_id, template_arg, args):
 
     time_config = config[CONF_TIME]
     if cg.is_template(time_config):
-        template_ = await cg.templatable(time_config, [], cg.ESPTime)
+        template_ = await cg.templatable(time_config, args, cg.ESPTime)
         cg.add(action_var.set_time(template_))
     else:
         time_struct = cg.StructInitializer(
@@ -250,7 +248,7 @@ async def datetime_datetime_set_to_code(config, action_id, template_arg, args):
 
     datetime_config = config[CONF_DATETIME]
     if cg.is_template(datetime_config):
-        template_ = await cg.templatable(datetime_config, [], cg.ESPTime)
+        template_ = await cg.templatable(datetime_config, args, cg.ESPTime)
         cg.add(action_var.set_datetime(template_))
     else:
         datetime_struct = cg.StructInitializer(

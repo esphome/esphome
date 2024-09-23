@@ -18,11 +18,11 @@ void ModbusController::setup() { this->create_register_ranges_(); }
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
 
-  if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
-    auto &command = command_queue_.front();
+  if ((last_send > this->command_throttle_) && !waiting_for_response() && !this->command_queue_.empty()) {
+    auto &command = this->command_queue_.front();
 
     // remove from queue if command was sent too often
-    if (command->send_countdown < 1) {
+    if (!command->should_retry(this->max_cmd_retries_)) {
       if (!this->module_offline_) {
         ESP_LOGW(TAG, "Modbus device=%d set offline", this->address_);
 
@@ -34,23 +34,25 @@ bool ModbusController::send_next_command_() {
         }
       }
       this->module_offline_ = true;
-      ESP_LOGD(
-          TAG,
-          "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
-          this->address_, command->register_address, command->send_countdown);
-      command_queue_.pop_front();
+      ESP_LOGD(TAG, "Modbus command to device=%d register=0x%02X no response received - removed from send queue",
+               this->address_, command->register_address);
+      this->command_queue_.pop_front();
     } else {
       ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
                command->register_address, command->register_count);
       command->send();
+
       this->last_command_timestamp_ = millis();
+
+      this->command_sent_callback_.call((int) command->function_code, command->register_address);
+
       // remove from queue if no handler is defined
       if (!command->on_data_func) {
-        command_queue_.pop_front();
+        this->command_queue_.pop_front();
       }
     }
   }
-  return (!command_queue_.empty());
+  return (!this->command_queue_.empty());
 }
 
 // Queue incoming response
@@ -73,7 +75,7 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
     current_command->payload = data;
     this->incoming_queue_.push(std::move(current_command));
     ESP_LOGV(TAG, "Modbus response queued");
-    command_queue_.pop_front();
+    this->command_queue_.pop_front();
   }
 }
 
@@ -95,7 +97,7 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
              "payload size=%zu",
              function_code, current_command->register_address, current_command->register_count,
              current_command->payload.size());
-    command_queue_.pop_front();
+    this->command_queue_.pop_front();
   }
 }
 
@@ -116,7 +118,8 @@ void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t 
         ESP_LOGD(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %0.1f.",
                  server_register->address, static_cast<uint8_t>(server_register->value_type),
                  server_register->register_count, value);
-        number_to_payload(sixteen_bit_response, value, server_register->value_type);
+        std::vector<uint16_t> payload = float_to_payload(value, server_register->value_type);
+        sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
         current_address += server_register->register_count;
         found = true;
         break;
@@ -170,19 +173,21 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // check if this command is already qeued.
-  // not very effective but the queue is never really large
-  for (auto &item : command_queue_) {
-    if (item->is_equal(command)) {
-      ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
-               static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
-      // update the payload of the queued command
-      // replaces a previous command
-      item->payload = command.payload;
-      return;
+  if (!this->allow_duplicate_commands_) {
+    // check if this command is already qeued.
+    // not very effective but the queue is never really large
+    for (auto &item : this->command_queue_) {
+      if (item->is_equal(command)) {
+        ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
+                 static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
+        // update the payload of the queued command
+        // replaces a previous command
+        item->payload = command.payload;
+        return;
+      }
     }
   }
-  command_queue_.push_back(make_unique<ModbusCommandItem>(command));
+  this->command_queue_.push_back(make_unique<ModbusCommandItem>(command));
 }
 
 void ModbusController::update_range_(RegisterRange &r) {
@@ -217,8 +222,8 @@ void ModbusController::update_range_(RegisterRange &r) {
 // Once we get a response to the command it is removed from the queue and the next command is send
 //
 void ModbusController::update() {
-  if (!command_queue_.empty()) {
-    ESP_LOGV(TAG, "%zu modbus commands already in queue", command_queue_.size());
+  if (!this->command_queue_.empty()) {
+    ESP_LOGV(TAG, "%zu modbus commands already in queue", this->command_queue_.size());
   } else {
     ESP_LOGV(TAG, "Updating modbus component");
   }
@@ -339,6 +344,8 @@ size_t ModbusController::create_register_ranges_() {
 void ModbusController::dump_config() {
   ESP_LOGCONFIG(TAG, "ModbusController:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Max Command Retries: %d", this->max_cmd_retries_);
+  ESP_LOGCONFIG(TAG, "  Offline Skip Updates: %d", this->offline_skip_updates_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : sensorset_) {
@@ -553,8 +560,9 @@ bool ModbusCommandItem::send() {
   } else {
     modbusdevice->send_raw(this->payload);
   }
-  ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
-  send_countdown--;
+  this->send_count_++;
+  ESP_LOGV(TAG, "Command sent %d 0x%X %d send_count: %d", uint8_t(this->function_code), this->register_address,
+           this->register_count, this->send_count_);
   return true;
 }
 
@@ -656,6 +664,10 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
       break;
   }
   return value;
+}
+
+void ModbusController::add_on_command_sent_callback(std::function<void(int, int)> &&callback) {
+  this->command_sent_callback_.add(std::move(callback));
 }
 
 }  // namespace modbus_controller

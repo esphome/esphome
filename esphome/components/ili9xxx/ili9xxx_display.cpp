@@ -118,6 +118,7 @@ void ILI9XXXDisplay::dump_config() {
   ESP_LOGCONFIG(TAG, "  Swap_xy: %s", YESNO(this->swap_xy_));
   ESP_LOGCONFIG(TAG, "  Mirror_x: %s", YESNO(this->mirror_x_));
   ESP_LOGCONFIG(TAG, "  Mirror_y: %s", YESNO(this->mirror_y_));
+  ESP_LOGCONFIG(TAG, "  Invert colors: %s", YESNO(this->pre_invertcolors_));
 
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
@@ -154,7 +155,6 @@ void ILI9XXXDisplay::fill(Color color) {
         }
       }
       return;
-      break;
     default:
       new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
       break;
@@ -411,11 +411,20 @@ void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
   uint8_t cmd, x, num_args;
   while ((cmd = *addr++) != 0) {
     x = *addr++;
-    num_args = x & 0x7F;
-    this->send_command(cmd, addr, num_args);
-    addr += num_args;
-    if (x & 0x80)
-      delay(150);  // NOLINT
+    if (x == ILI9XXX_DELAY_FLAG) {
+      cmd &= 0x7F;
+      ESP_LOGV(TAG, "Delay %dms", cmd);
+      delay(cmd);
+    } else {
+      num_args = x & 0x7F;
+      ESP_LOGV(TAG, "Command %02X, length %d, bits %02X", cmd, num_args, *addr);
+      this->send_command(cmd, addr, num_args);
+      addr += num_args;
+      if (x & 0x80) {
+        ESP_LOGV(TAG, "Delay 150ms");
+        delay(150);  // NOLINT
+      }
+    }
   }
 }
 

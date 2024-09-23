@@ -1,18 +1,27 @@
 import logging
 
 from esphome import automation, core
+import esphome.codegen as cg
 from esphome.components import font
 import esphome.components.image as espImage
-from esphome.components.image import CONF_USE_TRANSPARENCY
+from esphome.components.image import (
+    CONF_USE_TRANSPARENCY,
+    LOCAL_SCHEMA,
+    SOURCE_LOCAL,
+    SOURCE_WEB,
+    WEB_SCHEMA,
+)
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_FILE,
     CONF_ID,
+    CONF_PATH,
     CONF_RAW_DATA_ID,
     CONF_REPEAT,
     CONF_RESIZE,
+    CONF_SOURCE,
     CONF_TYPE,
+    CONF_URL,
 )
 from esphome.core import CORE, HexInt
 
@@ -43,6 +52,40 @@ SetFrameAction = animation_ns.class_(
     "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
 
+TYPED_FILE_SCHEMA = cv.typed_schema(
+    {
+        SOURCE_LOCAL: LOCAL_SCHEMA,
+        SOURCE_WEB: WEB_SCHEMA,
+    },
+    key=CONF_SOURCE,
+)
+
+
+def _file_schema(value):
+    if isinstance(value, str):
+        return validate_file_shorthand(value)
+    return TYPED_FILE_SCHEMA(value)
+
+
+FILE_SCHEMA = cv.Schema(_file_schema)
+
+
+def validate_file_shorthand(value):
+    value = cv.string_strict(value)
+    if value.startswith("http://") or value.startswith("https://"):
+        return FILE_SCHEMA(
+            {
+                CONF_SOURCE: SOURCE_WEB,
+                CONF_URL: value,
+            }
+        )
+    return FILE_SCHEMA(
+        {
+            CONF_SOURCE: SOURCE_LOCAL,
+            CONF_PATH: value,
+        }
+    )
+
 
 def validate_cross_dependencies(config):
     """
@@ -67,7 +110,7 @@ ANIMATION_SCHEMA = cv.Schema(
     cv.All(
         {
             cv.Required(CONF_ID): cv.declare_id(Animation_),
-            cv.Required(CONF_FILE): cv.file_,
+            cv.Required(CONF_FILE): FILE_SCHEMA,
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
                 espImage.IMAGE_TYPE, upper=True
@@ -124,7 +167,14 @@ async def animation_action_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     from PIL import Image
 
-    path = CORE.relative_config_path(config[CONF_FILE])
+    conf_file = config[CONF_FILE]
+    if conf_file[CONF_SOURCE] == SOURCE_LOCAL:
+        path = CORE.relative_config_path(conf_file[CONF_PATH])
+    elif conf_file[CONF_SOURCE] == SOURCE_WEB:
+        path = espImage.compute_local_image_path(conf_file).as_posix()
+    else:
+        raise core.EsphomeError(f"Unknown animation source: {conf_file[CONF_SOURCE]}")
+
     try:
         image = Image.open(path)
     except Exception as e:
@@ -136,13 +186,12 @@ async def to_code(config):
         new_width_max, new_height_max = config[CONF_RESIZE]
         ratio = min(new_width_max / width, new_height_max / height)
         width, height = int(width * ratio), int(height * ratio)
-    else:
-        if width > 500 or height > 500:
-            _LOGGER.warning(
-                'The image "%s" you requested is very big. Please consider'
-                " using the resize parameter.",
-                path,
-            )
+    elif width > 500 or height > 500:
+        _LOGGER.warning(
+            'The image "%s" you requested is very big. Please consider'
+            " using the resize parameter.",
+            path,
+        )
 
     transparent = config[CONF_USE_TRANSPARENCY]
 
@@ -259,6 +308,8 @@ async def to_code(config):
             if transparent:
                 alpha = image.split()[-1]
                 has_alpha = alpha.getextrema()[0] < 0xFF
+            else:
+                has_alpha = False
             frame = image.convert("1", dither=Image.Dither.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
