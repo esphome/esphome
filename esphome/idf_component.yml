@@ -1,4 +1,7 @@
 dependencies:
+  esp-nn:
+    git: https://github.com/espressif/esp-nn.git
+    version: v1.1.0
   esp-tflite-micro:
     git: https://github.com/espressif/esp-tflite-micro.git
     version: v1.3.1
