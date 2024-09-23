@@ -1,12 +1,15 @@
 #include "bytebuffer.h"
 #include <cassert>
-#include <cstring>
+#include "esphome/core/helpers.h"
+
+#include <list>
+#include <vector>
 
 namespace esphome {
 
-ByteBuffer ByteBuffer::wrap(const uint8_t *ptr, size_t len, Endian endianness) {
+ByteBuffer ByteBuffer::wrap(const uint8_t *value, size_t length, Endian endianness) {
   // there is a double copy happening here, could be optimized but at cost of clarity.
-  std::vector<uint8_t> data(ptr, ptr + len);
+  std::vector<uint8_t> data(value, value + length);
   ByteBuffer buffer = {data};
   buffer.endianness_ = endianness;
   return buffer;
@@ -71,16 +74,19 @@ void ByteBuffer::set_position(size_t position) {
 void ByteBuffer::clear() {
   this->limit_ = this->get_capacity();
   this->position_ = 0;
+  this->used_space_ = 0;
 }
 void ByteBuffer::flip() {
-  this->limit_ = this->position_;
+  this->limit_ = this->used_space_;
   this->position_ = 0;
 }
 
 /// Getters
 uint8_t ByteBuffer::get_uint8() {
   assert(this->get_remaining() >= 1);
-  return this->data_[this->position_++];
+  this->position_++;
+  this->update_();
+  return this->data_[this->position_];
 }
 uint64_t ByteBuffer::get_uint(size_t length) {
   assert(this->get_remaining() >= length);
@@ -98,6 +104,7 @@ uint64_t ByteBuffer::get_uint(size_t length) {
       value |= this->data_[this->position_++];
     }
   }
+  this->update_();
   return value;
 }
 
@@ -110,30 +117,34 @@ uint32_t ByteBuffer::get_int24() {
 }
 float ByteBuffer::get_float() {
   assert(this->get_remaining() >= sizeof(float));
-  auto ui_value = this->get_uint32();
-  float value;
-  memcpy(&value, &ui_value, sizeof(float));
-  return value;
+  return bit_cast<float>(this->get_uint32());
 }
 double ByteBuffer::get_double() {
   assert(this->get_remaining() >= sizeof(double));
-  auto ui_value = this->get_uint64();
-  double value;
-  memcpy(&value, &ui_value, sizeof(double));
-  return value;
+  return bit_cast<double>(this->get_uint64());
 }
+
 std::vector<uint8_t> ByteBuffer::get_vector(size_t length) {
   assert(this->get_remaining() >= length);
   auto start = this->data_.begin() + this->position_;
   this->position_ += length;
+  this->update_();
   return {start, start + length};
+}
+void ByteBuffer::get_bytes(uint8_t *value, size_t length) {
+  size_t index = 0;
+  assert(this->get_remaining() >= length);
+  while (length-- != 0) {
+    *(value + index++) = this->data_[this->position_++];
+  }
+  this->update_();
 }
 
 /// Putters
 void ByteBuffer::put_uint8(uint8_t value) {
   assert(this->get_remaining() >= 1);
   this->data_[this->position_++] = value;
-  this->update_used_();
+  this->update_();
 }
 
 void ByteBuffer::put_uint(uint64_t value, size_t length) {
@@ -151,26 +162,31 @@ void ByteBuffer::put_uint(uint64_t value, size_t length) {
       value >>= 8;
     }
   }
-  this->update_used_();
+  this->update_();
 }
 void ByteBuffer::put_float(float value) {
   static_assert(sizeof(float) == sizeof(uint32_t), "Float sizes other than 32 bit not supported");
   assert(this->get_remaining() >= sizeof(float));
-  uint32_t ui_value;
-  memcpy(&ui_value, &value, sizeof(float));  // this work-around required to silence compiler warnings
-  this->put_uint32(ui_value);
+  this->put_uint32(bit_cast<uint32_t>(value));
 }
 void ByteBuffer::put_double(double value) {
   static_assert(sizeof(double) == sizeof(uint64_t), "Double sizes other than 64 bit not supported");
   assert(this->get_remaining() >= sizeof(double));
-  uint64_t ui_value;
-  memcpy(&ui_value, &value, sizeof(double));
-  this->put_uint64(ui_value);
+  this->put_uint64(bit_cast<uint64_t>(value));
 }
 void ByteBuffer::put_vector(const std::vector<uint8_t> &value) {
   assert(this->get_remaining() >= value.size());
   std::copy(value.begin(), value.end(), this->data_.begin() + this->position_);
   this->position_ += value.size();
-  this->update_used_();
+  this->update_();
 }
+void ByteBuffer::put_bytes(const uint8_t *value, size_t length) {
+  assert(this->get_remaining() >= length);
+  auto index = 0;
+  while (length-- != 0) {
+    this->data_[this->position_++] = static_cast<uint8_t>(*(value + index++));
+  }
+  this->update_();
+}
+
 }  // namespace esphome

@@ -30,10 +30,13 @@ enum Endian { LITTLE, BIG };
  * data from a buffer after it has been written.
  *
  */
+
+class ByteBuffer;
 class ByteBuffer {
  public:
   // Default constructor (compatibility with TEMPLATABLE_VALUE)
   ByteBuffer() : ByteBuffer(std::vector<uint8_t>()) {}
+  ~ByteBuffer() = default;
   /**
    * Create a new Bytebuffer with the given capacity
    */
@@ -46,7 +49,7 @@ class ByteBuffer {
   /**
    * Wrap an existing array in a ByteBuffer. Note that this will create a copy of the data.
    */
-  static ByteBuffer wrap(const uint8_t *ptr, size_t len, Endian endianness = LITTLE);
+  static ByteBuffer wrap(const uint8_t *value, size_t length, Endian endianness = LITTLE);
   // Convenience functions to create a ByteBuffer from a value
   static ByteBuffer wrap(uint8_t value);
   static ByteBuffer wrap(uint16_t value, Endian endianness = LITTLE);
@@ -92,6 +95,7 @@ class ByteBuffer {
   bool get_bool() { return this->get_uint8(); }
   // Get vector of bytes, increment by length
   std::vector<uint8_t> get_vector(size_t length);
+  void get_bytes(uint8_t *value, size_t length);
 
   // Put values into the buffer, increment the position accordingly
   // put any integral value, length represents the number of bytes
@@ -112,12 +116,13 @@ class ByteBuffer {
   void put_double(double value);
   void put_bool(bool value) { this->put_uint8(value); }
   void put_vector(const std::vector<uint8_t> &value);
+  void put_bytes(const uint8_t *value, size_t length);
 
   inline size_t get_capacity() const { return this->data_.size(); }
   inline size_t get_position() const { return this->position_; }
   inline size_t get_limit() const { return this->limit_; }
   inline size_t get_remaining() const { return this->get_limit() - this->get_position(); }
-  inline size_t get_used() const { return this->used_; }
+  inline size_t get_used_space() const { return this->used_space_; }
   inline Endian get_endianness() const { return this->endianness_; }
   inline void mark() { this->mark_ = this->position_; }
   inline void big_endian() { this->endianness_ = BIG; }
@@ -132,12 +137,24 @@ class ByteBuffer {
   std::vector<uint8_t> get_data() { return this->data_; };
   void rewind() { this->position_ = 0; }
   void reset() { this->position_ = this->mark_; }
-  void resize() { this->used_ = this->position_; }
+  void resize() { this->used_space_ = this->position_; }
+
+  bool is_changed() {
+    bool changed = this->is_changed_;
+    this->is_changed_ = false;
+    return changed;
+  }
+
+  ByteBuffer &operator[](size_t idx) {
+    this->set_position(idx);
+    return *this;
+  }
 
  protected:
   ByteBuffer(std::vector<uint8_t> const &data) : data_(data), limit_(data.size()) {}
-  void update_used_() {
-    if (this->used_ < this->position_) {
+  void update_() {
+    this->is_changed_ = true;
+    if (this->used_space_ < this->position_) {
       this->resize();
     }
   }
@@ -146,7 +163,8 @@ class ByteBuffer {
   size_t position_{0};
   size_t mark_{0};
   size_t limit_{0};
-  size_t used_{0};
+  size_t used_space_{0};
+  bool is_changed_{false};
 };
 
 }  // namespace esphome
