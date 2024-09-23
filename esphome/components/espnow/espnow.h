@@ -249,6 +249,8 @@ class ESPNowComponent : public Component {
 
   ESPNowDefaultProtocol *get_default_protocol();
 
+  void show_packet(const std::string &title, const ESPNowPacket &packet);
+
  protected:
   bool validate_channel_(uint8_t channel);
   ESPNowProtocol *get_protocol_(uint32_t protocol);

@@ -39,7 +39,8 @@ std::string format_mac_addr(const uint8_t *mac) {
   sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return buf;
 }
-void show_packet(const std::string &title, const ESPNowPacket &packet) {
+
+void ESPNowComponent::show_packet(const std::string &title, const ESPNowPacket &packet) {
   ESP_LOGVV(TAG, "%s packet: M:%s H:%cx%cx%c  P:%c%c%c 0x%02x  S:%02x  C:ox%02x~0x%02x S:%02d V:%s", "test",
             format_mac_addr(packet.peer_as_bytes()).c_str(), packet.content_at(0), packet.content_at(1),
             packet.content_at(2), packet.content_at(3), packet.content_at(4), packet.content_at(5),
@@ -263,7 +264,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
   } else {
     packet->timestamp = millis();
   }
-  show_packet("Receive", *packet);
+  this->show_packet("Receive", *packet);
 
   if (packet->is_valid()) {
     xQueueSendToBack(global_esp_now->receive_queue_, packet.get(), 10);
@@ -274,7 +275,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
 
 bool ESPNowComponent::write(const std::shared_ptr<ESPNowPacket> packet) {
   uint8_t *mac = packet->peer_as_bytes();
-  show_packet("Write", *packet);
+  this->show_packet("Write", *packet);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Cannot send espnow packet, espnow failed to setup");
   } else if (this->send_queue_full()) {
@@ -293,6 +294,9 @@ bool ESPNowComponent::write(const std::shared_ptr<ESPNowPacket> packet) {
     esp_err_t err = esp_now_send((uint8_t *) &mac, packet->content_bytes(), packet->get_size());
     ESP_LOGVV(TAG, "S: 0x%04x.%d B: %d%s.", packet->get_sequents(), packet->attempts, this->send_queue_used(),
               (err == ESP_OK) ? "" : " FAILED");
+
+    this->defer([=, packet, err]() { this->on_sent_(std::move(packet), err == ESP_OK); });
+
     this->defer([this, packet, err]() {
       packet->reload();
       this->on_sent_(std::move(packet), err == ESP_OK);
