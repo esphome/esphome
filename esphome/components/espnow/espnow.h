@@ -147,9 +147,9 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
  public:
   ESPNowProtocol(){};
 
-  virtual void on_receive(ESPNowPacketPtr packet){};
-  virtual void on_sent(ESPNowPacketPtr packet, bool status){};
-  virtual void on_new_peer(ESPNowPacketPtr packet){};
+  virtual void on_receive(const ESPNowPacketPtr &packet){};
+  virtual void on_sent(const ESPNowPacketPtr &packet, bool status){};
+  virtual void on_new_peer(const ESPNowPacketPtr &packet){};
 
   virtual uint32_t get_protocol_id() = 0;
   uint8_t get_next_sequents() {
@@ -181,20 +181,20 @@ class ESPNowDefaultProtocol : public ESPNowProtocol {
  public:
   uint32_t get_protocol_id() override { return ESPNOW_MAIN_PROTOCOL_ID; };
 
-  void add_on_receive_callback(std::function<void(ESPNowPacketPtr)> &&callback) {
+  void add_on_receive_callback(std::function<void(const ESPNowPacketPtr &)> &&callback) {
     this->on_receive_.add(std::move(callback));
   }
-  void on_receive(ESPNowPacketPtr packet) override { this->on_receive_.call(packet); };
+  void on_receive(const ESPNowPacketPtr &packet) override { this->on_receive_.call(std::move(packet)); };
 
-  void add_on_sent_callback(std::function<void(ESPNowPacketPtr, bool status)> &&callback) {
+  void add_on_sent_callback(std::function<void(const ESPNowPacketPtr &, bool status)> &&callback) {
     this->on_sent_.add(std::move(callback));
   }
-  void on_sent(ESPNowPacketPtr packet, bool status) override { this->on_sent_.call(packet, status); };
+  void on_sent(const ESPNowPacketPtr &packet, bool status) override { this->on_sent_.call(std::move(packet), status); };
 
-  void add_on_peer_callback(std::function<void(ESPNowPacketPtr)> &&callback) {
+  void add_on_peer_callback(std::function<void(const ESPNowPacketPtr &)> &&callback) {
     this->on_new_peer_.add(std::move(callback));
   }
-  void on_new_peer(ESPNowPacketPtr packet) override { this->on_new_peer_.call(packet); };
+  void on_new_peer(const ESPNowPacketPtr &packet) override { this->on_new_peer_.call(std::move(packet)); };
 
  protected:
   CallbackManager<void(ESPNowPacketPtr, bool)> on_sent_;
@@ -226,7 +226,7 @@ class ESPNowComponent : public Component {
 
   void runner();
 
-  bool write(ESPNowPacketPtr packet);
+  bool write(const ESPNowPacketPtr &packet);
 
   void register_protocol(ESPNowProtocol *protocol) {
     protocol->set_parent(this);
@@ -257,9 +257,9 @@ class ESPNowComponent : public Component {
   bool use_sent_check_{true};
   bool lock_{false};
 
-  void on_receive_(ESPNowPacketPtr packet);
-  void on_sent_(ESPNowPacketPtr packet, bool status);
-  void on_new_peer_(ESPNowPacketPtr packet);
+  void on_receive_(const ESPNowPacketPtr &packet);
+  void on_sent_(const ESPNowPacketPtr &packet, bool status);
+  void on_new_peer_(const ESPNowPacketPtr &packet);
 
   QueueHandle_t receive_queue_{};
   QueueHandle_t send_queue_{};
@@ -328,21 +328,23 @@ class ESPNowSentTrigger : public Trigger<ESPNowPacketPtr, bool> {
  public:
   explicit ESPNowSentTrigger(ESPNowComponent *parent) {
     parent->get_default_protocol()->add_on_sent_callback(
-        [this](ESPNowPacketPtr packet, bool status) { this->trigger(packet, status); });
+        [this](ESPNowPacketPtr packet, bool status) { this->trigger(std::move(packet), status); });
   }
 };
 
 class ESPNowReceiveTrigger : public Trigger<ESPNowPacketPtr> {
  public:
   explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_receive_callback([this](ESPNowPacketPtr packet) { this->trigger(packet); });
+    parent->get_default_protocol()->add_on_receive_callback(
+        [this](ESPNowPacketPtr packet) { this->trigger(std::move(packet)); });
   }
 };
 
 class ESPNowNewPeerTrigger : public Trigger<ESPNowPacketPtr> {
  public:
   explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacketPtr packet) { this->trigger(packet); });
+    parent->get_default_protocol()->add_on_peer_callback(
+        [this](ESPNowPacketPtr packet) { this->trigger(std::move(packet)); });
   }
 };
 
