@@ -293,7 +293,10 @@ bool ESPNowComponent::write(const std::shared_ptr<ESPNowPacket> packet) {
     esp_err_t err = esp_now_send((uint8_t *) &mac, packet->content_bytes(), packet->get_size());
     ESP_LOGVV(TAG, "S: 0x%04x.%d B: %d%s.", packet->get_sequents(), packet->attempts, this->send_queue_used(),
               (err == ESP_OK) ? "" : " FAILED");
-    this->defer([this, packet, err]() { this->on_sent_(packet, err == ESP_OK); });
+    this->defer([this, packet, err]() {
+      packet->reload();
+      this->on_sent_(std::move(packet), err == ESP_OK);
+    });
     return true;
   }
 
@@ -310,13 +313,19 @@ void ESPNowComponent::runner() {
 
       if (!esp_now_is_peer_exist(mac)) {
         if (!this->auto_add_peer_) {
-          this->defer([this, packet]() { this->on_new_peer_(packet); });
+          this->defer([this, packet]() {
+            packet->reload();
+            this->on_new_peer_(std::move(packet));
+          });
           continue;
         } else {
           this->add_peer(packet->peer);
         }
       }
-      this->defer([this, packet]() { this->on_receive_(packet); });
+      this->defer([this, packet]() {
+        packet->reload();
+        this->on_receive_(std::move(packet));
+      });
     }
     packet = std::make_shared<ESPNowPacket>();
     if (xQueueReceive(this->send_queue_, packet.get(), (TickType_t) 1) == pdTRUE) {
@@ -366,7 +375,7 @@ void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_
       ESP_LOGV(TAG, "Confirm sent (0x%04x.%d)", packet->get_sequents(), packet->attempts);
       global_esp_now->defer([packet]() {
         packet->reload();
-        global_esp_now->on_sent_(packet, true);
+        global_esp_now->on_sent_(std::move(packet), true);
         auto tmp = std::make_shared<ESPNowPacket>();
         xQueueReceive(global_esp_now->send_queue_, tmp.get(), 10 / portTICK_PERIOD_MS);
         global_esp_now->unlock();
@@ -374,7 +383,8 @@ void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_
       return;
     }
     global_esp_now->defer([packet]() {
-      global_esp_now->on_sent_(packet, false);
+      packet->reload();
+      global_esp_now->on_sent_(std::move(packet), false);
       global_esp_now->unlock();
     });
   }
