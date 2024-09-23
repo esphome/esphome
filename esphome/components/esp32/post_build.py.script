@@ -38,6 +38,8 @@ def esp32_create_combined_bin(source, target, env):
         "--chip",
         chip,
         "merge_bin",
+        "--fill-flash-size",
+        flash_size,
         "-o",
         new_file_name,
         "--flash_size",
