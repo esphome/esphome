@@ -1,12 +1,12 @@
 spi:
-  clk_pin: GPIO5
-  mosi_pin: GPIO27
-  miso_pin: GPIO19
+  clk_pin: 2
+  mosi_pin: 3
+  miso_pin: 4
 
 sx127x:
   id: sx127x_id
-  nss_pin: GPIO18
-  rst_pin: GPIO23
+  nss_pin: 4
+  rst_pin: 6
   pa_pin: BOOST
   pa_power: 17
   frequency: 433920000
