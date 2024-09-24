@@ -166,6 +166,7 @@ esphome/components/haier/* @paveldn
 esphome/components/haier/binary_sensor/* @paveldn
 esphome/components/haier/button/* @paveldn
 esphome/components/haier/sensor/* @paveldn
+esphome/components/haier/switch/* @paveldn
 esphome/components/haier/text_sensor/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
@@ -397,6 +398,7 @@ esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/t6615/* @tylermenezes
 esphome/components/tca9548a/* @andreashergert1984
+esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax

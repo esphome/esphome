@@ -68,7 +68,12 @@ void ESP32ImprovComponent::setup_characteristics() {
 
 void ESP32ImprovComponent::loop() {
   if (!global_ble_server->is_running()) {
-    this->state_ = improv::STATE_STOPPED;
+    if (this->state_ != improv::STATE_STOPPED) {
+      this->state_ = improv::STATE_STOPPED;
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+      this->state_callback_.call(this->state_, this->error_state_);
+#endif
+    }
     this->incoming_data_.clear();
     return;
   }
@@ -217,6 +222,9 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
   service_data[7] = 0x00;  // Reserved
 
   esp32_ble::global_ble->advertising_set_service_data(service_data);
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+  this->state_callback_.call(this->state_, this->error_state_);
+#endif
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
@@ -270,7 +278,7 @@ void ESP32ImprovComponent::dump_config() {
 void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
 
-  ESP_LOGD(TAG, "Processing bytes - %s", format_hex_pretty(this->incoming_data_).c_str());
+  ESP_LOGV(TAG, "Processing bytes - %s", format_hex_pretty(this->incoming_data_).c_str());
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
@@ -295,7 +303,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         wifi::global_wifi_component->set_sta(sta);
         wifi::global_wifi_component->start_connecting(sta, false);
         this->set_state_(improv::STATE_PROVISIONING);
-        ESP_LOGD(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
+        ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
 
         auto f = std::bind(&ESP32ImprovComponent::on_wifi_connect_timeout_, this);
@@ -313,7 +321,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->incoming_data_.clear();
     }
   } else if (this->incoming_data_.size() - 2 > length) {
-    ESP_LOGV(TAG, "Too much data came in, or malformed resetting buffer...");
+    ESP_LOGV(TAG, "Too much data received or data malformed; resetting buffer...");
     this->incoming_data_.clear();
   } else {
     ESP_LOGV(TAG, "Waiting for split data packets...");
@@ -327,7 +335,7 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   if (this->authorizer_ != nullptr)
     this->authorized_start_ = millis();
 #endif
-  ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
+  ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
 }
 

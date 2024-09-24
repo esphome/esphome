@@ -419,6 +419,13 @@ async def to_code(config):
         repo="https://github.com/espressif/esp-tflite-micro",
         ref="v1.3.1",
     )
+    # add esp-nn dependency for tflite-micro to work around https://github.com/espressif/esp-nn/issues/17
+    # ...remove after switching to IDF 5.1.4+
+    esp32.add_idf_component(
+        name="esp-nn",
+        repo="https://github.com/espressif/esp-nn",
+        ref="v1.1.0",
+    )
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")

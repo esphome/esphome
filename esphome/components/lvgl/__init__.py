@@ -22,9 +22,10 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, focused_widgets, update_to_code
-from .defines import add_define
+from .defines import CONF_WIDGETS, add_define
 from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
+from .hello_world import get_hello_world
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent
 from .schemas import (
@@ -32,7 +33,7 @@ from .schemas import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
     LAYOUT_SCHEMAS,
-    STYLE_SCHEMA,
+    STATE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
@@ -292,6 +293,13 @@ def display_schema(config):
     return value or [cv.use_id(Display)(config)]
 
 
+def add_hello_world(config):
+    if CONF_WIDGETS not in config and CONF_PAGES not in config:
+        LOGGER.info("No pages or widgets configured, creating default hello_world page")
+        config[CONF_WIDGETS] = cv.ensure_list(WIDGET_SCHEMA)(get_hello_world())
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = final_validation
 
 CONFIG_SCHEMA = (
@@ -313,7 +321,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
                 cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)})
-                .extend(STYLE_SCHEMA)
+                .extend(STATE_SCHEMA)
                 .extend(
                     {
                         cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
@@ -349,4 +357,5 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(DISP_BG_SCHEMA)
-).add_extra(cv.has_at_least_one_key(CONF_PAGES, df.CONF_WIDGETS))
+    .add_extra(add_hello_world)
+)
