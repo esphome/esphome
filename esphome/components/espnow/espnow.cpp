@@ -33,19 +33,17 @@ static void application_task(void *param) {
   ESPNowComponent *application = (ESPNowComponent *) param;
   application->runner();
 }
-
-std::string format_mac_addr(const uint8_t *mac) {
-  char buf[20];
-  sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return buf;
-}
-
 void ESPNowComponent::show_packet(const std::string &title, const ESPNowPacket &packet) {
-  ESP_LOGVV(TAG, "%s packet: M:%s H:%cx%cx%c  P:%c%c%c 0x%02x  S:%02x  C:ox%02x~0x%02x S:%02d V:%s", "test",
-            format_mac_addr(packet.peer_as_bytes()).c_str(), packet.content_at(0), packet.content_at(1),
-            packet.content_at(2), packet.content_at(3), packet.content_at(4), packet.content_at(5),
-            packet.content_at(6), packet.content_at(7), packet.crc(), packet.calc_crc(), packet.get_size(),
-            packet.is_valid() ? "Yes" : "No");
+  /*
+    char buf[20];
+    sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    ESP_LOGVV(TAG, "%s packet: M:%s H:%cx%cx%c  P:%c%c%c 0x%02x  S:%02x  C:ox%02x~0x%02x S:%02d V:%s", "test",
+              buf, packet.content_at(0), packet.content_at(1),
+              packet.content_at(2), packet.content_at(3), packet.content_at(4), packet.content_at(5),
+              packet.content_at(6), packet.content_at(7), packet.crc(), packet.calc_crc(), packet.get_size(),
+              packet.is_valid() ? "Yes" : "No");
+  */
 }
 
 /* ESPNowPacket ********************************************************************** */
@@ -264,7 +262,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
   } else {
     packet->timestamp = millis();
   }
-  this->show_packet("Receive", *packet);
+  /// this->show_packet("Receive", *packet);
 
   if (packet->is_valid()) {
     xQueueSendToBack(global_esp_now->receive_queue_, packet.get(), 10);
@@ -275,7 +273,7 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
 
 bool ESPNowComponent::write(const std::shared_ptr<ESPNowPacket> &packet) {
   uint8_t *mac = packet->peer_as_bytes();
-  this->show_packet("Write", *packet);
+  // this->show_packet("Write", *packet);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Cannot send espnow packet, espnow failed to setup");
   } else if (this->send_queue_full()) {
