@@ -22,8 +22,6 @@ namespace espnow {
 
 static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
 
-static uint64_t ESPNOW_ADDR_SELF = {0};
-
 static const uint8_t ESPNOW_DATA_HEADER = 0x00;
 static const uint8_t ESPNOW_DATA_PROTOCOL = 0x03;
 static const uint8_t ESPNOW_DATA_PACKET = 0x07;
@@ -231,8 +229,12 @@ class ESPNowComponent : public Component {
 
   std::map<uint32_t, ESPNowProtocol *> protocols_{};
   std::vector<uint64_t> peers_{};
+  uint64_t own_peer_address_{0};
+  ESPNowDefaultProtocol *default_protocol_{nullptr};
 
   TaskHandle_t espnow_task_handle_{nullptr};
+
+  static ESPNowComponent *static_;
 };
 
 template<typename... Ts> class SendAction : public Action<Ts...>, public Parented<ESPNowComponent> {
@@ -310,8 +312,6 @@ class ESPNowNewPeerTrigger : public Trigger<ESPNowPacket *> {
     parent->get_default_protocol()->add_on_peer_callback([this](ESPNowPacket *packet) { this->trigger(packet); });
   }
 };
-
-extern ESPNowComponent *global_esp_now;
 
 }  // namespace espnow
 }  // namespace esphome
