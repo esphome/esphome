@@ -61,7 +61,7 @@ void SX127x::configure() {
   this->write_register_(REG_FRF_LSB, (uint8_t) ((frf >> 0) & 0xFF));
 
   // set fdev
-  uint32_t fdev = std::min(this->fsk_fdev_ / 61, 0x3FFFu);
+  uint32_t fdev = std::min(this->fsk_fdev_ / 61, (uint32_t) 0x3FFF);
   this->write_register_(REG_FDEV_MSB, (uint8_t) ((fdev >> 8) & 0xFF));
   this->write_register_(REG_FDEV_LSB, (uint8_t) ((fdev >> 0) & 0xFF));
 
@@ -70,11 +70,11 @@ void SX127x::configure() {
 
   // config pa
   if (this->pa_pin_ == PA_PIN_BOOST) {
-    this->pa_power_ = std::max(this->pa_power_, 2u);
-    this->pa_power_ = std::min(this->pa_power_, 17u);
+    this->pa_power_ = std::max(this->pa_power_, (uint32_t) 2);
+    this->pa_power_ = std::min(this->pa_power_, (uint32_t) 17);
     this->write_register_(REG_PA_CONFIG, (this->pa_power_ - 2) | this->pa_pin_ | PA_MAX_POWER);
   } else {
-    this->pa_power_ = std::min(this->pa_power_, 14u);
+    this->pa_power_ = std::min(this->pa_power_, (uint32_t) 14);
     this->write_register_(REG_PA_CONFIG, (this->pa_power_ - 0) | this->pa_pin_ | PA_MAX_POWER);
   }
   if (this->modulation_ == MOD_FSK) {
