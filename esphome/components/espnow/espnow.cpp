@@ -309,7 +309,7 @@ void ESPNowComponent::runner() {
 
       if (!esp_now_is_peer_exist(mac)) {
         if (!this->auto_add_peer_) {
-          this->defer([this, packet]() { this->on_new_peer_(std::move(packet)); });
+          this->defer([this, packet]() { this->on_new_peer_(packet); });
           continue;
         } else {
           this->add_peer(packet->peer);
