@@ -138,7 +138,7 @@ void SX127x::dump_config() {
   ESP_LOGCONFIG(TAG, "  Rx Start: %s", this->rx_start_ ? "true" : "false");
   ESP_LOGCONFIG(TAG, "  Rx Floor: %.1f dBm", this->rx_floor_);
   ESP_LOGCONFIG(TAG, "  FSK Fdev: %" PRIu32 " Hz", this->fsk_fdev_);
-  ESP_LOGCONFIG(TAG, "  FSK Ramp: %" PRIu32 " us", RAMP_LUT[this->fsk_ramp_]);
+  ESP_LOGCONFIG(TAG, "  FSK Ramp: %" PRIu16 " us", RAMP_LUT[this->fsk_ramp_]);
   if (this->fsk_shaping_ == SHAPING_BT_1_0) {
     ESP_LOGCONFIG(TAG, "  FSK Shaping: BT_1_0");
   } else if (this->fsk_shaping_ == SHAPING_BT_0_5) {
