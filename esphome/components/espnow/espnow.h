@@ -234,7 +234,7 @@ class ESPNowComponent : public Component {
 
   TaskHandle_t espnow_task_handle_{nullptr};
 
-  static ESPNowComponent *static_;
+  static ESPNowComponent *static_;  // NOLINT
 };
 
 template<typename... Ts> class SendAction : public Action<Ts...>, public Parented<ESPNowComponent> {

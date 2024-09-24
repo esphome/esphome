@@ -33,7 +33,9 @@ static void application_task(void *param) {
   ESPNowComponent *application = (ESPNowComponent *) param;
   application->runner();
 }
-ESPNowComponent *ESPNowComponent::static_{nullptr};
+
+ESPNowComponent *ESPNowComponent::static_{nullptr};  // NOLINT
+
 /* ESPNowPacket ********************************************************************** */
 
 ESPNowPacket::ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t protocol) {
@@ -67,7 +69,7 @@ bool ESPNowPacket::is_valid() {
 
 /* ESPNowComponent ********************************************************************** */
 
-ESPNowComponent::ESPNowComponent() { ESPNowComponent::static_ = this; }
+ESPNowComponent::ESPNowComponent() { ESPNowComponent::static_ = this; }  // NOLINT
 
 void ESPNowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "esp_now:");
@@ -198,7 +200,7 @@ esp_err_t ESPNowComponent::del_peer(uint64_t addr) {
 
 ESPNowDefaultProtocol *ESPNowComponent::get_default_protocol() {
   if (this->protocols_[ESPNOW_MAIN_PROTOCOL_ID] == nullptr) {
-    this->default_protocol_ = new ESPNowDefaultProtocol();
+    this->default_protocol_ = new ESPNowDefaultProtocol();  // NOLINT
     this->register_protocol(this->default_protocol_);
   }
   return (ESPNowDefaultProtocol *) this->protocols_[ESPNOW_MAIN_PROTOCOL_ID];
