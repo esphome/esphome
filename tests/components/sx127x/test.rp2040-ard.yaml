@@ -5,7 +5,7 @@ spi:
 
 sx127x:
   id: sx127x_id
-  nss_pin: 4
+  nss_pin: 5
   rst_pin: 6
   pa_pin: BOOST
   pa_power: 17
