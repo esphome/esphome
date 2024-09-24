@@ -189,7 +189,7 @@ void FeedbackCover::set_close_obstacle_sensor(binary_sensor::BinarySensor *close
     if (state && (this->current_operation == COVER_OPERATION_CLOSING ||
                   this->current_trigger_operation_ == COVER_OPERATION_CLOSING)) {
       ESP_LOGD(TAG, "'%s' - Obstacle collision detected while closing.", this->name_.c_str());
-      
+
       if (this->obstacle_rollback_) {
         this->target_position_ = clamp(this->position + this->obstacle_rollback_, COVER_CLOSED, COVER_OPEN);
         this->start_direction_(COVER_OPERATION_OPENING);
@@ -207,7 +207,7 @@ void FeedbackCover::set_open_obstacle_sensor(binary_sensor::BinarySensor *open_o
     if (state && (this->current_operation == COVER_OPERATION_OPENING ||
                   this->current_trigger_operation_ == COVER_OPERATION_OPENING)) {
       ESP_LOGD(TAG, "'%s' - Obstacle collision detected while opening.", this->name_.c_str());
-   
+
       if (this->obstacle_rollback_) {
         this->target_position_ = clamp(this->position - this->obstacle_rollback_, COVER_CLOSED, COVER_OPEN);
         this->start_direction_(COVER_OPERATION_CLOSING);
