@@ -1,5 +1,7 @@
 #include "sx127x.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace sx127x {
 
@@ -129,14 +131,14 @@ void SX127x::dump_config() {
   LOG_PIN("  NSS Pin: ", this->nss_pin_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
   ESP_LOGCONFIG(TAG, "  PA Pin: %s", this->pa_pin_ == PA_PIN_BOOST ? "BOOST" : "RFO");
-  ESP_LOGCONFIG(TAG, "  PA Power: %u dBm", this->pa_power_);
+  ESP_LOGCONFIG(TAG, "  PA Power: %" PRIu32 " dBm", this->pa_power_);
   ESP_LOGCONFIG(TAG, "  Frequency: %f MHz", (float) this->frequency_ / 1000000);
   ESP_LOGCONFIG(TAG, "  Modulation: %s", this->modulation_ == MOD_FSK ? "FSK" : "OOK");
   ESP_LOGCONFIG(TAG, "  Rx Bandwidth: %.1f kHz", (float) rx_bw / 1000);
   ESP_LOGCONFIG(TAG, "  Rx Start: %s", this->rx_start_ ? "true" : "false");
   ESP_LOGCONFIG(TAG, "  Rx Floor: %.1f dBm", this->rx_floor_);
-  ESP_LOGCONFIG(TAG, "  FSK Fdev: %u Hz", this->fsk_fdev_);
-  ESP_LOGCONFIG(TAG, "  FSK Ramp: %u us", RAMP_LUT[this->fsk_ramp_]);
+  ESP_LOGCONFIG(TAG, "  FSK Fdev: %" PRIu32 " Hz", this->fsk_fdev_);
+  ESP_LOGCONFIG(TAG, "  FSK Ramp: %" PRIu32 " us", RAMP_LUT[this->fsk_ramp_]);
   if (this->fsk_shaping_ == SHAPING_BT_1_0) {
     ESP_LOGCONFIG(TAG, "  FSK Shaping: BT_1_0");
   } else if (this->fsk_shaping_ == SHAPING_BT_0_5) {
