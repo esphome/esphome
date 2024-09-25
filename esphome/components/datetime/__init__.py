@@ -142,7 +142,9 @@ async def setup_datetime_core_(var, config):
             time_id = cv.use_id(time.RealTimeClock)
             config[CONF_TIME_ID] = time_id
         except Exception as ex:
-            raise cv.Invalid("on_time requires a rtc, but no time platform found") from ex
+            raise cv.Invalid(
+                "on_time requires a rtc, but no time platform found"
+            ) from ex
 
     if CONF_TIME_ID in config:
         rtc = await cg.get_variable(config[CONF_TIME_ID])
