@@ -134,7 +134,7 @@ template<typename... Ts> class DateTimeSetAction : public Action<Ts...>, public 
   }
 };
 
-#ifdef REQUIRES_TIME
+#ifdef USE_TIME
 class OnDateTimeTrigger : public Trigger<>, public Component, public Parented<DateTimeEntity> {
  public:
   void loop() override;
