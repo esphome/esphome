@@ -140,7 +140,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_INIT_SEQUENCE, default=1): cv.ensure_list(
                     map_sequence
                 ),
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
+                cv.Optional(CONF_COLOR_ORDER, default="bgr"): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
                 cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
