@@ -1,11 +1,33 @@
 #include "ebyte_lora_component.h"
 namespace esphome {
 namespace ebyte_lora {
-static const uint8_t SWITCH_INFO = 0x66;
+union FuData {
+  uint32_t u32;
+  float f32;
+};
+
 // when this is called it is asking peers to say something about repeater
 static const uint8_t REQUEST_REPEATER_INFO = 0x88;
 static const uint8_t REPEATER_INFO = 0x99;
+static const uint8_t REPEATER_KEY = 0x99;
+
 static const uint8_t PROGRAM_CONF = 0xC1;
+static const uint8_t BINARY_SENSOR_KEY = 0x66;
+static const uint8_t SENSOR_KEY = 0x77;
+
+static inline uint32_t get_uint32(uint8_t *&buf) {
+  uint32_t data = *buf++;
+  data += *buf++ << 8;
+  data += *buf++ << 16;
+  data += *buf++ << 24;
+  return data;
+}
+
+static inline uint16_t get_uint16(uint8_t *&buf) {
+  uint16_t data = *buf++;
+  data += *buf++ << 8;
+  return data;
+}
 bool EbyteLoraComponent::check_config_() {
   bool success = true;
   if (this->current_config_.addh != this->expected_config_.addh) {
@@ -226,7 +248,7 @@ void EbyteLoraComponent::update() {
   }
 
   if (this->sent_switch_state_)
-    this->send_switch_info();
+    this->send_data_(true);
   // we always request repeater info, since nodes will response too that they are around
   // you can see it more of a health info
   this->request_repeater_info_();
@@ -262,6 +284,29 @@ void EbyteLoraComponent::set_config_() {
   this->setup_wait_response_(5000);
 }
 void EbyteLoraComponent::setup() {
+#ifdef USE_SENSOR
+  for (auto &sensor : this->sensors_) {
+    sensor.sensor->add_on_state_callback([this, &sensor](float x) {
+      this->updated_ = true;
+      sensor.updated = true;
+    });
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  for (auto &sensor : this->binary_sensors_) {
+    sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
+      this->updated_ = true;
+      sensor.updated = true;
+    });
+  }
+#endif
+  this->should_send_ = this->repeater_enabled_;
+#ifdef USE_SENSOR
+  this->should_send_ |= !this->sensors_.empty();
+#endif
+#ifdef USE_BINARY_SENSOR
+  this->should_send_ |= !this->binary_sensors_.empty();
+#endif
   this->pin_aux_->setup();
   this->pin_m0_->setup();
   this->pin_m1_->setup();
@@ -379,134 +424,187 @@ void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
 void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
   ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id_);
-  if (!this->repeater_ && !this->sent_switch_state_) {
+  if (!this->repeater_enabled_ && !this->sent_switch_state_) {
     ESP_LOGCONFIG(TAG, "  Normal mode");
   }
-  if (this->repeater_) {
+  if (this->repeater_enabled_) {
     ESP_LOGCONFIG(TAG, "  Repeater mode");
   }
   if (this->sent_switch_state_) {
     ESP_LOGCONFIG(TAG, "  Remote switch mode");
   }
 };
+void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
+  uint8_t *start_ptr = buf;
+  uint8_t byte;
+  const uint8_t *end = buf + len;
+  FuData rdata{};
+  // switch (buf[0]) {
+  //   case REQUEST_REPEATER_INFO:
+  //     ESP_LOGD(TAG, "Got request for repeater info from network id %u", buf[1]);
+  //     this->send_repeater_info_();
+  //     break;
+  //   case REPEATER_INFO:
+  //     ESP_LOGD(TAG, "Got some repeater info from network %u ", buf[2]);
+  //     break;
+  //   case SWITCH_INFO:
+  //     if (this->should_send_) {
+  //       this->repeat_message_(buf);
+  //     }
 
-void EbyteLoraComponent::loop() {
-  std::string buffer;
-  std::vector<uint8_t> data;
-  if (!this->available())
-    return;
-  ESP_LOGD(TAG, "Reading serial");
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    data.push_back(c);
-  }
-  switch (data[0]) {
-    case REQUEST_REPEATER_INFO:
-      ESP_LOGD(TAG, "Got request for repeater info from network id %u", data[1]);
-      this->send_repeater_info_();
-      break;
-    case REPEATER_INFO:
-      ESP_LOGD(TAG, "Got some repeater info from network %u ", data[2]);
-      break;
-    case SWITCH_INFO:
-      if (this->repeater_) {
-        this->repeat_message_(data);
-      }
-      // only configs with switches should sent too
-      // #ifdef USE_SWITCH
-      //       // Make sure it is not itself
-      //       if (network_id_ != data[1]) {
-      //         ESP_LOGD(TAG, "Got switch info to process");
-      //         // last data bit is rssi
-      //         for (int i = 2; i < data.size() - 1; i = i + 2) {
-      //           uint8_t pin = data[i];
-      //           bool value = data[i + 1];
-      //           for (auto *sensor : this->sensors_) {
-      //             if (pin == sensor->get_pin()) {
-      //               sensor->publish_state(value);
-      //             }
-      //           }
-      //         }
-      //         ESP_LOGD(TAG, "Updated all");
-      //         this->send_switch_info();
-      //       }
-      // #endif
-      break;
-    case PROGRAM_CONF:
+#ifdef USE_SENSOR
+  auto &sensors = this->remote_sensors_[network_id_];
+#endif
+#ifdef USE_BINARY_SENSOR
+  auto &binary_sensors = this->remote_binary_sensors_[network_id_];
+#endif
+  while (buf < end) {
+    if (byte == PROGRAM_CONF) {
       ESP_LOGD(TAG, "GOT PROGRAM_CONF");
-      this->setup_conf_(data);
+      this->setup_conf_(buf);
       this->set_mode_(NORMAL);
       break;
-    default:
-      break;
+    }
+    byte = *buf++;
+
+    // Do all the stuff if they are sensors
+    if (byte == BINARY_SENSOR_KEY || byte == SENSOR_KEY) {
+      if (byte == BINARY_SENSOR_KEY) {
+        // 1 byte for the length of the sensor name, one for the name, 1 for the data
+        if (end - buf < 3) {
+          return ESP_LOGV(TAG, "Binary sensor key requires at least 3 more bytes");
+        }
+        // grab the first bite, that is the state, there will be 2 at least two more
+        rdata.u32 = *buf++;
+      } else if (byte == SENSOR_KEY) {
+        // same as before but we need 4 for sensor data
+        if (end - buf < 6) {
+          return ESP_LOGV(TAG, "Sensor key requires at least 6 more bytes");
+        }
+        // next 4 bytes are the int32
+        rdata.u32 = get_uint32(buf);
+      }
+      // key length for the sensor data
+      auto sensor_name_length = *buf++;
+      if (end - buf < sensor_name_length) {
+        return ESP_LOGV(TAG, "Name length of %u not available", sensor_name_length);
+      }
+      // max length of sensors name
+      char sensor_name[sensor_name_length]{};
+      // get the memory cleared and set
+      memset(sensor_name, 0, sizeof sensor_name);
+      // copy from buffer to sensor_name
+      memcpy(sensor_name, buf, sensor_name_length);
+      ESP_LOGV(TAG, "Found sensor key %d, id %s, data %lX", byte, sensor_name, (unsigned long) rdata.u32);
+      // move the buffer to after sensor name length
+      buf += sensor_name_length;
+
+#ifdef USE_SENSOR
+      if (byte == SENSOR_KEY && sensors.count(sensor_name) != 0)
+        sensors[sensor_name]->publish_state(rdata.f32);
+#endif
+#ifdef USE_BINARY_SENSOR
+      if (byte == BINARY_SENSOR_KEY && binary_sensors.count(sensor_name) != 0)
+        binary_sensors[sensor_name]->publish_state(rdata.u32 != 0);
+#endif
+    } else {
+      return ESP_LOGW(TAG, "Unknown key byte %X", byte);
+    }
   }
 
   // RSSI is always found whenever it is not program info
-  if (data[0] != PROGRAM_CONF) {
+  if (buf[0] != PROGRAM_CONF) {
 #ifdef USE_SENSOR
-    this->rssi_sensor_->publish_state((data[data.size() - 1] / 255.0) * 100);
+    this->rssi_sensor_->publish_state((buf[sizeof(buf) - 1] / 255.0) * 100);
 #endif
-    ESP_LOGD(TAG, "RSSI: %f", (data[data.size() - 1] / 255.0) * 100);
+    ESP_LOGD(TAG, "RSSI: %f", (buf[sizeof(buf) - 1] / 255.0) * 100);
+  }
+};
+void EbyteLoraComponent::loop() {
+  if (auto len = this->available()) {
+    uint8_t buf[len];
+    this->read_array(buf, len);
+    this->process_(buf, len);
   }
 }
-void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> data) {
+void EbyteLoraComponent::setup_conf_(uint8_t *data) {
   ESP_LOGD(TAG, "Config set");
   this->current_config_.config_set = 1;
-  for (int i = 0; i < data.size(); i++) {
-    // 3 is addh
-    if (i == 3) {
-      this->current_config_.addh = data[i];
-    }
-    // 4 is addl
-    if (i == 4) {
-      this->current_config_.addl = data[i];
-    }
-    // 5 is reg0, which is air_data for first 3 bits, then parity for 2, uart_baud for 3
-    if (i == 5) {
-      ESP_LOGD(TAG, "reg0: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
-      this->current_config_.air_data_rate = (data[i] >> 0) & 0b111;
-      this->current_config_.parity = (data[i] >> 3) & 0b11;
-      this->current_config_.uart_baud = (data[i] >> 5) & 0b111;
-    }
-    // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
-    if (i == 6) {
-      ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
-      this->current_config_.transmission_power = (data[i] >> 0) & 0b11;
-      this->current_config_.rssi_noise = (data[i] >> 5) & 0b1;
-      this->current_config_.sub_packet = (data[i] >> 6) & 0b11;
-    }
-    // 7 is reg2; channel
-    if (i == 7) {
-      this->current_config_.channel = data[i];
-    }
-    // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
-    if (i == 8) {
-      ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[i]));
-      this->current_config_.wor_period = (data[i] >> 0) & 0b111;
-      this->current_config_.enable_lbt = (data[i] >> 4) & 0b1;
-      this->current_config_.transmission_mode = (data[i] >> 6) & 0b1;
-      this->current_config_.enable_rssi = (data[i] >> 7) & 0b1;
-    }
-  }
+  // 3 is addh
+  this->current_config_.addh = data[3];
+  // 4 is addl
+  this->current_config_.addl = data[4];
+  // 5 is reg0, which is air_data for first 3 bits, then parity for 2, uart_baud for 3
+  ESP_LOGD(TAG, "reg0: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[5]));
+  this->current_config_.air_data_rate = (data[5] >> 0) & 0b111;
+  this->current_config_.parity = (data[5] >> 3) & 0b11;
+  this->current_config_.uart_baud = (data[5] >> 5) & 0b111;
+  // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
+  ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[6]));
+  this->current_config_.transmission_power = (data[6] >> 0) & 0b11;
+  this->current_config_.rssi_noise = (data[6] >> 5) & 0b1;
+  this->current_config_.sub_packet = (data[6] >> 6) & 0b11;
+  // 7 is reg2; channel
+  this->current_config_.channel = data[7];
+  // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
+  ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[8]));
+  this->current_config_.wor_period = (data[8] >> 0) & 0b111;
+  this->current_config_.enable_lbt = (data[8] >> 4) & 0b1;
+  this->current_config_.transmission_mode = (data[8] >> 6) & 0b1;
+  this->current_config_.enable_rssi = (data[8] >> 7) & 0b1;
 }
 
-void EbyteLoraComponent::send_switch_info() {
-#ifdef USE_SWITCH
+// void EbyteLoraComponent::send_data_(bool all) {
+//   if (!this->should_send_ || !network::is_connected())
+//     return;
+//   this->init_data_();
+
+//   this->flush_();
+//   this->updated_ = false;
+//   this->resend_data_ = false;
+// }
+void EbyteLoraComponent::send_data_(bool all) {
   if (!this->can_send_message_()) {
     return;
   }
   std::vector<uint8_t> data;
-  data.push_back(SWITCH_INFO);
+  // data.push_back(SWITCH_INFO);
   data.push_back(network_id_);
-  // for (auto *sensor : this->sensors_) {
-  //   data.push_back(sensor->get_pin());
-  //   data.push_back(sensor->state);
-  // }
-  ESP_LOGD(TAG, "Sending switch info");
+#ifdef USE_SENSOR
+  for (auto &sensor : this->sensors_) {
+    if (all || sensor.updated) {
+      sensor.updated = false;
+      FuData udata{.f32 = sensor.sensor->get_state()};
+      data.push_back(SENSOR_KEY);
+      data.push_back(udata.u32 & 0xFF);
+      data.push_back((udata.u32 >> 8) & 0xFF);
+      data.push_back((udata.u32 >> 16) & 0xFF);
+      data.push_back((udata.u32 >> 24) & 0xFF);
+      // add all the sensor date info
+      auto len = strlen(sensor.id);
+      data.push_back(len);
+      for (size_t i = 0; i != len; i++) {
+        data.push_back(*sensor.id++);
+      }
+    }
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  for (auto &sensor : this->binary_sensors_) {
+    if (all || sensor.updated) {
+      sensor.updated = false;
+      data.push_back(BINARY_SENSOR_KEY);
+      data.push_back((uint8_t) sensor.sensor->state);
+      auto len = strlen(sensor.id);
+      data.push_back(len);
+      for (size_t i = 0; i != len; i++) {
+        data.push_back(*sensor.id++);
+      }
+    }
+  }
+#endif
   this->write_array(data);
   this->setup_wait_response_(5000);
-#endif
 }
 
 void EbyteLoraComponent::send_repeater_info_() {
@@ -515,7 +613,7 @@ void EbyteLoraComponent::send_repeater_info_() {
   }
   uint8_t data[3];
   data[0] = REPEATER_INFO;  // response
-  data[1] = this->repeater_;
+  data[1] = this->repeater_enabled_;
   data[2] = network_id_;
   ESP_LOGD(TAG, "Telling system if i am a repeater and what my network_id is");
   this->write_array(data, sizeof(data));
@@ -532,12 +630,12 @@ void EbyteLoraComponent::request_repeater_info_() {
   this->write_array(data, sizeof(data));
   this->setup_wait_response_(5000);
 }
-void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
-  ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
+void EbyteLoraComponent::repeat_message_(uint8_t *buf) {
+  ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", buf[1]);
   if (!this->can_send_message_()) {
     return;
   }
-  this->write_array(data.data(), data.size());
+  this->write_array(buf, sizeof(buf));
   this->setup_wait_response_(5000);
 }
 

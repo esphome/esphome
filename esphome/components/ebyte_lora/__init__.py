@@ -28,7 +28,6 @@ EbyteLoraComponent = ebyte_lora_ns.class_(
     "EbyteLoraComponent", cg.PollingComponent, uart.UARTDevice
 )
 CONF_REMOTE_ID = "remote_id"
-CONF_PROVIDER = "provider"
 WorPeriod = ebyte_lora_ns.enum("WorPeriod")
 WOR_PERIOD_OPTIONS = {
     "WOR_500": WorPeriod.WOR_500,
@@ -203,7 +202,7 @@ CONFIG_SCHEMA = cv.All(
 SENSOR_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_REMOTE_ID): cv.string_strict,
-        cv.Required(CONF_PROVIDER): cv.valid_name,
+        cv.Required(CONF_NETWORK_ID): cv.int_range(min=0, max=255),
         cv.GenerateID(CONF_EBYTE_LORA_COMPONENT_ID): cv.use_id(EbyteLoraComponent),
     }
 )

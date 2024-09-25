@@ -55,9 +55,8 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
     Sensor st{sensor, id, true};
     this->sensors_.push_back(st);
   }
-  void add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
-    // this->add_provider(hostname);
-    this->remote_sensors_[hostname][remote_id] = sensor;
+  void add_remote_sensor(int network_id, const char *remote_id, sensor::Sensor *sensor) {
+    this->remote_sensors_[network_id][remote_id] = sensor;
   }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -66,13 +65,10 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
     this->binary_sensors_.push_back(st);
   }
 
-  void add_remote_binary_sensor(const char *hostname, const char *remote_id, binary_sensor::BinarySensor *sensor) {
-    // this->add_provider(hostname);
-    this->remote_binary_sensors_[hostname][remote_id] = sensor;
+  void add_remote_binary_sensor(int network_id, const char *remote_id, binary_sensor::BinarySensor *sensor) {
+    this->remote_binary_sensors_[network_id][remote_id] = sensor;
   }
 #endif
-
-  void send_switch_info();
 
 #ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
@@ -94,7 +90,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_enable_rssi(EnableByte enable) { expected_config_.enable_rssi = enable; }
   void set_sent_switch_state(bool enable) { sent_switch_state_ = enable; }
-  void set_repeater(bool enable) { repeater_ = enable; }
+  void set_repeater(bool enable) { repeater_enabled_ = enable; }
   void set_network_id(int id) { network_id_ = id; }
 
  private:
@@ -108,17 +104,21 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   bool check_config_();
   void set_config_();
   void get_current_config_();
-  void setup_conf_(std::vector<uint8_t> data);
+  void send_data_(bool all);
   void request_repeater_info_();
   void send_repeater_info_();
-  void repeat_message_(std::vector<uint8_t> data);
 
  protected:
+  bool updated_{};
+  void setup_conf_(uint8_t *buf);
+  void process_(uint8_t *buf, size_t len);
+  void repeat_message_(uint8_t *buf);
+  bool should_send_{};
   bool update_needed_ = false;
   // if enabled will sent information about itself
   bool sent_switch_state_ = false;
   // if set it will function as a repeater
-  bool repeater_ = false;
+  bool repeater_enabled_ = false;
   // used to tell one lora device apart from another
   int network_id_ = 0;
   int rssi_ = 0;
@@ -129,11 +129,11 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   RegisterConfig expected_config_;
 #ifdef USE_SENSOR
   std::vector<Sensor> sensors_{};
-  std::map<std::string, std::map<std::string, sensor::Sensor *>> remote_sensors_{};
+  std::map<int, std::map<std::string, sensor::Sensor *>> remote_sensors_{};
 #endif
 #ifdef USE_BINARY_SENSOR
   std::vector<BinarySensor> binary_sensors_{};
-  std::map<std::string, std::map<std::string, binary_sensor::BinarySensor *>> remote_binary_sensors_{};
+  std::map<int, std::map<std::string, binary_sensor::BinarySensor *>> remote_binary_sensors_{};
 #endif
 #ifdef USE_SENSOR
   sensor::Sensor *rssi_sensor_{nullptr};
