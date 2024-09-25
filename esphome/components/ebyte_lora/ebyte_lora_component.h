@@ -110,7 +110,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
 
  protected:
   bool updated_{};
-  void setup_conf_(uint8_t const *data);
+  void setup_conf_(uint8_t const *conf);
   void process_(uint8_t *buf, size_t len);
   void repeat_message_(uint8_t *buf);
   bool should_send_{};
