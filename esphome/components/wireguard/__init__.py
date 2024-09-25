@@ -67,8 +67,8 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Wireguard),
         cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-        cv.Required(CONF_ADDRESS): cv.ipv4,
-        cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4,
+        cv.Required(CONF_ADDRESS): cv.ipv4address,
+        cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4address,
         cv.Required(CONF_PRIVATE_KEY): _wireguard_key,
         cv.Required(CONF_PEER_ENDPOINT): cv.string,
         cv.Required(CONF_PEER_PUBLIC_KEY): _wireguard_key,

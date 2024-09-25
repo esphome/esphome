@@ -1,10 +1,8 @@
-import pytest
-
 from hypothesis import given
-from hypothesis.strategies import ip_addresses
+import pytest
 from strategies import mac_addr_strings
 
-from esphome import core, const
+from esphome import const, core
 
 
 class TestHexInt:
@@ -24,25 +22,6 @@ class TestHexInt:
         actual = str(target)
 
         assert actual == expected
-
-
-class TestIPAddress:
-    @given(value=ip_addresses(v=4).map(str))
-    def test_init__valid(self, value):
-        core.IPAddress(*value.split("."))
-
-    @pytest.mark.parametrize("value", ("127.0.0", "localhost", ""))
-    def test_init__invalid(self, value):
-        with pytest.raises(ValueError, match="IPAddress must consist of 4 items"):
-            core.IPAddress(*value.split("."))
-
-    @given(value=ip_addresses(v=4).map(str))
-    def test_str(self, value):
-        target = core.IPAddress(*value.split("."))
-
-        actual = str(target)
-
-        assert actual == value
 
 
 class TestMACAddress:
