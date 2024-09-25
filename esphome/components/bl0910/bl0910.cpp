@@ -10,6 +10,10 @@ namespace bl0910 {
 
 static const char *const TAG = "bl0910";
 
+constexpr int32_t encode_int24(uint8_t byte1, uint8_t byte2, uint8_t byte3) {
+  return ((static_cast<int8_t>(byte1) << 16) | (byte2 << 8) | (byte3));
+}
+
 static uint8_t checksum_calc(const uint8_t *data) {
   uint8_t checksum = 0;
   for (int i = 0; i < 5; i++) {
@@ -55,15 +59,39 @@ int32_t BL0910::read_register_(uint8_t addr) {
     return 0xFF000000;
   }
 
+  return encode_int24(packet[2], packet[3], packet[4]);
+}
+
+uint32_t BL0910::read_uregister_(uint8_t addr) {
+  uint8_t packet[6] = {0};
+
+  packet[0] = BL0910_READ_COMMAND;
+  packet[1] = addr;
+  this->enable();
+  this->transfer_array(packet, sizeof(packet) / sizeof(packet[0]));
+  this->disable();
+
+  // These bytes are swapped out with SPI transfer_array to zeros
+  // But needs to be swapped back to verify checksum
+  packet[0] = BL0910_READ_COMMAND;
+  packet[1] = addr;
+  uint8_t checksum = checksum_calc(packet);
+
+  if (checksum != packet[5])  // checksum is byte 6
+  {
+    ESP_LOGE(TAG, "Checksum error calculated: %x != read: %x", checksum, packet[5]);
+    return 0xFF000000;
+  }
+
   return encode_uint24(packet[2], packet[3], packet[4]);
 }
 
 float BL0910::get_voltage_(uint8_t channel) {
-  return ((float) this->read_register_(BL0910_REG_RMS[channel])) / this->voltage_reference_[channel];
+  return ((float) this->read_uregister_(BL0910_REG_RMS[channel])) / this->voltage_reference_[channel];
 }
 
 float BL0910::get_current_(uint8_t channel) {
-  return ((float) this->read_register_(BL0910_REG_RMS[channel])) / this->current_reference_[channel];
+  return ((float) this->read_uregister_(BL0910_REG_RMS[channel])) / this->current_reference_[channel];
 }
 
 float BL0910::get_power_(uint8_t channel) {
@@ -71,21 +99,21 @@ float BL0910::get_power_(uint8_t channel) {
 }
 
 float BL0910::get_energy_(uint8_t channel) {
-  return ((float) this->read_register_(BL0910_REG_CF_CNT[channel])) / this->energy_reference_[channel];
+  return ((float) this->read_uregister_(BL0910_REG_CF_CNT[channel])) / this->energy_reference_[channel];
 }
 
 float BL0910::get_frequency_() {
-  const float freq = (float) this->read_register_(BL0910_REG_PERIOD);
+  const float freq = (float) this->read_uregister_(BL0910_REG_PERIOD);
   return 10000000.0 / freq;
 }
 
 float BL0910::get_temperature_() {
-  const float temp = (float) this->read_register_(BL0910_REG_TPS1);
+  const float temp = (float) this->read_uregister_(BL0910_REG_TPS1);
   return (temp - 64.0) * 12.5 / 59.0 - 40.0;
 }
 
 float BL0910::get_powerfactor_(uint8_t channel, float freq) {
-  const float angle = (float) this->read_register_(BL0910_REG_ANGLE[channel]);
+  const float angle = (float) this->read_uregister_(BL0910_REG_ANGLE[channel]);
   return (360.0f * angle * freq) / 500000.0f;
 }
 
