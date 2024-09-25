@@ -9,6 +9,10 @@
 #include "esphome/components/esp32_ble_server/ble_server.h"
 #include "esphome/components/wifi/wifi_component.h"
 
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+#include "esphome/core/automation.h"
+#endif
+
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -42,6 +46,11 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   void stop() override;
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
 
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+  void add_on_state_callback(std::function<void(improv::State, improv::Error)> &&callback) {
+    this->state_callback_.add(std::move(callback));
+  }
+#endif
 #ifdef USE_BINARY_SENSOR
   void set_authorizer(binary_sensor::BinarySensor *authorizer) { this->authorizer_ = authorizer; }
 #endif
@@ -53,6 +62,9 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
 
   void set_wifi_timeout(uint32_t wifi_timeout) { this->wifi_timeout_ = wifi_timeout; }
   uint32_t get_wifi_timeout() const { return this->wifi_timeout_; }
+
+  improv::State get_improv_state() const { return this->state_; }
+  improv::Error get_improv_error_state() const { return this->error_state_; }
 
  protected:
   bool should_start_{false};
@@ -84,6 +96,9 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
 
   improv::State state_{improv::STATE_STOPPED};
   improv::Error error_state_{improv::ERROR_NONE};
+#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+  CallbackManager<void(improv::State, improv::Error)> state_callback_{};
+#endif
 
   bool status_indicator_state_{false};
   void set_status_indicator_state_(bool state);
