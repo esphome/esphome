@@ -237,14 +237,14 @@ async def to_code(config):
     cg.add(var.set_enable_rssi(config[CONF_ENABLE_RSSI]))
     for sens_conf in config.get(CONF_SENSORS, ()):
         sens_id = sens_conf[CONF_ID]
-        sensor = await cg.get_variable(sens_id)
+        sensor_device = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
-        cg.add(var.add_sensor(bcst_id, sensor))
+        cg.add(var.add_sensor(bcst_id, sensor_device))
     for sens_conf in config.get(CONF_BINARY_SENSORS, ()):
         sens_id = sens_conf[CONF_ID]
-        sensor = await cg.get_variable(sens_id)
+        sensor_device = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
-        cg.add(var.add_binary_sensor(bcst_id, sensor))
+        cg.add(var.add_binary_sensor(bcst_id, sensor_device))
     if CONF_LORA_RSSI in config:
-        sens = await Sensor.new_sensor(config[CONF_LORA_RSSI])
-        cg.add(var.set_rssi_sensor(sens))
+        sensor_device = await sensor.new_sensor(config[CONF_LORA_RSSI])
+        cg.add(var.set_rssi_sensor(sensor_device))
