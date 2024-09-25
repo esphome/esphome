@@ -527,48 +527,37 @@ void EbyteLoraComponent::loop() {
     this->process_(buf, len);
   }
 }
-void EbyteLoraComponent::setup_conf_(uint8_t *data) {
+void EbyteLoraComponent::setup_conf_(uint8_t const *conf) {
   ESP_LOGD(TAG, "Config set");
   this->current_config_.config_set = 1;
   // 3 is addh
-  this->current_config_.addh = data[3];
+  this->current_config_.addh = conf[3];
   // 4 is addl
-  this->current_config_.addl = data[4];
+  this->current_config_.addl = conf[4];
   // 5 is reg0, which is air_data for first 3 bits, then parity for 2, uart_baud for 3
-  ESP_LOGD(TAG, "reg0: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[5]));
-  this->current_config_.air_data_rate = (data[5] >> 0) & 0b111;
-  this->current_config_.parity = (data[5] >> 3) & 0b11;
-  this->current_config_.uart_baud = (data[5] >> 5) & 0b111;
+  ESP_LOGD(TAG, "reg0: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[5]));
+  this->current_config_.air_data_rate = (conf[5] >> 0) & 0b111;
+  this->current_config_.parity = (conf[5] >> 3) & 0b11;
+  this->current_config_.uart_baud = (conf[5] >> 5) & 0b111;
   // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
-  ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[6]));
-  this->current_config_.transmission_power = (data[6] >> 0) & 0b11;
-  this->current_config_.rssi_noise = (data[6] >> 5) & 0b1;
-  this->current_config_.sub_packet = (data[6] >> 6) & 0b11;
+  ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[6]));
+  this->current_config_.transmission_power = (conf[6] >> 0) & 0b11;
+  this->current_config_.rssi_noise = (conf[6] >> 5) & 0b1;
+  this->current_config_.sub_packet = (conf[6] >> 6) & 0b11;
   // 7 is reg2; channel
-  this->current_config_.channel = data[7];
+  this->current_config_.channel = conf[7];
   // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
-  ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(data[8]));
-  this->current_config_.wor_period = (data[8] >> 0) & 0b111;
-  this->current_config_.enable_lbt = (data[8] >> 4) & 0b1;
-  this->current_config_.transmission_mode = (data[8] >> 6) & 0b1;
-  this->current_config_.enable_rssi = (data[8] >> 7) & 0b1;
+  ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[8]));
+  this->current_config_.wor_period = (conf[8] >> 0) & 0b111;
+  this->current_config_.enable_lbt = (conf[8] >> 4) & 0b1;
+  this->current_config_.transmission_mode = (conf[8] >> 6) & 0b1;
+  this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
 }
-
-// void EbyteLoraComponent::send_data_(bool all) {
-//   if (!this->should_send_ || !network::is_connected())
-//     return;
-//   this->init_data_();
-
-//   this->flush_();
-//   this->updated_ = false;
-//   this->resend_data_ = false;
-// }
 void EbyteLoraComponent::send_data_(bool all) {
   if (!this->can_send_message_()) {
     return;
   }
   std::vector<uint8_t> data;
-  // data.push_back(SWITCH_INFO);
   data.push_back(network_id_);
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
