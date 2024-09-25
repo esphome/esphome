@@ -1,6 +1,7 @@
 #include "tcs34725.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <algorithm>
 
 namespace esphome {
 namespace tcs34725 {
@@ -254,7 +255,8 @@ void TCS34725Component::update() {
     // change integration time an gain to achieve maximum resolution an dynamic range
     // calculate optimal integration time to achieve 70% satuaration
     float integration_time_ideal;
-    integration_time_ideal = 60 / ((float) raw_c / 655.35) * this->integration_time_;
+
+    integration_time_ideal = 60 / ((float) std::max((uint16_t) 1, raw_c) / 655.35f) * this->integration_time_;
 
     uint8_t gain_reg_val_new = this->gain_reg_;
     // increase gain if less than 20% of white channel used and high integration time
