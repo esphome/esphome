@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components.binary_sensor import BinarySensor
@@ -153,7 +154,7 @@ CONFIG_SCHEMA = cv.All(
                 sensor_validation(BinarySensor)
             ),
             # if you want to see the rssi
-            cv.Optional(CONF_LORA_RSSI): Sensor.sensor_schema(
+            cv.Optional(CONF_LORA_RSSI): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=1,
