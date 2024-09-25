@@ -18,6 +18,14 @@
 namespace esphome {
 namespace ebyte_lora {
 
+/// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
+struct EbyteAuxStore {
+  volatile uint32_t last_interrupt{0};
+  volatile uint32_t on_time{0};
+  volatile bool can_send{false};
+  ISRInternalGPIOPin pin;
+  static void gpio_intr(EbyteAuxStore *arg);
+};
 #ifdef USE_SENSOR
 struct Sensor {
   sensor::Sensor *sensor;
@@ -35,8 +43,6 @@ struct BinarySensor {
 #endif
 
 static const char *const TAG = "ebyte_lora";
-static const int MAX_SIZE_TX_PACKET = 200;
-
 // the mode the receiver is in
 enum ModeType { NORMAL = 0, WOR_SEND = 1, WOR_RECEIVER = 2, CONFIGURATION = 3, MODE_INIT = 0xFF };
 // 1 byte, 8 bits in total
@@ -89,18 +95,19 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void set_enable_lbt(EnableByte enable) { expected_config_.enable_lbt = enable; }
   void set_transmission_mode(TransmissionMode mode) { expected_config_.transmission_mode = mode; }
   void set_enable_rssi(EnableByte enable) { expected_config_.enable_rssi = enable; }
-  void set_sent_switch_state(bool enable) { sent_switch_state_ = enable; }
+  // if enabled, will repeat any message it received as long as it isn't its own network id
   void set_repeater(bool enable) { repeater_enabled_ = enable; }
+  // software network id, this will make sure that only items from that network id are being found
   void set_network_id(int id) { network_id_ = id; }
 
  private:
-  ModeType mode_ = MODE_INIT;
+  ModeType config_mode_ = MODE_INIT;
+
   // set WOR mode
   void set_mode_(ModeType mode);
   ModeType get_mode_();
-  // checks the aux port to see if it is done setting
-  void setup_wait_response_(uint32_t timeout = 1000);
-  bool can_send_message_();
+  bool config_checked_ = false;
+  // check if you can sent a message
   bool check_config_();
   void set_config_();
   void get_current_config_();
@@ -110,21 +117,21 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
 
  protected:
   bool updated_{};
+  bool resend_repeater_request_{};
+  uint32_t repeater_request_recyle_time_{};
+  uint32_t last_key_time_{};
   void setup_conf_(uint8_t const *conf);
   void process_(uint8_t *buf, size_t len);
   void repeat_message_(uint8_t *buf);
+  // set if there is some sensor info available or it is in repeater mode
   bool should_send_{};
-  bool update_needed_ = false;
-  // if enabled will sent information about itself
-  bool sent_switch_state_ = false;
-  // if set it will function as a repeater
+  // if set it will function as a repeater only
   bool repeater_enabled_ = false;
   // used to tell one lora device apart from another
   int network_id_ = 0;
   int rssi_ = 0;
-  uint32_t starting_to_check_;
-  uint32_t time_out_after_;
-  std::string raw_message_;
+  EbyteAuxStore store_;
+  bool can_send = true;
   RegisterConfig current_config_;
   RegisterConfig expected_config_;
 #ifdef USE_SENSOR

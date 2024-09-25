@@ -1,6 +1,19 @@
 #include "ebyte_lora_component.h"
 namespace esphome {
 namespace ebyte_lora {
+
+void IRAM_ATTR HOT EbyteAuxStore::gpio_intr(EbyteAuxStore *arg) {
+  const bool can_send = arg->pin.digital_read();
+  if (can_send == arg->can_send)
+    return;
+  arg->can_send = can_send;
+  const uint32_t now = micros();
+
+  if (!can_send)
+    arg->on_time += now - arg->last_interrupt;
+
+  arg->last_interrupt = now;
+}
 union FuData {
   uint32_t u32;
   float f32;
@@ -237,21 +250,29 @@ void EbyteLoraComponent::update() {
     this->get_current_config_();
     return;
   } else {
-    if (!this->check_config_()) {
-      ESP_LOGD(TAG, "Config is not right, changing it now");
-      this->set_config_();
+    // if it already set just continue quickly!
+    if (!this->config_checked_) {
+      this->config_checked_ = this->check_config_();
+      if (!this->config_checked_) {
+        ESP_LOGD(TAG, "Config is not right, changing it now");
+        this->set_config_();
+      }
     }
   }
-  if (this->get_mode_() != NORMAL) {
-    ESP_LOGD(TAG, "Mode is not set right");
-    this->set_mode_(NORMAL);
-  }
+  if (this->config_mode_ != NORMAL) {
+    this->config_mode_ = this->get_mode_();
 
-  if (this->sent_switch_state_)
-    this->send_data_(true);
-  // we always request repeater info, since nodes will response too that they are around
-  // you can see it more of a health info
-  this->request_repeater_info_();
+    if (this->config_mode_ != NORMAL) {
+      ESP_LOGD(TAG, "Mode is not set right");
+      this->set_mode_(NORMAL);
+    }
+  }
+  this->updated_ = true;
+  auto now = millis() / 1000;
+  if (this->last_key_time_ + this->repeater_request_recyle_time_ < now) {
+    this->resend_repeater_request_ = true;
+    this->last_key_time_ = now;
+  }
 }
 void EbyteLoraComponent::set_config_() {
   uint8_t data[11];
@@ -281,7 +302,6 @@ void EbyteLoraComponent::set_config_() {
   data[10] = 0;
   this->set_mode_(CONFIGURATION);
   this->write_array(data, sizeof(data));
-  this->setup_wait_response_(5000);
 }
 void EbyteLoraComponent::setup() {
 #ifdef USE_SENSOR
@@ -308,6 +328,8 @@ void EbyteLoraComponent::setup() {
   this->should_send_ |= !this->binary_sensors_.empty();
 #endif
   this->pin_aux_->setup();
+  this->pin_aux_->attach_interrupt(EbyteAuxStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
+  this->store_.can_send = false;
   this->pin_m0_->setup();
   this->pin_m1_->setup();
   this->get_current_config_();
@@ -321,7 +343,8 @@ void EbyteLoraComponent::get_current_config_() {
 }
 ModeType EbyteLoraComponent::get_mode_() {
   ModeType internal_mode = MODE_INIT;
-  if (!this->can_send_message_()) {
+  if (!this->can_send) {
+    ESP_LOGD(TAG, "Can't sent it right now");
     return internal_mode;
   }
 
@@ -343,15 +366,16 @@ ModeType EbyteLoraComponent::get_mode_() {
     // ESP_LOGD(TAG, "MODE Conf!");
     internal_mode = CONFIGURATION;
   }
-  if (internal_mode != this->mode_) {
+  if (internal_mode != this->config_mode_) {
     ESP_LOGD(TAG, "Modes are not equal, calling the set function!! , checked: %u, expected: %u", internal_mode,
-             this->mode_);
+             this->config_mode_);
     this->set_mode_(internal_mode);
   }
   return internal_mode;
 }
 void EbyteLoraComponent::set_mode_(ModeType mode) {
-  if (!this->can_send_message_()) {
+  if (!this->can_send) {
+    ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
   if (this->pin_m0_ == nullptr || this->pin_m1_ == nullptr) {
@@ -387,71 +411,24 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
         break;
     }
   }
-  // wait until aux pin goes back low
-  this->setup_wait_response_(1000);
-  this->mode_ = mode;
+  this->config_mode_ = mode;
   ESP_LOGD(TAG, "Mode is going to be set");
-}
-bool EbyteLoraComponent::can_send_message_() {
-  // High means no more information is needed
-  if (this->pin_aux_->digital_read()) {
-    if (!(this->starting_to_check_ == 0) && !(this->time_out_after_ == 0)) {
-      this->starting_to_check_ = 0;
-      this->time_out_after_ = 0;
-      this->flush();
-      ESP_LOGD(TAG, "Aux pin is High! Can send again!");
-    }
-    return true;
-  } else {
-    // it has taken too long to complete, error out!
-    if ((millis() - this->starting_to_check_) > this->time_out_after_) {
-      ESP_LOGD(TAG, "Timeout error! Resetting timers");
-      this->starting_to_check_ = 0;
-      this->time_out_after_ = 0;
-    }
-    return false;
-  }
-}
-
-void EbyteLoraComponent::setup_wait_response_(uint32_t timeout) {
-  if (!(this->starting_to_check_ == 0) && !(this->time_out_after_ == 0)) {
-    ESP_LOGD(TAG, "Wait response already set!!  %u", timeout);
-  }
-  ESP_LOGD(TAG, "Setting a timer for %u", timeout);
-  this->starting_to_check_ = millis();
-  this->time_out_after_ = timeout;
 }
 void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
   ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id_);
-  if (!this->repeater_enabled_ && !this->sent_switch_state_) {
-    ESP_LOGCONFIG(TAG, "  Normal mode");
-  }
   if (this->repeater_enabled_) {
     ESP_LOGCONFIG(TAG, "  Repeater mode");
-  }
-  if (this->sent_switch_state_) {
-    ESP_LOGCONFIG(TAG, "  Remote switch mode");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Normal mode");
   }
 };
 void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
   uint8_t *start_ptr = buf;
   uint8_t byte;
-  const uint8_t *end = buf + len;
+  // -1 cause the last one is always RSSI
+  const uint8_t *end = buf + len - 1;
   FuData rdata{};
-  // switch (buf[0]) {
-  //   case REQUEST_REPEATER_INFO:
-  //     ESP_LOGD(TAG, "Got request for repeater info from network id %u", buf[1]);
-  //     this->send_repeater_info_();
-  //     break;
-  //   case REPEATER_INFO:
-  //     ESP_LOGD(TAG, "Got some repeater info from network %u ", buf[2]);
-  //     break;
-  //   case SWITCH_INFO:
-  //     if (this->should_send_) {
-  //       this->repeat_message_(buf);
-  //     }
-
 #ifdef USE_SENSOR
   auto &sensors = this->remote_sensors_[network_id_];
 #endif
@@ -459,6 +436,16 @@ void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
   auto &binary_sensors = this->remote_binary_sensors_[network_id_];
 #endif
   while (buf < end) {
+    if (byte == REQUEST_REPEATER_INFO) {
+      ESP_LOGD(TAG, "Got request for repeater info from network id %u", buf[1]);
+      this->send_repeater_info_();
+      break;
+    }
+
+    if (byte == REPEATER_INFO) {
+      ESP_LOGD(TAG, "Got some repeater info from network %u setting rssi next", buf[2]);
+      break;
+    }
     if (byte == PROGRAM_CONF) {
       ESP_LOGD(TAG, "GOT PROGRAM_CONF");
       this->setup_conf_(buf);
@@ -521,10 +508,20 @@ void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
   }
 };
 void EbyteLoraComponent::loop() {
+  this->store_.can_send = this->can_send;
+
   if (auto len = this->available()) {
     uint8_t buf[len];
     this->read_array(buf, len);
+    if (this->repeater_enabled_) {
+      this->repeat_message_(buf);
+    }
     this->process_(buf, len);
+  }
+  if (this->resend_repeater_request_)
+    this->request_repeater_info_();
+  if (this->updated_) {
+    this->send_data_(true);
   }
 }
 void EbyteLoraComponent::setup_conf_(uint8_t const *conf) {
@@ -554,7 +551,8 @@ void EbyteLoraComponent::setup_conf_(uint8_t const *conf) {
   this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
 }
 void EbyteLoraComponent::send_data_(bool all) {
-  if (!this->can_send_message_()) {
+  if (!this->can_send) {
+    ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
   std::vector<uint8_t> data;
@@ -593,11 +591,11 @@ void EbyteLoraComponent::send_data_(bool all) {
   }
 #endif
   this->write_array(data);
-  this->setup_wait_response_(5000);
 }
 
 void EbyteLoraComponent::send_repeater_info_() {
-  if (!this->can_send_message_()) {
+  if (!this->can_send) {
+    ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
   uint8_t data[3];
@@ -606,10 +604,10 @@ void EbyteLoraComponent::send_repeater_info_() {
   data[2] = network_id_;
   ESP_LOGD(TAG, "Telling system if i am a repeater and what my network_id is");
   this->write_array(data, sizeof(data));
-  this->setup_wait_response_(5000);
 }
 void EbyteLoraComponent::request_repeater_info_() {
-  if (!this->can_send_message_()) {
+  if (!this->can_send) {
+    ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
   uint8_t data[2];
@@ -617,15 +615,14 @@ void EbyteLoraComponent::request_repeater_info_() {
   data[1] = this->network_id_;      // for unique id
   ESP_LOGD(TAG, "Asking for repeater info");
   this->write_array(data, sizeof(data));
-  this->setup_wait_response_(5000);
 }
 void EbyteLoraComponent::repeat_message_(uint8_t *buf) {
   ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", buf[1]);
-  if (!this->can_send_message_()) {
+  if (!this->can_send) {
+    ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
   this->write_array(buf, sizeof(buf));
-  this->setup_wait_response_(5000);
 }
 
 }  // namespace ebyte_lora
