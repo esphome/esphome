@@ -659,7 +659,7 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
+bool get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(USE_HOST)
   static const uint8_t esphome_host_mac_address[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
   memcpy(mac, esphome_host_mac_address, sizeof(esphome_host_mac_address));
@@ -671,8 +671,14 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   // match the CRC that goes along with it. For those devices, this
   // work-around reads and uses the MAC address as-is from EFuse,
   // without doing the CRC check.
+  if ((esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac)) {
+    return true;
+  }
   esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
 #else
+  if ((esp_efuse_mac_get_custom(mac) == ESP_OK) && mac_address_is_valid(mac)) {
+    return true;
+  }
   esp_efuse_mac_get_default(mac);
 #endif
 #elif defined(USE_ESP8266)
@@ -684,20 +690,41 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 #else
 // this should be an error, but that messes with CI checks. #error No mac address method defined
 #endif
+  return false;
 }
+
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
+
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
+
 #ifdef USE_ESP32
 void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 #endif
+
+bool mac_address_is_valid(uint8_t *mac) {
+  bool is_all_zeros = true;
+  bool is_all_ones = true;
+
+  for (uint8_t i = 0; i < 6; i++) {
+    if (mac[i] != 0) {
+      is_all_zeros = false;
+    }
+  }
+  for (uint8_t i = 0; i < 6; i++) {
+    if (mac[i] != 0xFF) {
+      is_all_ones = false;
+    }
+  }
+  return !(is_all_zeros || is_all_ones);
+}
 
 void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
   uint32_t start = micros();
