@@ -61,10 +61,18 @@ DATETIME_MODES = [
 ]
 
 
-_DATETIME_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
-    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
-    .extend(
+def _validate_time_present(config):
+    config = config.copy()
+    if CONF_ON_TIME in config and CONF_TIME_ID not in config:
+        time_id = cv.use_id(time.RealTimeClock)(None)
+        config[CONF_TIME_ID] = time_id
+    return config
+
+
+_DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+    web_server.WEBSERVER_SORTING_SCHEMA,
+    cv.MQTT_COMMAND_COMPONENT_SCHEMA,
+    cv.Schema(
         {
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(
                 {
@@ -73,8 +81,8 @@ _DATETIME_SCHEMA = (
             ),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         }
-    )
-)
+    ),
+).add_extra(_validate_time_present)
 
 
 def date_schema(class_: MockObjClass) -> cv.Schema:
@@ -136,15 +144,6 @@ async def setup_datetime_core_(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
-
-    if CONF_ON_TIME in config and CONF_TIME_ID not in config:
-        try:
-            time_id = cv.use_id(time.RealTimeClock)
-            config[CONF_TIME_ID] = time_id
-        except Exception as ex:
-            raise cv.Invalid(
-                "on_time requires a rtc, but no time platform found"
-            ) from ex
 
     if CONF_TIME_ID in config:
         rtc = await cg.get_variable(config[CONF_TIME_ID])
