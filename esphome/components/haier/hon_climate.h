@@ -10,6 +10,9 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 #include "esphome/core/automation.h"
 #include "haier_base.h"
 #include "hon_packet.h"
@@ -28,6 +31,8 @@ enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE
 struct HonSettings {
   hon_protocol::VerticalSwingMode last_vertiacal_swing;
   hon_protocol::HorizontalSwingMode last_horizontal_swing;
+  bool beeper_state;
+  bool quiet_mode_state;
 };
 
 class HonClimate : public HaierClimateBase {
@@ -87,6 +92,15 @@ class HonClimate : public HaierClimateBase {
   void update_sub_text_sensor_(SubTextSensorType type, const std::string &value);
   text_sensor::TextSensor *sub_text_sensors_[(size_t) SubTextSensorType::SUB_TEXT_SENSOR_TYPE_COUNT]{nullptr};
 #endif
+#ifdef USE_SWITCH
+ public:
+  void set_beeper_switch(switch_::Switch *sw);
+  void set_quiet_mode_switch(switch_::Switch *sw);
+
+ protected:
+  switch_::Switch *beeper_switch_{nullptr};
+  switch_::Switch *quiet_mode_switch_{nullptr};
+#endif
  public:
   HonClimate();
   HonClimate(const HonClimate &) = delete;
@@ -95,6 +109,8 @@ class HonClimate : public HaierClimateBase {
   void dump_config() override;
   void set_beeper_state(bool state);
   bool get_beeper_state() const;
+  void set_quiet_mode_state(bool state);
+  bool get_quiet_mode_state() const;
   esphome::optional<hon_protocol::VerticalSwingMode> get_vertical_airflow() const;
   void set_vertical_airflow(hon_protocol::VerticalSwingMode direction);
   esphome::optional<hon_protocol::HorizontalSwingMode> get_horizontal_airflow() const;
@@ -153,7 +169,6 @@ class HonClimate : public HaierClimateBase {
     bool functions_[5];
   };
 
-  bool beeper_status_;
   CleaningState cleaning_status_;
   bool got_valid_outdoor_temp_;
   esphome::optional<hon_protocol::VerticalSwingMode> pending_vertical_direction_{};
@@ -175,7 +190,8 @@ class HonClimate : public HaierClimateBase {
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
   HonSettings settings_;
-  ESPPreferenceObject rtc_;
+  ESPPreferenceObject hon_rtc_;
+  SwitchState quiet_mode_state_{SwitchState::OFF};
 };
 
 class HaierAlarmStartTrigger : public Trigger<uint8_t, const char *> {

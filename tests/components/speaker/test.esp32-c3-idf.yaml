@@ -21,4 +21,3 @@ speaker:
     id: speaker_id
     dac_type: external
     i2s_dout_pin: 3
-    mode: mono
