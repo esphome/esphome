@@ -659,7 +659,7 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
-bool get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
+void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(USE_HOST)
   static const uint8_t esphome_host_mac_address[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
   memcpy(mac, esphome_host_mac_address, sizeof(esphome_host_mac_address));
@@ -671,15 +671,17 @@ bool get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   // match the CRC that goes along with it. For those devices, this
   // work-around reads and uses the MAC address as-is from EFuse,
   // without doing the CRC check.
-  if ((esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac)) {
-    return true;
+  if (has_custom_mac_address()) {
+    esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48);
+  } else {
+    esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
   }
-  esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
 #else
-  if ((esp_efuse_mac_get_custom(mac) == ESP_OK) && mac_address_is_valid(mac)) {
-    return true;
+  if (has_custom_mac_address()) {
+    esp_efuse_mac_get_custom(mac);
+  } else {
+    esp_efuse_mac_get_default(mac);
   }
-  esp_efuse_mac_get_default(mac);
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
@@ -690,7 +692,6 @@ bool get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 #else
 // this should be an error, but that messes with CI checks. #error No mac address method defined
 #endif
-  return false;
 }
 
 std::string get_mac_address() {
@@ -709,7 +710,20 @@ std::string get_mac_address_pretty() {
 void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 #endif
 
-bool mac_address_is_valid(uint8_t *mac) {
+bool has_custom_mac_address() {
+#ifdef USE_ESP32
+  uint8_t mac[6];
+#if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
+  return (esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
+#else
+  return (esp_efuse_mac_get_custom(mac) == ESP_OK) && mac_address_is_valid(mac);
+#endif
+#else
+  return false;
+#endif
+}
+
+bool mac_address_is_valid(const uint8_t *mac) {
   bool is_all_zeros = true;
   bool is_all_ones = true;
 

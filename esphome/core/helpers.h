@@ -622,8 +622,7 @@ class HighFrequencyLoopRequester {
 };
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
-/// @return True if custom MAC was found (ESP32 & variants), else false
-bool get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
+void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();
@@ -635,6 +634,10 @@ std::string get_mac_address_pretty();
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
 #endif
+
+/// Check if a custom MAC address is set (ESP32 & variants)
+/// @return True if a custom MAC address is set (ESP32 & variants), else false
+bool has_custom_mac_address();
 
 /// Check if the MAC address is not all zeros or all ones
 /// @return True if MAC is valid, else false
