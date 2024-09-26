@@ -641,7 +641,7 @@ bool has_custom_mac_address();
 
 /// Check if the MAC address is not all zeros or all ones
 /// @return True if MAC is valid, else false
-bool mac_address_is_valid(uint8_t *mac);
+bool mac_address_is_valid(const uint8_t *mac);
 
 /// Delay for the given amount of microseconds, possibly yielding to other processes during the wait.
 void delay_microseconds_safe(uint32_t us);
