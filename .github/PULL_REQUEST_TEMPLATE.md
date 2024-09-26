@@ -9,9 +9,13 @@
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] Other
 
-**Related issue or feature (if applicable):** fixes <link to issue>
+**Related issue or feature (if applicable):** 
 
-**Pull request in [esphome-docs](https://github.com/esphome/esphome-docs) with documentation (if applicable):** esphome/esphome-docs#<esphome-docs PR number goes here>
+- fixes <link to issue>
+
+**Pull request in [esphome-docs](https://github.com/esphome/esphome-docs) with documentation (if applicable):** 
+
+- esphome/esphome-docs#<esphome-docs PR number goes here>
 
 ## Test Environment
 
