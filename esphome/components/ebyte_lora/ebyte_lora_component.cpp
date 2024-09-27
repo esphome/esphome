@@ -3,13 +3,13 @@ namespace esphome {
 namespace ebyte_lora {
 
 void IRAM_ATTR HOT EbyteAuxStore::gpio_intr(EbyteAuxStore *arg) {
-  const bool can_send_ = arg->pin.digital_read();
-  if (can_send_ == arg->can_send)
+  const bool can_send = arg->pin.digital_read();
+  if (can_send == arg->can_send)
     return;
-  arg->can_send = can_send_;
+  arg->can_send = can_send;
   const uint32_t now = micros();
 
-  if (!can_send_)
+  if (!can_send)
     arg->on_time += now - arg->last_interrupt;
 
   arg->last_interrupt = now;
