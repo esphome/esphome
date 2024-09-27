@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_JS_URL,
     CONF_LOCAL,
     CONF_LOG,
+    CONF_NAME,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
