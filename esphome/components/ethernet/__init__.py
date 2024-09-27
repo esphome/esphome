@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
     CONF_PAGE_ID,
+    CONF_POLLING_INTERVAL,
     CONF_RESET_PIN,
     CONF_SPI,
     CONF_STATIC_IP,
@@ -31,7 +32,7 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_VALUE,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 
 CONFLICTS_WITH = ["wifi"]
@@ -157,6 +158,10 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
                 cv.frequency, cv.int_range(int(8e6), int(80e6))
             ),
+            cv.Optional(CONF_POLLING_INTERVAL, default="10ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=TimePeriod(milliseconds=1)),
+            ),
         }
     ),
 )
@@ -234,6 +239,8 @@ async def to_code(config):
         cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
         if CONF_INTERRUPT_PIN in config:
             cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
+        else:
+            cg.add(var.set_polling_interval(config[CONF_POLLING_INTERVAL]))
         if CONF_RESET_PIN in config:
             cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))

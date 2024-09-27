@@ -327,7 +327,11 @@ void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  MISO Pin: %u", this->miso_pin_);
   ESP_LOGCONFIG(TAG, "  MOSI Pin: %u", this->mosi_pin_);
   ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_pin_);
-  ESP_LOGCONFIG(TAG, "  IRQ Pin: %d", this->interrupt_pin_);
+  if (this->interrupt_pin_ != -1) {
+    ESP_LOGCONFIG(TAG, "  IRQ Pin: %d", this->interrupt_pin_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Polling Interval: %u ms", this->polling_interval_);
+  }
   ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Clock Speed: %d MHz", this->clock_speed_ / 1000000);
 #else
@@ -536,6 +540,7 @@ void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
 void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
 void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
+void EthernetComponent::set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
 #else
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
 void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
