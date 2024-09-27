@@ -14,7 +14,7 @@ namespace max6921 {
 #define ARRAY_ELEM_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 
 class MAX6921Component;
-class Display;
+class Max6921Display;
 
 using max6921_writer_t = std::function<void(MAX6921Component &)>;
 
@@ -22,7 +22,7 @@ class MAX6921Component : public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
  public:
-  std::unique_ptr<Display> display_;
+  std::unique_ptr<Max6921Display> display_;
   void dump_config() override;
   float get_setup_priority() const override;
   uint8_t print(uint8_t pos, const char *str);

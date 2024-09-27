@@ -122,7 +122,7 @@ const uint8_t ASCII_TO_SEG[FONT_SIZE] PROGMEM = {
     SEG_UNSUPPORTED_CHAR,                                   // '~', (0x7E)
 };
 
-void Display::setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &pos_to_out_map) {
+void Max6921Display::setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &pos_to_out_map) {
   this->default_update_interval_ = this->max6921_->get_update_interval();
   this->seg_to_out_map_ = seg_to_out_map;
   this->pos_to_out_map_ = pos_to_out_map;
@@ -155,7 +155,7 @@ void Display::setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &
    * well, which leads to unstable refresh cycles (flickering). Therefore a
    * thread on 2nd MCU core is used.
    */
-  xTaskCreatePinnedToCore(&Display::display_refresh_task,
+  xTaskCreatePinnedToCore(&Max6921Display::display_refresh_task,
                           "display_refresh_task",  // name
                           2048,                    // stack size
                           this,                    // pass component pointer as task parameter pv
@@ -168,8 +168,8 @@ void Display::setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &
   // ESP_LOGCONFIG(TAG, "Display text effect: %u", this->disp_text_.effect);
 }
 
-void HOT Display::display_refresh_task(void *pv) {
-  Display *display = (Display *) pv;
+void HOT Max6921Display::display_refresh_task(void *pv) {
+  Max6921Display *display = (Max6921Display *) pv;
   static uint count = display->num_digits_;
   static uint current_pos = 1;
 
@@ -202,7 +202,7 @@ void HOT Display::display_refresh_task(void *pv) {
   }
 }
 
-void Display::dump_config() {
+void Max6921Display::dump_config() {
   char seg_name[3];
 
   // display segment to DOUTx mapping...
@@ -228,9 +228,9 @@ void Display::dump_config() {
  *
  * @return true, if character activates the point segment only, otherwise false
  */
-bool Display::is_point_seg_only(char c) { return ((c == ',') || (c == '.')); }
+bool Max6921Display::is_point_seg_only(char c) { return ((c == ',') || (c == '.')); }
 
-void Display::init_font_() {
+void Max6921Display::init_font_() {
   uint8_t seg_data;
 
   this->ascii_out_data_ = new uint8_t[ARRAY_ELEM_COUNT(ASCII_TO_SEG)];  // NOLINT
@@ -262,7 +262,7 @@ void Display::init_font_() {
  *
  * @param pos display position 0..n (optional, default=whole display)
  */
-void Display::clear(int pos) {
+void Max6921Display::clear(int pos) {
   if (pos < 0) {
     memset(this->out_buf_, 0, this->out_buf_size_);  // clear whole display buffer
   } else if (pos < this->num_digits_) {
@@ -277,7 +277,7 @@ void Display::clear(int pos) {
  *
  * @param interval_ms update interval in ms (optional, default=restore)
  */
-void Display::set_update_interval(uint32_t interval_ms) {
+void Max6921Display::set_update_interval(uint32_t interval_ms) {
   if ((interval_ms > 0) && (this->max6921_->get_update_interval() != interval_ms)) {
     ESP_LOGD(TAG, "Change polling interval: %" PRIu32 "ms", interval_ms);
     this->max6921_->stop_poller();
@@ -289,7 +289,7 @@ void Display::set_update_interval(uint32_t interval_ms) {
 /**
  * @brief Restores the configured display update interval.
  */
-void Display::restore_update_interval() {
+void Max6921Display::restore_update_interval() {
   if (this->max6921_->get_update_interval() != this->default_update_interval_) {
     ESP_LOGD(TAG, "Restore polling interval: %" PRIu32 "ms", this->default_update_interval_);
     this->max6921_->stop_poller();
@@ -301,7 +301,7 @@ void Display::restore_update_interval() {
 /**
  * @brief Updates the display.
  */
-void Display::update() {
+void Max6921Display::update() {
   // handle display brightness...
   if (this->brightness_cfg_changed_) {
     uint32_t inverted_duty =
@@ -342,7 +342,7 @@ void Display::update() {
 
   // handle repeats...
   if (this->mode == DISP_MODE_PRINT) {
-    DisplayText &disp_text_other = this->disp_text_ctrl_[DISP_MODE_OTHER];
+    Max6921DisplayText &disp_text_other = this->disp_text_ctrl_[DISP_MODE_OTHER];
     if (disp_text_other.repeat_on) {
       if ((millis() - disp_text_other.get_repeat_start()) >= disp_text_other.repeat_interval_ms) {
         ESP_LOGD(TAG, "Repeat interval of %" PRIu32 "ms expired", disp_text_other.repeat_interval_ms);
@@ -352,9 +352,9 @@ void Display::update() {
   }
 }
 
-void Display::set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num) {
+void Max6921Display::set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num) {
   uint text_idx, font_idx;
-  DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_OTHER];
+  Max6921DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_OTHER];
 
   ESP_LOGD(TAG, "Set demo mode: mode=%i, update-interval=%" PRIu32 "ms, cycle_num=%u", mode, interval, cycle_num);
 
@@ -383,7 +383,7 @@ void Display::set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num
   }
 }
 
-void Display::set_demo_mode(const std::string &mode, uint32_t interval, uint8_t cycle_num) {
+void Max6921Display::set_demo_mode(const std::string &mode, uint32_t interval, uint8_t cycle_num) {
   if (str_equals_case_insensitive(mode, "off")) {
     this->set_demo_mode(DEMO_MODE_OFF, interval, cycle_num);
   } else if (str_equals_case_insensitive(mode, "scroll_font")) {
@@ -400,15 +400,15 @@ void Display::set_demo_mode(const std::string &mode, uint32_t interval, uint8_t 
  *
  * @return current mode
  */
-DisplayModeT Display::set_mode(DisplayModeT mode) {
-  this->disp_text_ = this->disp_text_ctrl_[DisplayMode::set_mode(mode)];
+DisplayModeT Max6921Display::set_mode(DisplayModeT mode) {
+  this->disp_text_ = this->disp_text_ctrl_[Max6921DisplayMode::set_mode(mode)];
 
   switch (this->mode) {
     case DISP_MODE_PRINT: {
       this->clear();  // clear display buffer
       this->restore_update_interval();
       // handle repeats of "other" mode...
-      DisplayText &disp_text_other = this->disp_text_ctrl_[DISP_MODE_OTHER];
+      Max6921DisplayText &disp_text_other = this->disp_text_ctrl_[DISP_MODE_OTHER];
       if (disp_text_other.repeat_on) {
         if (disp_text_other.repeat_num > 0) {  // defined number of repeats?
           if (disp_text_other.repeat_current < disp_text_other.repeat_num) {
@@ -464,10 +464,10 @@ DisplayModeT Display::set_mode(DisplayModeT mode) {
  *
  * @return number of characters displayed
  */
-int Display::set_text(const std::string &text, uint8_t start_pos, const std::string &align, uint32_t duration,
-                      const std::string &effect, uint8_t effect_cycle_num, uint8_t repeat_num, uint32_t repeat_interval,
-                      uint32_t update_interval) {
-  DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_OTHER];
+int Max6921Display::set_text(const std::string &text, uint8_t start_pos, const std::string &align, uint32_t duration,
+                             const std::string &effect, uint8_t effect_cycle_num, uint8_t repeat_num,
+                             uint32_t repeat_interval, uint32_t update_interval) {
+  Max6921DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_OTHER];
 
   ESP_LOGV(TAG,
            "Set text (given):  text=%s, start-pos=%u, align=%s, duration=%" PRIu32 "ms, "
@@ -518,8 +518,8 @@ int Display::set_text(const std::string &text, uint8_t start_pos, const std::str
  *
  * @return number of characters displayed
  */
-int Display::set_text(const char *text, uint8_t start_pos) {
-  DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_PRINT];
+int Max6921Display::set_text(const char *text, uint8_t start_pos) {
+  Max6921DisplayText &disp_text = this->disp_text_ctrl_[DISP_MODE_PRINT];
 
   ESP_LOGVV(TAG, "%s(): str=%s, prev=%s", __func__, text, disp_text.text);
   if (strncmp(text, disp_text.text, sizeof(disp_text.text)) == 0)  // text not changed?
@@ -539,7 +539,7 @@ int Display::set_text(const char *text, uint8_t start_pos) {
  *
  * @return number of visible characters
  */
-int Display::update_out_buf_() {
+int Max6921Display::update_out_buf_() {
   uint visible_idx_offset = 0;
   uint ignored_chars = 0;
   bool ignored_char_at_1st_pos = false;
@@ -633,7 +633,7 @@ int Display::update_out_buf_() {
 /**
  * @brief Constructor.
  */
-DisplayText::DisplayText() {
+Max6921DisplayText::Max6921DisplayText() {
   this->text[0] = 0;
   this->visible_idx = 0;
   this->visible_len = 0;
@@ -657,7 +657,7 @@ DisplayText::DisplayText() {
  *
  * @param duration_ms text display time in [ms]
  */
-void DisplayText::set_duration(uint32_t duration_ms) {
+void Max6921DisplayText::set_duration(uint32_t duration_ms) {
   ESP_LOGD(TAG, "Set text duration: %" PRIu32 "ms", duration_ms);
   this->duration_ms = duration_ms;
 }
@@ -665,7 +665,7 @@ void DisplayText::set_duration(uint32_t duration_ms) {
 /**
  * @brief Starts the text display time period.
  */
-void DisplayText::start_duration() {
+void Max6921DisplayText::start_duration() {
   if (this->duration_ms > 0) {
     ESP_LOGV(TAG, "Start text duration (%" PRIu32 "ms)", this->duration_ms);
     this->duration_ms_start_ = millis();
@@ -678,7 +678,7 @@ void DisplayText::start_duration() {
  * @param repeat_num text display repeat number (0 = endless)
  * @param repeat_interval_ms text display repeat interval [ms]
  */
-void DisplayText::set_repeats(uint8_t repeat_num, uint32_t repeat_interval_ms) {
+void Max6921DisplayText::set_repeats(uint8_t repeat_num, uint32_t repeat_interval_ms) {
   this->repeat_num = repeat_num;
   this->repeat_current = 0;
   this->repeat_interval_ms = repeat_interval_ms;
@@ -688,7 +688,7 @@ void DisplayText::set_repeats(uint8_t repeat_num, uint32_t repeat_interval_ms) {
 /**
  * @brief Starts the text display repeat period.
  */
-void DisplayText::start_repeat() {
+void Max6921DisplayText::start_repeat() {
   if (this->repeat_interval_ms > 0)
     this->repeat_ms_start_ = millis();
 }
@@ -702,7 +702,7 @@ void DisplayText::start_repeat() {
  *
  * @return number of stored characters
  */
-int DisplayText::set_text(uint start_pos, uint max_pos, const std::string &text) {
+int Max6921DisplayText::set_text(uint start_pos, uint max_pos, const std::string &text) {
   // check start position...
   if (start_pos >= max_pos) {
     ESP_LOGW(TAG, "Invalid start position: %u", start_pos);
@@ -725,7 +725,7 @@ int DisplayText::set_text(uint start_pos, uint max_pos, const std::string &text)
 /**
  * @brief Inits the text object according to selected align.
  */
-void DisplayText::init_text_align_() {
+void Max6921DisplayText::init_text_align_() {
   this->visible_idx = 0;
   this->visible_len = std::min(strlen(this->text), this->max_pos + 1);
   switch (this->align) {
@@ -745,7 +745,7 @@ void DisplayText::init_text_align_() {
 /**
  * @brief Inits the text object according to selected effect.
  */
-void DisplayText::init_text_effect_() {
+void Max6921DisplayText::init_text_effect_() {
   switch (this->effect) {
     case TEXT_EFFECT_SCROLL_LEFT:
       this->start_pos = this->max_pos;  // start at right side
@@ -767,7 +767,7 @@ void DisplayText::init_text_effect_() {
  *
  * @param align text align
  */
-void DisplayText::set_text_align(TextAlignT align) {
+void Max6921DisplayText::set_text_align(TextAlignT align) {
   if (align >= TEXT_ALIGN_LAST_ENUM) {
     ESP_LOGE(TAG, "Invalid display text align: %i", align);
     return;
@@ -783,7 +783,7 @@ void DisplayText::set_text_align(TextAlignT align) {
  *
  * @param align text align (as string)
  */
-void DisplayText::set_text_align(const std::string &align) {
+void Max6921DisplayText::set_text_align(const std::string &align) {
   TextAlignT text_align = TEXT_ALIGN_LAST_ENUM;
 
   if (!align.empty()) {
@@ -810,7 +810,7 @@ void DisplayText::set_text_align(const std::string &align) {
  * @param cycle_num number of effect cycles (optional, default=endless)
  * @param update_interval effect update interval in [ms] (optional, default=standard)
  */
-void DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num, uint32_t update_interval) {
+void Max6921DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num, uint32_t update_interval) {
   if (effect >= TEXT_EFFECT_LAST_ENUM) {
     ESP_LOGE(TAG, "Invalid display text effect: %i", effect);
     return;
@@ -842,7 +842,7 @@ void DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num, uint32_
  * @param cycle_num number of effect cycles (optional, default=endless)
  * @param update_interval effect update interval in [ms] (optional, default=standard)
  */
-void DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num, uint32_t update_interval) {
+void Max6921DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num, uint32_t update_interval) {
   TextEffectT text_effect = TEXT_EFFECT_LAST_ENUM;
 
   if (!effect.empty()) {
@@ -868,7 +868,7 @@ void DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num, 
  * @return true = effect cycles finished
  *         false = effect cycles not finished
  */
-bool DisplayText::blink() {
+bool Max6921DisplayText::blink() {
   ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u, cycle-cur/num=%u/%u", __func__, this->start_pos,
            this->visible_idx, this->visible_len, this->cycle_current, this->cycle_num);
 
@@ -902,7 +902,7 @@ bool DisplayText::blink() {
  * @return true = effect cycles finished
  *         false = effect cycles not finished
  */
-bool DisplayText::scroll_left() {
+bool Max6921DisplayText::scroll_left() {
   ESP_LOGV(TAG, "%s(): ENTRY: start-idx=%u, text-idx=%u, text-len=%u", __func__, this->start_pos, this->visible_idx,
            this->visible_len);
 
@@ -945,8 +945,8 @@ bool DisplayText::scroll_left() {
  *
  * @return frequency supported by hardware (0 = no support)
  */
-uint32_t DisplayBrightness::config_brightness_pwm(uint8_t pwm_pin_no, uint8_t channel, uint8_t resolution,
-                                                  uint32_t freq) {
+uint32_t Max6921DisplayBrightness::config_brightness_pwm(uint8_t pwm_pin_no, uint8_t channel, uint8_t resolution,
+                                                         uint32_t freq) {
   uint32_t freq_supported;
 
   if ((freq_supported = ledcSetup(channel, freq, resolution)) != 0) {
@@ -967,7 +967,7 @@ uint32_t DisplayBrightness::config_brightness_pwm(uint8_t pwm_pin_no, uint8_t ch
  *
  * @param percent brightness in percent (0.0-1.0)
  */
-void DisplayBrightness::set_brightness(float percent) {
+void Max6921DisplayBrightness::set_brightness(float percent) {
   if ((percent >= 0.0) && (percent <= 1.0)) {
     this->brightness_cfg_value_ = percent;
     this->brightness_cfg_changed_ = true;
@@ -978,7 +978,7 @@ void DisplayBrightness::set_brightness(float percent) {
 /**
  * @brief Constructor.
  */
-DisplayMode::DisplayMode() { this->mode = DISP_MODE_PRINT; }
+Max6921DisplayMode::Max6921DisplayMode() { this->mode = DISP_MODE_PRINT; }
 
 /**
  * @brief Sets the display mode.
@@ -987,7 +987,7 @@ DisplayMode::DisplayMode() { this->mode = DISP_MODE_PRINT; }
  *
  * @return current mode
  */
-DisplayModeT DisplayMode::set_mode(DisplayModeT mode) {
+DisplayModeT Max6921DisplayMode::set_mode(DisplayModeT mode) {
   if (mode >= DISP_MODE_LAST_ENUM) {
     ESP_LOGE(TAG, "Invalid display mode: %i", mode);
     return this->mode;

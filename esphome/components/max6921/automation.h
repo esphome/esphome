@@ -9,7 +9,7 @@
 namespace esphome {
 namespace max6921 {
 
-class Display;
+class Max6921Display;
 
 template<typename... Ts> class SetBrightnessAction : public Action<Ts...>, public Parented<MAX6921Component> {
  public:

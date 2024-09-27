@@ -28,7 +28,7 @@ void MAX6921Component::setup() {
   this->load_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->disable_load_();  // disable output latch
 
-  this->display_ = make_unique<Display>(this);
+  this->display_ = make_unique<Max6921Display>(this);
   this->display_->setup(this->seg_to_out_map_, this->pos_to_out_map_);
 
   // setup display brightness (PWM for BLANK pin)...

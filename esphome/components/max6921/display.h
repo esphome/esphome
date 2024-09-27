@@ -37,7 +37,7 @@ enum DemoModeT {
   DEMO_MODE_SCROLL_FONT,
 };
 
-class DisplayBrightness {
+class Max6921DisplayBrightness {
  public:
   uint32_t config_brightness_pwm(uint8_t pwm_pin_no, uint8_t channel, uint8_t resolution, uint32_t freq_wanted);
   float get_brightness() { return this->brightness_cfg_value_; }
@@ -50,16 +50,16 @@ class DisplayBrightness {
   uint8_t brightness_pwm_channel_;
 };
 
-class DisplayMode {
+class Max6921DisplayMode {
  public:
   DisplayModeT mode;
-  DisplayMode();
+  Max6921DisplayMode();
   DisplayModeT set_mode(DisplayModeT mode);
 
  protected:
 };
 
-class DisplayText {
+class Max6921DisplayText {
  public:
   bool content_changed;
   bool repeat_on;                   // repetitions are enabled
@@ -77,7 +77,7 @@ class DisplayText {
   uint8_t cycle_num;            // number of effect cycles
   uint8_t cycle_current;        // current effect cycle
   uint32_t update_interval_ms;  // effect update interval
-  DisplayText();
+  Max6921DisplayText();
   bool blink();
   uint32_t get_duration_start() { return this->duration_ms_start_; }
   uint32_t get_repeat_start() { return this->repeat_ms_start_; }
@@ -99,9 +99,9 @@ class DisplayText {
   void init_text_effect_();
 };
 
-class Display : public DisplayBrightness, public DisplayMode {
+class Max6921Display : public Max6921DisplayBrightness, public Max6921DisplayMode {
  public:
-  Display(MAX6921Component *max6921) { max6921_ = max6921; }
+  Max6921Display(MAX6921Component *max6921) { max6921_ = max6921; }
   void clear(int pos = -1);
   void dump_config();
   bool is_point_seg_only(char c);
@@ -127,8 +127,8 @@ class Display : public DisplayBrightness, public DisplayMode {
   size_t out_buf_size_;
   uint seg_out_smallest_;
   uint32_t refresh_period_us_;
-  DisplayText disp_text_ctrl_[DISP_MODE_LAST_ENUM];
-  DisplayText &disp_text_ = disp_text_ctrl_[0];
+  Max6921DisplayText disp_text_ctrl_[DISP_MODE_LAST_ENUM];
+  Max6921DisplayText &disp_text_ = disp_text_ctrl_[0];
   uint32_t default_update_interval_;
   static void display_refresh_task(void *pv);
   void init_font_();
