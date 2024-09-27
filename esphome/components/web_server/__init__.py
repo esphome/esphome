@@ -35,7 +35,7 @@ import esphome.final_validate as fv
 
 AUTO_LOAD = ["json", "web_server_base"]
 
-CONF_SORTING_GROUP = "sorting_group"
+CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 
@@ -117,7 +117,7 @@ def _final_validate_sorting(config):
             CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
         )
         _validate_no_sorting_component(
-            CONF_SORTING_GROUP, webserver_version, fv.full_config.get()
+            CONF_SORTING_GROUP_ID, webserver_version, fv.full_config.get()
         )
     return config
 
@@ -139,7 +139,7 @@ WEBSERVER_SORTING_SCHEMA = cv.Schema(
                     cv.requires_component("web_server"),
                     cv.float_,
                 ),
-                cv.Optional(CONF_SORTING_GROUP): cv.All(
+                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
                     cv.requires_component("web_server"),
                     cv.use_id(cg.int_),
                 ),
@@ -208,7 +208,7 @@ def add_sorting_groups(web_server_var, config):
 
 def add_entity_config(web_server, entity, config):
     sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
-    sorting_group_hash = hash(config.get(CONF_SORTING_GROUP))
+    sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
 
     cg.add(
         web_server.add_entity_config(
