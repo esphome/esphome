@@ -70,7 +70,7 @@ def validate_out_pin_mapping(value):
     mapped_out_pins = seg_pins + pos_pins
     # duplicates (and indirect max. pin number)
     if len(mapped_out_pins) != len(set(mapped_out_pins)):
-        raise cv.Invalid("OUT pin duplicate")
+        raise cv.Invalid("Pin numbers cannot be reused")
     return value
 
 
