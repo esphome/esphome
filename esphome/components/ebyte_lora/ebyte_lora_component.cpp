@@ -3,13 +3,13 @@ namespace esphome {
 namespace ebyte_lora {
 
 void IRAM_ATTR HOT EbyteAuxStore::gpio_intr(EbyteAuxStore *arg) {
-  const bool can_send = arg->pin.digital_read();
-  if (can_send == arg->can_send)
+  const bool can_send_ = arg->pin.digital_read();
+  if (can_send_ == arg->can_send)
     return;
-  arg->can_send = can_send;
+  arg->can_send = can_send_;
   const uint32_t now = micros();
 
-  if (!can_send)
+  if (!can_send_)
     arg->on_time += now - arg->last_interrupt;
 
   arg->last_interrupt = now;
@@ -343,7 +343,7 @@ void EbyteLoraComponent::get_current_config_() {
 }
 ModeType EbyteLoraComponent::get_mode_() {
   ModeType internal_mode = MODE_INIT;
-  if (!this->can_send) {
+  if (!this->can_send_) {
     ESP_LOGD(TAG, "Can't sent it right now");
     return internal_mode;
   }
@@ -374,7 +374,7 @@ ModeType EbyteLoraComponent::get_mode_() {
   return internal_mode;
 }
 void EbyteLoraComponent::set_mode_(ModeType mode) {
-  if (!this->can_send) {
+  if (!this->can_send_) {
     ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
@@ -508,7 +508,7 @@ void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
   }
 };
 void EbyteLoraComponent::loop() {
-  this->store_.can_send = this->can_send;
+  this->can_send_ = this->store_.can_send;
 
   if (auto len = this->available()) {
     uint8_t buf[len];
@@ -551,7 +551,7 @@ void EbyteLoraComponent::setup_conf_(uint8_t const *conf) {
   this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
 }
 void EbyteLoraComponent::send_data_(bool all) {
-  if (!this->can_send) {
+  if (!this->can_send_) {
     ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
@@ -594,7 +594,7 @@ void EbyteLoraComponent::send_data_(bool all) {
 }
 
 void EbyteLoraComponent::send_repeater_info_() {
-  if (!this->can_send) {
+  if (!this->can_send_) {
     ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
@@ -606,7 +606,7 @@ void EbyteLoraComponent::send_repeater_info_() {
   this->write_array(data, sizeof(data));
 }
 void EbyteLoraComponent::request_repeater_info_() {
-  if (!this->can_send) {
+  if (!this->can_send_) {
     ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
@@ -618,7 +618,7 @@ void EbyteLoraComponent::request_repeater_info_() {
 }
 void EbyteLoraComponent::repeat_message_(uint8_t *buf) {
   ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", buf[1]);
-  if (!this->can_send) {
+  if (!this->can_send_) {
     ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }

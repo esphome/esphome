@@ -131,7 +131,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   int network_id_ = 0;
   int rssi_ = 0;
   EbyteAuxStore store_;
-  bool can_send = true;
+  bool can_send_ = true;
   RegisterConfig current_config_;
   RegisterConfig expected_config_;
 #ifdef USE_SENSOR
