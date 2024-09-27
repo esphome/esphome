@@ -11,8 +11,8 @@ sensor:
       name: Green Channel
     blue_channel:
       name: Blue Channel
-    clear_channel:
-      name: Clear Channel
+    sensor_saturation:
+      name: Sensor Saturation
     illuminance:
       name: Illuminance
     color_temperature:

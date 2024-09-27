@@ -42,7 +42,7 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   void set_gain(TCS34725Gain gain);
   void set_glass_attenuation_factor(float ga);
 
-  void set_clear_sensor(sensor::Sensor *clear_sensor) { clear_sensor_ = clear_sensor; }
+  void set_sensor_saturation(sensor::Sensor *sensor_saturation) { sensor_saturation_ = sensor_saturation; }
   void set_red_sensor(sensor::Sensor *red_sensor) { red_sensor_ = red_sensor; }
   void set_green_sensor(sensor::Sensor *green_sensor) { green_sensor_ = green_sensor; }
   void set_blue_sensor(sensor::Sensor *blue_sensor) { blue_sensor_ = blue_sensor; }
@@ -67,7 +67,7 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   i2c::ErrorCode write_config_register_(uint8_t a_register, uint8_t data) {
     return this->write_register(a_register, &data, 1);
   }
-  sensor::Sensor *clear_sensor_{nullptr};
+  sensor::Sensor *sensor_saturation_{nullptr};
   sensor::Sensor *red_sensor_{nullptr};
   sensor::Sensor *green_sensor_{nullptr};
   sensor::Sensor *blue_sensor_{nullptr};
@@ -81,7 +81,8 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   bool integration_time_auto_{true};
 
  private:
-  void calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, uint16_t c);
+  void calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, float current_saturation,
+                                      uint16_t min_raw_value);
   uint16_t integration_reg_;
   uint8_t gain_reg_{TCS34725_GAIN_1X};
 };
