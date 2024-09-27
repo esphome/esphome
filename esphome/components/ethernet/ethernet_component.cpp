@@ -327,7 +327,7 @@ void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  MISO Pin: %u", this->miso_pin_);
   ESP_LOGCONFIG(TAG, "  MOSI Pin: %u", this->mosi_pin_);
   ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_pin_);
-  ESP_LOGCONFIG(TAG, "  IRQ Pin: %u", this->interrupt_pin_);
+  ESP_LOGCONFIG(TAG, "  IRQ Pin: %d", this->interrupt_pin_);
   ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Clock Speed: %d MHz", this->clock_speed_ / 1000000);
 #else
