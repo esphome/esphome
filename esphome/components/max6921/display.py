@@ -42,7 +42,6 @@ CONF_POS_9_PIN = "pos_9_pin"
 CONF_POS_10_PIN = "pos_10_pin"
 CONF_POS_11_PIN = "pos_11_pin"
 CONF_POS_12_PIN = "pos_12_pin"
-# CONF_DEMO_MODE = "demo_mode"
 CONF_ALIGN = "align"
 CONF_EFFECT_CYCLE_NUM = "effect_cycle_num"
 CONF_CYCLE_NUM = "cycle_num"
@@ -61,14 +60,6 @@ SetDemoModeAction = max6921_ns.class_("SetDemoModeAction", automation.Action)
 SetTextAction = max6921_ns.class_("SetTextAction", automation.Action)
 
 
-# optional "demo_mode" configuration
-# DemoMode = max6921_ns.enum("DemoMode")
-# DEMO_MODES = {
-#     CONF_OFF: DemoMode.OFF,
-#     CONF_SCROLL_FONT: DemoMode.SCROLL_FONT,
-# }
-
-
 def validate_out_pin_mapping(value):
     # segment pins must not have gaps
     seg_pins = list(value[CONF_SEG_TO_OUT_MAP].values())
@@ -80,8 +71,6 @@ def validate_out_pin_mapping(value):
     # duplicates (and indirect max. pin number)
     if len(mapped_out_pins) != len(set(mapped_out_pins)):
         raise cv.Invalid("OUT pin duplicate")
-    # if (len(mapped_out_pins) > 20):
-    #     raise cv.Invalid("Not more than 20 OUT pins supported")
     return value
 
 
@@ -131,9 +120,6 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_BLANK_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_OUT_PIN_MAPPING): OUT_PIN_MAPPING_SCHEMA,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.templatable(cv.percentage),
-            # cv.Optional(CONF_DEMO_MODE, default=CONF_DEMO_MODE_OFF): cv.enum(
-            #     DEMO_MODES
-            # ),
         }
     )
     .extend(cv.polling_component_schema("500ms"))
@@ -169,7 +155,6 @@ async def to_code(config):
         )
     )
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
-    # cg.add(var.set_demo_mode(config[CONF_DEMO_MODE]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -306,7 +291,6 @@ ACTION_SET_DEMO_MODE_SCHEMA = cv.All(
         ACTION_SCHEMA.extend(
             cv.Schema(
                 {
-                    # cv.Required(CONF_MODE): cv.templatable(cv.enum(DEMO_MODES, lower=True)),
                     cv.Required(CONF_MODE): cv.templatable(cv.string),
                     cv.Optional(CONF_UPDATE_INTERVAL, default="150ms"): cv.templatable(
                         cv.positive_time_period_milliseconds
@@ -325,7 +309,6 @@ ACTION_SET_DEMO_MODE_SCHEMA = cv.All(
 async def max6921_set_demo_mode_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    # template_ = await cg.templatable(config[CONF_MODE], args, DemoMode)
     template_ = await cg.templatable(config[CONF_MODE], args, cg.std_string)
     cg.add(var.set_mode(template_))
     if CONF_UPDATE_INTERVAL in config:
