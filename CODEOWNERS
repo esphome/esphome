@@ -149,6 +149,7 @@ esphome/components/font/* @clydebarrow @esphome/core
 esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
+esphome/components/fyrtur_motor/* @ItsRebaseTime
 esphome/components/gcja5/* @gcormier
 esphome/components/gdk101/* @Szewcson
 esphome/components/globals/* @esphome/core
