@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include <string>
 #include <vector>
@@ -124,4 +124,4 @@ class Max6921Display : public Max6921DisplayMode {
 }  // namespace max6921
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

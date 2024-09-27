@@ -1,4 +1,4 @@
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include <cinttypes>
 #include "esphome/core/hal.h"
@@ -950,4 +950,4 @@ DisplayModeT Max6921DisplayMode::set_mode(DisplayModeT mode) {
 }  // namespace max6921
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

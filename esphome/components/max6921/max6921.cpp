@@ -1,6 +1,6 @@
 // Datasheet: https://www.analog.com/media/en/technical-documentation/data-sheets/MAX6921-MAX6931.pdf
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include <cinttypes>
 #include "display.h"
@@ -95,4 +95,4 @@ void MAX6921Component::set_writer(max6921_writer_t &&writer) { this->writer_ = w
 }  // namespace max6921
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32
