@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
@@ -41,6 +43,7 @@ import esphome.final_validate as fv
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
+LOGGER = logging.getLogger(__name__)
 
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
 PHYRegister = ethernet_ns.struct("PHYRegister")
@@ -184,8 +187,10 @@ def _add_spi_irq_schema(schema):
         arduino_version = core_data[KEY_FRAMEWORK_VERSION]
         no_irq_supported = arduino_version >= cv.Version(3, 0, 0)
     else:
-        raise ValueError(
-            f"framework {target_framework} is unknown for ethernet component"
+        # Postel's law
+        no_irq_supported = True
+        LOGGER.warning(
+            "using framework is unknown for ethernet component (expecting esp-idf or arduino)"
         )
     if no_irq_supported:
         schema = schema.extend(
