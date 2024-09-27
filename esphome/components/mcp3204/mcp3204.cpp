@@ -19,16 +19,24 @@ void MCP3204::dump_config() {
   ESP_LOGCONFIG(TAG, "  Reference Voltage: %.2fV", this->reference_voltage_);
 }
 
-float MCP3204::read_data(uint8_t pin) {
-  uint8_t adc_primary_config = 0b00000110 | (pin >> 2);
-  uint8_t adc_secondary_config = pin << 6;
+float MCP3204::read_data(uint8_t channel, bool differential) {
+  uint8_t command, sgldiff;
+  uint8_t b0, b1, b2;
+
+  sgldiff = differential ? 0 : 1;
+
+  command = ((0x01 << 7) |              // start bit
+             (sgldiff << 6) |           // single or differential
+             ((channel & 0x07) << 3));  // channel number
+
   this->enable();
-  this->transfer_byte(adc_primary_config);
-  uint8_t adc_primary_byte = this->transfer_byte(adc_secondary_config);
-  uint8_t adc_secondary_byte = this->transfer_byte(0x00);
+  b0 = this->transfer_byte(command);
+  b1 = this->transfer_byte(0x00);
+  b2 = this->transfer_byte(0x00);
   this->disable();
-  uint16_t digital_value = (adc_primary_byte << 8 | adc_secondary_byte) & 0b111111111111;
-  return float(digital_value) / 4096.000 * this->reference_voltage_;
+
+  uint16_t digital_value = 0xFFF & ((b0 & 0x01) << 11 | (b1 & 0xFF) << 3 | (b2 & 0xE0) >> 5);
+  return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
 }
 
 }  // namespace mcp3204

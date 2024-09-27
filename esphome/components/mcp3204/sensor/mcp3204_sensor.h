@@ -15,7 +15,7 @@ class MCP3204Sensor : public PollingComponent,
                       public sensor::Sensor,
                       public voltage_sampler::VoltageSampler {
  public:
-  MCP3204Sensor(uint8_t pin);
+  MCP3204Sensor(uint8_t pin, bool diffmode);
 
   void update() override;
   void dump_config() override;
@@ -24,6 +24,7 @@ class MCP3204Sensor : public PollingComponent,
 
  protected:
   uint8_t pin_;
+  uint8_t diffmode_;
 };
 
 }  // namespace mcp3204
