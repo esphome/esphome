@@ -6,7 +6,6 @@ spi:
 display:
   - platform: max6921
     load_pin: 8
-    blank_pin: 9
     out_pin_mapping:
       seg_to_out_map:
         seg_a_pin: 0

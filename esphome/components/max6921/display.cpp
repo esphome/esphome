@@ -218,7 +218,6 @@ void Max6921Display::dump_config() {
   for (uint i = 0; i < this->seg_to_out_map_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  Display position %2u: OUT%u", i, this->pos_to_out_map_[i]);
   }
-  ESP_LOGCONFIG(TAG, "  Brightness: %.1f", get_brightness());
 }
 
 /**
@@ -302,17 +301,6 @@ void Max6921Display::restore_update_interval() {
  * @brief Updates the display.
  */
 void Max6921Display::update() {
-  // handle display brightness...
-  if (this->brightness_cfg_changed_) {
-    uint32_t inverted_duty =
-        this->brightness_max_duty_ -
-        this->brightness_max_duty_ * this->brightness_cfg_value_;  // calc duty for low-active BLANK pin
-    ESP_LOGD(TAG, "Change display brightness to %.1f (off-time duty=%u/%u)", brightness_cfg_value_, inverted_duty,
-             this->brightness_max_duty_);
-    ledcWrite(this->brightness_pwm_channel_, inverted_duty);
-    this->brightness_cfg_changed_ = false;
-  }
-
   // handle text effects...
   if ((this->mode != DISP_MODE_PRINT) && (this->disp_text_.effect != TEXT_EFFECT_NONE)) {  // any effect enabled?
     switch (this->disp_text_.effect) {
@@ -587,7 +575,7 @@ int Max6921Display::update_out_buf_() {
       ESP_LOGW(TAG, "Encountered unsupported character (0x%02x): %c", pos_char, (pos_char >= 0x20) ? pos_char : ' ');
       out_data = SEG_UNSUPPORTED_CHAR;
     }
-    ESP_LOGVV(TAG, "%s(): segment data: 0x%06x", __func__, out_data);
+    ESP_LOGVV(TAG, "%s(): segment data: 0x%06" PRIx32, __func__, out_data);
 #if 0
     // At the moment an unsupport character is equal to blank (' ').
     // To distinguish an unsupported character from blank we would need to
@@ -599,12 +587,12 @@ int Max6921Display::update_out_buf_() {
 
     // shift data to the smallest segment OUT position...
     out_data <<= (this->seg_out_smallest_);
-    ESP_LOGVV(TAG, "%s(): segment data shifted to first segment bit (OUT%u): 0x%06x", __func__, this->seg_out_smallest_,
-              out_data);
+    ESP_LOGVV(TAG, "%s(): segment data shifted to first segment bit (OUT%u): 0x%06" PRIx32, __func__,
+              this->seg_out_smallest_, out_data);
 
     // add position data...
     out_data |= (1 << this->pos_to_out_map_[pos]);
-    ESP_LOGVV(TAG, "%s(): OUT data with position: 0x%06x", __func__, out_data);
+    ESP_LOGVV(TAG, "%s(): OUT data with position: 0x%06" PRIx32, __func__, out_data);
 
     // write to appropriate position of display buffer...
     this->out_buf_[pos * 3 + 0] |= (uint8_t) ((out_data >> 16) & 0xFF);
@@ -933,46 +921,6 @@ bool Max6921DisplayText::scroll_left() {
            this->visible_len);
 
   return false;
-}
-
-/**
- * @brief Configures the PWM for display brightness control.
- *
- * @param pwm_pin_no PWM pin number
- * @param channel PWM channel
- * @param resolution PWM resolution
- * @param freq PWM frequency
- *
- * @return frequency supported by hardware (0 = no support)
- */
-uint32_t Max6921DisplayBrightness::config_brightness_pwm(uint8_t pwm_pin_no, uint8_t channel, uint8_t resolution,
-                                                         uint32_t freq) {
-  uint32_t freq_supported;
-
-  if ((freq_supported = ledcSetup(channel, freq, resolution)) != 0) {
-    ledcAttachPin(pwm_pin_no, channel);
-    this->brightness_pwm_channel_ = channel;
-    this->brightness_max_duty_ = pow(2, resolution);  // max. duty value for given resolution
-    ESP_LOGD(TAG, "Prepare brightness PWM: pin=%u, channel=%u, resolution=%ubit, freq=%uHz", pwm_pin_no, channel,
-             resolution, freq_supported);
-  } else {
-    ESP_LOGD(TAG, "Failed to configure brightness PWM");
-  }
-
-  return freq_supported;
-}
-
-/**
- * @brief Sets the display brightness.
- *
- * @param percent brightness in percent (0.0-1.0)
- */
-void Max6921DisplayBrightness::set_brightness(float percent) {
-  if ((percent >= 0.0) && (percent <= 1.0)) {
-    this->brightness_cfg_value_ = percent;
-    this->brightness_cfg_changed_ = true;
-  } else
-    ESP_LOGW(TAG, "Invalid brightness value: %f", percent);
 }
 
 /**

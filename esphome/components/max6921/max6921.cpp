@@ -31,33 +31,13 @@ void MAX6921Component::setup() {
   this->display_ = make_unique<Max6921Display>(this);
   this->display_->setup(this->seg_to_out_map_, this->pos_to_out_map_);
 
-  // setup display brightness (PWM for BLANK pin)...
-  if (this->display_->config_brightness_pwm(this->blank_pin_->get_pin(), 0, pwm_resolution, pwm_freq_wanted) == 0) {
-    ESP_LOGE(TAG, "Failed to configure PWM -> set to max. brightness");
-    this->blank_pin_->pin_mode(gpio::FLAG_OUTPUT);
-    this->blank_pin_->setup();
-    this->disable_blank_();  // enable display (max. brightness)
-  }
-
   this->setup_finished_ = true;
 }
 
 void MAX6921Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX6921:");
   LOG_PIN("  LOAD Pin: ", this->load_pin_);
-  ESP_LOGCONFIG(TAG, "  BLANK Pin: GPIO%u", this->blank_pin_->get_pin());
   this->display_->dump_config();
-}
-
-void MAX6921Component::set_brightness(float brightness) {
-  if (!this->setup_finished_) {
-    ESP_LOGD(TAG, "Set brightness: setup not finished -> discard brightness value");
-    return;
-  }
-  if ((brightness == 0.0) || (brightness != this->display_->get_brightness())) {
-    this->display_->set_brightness(brightness);
-    ESP_LOGD(TAG, "Set brightness: %.1f", this->display_->get_brightness());
-  }
 }
 
 /**
@@ -91,7 +71,7 @@ void MAX6921Component::update() {
 /*
  * Evaluates lambda function
  *   start_pos: 0..n = left..right display position
- *   vi_text      : display text
+ *   vi_text  : display text
  */
 uint8_t MAX6921Component::print(uint8_t start_pos, const char *str) {
   if (this->display_->mode != DISP_MODE_PRINT)  // not in "it.print" mode?

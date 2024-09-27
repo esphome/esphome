@@ -2,7 +2,6 @@
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#include <esp32-hal-gpio.h>
 #include <string>
 #include <vector>
 #include "esphome/core/time.h"
@@ -35,19 +34,6 @@ enum TextEffectT {
 enum DemoModeT {
   DEMO_MODE_OFF,
   DEMO_MODE_SCROLL_FONT,
-};
-
-class Max6921DisplayBrightness {
- public:
-  uint32_t config_brightness_pwm(uint8_t pwm_pin_no, uint8_t channel, uint8_t resolution, uint32_t freq_wanted);
-  float get_brightness() { return this->brightness_cfg_value_; }
-  void set_brightness(float percent);
-
- protected:
-  float brightness_cfg_value_;  // brightness in percent (0.0-1.0)
-  bool brightness_cfg_changed_;
-  uint32_t brightness_max_duty_;
-  uint8_t brightness_pwm_channel_;
 };
 
 class Max6921DisplayMode {
@@ -99,7 +85,7 @@ class Max6921DisplayText {
   void init_text_effect_();
 };
 
-class Max6921Display : public Max6921DisplayBrightness, public Max6921DisplayMode {
+class Max6921Display : public Max6921DisplayMode {
  public:
   Max6921Display(MAX6921Component *max6921) { max6921_ = max6921; }
   void clear(int pos = -1);

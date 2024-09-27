@@ -27,8 +27,6 @@ class MAX6921Component : public PollingComponent,
   float get_setup_priority() const override;
   uint8_t print(uint8_t pos, const char *str);
   uint8_t print(const char *str);
-  void set_blank_pin(InternalGPIOPin *pin) { blank_pin_ = pin; }
-  void set_brightness(float brightness);
   void set_load_pin(GPIOPin *load) { this->load_pin_ = load; }
   void set_seg_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->seg_to_out_map_ = pin_map; }
   void set_pos_to_out_pin_map(const std::vector<uint8_t> &pin_map) { this->pos_to_out_map_ = pin_map; }
@@ -40,14 +38,11 @@ class MAX6921Component : public PollingComponent,
   void update() override;
 
  protected:
-  InternalGPIOPin *blank_pin_{};
   GPIOPin *load_pin_{};
   std::vector<uint8_t> pos_to_out_map_;  // mapping of display positions to MAX6921 OUT pins
   std::vector<uint8_t> seg_to_out_map_;  // mapping of display segments to MAX6921 OUT pins
   bool setup_finished_{false};
-  void disable_blank_() { this->blank_pin_->digital_write(false); }  // display on
   void IRAM_ATTR HOT disable_load_() { this->load_pin_->digital_write(false); }
-  void enable_blank_() { this->blank_pin_->digital_write(true); }  // display off
   void IRAM_ATTR HOT enable_load_() { this->load_pin_->digital_write(true); }
   optional<max6921_writer_t> writer_{};
 };

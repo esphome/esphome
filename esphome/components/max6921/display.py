@@ -3,7 +3,6 @@ import esphome.codegen as cg
 from esphome.components import display, spi
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BRIGHTNESS,
     CONF_DURATION,
     CONF_EFFECT,
     CONF_ID,
@@ -17,7 +16,6 @@ from esphome.const import (
 DEPENDENCIES = ["spi", "esp32"]
 CODEOWNERS = ["@endym"]
 CONF_LOAD_PIN = "load_pin"
-CONF_BLANK_PIN = "blank_pin"
 CONF_OUT_PIN_MAPPING = "out_pin_mapping"
 CONF_SEG_TO_OUT_MAP = "seg_to_out_map"
 CONF_SEG_A_PIN = "seg_a_pin"
@@ -55,7 +53,6 @@ MAX6921Component = max6921_ns.class_(
     "MAX6921Component", cg.PollingComponent, spi.SPIDevice
 )
 MAX6921ComponentRef = MAX6921Component.operator("ref")
-SetBrightnessAction = max6921_ns.class_("SetBrightnessAction", automation.Action)
 SetDemoModeAction = max6921_ns.class_("SetDemoModeAction", automation.Action)
 SetTextAction = max6921_ns.class_("SetTextAction", automation.Action)
 
@@ -117,9 +114,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MAX6921Component),
             cv.Required(CONF_LOAD_PIN): pins.gpio_input_pin_schema,
-            cv.Required(CONF_BLANK_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_OUT_PIN_MAPPING): OUT_PIN_MAPPING_SCHEMA,
-            cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.templatable(cv.percentage),
         }
     )
     .extend(cv.polling_component_schema("500ms"))
@@ -134,8 +129,6 @@ async def to_code(config):
 
     load_pin = await cg.gpio_pin_expression(config[CONF_LOAD_PIN])
     cg.add(var.set_load_pin(load_pin))
-    blank_pin = await cg.gpio_pin_expression(config[CONF_BLANK_PIN])
-    cg.add(var.set_blank_pin(blank_pin))
     # pass array of display segment pin numbers sorted by pin name...
     sorted_list_of_tuples = sorted(
         config[CONF_OUT_PIN_MAPPING][CONF_SEG_TO_OUT_MAP].items()
@@ -154,7 +147,6 @@ async def to_code(config):
             cg.ArrayInitializer(*[tuple[1] for tuple in sorted_list_of_tuples])
         )
     )
-    cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -168,30 +160,6 @@ ACTION_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.use_id(MAX6921Component),
     }
 )
-
-
-ACTION_SET_BRIGHTNESS_SCHEMA = cv.All(
-    automation.maybe_simple_id(
-        ACTION_SCHEMA.extend(
-            cv.Schema(
-                {
-                    cv.Required(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
-                }
-            )
-        )
-    ),
-)
-
-
-@automation.register_action(
-    "max6921.set_brightness", SetBrightnessAction, ACTION_SET_BRIGHTNESS_SCHEMA
-)
-async def max6921_set_brightness_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
-    cg.add(var.set_brightness(template_))
-    return var
 
 
 def validate_action_set_text(value):
