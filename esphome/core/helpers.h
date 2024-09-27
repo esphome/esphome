@@ -24,7 +24,7 @@
 
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
-#define ALWAYS_INLINE __attribute__((always_inline))
+#define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
 // Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
@@ -155,7 +155,7 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 }
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
-uint8_t crc8(uint8_t *data, uint8_t len);
+uint8_t crc8(const uint8_t *data, uint8_t len);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
@@ -435,6 +435,12 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
+std::string base64_encode(const uint8_t *buf, size_t buf_len);
+std::string base64_encode(const std::vector<uint8_t> &buf);
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string);
+size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
+
 ///@}
 
 /// @name Colors
@@ -629,6 +635,14 @@ std::string get_mac_address_pretty();
 void set_mac_address(uint8_t *mac);
 #endif
 
+/// Check if a custom MAC address is set (ESP32 & variants)
+/// @return True if a custom MAC address is set (ESP32 & variants), else false
+bool has_custom_mac_address();
+
+/// Check if the MAC address is not all zeros or all ones
+/// @return True if MAC is valid, else false
+bool mac_address_is_valid(const uint8_t *mac);
+
 /// Delay for the given amount of microseconds, possibly yielding to other processes during the wait.
 void delay_microseconds_safe(uint32_t us);
 
@@ -674,7 +688,7 @@ template<class T> class ExternalRAMAllocator {
   }
 
  private:
-  Flags flags_{Flags::NONE};
+  Flags flags_{Flags::ALLOW_FAILURE};
 };
 
 /// @}

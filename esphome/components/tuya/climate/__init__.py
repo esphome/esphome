@@ -189,8 +189,6 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
     validate_temperature_multipliers,
     validate_cooling_values,
-    cv.has_at_most_one_key(CONF_ACTIVE_STATE, CONF_HEATING_STATE_PIN),
-    cv.has_at_most_one_key(CONF_ACTIVE_STATE, CONF_COOLING_STATE_PIN),
 )
 
 
@@ -207,6 +205,12 @@ async def to_code(config):
     if switch_datapoint := config.get(CONF_SWITCH_DATAPOINT):
         cg.add(var.set_switch_id(switch_datapoint))
 
+    if heating_state_pin_config := config.get(CONF_HEATING_STATE_PIN):
+        heating_state_pin = await cg.gpio_pin_expression(heating_state_pin_config)
+        cg.add(var.set_heating_state_pin(heating_state_pin))
+    if cooling_state_pin_config := config.get(CONF_COOLING_STATE_PIN):
+        cooling_state_pin = await cg.gpio_pin_expression(cooling_state_pin_config)
+        cg.add(var.set_cooling_state_pin(cooling_state_pin))
     if active_state_config := config.get(CONF_ACTIVE_STATE):
         cg.add(var.set_active_state_id(active_state_config.get(CONF_DATAPOINT)))
         if (heating_value := active_state_config.get(CONF_HEATING_VALUE)) is not None:
@@ -217,13 +221,6 @@ async def to_code(config):
             cg.add(var.set_active_state_drying_value(drying_value))
         if (fanonly_value := active_state_config.get(CONF_FANONLY_VALUE)) is not None:
             cg.add(var.set_active_state_fanonly_value(fanonly_value))
-    else:
-        if heating_state_pin_config := config.get(CONF_HEATING_STATE_PIN):
-            heating_state_pin = await cg.gpio_pin_expression(heating_state_pin_config)
-            cg.add(var.set_heating_state_pin(heating_state_pin))
-        if cooling_state_pin_config := config.get(CONF_COOLING_STATE_PIN):
-            cooling_state_pin = await cg.gpio_pin_expression(cooling_state_pin_config)
-            cg.add(var.set_cooling_state_pin(cooling_state_pin))
 
     if target_temperature_datapoint := config.get(CONF_TARGET_TEMPERATURE_DATAPOINT):
         cg.add(var.set_target_temperature_id(target_temperature_datapoint))

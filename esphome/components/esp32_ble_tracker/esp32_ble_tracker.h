@@ -44,10 +44,10 @@ class ESPBLEiBeacon {
   ESPBLEiBeacon(const uint8_t *data);
   static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data);
 
-  uint16_t get_major() { return ((this->beacon_data_.major & 0xFF) << 8) | (this->beacon_data_.major >> 8); }
-  uint16_t get_minor() { return ((this->beacon_data_.minor & 0xFF) << 8) | (this->beacon_data_.minor >> 8); }
+  uint16_t get_major() { return byteswap(this->beacon_data_.major); }
+  uint16_t get_minor() { return byteswap(this->beacon_data_.minor); }
   int8_t get_signal_power() { return this->beacon_data_.signal_power; }
-  ESPBTUUID get_uuid() { return ESPBTUUID::from_raw(this->beacon_data_.proximity_uuid); }
+  ESPBTUUID get_uuid() { return ESPBTUUID::from_raw_reversed(this->beacon_data_.proximity_uuid); }
 
  protected:
   struct {
@@ -85,6 +85,8 @@ class ESPBTDevice {
   const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
 
   const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &get_scan_result() const { return scan_result_; }
+
+  bool resolve_irk(const uint8_t *irk) const;
 
   optional<ESPBLEiBeacon> get_ibeacon() const {
     for (auto &it : this->manufacturer_datas_) {

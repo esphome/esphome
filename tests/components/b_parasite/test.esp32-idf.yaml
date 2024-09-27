@@ -1,15 +1,1 @@
-esp32_ble_tracker:
-
-sensor:
-  - platform: b_parasite
-    mac_address: F0:CA:F0:CA:01:01
-    humidity:
-      name: b-parasite Air Humidity
-    temperature:
-      name: b-parasite Air Temperature
-    moisture:
-      name: b-parasite Soil Moisture
-    battery_voltage:
-      name: b-parasite Battery Voltage
-    illuminance:
-      name: b-parasite Illuminance
+<<: !include common.yaml

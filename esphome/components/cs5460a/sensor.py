@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ID,
     CONF_POWER,
     CONF_VOLTAGE,
+    CONF_VOLTAGE_GAIN,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -33,7 +34,6 @@ CONF_SAMPLES = "samples"
 CONF_PHASE_OFFSET = "phase_offset"
 CONF_PGA_GAIN = "pga_gain"
 CONF_CURRENT_GAIN = "current_gain"
-CONF_VOLTAGE_GAIN = "voltage_gain"
 CONF_CURRENT_HPF = "current_hpf"
 CONF_VOLTAGE_HPF = "voltage_hpf"
 CONF_PULSE_ENERGY = "pulse_energy"

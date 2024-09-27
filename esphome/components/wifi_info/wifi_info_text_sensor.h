@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
+#ifdef USE_WIFI
 #include <array>
 
 namespace esphome {
@@ -131,3 +132,4 @@ class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
 
 }  // namespace wifi_info
 }  // namespace esphome
+#endif

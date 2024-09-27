@@ -881,6 +881,45 @@ async def pronto_action(var, config, args):
     cg.add(var.set_data(template_))
 
 
+# Roomba
+(
+    RoombaData,
+    RoombaBinarySensor,
+    RoombaTrigger,
+    RoombaAction,
+    RoombaDumper,
+) = declare_protocol("Roomba")
+ROOMBA_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint8_t})
+
+
+@register_binary_sensor("roomba", RoombaBinarySensor, ROOMBA_SCHEMA)
+def roomba_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RoombaData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("roomba", RoombaTrigger, RoombaData)
+def roomba_trigger(var, config):
+    pass
+
+
+@register_dumper("roomba", RoombaDumper)
+def roomba_dumper(var, config):
+    pass
+
+
+@register_action("roomba", RoombaAction, ROOMBA_SCHEMA)
+async def roomba_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint8)
+    cg.add(var.set_data(template_))
+
+
 # Sony
 SonyData, SonyBinarySensor, SonyTrigger, SonyAction, SonyDumper = declare_protocol(
     "Sony"
@@ -1730,7 +1769,17 @@ def aeha_dumper(var, config):
     pass
 
 
-@register_action("aeha", AEHAAction, AEHA_SCHEMA)
+@register_action(
+    "aeha",
+    AEHAAction,
+    AEHA_SCHEMA.extend(
+        {
+            cv.Optional(CONF_CARRIER_FREQUENCY, default="38000Hz"): cv.All(
+                cv.frequency, cv.int_
+            ),
+        }
+    ),
+)
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
@@ -1738,6 +1787,8 @@ async def aeha_action(var, config, args):
         config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
     )
     cg.add(var.set_data(template_))
+    templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
+    cg.add(var.set_carrier_frequency(templ))
 
 
 # Haier
@@ -1874,3 +1925,41 @@ async def abbwelcome_action(var, config, args):
             cg.add(var.set_data_template(template_))
         else:
             cg.add(var.set_data_static(data_))
+
+
+# Mirage
+(
+    MirageData,
+    MirageBinarySensor,
+    MirageTrigger,
+    MirageAction,
+    MirageDumper,
+) = declare_protocol("Mirage")
+
+MIRAGE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=14, max=14)),
+    }
+)
+
+
+@register_binary_sensor("mirage", MirageBinarySensor, MIRAGE_SCHEMA)
+def mirage_binary_sensor(var, config):
+    cg.add(var.set_code(config[CONF_CODE]))
+
+
+@register_trigger("mirage", MirageTrigger, MirageData)
+def mirage_trigger(var, config):
+    pass
+
+
+@register_dumper("mirage", MirageDumper)
+def mirage_dumper(var, config):
+    pass
+
+
+@register_action("mirage", MirageAction, MIRAGE_SCHEMA)
+async def mirage_action(var, config, args):
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    cg.add(var.set_code(template_))

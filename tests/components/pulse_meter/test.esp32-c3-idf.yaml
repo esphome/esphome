@@ -1,13 +1,1 @@
-sensor:
-  - platform: pulse_meter
-    id: pulse_meter_sensor
-    name: Pulse Meter
-    pin: 4
-    internal_filter: 100ms
-    timeout: 2 min
-    on_value:
-      - pulse_meter.set_total_pulses:
-          id: pulse_meter_sensor
-          value: 12345
-    total:
-      name: Pulse Meter Total
+<<: !include common.yaml

@@ -1,22 +1,28 @@
 import math
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DEVICE_CLASS,
     CONF_ABOVE,
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
+    CONF_FORCE_UPDATE,
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
     CONF_IGNORE_OUT_OF_RANGE,
+    CONF_MAX_VALUE,
+    CONF_METHOD,
+    CONF_MIN_VALUE,
+    CONF_MQTT_ID,
+    CONF_MULTIPLE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -29,19 +35,16 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_WINDOW_SIZE,
-    CONF_MQTT_ID,
-    CONF_FORCE_UPDATE,
     CONF_VALUE,
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-    CONF_METHOD,
+    CONF_WEB_SERVER_ID,
+    CONF_WINDOW_SIZE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -102,6 +105,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DATA_RATE,
     DEVICE_CLASS_DATA_SIZE,
@@ -246,49 +250,56 @@ CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
+RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
-        cv.GenerateID(): cv.declare_id(Sensor),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-        cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
-        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-        cv.Optional(CONF_STATE_CLASS): validate_state_class,
-        cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
-        cv.Optional("last_reset_type"): cv.invalid(
-            "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
-        ),
-        cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
-        cv.Optional(CONF_EXPIRE_AFTER): cv.All(
-            cv.requires_component("mqtt"),
-            cv.Any(None, cv.positive_time_period_milliseconds),
-        ),
-        cv.Optional(CONF_FILTERS): validate_filters,
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorRawStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
-                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
-            },
-            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-        ),
-    }
+SENSOR_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
+            cv.GenerateID(): cv.declare_id(Sensor),
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
+            cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
+            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(CONF_STATE_CLASS): validate_state_class,
+            cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
+            cv.Optional("last_reset_type"): cv.invalid(
+                "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
+            ),
+            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
+            cv.Optional(CONF_EXPIRE_AFTER): cv.All(
+                cv.requires_component("mqtt"),
+                cv.Any(None, cv.positive_time_period_milliseconds),
+            ),
+            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        SensorRawStateTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                    cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
+                },
+                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+            ),
+        }
+    )
 )
 
 _UNDEF = object()
@@ -725,6 +736,23 @@ async def round_filter_to_code(config, filter_id):
     )
 
 
+@FILTER_REGISTRY.register(
+    "round_to_multiple_of",
+    RoundMultipleFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_MULTIPLE): cv.positive_not_null_float,
+        },
+        key=CONF_MULTIPLE,
+    ),
+)
+async def round_multiple_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_MULTIPLE],
+    )
+
+
 async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
@@ -771,6 +799,10 @@ async def setup_sensor_core_(var, config):
                 cg.add(mqtt_.disable_expire_after())
             else:
                 cg.add(mqtt_.set_expire_after(expire_after))
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
 
 
 async def register_sensor(var, config):
@@ -912,7 +944,7 @@ def _lstsq(a, b):
     return _mat_dot(_mat_dot(x, a_t), b)
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_SENSOR")
     cg.add_global(sensor_ns.using)

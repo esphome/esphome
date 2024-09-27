@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
+    CONF_HEADING,
     CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
@@ -21,7 +22,6 @@ DEPENDENCIES = ["i2c"]
 
 hmc5883l_ns = cg.esphome_ns.namespace("hmc5883l")
 
-CONF_HEADING = "heading"
 
 HMC5883LComponent = hmc5883l_ns.class_(
     "HMC5883LComponent", cg.PollingComponent, i2c.I2CDevice

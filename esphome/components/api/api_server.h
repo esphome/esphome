@@ -72,6 +72,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_DATETIME_TIME
   void on_time_update(datetime::TimeEntity *obj) override;
 #endif
+#ifdef USE_DATETIME_DATETIME
+  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+#endif
 #ifdef USE_TEXT
   void on_text_update(text::Text *obj, const std::string &state) override;
 #endif
@@ -96,6 +99,12 @@ class APIServer : public Component, public Controller {
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
+#ifdef USE_EVENT
+  void on_event(event::Event *obj, const std::string &event_type) override;
+#endif
+#ifdef USE_UPDATE
+  void on_update(update::UpdateEntity *obj) override;
+#endif
 
   bool is_connected() const;
 
@@ -103,10 +112,13 @@ class APIServer : public Component, public Controller {
     std::string entity_id;
     optional<std::string> attribute;
     std::function<void(std::string)> callback;
+    bool once;
   };
 
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(std::string)> f);
+  void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 

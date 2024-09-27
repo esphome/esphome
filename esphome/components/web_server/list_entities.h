@@ -1,8 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
-#include "esphome/core/defines.h"
 namespace esphome {
 namespace web_server {
 
@@ -47,6 +48,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_DATETIME_TIME
   bool on_time(datetime::TimeEntity *time) override;
 #endif
+#ifdef USE_DATETIME_DATETIME
+  bool on_datetime(datetime::DateTimeEntity *datetime) override;
+#endif
 #ifdef USE_TEXT
   bool on_text(text::Text *text) override;
 #endif
@@ -62,6 +66,12 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
 #endif
+#ifdef USE_EVENT
+  bool on_event(event::Event *event) override;
+#endif
+#ifdef USE_UPDATE
+  bool on_update(update::UpdateEntity *update) override;
+#endif
 
  protected:
   WebServer *web_server_;
@@ -69,3 +79,4 @@ class ListEntitiesIterator : public ComponentIterator {
 
 }  // namespace web_server
 }  // namespace esphome
+#endif

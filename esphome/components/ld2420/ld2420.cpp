@@ -493,19 +493,16 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
 }
 
 int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
+  uint32_t start_millis = millis();
   uint8_t error = 0;
   uint8_t ack_buffer[64];
   uint8_t cmd_buffer[64];
-  uint16_t loop_count;
   this->cmd_reply_.ack = false;
   if (frame.command != CMD_RESTART)
     this->set_cmd_active_(true);  // Restart does not reply, thus no ack state required.
   uint8_t retry = 3;
   while (retry) {
-    // TODO setup a dynamic method e.g. millis time count etc. to tune for non ESP32 240Mhz devices
-    // this is ok for now since the module firmware is changing like the weather atm
     frame.length = 0;
-    loop_count = 1250;
     uint16_t frame_data_bytes = frame.data_length + 2;  // Always add two bytes for the cmd size
 
     memcpy(&cmd_buffer[frame.length], &frame.header, sizeof(frame.header));
@@ -538,12 +535,13 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
         this->readline_(read(), ack_buffer, sizeof(ack_buffer));
       }
       delay_microseconds_safe(1450);
-      if (loop_count <= 0) {
+      // Wait on an Rx from the LD2420 for up to 3 1 second loops, otherwise it could trigger a WDT.
+      if ((millis() - start_millis) > 1000) {
+        start_millis = millis();
         error = LD2420_ERROR_TIMEOUT;
         retry--;
         break;
       }
-      loop_count--;
     }
     if (this->cmd_reply_.ack)
       retry = 0;

@@ -1,15 +1,1 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-time:
-  - platform: sntp
-    id: sntp_time
-    servers:
-      - 0.pool.ntp.org
-      - 1.pool.ntp.org
-      - 192.168.178.1
-    on_time:
-      cron: "/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI"
-      then:
-        - lambda: 'ESP_LOGD("main", "time");'
+<<: !include common.yaml

@@ -179,6 +179,7 @@ void APIConnection::loop() {
       SubscribeHomeAssistantStateResponse resp;
       resp.entity_id = it.entity_id;
       resp.attribute = it.attribute.value();
+      resp.once = it.once;
       if (this->send_subscribe_home_assistant_state_response(resp)) {
         state_subs_at_++;
       }
@@ -772,6 +773,44 @@ void APIConnection::time_command(const TimeCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
+  if (!this->state_subscription_)
+    return false;
+
+  DateTimeStateResponse resp{};
+  resp.key = datetime->get_object_id_hash();
+  resp.missing_state = !datetime->has_state();
+  if (datetime->has_state()) {
+    ESPTime state = datetime->state_as_esptime();
+    resp.epoch_seconds = state.timestamp;
+  }
+  return this->send_date_time_state_response(resp);
+}
+bool APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
+  ListEntitiesDateTimeResponse msg;
+  msg.key = datetime->get_object_id_hash();
+  msg.object_id = datetime->get_object_id();
+  if (datetime->has_own_name())
+    msg.name = datetime->get_name();
+  msg.unique_id = get_default_unique_id("datetime", datetime);
+  msg.icon = datetime->get_icon();
+  msg.disabled_by_default = datetime->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(datetime->get_entity_category());
+
+  return this->send_list_entities_date_time_response(msg);
+}
+void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
+  datetime::DateTimeEntity *datetime = App.get_datetime_by_key(msg.key);
+  if (datetime == nullptr)
+    return;
+
+  auto call = datetime->make_call();
+  call.set_datetime(msg.epoch_seconds);
+  call.perform();
+}
+#endif
+
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)
@@ -964,7 +1003,11 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
 
   MediaPlayerStateResponse resp{};
   resp.key = media_player->get_object_id_hash();
-  resp.state = static_cast<enums::MediaPlayerState>(media_player->state);
+
+  media_player::MediaPlayerState report_state = media_player->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING
+                                                    ? media_player::MEDIA_PLAYER_STATE_PLAYING
+                                                    : media_player->state;
+  resp.state = static_cast<enums::MediaPlayerState>(report_state);
   resp.volume = media_player->volume;
   resp.muted = media_player->is_muted();
   return this->send_media_player_state_response(resp);
@@ -983,6 +1026,16 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
   auto traits = media_player->get_traits();
   msg.supports_pause = traits.get_supports_pause();
 
+  for (auto &supported_format : traits.get_supported_formats()) {
+    MediaPlayerSupportedFormat media_format;
+    media_format.format = supported_format.format;
+    media_format.sample_rate = supported_format.sample_rate;
+    media_format.num_channels = supported_format.num_channels;
+    media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
+    media_format.sample_bytes = supported_format.sample_bytes;
+    msg.supported_formats.push_back(media_format);
+  }
+
   return this->send_list_entities_media_player_response(msg);
 }
 void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
@@ -999,6 +1052,9 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   }
   if (msg.has_media_url) {
     call.set_media_url(msg.media_url);
+  }
+  if (msg.has_announcement) {
+    call.set_announcement(msg.announcement);
   }
   call.perform();
 }
@@ -1148,6 +1204,61 @@ void APIConnection::on_voice_assistant_audio(const VoiceAssistantAudio &msg) {
     voice_assistant::global_voice_assistant->on_audio(msg);
   }
 };
+void APIConnection::on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_timer_event(msg);
+  }
+};
+
+void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_announce(msg);
+  }
+}
+
+VoiceAssistantConfigurationResponse APIConnection::voice_assistant_get_configuration(
+    const VoiceAssistantConfigurationRequest &msg) {
+  VoiceAssistantConfigurationResponse resp;
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return resp;
+    }
+
+    auto &config = voice_assistant::global_voice_assistant->get_configuration();
+    for (auto &wake_word : config.available_wake_words) {
+      VoiceAssistantWakeWord resp_wake_word;
+      resp_wake_word.id = wake_word.id;
+      resp_wake_word.wake_word = wake_word.wake_word;
+      for (const auto &lang : wake_word.trained_languages) {
+        resp_wake_word.trained_languages.push_back(lang);
+      }
+      resp.available_wake_words.push_back(std::move(resp_wake_word));
+    }
+    for (auto &wake_word_id : config.active_wake_words) {
+      resp.active_wake_words.push_back(wake_word_id);
+    }
+    resp.max_active_wake_words = config.max_active_wake_words;
+  }
+  return resp;
+}
+
+void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    if (voice_assistant::global_voice_assistant->get_api_connection() != this) {
+      return;
+    }
+
+    voice_assistant::global_voice_assistant->on_set_configuration(msg.active_wake_words);
+  }
+}
 
 #endif
 
@@ -1206,6 +1317,88 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
   }
   call.set_code(msg.code);
   call.perform();
+}
+#endif
+
+#ifdef USE_EVENT
+bool APIConnection::send_event(event::Event *event, std::string event_type) {
+  EventResponse resp{};
+  resp.key = event->get_object_id_hash();
+  resp.event_type = std::move(event_type);
+  return this->send_event_response(resp);
+}
+bool APIConnection::send_event_info(event::Event *event) {
+  ListEntitiesEventResponse msg;
+  msg.key = event->get_object_id_hash();
+  msg.object_id = event->get_object_id();
+  if (event->has_own_name())
+    msg.name = event->get_name();
+  msg.unique_id = get_default_unique_id("event", event);
+  msg.icon = event->get_icon();
+  msg.disabled_by_default = event->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(event->get_entity_category());
+  msg.device_class = event->get_device_class();
+  for (const auto &event_type : event->get_event_types())
+    msg.event_types.push_back(event_type);
+  return this->send_list_entities_event_response(msg);
+}
+#endif
+
+#ifdef USE_UPDATE
+bool APIConnection::send_update_state(update::UpdateEntity *update) {
+  if (!this->state_subscription_)
+    return false;
+
+  UpdateStateResponse resp{};
+  resp.key = update->get_object_id_hash();
+  resp.missing_state = !update->has_state();
+  if (update->has_state()) {
+    resp.in_progress = update->state == update::UpdateState::UPDATE_STATE_INSTALLING;
+    if (update->update_info.has_progress) {
+      resp.has_progress = true;
+      resp.progress = update->update_info.progress;
+    }
+    resp.current_version = update->update_info.current_version;
+    resp.latest_version = update->update_info.latest_version;
+    resp.title = update->update_info.title;
+    resp.release_summary = update->update_info.summary;
+    resp.release_url = update->update_info.release_url;
+  }
+
+  return this->send_update_state_response(resp);
+}
+bool APIConnection::send_update_info(update::UpdateEntity *update) {
+  ListEntitiesUpdateResponse msg;
+  msg.key = update->get_object_id_hash();
+  msg.object_id = update->get_object_id();
+  if (update->has_own_name())
+    msg.name = update->get_name();
+  msg.unique_id = get_default_unique_id("update", update);
+  msg.icon = update->get_icon();
+  msg.disabled_by_default = update->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(update->get_entity_category());
+  msg.device_class = update->get_device_class();
+  return this->send_list_entities_update_response(msg);
+}
+void APIConnection::update_command(const UpdateCommandRequest &msg) {
+  update::UpdateEntity *update = App.get_update_by_key(msg.key);
+  if (update == nullptr)
+    return;
+
+  switch (msg.command) {
+    case enums::UPDATE_COMMAND_UPDATE:
+      update->perform();
+      break;
+    case enums::UPDATE_COMMAND_CHECK:
+      update->check();
+      break;
+    case enums::UPDATE_COMMAND_NONE:
+      ESP_LOGE(TAG, "UPDATE_COMMAND_NONE not handled. Check client is sending the correct command");
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown update command: %" PRIu32, msg.command);
+      break;
+  }
 }
 #endif
 
