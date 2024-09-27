@@ -1,9 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
 from esphome.core import CORE
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant, const
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito"]

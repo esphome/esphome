@@ -3,11 +3,11 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-
-#include "watchdog.h"
 
 namespace esphome {
 namespace http_request {
