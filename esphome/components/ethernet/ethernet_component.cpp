@@ -14,6 +14,12 @@
 #include <driver/spi_master.h>
 #endif
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0) || \
+    (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 1)) || \
+    (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 2, 0) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 4))
+#define ETHERNET_SPI_WITHOUT_IRQ_AVAILABLE
+#endif
+
 namespace esphome {
 namespace ethernet {
 
@@ -115,7 +121,19 @@ void EthernetComponent::setup() {
 
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(spi_handle);
 #endif
-  w5500_config.int_gpio_num = this->interrupt_pin_;
+  if (this->interrupt_pin_ >= 0) {
+    w5500_config.int_gpio_num = this->interrupt_pin_;
+#ifdef ETHERNET_SPI_WITHOUT_IRQ_AVAILABLE
+    w5500_config.poll_period_ms = 0;
+#endif
+  } else {
+#ifdef ETHERNET_SPI_WITHOUT_IRQ_AVAILABLE
+    w5500_config.int_gpio_num = -1;
+    w5500_config.poll_period_ms = this->polling_interval_;
+#else
+    ESP_LOGE(TAG, "IRQ pin number is negative(%d), seems configuration error", this->interrupt_pin_);
+#endif
+  }
   phy_config.phy_addr = this->phy_addr_spi_;
   phy_config.reset_gpio_num = this->reset_pin_;
 
@@ -327,11 +345,15 @@ void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  MISO Pin: %u", this->miso_pin_);
   ESP_LOGCONFIG(TAG, "  MOSI Pin: %u", this->mosi_pin_);
   ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_pin_);
+#ifdef ETHERNET_SPI_WITHOUT_IRQ_AVAILABLE
   if (this->interrupt_pin_ != -1) {
+#endif
     ESP_LOGCONFIG(TAG, "  IRQ Pin: %d", this->interrupt_pin_);
+#ifdef ETHERNET_SPI_WITHOUT_IRQ_AVAILABLE
   } else {
-    ESP_LOGCONFIG(TAG, "  Polling Interval: %u ms", this->polling_interval_);
+    ESP_LOGCONFIG(TAG, "  Polling Interval: %lu ms", this->polling_interval_);
   }
+#endif
   ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Clock Speed: %d MHz", this->clock_speed_ / 1000000);
 #else
