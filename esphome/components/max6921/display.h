@@ -131,10 +131,8 @@ class Display : public DisplayBrightness, public DisplayMode {
   DisplayText &disp_text_ = disp_text_ctrl_[0];
   uint32_t default_update_interval_;
   static void display_refresh_task(void *pv);
-  int update_out_buf_();
-
- private:
   void init_font_();
+  int update_out_buf_();
 };
 
 }  // namespace max6921

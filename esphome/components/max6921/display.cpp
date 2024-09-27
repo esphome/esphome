@@ -130,7 +130,7 @@ void Display::setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uint8_t> &
   ESP_LOGCONFIG(TAG, "Display digits: %u", this->num_digits_);
 
   // setup font...
-  init_font_();
+  this->init_font_();
 
   // display output buffer...
   this->out_buf_size_ = this->num_digits_ * 3;
@@ -317,17 +317,17 @@ void Display::update() {
   if ((this->mode != DISP_MODE_PRINT) && (this->disp_text_.effect != TEXT_EFFECT_NONE)) {  // any effect enabled?
     switch (this->disp_text_.effect) {
       case TEXT_EFFECT_BLINK:
-        update_out_buf_();
+        this->update_out_buf_();
         if (this->disp_text_.blink())
-          set_mode(DISP_MODE_PRINT);
+          this->set_mode(DISP_MODE_PRINT);
         break;
       case TEXT_EFFECT_SCROLL_LEFT:
-        update_out_buf_();
+        this->update_out_buf_();
         if (this->disp_text_.scroll_left())
-          set_mode(DISP_MODE_PRINT);
+          this->set_mode(DISP_MODE_PRINT);
         break;
       default:
-        set_mode(DISP_MODE_PRINT);
+        this->set_mode(DISP_MODE_PRINT);
         break;
     }
   }
@@ -336,7 +336,7 @@ void Display::update() {
   if ((this->mode != DISP_MODE_PRINT) && (this->disp_text_.duration_ms > 0)) {
     if ((millis() - this->disp_text_.get_duration_start()) >= this->disp_text_.duration_ms) {
       ESP_LOGD(TAG, "Effect duration of %" PRIu32 "ms expired", this->disp_text_.duration_ms);
-      set_mode(DISP_MODE_PRINT);
+      this->set_mode(DISP_MODE_PRINT);
     }
   }
 
@@ -346,7 +346,7 @@ void Display::update() {
     if (disp_text_other.repeat_on) {
       if ((millis() - disp_text_other.get_repeat_start()) >= disp_text_other.repeat_interval_ms) {
         ESP_LOGD(TAG, "Repeat interval of %" PRIu32 "ms expired", disp_text_other.repeat_interval_ms);
-        set_mode(DISP_MODE_OTHER);
+        this->set_mode(DISP_MODE_OTHER);
       }
     }
   }
@@ -375,10 +375,10 @@ void Display::set_demo_mode(DemoModeT mode, uint32_t interval, uint8_t cycle_num
       disp_text.set_text_effect(TEXT_EFFECT_SCROLL_LEFT, cycle_num, interval);
       disp_text.set_duration(0);
       disp_text.set_repeats(0, 0);
-      set_mode(DISP_MODE_OTHER);
+      this->set_mode(DISP_MODE_OTHER);
       break;
     default:
-      set_mode(DISP_MODE_PRINT);
+      this->set_mode(DISP_MODE_PRINT);
       break;
   }
 }
@@ -405,8 +405,8 @@ DisplayModeT Display::set_mode(DisplayModeT mode) {
 
   switch (this->mode) {
     case DISP_MODE_PRINT: {
-      clear();  // clear display buffer
-      restore_update_interval();
+      this->clear();  // clear display buffer
+      this->restore_update_interval();
       // handle repeats of "other" mode...
       DisplayText &disp_text_other = this->disp_text_ctrl_[DISP_MODE_OTHER];
       if (disp_text_other.repeat_on) {
@@ -427,11 +427,11 @@ DisplayModeT Display::set_mode(DisplayModeT mode) {
     }
 
     case DISP_MODE_OTHER: {
-      clear();  // clear display buffer
+      this->clear();  // clear display buffer
       if (this->disp_text_.effect == TEXT_EFFECT_NONE) {
-        update_out_buf_();  // show static text again
+        this->update_out_buf_();  // show static text again
       } else {
-        set_update_interval(this->disp_text_.update_interval_ms);
+        this->set_update_interval(this->disp_text_.update_interval_ms);
       }
       this->disp_text_.start_duration();
       break;
@@ -499,7 +499,7 @@ int Display::set_text(const std::string &text, uint8_t start_pos, const std::str
   disp_text.set_repeats(repeat_num, repeat_interval);
 
   // update display mode...
-  set_mode(DISP_MODE_OTHER);
+  this->set_mode(DISP_MODE_OTHER);
 
   ESP_LOGV(TAG,
            "Set text (result): text=%s, start-pos=%u, vi-idx=%u, vi-len=%u, "
@@ -507,7 +507,7 @@ int Display::set_text(const std::string &text, uint8_t start_pos, const std::str
            disp_text.text, disp_text.start_pos, disp_text.visible_idx, disp_text.visible_len, disp_text.duration_ms,
            disp_text.repeat_on, disp_text.repeat_num, disp_text.repeat_interval_ms);
 
-  return update_out_buf_();
+  return this->update_out_buf_();
 }
 
 /**
@@ -530,7 +530,7 @@ int Display::set_text(const char *text, uint8_t start_pos) {
   std::string text_str = text;
   disp_text.set_text(start_pos, this->num_digits_ - 1, text_str);
 
-  return update_out_buf_();
+  return this->update_out_buf_();
 }
 
 /**
@@ -561,12 +561,12 @@ int Display::update_out_buf_() {
 
       // special handling for point segment...
       is_process_next_char = false;
-      if (is_point_seg_only(pos_char)) {                                  // is point segment only?
+      if (this->is_point_seg_only(pos_char)) {                            // is point segment only?
         if (this->disp_text_.visible_idx + visible_idx_offset - 1 > 0) {  // not the 1st text character?
-          if (!is_point_seg_only(this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset -
-                                                       2])) {  // previous text character wasn't a point?
-            if (pos == 0) {                                    // 1st (most left) display position?
-              is_process_next_char = true;                     // yes -> ignore point, process next character
+          if (!this->is_point_seg_only(this->disp_text_.text[this->disp_text_.visible_idx + visible_idx_offset -
+                                                             2])) {  // previous text character wasn't a point?
+            if (pos == 0) {                                          // 1st (most left) display position?
+              is_process_next_char = true;                           // yes -> ignore point, process next character
               ignored_char_at_1st_pos = true;
             } else {
               --pos;  // no -> add point to previous display position
@@ -578,7 +578,7 @@ int Display::update_out_buf_() {
       }
     } while (is_process_next_char);
     if (is_clear_pos)
-      clear(pos);
+      this->clear(pos);
 
     // create segment data...
     if ((pos_char >= ' ') && ((pos_char - ' ') < ARRAY_ELEM_COUNT(ASCII_TO_SEG))) {  // supported char?
@@ -773,7 +773,7 @@ void DisplayText::set_text_align(TextAlignT align) {
     return;
   }
   this->align = align;
-  init_text_align_();
+  this->init_text_align_();
   ESP_LOGD(TAG, "Set text align: align=%i, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u", this->align,
            this->start_pos, this->max_pos, this->visible_idx, this->visible_len);
 }
@@ -800,7 +800,7 @@ void DisplayText::set_text_align(const std::string &align) {
     ESP_LOGW(TAG, "No text align given");
   if (text_align >= TEXT_ALIGN_LAST_ENUM)
     return;
-  set_text_align(text_align);
+  this->set_text_align(text_align);
 }
 
 /**
@@ -827,7 +827,7 @@ void DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num, uint32_
     default:
       break;
   }
-  init_text_effect_();
+  this->init_text_effect_();
   ESP_LOGD(TAG,
            "Set text effect: effect=%i, cycles=%u, upd-interval=%" PRIu32 "ms, start-pos=%u, "
            "max-pos=%u, vi-idx=%u, vi-len=%u",
@@ -859,7 +859,7 @@ void DisplayText::set_text_effect(const std::string &effect, uint8_t cycle_num, 
     ESP_LOGW(TAG, "No text effect given");
   if (text_effect >= TEXT_EFFECT_LAST_ENUM)
     return;
-  set_text_effect(text_effect, cycle_num, update_interval);
+  this->set_text_effect(text_effect, cycle_num, update_interval);
 }
 
 /**
@@ -884,7 +884,7 @@ bool DisplayText::blink() {
     ESP_LOGV(TAG, "\"Off\" phase of blink cycle started (%u cycles left)", this->cycle_num - this->cycle_current);
     if ((this->cycle_num == 0) ||                   // endless cycles or
         (this->cycle_current < this->cycle_num)) {  // number of cycles not finished?
-      init_text_effect_();                          // next display buffer update starts "on" phase
+      this->init_text_effect_();                    // next display buffer update starts "on" phase
     }
     if (this->cycle_num > 0)  // defined number of cycles?
       ++this->cycle_current;  // yes -> increase current cycle count
@@ -908,7 +908,7 @@ bool DisplayText::scroll_left() {
 
   // update effect mode...
   if (this->visible_len == 0) {  // cycle finished?
-    init_text_effect_();
+    this->init_text_effect_();
     if (this->cycle_current <= this->cycle_num) {
       ESP_LOGV(TAG, "Scroll cycle finished (%u left)", this->cycle_num - this->cycle_current);
       if (this->cycle_current++ >= this->cycle_num) {

@@ -40,19 +40,16 @@ class MAX6921Component : public PollingComponent,
   void update() override;
 
  protected:
-  GPIOPin *load_pin_{};
   InternalGPIOPin *blank_pin_{};
+  GPIOPin *load_pin_{};
+  std::vector<uint8_t> pos_to_out_map_;  // mapping of display positions to MAX6921 OUT pins
+  std::vector<uint8_t> seg_to_out_map_;  // mapping of display segments to MAX6921 OUT pins
   bool setup_finished_{false};
   void disable_blank_() { this->blank_pin_->digital_write(false); }  // display on
   void IRAM_ATTR HOT disable_load_() { this->load_pin_->digital_write(false); }
   void enable_blank_() { this->blank_pin_->digital_write(true); }  // display off
   void IRAM_ATTR HOT enable_load_() { this->load_pin_->digital_write(true); }
-  void update_demo_mode_scroll_font_();
   optional<max6921_writer_t> writer_{};
-
- private:
-  std::vector<uint8_t> seg_to_out_map_;  // mapping of display segments to MAX6921 OUT pins
-  std::vector<uint8_t> pos_to_out_map_;  // mapping of display positions to MAX6921 OUT pins
 };
 
 }  // namespace max6921
