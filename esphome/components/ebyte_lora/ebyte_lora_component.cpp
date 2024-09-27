@@ -436,6 +436,7 @@ void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
   auto &binary_sensors = this->remote_binary_sensors_[network_id_];
 #endif
   while (buf < end) {
+    byte = *buf++;
     if (byte == REQUEST_REPEATER_INFO) {
       ESP_LOGD(TAG, "Got request for repeater info from network id %u", buf[1]);
       this->send_repeater_info_();
