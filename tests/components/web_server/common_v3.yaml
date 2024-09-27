@@ -26,12 +26,12 @@ number:
     max_value: 100
     step: 1
     web_server:
-      sorting_group: sorting_group_1
+      sorting_group_id: sorting_group_1
       sorting_weight: -1
 switch:
   - platform: template
     name: "Template Switch"
     optimistic: true
     web_server:
-      sorting_group: sorting_group_2
+      sorting_group_id: sorting_group_2
       sorting_weight: -10
