@@ -1,0 +1,7 @@
+i2c:
+  - id: i2c_aic3204
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+audio_dac:
+  - platform: aic3204

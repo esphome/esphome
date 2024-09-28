@@ -38,7 +38,7 @@ void AIC3204::setup() {
   ERROR_CHECK(this->write_byte(AIC3204_MDAC, 0x82), "Set MDAC failed");
   // Program DOSR = 128
   ERROR_CHECK(this->write_byte(AIC3204_DOSR, 0x80), "Set DOSR failed");
-  // Set Audio Interface Config: I2S, 32 bits, slave mode, DOUT always driving.
+  // Set Audio Interface Config: I2S, 32 bits, DOUT always driving
   ERROR_CHECK(this->write_byte(AIC3204_CODEC_IF, 0x30), "Set CODEC_IF failed");
   // For I2S Firmware only, set SCLK/MFP3 pin as Audio Data In
   ERROR_CHECK(this->write_byte(AIC3204_SCLK_MFP3, 0x02), "Set SCLK/MFP3 failed");
