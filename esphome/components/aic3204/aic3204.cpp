@@ -10,7 +10,7 @@ namespace aic3204 {
 static const char *const TAG = "aic3204";
 
 #define ERROR_CHECK(err, msg) \
-  if (!err) { \
+  if (!(err)) { \
     ESP_LOGE(TAG, msg); \
     this->mark_failed(); \
     return; \
