@@ -12,6 +12,8 @@ namespace esphome {
 
 class RingBuffer {
  public:
+  ~RingBuffer();
+
   /**
    * @brief Reads from the ring buffer, waiting up to a specified number of ticks if necessary.
    *
@@ -83,6 +85,7 @@ class RingBuffer {
   StreamBufferHandle_t handle_;
   StaticStreamBuffer_t structure_;
   uint8_t *storage_;
+  size_t size_{0};
 };
 
 }  // namespace esphome
