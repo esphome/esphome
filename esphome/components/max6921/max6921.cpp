@@ -62,10 +62,9 @@ void HOT MAX6921Component::write_data(uint8_t *ptr, size_t length) {
 }
 
 void MAX6921Component::update() {
-  this->display_->update();
-
   if (this->writer_.has_value())
     (*this->writer_)(*this);
+  this->display_->update();
 }
 
 /*
