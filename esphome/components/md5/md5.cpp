@@ -1,7 +1,7 @@
-#include "md5.h"
-#ifdef USE_MD5
 #include <cstdio>
 #include <cstring>
+#include "md5.h"
+#ifdef USE_MD5
 #include "esphome/core/helpers.h"
 
 namespace esphome {
