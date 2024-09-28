@@ -9,7 +9,7 @@
 #include "esphome/core/time.h"
 
 #include "datetime_base.h"
- 
+
 namespace esphome {
 namespace datetime {
 
