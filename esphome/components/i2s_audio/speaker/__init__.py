@@ -25,12 +25,27 @@ I2SAudioSpeaker = i2s_audio_ns.class_(
 
 
 CONF_DAC_TYPE = "dac_type"
+CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 INTERNAL_DAC_OPTIONS = {
     CONF_LEFT: i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
     CONF_RIGHT: i2s_dac_mode_t.I2S_DAC_CHANNEL_RIGHT_EN,
     CONF_STEREO: i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
+}
+
+i2s_comm_format_t = cg.global_ns.enum("i2s_comm_format_t")
+I2C_COMM_FMT_OPTIONS = {
+    "stand_i2s": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_I2S,
+    "stand_msb": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_MSB,
+    "stand_pcm_short": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_PCM_SHORT,
+    "stand_pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_PCM_LONG,
+    "stand_max": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_MAX,
+    "i2s_msb": i2s_comm_format_t.I2S_COMM_FORMAT_I2S_MSB,
+    "i2s_lsb": i2s_comm_format_t.I2S_COMM_FORMAT_I2S_LSB,
+    "pcm": i2s_comm_format_t.I2S_COMM_FORMAT_PCM,
+    "pcm_short": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_SHORT,
+    "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
 }
 
 NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
@@ -77,6 +92,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(
                         CONF_I2S_DOUT_PIN
                     ): pins.internal_gpio_output_pin_number,
+                    cv.Optional(CONF_I2S_COMM_FMT, default="stand_i2s"): cv.enum(
+                        I2C_COMM_FMT_OPTIONS, lower=True
+                    ),
                 }
             ),
         },
@@ -96,4 +114,5 @@ async def to_code(config):
         cg.add(var.set_internal_dac_mode(config[CONF_CHANNEL]))
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
+        cg.add(var.set_i2s_comm_fmt(config[CONF_I2S_COMM_FMT]))
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))

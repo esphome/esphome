@@ -635,6 +635,14 @@ std::string get_mac_address_pretty();
 void set_mac_address(uint8_t *mac);
 #endif
 
+/// Check if a custom MAC address is set (ESP32 & variants)
+/// @return True if a custom MAC address is set (ESP32 & variants), else false
+bool has_custom_mac_address();
+
+/// Check if the MAC address is not all zeros or all ones
+/// @return True if MAC is valid, else false
+bool mac_address_is_valid(const uint8_t *mac);
+
 /// Delay for the given amount of microseconds, possibly yielding to other processes during the wait.
 void delay_microseconds_safe(uint32_t us);
 
