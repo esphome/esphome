@@ -59,9 +59,13 @@ void HOT MAX6921Component::write_data(uint8_t *ptr, size_t length) {
 }
 
 void MAX6921Component::update() {
-  if (this->writer_.has_value())
-    (*this->writer_)(*this);
+  // To avoid a gap (blank display) after a finished action (e.g. set_text with 1s duration) and new "it" data, the
+  // the display update is always done before the "it" handling and optionally afterwards again.
   this->display_->update();
+  if (this->writer_.has_value()) {  // "it" data?
+    (*this->writer_)(*this);
+    this->display_->update();
+  }
 }
 
 /*
