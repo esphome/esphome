@@ -17,9 +17,6 @@ static const char *const TAG = "max6921";
 float MAX6921Component::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void MAX6921Component::setup() {
-  const uint32_t pwm_freq_wanted = 5000;
-  const uint8_t pwm_resolution = 8;
-
   ESP_LOGCONFIG(TAG, "Setting up MAX6921...");
   // global_max6921 = this;
 
