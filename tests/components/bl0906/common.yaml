@@ -8,6 +8,7 @@ uart:
 
 sensor:
   - platform: bl0906
+    id: bl
     frequency:
       name: 'Frequency'
     temperature:
@@ -60,3 +61,9 @@ sensor:
       name: 'Total_Energy'
     total_power:
       name: 'Total_Power'
+
+button:
+  - platform: template
+    id: reset
+    on_press:
+      - bl0906.reset_energy: bl
