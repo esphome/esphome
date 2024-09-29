@@ -643,35 +643,38 @@ void delay_microseconds_safe(uint32_t us);
 /// @name Memory management
 ///@{
 
-/** An STL allocator that uses SPI RAM.
+/** An STL allocator that uses SPI or internal RAM.
  *
- * By setting flags, it can be configured to don't try main memory if SPI RAM is full or unavailable, and to return
- * `nulllptr` instead of aborting when no memory is available.
+ * By setting flags, it can be configured to:
+ * - perform external allocation falling back to main memory if SPI RAM is full or unavailable
+ * - perform external allocation only
+ * - perform internal allocation only
+ * - return `nulllptr` instead of aborting when no memory is available.
  */
-template<class T> class ExternalRAMAllocator {
+template<class T> class RAMAllocator {
  public:
   using value_type = T;
 
   enum Flags {
-    NONE = 0,
-    REFUSE_INTERNAL = 1 << 0,  ///< Refuse falling back to internal memory when external RAM is full or unavailable.
-    ALLOW_FAILURE = 1 << 1,    ///< Don't abort when memory allocation fails.
-    FORCE_INTERNAL = 1 << 2,   ///< Force using internal allocator at runtime
+    NONE = 0,  ///< Perform external allocation and fall back to internal memory when external RAM is full or unavailable.
+    ALLOC_EXTERNAL = 1 << 0,  ///< Perform external allocation only.
+    ALLOC_INTERNAL = 1 << 1,  ///< Perform internal allocation only.
+    ALLOW_FAILURE = 1 << 2,  ///< Don't abort when memory allocation fails.
   };
 
-  ExternalRAMAllocator() = default;
-  ExternalRAMAllocator(uint8_t flags) : flags_{flags} {}
-  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags_} {}
+  RAMAllocator() = default;
+  RAMAllocator(uint8_t flags) : flags_{flags} {}
+  template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
     size_t size = n * sizeof(T);
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    if ((this->flags_ & Flags::FORCE_INTERNAL) == 0) {
+    if ((this->flags_ & Flags::ALLOC_INTERNAL) == 0) {
       ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     }
 #endif
-    if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
+    if (ptr == nullptr && (this->flags_ & Flags::ALLOC_EXTERNAL) == 0)
       ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
     if (ptr == nullptr && (this->flags_ & Flags::ALLOW_FAILURE) == 0)
       abort();
@@ -685,6 +688,8 @@ template<class T> class ExternalRAMAllocator {
  private:
   uint8_t flags_{Flags::ALLOW_FAILURE};
 };
+
+template<class T> using ExternalRAMAllocator ESPDEPRECATED("RAMAllocator is deprecated, use RAMAllocator instead.", "2024.10.0") = RAMAllocator<T>; 
 
 /// @}
 
