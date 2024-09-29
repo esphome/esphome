@@ -31,9 +31,32 @@ HonClimate::HonClimate()
 
 HonClimate::~HonClimate() {}
 
-void HonClimate::set_beeper_state(bool state) { this->beeper_status_ = state; }
+void HonClimate::set_beeper_state(bool state) {
+  if (state != this->settings_.beeper_state) {
+    this->settings_.beeper_state = state;
+#ifdef USE_SWITCH
+    this->beeper_switch_->publish_state(state);
+#endif
+    this->hon_rtc_.save(&this->settings_);
+  }
+}
 
-bool HonClimate::get_beeper_state() const { return this->beeper_status_; }
+bool HonClimate::get_beeper_state() const { return this->settings_.beeper_state; }
+
+void HonClimate::set_quiet_mode_state(bool state) {
+  if (state != this->get_quiet_mode_state()) {
+    this->quiet_mode_state_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
+    this->settings_.quiet_mode_state = state;
+#ifdef USE_SWITCH
+    this->quiet_mode_switch_->publish_state(state);
+#endif
+    this->hon_rtc_.save(&this->settings_);
+  }
+}
+
+bool HonClimate::get_quiet_mode_state() const {
+  return (this->quiet_mode_state_ == SwitchState::ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
+}
 
 esphome::optional<hon_protocol::VerticalSwingMode> HonClimate::get_vertical_airflow() const {
   return this->current_vertical_swing_;
@@ -474,16 +497,19 @@ haier_protocol::HaierMessage HonClimate::get_power_message(bool state) {
 }
 
 void HonClimate::initialization() {
-  constexpr uint32_t restore_settings_version = 0xE834D8DCUL;
-  this->rtc_ = global_preferences->make_preference<HonSettings>(this->get_object_id_hash() ^ restore_settings_version);
+  HaierClimateBase::initialization();
+  constexpr uint32_t restore_settings_version = 0x57EB59DDUL;
+  this->hon_rtc_ =
+      global_preferences->make_preference<HonSettings>(this->get_object_id_hash() ^ restore_settings_version);
   HonSettings recovered;
-  if (this->rtc_.load(&recovered)) {
+  if (this->hon_rtc_.load(&recovered)) {
     this->settings_ = recovered;
   } else {
-    this->settings_ = {hon_protocol::VerticalSwingMode::CENTER, hon_protocol::HorizontalSwingMode::CENTER};
+    this->settings_ = {hon_protocol::VerticalSwingMode::CENTER, hon_protocol::HorizontalSwingMode::CENTER, true, false};
   }
   this->current_vertical_swing_ = this->settings_.last_vertiacal_swing;
   this->current_horizontal_swing_ = this->settings_.last_horizontal_swing;
+  this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
 }
 
 haier_protocol::HaierMessage HonClimate::get_control_message() {
@@ -519,8 +545,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
           out_data->ac_power = 1;
           out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::FAN;
           out_data->fan_mode = this->fan_mode_speed_;  // Auto doesn't work in fan only mode
-          // Disabling boost and eco mode for Fan only
-          out_data->quiet_mode = 0;
+          // Disabling boost for Fan only
           out_data->fast_mode = 0;
           break;
         case CLIMATE_MODE_COOL:
@@ -582,47 +607,34 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     }
     if (out_data->ac_power == 0) {
       // If AC is off - no presets allowed
-      out_data->quiet_mode = 0;
       out_data->fast_mode = 0;
       out_data->sleep_mode = 0;
     } else if (climate_control.preset.has_value()) {
       switch (climate_control.preset.value()) {
         case CLIMATE_PRESET_NONE:
-          out_data->quiet_mode = 0;
-          out_data->fast_mode = 0;
-          out_data->sleep_mode = 0;
-          out_data->ten_degree = 0;
-          break;
-        case CLIMATE_PRESET_ECO:
-          // Eco is not supported in Fan only mode
-          out_data->quiet_mode = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 1 : 0;
           out_data->fast_mode = 0;
           out_data->sleep_mode = 0;
           out_data->ten_degree = 0;
           break;
         case CLIMATE_PRESET_BOOST:
-          out_data->quiet_mode = 0;
           // Boost is not supported in Fan only mode
           out_data->fast_mode = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 1 : 0;
           out_data->sleep_mode = 0;
           out_data->ten_degree = 0;
           break;
         case CLIMATE_PRESET_AWAY:
-          out_data->quiet_mode = 0;
           out_data->fast_mode = 0;
           out_data->sleep_mode = 0;
           // 10 degrees allowed only in heat mode
           out_data->ten_degree = (this->mode == CLIMATE_MODE_HEAT) ? 1 : 0;
           break;
         case CLIMATE_PRESET_SLEEP:
-          out_data->quiet_mode = 0;
           out_data->fast_mode = 0;
           out_data->sleep_mode = 1;
           out_data->ten_degree = 0;
           break;
         default:
           ESP_LOGE("Control", "Unsupported preset");
-          out_data->quiet_mode = 0;
           out_data->fast_mode = 0;
           out_data->sleep_mode = 0;
           out_data->ten_degree = 0;
@@ -638,10 +650,23 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     out_data->horizontal_swing_mode = (uint8_t) this->pending_horizontal_direction_.value();
     this->pending_horizontal_direction_.reset();
   }
-  out_data->beeper_status = ((!this->beeper_status_) || (!has_hvac_settings)) ? 1 : 0;
+  {
+    // Quiet mode
+    if ((out_data->ac_power == 0) || (out_data->ac_mode == (uint8_t) hon_protocol::ConditioningMode::FAN)) {
+      // If AC is off or in fan only mode - no quiet mode allowed
+      out_data->quiet_mode = 0;
+    } else {
+      out_data->quiet_mode = this->get_quiet_mode_state() ? 1 : 0;
+    }
+    // Clean quiet mode state pending flag
+    this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
+  }
+  out_data->beeper_status = ((!this->get_beeper_state()) || (!has_hvac_settings)) ? 1 : 0;
   control_out_buffer[4] = 0;  // This byte should be cleared before setting values
-  out_data->display_status = this->display_status_ ? 1 : 0;
-  out_data->health_mode = this->health_mode_ ? 1 : 0;
+  out_data->display_status = this->get_display_state() ? 1 : 0;
+  this->display_status_ = (SwitchState) ((uint8_t) this->display_status_ & 0b01);
+  out_data->health_mode = this->get_health_mode() ? 1 : 0;
+  this->health_mode_ = (SwitchState) ((uint8_t) this->health_mode_ & 0b01);
   return haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                       (uint16_t) hon_protocol::SubcommandsControl::SET_GROUP_PARAMETERS,
                                       control_out_buffer, this->real_control_packet_size_);
@@ -765,6 +790,22 @@ void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const std::stri
 }
 #endif  // USE_TEXT_SENSOR
 
+#ifdef USE_SWITCH
+void HonClimate::set_beeper_switch(switch_::Switch *sw) {
+  this->beeper_switch_ = sw;
+  if (this->beeper_switch_ != nullptr) {
+    this->beeper_switch_->publish_state(this->get_beeper_state());
+  }
+}
+
+void HonClimate::set_quiet_mode_switch(switch_::Switch *sw) {
+  this->quiet_mode_switch_ = sw;
+  if (this->quiet_mode_switch_ != nullptr) {
+    this->quiet_mode_switch_->publish_state(this->settings_.quiet_mode_state);
+  }
+}
+#endif  // USE_SWITCH
+
 haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
   size_t expected_size =
       2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
@@ -827,9 +868,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   {
     // Extra modes/presets
     optional<ClimatePreset> old_preset = this->preset;
-    if (packet.control.quiet_mode != 0) {
-      this->preset = CLIMATE_PRESET_ECO;
-    } else if (packet.control.fast_mode != 0) {
+    if (packet.control.fast_mode != 0) {
       this->preset = CLIMATE_PRESET_BOOST;
     } else if (packet.control.sleep_mode != 0) {
       this->preset = CLIMATE_PRESET_SLEEP;
@@ -883,28 +922,26 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     }
     should_publish = should_publish || (!old_fan_mode.has_value()) || (old_fan_mode.value() != fan_mode.value());
   }
-  {
-    // Display status
-    // should be before "Climate mode" because it is changing this->mode
-    if (packet.control.ac_power != 0) {
-      // if AC is off display status always ON so process it only when AC is on
-      bool disp_status = packet.control.display_status != 0;
-      if (disp_status != this->display_status_) {
-        // Do something only if display status changed
-        if (this->mode == CLIMATE_MODE_OFF) {
-          // AC just turned on from remote need to turn off display
-          this->force_send_control_ = true;
-        } else {
-          this->display_status_ = disp_status;
-        }
+  // Display status
+  // should be before "Climate mode" because it is changing this->mode
+  if (packet.control.ac_power != 0) {
+    // if AC is off display status always ON so process it only when AC is on
+    bool disp_status = packet.control.display_status != 0;
+    if (disp_status != this->get_display_state()) {
+      // Do something only if display status changed
+      if (this->mode == CLIMATE_MODE_OFF) {
+        // AC just turned on from remote need to turn off display
+        this->force_send_control_ = true;
+      } else if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
+        this->display_status_ = disp_status ? SwitchState::ON : SwitchState::OFF;
       }
     }
   }
-  {
-    // Health mode
-    bool old_health_mode = this->health_mode_;
-    this->health_mode_ = packet.control.health_mode == 1;
-    should_publish = should_publish || (old_health_mode != this->health_mode_);
+  // Health mode
+  if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
+    bool old_health_mode = this->get_health_mode();
+    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::ON : SwitchState::OFF;
+    should_publish = should_publish || (old_health_mode != this->get_health_mode());
   }
   {
     CleaningState new_cleaning;
@@ -959,16 +996,35 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     should_publish = should_publish || (old_mode != this->mode);
   }
   {
+    // Quiet mode, should be after climate mode
+    if ((this->mode != CLIMATE_MODE_FAN_ONLY) && (this->mode != CLIMATE_MODE_OFF) &&
+        ((((uint8_t) this->quiet_mode_state_) & 0b10) == 0)) {
+      // In proper mode and not in pending state
+      bool new_quiet_mode = packet.control.quiet_mode != 0;
+      if (new_quiet_mode != this->get_quiet_mode_state()) {
+        this->quiet_mode_state_ = new_quiet_mode ? SwitchState::ON : SwitchState::OFF;
+        this->settings_.quiet_mode_state = new_quiet_mode;
+        this->hon_rtc_.save(&this->settings_);
+      }
+    }
+  }
+  {
     // Swing mode
     ClimateSwingMode old_swing_mode = this->swing_mode;
-    if (packet.control.horizontal_swing_mode == (uint8_t) hon_protocol::HorizontalSwingMode::AUTO) {
-      if (packet.control.vertical_swing_mode == (uint8_t) hon_protocol::VerticalSwingMode::AUTO) {
+    const std::set<ClimateSwingMode> &swing_modes = traits_.get_supported_swing_modes();
+    bool vertical_swing_supported = swing_modes.find(CLIMATE_SWING_VERTICAL) != swing_modes.end();
+    bool horizontal_swing_supported = swing_modes.find(CLIMATE_SWING_HORIZONTAL) != swing_modes.end();
+    if (horizontal_swing_supported &&
+        (packet.control.horizontal_swing_mode == (uint8_t) hon_protocol::HorizontalSwingMode::AUTO)) {
+      if (vertical_swing_supported &&
+          (packet.control.vertical_swing_mode == (uint8_t) hon_protocol::VerticalSwingMode::AUTO)) {
         this->swing_mode = CLIMATE_SWING_BOTH;
       } else {
         this->swing_mode = CLIMATE_SWING_HORIZONTAL;
       }
     } else {
-      if (packet.control.vertical_swing_mode == (uint8_t) hon_protocol::VerticalSwingMode::AUTO) {
+      if (vertical_swing_supported &&
+          (packet.control.vertical_swing_mode == (uint8_t) hon_protocol::VerticalSwingMode::AUTO)) {
         this->swing_mode = CLIMATE_SWING_VERTICAL;
       } else {
         this->swing_mode = CLIMATE_SWING_OFF;
@@ -985,7 +1041,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     if (save_settings) {
       this->settings_.last_vertiacal_swing = this->current_vertical_swing_.value();
       this->settings_.last_horizontal_swing = this->current_horizontal_swing_.value();
-      this->rtc_.save(&this->settings_);
+      this->hon_rtc_.save(&this->settings_);
     }
     should_publish = should_publish || (old_swing_mode != this->swing_mode);
   }
@@ -1017,7 +1073,7 @@ void HonClimate::fill_control_messages_queue_() {
         haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                      (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                          (uint8_t) hon_protocol::DataParameters::BEEPER_STATUS,
-                                     this->beeper_status_ ? ZERO_BUF : ONE_BUF, 2));
+                                     this->get_beeper_state() ? ZERO_BUF : ONE_BUF, 2));
   }
   // Health mode
   {
@@ -1025,13 +1081,16 @@ void HonClimate::fill_control_messages_queue_() {
         haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                      (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                          (uint8_t) hon_protocol::DataParameters::HEALTH_MODE,
-                                     this->health_mode_ ? ONE_BUF : ZERO_BUF, 2));
+                                     this->get_health_mode() ? ONE_BUF : ZERO_BUF, 2));
+    this->health_mode_ = (SwitchState) ((uint8_t) this->health_mode_ & 0b01);
   }
   // Climate mode
+  ClimateMode climate_mode = this->mode;
   bool new_power = this->mode != CLIMATE_MODE_OFF;
   uint8_t fan_mode_buf[] = {0x00, 0xFF};
   uint8_t quiet_mode_buf[] = {0x00, 0xFF};
   if (climate_control.mode.has_value()) {
+    climate_mode = climate_control.mode.value();
     uint8_t buffer[2] = {0x00, 0x00};
     switch (climate_control.mode.value()) {
       case CLIMATE_MODE_OFF:
@@ -1076,8 +1135,6 @@ void HonClimate::fill_control_messages_queue_() {
                                              (uint8_t) hon_protocol::DataParameters::AC_MODE,
                                          buffer, 2));
         fan_mode_buf[1] = this->other_modes_fan_speed_;  // Auto doesn't work in fan only mode
-        // Disabling eco mode for Fan only
-        quiet_mode_buf[1] = 0;
         break;
       case CLIMATE_MODE_COOL:
         new_power = true;
@@ -1108,30 +1165,20 @@ void HonClimate::fill_control_messages_queue_() {
     uint8_t away_mode_buf[] = {0x00, 0xFF};
     if (!new_power) {
       // If AC is off - no presets allowed
-      quiet_mode_buf[1] = 0x00;
       fast_mode_buf[1] = 0x00;
       away_mode_buf[1] = 0x00;
     } else if (climate_control.preset.has_value()) {
       switch (climate_control.preset.value()) {
         case CLIMATE_PRESET_NONE:
-          quiet_mode_buf[1] = 0x00;
-          fast_mode_buf[1] = 0x00;
-          away_mode_buf[1] = 0x00;
-          break;
-        case CLIMATE_PRESET_ECO:
-          // Eco is not supported in Fan only mode
-          quiet_mode_buf[1] = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 0x01 : 0x00;
           fast_mode_buf[1] = 0x00;
           away_mode_buf[1] = 0x00;
           break;
         case CLIMATE_PRESET_BOOST:
-          quiet_mode_buf[1] = 0x00;
           // Boost is not supported in Fan only mode
           fast_mode_buf[1] = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 0x01 : 0x00;
           away_mode_buf[1] = 0x00;
           break;
         case CLIMATE_PRESET_AWAY:
-          quiet_mode_buf[1] = 0x00;
           fast_mode_buf[1] = 0x00;
           away_mode_buf[1] = (this->mode == CLIMATE_MODE_HEAT) ? 0x01 : 0x00;
           break;
@@ -1140,8 +1187,18 @@ void HonClimate::fill_control_messages_queue_() {
           break;
       }
     }
+    {
+      // Quiet mode
+      if (new_power && (climate_mode != CLIMATE_MODE_FAN_ONLY) && this->get_quiet_mode_state()) {
+        quiet_mode_buf[1] = 0x01;
+      } else {
+        quiet_mode_buf[1] = 0x00;
+      }
+      // Clean quiet mode state pending flag
+      this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
+    }
     auto presets = this->traits_.get_supported_presets();
-    if ((quiet_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_ECO) != presets.end()))) {
+    if (quiet_mode_buf[1] != 0xFF) {
       this->control_messages_queue_.push(
           haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                        (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +

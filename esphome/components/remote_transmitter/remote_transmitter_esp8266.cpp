@@ -76,6 +76,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   this->target_time_ = 0;
+  this->transmit_trigger_->trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {
@@ -93,6 +94,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       this->target_time_ += send_wait;
   }
+  this->complete_trigger_->trigger();
 }
 
 }  // namespace remote_transmitter
