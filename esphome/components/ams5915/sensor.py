@@ -17,37 +17,38 @@ DEPENDENCIES = ["i2c"]
 
 ams5915_ns = cg.esphome_ns.namespace("ams5915")
 Transducer = ams5915_ns.enum("Transducer")
-TRANSDUCER_TYPE = {
-    "AMS5915_0005_D": Transducer.AMS5915_0005_D,
-    "AMS5915_0010_D": Transducer.AMS5915_0010_D,
-    "AMS5915_0005_D_B": Transducer.AMS5915_0005_D_B,
-    "AMS5915_0010_D_B": Transducer.AMS5915_0010_D_B,
-    "AMS5915_0020_D": Transducer.AMS5915_0020_D,
-    "AMS5915_0050_D": Transducer.AMS5915_0050_D,
-    "AMS5915_0100_D": Transducer.AMS5915_0100_D,
-    "AMS5915_0020_D_B": Transducer.AMS5915_0020_D_B,
-    "AMS5915_0050_D_B": Transducer.AMS5915_0050_D_B,
-    "AMS5915_0100_D_B": Transducer.AMS5915_0100_D_B,
-    "AMS5915_0200_D": Transducer.AMS5915_0200_D,
-    "AMS5915_0350_D": Transducer.AMS5915_0350_D,
-    "AMS5915_1000_D": Transducer.AMS5915_1000_D,
-    "AMS5915_2000_D": Transducer.AMS5915_2000_D,
-    "AMS5915_4000_D": Transducer.AMS5915_4000_D,
-    "AMS5915_7000_D": Transducer.AMS5915_7000_D,
-    "AMS5915_10000_D": Transducer.AMS5915_10000_D,
-    "AMS5915_0200_D_B": Transducer.AMS5915_0200_D_B,
-    "AMS5915_0350_D_B": Transducer.AMS5915_0350_D_B,
-    "AMS5915_1000_D_B": Transducer.AMS5915_1000_D_B,
-    "AMS5915_1000_A": Transducer.AMS5915_1000_A,
-    "AMS5915_1200_B": Transducer.AMS5915_1200_B,
+MODEL_PRESSURE_RANGES = {
+    "AMS5915_0005_D": {0, 5},
+    "AMS5915_0010_D": {0, 10},
+    "AMS5915_0005_D_B": {-5, 5},
+    "AMS5915_0010_D_B": {-10, 10},
+    "AMS5915_0020_D": {0, 20},
+    "AMS5915_0050_D": {0, 50},
+    "AMS5915_0100_D": {0, 100},
+    "AMS5915_0020_D_B": {-20, 20},
+    "AMS5915_0050_D_B": {-50, 50},
+    "AMS5915_0100_D_B": {-100, 100},
+    "AMS5915_0200_D": {0, 200},
+    "AMS5915_0350_D": {0, 350},
+    "AMS5915_1000_D": {0, 1000},
+    "AMS5915_2000_D": {0, 2000},
+    "AMS5915_4000_D": {0, 4000},
+    "AMS5915_7000_D": {0, 7000},
+    "AMS5915_10000_D": {0, 10000},
+    "AMS5915_0200_D_B": {-200, 200},
+    "AMS5915_0350_D_B": {-350, 350},
+    "AMS5915_1000_D_B": {-1000, 1000},
+    "AMS5915_1000_A": {0, 1000},
+    "AMS5915_1200_B": {700, 1200},
 }
+
 Ams5915 = ams5915_ns.class_("Ams5915", cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Ams5915),
-            cv.Required(CONF_MODEL): cv.enum(TRANSDUCER_TYPE, upper=True),
+            cv.Required(CONF_MODEL): cv.enum(MODEL_PRESSURE_RANGES, upper=True),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PASCAL,
                 accuracy_decimals=0,
@@ -71,7 +72,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    cg.add(var.set_transducer_type(config.get(CONF_MODEL)))
+
+    min_pressure, max_pressure = MODEL_PRESSURE_RANGES[config[CONF_MODEL]]
+    cg.add(var.set_pressure_range(min_pressure, max_pressure))
 
     if pressure_config := config.get(CONF_PRESSURE):
         sens = await sensor.new_sensor(pressure_config)

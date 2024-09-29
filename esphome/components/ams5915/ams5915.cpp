@@ -6,104 +6,6 @@ namespace esphome {
 namespace ams5915 {
 static const char *const TAG = "ams5915";
 
-void Ams5915::set_transducer_type(Transducer model) { type_ = model; }
-
-/* sets the pressure range based on the chip */
-void Ams5915::get_transducer_() {
-  // setting the min and max pressures based on which transducer it is
-  // TODO: figure out how to do this in the python setup code.
-  switch (this->type_) {
-    case AMS5915_0005_D:
-      this->p_min_ = this->ams5915_0005_d_p_min_;
-      this->p_max_ = this->ams5915_0005_d_p_max_;
-      break;
-    case AMS5915_0010_D:
-      this->p_min_ = this->ams5915_0010_d_p_min_;
-      this->p_max_ = this->ams5915_0010_d_p_max_;
-      break;
-    case AMS5915_0005_D_B:
-      this->p_min_ = this->ams5915_0005_d_b_p_min_;
-      this->p_max_ = this->ams5915_0005_d_b_p_max_;
-      break;
-    case AMS5915_0010_D_B:
-      this->p_min_ = this->ams5915_0010_d_b_p_min_;
-      this->p_max_ = this->ams5915_0010_d_b_p_max_;
-      break;
-    case AMS5915_0020_D:
-      this->p_min_ = this->ams5915_0020_d_p_min_;
-      this->p_max_ = this->ams5915_0020_d_p_max_;
-      break;
-    case AMS5915_0050_D:
-      this->p_min_ = this->ams5915_0050_d_p_min_;
-      this->p_max_ = this->ams5915_0050_d_p_max_;
-      break;
-    case AMS5915_0100_D:
-      this->p_min_ = this->ams5915_0100_d_p_min_;
-      this->p_max_ = this->ams5915_0100_d_p_max_;
-      break;
-    case AMS5915_0020_D_B:
-      this->p_min_ = this->ams5915_0020_d_b_p_min_;
-      this->p_max_ = this->ams5915_0020_d_b_p_max_;
-      break;
-    case AMS5915_0050_D_B:
-      this->p_min_ = this->ams5915_0050_d_b_p_min_;
-      this->p_max_ = this->ams5915_0050_d_b_p_max_;
-      break;
-    case AMS5915_0100_D_B:
-      this->p_min_ = this->ams5915_0100_d_b_p_min_;
-      this->p_max_ = this->ams5915_0100_d_b_p_max_;
-      break;
-    case AMS5915_0200_D:
-      this->p_min_ = this->ams5915_0200_d_p_min_;
-      this->p_max_ = this->ams5915_0200_d_p_max_;
-      break;
-    case AMS5915_0350_D:
-      this->p_min_ = this->ams5915_0350_d_p_min_;
-      this->p_max_ = this->ams5915_0350_d_p_max_;
-      break;
-    case AMS5915_1000_D:
-      this->p_min_ = this->ams5915_1000_d_p_min_;
-      this->p_max_ = this->ams5915_1000_d_p_max_;
-      break;
-    case AMS5915_2000_D:
-      this->p_min_ = this->ams5915_2000_d_p_min_;
-      this->p_max_ = this->ams5915_2000_d_p_max_;
-      break;
-    case AMS5915_4000_D:
-      this->p_min_ = this->ams5915_4000_d_p_min_;
-      this->p_max_ = this->ams5915_4000_d_p_max_;
-      break;
-    case AMS5915_7000_D:
-      this->p_min_ = this->ams5915_7000_d_p_min_;
-      this->p_max_ = this->ams5915_7000_d_p_max_;
-      break;
-    case AMS5915_10000_D:
-      this->p_min_ = this->ams5915_10000_d_p_min_;
-      this->p_max_ = this->ams5915_10000_d_p_max_;
-      break;
-    case AMS5915_0200_D_B:
-      this->p_min_ = this->ams5915_0200_d_b_p_min_;
-      this->p_max_ = this->ams5915_0200_d_b_p_max_;
-      break;
-    case AMS5915_0350_D_B:
-      this->p_min_ = this->ams5915_0350_d_b_p_min_;
-      this->p_max_ = this->ams5915_0350_d_b_p_max_;
-      break;
-    case AMS5915_1000_D_B:
-      this->p_min_ = this->ams5915_1000_d_b_p_min_;
-      this->p_max_ = this->ams5915_1000_d_b_p_max_;
-      break;
-    case AMS5915_1000_A:
-      this->p_min_ = this->ams5915_1000_a_p_min_;
-      this->p_max_ = this->ams5915_1000_a_p_max_;
-      break;
-    case AMS5915_1200_B:
-      this->p_min_ = this->ams5915_1200_b_p_min_;
-      this->p_max_ = this->ams5915_1200_b_p_max_;
-      break;
-  }
-}
-
 /* reads pressure and temperature and returns values in counts */
 bool Ams5915::read_raw_data_(uint16_t *pressure_counts, uint16_t *temperature_counts) {
   i2c::ErrorCode err = this->read(this->buffer_, sizeof(this->buffer_));
@@ -118,8 +20,6 @@ bool Ams5915::read_raw_data_(uint16_t *pressure_counts, uint16_t *temperature_co
 
 void Ams5915::setup() {
   bool read_success = false;
-  // setting the min and max pressure based on the chip
-  this->get_transducer_();
   // check to see if we can talk with the sensor
   for (size_t i = 0; i < this->max_attempts_; i++) {
     read_success = read_raw_data_(&raw_pressure_data_, &raw_temperature_data_);
