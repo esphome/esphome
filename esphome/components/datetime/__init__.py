@@ -26,6 +26,7 @@ from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
+DEPENDENCIES = ["time"]
 
 IS_PLATFORM_COMPONENT = True
 
