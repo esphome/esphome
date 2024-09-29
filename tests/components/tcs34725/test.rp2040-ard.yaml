@@ -5,12 +5,12 @@ i2c:
 
 sensor:
   - platform: tcs34725
-    red_channel:
-      name: Red Channel
-    green_channel:
-      name: Green Channel
-    blue_channel:
-      name: Blue Channel
+    red_channel_irradiance:
+      name: Red Channel Irradiance
+    green_channel_irradiance:
+      name: Green Channel Irradiance
+    blue_channel_irradiance:
+      name: Blue Channel Irradiance
     sensor_saturation:
       name: Sensor Saturation
     illuminance:
