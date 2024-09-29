@@ -23,7 +23,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOW_FAILURE |
-                                          (this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL));
+                                  (this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL));
   this->buf_ = allocator.allocate(buffer_size);
   if (this->buf_ == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate LED buffer!");
@@ -38,9 +38,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
     return;
   }
 
-  RAMAllocator<rmt_item32_t> rmt_allocator(
-      RAMAllocator<rmt_item32_t>::ALLOW_FAILURE |
-      (this->use_psram_ ? 0 : RAMAllocator<rmt_item32_t>::ALLOC_INTERNAL));
+  RAMAllocator<rmt_item32_t> rmt_allocator(RAMAllocator<rmt_item32_t>::ALLOW_FAILURE |
+                                           (this->use_psram_ ? 0 : RAMAllocator<rmt_item32_t>::ALLOC_INTERNAL));
   this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8 +
                                           1);  // 8 bits per byte, 1 rmt_item32_t per bit + 1 rmt_item32_t for reset
 
