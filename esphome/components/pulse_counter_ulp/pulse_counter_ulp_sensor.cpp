@@ -121,11 +121,6 @@ void PulseCounterUlpSensor::setup() {
   }
 }
 
-void PulseCounterUlpSensor::set_total_pulses(uint32_t pulses) {
-  this->current_total_ = pulses;
-  this->total_sensor_->publish_state(pulses);
-}
-
 void PulseCounterUlpSensor::dump_config() {
   LOG_SENSOR("", "Pulse Counter", this);
   LOG_PIN("  Pin: ", this->config_.pin_);
@@ -151,11 +146,6 @@ void PulseCounterUlpSensor::update() {
     this->publish_state(value);
   }
 
-  if (this->total_sensor_ != nullptr) {
-    this->current_total_ += raw.edge_count;
-    ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", this->get_name().c_str(), current_total_);
-    this->total_sensor_->publish_state(this->current_total_);
-  }
   this->last_time_ = now;
 }
 
