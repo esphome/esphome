@@ -11,6 +11,7 @@ void Ams5915::set_transducer_type(Transducer model) { type_ = model; }
 /* sets the pressure range based on the chip */
 void Ams5915::get_transducer_() {
   // setting the min and max pressures based on which transducer it is
+  // TODO: figure out how to do this in the python setup code.
   switch (this->type_) {
     case AMS5915_0005_D:
       this->p_min_ = this->ams5915_0005_d_p_min_;
@@ -138,6 +139,7 @@ void Ams5915::update() {
   if (read_success) {
     if (this->pressure_sensor_ != nullptr) {
       // convert raw_pressure_data_ to pressure, PA as noted in datasheet
+      // TODO: there maybe a helper function in helpers.h that can remap the value
       float pressure =
           (((float) (this->raw_pressure_data_ - this->dig_out_p_min_)) /
                (((float) (this->dig_out_p_max_ - this->dig_out_p_min_)) / ((float) (this->p_max_ - this->p_min_))) +
