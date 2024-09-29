@@ -34,6 +34,9 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", True)
 
+    # There is a conflict if the logger's uart also uses the default UART, which is seen as a watchdog failure on "ot_cli"
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CLI", False)
+
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PANID", config[CONF_PANID])
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_CHANNEL", config[CONF_CHANNEL])
