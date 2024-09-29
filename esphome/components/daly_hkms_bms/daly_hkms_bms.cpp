@@ -1,4 +1,5 @@
 #include "daly_hkms_bms.h"
+#include "daly_hkms_bms_registers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -13,9 +14,6 @@ static const uint8_t DALY_MODBUS_REQUEST_ADDRESS_OFFSET = 0x80;
 static const uint8_t DALY_MODBUS_RESPONSE_ADDRESS_OFFSET = 0x50;
 
 static const uint8_t MODBUS_CMD_READ_HOLDING_REGISTERS = 0x03;
-
-static const uint16_t MODBUS_ADDR_SUM_VOLT = 56;
-static const uint16_t MODBUS_REGISTER_COUNT = 3;
 
 void DalyHkmsBmsComponent::set_daly_address(uint8_t daly_address) {
   this->daly_address_ = daly_address;
@@ -49,7 +47,14 @@ void DalyHkmsBmsComponent::update() {
   this->waiting_to_update_ = false;
 
   // send the request using Modbus directly instead of ModbusDevice so we can send the data with the request address
-  this->parent_->send(this->daly_address_ + DALY_MODBUS_REQUEST_ADDRESS_OFFSET, MODBUS_CMD_READ_HOLDING_REGISTERS, MODBUS_ADDR_SUM_VOLT, MODBUS_REGISTER_COUNT, 0, nullptr);
+  uint8_t modbus_request_address = this->daly_address_ + DALY_MODBUS_REQUEST_ADDRESS_OFFSET;
+  this->parent_->send(
+    modbus_request_address,
+    MODBUS_CMD_READ_HOLDING_REGISTERS,
+    0x00,
+    DALY_MODBUS_REGISTER_COUNT,
+    0,
+    nullptr);
 
   this->last_send_ = millis();
 }
@@ -62,23 +67,105 @@ void DalyHkmsBmsComponent::on_modbus_data(const std::vector<uint8_t> &data) {
   this->last_send_ = 0;
 
   // Also ignore the data if the message is too short. Otherwise we will publish invalid values.
-  if (data.size() < MODBUS_REGISTER_COUNT * 2)
+  if (data.size() < DALY_MODBUS_REGISTER_COUNT * 2)
     return;
 
-#ifdef USE_SENSOR
-  if (this->voltage_sensor_) {
-    float voltage = encode_uint16(data[0], data[1]) / 10.0;
-    this->voltage_sensor_->publish_state(voltage);
-  }
-  
-  if (this->current_sensor_) {
-    float current = (encode_uint16(data[2], data[3]) - 30000) / 10.0;
-    this->current_sensor_->publish_state(current);
-  }
+  auto get_register = [&](size_t i) -> uint16_t {
+    return encode_uint16(data[i * 2], data[i * 2 + 1]);
+  };
 
-  if (this->battery_level_sensor_) {
-    float current = encode_uint16(data[4], data[5]) / 10.0;
-    this->battery_level_sensor_->publish_state(current);
+  auto publish_sensor_state = [&](sensor::Sensor *sensor, size_t i, int16_t offset, float factor,
+                                  int32_t unavailable_value = -1) -> void {
+    if (sensor == nullptr)
+      return;
+    uint16_t register_value = get_register(i);
+    float value = register_value == unavailable_value ? NAN : (register_value + offset) * factor;
+    sensor->publish_state(value);
+  };
+
+#ifdef USE_SENSOR
+  publish_sensor_state(this->cell_1_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1     , 0, 0.001);
+  publish_sensor_state(this->cell_2_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 1 , 0, 0.001);
+  publish_sensor_state(this->cell_3_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 2 , 0, 0.001);
+  publish_sensor_state(this->cell_4_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 3 , 0, 0.001);
+  publish_sensor_state(this->cell_5_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 4 , 0, 0.001);
+  publish_sensor_state(this->cell_6_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 5 , 0, 0.001);
+  publish_sensor_state(this->cell_7_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 6 , 0, 0.001);
+  publish_sensor_state(this->cell_8_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 7 , 0, 0.001);
+  publish_sensor_state(this->cell_9_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 8 , 0, 0.001);
+  publish_sensor_state(this->cell_10_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 9 , 0, 0.001);
+  publish_sensor_state(this->cell_11_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 10, 0, 0.001);
+  publish_sensor_state(this->cell_12_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 11, 0, 0.001);
+  publish_sensor_state(this->cell_13_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 12, 0, 0.001);
+  publish_sensor_state(this->cell_14_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 13, 0, 0.001);
+  publish_sensor_state(this->cell_15_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 14, 0, 0.001);
+  publish_sensor_state(this->cell_16_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 15, 0, 0.001);
+
+  publish_sensor_state(this->temperature_1_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1    , -40, 1, 255);
+  publish_sensor_state(this->temperature_2_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1 + 1, -40, 1, 255);
+  publish_sensor_state(this->temperature_3_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1 + 2, -40, 1, 255);
+  publish_sensor_state(this->temperature_4_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1 + 3, -40, 1, 255);
+  publish_sensor_state(this->temperature_5_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1 + 4, -40, 1, 255);
+  publish_sensor_state(this->temperature_6_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1 + 5, -40, 1, 255);
+  publish_sensor_state(this->temperature_7_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1 + 6, -40, 1, 255);
+  publish_sensor_state(this->temperature_8_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1 + 7, -40, 1, 255);
+
+  publish_sensor_state(this->voltage_sensor_, DALY_MODBUS_ADDR_VOLT, 0, 0.1);
+  publish_sensor_state(this->current_sensor_, DALY_MODBUS_ADDR_CURR, -30000, 0.1);
+  publish_sensor_state(this->battery_level_sensor_, DALY_MODBUS_ADDR_SOC, 0, 0.1);
+
+  publish_sensor_state(this->cells_number_sensor_, DALY_MODBUS_ADDR_CELL_COUNT, 0, 1);
+  publish_sensor_state(this->temps_number_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_COUNT, 0, 1);
+
+  publish_sensor_state(this->max_cell_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_MAX, 0, 0.001);
+  publish_sensor_state(this->max_cell_voltage_number_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_MAX_NUM, 0, 1);
+  
+  publish_sensor_state(this->min_cell_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_MIN, 0, 0.001);
+  publish_sensor_state(this->min_cell_voltage_number_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_MIN_NUM, 0, 1);
+
+  publish_sensor_state(this->max_temperature_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_MAX, -40, 1, 255);
+  publish_sensor_state(this->max_temperature_probe_number_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_MAX_NUM, 0, 1);
+  
+  publish_sensor_state(this->min_temperature_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_MIN, -40, 1, 255);
+  publish_sensor_state(this->min_temperature_probe_number_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_MIN_NUM, 0, 1);
+
+  publish_sensor_state(this->remaining_capacity_sensor_, DALY_MODBUS_ADDR_REMAINING_CAPACITY, 0, 0.1);
+  publish_sensor_state(this->cycles_sensor_, DALY_MODBUS_ADDR_CYCLES, 0, 1);
+
+  publish_sensor_state(this->temperature_mos_sensor_, DALY_MODBUS_ADDR_MOS_TEMP, -40, 1, 255);
+  publish_sensor_state(this->temperature_board_sensor_, DALY_MODBUS_ADDR_BOARD_TEMP, -40, 1, 255);
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  if (this->status_text_sensor_ != nullptr) {
+    switch (get_register(DALY_MODBUS_ADDR_CHG_DSCHG_STATUS)) {
+      case 0:
+        this->status_text_sensor_->publish_state("Stationary");
+        break;
+      case 1:
+        this->status_text_sensor_->publish_state("Charging");
+        break;
+      case 2:
+        this->status_text_sensor_->publish_state("Discharging");
+        break;
+      default:
+        break;
+    }
+  }
+#endif
+
+#ifdef USE_BINARY_SENSOR
+  if (this->balancing_active_binary_sensor_) {
+    this->balancing_active_binary_sensor_->publish_state(get_register(DALY_MODBUS_ADDR_BALANCE_STATUS) > 0);
+  }
+  if (this->charging_mos_enabled_binary_sensor_) {
+    this->charging_mos_enabled_binary_sensor_->publish_state(get_register(DALY_MODBUS_ADDR_CHG_MOS_ACTIVE) > 0);
+  }
+  if (this->discharging_mos_enabled_binary_sensor_) {
+    this->discharging_mos_enabled_binary_sensor_->publish_state(get_register(DALY_MODBUS_ADDR_DSCHG_MOS_ACTIVE) > 0);
+  }
+  if (this->precharging_mos_enabled_binary_sensor_) {
+    this->precharging_mos_enabled_binary_sensor_->publish_state(get_register(DALY_MODBUS_ADDR_PRECHG_MOS_ACTIVE) > 0);
   }
 #endif
 }
