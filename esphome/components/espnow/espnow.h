@@ -229,7 +229,7 @@ class ESPNowComponent : public Component {
 
   ESPNowDefaultProtocol *get_default_protocol();
 
-  void show_packet(std::string title, const ESPNowPacket &packet);
+  void show_packet(const std::string &title, const ESPNowPacket &packet);
 
  protected:
   bool validate_channel_(uint8_t channel);
@@ -241,9 +241,9 @@ class ESPNowComponent : public Component {
   bool use_sent_check_{true};
   bool lock_{false};
 
-  void call_on_receive_(const ESPNowPacket packet);
-  void call_on_sent_(const ESPNowPacket packet, bool status);
-  void call_on_new_peer_(const ESPNowPacket packet);
+  void call_on_receive_(ESPNowPacket packet);
+  void call_on_sent_(ESPNowPacket packet, bool status);
+  void call_on_new_peer_(ESPNowPacket packet);
 
   QueueHandle_t receive_queue_{};
   QueueHandle_t send_queue_{};

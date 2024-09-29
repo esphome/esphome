@@ -45,17 +45,11 @@ void ESPNowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  MAC Address: 0x%12llx.", this->own_peer_address_);
 }
 
-void ESPNowComponent::show_packet(std::string title, const ESPNowPacket &packet) {
-  /*
-    char buf[20];
-    sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-    ESP_LOGVV(TAG, "%s packet: M:%s H:%cx%cx%c  P:%c%c%c 0x%02x  S:%02x  C:ox%02x~0x%02x S:%02d V:%s", "test",
-              buf, packet.content_at(0), packet.content_at(1),
-              packet.content_at(2), packet.content_at(3), packet.content_at(4), packet.content_at(5),
-              packet.content_at(6), packet.content_at(7), packet.crc(), packet.calc_crc(), packet.content_size()
-              packet.is_valid() ? "Yes" : "No");
-  */
+void ESPNowComponent::show_packet(const std::string &title, const ESPNowPacket &packet) {
+  ESP_LOGVV(TAG, "%s Peer: packet: 0x%12llx  M:%s H:%cx%cx%c  P:%c%c%c 0x%02x  S:%02x  C:ox%02x~0x%02x S:%02d V:%s",
+            "test", packet.peer, packet.content_at(0), packet.content_at(1), packet.content_at(2), packet.content_at(3),
+            packet.content_at(4), packet.content_at(5), packet.content_at(6), packet.content_at(7), packet.crc(),
+            packet.calc_crc(), packet.content_size() packet.is_valid() ? "Yes" : "No");
 }
 
 bool ESPNowComponent::validate_channel_(uint8_t channel) {
@@ -186,21 +180,21 @@ ESPNowProtocol *ESPNowComponent::get_protocol_component_(uint32_t protocol) {
   return this->protocols_[protocol];
 }
 
-void ESPNowComponent::call_on_receive_(const ESPNowPacket packet) {
+void ESPNowComponent::call_on_receive_(ESPNowPacket packet) {
   ESPNowProtocol *protocol = this->get_protocol_component_(packet.protocol());
   if (protocol != nullptr) {
     this->defer([protocol, packet]() { protocol->on_receive(packet); });
   }
 }
 
-void ESPNowComponent::call_on_sent_(const ESPNowPacket packet, bool status) {
+void ESPNowComponent::call_on_sent_(ESPNowPacket packet, bool status) {
   ESPNowProtocol *protocol = this->get_protocol_component_(packet.protocol());
   if (protocol != nullptr) {
     this->defer([protocol, packet, status]() { protocol->on_sent(packet, status); });
   }
 }
 
-void ESPNowComponent::call_on_new_peer_(const ESPNowPacket packet) {
+void ESPNowComponent::call_on_new_peer_(ESPNowPacket packet) {
   ESPNowProtocol *protocol = this->get_protocol_component_(packet.protocol());
   if (protocol != nullptr) {
     this->defer([protocol, packet]() { protocol->on_new_peer(packet); });
