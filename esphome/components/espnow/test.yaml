@@ -3,7 +3,7 @@ substitutions:
   name: "lum-iot-test"
   friendly_name: "Project Template"
 
-#xternal_components:
+# external_components:
 #  - source: github://pr#7141
 #    components: [ espnow ]
 #    refresh: 1 sec
