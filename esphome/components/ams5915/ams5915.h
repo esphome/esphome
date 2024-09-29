@@ -26,7 +26,7 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
   uint8_t buffer_[4];
 
   // maximum number of attempts to talk to sensor
-  static const size_t max_attempts_ = 10;
+  static const size_t MAX_ATTEMPTS = 10;
   // pressure digital output, counts
   uint16_t raw_pressure_data_;
   // temperature digital output, counts
@@ -35,11 +35,11 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
   int p_min_;
   int p_max_;
   // conversion millibar to PA
-  static constexpr float mbar_to_pa_ = 100.0f;
+  static constexpr float MBAR_TO_PA = 100.0f;
   // digital output at minimum pressure
-  static const int dig_out_p_min_ = 1638;
+  static const int DIG_OUT_P_MIN = 1638;
   // digital output at maximum pressure
-  static const int dig_out_p_max_ = 14745;
+  static const int DIG_PUT_P_MAX = 14745;
 
   bool read_raw_data_(uint16_t *pressure_counts, uint16_t *temperature_counts);
   sensor::Sensor *temperature_sensor_{nullptr};

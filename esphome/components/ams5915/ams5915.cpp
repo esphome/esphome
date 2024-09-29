@@ -21,7 +21,7 @@ bool Ams5915::read_raw_data_(uint16_t *pressure_counts, uint16_t *temperature_co
 void Ams5915::setup() {
   bool read_success = false;
   // check to see if we can talk with the sensor
-  for (size_t i = 0; i < this->max_attempts_; i++) {
+  for (size_t i = 0; i < Ams5915::MAX_ATTEMPTS; i++) {
     read_success = read_raw_data_(&raw_pressure_data_, &raw_temperature_data_);
     if (read_success) {
       return;
@@ -41,10 +41,10 @@ void Ams5915::update() {
       // convert raw_pressure_data_ to pressure, PA as noted in datasheet
       // TODO: there maybe a helper function in helpers.h that can remap the value
       float pressure =
-          (((float) (this->raw_pressure_data_ - this->dig_out_p_min_)) /
-               (((float) (this->dig_out_p_max_ - this->dig_out_p_min_)) / ((float) (this->p_max_ - this->p_min_))) +
+          (((float) (this->raw_pressure_data_ - Ams5915::DIG_OUT_P_MIN)) /
+               (((float) (Ams5915::DIG_PUT_P_MAX - Ams5915::DIG_OUT_P_MIN)) / ((float) (this->p_max_ - this->p_min_))) +
            (float) this->p_min_);
-      this->pressure_sensor_->publish_state(pressure * this->mbar_to_pa_);
+      this->pressure_sensor_->publish_state(pressure * Ams5915::MBAR_TO_PA);
     }
 
     if (this->temperature_sensor_ != nullptr) {
