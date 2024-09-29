@@ -43,9 +43,15 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   void set_glass_attenuation_factor(float ga);
 
   void set_sensor_saturation(sensor::Sensor *sensor_saturation) { sensor_saturation_ = sensor_saturation; }
-  void set_red_sensor(sensor::Sensor *red_sensor) { red_sensor_ = red_sensor; }
-  void set_green_sensor(sensor::Sensor *green_sensor) { green_sensor_ = green_sensor; }
-  void set_blue_sensor(sensor::Sensor *blue_sensor) { blue_sensor_ = blue_sensor; }
+  void set_red_irradiance_sensor(sensor::Sensor *red_irradiance_sensor) {
+    red_irradiance_sensor_ = red_irradiance_sensor;
+  }
+  void set_green_irradiance_sensor(sensor::Sensor *green_irradiance_sensor) {
+    green_irradiance_sensor_ = green_irradiance_sensor;
+  }
+  void set_blue_irradiance_sensor(sensor::Sensor *blue_irradiance_sensor) {
+    blue_irradiance_sensor_ = blue_irradiance_sensor;
+  }
   void set_illuminance_sensor(sensor::Sensor *illuminance_sensor) { illuminance_sensor_ = illuminance_sensor; }
   void set_color_temperature_sensor(sensor::Sensor *color_temperature_sensor) {
     color_temperature_sensor_ = color_temperature_sensor;
@@ -68,21 +74,27 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
     return this->write_register(a_register, &data, 1);
   }
   sensor::Sensor *sensor_saturation_{nullptr};
-  sensor::Sensor *red_sensor_{nullptr};
-  sensor::Sensor *green_sensor_{nullptr};
-  sensor::Sensor *blue_sensor_{nullptr};
+  sensor::Sensor *red_irradiance_sensor_{nullptr};
+  sensor::Sensor *green_irradiance_sensor_{nullptr};
+  sensor::Sensor *blue_irradiance_sensor_{nullptr};
   sensor::Sensor *illuminance_sensor_{nullptr};
   sensor::Sensor *color_temperature_sensor_{nullptr};
   float integration_time_{2.4};
   float gain_{1.0};
   float glass_attenuation_{1.0};
-  float illuminance_;
-  float color_temperature_;
+  float illuminance_{NAN};
+  float color_temperature_{NAN};
+  float irradiance_r_{NAN};
+  float irradiance_g_{NAN};
+  float irradiance_b_{NAN};
   bool integration_time_auto_{true};
 
  private:
   void calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, float current_saturation,
                                       uint16_t min_raw_value);
+  void calculate_irradiance_(uint16_t r, uint16_t g, uint16_t b, float current_saturation, uint16_t min_raw_value);
+  float get_saturation_limit_() const;
+  uint16_t get_min_raw_limit_() const;
   uint16_t integration_reg_;
   uint8_t gain_reg_{TCS34725_GAIN_1X};
 };

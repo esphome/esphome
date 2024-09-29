@@ -17,6 +17,9 @@ static const uint8_t TCS34725_REGISTER_ATIME = TCS34725_COMMAND_BIT | 0x01;
 static const uint8_t TCS34725_REGISTER_CONTROL = TCS34725_COMMAND_BIT | 0x0F;
 static const uint8_t TCS34725_REGISTER_ENABLE = TCS34725_COMMAND_BIT | 0x00;
 static const uint8_t TCS34725_REGISTER_CRGBDATAL = TCS34725_COMMAND_BIT | 0x14;
+static const float RED_CHANNEL_COUNTS_TO_IRRADIANCE = 0.030895152730118627f;    // counts/µW/cm²
+static const float GREEN_CHANNEL_COUNTS_TO_IRRADIANCE = 0.032402966993759885f;  // counts/µW/cm²
+static const float BLUE_CHANNEL_COUNTS_TO_IRRADIANCE = 0.03695911040578352f;    // counts/µW/cm²
 
 void TCS34725Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TCS34725...");
@@ -52,13 +55,38 @@ void TCS34725Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Sensor Saturation", this->sensor_saturation_);
-  LOG_SENSOR("  ", "Red Channel", this->red_sensor_);
-  LOG_SENSOR("  ", "Green Channel", this->green_sensor_);
-  LOG_SENSOR("  ", "Blue Channel", this->blue_sensor_);
+  LOG_SENSOR("  ", "Red Channel Irradiance", this->red_irradiance_sensor_);
+  LOG_SENSOR("  ", "Green Channel Irradiance", this->green_irradiance_sensor_);
+  LOG_SENSOR("  ", "Blue Channel Irradiance", this->blue_irradiance_sensor_);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Color Temperature", this->color_temperature_sensor_);
 }
 float TCS34725Component::get_setup_priority() const { return setup_priority::DATA; }
+
+/*!
+ *  @brief  Determines the minimum raw value threshold for color channels at which the sensor is considered underexposed
+ *
+ *  @return Minimum raw value threshold
+ */
+uint16_t TCS34725Component::get_min_raw_limit_() const {
+  // Minimum raw value below 1 is considered too low, return NaN
+  return 1;
+}
+
+/*!
+ *  @brief  Determines the saturation threshold at which the sensor is considered overexposed
+ *
+ *  @return The saturation limit as a percentage (between 0.0 and 100.0).
+ */
+float TCS34725Component::get_saturation_limit_() const {
+  // Return 99.99f if integration time is below 153.6ms, else return 75.0f
+  if ((256 - this->integration_reg_) < TCS34725_INTEGRATION_TIME_154MS) {
+    return 99.99f;
+  } else {
+    /* Adjust sat limit to 75% to avoid analog saturation if atime < 153.6ms */
+    return 75.0f;
+  }
+}
 
 /*!
  *  @brief  Converts the raw R/G/B values to color temperature in degrees
@@ -77,9 +105,6 @@ float TCS34725Component::get_setup_priority() const { return setup_priority::DAT
  */
 void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, float current_saturation,
                                                        uint16_t min_raw_value) {
-  float sat_limit;
-  uint16_t min_raw_limit;
-
   this->illuminance_ = NAN;
   this->color_temperature_ = NAN;
 
@@ -94,8 +119,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   static const float MAX_COLOR_TEMPERATURE = 15000.0f;  // Maximum expected color temperature in Kelvin
   static const float MIN_COLOR_TEMPERATURE = 1000.0f;   // Maximum reasonable color temperature in Kelvin
 
-  // Minimum raw value below 1 is considered too low, return NaN
-  min_raw_limit = 1;
+  uint16_t min_raw_limit = get_min_raw_limit_();
 
   if (min_raw_value < min_raw_limit) {
     ESP_LOGW(TAG,
@@ -118,12 +142,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
    *     the count reaches 65535.
    */
 
-  /* Adjust sat limit to 75% to avoid analog saturation if atime < 153.6ms */
-  if ((256 - this->integration_reg_) < 192) {
-    sat_limit = 99.99f;
-  } else {
-    sat_limit = 75.0f;
-  }
+  float sat_limit = get_saturation_limit_();
 
   /* Ripple rejection:
    *
@@ -146,13 +165,12 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   /* Check for saturation and mark the sample as invalid if true */
   if (current_saturation >= sat_limit) {
     if (this->integration_time_auto_) {
-      ESP_LOGI(TAG, "Saturation too high, sample discarded, autogain ongoing");
+      ESP_LOGI(TAG, "Saturation too high, skip Lux/color temperature calculation, autogain ongoing");
       return;
     } else {
       ESP_LOGW(TAG,
-               "Saturation too high, sample with saturation %.1f above limit (%.1f). Lux/color"
-               "temperature cannot reliably calculated, reduce integration/gain or use a grey"
-               "filter.",
+               "Saturation too high, sample with saturation %.1f above limit (%.1f). Lux/color temperature cannot be "
+               "reliably calculated, reduce integration/gain or use a grey filter.",
                current_saturation, sat_limit);
       return;
     }
@@ -192,6 +210,64 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   }
 }
 
+/*!
+ *  @brief  Calculates the irradiance per channel (R/G/B) using fixed conversion factors.
+ *  @param  r
+ *          Red raw value
+ *  @param  g
+ *          Green raw value
+ *  @param  b
+ *          Blue raw value
+ *  @param  current_saturation
+ *          Sensor saturation in percent
+ *  @param  min_raw_value
+ *          Lowest raw value reported by the sensor
+ */
+void TCS34725Component::calculate_irradiance_(uint16_t r, uint16_t g, uint16_t b, float current_saturation,
+                                              uint16_t min_raw_value) {
+  this->irradiance_r_ = NAN;
+  this->irradiance_g_ = NAN;
+  this->irradiance_b_ = NAN;
+
+  uint16_t min_raw_limit = get_min_raw_limit_();
+  float sat_limit = get_saturation_limit_();
+
+  if (min_raw_value < min_raw_limit) {
+    ESP_LOGW(TAG,
+             "Saturation too low, sample with saturation %d (raw value) below limit (%d). Irradiance cannot be "
+             "reliably calculated.",
+             min_raw_value, min_raw_limit);
+    return;
+  }
+
+  /* Check for saturation and mark the sample as invalid if true */
+  if (current_saturation >= sat_limit) {
+    if (this->integration_time_auto_) {
+      ESP_LOGI(TAG, "Saturation too high, skip irradiance calculation, autogain ongoing");
+      return;
+    } else {
+      ESP_LOGW(TAG,
+               "Saturation too high, sample with saturation %.1f above limit (%.1f). Irradiance cannot be reliably "
+               "calculated, reduce integration/gain or use a grey filter.",
+               current_saturation, sat_limit);
+      return;
+    }
+  }
+
+  // Calculate the scaling factor for integration time
+  float integration_time_scaling = this->integration_time_ / 2.4f;
+
+  // Calculate irradiance for each channel using predefined conversion factors
+  this->irradiance_r_ = std::max(r / (RED_CHANNEL_COUNTS_TO_IRRADIANCE * integration_time_scaling * this->gain_), 0.0f);
+  this->irradiance_g_ =
+      std::max(g / (GREEN_CHANNEL_COUNTS_TO_IRRADIANCE * integration_time_scaling * this->gain_), 0.0f);
+  this->irradiance_b_ =
+      std::max(b / (BLUE_CHANNEL_COUNTS_TO_IRRADIANCE * integration_time_scaling * this->gain_), 0.0f);
+
+  ESP_LOGD(TAG, "Calculated irradiance - R: %.2f µW/cm2, G: %.2f µW/cm2, B: %.2f µW/cm2", this->irradiance_r_,
+           this->irradiance_g_, this->irradiance_b_);
+}
+
 void TCS34725Component::update() {
   uint8_t data[8];  // Buffer to hold the 8 bytes (2 bytes for each of the 4 channels)
 
@@ -214,9 +290,6 @@ void TCS34725Component::update() {
   uint16_t peak_raw_value = std::max({raw_r, raw_g, raw_b});
   uint16_t min_raw_value = std::min({raw_r, raw_g, raw_b});
   uint16_t max_count;
-  float channel_r;
-  float channel_g;
-  float channel_b;
 
   /* sensor counts up to 1024 for each 2.4 ms of integration time, until 65535 is hit, which is the
    * maximum which can be stored in the counter. This happens at 153.6 ms integration time. */
@@ -228,15 +301,9 @@ void TCS34725Component::update() {
 
   current_saturation = clamp(current_saturation, 0.0f, 100.0f);
 
-  // FIXME: sum calculation cannot be done here anymore, so we publish 0 values for now
-  channel_r = channel_g = channel_b = 0.0f;
-
-  if (this->red_sensor_ != nullptr)
-    this->red_sensor_->publish_state(channel_r);
-  if (this->green_sensor_ != nullptr)
-    this->green_sensor_->publish_state(channel_g);
-  if (this->blue_sensor_ != nullptr)
-    this->blue_sensor_->publish_state(channel_b);
+  if (this->red_irradiance_sensor_ || this->green_irradiance_sensor_ || this->blue_irradiance_sensor_) {
+    calculate_irradiance_(raw_r, raw_g, raw_b, current_saturation, min_raw_value);
+  }
 
   if (this->illuminance_sensor_ || this->color_temperature_sensor_) {
     calculate_temperature_and_lux_(raw_r, raw_g, raw_b, current_saturation, min_raw_value);
@@ -251,19 +318,23 @@ void TCS34725Component::update() {
       (this->gain_reg_ == 0 && this->integration_time_ < 200)) {
     if (this->illuminance_sensor_ != nullptr)
       this->illuminance_sensor_->publish_state(this->illuminance_);
-
     if (this->color_temperature_sensor_ != nullptr)
       this->color_temperature_sensor_->publish_state(this->color_temperature_);
-
-    if (this->sensor_saturation_ != nullptr) {
+    if (this->sensor_saturation_ != nullptr)
       this->sensor_saturation_->publish_state(current_saturation);
-    }
+    if (this->red_irradiance_sensor_ != nullptr)
+      this->red_irradiance_sensor_->publish_state(this->irradiance_r_);
+    if (this->green_irradiance_sensor_ != nullptr)
+      this->green_irradiance_sensor_->publish_state(this->irradiance_g_);
+    if (this->blue_irradiance_sensor_ != nullptr)
+      this->blue_irradiance_sensor_->publish_state(this->irradiance_b_);
   }
 
   ESP_LOGD(TAG,
-           "Got Red=%.1f%%,Green=%.1f%%,Blue=%.1f%%,Sensor Saturation=%.1f%% Illuminance=%.1flx Color "
-           "Temperature=%.1fK",
-           channel_r, channel_g, channel_b, current_saturation, this->illuminance_, this->color_temperature_);
+           "Calculated: Red Irad=%.2f µW/cm², Green Irad=%.2f µW/cm², Blue Irad=%.2f µW/cm², Sensor Sat=%.2f%%, "
+           "Illum=%.1f lx, Color Temp=%.1f K",
+           this->irradiance_r_, this->irradiance_g_, this->irradiance_b_, current_saturation, this->illuminance_,
+           this->color_temperature_);
 
   if (this->integration_time_auto_) {
     // change integration time an gain to achieve maximum resolution an dynamic range
