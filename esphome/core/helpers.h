@@ -664,10 +664,11 @@ template<class T> class RAMAllocator {
   using value_type = T;
 
   enum Flags {
-    NONE = 0,  ///< Perform external allocation and fall back to internal memory when external RAM is full or unavailable.
+    NONE =
+        0,  ///< Perform external allocation and fall back to internal memory when external RAM is full or unavailable.
     ALLOC_EXTERNAL = 1 << 0,  ///< Perform external allocation only.
     ALLOC_INTERNAL = 1 << 1,  ///< Perform internal allocation only.
-    ALLOW_FAILURE = 1 << 2,  ///< Don't abort when memory allocation fails.
+    ALLOW_FAILURE = 1 << 2,   ///< Don't abort when memory allocation fails.
   };
 
   RAMAllocator() = default;
