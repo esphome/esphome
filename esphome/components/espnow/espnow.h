@@ -7,8 +7,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/bytebuffer.h"
 
-#include "esphome/core/log.h"
-
 #include <esp_now.h>
 #include <esp_crc.h>
 
@@ -267,28 +265,21 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   void set_data_template(std::function<ByteBuffer(Ts...)> func) {
     this->data_func_ = func;
     this->static_ = false;
-    ESP_LOGCONFIG("ESPNOW:SendAction", "Add ByteBuffer lambda value to send");
   }
   void set_data_static(const std::vector<uint8_t> &data) {
     this->data_static_ = data;
     this->static_ = true;
-    ESP_LOGCONFIG("ESPNOW:SendAction", "Add static std:vector value to send");
   }
 
   void play(Ts... x) override {
-    ESP_LOGI("ESPNOW:SendAction", "Execute Play.");
-    /*
-        uint64_t mac = this->mac_.value(x...);
+    uint64_t mac = this->mac_.value(x...);
 
-        if (this->static_) {
-          ESP_LOGI("ESPNOW:SendAction", "Action Send static std:vector value now.");
-         // this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size());
-        } else {
-          ESP_LOGI("ESPNOW:SendAction", "Action Send ByteBuffer lambda value now");
-          ByteBuffer data = this->data_func_(x...);
-         // this->parent_->get_default_protocol()->send(mac, data.get_data().data(), (uint8_t) data.get_used_space());
-        }
-      */
+    if (this->static_) {
+      this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size());
+    } else {
+      ByteBuffer data = this->data_func_(x...);
+      this->parent_->get_default_protocol()->send(mac, data.get_data().data(), (uint8_t) data.get_used_space());
+    }
   }
 
  protected:
