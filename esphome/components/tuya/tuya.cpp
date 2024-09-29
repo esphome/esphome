@@ -1,17 +1,7 @@
 #include "tuya.h"
-#include "esphome/components/network/util.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
-
-#ifdef USE_WIFI
-#include "esphome/components/wifi/wifi_component.h"
-#endif
-
-#ifdef USE_CAPTIVE_PORTAL
-#include "esphome/components/captive_portal/captive_portal.h"
-#endif
 
 namespace esphome {
 namespace tuya {
@@ -20,6 +10,10 @@ static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
+
+static const uint8_t NET_STATUS_WIFI_CONNECTED = 0x03;
+static const uint8_t NET_STATUS_CLOUD_CONNECTED = 0x04;
+static const uint8_t FAKE_WIFI_RSSI = 100;
 
 void Tuya::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
@@ -244,7 +238,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     case TuyaCommandType::WIFI_RSSI:
       this->send_command_(
-          TuyaCommand{.cmd = TuyaCommandType::WIFI_RSSI, .payload = std::vector<uint8_t>{get_wifi_rssi_()}});
+          TuyaCommand{.cmd = TuyaCommandType::WIFI_RSSI, .payload = std::vector<uint8_t>{FAKE_WIFI_RSSI}});
       break;
     case TuyaCommandType::LOCAL_TIME_QUERY:
 #ifdef USE_TIME
@@ -488,43 +482,21 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
   send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{}});
 }
 
-void Tuya::set_status_pin_() {
-  bool is_network_ready = network::is_connected() && remote_is_connected();
-  this->status_pin_->digital_write(is_network_ready);
-}
+void Tuya::set_status_pin_() { this->status_pin_->digital_write(true); }
 
 uint8_t Tuya::get_wifi_status_code_() {
-  uint8_t status = 0x02;
+  uint8_t status = NET_STATUS_WIFI_CONNECTED;
 
-  if (network::is_connected()) {
-    status = 0x03;
-
-    // Protocol version 3 also supports specifying when connected to "the cloud"
-    if (this->protocol_version_ >= 0x03 && remote_is_connected()) {
-      status = 0x04;
-    }
-  } else {
-#ifdef USE_CAPTIVE_PORTAL
-    if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
-      status = 0x01;
-    }
-#endif
-  };
+  // Protocol version 3 also supports specifying when connected to "the cloud"
+  if (this->protocol_version_ >= 0x03) {
+    status = NET_STATUS_CLOUD_CONNECTED;
+  }
 
   return status;
 }
 
-uint8_t Tuya::get_wifi_rssi_() {
-#ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->wifi_rssi();
-#endif
-
-  return 0;
-}
-
 void Tuya::send_wifi_status_() {
-  uint8_t status = this->get_wifi_status_code_();
+  const uint8_t status = get_wifi_status_code_();
 
   if (status == this->wifi_status_) {
     return;

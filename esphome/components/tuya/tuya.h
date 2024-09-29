@@ -87,7 +87,7 @@ struct TuyaCommand {
 
 class Tuya : public Component, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::LATE; }
+  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -135,7 +135,6 @@ class Tuya : public Component, public uart::UARTDevice {
   void set_status_pin_();
   void send_wifi_status_();
   uint8_t get_wifi_status_code_();
-  uint8_t get_wifi_rssi_();
 
 #ifdef USE_TIME
   void send_local_time_();
