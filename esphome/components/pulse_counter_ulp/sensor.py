@@ -94,7 +94,6 @@ async def to_code(config):
         "src/CMakeLists.txt",
         os.path.join(os.path.dirname(__file__), "CMakeLists.txt"),
     )
-    # FIXME These files don't get cleared when the config changes, necessitating deleting .esphome
     esp32.add_extra_build_file(
         "ulp/pulse_cnt.S",
         os.path.join(os.path.dirname(__file__), "ulp/pulse_cnt.S"),

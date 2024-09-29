@@ -11,6 +11,7 @@ namespace pulse_counter_ulp {
 
 static const char *const TAG = "pulse_counter_ulp";
 
+namespace {
 const char *to_string(CountMode count_mode) {
   switch (count_mode) {
     case CountMode::disable:
@@ -22,8 +23,7 @@ const char *to_string(CountMode count_mode) {
   }
   return "UNKNOWN MODE";
 }
-
-/* === ULP === */
+}  // namespace
 
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
@@ -42,15 +42,8 @@ std::unique_ptr<UlpProgram> UlpProgram::start(const Config &config) {
     ESP_LOGE(TAG, "GPIO used for pulse counting must be an RTC IO");
   }
 
-  /* Initialize some variables used by ULP program.
-   * Each 'ulp_xyz' variable corresponds to 'xyz' variable in the ULP program.
-   * These variables are declared in an auto generated header file,
-   * 'ulp_main.h', name of this file is defined in component.mk as ULP_APP_NAME.
-   * These variables are located in RTC_SLOW_MEM and can be accessed both by the
-   * ULP and the main CPUs.
-   *
-   * Note that the ULP reads only the lower 16 bits of these variables.
-   */
+  /* Initialize variables in ULP program.
+   * Note that the ULP reads only the lower 16 bits of these variables.  */
   ulp_rising_edge_count = 0;
   ulp_falling_edge_count = 0;
   ulp_run_count = 0;
@@ -65,9 +58,7 @@ std::unique_ptr<UlpProgram> UlpProgram::start(const Config &config) {
   rtc_gpio_set_direction(gpio_num, RTC_GPIO_MODE_INPUT_ONLY);
   rtc_gpio_hold_en(gpio_num);
 
-  /* Set ULP wake up period T
-   * Minimum pulse width has to be T * (ulp_debounce_counter + 1).
-   */
+  /* Minimum pulse width is sleep_duration_ * (ulp_debounce_counter + 1). */
   ulp_set_wakeup_period(0, config.sleep_duration_ / std::chrono::microseconds{1});
 
   /* Start the program */
@@ -102,8 +93,6 @@ UlpProgram::State UlpProgram::peek_state() const {
 void UlpProgram::set_mean_exec_time(microseconds mean_exec_time) {
   ulp_mean_exec_time = static_cast<uint16_t>(mean_exec_time / microseconds{1});
 }
-
-/* === END ULP ===*/
 
 void PulseCounterUlpSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
