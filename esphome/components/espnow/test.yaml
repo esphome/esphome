@@ -24,7 +24,7 @@ esphome:
   # This will allow for (future) project identification,
   # configuration and updates.
   project:
-    name: esphome.project-template
+    name: LumenSoft.espnow-test
     version: "1.0"
 
 # To be able to get logs from the device via serial and api.
@@ -37,12 +37,11 @@ espnow:
     - FF:FF:FF:FF:FF:FF
   on_receive:
     - logger.log:
-        format: "Received: %s  RSSI: %d"
-        args: [packet.payload_as_bytes(), packet.rssi]
+  format: "Received: %s  RSSI: %d"
+  args: [packet.payload_as_bytes(), packet.rssi]
 
 binary_sensor:
   - platform: gpio
-
     pin:
       number: GPIO00
       inverted: true
