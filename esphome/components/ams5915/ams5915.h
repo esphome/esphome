@@ -63,7 +63,7 @@ class Ams5915 : public PollingComponent, public sensor::Sensor, public i2c::I2CD
   int p_min_;
   int p_max_;
   // conversion millibar to PA
-  static const float mbar_to_pa_ = 100.0f;
+  static constexpr float mbar_to_pa_ = 100.0f;
   // digital output at minimum pressure
   static const int dig_out_p_min_ = 1638;
   // digital output at maximum pressure
