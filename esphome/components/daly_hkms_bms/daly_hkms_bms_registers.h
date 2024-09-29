@@ -47,7 +47,7 @@ static const uint16_t DALY_MODBUS_ADDR_MOS_TEMP = 0x5A;
 static const uint16_t DALY_MODBUS_ADDR_BOARD_TEMP = 0x5B;
 static const uint16_t DALY_MODBUS_ADDR_HEATING_TEMP = 0x5C;
 
-static const uint16_t DALY_MODBUS_REGISTER_COUNT = 0x5D;
+static const uint16_t DALY_MODBUS_REGISTER_MAX = 0x5C;
 
 }  // namespace daly_hkms_bms
 }  // namespace esphome

@@ -87,6 +87,8 @@ class DalyHkmsBmsComponent : public PollingComponent, public modbus::ModbusDevic
   uint32_t last_send_;
   uint8_t daly_address_;
 
+  enum class ReadState{ READ_CELL_VOLTAGES, READ_DATA, IDLE } read_state_{ReadState::IDLE};
+
 };
 
 }  // namespace daly_hkms_bms
