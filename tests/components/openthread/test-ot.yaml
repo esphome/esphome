@@ -9,6 +9,9 @@ esp32:
     version: "5.3.0"
     platform_version: "https://github.com/pioarduino/platform-espressif32/releases/download/53.03.10%%2Brc1/platform-espressif32.zip"
 
+logger:
+  level: DEBUG
+
 network:
   enable_ipv6: true
 
@@ -27,49 +30,3 @@ openthread:
 api:
   encryption:
     key: CXybYc0oErjlPMacNX70d2rHshyLv/FPDrJO4Yrs+Ho=
-
-# This is the "Boot" button on my dev board
-binary_sensor:
-  - platform: gpio
-    id: button1
-    name: "Button"
-    publish_initial_state: true
-    pin:
-      number: GPIO9
-      mode: INPUT_PULLUP
-      inverted: true
-
-light:
-  - platform: esp32_rmt_led_strip
-    chipset: WS2812
-    pin: GPIO8
-    num_leds: 1
-    rmt_channel: 0
-    name: "Status LED RGB"
-    id: statusledlight
-    icon: "mdi:led-outline"
-    rgb_order: GRB
-
-# text_sensor:
-#   - platform: template
-#     name: "OTT Thread RLOC16"
-#     lambda: |-
-#       if (!esp_openthread_lock_acquire(1)) {
-#           return {"Unknown"};
-#       }
-#       auto instance = esp_openthread_get_instance();
-#       auto rloc16 = otThreadGetRloc16(instance);
-#       esp_openthread_lock_release();
-#       char buf[10];
-#       snprintf(buf, sizeof(buf), "%04x", rloc16);
-#       return {buf};
-#   - platform: template
-#     name: "OTT Thread Role"
-#     lambda: |-
-#       if (!esp_openthread_lock_acquire(1)) {
-#           return {"Unknown"};
-#       }
-#       auto instance = esp_openthread_get_instance();
-#       auto role = otThreadDeviceRoleToString(otThreadGetDeviceRole(instance));
-#       esp_openthread_lock_release();
-#       return {role};
