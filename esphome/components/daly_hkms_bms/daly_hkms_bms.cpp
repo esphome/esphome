@@ -62,13 +62,17 @@ void DalyHkmsBmsComponent::update() {
 void DalyHkmsBmsComponent::on_modbus_data(const std::vector<uint8_t> &data) {
   // Other components might be sending commands to our device. But we don't get called with enough
   // context to know what is what. So if we didn't do a send, we ignore the data.
-  if (!this->last_send_)
+  if (!this->last_send_) {
+    ESP_LOGD(TAG, "Got data without requesting it first");
     return;
+  }
   this->last_send_ = 0;
 
   // Also ignore the data if the message is too short. Otherwise we will publish invalid values.
-  if (data.size() < DALY_MODBUS_REGISTER_COUNT * 2)
+  if (data.size() < DALY_MODBUS_REGISTER_COUNT * 2) {
+    ESP_LOGD(TAG, "Not enough data in modbus response");
     return;
+  }
 
   auto get_register = [&](size_t i) -> uint16_t {
     return encode_uint16(data[i * 2], data[i * 2 + 1]);
