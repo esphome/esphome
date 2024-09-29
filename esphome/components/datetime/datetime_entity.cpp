@@ -192,7 +192,6 @@ void DateTimeEntityRestoreState::apply(DateTimeEntity *time) {
   time->publish_state();
 }
 
-#ifdef USE_TIME
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
@@ -246,7 +245,6 @@ bool OnDateTimeTrigger::matches_(const ESPTime &time) const {
          time.day_of_month == this->parent_->day && time.hour == this->parent_->hour &&
          time.minute == this->parent_->minute && time.second == this->parent_->second;
 }
-#endif
 
 }  // namespace datetime
 }  // namespace esphome

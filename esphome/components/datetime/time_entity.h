@@ -113,7 +113,6 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
   }
 };
 
-#ifdef USE_TIME
 class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:
   void loop() override;
@@ -123,7 +122,6 @@ class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEn
 
   optional<ESPTime> last_check_;
 };
-#endif
 
 }  // namespace datetime
 }  // namespace esphome

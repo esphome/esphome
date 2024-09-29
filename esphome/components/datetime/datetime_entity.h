@@ -134,7 +134,6 @@ template<typename... Ts> class DateTimeSetAction : public Action<Ts...>, public 
   }
 };
 
-#ifdef USE_TIME
 class OnDateTimeTrigger : public Trigger<>, public Component, public Parented<DateTimeEntity> {
  public:
   void loop() override;
@@ -144,7 +143,6 @@ class OnDateTimeTrigger : public Trigger<>, public Component, public Parented<Da
 
   optional<ESPTime> last_check_;
 };
-#endif
 
 }  // namespace datetime
 }  // namespace esphome
