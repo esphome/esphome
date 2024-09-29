@@ -28,9 +28,10 @@ class UlpProgram {
     uint16_t debounce_;
   };
   struct State {
-    uint16_t edge_count;
-    uint16_t run_count;
-    microseconds mean_exec_time;
+    uint16_t rising_edge_count_;
+    uint16_t falling_edge_count_;
+    uint16_t run_count_;
+    microseconds mean_exec_time_;
   };
   State pop_state();
   State peek_state() const;

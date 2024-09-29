@@ -50,9 +50,14 @@ debounce_counter:
 debounce_max_count:
 	.long 0
 
-	/* Number of signal edges acquired since last read */
-	.global edge_count
-edge_count:
+	/* Number of rising signal edges acquired since last read */
+	.global rising_edge_count
+rising_edge_count:
+	.long 0
+
+	/* Number of falling signal edges acquired since last read */
+	.global falling_edge_count
+falling_edge_count:
 	.long 0
 
 	/* Number of times program run since last read */
@@ -161,13 +166,24 @@ edge_detected:
 	add r2, r2, 1
 	and r2, r2, 1
 	st r2, r3, 0
-	/* Increment edge_count */
-	move r3, edge_count
+	/* Jump to increment of current edge counter */
+	add r2, r2, 0 /* dummy ADD to use "jump if ALU result is zero" */
+	jump rising, eq
+
+	.global falling
+falling:
+	/* Increment falling_edge_count */
+	move r3, falling_edge_count
 	ld r2, r3, 0
 	add r2, r2, 1
 	st r2, r3, 0
-	/* Increment edge_count_total */
-	move r3, edge_count_total
+	/* End program */
+	halt
+
+	.global rising
+rising:
+	/* Increment rising_edge_count */
+	move r3, rising_edge_count
 	ld r2, r3, 0
 	add r2, r2, 1
 	st r2, r3, 0
