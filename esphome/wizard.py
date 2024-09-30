@@ -181,14 +181,18 @@ def wizard_file(**kwargs):
     password: "{fallback_psk}"
 
 captive_portal:
-    """.format(**kwargs)
+    """.format(
+            **kwargs
+        )
     else:
         config += """
   # Enable fallback hotspot in case wifi connection fails
   ap:
     ssid: "{fallback_name}"
     password: "{fallback_psk}"
-    """.format(**kwargs)
+    """.format(
+            **kwargs
+        )
 
     return config
 
