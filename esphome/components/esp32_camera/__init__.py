@@ -140,6 +140,8 @@ CONF_TEST_PATTERN = "test_pattern"
 # framerates
 CONF_MAX_FRAMERATE = "max_framerate"
 CONF_IDLE_FRAMERATE = "idle_framerate"
+# frame buffer
+CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
 
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
@@ -213,6 +215,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
             cv.framerate, cv.Range(min=0, max=1)
         ),
+        cv.Optional(CONF_FRAME_BUFFER_COUNT, default=1): cv.int_range(min=1, max=2),
         cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -285,6 +288,7 @@ async def to_code(config):
         cg.add(var.set_idle_update_interval(0))
     else:
         cg.add(var.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
+    cg.add(var.set_frame_buffer_count(config[CONF_FRAME_BUFFER_COUNT]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
     cg.add_define("USE_ESP32_CAMERA")
