@@ -7,6 +7,7 @@
 namespace esphome {
 namespace web_server {
 
+using namespace component_iterator;
 class WebServer;
 
 class ListEntitiesIterator : public ComponentIterator {

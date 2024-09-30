@@ -8,6 +8,8 @@
 namespace esphome {
 namespace api {
 
+using namespace component_iterator;
+
 class APIConnection;
 
 class InitialStateIterator : public ComponentIterator {
