@@ -105,7 +105,7 @@ class CustomAPIDevice {
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
    *
    * Usage:
-   *å
+   *
    * ```cpp
    * void setup() override {
    *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "sensor.weather_forecast");

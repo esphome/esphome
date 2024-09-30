@@ -1,20 +1,22 @@
 from dataclasses import dataclass
+import logging
 from typing import Any
 
+from esphome import pins
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_IGNORE_PIN_VALIDATION_ERROR,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
-    CONF_IGNORE_STRAPPING_WARNING,
     PLATFORM_ESP32,
 )
-from esphome import pins
 from esphome.core import CORE
-import esphome.config_validation as cv
-import esphome.codegen as cg
 
 from . import boards
 from .const import (
@@ -22,24 +24,26 @@ from .const import (
     KEY_ESP32,
     KEY_VARIANT,
     VARIANT_ESP32,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
     VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     esp32_ns,
 )
-
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
-from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
-from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
-from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
 from .gpio_esp32_c2 import esp32_c2_validate_gpio_pin, esp32_c2_validate_supports
+from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
 from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
+from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
+from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
 
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _lookup_pin(value):
@@ -111,7 +115,7 @@ _esp32_validations = {
 }
 
 
-def validate_gpio_pin(value):
+def gpio_pin_number_validator(value):
     value = _translate_pin(value)
     board = CORE.data[KEY_ESP32][KEY_BOARD]
     board_pins = boards.ESP32_BOARD_PINS.get(board, {})
@@ -127,7 +131,33 @@ def validate_gpio_pin(value):
     if variant not in _esp32_validations:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
 
-    return _esp32_validations[variant].pin_validation(value)
+    return value
+
+
+def validate_gpio_pin(pin):
+    variant = CORE.data[KEY_ESP32][KEY_VARIANT]
+    if variant not in _esp32_validations:
+        raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
+
+    ignore_pin_validation_warning = pin[CONF_IGNORE_PIN_VALIDATION_ERROR]
+    try:
+        pin[CONF_NUMBER] = _esp32_validations[variant].pin_validation(pin[CONF_NUMBER])
+    except cv.Invalid as exc:
+        if not ignore_pin_validation_warning:
+            raise
+
+        _LOGGER.warning(
+            "Ignoring validation error on pin %d; error: %s",
+            pin[CONF_NUMBER],
+            exc,
+        )
+    else:
+        # Throw an exception if used for a pin that would not have resulted
+        # in a validation error anyway!
+        if ignore_pin_validation_warning:
+            raise cv.Invalid(f"GPIO{pin[CONF_NUMBER]} is not a reserved pin")
+
+    return pin
 
 
 def validate_supports(value):
@@ -158,9 +188,11 @@ DRIVE_STRENGTHS = {
 gpio_num_t = cg.global_ns.enum("gpio_num_t")
 
 CONF_DRIVE_STRENGTH = "drive_strength"
+
 ESP32_PIN_SCHEMA = cv.All(
-    pins.gpio_base_schema(ESP32InternalGPIOPin, validate_gpio_pin).extend(
+    pins.gpio_base_schema(ESP32InternalGPIOPin, gpio_pin_number_validator).extend(
         {
+            cv.Optional(CONF_IGNORE_PIN_VALIDATION_ERROR, default=False): cv.boolean,
             cv.Optional(CONF_IGNORE_STRAPPING_WARNING, default=False): cv.boolean,
             cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
                 cv.float_with_unit("current", "mA", optional_unit=True),
@@ -168,6 +200,7 @@ ESP32_PIN_SCHEMA = cv.All(
             ),
         }
     ),
+    validate_gpio_pin,
     validate_supports,
 )
 

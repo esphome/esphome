@@ -70,72 +70,62 @@ void MICS4514Component::update() {
 
   if (this->carbon_monoxide_sensor_ != nullptr) {
     float co = 0.0f;
-    if (red_f <= 0.425f) {
-      co = (0.425f - red_f) / 0.000405f;
-      if (co < 1.0f)
-        co = 0.0f;
-      if (co > 1000.0f)
-        co = 1000.0f;
+    if (red_f > 3.4f) {
+      co = 0.0;
+    } else if (red_f < 0.01) {
+      co = 1000.0;
+    } else {
+      co = 4.2 / pow(red_f, 1.2);
     }
     this->carbon_monoxide_sensor_->publish_state(co);
   }
 
   if (this->nitrogen_dioxide_sensor_ != nullptr) {
     float nitrogendioxide = 0.0f;
-    if (ox_f >= 1.1f) {
-      nitrogendioxide = (ox_f - 0.045f) / 6.13f;
-      if (nitrogendioxide < 0.1f)
-        nitrogendioxide = 0.0f;
-      if (nitrogendioxide > 10.0f)
-        nitrogendioxide = 10.0f;
+    if (ox_f < 0.3f) {
+      nitrogendioxide = 0.0;
+    } else {
+      nitrogendioxide = 0.164 * pow(ox_f, 0.975);
     }
     this->nitrogen_dioxide_sensor_->publish_state(nitrogendioxide);
   }
 
   if (this->methane_sensor_ != nullptr) {
     float methane = 0.0f;
-    if (red_f <= 0.786f) {
-      methane = (0.786f - red_f) / 0.000023f;
-      if (methane < 1000.0f)
-        methane = 0.0f;
-      if (methane > 25000.0f)
-        methane = 25000.0f;
+    if (red_f > 0.9f || red_f < 0.5) {  // outside the range->unlikely
+      methane = 0.0;
+    } else {
+      methane = 630 / pow(red_f, 4.4);
     }
     this->methane_sensor_->publish_state(methane);
   }
 
   if (this->ethanol_sensor_ != nullptr) {
     float ethanol = 0.0f;
-    if (red_f <= 0.306f) {
-      ethanol = (0.306f - red_f) / 0.00057f;
-      if (ethanol < 10.0f)
-        ethanol = 0.0f;
-      if (ethanol > 500.0f)
-        ethanol = 500.0f;
+    if (red_f > 1.0f || red_f < 0.02) {  // outside the range->unlikely
+      ethanol = 0.0;
+    } else {
+      ethanol = 1.52 / pow(red_f, 1.55);
     }
     this->ethanol_sensor_->publish_state(ethanol);
   }
 
   if (this->hydrogen_sensor_ != nullptr) {
     float hydrogen = 0.0f;
-    if (red_f <= 0.279f) {
-      hydrogen = (0.279f - red_f) / 0.00026f;
-      if (hydrogen < 1.0f)
-        hydrogen = 0.0f;
-      if (hydrogen > 1000.0f)
-        hydrogen = 1000.0f;
+    if (red_f > 0.9f || red_f < 0.02) {  // outside the range->unlikely
+      hydrogen = 0.0;
+    } else {
+      hydrogen = 0.85 / pow(red_f, 1.75);
     }
     this->hydrogen_sensor_->publish_state(hydrogen);
   }
 
   if (this->ammonia_sensor_ != nullptr) {
     float ammonia = 0.0f;
-    if (red_f <= 0.8f) {
-      ammonia = (0.8f - red_f) / 0.0015f;
-      if (ammonia < 1.0f)
-        ammonia = 0.0f;
-      if (ammonia > 500.0f)
-        ammonia = 500.0f;
+    if (red_f > 0.98f || red_f < 0.2532) {  // outside the ammonia range->unlikely
+      ammonia = 0.0;
+    } else {
+      ammonia = 0.9 / pow(red_f, 4.6);
     }
     this->ammonia_sensor_->publish_state(ammonia);
   }

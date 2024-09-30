@@ -9,9 +9,12 @@
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/light/light_output.h"
 
+#include <hardware/dma.h>
 #include <hardware/pio.h>
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
+#include <pico/sem.h>
+#include <map>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -23,6 +26,15 @@ enum RGBOrder : uint8_t {
   ORDER_GBR,
   ORDER_BGR,
   ORDER_BRG,
+};
+
+enum Chipset : uint8_t {
+  CHIPSET_WS2812,
+  CHIPSET_WS2812B,
+  CHIPSET_SK6812,
+  CHIPSET_SM16703,
+  CHIPSET_APA102,
+  CHIPSET_CUSTOM = 0xFF,
 };
 
 inline const char *rgb_order_to_string(RGBOrder order) {
@@ -69,6 +81,7 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   void set_program(const pio_program_t *program) { this->program_ = program; }
   void set_init_function(init_fn init) { this->init_ = init; }
 
+  void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++) {
@@ -83,6 +96,8 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
   size_t get_buffer_size_() const { return this->num_leds_ * (3 + this->is_rgbw_); }
 
+  static void dma_write_complete_handler_();
+
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
 
@@ -92,14 +107,24 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
   pio_hw_t *pio_;
   uint sm_;
+  uint dma_chan_;
+  dma_channel_config dma_config_;
 
   RGBOrder rgb_order_{ORDER_RGB};
+  Chipset chipset_{CHIPSET_CUSTOM};
 
   uint32_t last_refresh_{0};
   float max_refresh_rate_;
 
   const pio_program_t *program_;
   init_fn init_;
+
+ private:
+  inline static int num_instance_[2];
+  inline static std::map<Chipset, bool> conf_count_;
+  inline static std::map<Chipset, int> chipset_offsets_;
+  inline static bool dma_chan_active_[12];
+  inline static struct semaphore dma_write_complete_sem_[12];
 };
 
 }  // namespace rp2040_pio_led_strip

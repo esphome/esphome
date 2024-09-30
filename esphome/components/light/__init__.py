@@ -1,8 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 import esphome.automation as auto
-from esphome.components import mqtt, power_supply
+import esphome.codegen as cg
+from esphome.components import mqtt, power_supply, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_COLOR_CORRECT,
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_EFFECTS,
@@ -10,35 +11,36 @@ from esphome.const import (
     CONF_GAMMA_CORRECT,
     CONF_ID,
     CONF_MQTT_ID,
-    CONF_POWER_SUPPLY,
-    CONF_RESTORE_MODE,
+    CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
-    CONF_ON_STATE,
+    CONF_POWER_SUPPLY,
+    CONF_RESTORE_MODE,
     CONF_TRIGGER_ID,
-    CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
+    CONF_WEB_SERVER_ID,
 )
 from esphome.core import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
+
 from .automation import light_control_to_code  # noqa
 from .effects import (
-    validate_effects,
+    ADDRESSABLE_EFFECTS,
     BINARY_EFFECTS,
+    EFFECTS_REGISTRY,
     MONOCHROMATIC_EFFECTS,
     RGB_EFFECTS,
-    ADDRESSABLE_EFFECTS,
-    EFFECTS_REGISTRY,
+    validate_effects,
 )
 from .types import (  # noqa
-    LightState,
-    AddressableLightState,
-    light_ns,
-    LightOutput,
     AddressableLight,
-    LightTurnOnTrigger,
-    LightTurnOffTrigger,
+    AddressableLightState,
+    LightOutput,
+    LightState,
     LightStateTrigger,
+    LightTurnOffTrigger,
+    LightTurnOnTrigger,
+    light_ns,
 )
 
 CODEOWNERS = ["@esphome/core"]
@@ -56,29 +58,35 @@ RESTORE_MODES = {
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
 
-LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(LightState),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTJSONLightComponent),
-        cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
-            RESTORE_MODES, upper=True, space="_"
-        ),
-        cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_STATE): auto.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
-            }
-        ),
-    }
+LIGHT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(LightState),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt.MQTTJSONLightComponent
+            ),
+            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
+            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_STATE): auto.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
@@ -172,6 +180,10 @@ async def setup_light_core_(light_var, output_var, config):
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, light_var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, light_var, config)
 
 
 async def register_light(output_var, config):

@@ -480,7 +480,7 @@ void HOT WaveshareEPaperTypeA::display() {
   this->start_data_();
   switch (this->model_) {
     case TTGO_EPAPER_2_13_IN_B1: {  // block needed because of variable initializations
-      int16_t wb = ((this->get_width_internal()) >> 3);
+      int16_t wb = ((this->get_width_controller()) >> 3);
       for (int i = 0; i < this->get_height_internal(); i++) {
         for (int j = 0; j < wb; j++) {
           int idx = j + (this->get_height_internal() - 1 - i) * wb;
@@ -766,7 +766,7 @@ void WaveshareEPaper2P7InV2::initialize() {
   // XRAM_START_AND_END_POSITION
   this->command(0x44);
   this->data(0x00);
-  this->data(((get_width_internal() - 1) >> 3) & 0xFF);
+  this->data(((this->get_width_controller() - 1) >> 3) & 0xFF);
   // YRAM_START_AND_END_POSITION
   this->command(0x45);
   this->data(0x00);
@@ -928,8 +928,8 @@ void HOT WaveshareEPaper2P7InB::display() {
 
   // TCON_RESOLUTION
   this->command(0x61);
-  this->data(this->get_width_internal() >> 8);
-  this->data(this->get_width_internal() & 0xff);  // 176
+  this->data(this->get_width_controller() >> 8);
+  this->data(this->get_width_controller() & 0xff);  // 176
   this->data(this->get_height_internal() >> 8);
   this->data(this->get_height_internal() & 0xff);  // 264
 
@@ -994,7 +994,7 @@ void WaveshareEPaper2P7InBV2::initialize() {
   // self.SetWindows(0, 0, self.width-1, self.height-1)
   // SetWindows(self, Xstart, Ystart, Xend, Yend):
 
-  uint32_t xend = this->get_width_internal() - 1;
+  uint32_t xend = this->get_width_controller() - 1;
   uint32_t yend = this->get_height_internal() - 1;
   this->command(0x44);
   this->data(0x00);
@@ -1125,6 +1125,131 @@ void WaveshareEPaper2P9InB::dump_config() {
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
+}
+
+// DKE 2.9
+// https://www.badge.team/docs/badges/sha2017/hardware/#e-ink-display-the-dke-group-depg0290b1
+// https://www.badge.team/docs/badges/sha2017/hardware/DEPG0290B01V3.0.pdf
+static const uint8_t LUT_SIZE_DKE = 70;
+static const uint8_t UPDATE_LUT_DKE[LUT_SIZE_DKE] = {
+    0xA0, 0x90, 0x50, 0x0,  0x0,  0x0,  0x0, 0x50, 0x90, 0xA0, 0x0,  0x0,  0x0,  0x0, 0xA0, 0x90, 0x50, 0x0,
+    0x0,  0x0,  0x0,  0x50, 0x90, 0xA0, 0x0, 0x0,  0x0,  0x0,  0x00, 0x00, 0x00, 0x0, 0x0,  0x0,  0x0,  0xF,
+    0xF,  0x0,  0x0,  0x0,  0xF,  0xF,  0x0, 0x0,  0x02, 0xF,  0xF,  0x0,  0x0,  0x0, 0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0,  0x0,
+};
+static const uint8_t PART_UPDATE_LUT_DKE[LUT_SIZE_DKE] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xa0, 0x80, 0x00, 0x00, 0x00, 0x00, 0x50, 0x10, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+    0x05, 0x00, 0x00, 0x00, 0x01, 0x08, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t FULL_UPDATE_LUT_DKE[LUT_SIZE_DKE] = {
+    0x90, 0x50, 0xa0, 0x50, 0x50, 0x00, 0x00, 0x00, 0x00, 0x10, 0xa0, 0xa0, 0x80, 0x00, 0x90, 0x50, 0xa0, 0x50,
+    0x50, 0x00, 0x00, 0x00, 0x00, 0x10, 0xa0, 0xa0, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17,
+    0x04, 0x00, 0x00, 0x00, 0x0b, 0x04, 0x00, 0x00, 0x00, 0x06, 0x05, 0x00, 0x00, 0x00, 0x04, 0x05, 0x00, 0x00,
+    0x00, 0x01, 0x0e, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+void WaveshareEPaper2P9InDKE::initialize() {
+  // Hardware reset
+  delay(10);
+  this->reset_pin_->digital_write(false);
+  delayMicroseconds(200);
+  this->reset_pin_->digital_write(true);
+  delayMicroseconds(200);
+  // Wait for busy low
+  this->wait_until_idle_();
+  // Software reset
+  this->command(0x12);
+  // Wait for busy low
+  this->wait_until_idle_();
+  // Set Analog Block Control
+  this->command(0x74);
+  this->data(0x54);
+  // Set Digital Block Control
+  this->command(0x7E);
+  this->data(0x3B);
+  // Set display size and driver output control
+  this->command(0x01);
+  // this->data(0x27);
+  // this->data(0x01);
+  // this->data(0x00);
+  this->data(this->get_height_internal() - 1);
+  this->data((this->get_height_internal() - 1) >> 8);
+  this->data(0x00);  // ? GD = 0, SM = 0, TB = 0
+  // Ram data entry mode
+  this->command(0x11);
+  this->data(0x03);
+  // Set Ram X address
+  this->command(0x44);
+  this->data(0x00);
+  this->data(0x0F);
+  // Set Ram Y address
+  this->command(0x45);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0x27);
+  this->data(0x01);
+  // Set border
+  this->command(0x3C);
+  // this->data(0x80);
+  this->data(0x01);
+  // Set VCOM value
+  this->command(0x2C);
+  this->data(0x26);
+  // Gate voltage setting
+  this->command(0x03);
+  this->data(0x17);
+  // Source voltage setting
+  this->command(0x04);
+  this->data(0x41);
+  this->data(0x00);
+  this->data(0x32);
+  // Frame setting 50hz
+  this->command(0x3A);
+  this->data(0x30);
+  this->command(0x3B);
+  this->data(0x0A);
+  // Load LUT
+  this->command(0x32);
+  for (uint8_t v : FULL_UPDATE_LUT_DKE)
+    this->data(v);
+}
+
+void HOT WaveshareEPaper2P9InDKE::display() {
+  ESP_LOGI(TAG, "Performing e-paper update.");
+  // Set Ram X address counter
+  this->command(0x4e);
+  this->data(0);
+  // Set Ram Y address counter
+  this->command(0x4f);
+  this->data(0);
+  this->data(0);
+  // Load image (128/8*296)
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  // Image update
+  this->command(0x22);
+  this->data(0xC7);
+  this->command(0x20);
+  // Wait for busy low
+  this->wait_until_idle_();
+  // Enter deep sleep mode
+  this->command(0x10);
+  this->data(0x01);
+}
+int WaveshareEPaper2P9InDKE::get_width_internal() { return 128; }
+int WaveshareEPaper2P9InDKE::get_height_internal() { return 296; }
+void WaveshareEPaper2P9InDKE::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in DKE");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+void WaveshareEPaper2P9InDKE::set_full_update_every(uint32_t full_update_every) {
+  this->full_update_every_ = full_update_every;
 }
 
 // ========================================================
@@ -1389,7 +1514,7 @@ void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every)
 //  - https://github.com/adafruit/Adafruit_EPD/blob/master/src/panels/ThinkInk_290_Grayscale4_T5.h
 // ========================================================
 
-void GDEY029T94::initialize() {
+void GDEW029T5::initialize() {
   // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
   // EPD hardware init start
   this->reset_();
@@ -1435,7 +1560,7 @@ void GDEY029T94::initialize() {
 
   // EPD hardware init end
 }
-void HOT GDEY029T94::display() {
+void HOT GDEW029T5::display() {
   // COMMAND DATA START TRANSMISSION 2 (B/W only)
   this->command(0x13);
   delay(2);
@@ -1455,11 +1580,11 @@ void HOT GDEY029T94::display() {
   // NOTE: power off < deep sleep
   this->command(0x02);
 }
-int GDEY029T94::get_width_internal() { return 128; }
-int GDEY029T94::get_height_internal() { return 296; }
-void GDEY029T94::dump_config() {
+int GDEW029T5::get_width_internal() { return 128; }
+int GDEW029T5::get_height_internal() { return 296; }
+void GDEW029T5::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this);
-  ESP_LOGCONFIG(TAG, "  Model: 2.9in Greyscale GDEY029T94");
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in Greyscale GDEW029T5");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -2836,6 +2961,89 @@ void WaveshareEPaper2P13InDKE::dump_config() {
 
 void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
+}
+
+// ========================================================
+//               13.3in (K version)
+// Datasheet/Specification/Reference:
+//  - https://files.waveshare.com/wiki/13.3inch-e-Paper-HAT-(K)/13.3-inch-e-Paper-(K)-user-manual.pdf
+//  - https://github.com/waveshareteam/e-Paper/tree/master/Arduino/epd13in3k
+// ========================================================
+
+// using default wait_until_idle_() function
+void WaveshareEPaper13P3InK::initialize() {
+  this->wait_until_idle_();
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  this->command(0x0c);  // set soft start
+  this->data(0xae);
+  this->data(0xc7);
+  this->data(0xc3);
+  this->data(0xc0);
+  this->data(0x80);
+
+  this->command(0x01);                            // driver output control
+  this->data((get_height_internal() - 1) % 256);  // Y
+  this->data((get_height_internal() - 1) / 256);  // Y
+  this->data(0x00);
+
+  this->command(0x11);  // data entry mode
+  this->data(0x03);
+
+  // SET WINDOWS
+  // XRAM_START_AND_END_POSITION
+  this->command(0x44);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  this->data((get_width_internal() - 1) & 0xFF);
+  this->data(((get_width_internal() - 1) >> 8) & 0x03);
+  // YRAM_START_AND_END_POSITION
+  this->command(0x45);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  this->data((get_height_internal() - 1) & 0xFF);
+  this->data(((get_height_internal() - 1) >> 8) & 0x03);
+
+  this->command(0x3C);  // Border setting
+  this->data(0x01);
+
+  this->command(0x18);  // use the internal temperature sensor
+  this->data(0x80);
+
+  // SET CURSOR
+  // XRAM_ADDRESS
+  this->command(0x4E);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  // YRAM_ADDRESS
+  this->command(0x4F);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+}
+void HOT WaveshareEPaper13P3InK::display() {
+  // do single full update
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x22);
+  this->data(0xF7);
+  this->command(0x20);
+}
+
+int WaveshareEPaper13P3InK::get_width_internal() { return 960; }
+int WaveshareEPaper13P3InK::get_height_internal() { return 680; }
+uint32_t WaveshareEPaper13P3InK::idle_timeout_() { return 10000; }
+void WaveshareEPaper13P3InK::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 13.3inK");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 }  // namespace waveshare_epaper

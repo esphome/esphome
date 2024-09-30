@@ -1,5 +1,1 @@
-esp32_ble_tracker:
-
-ble_client:
-  - mac_address: 01:02:03:04:05:06
-    id: blec
+<<: !include common.yaml

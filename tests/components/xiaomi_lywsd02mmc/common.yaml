@@ -1,0 +1,12 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_lywsd02mmc
+    mac_address: A4:C1:38:54:5E:18
+    bindkey: 2529d8e0d23150a588675cc54ad48400
+    temperature:
+      name: Xiaomi LYWSD02MMC Temperature
+    humidity:
+      name: Xiaomi LYWSD02MMC Humidity
+    battery_level:
+      name: Xiaomi LYWSD02MMC Battery Level

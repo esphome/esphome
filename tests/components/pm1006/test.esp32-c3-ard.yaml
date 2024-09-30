@@ -1,0 +1,10 @@
+uart:
+  - id: uart_pm1006
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+sensor:
+  - platform: pm1006
+    pm_2_5:
+      name: Particulate Matter 2.5µm Concentration

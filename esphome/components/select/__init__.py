@@ -1,19 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+import esphome.codegen as cg
+from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CYCLE,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_INDEX,
+    CONF_MODE,
+    CONF_MQTT_ID,
     CONF_ON_VALUE,
+    CONF_OPERATION,
     CONF_OPTION,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
-    CONF_CYCLE,
-    CONF_MODE,
-    CONF_OPERATION,
-    CONF_INDEX,
+    CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -47,16 +48,20 @@ SELECT_OPERATION_OPTIONS = {
 }
 
 
-SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
-        cv.GenerateID(): cv.declare_id(Select),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
-            }
-        ),
-    }
+SELECT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
+            cv.GenerateID(): cv.declare_id(Select),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 _UNDEF = object()
@@ -99,6 +104,10 @@ async def setup_select_core_(var, config, *, options: list[str]):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
+    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
+        web_server_ = await cg.get_variable(webserver_id)
+        web_server.add_entity_to_sorting_list(web_server_, var, config)
+
 
 async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
@@ -113,7 +122,7 @@ async def new_select(config, *, options: list[str]):
     return var
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)

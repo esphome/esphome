@@ -3,21 +3,24 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ACTUAL_GAIN,
+    CONF_ACTUAL_INTEGRATION_TIME,
+    CONF_AMBIENT_LIGHT,
     CONF_AUTO_MODE,
     CONF_FULL_SPECTRUM,
+    CONF_FULL_SPECTRUM_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ID,
     CONF_INFRARED,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
-    UNIT_LUX,
-    UNIT_MILLISECOND,
+    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
     ICON_TIMER,
-    DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
+    UNIT_LUX,
+    UNIT_MILLISECOND,
 )
 
 CODEOWNERS = ["@latonita"]
@@ -27,10 +30,7 @@ UNIT_COUNTS = "#"
 ICON_MULTIPLICATION = "mdi:multiplication"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 
-CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
-CONF_AMBIENT_LIGHT = "ambient_light"
 CONF_AMBIENT_LIGHT_COUNTS = "ambient_light_counts"
-CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
 CONF_LUX_COMPENSATION = "lux_compensation"
 
 veml7700_ns = cg.esphome_ns.namespace("veml7700")

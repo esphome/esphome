@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
+    CONF_OE_PIN,
     CONF_PAGES,
     CONF_WAKEUP_PIN,
 )
@@ -29,7 +30,6 @@ CONF_GREYSCALE = "greyscale"
 CONF_GMOD_PIN = "gmod_pin"
 CONF_GPIO0_ENABLE_PIN = "gpio0_enable_pin"
 CONF_LE_PIN = "le_pin"
-CONF_OE_PIN = "oe_pin"
 CONF_PARTIAL_UPDATING = "partial_updating"
 CONF_POWERUP_PIN = "powerup_pin"
 CONF_SPH_PIN = "sph_pin"
@@ -53,6 +53,8 @@ MODELS = {
     "inkplate_10": InkplateModel.INKPLATE_10,
     "inkplate_6_plus": InkplateModel.INKPLATE_6_PLUS,
     "inkplate_6_v2": InkplateModel.INKPLATE_6_V2,
+    "inkplate_5": InkplateModel.INKPLATE_5,
+    "inkplate_5_v2": InkplateModel.INKPLATE_5_V2,
 }
 
 CONFIG_SCHEMA = cv.All(
