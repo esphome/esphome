@@ -37,17 +37,10 @@ espnow:
     - FF:FF:FF:FF:FF:FF
   on_receive:
     - logger.log:
-  format: "Received: %s  RSSI: %d"
-  args: [packet.payload_as_bytes(), packet.rssi]
+        format: "Received: %s  RSSI: %d"
+        args: [packet.payload_as_bytes(), packet.rssi]
 
-binary_sensor:
-  - platform: gpio
-    pin:
-      number: GPIO00
-      inverted: true
-      mode:
-        input: true
-        pullup: true
-    name: Button
-    on_click:
+interval:
+  - interval: 1min
+    then:
       - espnow.send: "hallo everyone"
