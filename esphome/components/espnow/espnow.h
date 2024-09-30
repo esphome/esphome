@@ -98,8 +98,8 @@ struct ESPNowPacket {
   inline void retry() ESPHOME_ALWAYS_INLINE { attempts++; }
 
   inline bool is_valid() const {
-    bool valid = (memcmp((const void *) this->content_as_bytes(), (const void *) &TRANSPORT_HEADER, 3) == 0);
-    valid &= (this->protocol() != 0);
+    // bool valid = (memcmp((const void *) this->content_as_bytes(), (const void *) &TRANSPORT_HEADER, 3) == 0);
+    // valid &= (this->protocol() != 0);
     return true;  // valid;
   }
 };
