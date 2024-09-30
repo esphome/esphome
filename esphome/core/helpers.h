@@ -698,9 +698,7 @@ template<class T> class RAMAllocator {
   uint8_t flags_{Flags::ALLOW_FAILURE};
 };
 
-template<class T>
-using ExternalRAMAllocator ESPDEPRECATED("RAMAllocator is deprecated, use RAMAllocator instead.",
-                                         "2024.10.0") = RAMAllocator<T>;
+template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
 /// @}
 
