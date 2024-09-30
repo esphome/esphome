@@ -32,6 +32,12 @@ void MAX31856Sensor::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  Mains Filter: %s",
                 (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
+  if (this->thermocouple_type_ < 0 || this->thermocouple_type_ > 7) {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: Unknown");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Thermocouple Type: %c", "BEJKNRST"[this->thermocouple_type_]);
+  }
+
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -129,7 +135,12 @@ void MAX31856Sensor::clear_fault_() {
 }
 
 void MAX31856Sensor::set_thermocouple_type_() {
-  MAX31856ThermocoupleType type = MAX31856_TCTYPE_K;
+  MAX31856ThermocoupleType type;
+  if (this->thermocouple_type_ < 0 || this->thermocouple_type_ > 7) {
+    type = MAX31856_TCTYPE_K;
+  } else {
+    type = this->thermocouple_type_;
+  }
   ESP_LOGCONFIG(TAG, "set_thermocouple_type_: 0x%02X", type);
   uint8_t t = this->read_register_(MAX31856_CR1_REG);
   t &= 0xF0;  // mask off bottom 4 bits
