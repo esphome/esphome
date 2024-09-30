@@ -1,8 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace waveshare_epaper {
@@ -226,6 +228,40 @@ class WaveshareEPaper2P7InBV2 : public WaveshareEPaperBWR {
  protected:
   int get_width_internal() override;
   int get_height_internal() override;
+};
+
+class GDEY075Z08 : public WaveshareEPaperBWR {
+ public:
+  void initialize() override;
+  void loop() override;
+  void display() override;
+  void dump_config() override;
+  void deep_sleep() override;
+  void set_full_update_every(uint32_t full_update_every);
+  void set_num_segments_x(uint8_t value);
+  void set_num_segments_y(uint8_t value);
+
+ protected:
+  bool wait_until_idle_();
+  int get_width_internal() override { return 800; }
+  int get_height_internal() override { return 480; }
+
+ private:
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+  uint8_t seg_x_{20};        // number of horizontal segments for partial update
+  uint8_t seg_y_{10};        // number of vertical segments for partial update.
+  uint8_t *segment_buffer_;  // byte buffer of segments to hold a single segment for CRC calculation.
+  uint16_t first_segment_x_ = 0;
+  uint16_t first_segment_y_ = 0;
+  uint16_t last_segment_x_ = 0;
+  uint16_t last_segment_y_ = 0;
+  uint16_t *checksums_ = nullptr;
+  void calculate_crcs_(bool full_sync);
+  bool waiting_for_idle_ = false;
+  uint32_t idle_timeout_() override;
+  void reset_();
+  void init_fast_();
 };
 
 class GDEW029T5 : public WaveshareEPaper {

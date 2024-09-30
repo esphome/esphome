@@ -1508,6 +1508,321 @@ void WaveshareEPaper2P9InV2R2::set_full_update_every(uint32_t full_update_every)
 }
 
 // ========================================================
+//     Good Display 7.5in black/white/red
+// ========================================================
+
+void GDEY075Z08::calculate_crcs_(bool full_sync) {
+  ESP_LOGD(TAG, "Entering calculate_crcs_");
+  uint16_t width_b = this->get_width_internal() / (this->seg_x_ * 8);  // width of individual segments in bytes
+  uint16_t height_px = this->get_height_internal() / this->seg_y_;     // height of individual segments in pixel
+  uint16_t segment_size = width_b * height_px;
+  uint32_t buffer_half_size = this->get_width_internal() * this->get_height_internal() / 8;
+  uint16_t seg_x, seg_y, x, y;  // loop count variables
+  bool found_change = false;
+  // reset first and last X segment so we can recalculate it here.
+  this->first_segment_x_ = this->seg_x_ + 1;
+  this->last_segment_x_ = 0;
+  ESP_LOGD(TAG, "width_b: %u, height_px: %u, segment_size: %u, buffer_half_size: %" PRIu32 ", seg_x_: %u, seg_y_: %u",
+           width_b, height_px, segment_size, buffer_half_size, this->seg_x_, this->seg_y_);
+  ESP_LOGD(TAG, "Entering CRC calculation Loop");
+  for (seg_y = 0; seg_y < this->seg_y_; seg_y++) {    // vertically iterate through the number of lines (px)
+    for (seg_x = 0; seg_x < this->seg_x_; seg_x++) {  // horizontally iterate through number of columns (px)
+      for (y = 0; y < height_px; y++) {
+        for (x = 0; x < width_b; x++) {
+          uint16_t segment_position = x + y * width_b;  // linear position inside the segment in bytes
+          uint16_t global_position = seg_y * height_px * this->get_width_internal() / 8 +
+                                     y * this->get_width_internal() / 8 + seg_x * width_b + x;
+          this->segment_buffer_[segment_position] = this->buffer_[global_position];  // copy black data
+          this->segment_buffer_[segment_position + segment_size] =
+              this->buffer_[global_position + buffer_half_size];  // copy red data
+        }
+      }
+      // now calculate a CRC16_checksum and compare it against the stored value.
+      // ESP_LOGD(TAG, "Calculating a CRC");
+      uint16_t segment_crc = crc16(this->segment_buffer_, segment_size * 2, 65535U, 40961U, false, false);
+      if (full_sync) {
+        // no need to compare, we're in the first run, just place it. This is called by full refresh only
+        this->checksums_[seg_x + seg_y * this->seg_x_] = segment_crc;
+      } else {
+        // Partial Update, compare checksums while replacing and record the X and Y block position of the top left and
+        // bottom right corner of the changed elements. Afterwards, we can partially update only the segment that has
+        // been altered.
+        bool changed = this->checksums_[seg_x + seg_y * this->seg_x_] != segment_crc;
+        this->checksums_[seg_x + seg_y * this->seg_x_] = segment_crc;
+        if (changed && !found_change) {
+          found_change = true;
+          // We need to span the x segment, with the lowest segment found making the first segment and the highest
+          // segment found the last segment.
+          if (seg_x < this->first_segment_x_)
+            this->first_segment_x_ = seg_x;
+          if (seg_x > this->last_segment_x_)
+            this->last_segment_x_ = seg_x;
+          this->first_segment_y_ = seg_y;
+        } else if (changed) {
+          // We need to span the x segment, with the lowest segment found making the first segment and the highest
+          // segment found the last segment.
+          if (seg_x < this->first_segment_x_)
+            this->first_segment_x_ = seg_x;
+          if (seg_x > this->last_segment_x_)
+            this->last_segment_x_ = seg_x;
+          // Segment changed but we already found a change before, so set it as last segment
+          this->last_segment_y_ = seg_y;
+        } else {
+          // do nothing, segment didn't change.
+        }
+      }
+    }
+  }
+  if (found_change) {
+    ESP_LOGD(TAG, "CRC Calculation finished. Found changes: %02u:%02u to %02u:%02u", first_segment_x_, first_segment_y_,
+             last_segment_x_, last_segment_y_);
+  } else {
+    ESP_LOGD(TAG, "CRC Calculation finished. No changes found.");
+  }
+}
+void GDEY075Z08::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+
+void GDEY075Z08::set_num_segments_x(uint8_t value) { this->seg_x_ = value; }
+void GDEY075Z08::set_num_segments_y(uint8_t value) { this->seg_y_ = value; }
+void GDEY075Z08::init_fast_() {
+  this->reset_();       // Module reset
+  this->command(0x00);  // PANNEL SETTING
+  this->data(0x0F);     // KW-3f KWR-2F BWROTP 0f BWOTP 1f
+
+  this->command(0x04);
+  delay(100);                // NOLINT
+  this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
+
+  // Enhanced display drive(Add 0x06 command)
+  this->command(0x06);  // Booster Soft Start
+  this->data(0x27);
+  this->data(0x27);
+  this->data(0x18);
+  this->data(0x17);
+
+  this->command(0xE0);
+  this->data(0x02);
+  this->command(0xE5);
+  this->data(0x5A);
+
+  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->data(0x11);
+  this->data(0x07);
+}
+void GDEY075Z08::initialize() {
+  ExternalRAMAllocator<uint8_t> allocator8(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  ExternalRAMAllocator<uint16_t> allocator16(ExternalRAMAllocator<uint16_t>::ALLOW_FAILURE);
+  uint16_t width_b = this->get_width_internal() / (this->seg_x_ * 8);  // width of individual segments in bytes
+  uint16_t height_px = this->get_height_internal() / this->seg_y_;     // height of individual segments in pixel
+  uint16_t segment_size = width_b * height_px;
+  this->segment_buffer_ = allocator8.allocate(
+      segment_size * 2);  // Allocate the buffer for twice the segment size because we have 2 bit per Pixel.
+  this->reset_();
+  this->at_update_ = 0;
+  this->checksums_ = allocator16.allocate(
+      this->seg_x_ *
+      this->seg_y_);  // initialize the checksums array. Will be filed and maintained by calculate_crss_()
+
+  if (this->checksums_ == nullptr || this->segment_buffer_ == nullptr) {
+    // could not ExternalRAMAllocate at least one of the buffers. We don't really care which, since we need both, so
+    // mark failed, whine, and return.
+    this->mark_failed();
+    ESP_LOGE(TAG, "Failed to allocate required memory for partial updates. Try reducing your num_segment_x and "
+                  "num_segment_y to lower memory requirements. If you don't want to use partial updates, set both "
+                  "values to '1'.");
+    return;
+  }
+  ESP_LOGE(TAG, "Before Powerup, after Reset");
+  this->command(0x01);  // POWER SETTING
+  this->data(0x07);
+  this->data(0x07);  // VGH=20V,VGL=-20V
+  this->data(0x3f);  // VDH=15V
+  this->data(0x3f);  // VDL=-15V
+
+  // Enhanced display drive(Add 0x06 command)
+  this->command(0x06);  // Booster Soft Start
+  this->data(0x17);
+  this->data(0x17);
+  this->data(0x28);
+  this->data(0x17);
+
+  ESP_LOGD(TAG, "Powering up now.");
+  this->command(0x04);  // POWER ON
+  wait_until_idle_();   // waiting for the electronic paper IC to release the idle signal
+
+  this->command(0X00);  // PANNEL SETTING
+  this->data(0x0F);     // KW-3f KWR-2F BWROTP 0f BWOTP 1f
+
+  this->command(0x61);  // resolution setting
+  this->data(this->get_width_internal() / 256);
+  this->data(this->get_width_internal() % 256);
+  this->data(this->get_height_internal() / 256);
+  this->data(this->get_height_internal() % 256);
+
+  this->command(0X15);
+  this->data(0x00);
+
+  this->command(0X50);  // VCOM AND DATA INTERVAL SETTING
+  this->data(0x11);     // 0x10  --------------
+  this->data(0x07);
+
+  this->command(0X60);  // TCON SETTING
+  this->data(0x22);
+  ESP_LOGE(TAG, "Initialization finished");
+}
+void GDEY075Z08::loop() {
+  if (this->waiting_for_idle_ && this->busy_pin_) {
+    // reset waiting_for idle, then send the display to deep sleep.
+    // this->deep_sleep();
+    this->waiting_for_idle_ = false;
+  }
+}
+void HOT GDEY075Z08::display() {
+  ESP_LOGD(TAG, "Running through display()");
+  // We do the partial evaluation logic before checking for idle. This is in order to prevent sliding of the full
+  // update.
+  // E.g.: you update once a minute, and every 1440 Minutes (once per day) you do a full update.
+  bool partial = this->at_update_ != 0;
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+
+  if (this->waiting_for_idle_) {
+    // still waiting for the previous busy to ebb off, skip drawing the display.
+    return;
+  }
+
+  uint32_t half_length = this->get_buffer_length_() / 2u;  // what is the u for?
+
+  if (partial) {
+    ESP_LOGI(TAG, "Evaluating Partial Screen Update");
+    this->calculate_crcs_(false);
+    ESP_LOGD(TAG, "Partial Screen Update Evaluation complete");
+    if (this->first_segment_x_ > this->seg_x_ || this->first_segment_x_ > this->last_segment_x_) {
+      // if first_segment_x_ was not altered from seg_x_ + 1, this means that no changes have happened in the display.
+      // Jump out, without waking the display, so we don't have to send it back to sleep.
+      return;
+    }
+    ESP_LOGD(TAG, "Found a change, initializing display for partial backup");
+    uint16_t x_start, y_start, x_end, y_end, x_start_b, x_end_b;
+    x_start = (this->get_width_internal() / this->seg_x_) * this->first_segment_x_;
+    x_end = (this->get_width_internal() / this->seg_x_) * (this->last_segment_x_ + 1);
+    y_start = (this->get_height_internal() / this->seg_y_) * this->first_segment_y_;
+    y_end = (this->get_height_internal() / this->seg_y_) * (this->last_segment_y_ + 1);
+    x_start_b = x_start / 8;  // We need bytes for X, but pixels for Y. This Display does my head in 🤪️
+    x_end_b = x_end / 8;
+    uint16_t width_b = this->get_width_internal() / 8;
+    uint16_t x, y;
+    ESP_LOGD(TAG, "Updating from %03d:%03d to %03d:%03d.", x_start, y_start, x_end, y_end);
+
+    this->init_fast_();   // Wake up Display.
+    this->command(0x91);  // Enter partial mode
+    this->command(0x90);  // Enter resolution Setting (?)
+    this->data(x_start / 256);
+    this->data(x_start % 256);
+
+    this->data(x_end / 256);
+    this->data(x_end % 256 - 1);
+
+    this->data(y_start / 256);
+    this->data(y_start % 256);
+
+    this->data(y_end / 256);
+    this->data(y_end % 256 - 1);
+    this->data(0x01);
+
+    this->command(0x10);
+    // write black data
+    for (y = y_start; y < y_end; y++) {
+      for (x = x_start_b; x < x_end_b; x++) {
+        this->data(~this->buffer_[x + y * width_b]);
+      }
+    }
+    this->command(0x13);
+    // write red data
+    for (y = y_start; y < y_end; y++) {
+      for (x = x_start_b; x < x_end_b; x++) {
+        this->data(this->buffer_[half_length + x + y * width_b]);
+      }
+    }
+    this->command(0x12);  // Display Refresh
+    delay(1);
+    this->command(0x92);  // Exit Partial mode
+  } else {                // if partial is false
+    uint32_t i;
+    ESP_LOGI(TAG, "Performing Full Screen Update");
+    this->calculate_crcs_(true);  // reset the crc table.
+    ESP_LOGD(TAG, "after calculate_CRCs_");
+    this->init_fast_();  // Wake up display.
+
+    // Write Data
+    this->command(0x10);  // Transfer old data
+    ESP_LOGI(TAG, "Writing Black Data...");
+    for (i = 0; i < half_length; i++) {
+      this->data(~this->buffer_[i]);  // Transfer the black display
+      // last_buffer_[i] = this->buffer_[i];
+    }
+    this->command(0x13);  // Transfer new data
+    ESP_LOGI(TAG, "Writing Red Data...");
+    for (i = half_length; i < this->get_buffer_length_(); i++) {
+      this->data(this->buffer_[i]);  // Transfer the red displayed data
+      // last_buffer_[i] = this->buffer_[i];
+    }
+    ESP_LOGI(TAG, "Image Render complete.");
+    this->command(0x12);  // this triggers a refresh, everything before is just preparatory.
+  }
+  delay(1);                        // This delay needs to be here. 200µS at least.
+  this->waiting_for_idle_ = true;  // BUSY should be LOW now, setting waiting_for_idle to true. This will cause loop()
+                                   // to poll for BUSY to go HIGH again, then enter deep sleep
+  this->deep_sleep();
+}
+
+void GDEY075Z08::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in Black/Red/White GDEW029T5");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+void GDEY075Z08::deep_sleep() {
+  // COMMAND DEEP SLEEP
+  this->command(0x50);
+  this->data(0xF7);  // check byte
+  this->command(0x02);
+  delay(100);  // NOLINT
+  this->command(0x07);
+  this->data(0xA5);
+  ESP_LOGI(TAG, "Display now in deep sleep.");
+}
+
+bool GDEY075Z08::wait_until_idle_() {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+
+  const uint32_t start = millis();
+  while (this->busy_pin_->digital_read()) {
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+  return true;
+}
+
+uint32_t GDEY075Z08::idle_timeout_() { return 40000; }
+void GDEY075Z08::reset_() {
+  // RST is inverse from other einks in this project
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+  }
+  this->wait_until_idle_();  // wait for the display to return from busy.
+}
+// ========================================================
 //     Good Display 2.9in black/white/grey
 // Datasheet:
 //  - https://v4.cecdn.yun300.cn/100001_1909185148/SSD1680.pdf

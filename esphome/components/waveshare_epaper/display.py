@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import core, pins
+import esphome.codegen as cg
 from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_DC_PIN,
@@ -9,13 +9,14 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
+    CONF_NUM_SEGMENTS_X,
+    CONF_NUM_SEGMENTS_Y,
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
 )
 
 DEPENDENCIES = ["spi"]
-
 waveshare_epaper_ns = cg.esphome_ns.namespace("waveshare_epaper")
 WaveshareEPaperBase = waveshare_epaper_ns.class_(
     "WaveshareEPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
@@ -99,6 +100,8 @@ WaveshareEPaper13P3InK = waveshare_epaper_ns.class_(
 )
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
 
+GDEY075Z08 = waveshare_epaper_ns.class_("GDEY075Z08", WaveshareEPaperBWR)
+
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel")
 
@@ -137,9 +140,13 @@ MODELS = {
     "2.13inv3": ("c", WaveshareEPaper2P13InV3),
     "1.54in-m5coreink-m09": ("c", GDEW0154M09),
     "13.3in-k": ("b", WaveshareEPaper13P3InK),
+    "7.5in-bgr-gd": ("c", GDEY075Z08),
 }
 
 RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")
+SEGMENT_UPDATEABLE_MODELS = {
+    "7.5in-bgr-gd": (800, 480),
+}
 
 
 def validate_full_update_every_only_types_ac(value):
@@ -155,6 +162,31 @@ def validate_full_update_every_only_types_ac(value):
             + ", ".join(full_models)
         )
     return value
+
+
+def validate_num_segments_supported(config):
+    if config[CONF_MODEL] not in SEGMENT_UPDATEABLE_MODELS and (
+        CONF_NUM_SEGMENTS_X in config or CONF_NUM_SEGMENTS_Y in config
+    ):
+        raise cv.Invalid(
+            f"'num_segments_x' and num_segment_y' are not supported by {config[CONF_MODEL]}"
+        )
+    if CONF_NUM_SEGMENTS_X in config and (
+        SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][0]
+        % (config[CONF_NUM_SEGMENTS_X] * 8)
+        > 0
+    ):
+        raise cv.Invalid(
+            f"The horizontal resolution of the display ({SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][0]}px) must be divisible by 'num_segments_x * 8'"
+        )
+    if CONF_NUM_SEGMENTS_Y in config and (
+        SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][1] % config[CONF_NUM_SEGMENTS_Y]
+        > 0
+    ):
+        raise cv.Invalid(
+            f"The vertical resolution of the display ({SEGMENT_UPDATEABLE_MODELS[config[CONF_MODEL]][1]}px) must be divisible by 'num_segments_y'"
+        )
+    return config
 
 
 def validate_reset_pin_required(config):
@@ -178,12 +210,15 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            cv.Optional(CONF_NUM_SEGMENTS_X): cv.int_range(min=1, max=100),
+            cv.Optional(CONF_NUM_SEGMENTS_Y): cv.int_range(min=1, max=100),
         }
     )
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
     validate_full_update_every_only_types_ac,
     validate_reset_pin_required,
+    validate_num_segments_supported,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 
@@ -204,7 +239,10 @@ async def to_code(config):
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
-
+    if num_segments_x := config.get(CONF_NUM_SEGMENTS_X):
+        cg.add(var.set_num_segments_x(num_segments_x))
+    if num_segments_y := config.get(CONF_NUM_SEGMENTS_Y):
+        cg.add(var.set_num_segments_y(num_segments_y))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
