@@ -201,6 +201,7 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
   std::string get_capabilities_();
 };
 
+#ifdef USE_SELECT
 class Husb238VoltageSelect : public select::Select, public Parented<Husb238Component> {
  public:
   Husb238VoltageSelect() = default;
@@ -211,6 +212,7 @@ class Husb238VoltageSelect : public select::Select, public Parented<Husb238Compo
     this->parent_->command_request_voltage(state);
   };
 };
+#endif
 
 }  // namespace husb238
 }  // namespace esphome
