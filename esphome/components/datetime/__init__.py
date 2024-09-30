@@ -26,7 +26,6 @@ from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
-DEPENDENCIES = ["time"]
 
 IS_PLATFORM_COMPONENT = True
 
@@ -62,20 +61,28 @@ DATETIME_MODES = [
 ]
 
 
-_DATETIME_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
-    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
-    .extend(
+def _validate_time_present(config):
+    config = config.copy()
+    if CONF_ON_TIME in config and CONF_TIME_ID not in config:
+        time_id = cv.use_id(time.RealTimeClock)(None)
+        config[CONF_TIME_ID] = time_id
+    return config
+
+
+_DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+    web_server.WEBSERVER_SORTING_SCHEMA,
+    cv.MQTT_COMMAND_COMPONENT_SCHEMA,
+    cv.Schema(
         {
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
                 }
             ),
-            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+            cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         }
-    )
-)
+    ),
+).add_extra(_validate_time_present)
 
 
 def date_schema(class_: MockObjClass) -> cv.Schema:
@@ -138,8 +145,9 @@ async def setup_datetime_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
 
-    rtc = await cg.get_variable(config[CONF_TIME_ID])
-    cg.add(var.set_rtc(rtc))
+    if CONF_TIME_ID in config:
+        rtc = await cg.get_variable(config[CONF_TIME_ID])
+        cg.add(var.set_rtc(rtc))
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
