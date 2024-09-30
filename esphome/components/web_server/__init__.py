@@ -206,7 +206,8 @@ def add_sorting_groups(web_server_var, config):
         )
 
 
-def add_entity_config(web_server, entity, config):
+async def add_entity_config(entity, config):
+    web_server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
     sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
     sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
 

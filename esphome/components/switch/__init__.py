@@ -10,12 +10,11 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER,
-    CONF_WEB_SERVER_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_RESTORE_MODE,
     CONF_TRIGGER_ID,
+    CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
@@ -157,11 +156,8 @@ async def setup_switch_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-    if (web_server_config := config.get(CONF_WEB_SERVER)) is not None and (
-        webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
-    ) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_config(web_server_, var, web_server_config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))

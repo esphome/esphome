@@ -44,7 +44,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VISUAL,
     CONF_WEB_SERVER,
-    CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -409,11 +408,8 @@ async def setup_climate_core_(var, config):
             trigger, [(ClimateCall.operator("ref"), "x")], conf
         )
 
-    if (web_server_config := config.get(CONF_WEB_SERVER)) is not None and (
-        webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
-    ) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_config(web_server_, var, web_server_config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_climate(var, config):

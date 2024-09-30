@@ -26,7 +26,6 @@ from esphome.const import (
     CONF_SPEED_STATE_TOPIC,
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
-    CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -219,11 +218,8 @@ async def setup_fan_core_(var, config):
         if (speed_command_topic := config.get(CONF_SPEED_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_speed_command_topic(speed_command_topic))
 
-    if (web_server_config := config.get(CONF_WEB_SERVER)) is not None and (
-        webserver_id := web_server_config.get(CONF_WEB_SERVER_ID)
-    ) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_config(web_server_, var, web_server_config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
