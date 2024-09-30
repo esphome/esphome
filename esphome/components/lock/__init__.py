@@ -1,14 +1,14 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MQTT_ID,
     CONF_ON_LOCK,
     CONF_ON_UNLOCK,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
     CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority

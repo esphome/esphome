@@ -1,6 +1,4 @@
 from esphome import pins
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
@@ -8,31 +6,33 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.network import IPAddress
+from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DOMAIN,
-    CONF_ID,
-    CONF_VALUE,
-    CONF_MANUAL_IP,
-    CONF_STATIC_IP,
-    CONF_TYPE,
-    CONF_USE_ADDRESS,
-    CONF_GATEWAY,
-    CONF_SUBNET,
+    CONF_ADDRESS,
+    CONF_CLK_PIN,
+    CONF_CS_PIN,
     CONF_DNS1,
     CONF_DNS2,
-    CONF_CLK_PIN,
+    CONF_DOMAIN,
+    CONF_GATEWAY,
+    CONF_ID,
+    CONF_INTERRUPT_PIN,
+    CONF_MANUAL_IP,
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
-    CONF_CS_PIN,
-    CONF_INTERRUPT_PIN,
+    CONF_PAGE_ID,
     CONF_RESET_PIN,
     CONF_SPI,
-    CONF_PAGE_ID,
-    CONF_ADDRESS,
+    CONF_STATIC_IP,
+    CONF_SUBNET,
+    CONF_TYPE,
+    CONF_USE_ADDRESS,
+    CONF_VALUE,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.components.network import IPAddress
-from esphome.components.spi import get_spi_interface, CONF_INTERFACE_INDEX
+import esphome.final_validate as fv
 
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
@@ -59,6 +59,7 @@ ETHERNET_TYPES = {
     "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
+    "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
 }
 
 SPI_ETHERNET_TYPES = ["W5500"]
@@ -171,6 +172,7 @@ CONFIG_SCHEMA = cv.All(
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
             "W5500": SPI_SCHEMA,
+            "OPENETH": BASE_SCHEMA,
         },
         upper=True,
     ),
@@ -240,6 +242,9 @@ async def to_code(config):
         if CORE.using_esp_idf:
             add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
             add_idf_sdkconfig_option("CONFIG_ETH_SPI_ETHERNET_W5500", True)
+    elif config[CONF_TYPE] == "OPENETH":
+        cg.add_define("USE_ETHERNET_OPENETH")
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))

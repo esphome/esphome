@@ -138,8 +138,8 @@ void HttpRequestUpdate::update() {
   this->publish_state();
 }
 
-void HttpRequestUpdate::perform() {
-  if (this->state_ != update::UPDATE_STATE_AVAILABLE) {
+void HttpRequestUpdate::perform(bool force) {
+  if (this->state_ != update::UPDATE_STATE_AVAILABLE && !force) {
     return;
   }
 
