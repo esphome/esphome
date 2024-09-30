@@ -8,7 +8,6 @@
 #include "esphome/core/bytebuffer.h"
 
 #include <esp_now.h>
-#include <esp_crc.h>
 
 #include <array>
 #include <memory>
@@ -27,7 +26,7 @@ static const uint8_t ESPNOW_DATA_PROTOCOL = 0x03;
 static const uint8_t ESPNOW_DATA_PACKET = 0x07;
 static const uint8_t ESPNOW_DATA_CONTENT = 0x08;
 
-static const uint8_t MAX_ESPNOW_DATA_SIZE = 240;
+static const uint8_t MAX_ESPNOW_DATA_SIZE = 241;
 
 static const uint8_t MAX_NUMBER_OF_RETRYS = 5;
 
@@ -46,7 +45,6 @@ struct ESPNowPacket {
       uint8_t header[3]{'N', '0', 'w'};
       uint32_t protocol{0};
       uint8_t sequents{0};
-      uint8_t crc{0};
     } __attribute__((packed)) prefix;
     uint8_t payload[MAX_ESPNOW_DATA_SIZE + 1]{0};
   } __attribute__((packed)) content;
@@ -63,7 +61,6 @@ struct ESPNowPacket {
     this->protocol(protocol);
     this->size = size;
     std::memcpy(this->payload_as_bytes(), data, size);
-    this->calc_crc();
   }
   // Load received packet's.
   ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size) ESPHOME_ALWAYS_INLINE {
@@ -86,16 +83,10 @@ struct ESPNowPacket {
   uint8_t content_size() const { return ((*this).prefix_size() + (*this).size); }
 
   inline uint32_t protocol() const { return this->content.prefix.protocol; }
-  inline void protocol(uint32_t protocol) ESPHOME_ALWAYS_INLINE {
-    this->content.prefix.protocol = protocol;
-    this->calc_crc();
-  }
+  inline void protocol(uint32_t protocol) ESPHOME_ALWAYS_INLINE { this->content.prefix.protocol = protocol; }
 
   uint8_t sequents() const { return (*this).content.prefix.sequents; }
-  inline void sequents(uint8_t sequents) ESPHOME_ALWAYS_INLINE {
-    this->content.prefix.sequents = sequents;
-    this->calc_crc();
-  }
+  inline void sequents(uint8_t sequents) ESPHOME_ALWAYS_INLINE { this->content.prefix.sequents = sequents; }
 
   inline uint8_t *content_as_bytes() const { return (uint8_t *) &(this->content); }
   inline uint8_t *payload_as_bytes() const { return (uint8_t *) &(this->content.payload); }
@@ -104,24 +95,12 @@ struct ESPNowPacket {
     return *(((uint8_t *) &this->content) + pos);
   }
 
-  inline uint8_t crc() const { return this->content.prefix.crc; }
-  inline void crc(uint8_t crc) { this->content.prefix.crc = crc; }
-
-  void calc_crc() {
-    this->content.prefix.crc = 0;
-    uint8_t crc = esp_crc8_le(0, this->peer_as_bytes(), 6);
-    this->content.prefix.crc = esp_crc8_le(crc, (const uint8_t *) this->content_as_bytes(), this->content_size());
-  }
-
   inline void retry() ESPHOME_ALWAYS_INLINE { attempts++; }
-  inline bool is_valid() {
-    uint16_t tmp_crc = crc();
-    this->calc_crc();
+
+  inline bool is_valid() const {
     bool valid = (memcmp((const void *) this->content_as_bytes(), (const void *) &TRANSPORT_HEADER, 3) == 0);
     valid &= (this->protocol() != 0);
-    valid &= (this->crc() == tmp_crc);
-    this->crc(tmp_crc);
-    return valid;
+    return true;  // valid;
   }
 };
 
@@ -255,6 +234,8 @@ class ESPNowComponent : public Component {
 
   TaskHandle_t espnow_task_handle_{nullptr};
   bool task_running_{false};
+
+  uint32_t conformation_timeout_{5000};
 
   static ESPNowComponent *static_;  // NOLINT
 };
