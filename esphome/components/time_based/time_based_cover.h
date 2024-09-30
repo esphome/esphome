@@ -23,7 +23,10 @@ class TimeBasedCover : public cover::Cover, public Component {
   void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
   void set_manual_control(bool value) { this->manual_control_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
+  // Return the previous operation the cover was executing.
   cover::CoverOperation get_last_operation() const { return this->last_operation_; }
+  // Return the previous direction of travel of the cover (either OPENING or CLOSING)
+  cover::CoverOperation get_last_moving_operation() const { return this->last_moving_operation_; }
 
  protected:
   void control(const cover::CoverCall &call) override;
@@ -48,7 +51,12 @@ class TimeBasedCover : public cover::Cover, public Component {
   bool has_built_in_endstop_{false};
   bool manual_control_{false};
   bool assumed_state_{false};
-  cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
+  // Keep track of the previous operation the cover was in.
+  // Useful for instance to decide how to issue a command on the basis on the last received command.
+  cover::CoverOperation last_operation_{cover::COVER_OPERATION_IDLE};
+  // Keep track of the previous direction the cover was moving towards (either OPENING or CLOSING).
+  // Used by the toggle() action to know the previous direction of travel of the cover.
+  cover::CoverOperation last_moving_operation_{cover::COVER_OPERATION_OPENING};
 };
 
 }  // namespace time_based
