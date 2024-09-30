@@ -229,19 +229,23 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
         widget.add_flag("LV_OBJ_FLAG_HIDDEN")
 
-    return await action_to_code(
-        await get_widgets(config), do_hide, action_id, template_arg, args
-    )
+    widgets = [
+        widget.outer if widget.outer else widget for widget in await get_widgets(config)
+    ]
+    return await action_to_code(widgets, do_hide, action_id, template_arg, args)
 
 
 @automation.register_action("lvgl.widget.show", ObjUpdateAction, LIST_ACTION_SCHEMA)
 async def obj_show_to_code(config, action_id, template_arg, args):
     async def do_show(widget: Widget):
         widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
+        if widget.move_to_foreground:
+            lv_obj.move_foreground(widget.obj)
 
-    return await action_to_code(
-        await get_widgets(config), do_show, action_id, template_arg, args
-    )
+    widgets = [
+        widget.outer if widget.outer else widget for widget in await get_widgets(config)
+    ]
+    return await action_to_code(widgets, do_show, action_id, template_arg, args)
 
 
 def focused_id(value):
