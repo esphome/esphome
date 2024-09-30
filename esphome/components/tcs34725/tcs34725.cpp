@@ -73,20 +73,21 @@ float TCS34725Component::get_setup_priority() const { return setup_priority::DAT
  *  @return Color temperature in degrees Kelvin
  */
 void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, uint16_t c) {
-  float r2, g2, b2; /* RGB values minus IR component */
-  float sat;        /* Digital saturation level */
-  float ir;         /* Inferred IR content */
+  float sat; /* Digital saturation level */
 
-  this->illuminance_ = 0;  // Assign 0 value before calculation
-  this->color_temperature_ = 0;
+  this->illuminance_ = NAN;
+  this->color_temperature_ = NAN;
 
-  const float ga = this->glass_attenuation_;  // Glass Attenuation Factor
-  static const float DF = 310.f;              // Device Factor
-  static const float R_COEF = 0.136f;         //
-  static const float G_COEF = 1.f;            // used in lux computation
-  static const float B_COEF = -0.444f;        //
-  static const float CT_COEF = 3810.f;        // Color Temperature Coefficient
-  static const float CT_OFFSET = 1391.f;      // Color Temperatuer Offset
+  const float ga = this->glass_attenuation_;            // Glass Attenuation Factor
+  static const float DF = 310.f;                        // Device Factor
+  static const float R_COEF = 0.136f;                   //
+  static const float G_COEF = 1.f;                      // used in lux computation
+  static const float B_COEF = -0.444f;                  //
+  static const float CT_COEF = 3810.f;                  // Color Temperature Coefficient
+  static const float CT_OFFSET = 1391.f;                // Color Temperatuer Offset
+  static const float MAX_ILLUMINANCE = 100000.0f;       // Cap illuminance at 100,000 lux
+  static const float MAX_COLOR_TEMPERATURE = 15000.0f;  // Maximum expected color temperature in Kelvin
+  static const float MIN_COLOR_TEMPERATURE = 1000.0f;   // Maximum reasonable color temperature in Kelvin
 
   if (c == 0) {
     return;
@@ -137,45 +138,48 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   if (c >= sat) {
     if (this->integration_time_auto_) {
       ESP_LOGI(TAG, "Saturation too high, sample discarded, autogain ongoing");
+      return;
     } else {
-      ESP_LOGW(
-          TAG,
-          "Saturation too high, sample with saturation %.1f and clear %d treat values carefully or use grey filter",
-          sat, c);
-    }
-  }
-
-  /* AMS RGB sensors have no IR channel, so the IR content must be */
-  /* calculated indirectly. */
-  ir = ((r + g + b) > c) ? (r + g + b - c) / 2 : 0;
-
-  /* Remove the IR component from the raw RGB values */
-  r2 = r - ir;
-  g2 = g - ir;
-  b2 = b - ir;
-
-  // discarding super low values? not recemmonded, and avoided by using auto gain.
-  if (r2 == 0) {
-    // legacy code
-    if (!this->integration_time_auto_) {
       ESP_LOGW(TAG,
-               "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
+               "Saturation too high, sample with saturation %.1f and clear %d lux/color temperature cannot reliably "
+               "calculated, reduce integration/gain or use a grey filter.",
+               sat, c);
       return;
     }
   }
 
   // Lux Calculation (DN40 3.2)
 
-  float g1 = R_COEF * r2 + G_COEF * g2 + B_COEF * b2;
+  float g1 = R_COEF * (float) r + G_COEF * (float) g + B_COEF * (float) b;
   float cpl = (this->integration_time_ * this->gain_) / (ga * DF);
-  this->illuminance_ = g1 / cpl;
+
+  this->illuminance_ = std::max(g1 / cpl, 0.0f);
+
+  if (this->illuminance_ > MAX_ILLUMINANCE) {
+    ESP_LOGW(TAG, "Calculated illuminance greater than limit (%f), setting to NAN", this->illuminance_);
+    this->illuminance_ = NAN;
+    return;
+  }
+
+  if (r == 0) {
+    ESP_LOGW(TAG, "Red channel is zero, cannot compute color temperature");
+    return;
+  }
 
   // Color Temperature Calculation (DN40)
   /* A simple method of measuring color temp is to use the ratio of blue */
-  /* to red light, taking IR cancellation into account. */
-  this->color_temperature_ = (CT_COEF * b2) / /** Color temp coefficient. */
-                                 r2 +
-                             CT_OFFSET; /** Color temp offset. */
+  /* to red light. */
+
+  this->color_temperature_ = (CT_COEF * (float) b) / (float) r + CT_OFFSET;
+
+  // Ensure the color temperature stays within reasonable bounds
+  if (this->color_temperature_ < MIN_COLOR_TEMPERATURE) {
+    ESP_LOGW(TAG, "Calculated color temperature value too low (%f), setting to NAN", this->color_temperature_);
+    this->color_temperature_ = NAN;
+  } else if (this->color_temperature_ > MAX_COLOR_TEMPERATURE) {
+    ESP_LOGW(TAG, "Calculated color temperature value too high (%f), setting to NAN", this->color_temperature_);
+    this->color_temperature_ = NAN;
+  }
 }
 
 void TCS34725Component::update() {
