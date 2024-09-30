@@ -48,23 +48,6 @@ CONF_TEMPERATURE_8 = "temperature_8"
 CONF_TEMPERATURE_MOS = "temperature_mos"
 CONF_TEMPERATURE_BOARD = "temperature_board"
 
-CONF_CELL_1_VOLTAGE = "cell_1_voltage"
-CONF_CELL_2_VOLTAGE = "cell_2_voltage"
-CONF_CELL_3_VOLTAGE = "cell_3_voltage"
-CONF_CELL_4_VOLTAGE = "cell_4_voltage"
-CONF_CELL_5_VOLTAGE = "cell_5_voltage"
-CONF_CELL_6_VOLTAGE = "cell_6_voltage"
-CONF_CELL_7_VOLTAGE = "cell_7_voltage"
-CONF_CELL_8_VOLTAGE = "cell_8_voltage"
-CONF_CELL_9_VOLTAGE = "cell_9_voltage"
-CONF_CELL_10_VOLTAGE = "cell_10_voltage"
-CONF_CELL_11_VOLTAGE = "cell_11_voltage"
-CONF_CELL_12_VOLTAGE = "cell_12_voltage"
-CONF_CELL_13_VOLTAGE = "cell_13_voltage"
-CONF_CELL_14_VOLTAGE = "cell_14_voltage"
-CONF_CELL_15_VOLTAGE = "cell_15_voltage"
-CONF_CELL_16_VOLTAGE = "cell_16_voltage"
-
 ICON_CURRENT_DC = "mdi:current-dc"
 ICON_BATTERY_OUTLINE = "mdi:battery-outline"
 ICON_THERMOMETER_CHEVRON_UP = "mdi:thermometer-chevron-up"
@@ -72,6 +55,8 @@ ICON_THERMOMETER_CHEVRON_DOWN = "mdi:thermometer-chevron-down"
 ICON_CAR_BATTERY = "mdi:car-battery"
 
 UNIT_AMPERE_HOUR = "Ah"
+
+MAX_CELL_NUMBER = 48
 
 TYPES = [
     CONF_VOLTAGE,
@@ -99,22 +84,7 @@ TYPES = [
     CONF_TEMPERATURE_8,
     CONF_TEMPERATURE_MOS,
     CONF_TEMPERATURE_BOARD,
-    CONF_CELL_1_VOLTAGE,
-    CONF_CELL_2_VOLTAGE,
-    CONF_CELL_3_VOLTAGE,
-    CONF_CELL_4_VOLTAGE,
-    CONF_CELL_5_VOLTAGE,
-    CONF_CELL_6_VOLTAGE,
-    CONF_CELL_7_VOLTAGE,
-    CONF_CELL_8_VOLTAGE,
-    CONF_CELL_9_VOLTAGE,
-    CONF_CELL_10_VOLTAGE,
-    CONF_CELL_11_VOLTAGE,
-    CONF_CELL_12_VOLTAGE,
-    CONF_CELL_13_VOLTAGE,
-    CONF_CELL_14_VOLTAGE,
-    CONF_CELL_15_VOLTAGE,
-    CONF_CELL_16_VOLTAGE,
+    # Cell voltages are handled by loops below
 ]
 
 TEMPERATURE_SENSOR_SCHEMA = sensor.sensor_schema(
@@ -132,6 +102,15 @@ CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(
     icon=ICON_FLASH,
     accuracy_decimals=3,
 )
+
+def get_cell_voltage_key(cell):
+    return f"cell_{cell}_voltage"
+
+def get_cell_voltages_schema():
+    schema_obj = {}
+    for i in range(1, MAX_CELL_NUMBER+1):
+        schema_obj[cv.Optional(get_cell_voltage_key(i))] = CELL_VOLTAGE_SCHEMA
+    return cv.Schema(schema_obj)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -241,24 +220,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_TEMPERATURE_8): TEMPERATURE_SENSOR_SCHEMA,
             cv.Optional(CONF_TEMPERATURE_MOS): TEMPERATURE_SENSOR_SCHEMA,
             cv.Optional(CONF_TEMPERATURE_BOARD): TEMPERATURE_SENSOR_SCHEMA,
-            cv.Optional(CONF_CELL_1_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_2_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_3_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_4_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_5_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_6_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_7_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_8_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_9_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_10_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_11_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_12_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_13_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_14_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_15_VOLTAGE): CELL_VOLTAGE_SCHEMA,
-            cv.Optional(CONF_CELL_16_VOLTAGE): CELL_VOLTAGE_SCHEMA
         }
     )
+    .extend(get_cell_voltages_schema())
     .extend(cv.COMPONENT_SCHEMA)
 )
 
@@ -267,7 +231,15 @@ async def setup_conf(config, key, hub):
         sens = await sensor.new_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
 
+async def setup_cell_voltage_conf(config, cell, hub):
+    key = get_cell_voltage_key(cell)
+    if sensor_config := config.get(key):
+        sens = await sensor.new_sensor(sensor_config)
+        cg.add(hub.set_cell_voltage_sensor(cell, sens))
+
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_DALY_HKMS_BMS_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)
+    for i in range(1, MAX_CELL_NUMBER+1):
+        await setup_cell_voltage_conf(config, i, hub)

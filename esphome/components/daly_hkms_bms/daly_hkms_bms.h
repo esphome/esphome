@@ -18,6 +18,8 @@
 namespace esphome {
 namespace daly_hkms_bms {
 
+static const uint8_t DALY_MODBUS_MAX_CELL_COUNT = 48;
+
 class DalyHkmsBmsComponent : public PollingComponent, public modbus::ModbusDevice {
  public:
   void loop() override;
@@ -28,6 +30,12 @@ class DalyHkmsBmsComponent : public PollingComponent, public modbus::ModbusDevic
   void set_daly_address(uint8_t address);
 
 #ifdef USE_SENSOR
+  void set_cell_voltage_sensor(size_t cell, sensor::Sensor *sensor) { 
+    if(cell > this->cell_voltage_sensors_max_)
+      this->cell_voltage_sensors_max_ = cell;
+    this->cell_voltage_sensors_[cell-1] = sensor; 
+  };
+
   SUB_SENSOR(voltage)
   SUB_SENSOR(current)
   SUB_SENSOR(battery_level)
@@ -53,22 +61,6 @@ class DalyHkmsBmsComponent : public PollingComponent, public modbus::ModbusDevic
   SUB_SENSOR(temperature_8)
   SUB_SENSOR(temperature_mos)
   SUB_SENSOR(temperature_board)
-  SUB_SENSOR(cell_1_voltage)
-  SUB_SENSOR(cell_2_voltage)
-  SUB_SENSOR(cell_3_voltage)
-  SUB_SENSOR(cell_4_voltage)
-  SUB_SENSOR(cell_5_voltage)
-  SUB_SENSOR(cell_6_voltage)
-  SUB_SENSOR(cell_7_voltage)
-  SUB_SENSOR(cell_8_voltage)
-  SUB_SENSOR(cell_9_voltage)
-  SUB_SENSOR(cell_10_voltage)
-  SUB_SENSOR(cell_11_voltage)
-  SUB_SENSOR(cell_12_voltage)
-  SUB_SENSOR(cell_13_voltage)
-  SUB_SENSOR(cell_14_voltage)
-  SUB_SENSOR(cell_15_voltage)
-  SUB_SENSOR(cell_16_voltage)
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -87,8 +79,12 @@ class DalyHkmsBmsComponent : public PollingComponent, public modbus::ModbusDevic
   uint32_t last_send_;
   uint8_t daly_address_;
 
-  enum class ReadState{ READ_CELL_VOLTAGES, READ_DATA, IDLE } read_state_{ReadState::IDLE};
+  sensor::Sensor *cell_voltage_sensors_[DALY_MODBUS_MAX_CELL_COUNT]{};
+  size_t cell_voltage_sensors_max_{0};
 
+  void advance_read_state();
+
+  enum class ReadState{ READ_CELL_VOLTAGES, READ_DATA, IDLE } read_state_{ReadState::IDLE};
 };
 
 }  // namespace daly_hkms_bms

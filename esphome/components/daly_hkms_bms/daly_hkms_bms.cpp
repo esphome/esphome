@@ -14,7 +14,6 @@ static const uint8_t DALY_MODBUS_REQUEST_ADDRESS_OFFSET = 0x80;
 static const uint8_t DALY_MODBUS_RESPONSE_ADDRESS_OFFSET = 0x50;
 
 static const uint8_t DALY_MODBUS_READ_CELL_VOLTAGES_ADDR = DALY_MODBUS_ADDR_CELL_VOLT_1;
-static const uint8_t DALY_MODBUS_READ_CELL_VOLTAGES_LENGTH = 16; // 16 cell voltages
 
 static const uint8_t DALY_MODBUS_READ_DATA_ADDR = DALY_MODBUS_ADDR_CELL_TEMP_1;
 static const uint8_t DALY_MODBUS_READ_DATA_LENGTH = DALY_MODBUS_REGISTER_MAX - DALY_MODBUS_ADDR_CELL_TEMP_1 + 1;
@@ -52,7 +51,8 @@ void DalyHkmsBmsComponent::loop() {
   {
   case ReadState::READ_CELL_VOLTAGES:
     start_address = DALY_MODBUS_READ_CELL_VOLTAGES_ADDR;
-    register_count = DALY_MODBUS_READ_CELL_VOLTAGES_LENGTH;
+    // avoid reading all 48 cell voltages if we only want 16 or so
+    register_count = this->cell_voltage_sensors_max_;
     break;
   case ReadState::READ_DATA:
     start_address = DALY_MODBUS_READ_DATA_ADDR;
@@ -76,7 +76,7 @@ void DalyHkmsBmsComponent::loop() {
 
 void DalyHkmsBmsComponent::update() {
   if(this->read_state_ == ReadState::IDLE){
-    this->read_state_ = ReadState::READ_CELL_VOLTAGES;
+    this->advance_read_state();
   }
 }
 
@@ -98,7 +98,7 @@ void DalyHkmsBmsComponent::on_modbus_data(const std::vector<uint8_t> &data) {
   {
   case ReadState::READ_CELL_VOLTAGES:
     register_offset = DALY_MODBUS_READ_CELL_VOLTAGES_ADDR;
-    register_count = DALY_MODBUS_READ_CELL_VOLTAGES_LENGTH;
+    register_count = this->cell_voltage_sensors_max_;
     break;
   case ReadState::READ_DATA:
     register_offset = DALY_MODBUS_READ_DATA_ADDR;
@@ -129,25 +129,11 @@ void DalyHkmsBmsComponent::on_modbus_data(const std::vector<uint8_t> &data) {
 
   if (this->read_state_ == ReadState::READ_CELL_VOLTAGES) {
 #ifdef USE_SENSOR
-    publish_sensor_state(this->cell_1_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1     , 0, 0.001);
-    publish_sensor_state(this->cell_2_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 1 , 0, 0.001);
-    publish_sensor_state(this->cell_3_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 2 , 0, 0.001);
-    publish_sensor_state(this->cell_4_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 3 , 0, 0.001);
-    publish_sensor_state(this->cell_5_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 4 , 0, 0.001);
-    publish_sensor_state(this->cell_6_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 5 , 0, 0.001);
-    publish_sensor_state(this->cell_7_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 6 , 0, 0.001);
-    publish_sensor_state(this->cell_8_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 7 , 0, 0.001);
-    publish_sensor_state(this->cell_9_voltage_sensor_ , DALY_MODBUS_ADDR_CELL_VOLT_1 + 8 , 0, 0.001);
-    publish_sensor_state(this->cell_10_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 9 , 0, 0.001);
-    publish_sensor_state(this->cell_11_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 10, 0, 0.001);
-    publish_sensor_state(this->cell_12_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 11, 0, 0.001);
-    publish_sensor_state(this->cell_13_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 12, 0, 0.001);
-    publish_sensor_state(this->cell_14_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 13, 0, 0.001);
-    publish_sensor_state(this->cell_15_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 14, 0, 0.001);
-    publish_sensor_state(this->cell_16_voltage_sensor_, DALY_MODBUS_ADDR_CELL_VOLT_1 + 15, 0, 0.001);
+    for (size_t i = 0; i < this->cell_voltage_sensors_max_; i++)
+    {
+      publish_sensor_state(this->cell_voltage_sensors_[i], register_offset, DALY_MODBUS_ADDR_CELL_VOLT_1 + i, 0, 0.001);
+    }
 #endif
-
-    this->read_state_ = ReadState::READ_DATA;
   } else if (this->read_state_ == ReadState::READ_DATA) {
 #ifdef USE_SENSOR
     publish_sensor_state(this->temperature_1_sensor_, DALY_MODBUS_ADDR_CELL_TEMP_1    , -40, 1, 255);
@@ -217,8 +203,27 @@ void DalyHkmsBmsComponent::on_modbus_data(const std::vector<uint8_t> &data) {
       this->precharging_mos_enabled_binary_sensor_->publish_state(get_register(DALY_MODBUS_ADDR_PRECHG_MOS_ACTIVE) > 0);
     }
 #endif
+  }
+  this->advance_read_state();
+}
 
+void DalyHkmsBmsComponent::advance_read_state() {
+  switch (this->read_state_)
+  {
+  case ReadState::IDLE:
+    // skip reading cell voltages if there are no cell voltage sensors
+    if (this->cell_voltage_sensors_max_ == 0) {
+      this->read_state_ = ReadState::READ_DATA;
+    } else {
+      this->read_state_ = ReadState::READ_CELL_VOLTAGES;
+    }
+    break;
+  case ReadState::READ_CELL_VOLTAGES:
+    this->read_state_ = ReadState::READ_DATA;
+    break;
+  case ReadState::READ_DATA:
     this->read_state_ = ReadState::IDLE;
+    break;
   }
 }
 
