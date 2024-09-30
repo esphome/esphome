@@ -12,15 +12,19 @@ class SPIST7567 : public st7567_base::ST7567,
                                         spi::DATA_RATE_8MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
-
   void setup() override;
-
   void dump_config() override;
 
  protected:
-  void command(uint8_t value) override;
+  void command_(uint8_t value) override;
 
-  void write_display_data() override;
+  void start_command_();
+  void end_command_();
+
+  void start_data_();
+  void end_data_();
+
+  void write_display_data_() override;
 
   GPIOPin *dc_pin_;
 };
