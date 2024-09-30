@@ -3,7 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
-#include "esphome/core/component_iterator.h"
+#include "esphome/components/component_iterator/component_iterator.h"
 namespace esphome {
 namespace web_server {
 
