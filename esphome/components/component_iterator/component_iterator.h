@@ -16,6 +16,8 @@ class UserServiceDescriptor;
 }  // namespace api
 #endif
 
+namespace component_iterator {
+
 class ComponentIterator {
  public:
   void begin(bool include_internal = false);
@@ -175,4 +177,5 @@ class ComponentIterator {
   void advance_platform_();
 };
 
+}  // namespace component_iterator
 }  // namespace esphome

@@ -8,6 +8,7 @@
 #endif
 
 namespace esphome {
+namespace component_iterator {
 
 void ComponentIterator::begin(bool include_internal) {
   this->state_ = IteratorState::BEGIN;
@@ -209,4 +210,5 @@ bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return tr
 #ifdef USE_MEDIA_PLAYER
 bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }
 #endif
+}  // namespace component_iterator
 }  // namespace esphome

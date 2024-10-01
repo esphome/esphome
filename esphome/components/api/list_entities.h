@@ -1,11 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/component_iterator.h"
+#include "esphome/components/component_iterator/component_iterator.h"
 #include "esphome/core/defines.h"
 
 namespace esphome {
 namespace api {
+
+using namespace component_iterator;
 
 class APIConnection;
 

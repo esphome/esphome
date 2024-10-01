@@ -91,6 +91,7 @@ esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
 esphome/components/combination/* @Cat-Ion @kahrendt
+esphome/components/component_iterator/* @tomaszduda23
 esphome/components/coolix/* @glmnet
 esphome/components/copy/* @OttoWinter
 esphome/components/cover/* @esphome/core
