@@ -1,8 +1,5 @@
 #include "max17043.h"
 #include "esphome/core/log.h"
-#ifdef USE_ESP32
-#include <esp_sleep.h>
-#endif
 
 namespace esphome {
 namespace max17043 {
@@ -13,14 +10,8 @@ static const uint8_t MAX17043_VCELL = 0x02;
 static const uint8_t MAX17043_SOC = 0x04;
 static const uint8_t MAX17043_CONFIG = 0x0c;
 
-#define MAX17043_MODE 0x06
-
-#define MAX17043_MODE_COMMAND_POWERONRESET 0x5400
-#define MAX17043_MODE_COMMAND_QUICKSTART 0x4000
-#define MAX17043_CONFIG_POWER_UP_DEFAULT 0x971C
-#define MAX17043_CONFIG_SAFE_MASK 0xFF1F   // mask out sleep bit (7), unused bit (6) and alert bit (4)
-#define MAX17043_CONFIG_ALERT_MASK 0x0020  // mask alert bit (4)
-#define MAX17043_CONFIG_SLEEP_MASK 0x0080  // mask sleep bit (7)
+static const uint16_t MAX17043_CONFIG_POWER_UP_DEFAULT = 0x971C;
+static const uint16_t MAX17043_CONFIG_SAFE_MASK = 0xFF1F;  // mask out sleep bit (7), unused bit (6) and alert bit (4)
 
 void MAX17043Component::update() {
   uint16_t raw_voltage, raw_percent;
@@ -33,9 +24,6 @@ void MAX17043Component::update() {
 
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
-
-  // int x=esp_sleep_get_wakeup_cause();
-  ESP_LOGD(TAG, "Got wakeup_cause=0x%X", esp_sleep_get_wakeup_cause());
 
   // During charging the percentage might be (slightly) above 100%. To avoid strange numbers
   // in the statistics the percentage provided by this driver will not go above 100%
@@ -53,12 +41,6 @@ void MAX17043Component::update() {
 void MAX17043Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX17043...");
 
-  // int x=esp_sleep_get_wakeup_cause();
-  ESP_LOGD(TAG, "Got wakeup_cause=0x%X", esp_sleep_get_wakeup_cause());
-
-  this->write_byte_16(MAX17043_MODE, MAX17043_MODE_COMMAND_POWERONRESET);
-  delay(10);
-
   uint16_t config_reg;
   if (this->write(&MAX17043_CONFIG, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
@@ -69,17 +51,16 @@ void MAX17043Component::setup() {
     this->status_set_warning();
     return;
   }
-  config_reg = i2c::i2ctohs(config_reg);
-  ESP_LOGD(TAG, "Got config_reg=0x%X", config_reg);
+
+  config_reg = i2c::i2ctohs(config_reg) & MAX17043_CONFIG_SAFE_MASK;
+  ESP_LOGD(TAG, "MAX17043 CONFIG register reads 0x%X", config_reg);
 
   if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
     ESP_LOGE(TAG, "Device does not appear to be a MAX17043");
+    this->status_set_error("unrecognised");
     this->mark_failed();
     return;
   }
-
-  this->write_byte_16(MAX17043_MODE, MAX17043_MODE_COMMAND_QUICKSTART);
-  delay(10);
 }
 
 void MAX17043Component::dump_config() {
@@ -90,7 +71,7 @@ void MAX17043Component::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
-  LOG_SENSOR("  ", "Pecent", this->battery_remaining_sensor_);
+  LOG_SENSOR("  ", "Percent", this->battery_remaining_sensor_);
 }
 
 float MAX17043Component::get_setup_priority() const { return setup_priority::DATA; }
