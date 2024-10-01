@@ -19,6 +19,7 @@ class UsbDevice : public PollingComponent {
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *configured_;
 #endif
+  bool get_configured_();
 };
 
 }  // namespace usb_device
