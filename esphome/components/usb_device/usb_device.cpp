@@ -3,6 +3,20 @@
 #include "esphome/core/log.h"
 #include "USB.h"
 
+
+extern "C" {
+bool configured;
+
+void tud_mount_cb(void){
+  configured = true;
+}
+
+void tud_umount_cb(void){
+  configured = false;
+}
+
+}
+
 namespace esphome {
 namespace usb_device {
 
@@ -11,14 +25,14 @@ static const char *const TAG = "usb_device";
 void UsbDevice::update() {
 #ifdef USE_BINARY_SENSOR
   if (configured_ != nullptr) {
-    bool configured = USB;
+    // bool configured = USB;
     configured_->publish_state(configured);
   }
 #endif
 }
 
 void UsbDevice::dump_config() {
-  bool configured = USB;
+  // bool configured = USB;
   ESP_LOGCONFIG(TAG, "USB device - configured: %s", YESNO(configured));
 }
 
