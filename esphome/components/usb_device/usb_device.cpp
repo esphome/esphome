@@ -17,7 +17,6 @@ void UsbDevice::update() {
 #endif
 }
 
-
 void UsbDevice::dump_config() {
   bool configured = USB;
   ESP_LOGCONFIG(TAG, "USB device - configured: %s", YESNO(configured));
