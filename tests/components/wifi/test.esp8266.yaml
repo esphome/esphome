@@ -1,9 +1,0 @@
-esphome:
-  on_boot:
-    then:
-      - wifi.disable
-      - wifi.enable
-
-wifi:
-  ssid: MySSID
-  password: password1

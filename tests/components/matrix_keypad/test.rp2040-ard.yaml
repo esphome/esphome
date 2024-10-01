@@ -1,0 +1,19 @@
+binary_sensor:
+  - platform: matrix_keypad
+    id: key4
+    row: 1
+    col: 1
+  - platform: matrix_keypad
+    id: key1
+    key: 1
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: 1
+    - pin: 2
+  columns:
+    - pin: 3
+    - pin: 4
+  keys: "1234"
+  has_pulldowns: true

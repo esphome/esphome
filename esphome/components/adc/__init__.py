@@ -18,11 +18,23 @@ from esphome.components.esp32.const import (
 
 CODEOWNERS = ["@esphome/core"]
 
+adc_ns = cg.esphome_ns.namespace("adc")
+
+
+"""
+From the below patch versions (and 5.2+) ADC_ATTEN_DB_11 is deprecated and replaced with ADC_ATTEN_DB_12.
+4.4.7
+5.0.5
+5.1.3
+5.2+
+"""
+
 ATTENUATION_MODES = {
     "0db": cg.global_ns.ADC_ATTEN_DB_0,
     "2.5db": cg.global_ns.ADC_ATTEN_DB_2_5,
     "6db": cg.global_ns.ADC_ATTEN_DB_6,
-    "11db": cg.global_ns.ADC_ATTEN_DB_11,
+    "11db": adc_ns.ADC_ATTEN_DB_12_COMPAT,
+    "12db": adc_ns.ADC_ATTEN_DB_12_COMPAT,
     "auto": "auto",
 }
 

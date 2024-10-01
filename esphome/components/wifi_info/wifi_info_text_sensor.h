@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
+#ifdef USE_WIFI
 #include <array>
 
 namespace esphome {
@@ -39,15 +40,10 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
 class DNSAddressWifiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    std::string dns_results;
-
     auto dns_one = wifi::global_wifi_component->get_dns_address(0);
     auto dns_two = wifi::global_wifi_component->get_dns_address(1);
 
-    dns_results += "DNS1: ";
-    dns_results += dns_one.str();
-    dns_results += " DNS2: ";
-    dns_results += dns_two.str();
+    std::string dns_results = dns_one.str() + " " + dns_two.str();
 
     if (dns_results != this->last_results_) {
       this->last_results_ = dns_results;
@@ -136,3 +132,4 @@ class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
 
 }  // namespace wifi_info
 }  // namespace esphome
+#endif

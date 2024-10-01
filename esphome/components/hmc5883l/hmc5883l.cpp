@@ -1,5 +1,6 @@
 #include "hmc5883l.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace hmc5883l {
@@ -29,6 +30,10 @@ void HMC5883LComponent::setup() {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
+  }
+
+  if (this->get_update_interval() < App.get_loop_interval()) {
+    high_freq_.start();
   }
 
   if (id[0] != 0x48 || id[1] != 0x34 || id[2] != 0x33) {

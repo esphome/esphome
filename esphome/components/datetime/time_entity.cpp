@@ -95,7 +95,6 @@ void TimeEntityRestoreState::apply(TimeEntity *time) {
 }
 
 #ifdef USE_TIME
-
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
@@ -103,7 +102,7 @@ void OnTimeTrigger::loop() {
   if (!this->parent_->has_state()) {
     return;
   }
-  ESPTime time = this->rtc_->now();
+  ESPTime time = this->parent_->rtc_->now();
   if (!time.is_valid()) {
     return;
   }
@@ -147,7 +146,6 @@ bool OnTimeTrigger::matches_(const ESPTime &time) const {
   return time.is_valid() && time.hour == this->parent_->hour && time.minute == this->parent_->minute &&
          time.second == this->parent_->second;
 }
-
 #endif
 
 }  // namespace datetime

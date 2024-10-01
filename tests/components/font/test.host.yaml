@@ -1,0 +1,23 @@
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+    glyphs: "0123456789."
+    extras:
+      - file: "gfonts://Roboto"
+        glyphs: ["\u00C4", "\u00C5", "\U000000C7"]
+  - file: "gfonts://Roboto"
+    id: roboto_web
+    size: 20
+  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: monocraft
+    size: 20
+  - file:
+      type: web
+      url: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: monocraft2
+    size: 24
+  - file: $component_dir/Monocraft.ttf
+    id: monocraft3
+    size: 28
+
