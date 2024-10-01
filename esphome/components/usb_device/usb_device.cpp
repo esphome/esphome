@@ -9,19 +9,6 @@
 #endif
 #endif
 
-extern "C" {
-bool configured;
-
-void __wrap_tud_mount_cb(void){
-  configured = true;
-}
-
-void __wrap_tud_umount_cb(void){
-  configured = false;
-}
-
-}
-
 namespace esphome {
 namespace usb_device {
 
@@ -30,14 +17,12 @@ static const char *const TAG = "usb_device";
 void UsbDevice::update() {
 #ifdef USE_BINARY_SENSOR
   if (configured_ != nullptr) {
-    // bool configured = USB;
     configured_->publish_state(get_configured_());
   }
 #endif
 }
 
 void UsbDevice::dump_config() {
-  // bool configured = USB;
   ESP_LOGCONFIG(TAG, "USB device - configured: %s", YESNO(get_configured_()));
 }
 
@@ -54,7 +39,15 @@ bool UsbDevice::get_configured_() {
 #else
   return USBSerial;
 #endif
+#else
+// this is subject of change by other components so make sure that we won't fail to report silently
+#error Not implemented
 #endif
+#elif USE_ESP32_VARIANT_ESP32S2
+  return USB;
+#else
+// this is subject of change by other components so make sure that we won't fail to report silently
+#error Not implemented
 #endif
   return false;
 }
