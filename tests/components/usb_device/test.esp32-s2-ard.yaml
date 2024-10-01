@@ -1,0 +1,4 @@
+binary_sensor:
+  - platform: usb_device
+    configured:
+      name: USB is configured
