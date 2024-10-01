@@ -14,7 +14,7 @@ void DaikinArcClimate::setup() {
   climate_ir::ClimateIR::setup();
 
   // Never send nan to HA
-  if (std::isnan(this->target_humidity))
+  if (std::isnan(this->target_humidity) || this->target_humidity < 0 || this->target_humidity > 0xff)
     this->target_humidity = 0;
   if (std::isnan(this->current_temperature))
     this->current_temperature = 0;
@@ -56,6 +56,7 @@ void DaikinArcClimate::transmit_query_() {
 void DaikinArcClimate::transmit_state() {
   // 0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
   // 0x42, 0x49, 0x05, 0xA2,
+  // a2 c3 03 80 21: 時刻設定
   uint8_t remote_header[20] = {0x11, 0xDA, 0x27, 0x00, 0x02, 0xd0, 0x02, 0x03, 0x80, 0x03, 0x82, 0x30, 0x41, 0x1f, 0x82,
                                0xf4,
                                /*                                                      とつど */
@@ -94,12 +95,27 @@ void DaikinArcClimate::transmit_state() {
   static uint8_t last_humidity = 0x66;
   if (remote_state[7] != last_humidity && this->mode != climate::CLIMATE_MODE_OFF) {
     ESP_LOGD(TAG, "Set Humditiy: %d, %d\n", (int) this->target_humidity, (int) remote_state[7]);
-    remote_header[9] |= 0x10;
     last_humidity = remote_state[7];
   }
+  if (transmit_flag_ == 3)
+    remote_header[9] = 0x13;
   uint16_t fan_speed = this->fan_speed_();
+  if (transmit_flag_ == 4)
+    remote_header[9] = 0x07;
   remote_state[8] = fan_speed >> 8;
   remote_state[9] = fan_speed & 0xff;
+
+  if (transmit_flag_ == 5) {
+    remote_header[9] = 0x06;
+    // remote_header[9] = 0x16;  水平
+    remote_header[12] =
+        (this->swing_mode == climate::CLIMATE_SWING_BOTH || this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ? 0xf1
+                                                                                                                 : 0xe1;
+    remote_header[13] =
+        (this->swing_mode == climate::CLIMATE_SWING_BOTH || this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL)
+            ? 0x1e
+            : 0x01;
+  }
 
   // Calculate checksum
   for (int i = 0; i < sizeof(remote_header) - 1; i++) {
@@ -244,6 +260,10 @@ climate::ClimateTraits DaikinArcClimate::traits() {
   traits.set_supports_current_temperature(true);
   traits.set_supports_current_humidity(false);
   traits.set_supports_target_humidity(true);
+  std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
+                                                               climate::CLIMATE_SWING_VERTICAL,
+                                                               climate::CLIMATE_SWING_HORIZONTAL};
+  traits.set_supported_swing_modes(std::move(supported_swing_modes));
   traits.set_visual_min_humidity(38);
   traits.set_visual_max_humidity(52);
   return traits;
@@ -413,6 +433,7 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
+  bool is_extend_state_frame = false;
   for (uint8_t pos = 0; pos < DAIKIN_STATE_FRAME_SIZE; pos++) {
     uint8_t byte = 0;
     for (int8_t bit = 0; bit < 8; bit++) {
@@ -450,7 +471,9 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
     } else if (pos == 4) {
       // frame type
-      if (byte != 0x00) {
+      if (byte == 0x02 && data.size() == 324) {
+        is_extend_state_frame = true;
+      } else if (byte != 0x00) {
         ESP_LOGI(TAG, "non daikin_arc expect pos: %d header: %02x", pos, byte);
         return false;
       }
@@ -467,19 +490,42 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
         // this->current_temperature = state_frame[6]; // Outside temperature
         this->publish_state();
         return true;
-      } else if ((byte & 0x40) != 0x40) {
+      } else if (data.size() != 324 && data.size() != 308) {
+        // (byte & 0x40) != 0x40 && (byte & 0x09) != 0x09
         ESP_LOGI(TAG, "non daikin_arc expect pos: %d header: %02x", pos, byte);
         return false;
       }
     }
   }
+  if (is_extend_state_frame) {
+    if ((state_frame[12] == 0xf1 || state_frame[12] == 0xc1) && (state_frame[13] == 0x1e || state_frame[13] == 0x1f)) {
+      this->swing_mode = climate::CLIMATE_SWING_BOTH;
+    } else if (state_frame[12] == 0xf1 || state_frame[12] == 0xc1) {
+      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+    } else if (state_frame[13] == 0x1e || state_frame[13] == 0x1f) {
+      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+    }
+    this->publish_state();
+    return true;
+  }
   return this->parse_state_frame_(state_frame);
 }
 
 void DaikinArcClimate::control(const climate::ClimateCall &call) {
+  transmit_flag_ = 0;
+  if (call.get_mode().has_value()) {
+    transmit_flag_ = 1;
+  }
+  if (call.get_target_temperature().has_value())
+    transmit_flag_ = 2;
   if (call.get_target_humidity().has_value()) {
     this->target_humidity = *call.get_target_humidity();
+    transmit_flag_ = 3;
   }
+  if (call.get_fan_mode().has_value())
+    transmit_flag_ = 4;
+  if (call.get_swing_mode().has_value())
+    transmit_flag_ = 5;
   climate_ir::ClimateIR::control(call);
 }
 
