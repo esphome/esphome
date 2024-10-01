@@ -132,9 +132,10 @@ class OpenthermHub : public Component {
   // will be processed.
   void add_repeating_message(MessageId message_id) { this->repeating_messages_.insert(message_id); }
 
-  // There are five status variables, which can either be set as a simple variable,
+  // There are seven status variables, which can either be set as a simple variable,
   // or using a switch. ch_enable and dhw_enable default to true, the others to false.
-  bool ch_enable = true, dhw_enable = true, cooling_enable = false, otc_active = false, ch2_active = false;
+  bool ch_enable = true, dhw_enable = true, cooling_enable = false, otc_active = false, ch2_active = false,
+       summer_mode_active = false, dhw_block = false;
 
   // Setters for the status variables
   void set_ch_enable(bool value) { this->ch_enable = value; }
@@ -142,6 +143,8 @@ class OpenthermHub : public Component {
   void set_cooling_enable(bool value) { this->cooling_enable = value; }
   void set_otc_active(bool value) { this->otc_active = value; }
   void set_ch2_active(bool value) { this->ch2_active = value; }
+  void set_summer_mode_active(bool value) { this->summer_mode_active = value; }
+  void set_dhw_block(bool value) { this->dhw_block = value; }
   void set_sync_mode(bool sync_mode) { this->sync_mode_ = sync_mode; }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

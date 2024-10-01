@@ -13,6 +13,8 @@ opentherm:
   otc_active: false
   ch2_active: true
   t_room: ch_room_temperature
+  summer_mode_active: true
+  dhw_block: true
   sync_mode: true
 
 output:
@@ -40,6 +42,10 @@ number:
       name: "Boiler Room Setpoint"
     t_room_set_ch2:
       name: "Boiler Room Setpoint CH2"
+    max_rel_mod_level:
+      name: "Maximum relative modulation level"
+    otc_hc_ratio:
+      name: "OTC heat curve ratio"
 
 sensor:
   - platform: opentherm
@@ -95,6 +101,10 @@ sensor:
       name: "Boiler Domestic hot water temperature setpoint"
     max_t_set:
       name: "Boiler Maximum allowable CH water setpoint"
+    otc_hc_ratio_ub:
+      name: "OTC heat curve ratio upper bound"
+    otc_hc_ratio_lb:
+      name: "OTC heat curve ratio lower bound"
 
   - platform: homeassistant
     id: ch_room_temperature

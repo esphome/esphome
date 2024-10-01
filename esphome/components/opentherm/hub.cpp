@@ -75,11 +75,14 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
         this->cooling_enable && OPENTHERM_READ_cooling_enable && OPENTHERM_READ_cooling_control > 0.0;
     bool const otc_enabled = this->otc_active && OPENTHERM_READ_otc_active;
     bool const ch2_enabled = this->ch2_active && OPENTHERM_READ_ch2_active && OPENTHERM_READ_t_set_ch2 > 0.0;
+    bool const summer_mode_is_active = this->summer_mode_active && OPENTHERM_READ_summer_mode_active;
+    bool const dhw_blocked = this->dhw_block && OPENTHERM_READ_dhw_block;
     // NOLINTEND
 
     data.type = MessageType::READ_DATA;
     data.id = MessageId::STATUS;
-    data.valueHB = ch_enabled | (dhw_enabled << 1) | (cooling_enabled << 2) | (otc_enabled << 3) | (ch2_enabled << 4);
+    data.valueHB = ch_enabled | (dhw_enabled << 1) | (cooling_enabled << 2) | (otc_enabled << 3) | (ch2_enabled << 4) |
+                   (summer_mode_is_active << 5) | (dhw_blocked << 6);
 
     return data;
   }
