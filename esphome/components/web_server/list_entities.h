@@ -64,6 +64,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_VALVE
   bool on_valve(valve::Valve *valve) override;
 #endif
+#ifdef USE_KEYBOARD
+  bool on_keyboard(keyboard::Keyboard *keyboard) override;
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
 #endif

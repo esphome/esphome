@@ -20,27 +20,8 @@ logger:
 web_server:
   local: true
 
-debug:
 
-psram:
-
-light:
-  - platform: neopixelbus
-    type: GRB
-    variant: WS2812
-    pin: GPIO38
-    num_leds: 1
-    id: neopixel
-    method: esp32_rmt
-    name: neopixel-enable
-    internal: false
-    restore_mode: ALWAYS_OFF
-  - platform: spi_led_strip
-    num_leds: 4
-    color_correct: [80%, 60%, 100%]
-    id: rgb_led
-    name: "RGB LED"
-    data_rate: 8MHz
+api:
 
 button:
   - platform: template
@@ -112,55 +93,7 @@ switch:
     wake_up:
       name: Wake up host
 
-spi:
-  id: spi_id_1
-  clk_pin: GPIO7
-  mosi_pin: GPIO6
-  interface: any
-
-spi_device:
-  id: spidev
-  data_rate: 2MHz
-  spi_id: spi_id_1
-  mode: 3
-  bit_order: lsb_first
-
-font:
-  - file: "gfonts://Roboto"
-    id: roboto
-    size: 20
-
-display:
-  - platform: ili9xxx
-    id: displ8
-    model: ili9342
-    cs_pin: GPIO5
-    dc_pin: GPIO4
-    reset_pin:
-      number: GPIO48
-      allow_other_uses: true
-    lambda: |-
-      it.printf(10, 100, id(roboto), Color(0x123456), COLOR_OFF, display::TextAlign::BASELINE, "%f", id(heap_free).state);
-
-i2c:
-  scl: GPIO18
-  sda: GPIO8
-
-touchscreen:
-  - platform: tt21100
-    display: displ8
-    interrupt_pin:
-      number: GPIO3
-      ignore_strapping_warning: true
-      allow_other_uses: false
-    reset_pin:
-      number: GPIO48
-      allow_other_uses: true
-
 binary_sensor:
-  - platform: tt21100
-    name: Home Button
-    index: 1
   - platform: usb_device
     mounted:
       name: USB is mounted
@@ -176,25 +109,3 @@ binary_sensor:
       name: numlock
     scrollock:
       name: scrollock
-
-sensor:
-  - platform: debug
-    free:
-      id: heap_free
-      name: "Heap Free"
-    block:
-      name: "Max Block Free"
-    loop_time:
-      name: "Loop Time"
-    psram:
-      name: "PSRAM Free"
-
-# Purposely test that `animation:` does auto-load `image:`
-# Keep the `image:` undefined.
-# image:
-
-animation:
-  - id: rgb565_animation
-    file: pnglogo.png
-    type: RGB565
-    use_transparency: false

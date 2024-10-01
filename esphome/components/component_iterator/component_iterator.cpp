@@ -173,6 +173,12 @@ void ComponentIterator::advance() {
       break;
 #endif
 
+#ifdef USE_KEYBOARD
+    case IteratorState::KEYBOARD:
+      this->process_entity_(keyboard::keyboards, &ComponentIterator::on_keyboard);
+      break;
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
     case IteratorState::ALARM_CONTROL_PANEL:
       this->process_entity_(App.get_alarm_control_panels(), &ComponentIterator::on_alarm_control_panel);
@@ -209,6 +215,9 @@ bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return tr
 #endif
 #ifdef USE_MEDIA_PLAYER
 bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }
+#endif
+#ifdef USE_KEYBOARD
+bool ComponentIterator::on_keyboard(keyboard::Keyboard *keyboard) { return true; }
 #endif
 }  // namespace component_iterator
 }  // namespace esphome

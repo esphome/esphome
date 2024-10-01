@@ -302,6 +302,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string valve_json(valve::Valve *obj, JsonDetail start_config);
 #endif
 
+#ifdef USE_KEYBOARD
+  /// Handle a lock request under '/keyboard/<id>/</down/up>'.
+  void handle_keyboard_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the lock state with its value as a JSON string.
+  std::string keyboard_json(keyboard::Keyboard *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
 
