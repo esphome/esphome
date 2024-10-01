@@ -4,9 +4,6 @@ esphome:
 
 rp2040:
   board: rpipicow
-  framework:
-    # Waiting for https://github.com/platformio/platform-raspberrypi/pull/36
-    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git#5e87ae34ca025274df25b3303e9e9cb6c120123c
 
 logger:
   level: VERY_VERBOSE
