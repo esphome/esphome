@@ -62,13 +62,13 @@ ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-c
 ModemComponent::ModemComponent() { global_modem_component = this; }
 void print_netif_flags(esp_netif_flags_t flags) {
     // Check each flag and print its presecommand_lib%s", (flags & ESP_NETIF_DHCP_CLIENT) ? "true" : "false");
-    ESP_LOGI(TAG, "ESP_NETIF_DHCP_SERVER: %s", (flags & ESP_NETIF_DHCP_SERVER) ? "true" : "false");
-    ESP_LOGI(TAG, "ESP_NETIF_FLAG_AUTOUP: %s", (flags & ESP_NETIF_FLAG_AUTOUP) ? "true" : "false");
-    ESP_LOGI(TAG, "ESP_NETIF_FLAG_GARP: %s", (flags & ESP_NETIF_FLAG_GARP) ? "true" : "false");
-    ESP_LOGI(TAG, "ESP_NETIF_FLAG_EVENT_IP_MODIFIED: %s", (flags & ESP_NETIF_FLAG_EVENT_IP_MODIFIED) ? "true" : "false");
-    ESP_LOGI(TAG, "ESP_NETIF_FLAG_IS_PPP: %s", (flags & ESP_NETIF_FLAG_IS_PPP) ? "true" : "false");
-    ESP_LOGI(TAG, "ESP_NETIF_FLAG_IS_SLIP: %s", (flags & ESP_NETIF_FLAG_IS_SLIP) ? "true" : "false");
-    ESP_LOGI(TAG, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    ESP_LOGD(TAG, "ESP_NETIF_DHCP_SERVER: %s", (flags & ESP_NETIF_DHCP_SERVER) ? "true" : "false");
+    ESP_LOGD(TAG, "ESP_NETIF_FLAG_AUTOUP: %s", (flags & ESP_NETIF_FLAG_AUTOUP) ? "true" : "false");
+    ESP_LOGD(TAG, "ESP_NETIF_FLAG_GARP: %s", (flags & ESP_NETIF_FLAG_GARP) ? "true" : "false");
+    ESP_LOGD(TAG, "ESP_NETIF_FLAG_EVENT_IP_MODIFIED: %s", (flags & ESP_NETIF_FLAG_EVENT_IP_MODIFIED) ? "true" : "false");
+    ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_PPP: %s", (flags & ESP_NETIF_FLAG_IS_PPP) ? "true" : "false");
+    ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_SLIP: %s", (flags & ESP_NETIF_FLAG_IS_SLIP) ? "true" : "false");
+    ESP_LOGD(TAG, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 }
 
 #include "driver/gpio.h"
@@ -77,10 +77,10 @@ void esp_modem_hard_reset()
     gpio_set_direction(GPIO_NUM_23, GPIO_MODE_OUTPUT);  
     //gpio_pullup_en(GPIO_NUM_23);
     gpio_set_level(GPIO_NUM_23, 0);
-    ESP_LOGI(TAG, "GPIO_NUM_23 0");
+    ESP_LOGD(TAG, "GPIO_NUM_23 0");
     vTaskDelay(50);
     gpio_set_level(GPIO_NUM_23, 1);
-    ESP_LOGI(TAG, "GPIO_NUM_23 1");
+    ESP_LOGD(TAG, "GPIO_NUM_23 1");
     vTaskDelay(2000);
     time_hard_reset_modem = millis();
 }
@@ -113,6 +113,8 @@ void ModemComponent::setup() {
   esp_log_level_set("modem", ESP_LOG_VERBOSE); 
   esp_log_level_set("mqtt", ESP_LOG_VERBOSE);
   esp_log_level_set("command_lib", ESP_LOG_VERBOSE);
+  esp_log_level_set("uart_terminal", ESP_LOG_VERBOSE);
+  
 
   ESP_LOGCONFIG(TAG, "Setting up modem...");
   esp_modem_hard_reset();
@@ -138,7 +140,7 @@ void ModemComponent::setup() {
     this->modem_netif_ = esp_netif_new(&netif_ppp_config);
     //esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
     assert(this->modem_netif_);
-    ESP_LOGI(TAG, "netif create succes");
+    ESP_LOGD(TAG, "netif create succes");
     event_group = xEventGroupCreate();
 
     /* Configure the DTE */
@@ -155,7 +157,7 @@ void ModemComponent::setup() {
     dte_config.task_priority = CONFIG_EXAMPLE_MODEM_UART_EVENT_TASK_PRIORITY;
     dte_config.dte_buffer_size = CONFIG_EXAMPLE_MODEM_UART_RX_BUFFER_SIZE / 2;
 
-    ESP_LOGI(TAG, "Initializing esp_modem for the SIM800 module...");
+    ESP_LOGD(TAG, "Initializing esp_modem");
     dte = esp_modem::create_uart_dte(&dte_config);
     //esp_modem_dce_t *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM800, &dte_config, &dce_config, this->modem_netif_);
     dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
@@ -185,25 +187,25 @@ void ModemComponent::loop() {
   if (time_info_print < now){
     
     //ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage()/1000);
-    ESP_LOGI(TAG, "esp_netif_is_netif_UP");
+    ESP_LOGD(TAG, "esp_netif_is_netif_UP");
     if (esp_netif_is_netif_up(this->modem_netif_)){
-      ESP_LOGI(TAG, "esp_netif_is_netif_UP");
+      ESP_LOGD(TAG, "esp_netif_is_netif_UP");
     }
     else{
-      ESP_LOGI(TAG, "esp_netif_is_netif_DOWN");
+      ESP_LOGD(TAG, "esp_netif_is_netif_DOWN");
     }
     time_info_print = now + 5000;
     switch (this->state_)
     {
     case ModemComponentState::STOPPED:
-      ESP_LOGI(TAG, "modem STOPPED");
+      ESP_LOGD(TAG, "modem STOPPED");
       break;
     case ModemComponentState::CONNECTING:
-      ESP_LOGI(TAG, "modem CONNECTING");
+      ESP_LOGD(TAG, "modem CONNECTING");
       break;
     case ModemComponentState::CONNECTED:
       dce->set_data();
-      ESP_LOGI(TAG, "modem CONNECTED");
+      ESP_LOGD(TAG, "modem CONNECTED");
       break;
     default:
       break;
@@ -218,10 +220,10 @@ void ModemComponent::loop() {
     case ModemComponentState::STOPPED:
       if (time_check_rssi + TIME_TO_START_MODEM < now){
         time_check_rssi = now;
-        dce->set_command_mode();
+        //dce->set_command_mode();
         if (get_rssi()) {
-          ESP_LOGI(TAG, "Starting modem connection");
-          ESP_LOGI(TAG, "SIgnal quality: rssi=%d", get_rssi());
+          ESP_LOGD(TAG, "Starting modem connection");
+          ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
           this->state_ = ModemComponentState::CONNECTING;
           dce->set_data();
           //this->start_connect_();
@@ -329,9 +331,9 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
         ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
         xEventGroupSetBits(event_group, CONNECT_BIT);
 
-        ESP_LOGI(TAG, "GOT ip event!!!");
+        ESP_LOGD(TAG, "GOT ip event!!!");
     } else if (event_id == IP_EVENT_PPP_LOST_IP) {
-        ESP_LOGI(TAG, "Modem Disconnect from PPP Server");
+        ESP_LOGD(TAG, "Modem Disconnect from PPP Server");
         global_modem_component->state_ = ModemComponentState::STOPPED;
     }
 
@@ -345,7 +347,7 @@ void ModemComponent::start_connect_() {
   esp_err_t err;
   err = esp_netif_set_hostname(this->modem_netif_, App.get_name().c_str());
   if (err != ERR_OK) {    
-    ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
+    ESP_LOGD(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   }
   
 
@@ -360,10 +362,10 @@ void ModemComponent::start_connect_() {
       ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
       return;
   }
-  ESP_LOGI(TAG, "Signal quality: rssi=%d, ber=%d", rssi, ber);
+  ESP_LOGD(TAG, "Signal quality: rssi=%d, ber=%d", rssi, ber);
   dce->set_data();
 
-  vTaskDelay(15000);
+  //vTaskDelay(15000);
   // this->status_set_warning();
 }
 

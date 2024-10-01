@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_DNS2,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.components.esp32 import add_idf_component
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.network import IPAddress
 
 CONFLICTS_WITH = ["wifi"]
@@ -147,6 +147,7 @@ async def to_code(config):
         cg.add_library("WiFi", None)
         
     if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
         add_idf_component(
             name="esp_modem",
             repo="https://github.com/espressif/esp-protocols.git",

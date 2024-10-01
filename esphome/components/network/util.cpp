@@ -9,6 +9,10 @@
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
 
+#ifdef USE_MODEM
+#include "esphome/components/modem/modem_component.h"
+#endif
+
 namespace esphome {
 namespace network {
 
@@ -25,6 +29,12 @@ bool is_connected() {
 
 #ifdef USE_HOST
   return true;  // Assume its connected
+#endif
+
+#ifdef USE_MODEM
+if (modem::global_modem_component != nullptr && modem::global_modem_component->is_connected()){
+  return true;
+}
 #endif
   return false;
 }
