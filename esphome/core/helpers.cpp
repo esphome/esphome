@@ -712,7 +712,11 @@ bool has_custom_mac_address() {
 #ifdef USE_ESP32
   uint8_t mac[6];
   // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
+#if defined(USE_ESP32_VARIANT_ESP32C3)  // fixed in IDF 5+
+  return (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
+#else
   return (esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
+#endif
 #else
   return false;
 #endif
