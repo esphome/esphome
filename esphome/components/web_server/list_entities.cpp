@@ -1,4 +1,5 @@
 #include "list_entities.h"
+#ifdef USE_WEBSERVER
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -9,25 +10,6 @@ namespace esphome {
 namespace web_server {
 
 ListEntitiesIterator::ListEntitiesIterator(WebServer *web_server) : web_server_(web_server) {}
-
-void ListEntitiesIterator::begin(bool include_internal) {
-#ifdef USE_KEYBOARD
-  this->at_ = 0;
-#endif
-  ComponentIterator::begin(include_internal);
-}
-
-bool ListEntitiesIterator::on_begin() {
-#ifdef USE_KEYBOARD
-  // TODO remove when https://github.com/esphome/esphome/pull/4470 is merged
-  if (keyboard::keyboards.size() > this->at_) {
-    on_keyboard(keyboard::keyboards[this->at_]);
-    ++this->at_;
-    return false;
-  }
-#endif
-  return true;
-}
 
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
@@ -105,6 +87,15 @@ bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) {
 }
 #endif
 
+#ifdef USE_VALVE
+bool ListEntitiesIterator::on_valve(valve::Valve *valve) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->valve_json(valve, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_CLIMATE
 bool ListEntitiesIterator::on_climate(climate::Climate *climate) {
   if (this->web_server_->events_.count() == 0)
@@ -139,6 +130,15 @@ bool ListEntitiesIterator::on_time(datetime::TimeEntity *time) {
 }
 #endif
 
+#ifdef USE_DATETIME_DATETIME
+bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *datetime) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->datetime_json(datetime, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 #ifdef USE_TEXT
 bool ListEntitiesIterator::on_text(text::Text *text) {
   if (this->web_server_->events_.count() == 0)
@@ -157,12 +157,6 @@ bool ListEntitiesIterator::on_select(select::Select *select) {
 }
 #endif
 
-#ifdef USE_KEYBOARD
-bool ListEntitiesIterator::on_keyboard(keyboard::Keyboard *keyboard) {
-  this->web_server_->events_.send(this->web_server_->keyboard_json(keyboard, DETAIL_ALL).c_str(), "state");
-  return true;
-}
-#endif
 #ifdef USE_ALARM_CONTROL_PANEL
 bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   if (this->web_server_->events_.count() == 0)
@@ -175,5 +169,24 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 }
 #endif
 
+#ifdef USE_EVENT
+bool ListEntitiesIterator::on_event(event::Event *event) {
+  // Null event type, since we are just iterating over entities
+  const std::string null_event_type = "";
+  this->web_server_->events_.send(this->web_server_->event_json(event, null_event_type, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
+#ifdef USE_UPDATE
+bool ListEntitiesIterator::on_update(update::UpdateEntity *update) {
+  if (this->web_server_->events_.count() == 0)
+    return true;
+  this->web_server_->events_.send(this->web_server_->update_json(update, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 }  // namespace web_server
 }  // namespace esphome
+#endif
