@@ -1,0 +1,13 @@
+i2c:
+  - id: i2c_max17043
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: max17043
+    i2c_id: bus_a
+    battery_voltage:
+      name: "Battery Voltage"
+    battery_level:
+      name: Battery
+    update_interval: 10s
