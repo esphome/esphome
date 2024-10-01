@@ -28,7 +28,11 @@
 
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
+#ifdef USE_KEYBOARD
+#include "server_index_v2_keyboard.h"
+#else
 #include "server_index_v2.h"
+#endif
 #elif USE_WEBSERVER_VERSION == 3
 #include "server_index_v3.h"
 #endif
