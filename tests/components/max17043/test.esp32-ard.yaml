@@ -5,7 +5,7 @@ i2c:
 
 sensor:
   - platform: max17043
-    i2c_id: bus_a
+    i2c_id: i2c_max17043
     battery_voltage:
       name: "Battery Voltage"
     battery_level:
