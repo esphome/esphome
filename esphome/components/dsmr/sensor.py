@@ -13,6 +13,7 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CUBIC_METER,
+    UNIT_GIGAJOULE,
     UNIT_KILOWATT,
     UNIT_KILOWATT_HOURS,
     UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
@@ -235,6 +236,12 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_CUBIC_METER,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_GAS,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional("thermal_delivered"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_GIGAJOULE,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("water_delivered"): sensor.sensor_schema(
