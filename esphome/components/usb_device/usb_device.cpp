@@ -22,9 +22,7 @@ void UsbDevice::update() {
 #endif
 }
 
-void UsbDevice::dump_config() {
-  ESP_LOGCONFIG(TAG, "USB device - configured: %s", YESNO(get_configured_()));
-}
+void UsbDevice::dump_config() { ESP_LOGCONFIG(TAG, "USB device - configured: %s", YESNO(get_configured_())); }
 
 #ifdef USE_BINARY_SENSOR
 void UsbDevice::set_configured_binary_sensor(binary_sensor::BinarySensor *sensor) { configured_ = sensor; };
@@ -34,7 +32,7 @@ bool UsbDevice::get_configured_() {
 // based on defines in HWCDC.cpp
 #if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
 #if ARDUINO_USB_MODE
-#if ARDUINO_USB_CDC_ON_BOOT//Serial used for USB CDC
+#if ARDUINO_USB_CDC_ON_BOOT  // Serial used for USB CDC
   return Serial;
 #else
   return USBSerial;
@@ -51,7 +49,6 @@ bool UsbDevice::get_configured_() {
 #endif
   return false;
 }
-
 
 }  // namespace usb_device
 }  // namespace esphome
