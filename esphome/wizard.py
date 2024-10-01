@@ -90,9 +90,6 @@ esp32:
 RP2040_CONFIG = """
 rp2040:
   board: {board}
-  framework:
-    # Required until https://github.com/platformio/platform-raspberrypi/pull/36 is merged
-    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 """
 
 BK72XX_CONFIG = """
