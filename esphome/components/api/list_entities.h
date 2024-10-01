@@ -7,11 +7,9 @@
 namespace esphome {
 namespace api {
 
-using namespace component_iterator;
-
 class APIConnection;
 
-class ListEntitiesIterator : public ComponentIterator {
+class ListEntitiesIterator : public component_iterator::ComponentIterator {
  public:
   ListEntitiesIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
