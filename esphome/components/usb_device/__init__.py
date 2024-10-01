@@ -21,6 +21,7 @@ def _validate_variant(value):
         raise cv.Invalid(f"USB device is unsupported by ESP32 variant {variant}")
     return value
 
+
 CONF_USB_DEVICE = "usb_device"
 
 usb_device_ns = cg.esphome_ns.namespace(CONF_USB_DEVICE)
