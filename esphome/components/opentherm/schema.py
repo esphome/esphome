@@ -726,9 +726,6 @@ INPUTS: dict[str, InputSchema] = {
         keep_updated=True,
         message_data="f88",
         range=(0, 100),
-        auto_min_value=AutoConfigure(
-            message="MAX_BOILER_CAPACITY", message_data="u8_lb"
-        ),
     ),
     "otc_hc_ratio": InputSchema(
         description="OTC heat curve ratio",
