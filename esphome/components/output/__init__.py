@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_MAX_POWER,
     CONF_MIN_POWER,
     CONF_POWER_SUPPLY,
+    CONF_MIN_TURN_ON_POWER,
+    CONF_MIN_TURN_ON_POWER_DELAY,
 )
 from esphome.core import CORE
 
@@ -31,6 +33,10 @@ FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend(
         cv.Optional(CONF_MAX_POWER): cv.percentage,
         cv.Optional(CONF_MIN_POWER): cv.percentage,
         cv.Optional(CONF_ZERO_MEANS_ZERO, default=False): cv.boolean,
+        cv.Optional(CONF_MIN_TURN_ON_POWER, default="0%"): cv.percentage,
+        cv.Optional(
+            CONF_MIN_TURN_ON_POWER_DELAY, default="10ms"
+        ): cv.positive_time_period_milliseconds,
     }
 )
 
@@ -58,6 +64,8 @@ async def setup_output_platform_(obj, config):
         cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
     if CONF_ZERO_MEANS_ZERO in config:
         cg.add(obj.set_zero_means_zero(config[CONF_ZERO_MEANS_ZERO]))
+    cg.add(obj.set_min_turn_on_power(config[CONF_MIN_TURN_ON_POWER]))
+    cg.add(obj.set_min_turn_on_power_delay(config[CONF_MIN_TURN_ON_POWER_DELAY]))
 
 
 async def register_output(var, config):
