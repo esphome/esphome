@@ -10,7 +10,6 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
-import esphome.final_validate as fv
 
 CODEOWNERS = ["@tomaszduda23"]
 CONF_USB_DEVICE_ID = "usb_device_id"
@@ -37,6 +36,7 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
     _validate_variant,
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
