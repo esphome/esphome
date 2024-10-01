@@ -46,10 +46,8 @@
 #include "esp32/rom/crc.h"
 #endif
 
-#if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
-#endif
 
 #ifdef USE_LIBRETINY
 #include <WiFi.h>  // for macAddress()
@@ -713,11 +711,8 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 bool has_custom_mac_address() {
 #ifdef USE_ESP32
   uint8_t mac[6];
-#if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
+  // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
   return (esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, 48) == ESP_OK) && mac_address_is_valid(mac);
-#else
-  return (esp_efuse_mac_get_custom(mac) == ESP_OK) && mac_address_is_valid(mac);
-#endif
 #else
   return false;
 #endif
