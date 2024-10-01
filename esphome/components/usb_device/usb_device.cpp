@@ -7,11 +7,11 @@
 extern "C" {
 bool configured;
 
-void tud_mount_cb(void){
+void __wrap_tud_mount_cb(void){
   configured = true;
 }
 
-void tud_umount_cb(void){
+void __wrap_tud_umount_cb(void){
   configured = false;
 }
 
