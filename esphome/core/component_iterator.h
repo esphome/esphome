@@ -169,6 +169,10 @@ class ComponentIterator {
   } state_{IteratorState::NONE};
   size_t at_{0};
   bool include_internal_{false};
+
+  template<typename Entity>
+  void process_entity_(const std::vector<Entity *> &items, bool (ComponentIterator::*on_item)(Entity *));
+  void advance_platform_();
 };
 
 }  // namespace esphome
