@@ -8,11 +8,9 @@
 namespace esphome {
 namespace api {
 
-using namespace component_iterator;
-
 class APIConnection;
 
-class InitialStateIterator : public ComponentIterator {
+class InitialStateIterator : public component_iterator::ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR

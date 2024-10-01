@@ -7,10 +7,9 @@
 namespace esphome {
 namespace web_server {
 
-using namespace component_iterator;
 class WebServer;
 
-class ListEntitiesIterator : public ComponentIterator {
+class ListEntitiesIterator : public component_iterator::ComponentIterator {
  public:
   ListEntitiesIterator(WebServer *web_server);
 #ifdef USE_BINARY_SENSOR
