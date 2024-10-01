@@ -1,16 +1,11 @@
-#define CONFIG_EXAMPLE_MODEM_PPP_APN "internet"
-#define CONFIG_EXAMPLE_MODEM_PPP_AUTH_USERNAME "espressif"
-#define CONFIG_EXAMPLE_MODEM_PPP_AUTH_PASSWORD "esp32"
-#define CONFIG_EXAMPLE_MODEM_UART_TX_PIN 25
-#define CONFIG_EXAMPLE_MODEM_UART_RX_PIN 26
-#define CONFIG_EXAMPLE_MODEM_UART_RTS_PIN 27
-#define CONFIG_EXAMPLE_MODEM_UART_CTS_PIN 23
-#define CONFIG_EXAMPLE_MODEM_UART_EVENT_TASK_STACK_SIZE 2048
-#define CONFIG_EXAMPLE_MODEM_UART_EVENT_TASK_PRIORITY 5
-#define CONFIG_EXAMPLE_MODEM_UART_EVENT_QUEUE_SIZE 30
-#define CONFIG_EXAMPLE_MODEM_UART_PATTERN_QUEUE_SIZE 20
-#define CONFIG_EXAMPLE_MODEM_UART_TX_BUFFER_SIZE 512
-#define CONFIG_EXAMPLE_MODEM_UART_RX_BUFFER_SIZE 1024
+#define CONFIG_MODEM_PPP_APN "internet"
+#define CONFIG_MODEM_UART_TX_PIN 25
+#define CONFIG_MODEM_UART_RX_PIN 26
+#define CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE 2048
+#define CONFIG_MODEM_UART_EVENT_TASK_PRIORITY 5
+#define CONFIG_MODEM_UART_EVENT_QUEUE_SIZE 30
+#define CONFIG_MODEM_UART_TX_BUFFER_SIZE 512
+#define CONFIG_MODEM_UART_RX_BUFFER_SIZE 1024
 
 
 #include "esp_modem_c_api_types.h"
@@ -135,7 +130,7 @@ void ModemComponent::setup() {
 
     /* Configure the PPP netif */
     
-    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(CONFIG_EXAMPLE_MODEM_PPP_APN);
+    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(CONFIG_MODEM_PPP_APN);
     esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
     this->modem_netif_ = esp_netif_new(&netif_ppp_config);
     //esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
@@ -146,16 +141,14 @@ void ModemComponent::setup() {
     /* Configure the DTE */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     /* setup UART specific configuration based on kconfig options */
-    dte_config.uart_config.tx_io_num = CONFIG_EXAMPLE_MODEM_UART_TX_PIN;
-    dte_config.uart_config.rx_io_num = CONFIG_EXAMPLE_MODEM_UART_RX_PIN;
-    dte_config.uart_config.rts_io_num = CONFIG_EXAMPLE_MODEM_UART_RTS_PIN;
-    dte_config.uart_config.cts_io_num = CONFIG_EXAMPLE_MODEM_UART_CTS_PIN;
-    dte_config.uart_config.rx_buffer_size = CONFIG_EXAMPLE_MODEM_UART_RX_BUFFER_SIZE;
-    dte_config.uart_config.tx_buffer_size = CONFIG_EXAMPLE_MODEM_UART_TX_BUFFER_SIZE;
-    dte_config.uart_config.event_queue_size = CONFIG_EXAMPLE_MODEM_UART_EVENT_QUEUE_SIZE;
-    dte_config.task_stack_size = CONFIG_EXAMPLE_MODEM_UART_EVENT_TASK_STACK_SIZE;
-    dte_config.task_priority = CONFIG_EXAMPLE_MODEM_UART_EVENT_TASK_PRIORITY;
-    dte_config.dte_buffer_size = CONFIG_EXAMPLE_MODEM_UART_RX_BUFFER_SIZE / 2;
+    dte_config.uart_config.tx_io_num = CONFIG_MODEM_UART_TX_PIN;
+    dte_config.uart_config.rx_io_num = CONFIG_MODEM_UART_RX_PIN;
+    dte_config.uart_config.rx_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE;
+    dte_config.uart_config.tx_buffer_size = CONFIG_MODEM_UART_TX_BUFFER_SIZE;
+    dte_config.uart_config.event_queue_size = CONFIG_MODEM_UART_EVENT_QUEUE_SIZE;
+    dte_config.task_stack_size = CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE;
+    dte_config.task_priority = CONFIG_MODEM_UART_EVENT_TASK_PRIORITY;
+    dte_config.dte_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE / 2;
 
     ESP_LOGD(TAG, "Initializing esp_modem");
     dte = esp_modem::create_uart_dte(&dte_config);
