@@ -4,6 +4,9 @@
 namespace esphome {
 namespace max17043 {
 
+// MAX174043 is a 1-Cell Fuel Gauge with ModelGauge and Low-Battery Alert
+// Consult the datasheet at https://www.analog.com/en/products/max17043.html
+
 static const char *const TAG = "max17043";
 
 static const uint8_t MAX17043_VCELL = 0x02;
@@ -64,14 +67,14 @@ void MAX17043Component::setup() {
 }
 
 void MAX17043Component::dump_config() {
-  ESP_LOGD(TAG, "MAX17043:");
+  ESP_LOGCONFIG(TAG, "MAX17043:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with MAX17043 failed");
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
-  LOG_SENSOR("  ", "Percent", this->battery_remaining_sensor_);
+  ESP_LOGCONFIG(TAG, "  Voltage: %s", this->voltage_sensor_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "  Percent: %s", this->battery_remaining_sensor_->get_name().c_str());
 }
 
 float MAX17043Component::get_setup_priority() const { return setup_priority::DATA; }
