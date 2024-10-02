@@ -379,7 +379,8 @@ def final_validate(config):
 
     if (
         config[CONF_VARIANT] != VARIANT_ESP32
-        and CONF_IGNORE_EFUSE_MAC_CRC in config[CONF_FRAMEWORK][CONF_ADVANCED]
+        and CONF_ADVANCED in (conf_fw := config[CONF_FRAMEWORK])
+        and CONF_IGNORE_EFUSE_MAC_CRC in conf_fw[CONF_ADVANCED]
     ):
         raise cv.Invalid(
             f"{CONF_IGNORE_EFUSE_MAC_CRC} is not supported on {config[CONF_VARIANT]}"
