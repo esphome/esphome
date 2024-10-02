@@ -1,7 +1,6 @@
 #include "esp_modem_c_api_types.h"
 #include "esp_netif_ppp.h"
 #include "cxx_include/esp_modem_api.hpp"
-#include "cxx_include/esp_modem_dte.hpp"
 #include "cxx_include/esp_modem_dce.hpp"
 
 #include "modem_component.h"
@@ -16,7 +15,6 @@
 #include <lwip/dns.h>
 #include "esp_event.h"
 
-std::shared_ptr<esp_modem::DTE> dte{nullptr};
 std::unique_ptr<esp_modem::DCE> dce{nullptr};
 
 uint32_t time_info_print = 0;
@@ -87,7 +85,7 @@ void ModemComponent::setup() {
   dte_config.dte_buffer_size = this->uart_rx_buffer_size_ / 2;
 
   ESP_LOGD(TAG, "Initializing esp_modem");
-  dte = esp_modem::create_uart_dte(&dte_config);
+  this->dte = esp_modem::create_uart_dte(&dte_config);
   dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
 
   esp_netif_flags_t flags = esp_netif_get_flags(this->modem_netif_);
@@ -143,6 +141,35 @@ void ModemComponent::loop() {
     case ModemComponentState::CONNECTED:
       break;
   }
+}
+
+void ModemComponent::dump_config() {
+  this->dump_config_();
+  ESP_LOGCONFIG(TAG, "Modem:");
+  ESP_LOGCONFIG(TAG, "  Power Pin: %d", this->power_pin_);
+  ESP_LOGCONFIG(TAG, "  Type: %d", this->type_);
+  ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
+  ESP_LOGCONFIG(TAG, "  TX Pin: %d", this->tx_pin_);
+  ESP_LOGCONFIG(TAG, "  RX Pin: %d", this->rx_pin_);
+  ESP_LOGCONFIG(TAG, "  UART Event Task Stack Size: %d", this->uart_event_task_stack_size_);
+  ESP_LOGCONFIG(TAG, "  UART Event Task Priority: %d", this->uart_event_task_priority_);
+  ESP_LOGCONFIG(TAG, "  UART Event Queue Size: %d", this->uart_event_queue_size_);
+  ESP_LOGCONFIG(TAG, "  UART TX Buffer Size: %d", this->uart_tx_buffer_size_);
+  ESP_LOGCONFIG(TAG, "  UART RX Buffer Size: %d", this->uart_rx_buffer_size_);
+}
+
+void ModemComponent::dump_connect_params_() {
+  esp_netif_ip_info_t ip;
+  esp_netif_get_ip_info(this->modem_netif_, &ip);
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Netmask: %s", network::IPAddress(&ip.netmask).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(&ip.gw).str().c_str());
+  esp_netif_dns_info_t dns_info;
+  esp_netif_get_dns_info(this->modem_netif_, ESP_NETIF_DNS_MAIN, &dns_info);
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(&dns_info.ip.u_addr.ip4).str().c_str());
+  esp_netif_get_dns_info(this->modem_netif_, ESP_NETIF_DNS_BACKUP, &dns_info);
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(&dns_info.ip.u_addr.ip4).str().c_str());
 }
 
 void ModemComponent::esp_modem_hard_reset() {

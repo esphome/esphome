@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cxx_include/esp_modem_dte.hpp"
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -31,6 +33,8 @@ class ModemComponent : public Component {
   ModemComponent();
   void setup() override;
   void loop() override;
+  void dump_config() override;
+  void dump_connect_params_();
   float get_setup_priority() const override;
   bool can_proceed() override;
   bool is_connected();
@@ -60,6 +64,7 @@ class ModemComponent : public Component {
   int get_rssi();
   int get_modem_voltage();
 
+  std::shared_ptr<esp_modem::DTE> dte{nullptr};
   ModemType type_{MODEM_TYPE_UNKNOWN};
   int power_pin_{-1};
   int reset_pin_{-1};
