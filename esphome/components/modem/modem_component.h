@@ -47,8 +47,14 @@ class ModemComponent : public Component {
   void set_power_pin(int power_pin);
   void set_type(ModemType type);
   void set_reset_pin(int reset_pin);
-  //void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
-  //void set_manual_ip(const ManualIP &manual_ip);
+  void set_apn(const std::string &apn);
+  void set_tx_pin(int tx_pin);
+  void set_rx_pin(int rx_pin);
+  void set_uart_event_task_stack_size(int uart_event_task_stack_size);
+  void set_uart_event_task_priority(int uart_event_task_priority);
+  void set_uart_event_queue_size(int uart_event_queue_size);
+  void set_uart_tx_buffer_size(int uart_tx_buffer_size);
+  void set_uart_rx_buffer_size(int uart_rx_buffer_size);
 
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
@@ -62,11 +68,18 @@ class ModemComponent : public Component {
   void start_connect_();
   void esp_modem_hard_reset();
 
-  std::string use_address_;
+  ModemType type_{MODEM_TYPE_UNKNOWN};
   int power_pin_{-1};
   int reset_pin_{-1};
-  ModemType type_{MODEM_TYPE_UNKNOWN};
-  optional<ManualIP> manual_ip_{};
+  int tx_pin_{-1};
+  int rx_pin_{-1};
+  std::string apn_{""};
+  std::string use_address_;
+  int uart_event_task_stack_size_{0};
+  int uart_event_task_priority_{0};
+  int uart_event_queue_size_{0};
+  int uart_tx_buffer_size_{0};
+  int uart_rx_buffer_size_{0};
 
   bool started_{false};
   bool connected_{false};
@@ -74,7 +87,7 @@ class ModemComponent : public Component {
   ModemComponentState state_{ModemComponentState::STOPPED};
   uint32_t connect_begin_;
   esp_netif_t *modem_netif_{nullptr};
-  //esp_eth_phy_t *phy_{nullptr};
+  // esp_eth_phy_t *phy_{nullptr};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

@@ -1,21 +1,19 @@
 from esphome import pins
-import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DOMAIN,
     CONF_ID,
-    CONF_TYPE,
     CONF_RESET_PIN,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
     CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
-    
+    CONF_TYPE,
     CONF_USE_ADDRESS,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome.components.network import IPAddress
 
 CONFLICTS_WITH = ["wifi", "ethernet"]
 DEPENDENCIES = ["esp32"]
@@ -59,7 +57,7 @@ MODEM_TYPES = {
 
 
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
-#ManualIP = ethernet_ns.struct("ManualIP")
+# ManualIP = ethernet_ns.struct("ManualIP")
 
 
 def _validate(config):
@@ -67,6 +65,7 @@ def _validate(config):
         use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
     return config
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -76,7 +75,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_APN, default="internet"): cv.string,
-        cv.Optional(CONF_UART_EVENT_TASK_STACK_SIZE, default=2048): cv.positive_not_null_int,
+        cv.Optional(
+            CONF_UART_EVENT_TASK_STACK_SIZE, default=2048
+        ): cv.positive_not_null_int,
         cv.Optional(CONF_UART_EVENT_TASK_PRIORITY, default=5): cv.positive_not_null_int,
         cv.Optional(CONF_UART_EVENT_QUEUE_SIZE, default=30): cv.positive_not_null_int,
         cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.positive_not_null_int,
@@ -86,29 +87,29 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
 @coroutine_with_priority(60.0)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     cg.add(var.set_type(config[CONF_TYPE]))
-    # cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
-    # cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
-    # cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
-    # cg.add(var.set_apn(config[CONF_APN]))
-    # cg.add(var.set_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
-    # cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
-    # cg.add(var.set_uart_event_task_stack_size(config[CONF_UART_EVENT_TASK_STACK_SIZE]))
-    # cg.add(var.set_uart_event_task_priority(config[CONF_UART_EVENT_TASK_PRIORITY]))
-    # cg.add(var.set_uart_event_queue_size([CONF_UART_EVENT_QUEUE_SIZE]))
-    # cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
     cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+    cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
+    cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
+    cg.add(var.set_apn(config[CONF_APN]))
+    cg.add(var.set_uart_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
+    cg.add(var.set_uart_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
+    cg.add(var.set_uart_event_task_stack_size(config[CONF_UART_EVENT_TASK_STACK_SIZE]))
+    cg.add(var.set_uart_event_task_priority(config[CONF_UART_EVENT_TASK_PRIORITY]))
+    cg.add(var.set_uart_event_queue_size(config[CONF_UART_EVENT_QUEUE_SIZE]))
+    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     cg.add_define("USE_MODEM")
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
-        
+
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
         add_idf_component(

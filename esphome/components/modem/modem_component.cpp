@@ -1,12 +1,11 @@
-#define CONFIG_MODEM_PPP_APN "internet"
-#define CONFIG_MODEM_UART_TX_PIN 25
-#define CONFIG_MODEM_UART_RX_PIN 26
-#define CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE 2048
-#define CONFIG_MODEM_UART_EVENT_TASK_PRIORITY 5
-#define CONFIG_MODEM_UART_EVENT_QUEUE_SIZE 30
-#define CONFIG_MODEM_UART_TX_BUFFER_SIZE 512
-#define CONFIG_MODEM_UART_RX_BUFFER_SIZE 1024
-
+// #define CONFIG_MODEM_PPP_APN "internet"
+// #define CONFIG_MODEM_UART_TX_PIN 25
+// #define CONFIG_MODEM_UART_RX_PIN 26
+// #define CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE 2048
+// #define CONFIG_MODEM_UART_EVENT_TASK_PRIORITY 5
+// #define CONFIG_MODEM_UART_EVENT_QUEUE_SIZE 30
+// #define CONFIG_MODEM_UART_TX_BUFFER_SIZE 512
+// #define CONFIG_MODEM_UART_RX_BUFFER_SIZE 1024
 
 #include "esp_modem_c_api_types.h"
 #include "esp_netif_ppp.h"
@@ -24,7 +23,6 @@
 #include <cinttypes>
 #include <lwip/dns.h>
 #include "esp_event.h"
-
 
 std::shared_ptr<esp_modem::DTE> dte{nullptr};
 std::unique_ptr<esp_modem::DCE> dce{nullptr};
@@ -56,60 +54,57 @@ ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 ModemComponent::ModemComponent() { global_modem_component = this; }
 void print_netif_flags(esp_netif_flags_t flags) {
-    // Check each flag and print its presecommand_lib%s", (flags & ESP_NETIF_DHCP_CLIENT) ? "true" : "false");
-    ESP_LOGD(TAG, "ESP_NETIF_DHCP_SERVER: %s", (flags & ESP_NETIF_DHCP_SERVER) ? "true" : "false");
-    ESP_LOGD(TAG, "ESP_NETIF_FLAG_AUTOUP: %s", (flags & ESP_NETIF_FLAG_AUTOUP) ? "true" : "false");
-    ESP_LOGD(TAG, "ESP_NETIF_FLAG_GARP: %s", (flags & ESP_NETIF_FLAG_GARP) ? "true" : "false");
-    ESP_LOGD(TAG, "ESP_NETIF_FLAG_EVENT_IP_MODIFIED: %s", (flags & ESP_NETIF_FLAG_EVENT_IP_MODIFIED) ? "true" : "false");
-    ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_PPP: %s", (flags & ESP_NETIF_FLAG_IS_PPP) ? "true" : "false");
-    ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_SLIP: %s", (flags & ESP_NETIF_FLAG_IS_SLIP) ? "true" : "false");
-    ESP_LOGD(TAG, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+  // Check each flag and print its presecommand_lib%s", (flags & ESP_NETIF_DHCP_CLIENT) ? "true" : "false");
+  ESP_LOGD(TAG, "ESP_NETIF_DHCP_SERVER: %s", (flags & ESP_NETIF_DHCP_SERVER) ? "true" : "false");
+  ESP_LOGD(TAG, "ESP_NETIF_FLAG_AUTOUP: %s", (flags & ESP_NETIF_FLAG_AUTOUP) ? "true" : "false");
+  ESP_LOGD(TAG, "ESP_NETIF_FLAG_GARP: %s", (flags & ESP_NETIF_FLAG_GARP) ? "true" : "false");
+  ESP_LOGD(TAG, "ESP_NETIF_FLAG_EVENT_IP_MODIFIED: %s", (flags & ESP_NETIF_FLAG_EVENT_IP_MODIFIED) ? "true" : "false");
+  ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_PPP: %s", (flags & ESP_NETIF_FLAG_IS_PPP) ? "true" : "false");
+  ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_SLIP: %s", (flags & ESP_NETIF_FLAG_IS_SLIP) ? "true" : "false");
+  ESP_LOGD(TAG, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 }
 
 #include "driver/gpio.h"
-void ModemComponent::esp_modem_hard_reset()
-{
-    gpio_set_direction(gpio_num_t(this->reset_pin_), GPIO_MODE_OUTPUT);  
-    //gpio_pullup_en(reset_pin_);
-    gpio_set_level(gpio_num_t(this->reset_pin_), 0);
-    ESP_LOGD(TAG, "reset_pin_ 0");
-    vTaskDelay(50);
-    gpio_set_level(gpio_num_t(this->reset_pin_), 1);
-    ESP_LOGD(TAG, "reset_pin_ 1");
-    vTaskDelay(2000);
-    time_hard_reset_modem = millis();
+void ModemComponent::esp_modem_hard_reset() {
+  gpio_set_direction(gpio_num_t(this->reset_pin_), GPIO_MODE_OUTPUT);
+  // gpio_pullup_en(reset_pin_);
+  gpio_set_level(gpio_num_t(this->reset_pin_), 0);
+  ESP_LOGD(TAG, "reset_pin_ 0");
+  vTaskDelay(50);
+  gpio_set_level(gpio_num_t(this->reset_pin_), 1);
+  ESP_LOGD(TAG, "reset_pin_ 1");
+  vTaskDelay(2000);
+  time_hard_reset_modem = millis();
 }
 
-int get_rssi(){
-    int rssi=0, ber=0;
-    esp_modem::command_result errr = dce->get_signal_quality(rssi, ber);
-    //esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
-    if (errr != esp_modem::command_result::OK) {
-        ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
-    }
-    return rssi;
+int get_rssi() {
+  int rssi = 0, ber = 0;
+  esp_modem::command_result errr = dce->get_signal_quality(rssi, ber);
+  // esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
+  if (errr != esp_modem::command_result::OK) {
+    ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
+  }
+  return rssi;
 }
 
-int get_modem_voltage(){
-  int voltage=0, bcs=0, bcl=0;
+int get_modem_voltage() {
+  int voltage = 0, bcs = 0, bcl = 0;
   dce->set_cmux();
   esp_modem::command_result errr = dce->get_battery_status(voltage, bcs, bcl);
   if (errr != esp_modem::command_result::OK) {
-        ESP_LOGE(TAG, "get_battery_status failed with");
-    }
-    return voltage;
+    ESP_LOGE(TAG, "get_battery_status failed with");
+  }
+  return voltage;
 }
 
-//setup 
+// setup
 void ModemComponent::setup() {
-
-  esp_log_level_set("esp-netif_lwip-ppp", ESP_LOG_VERBOSE); 
+  esp_log_level_set("esp-netif_lwip-ppp", ESP_LOG_VERBOSE);
   esp_log_level_set("esp-netif_lwip", ESP_LOG_VERBOSE);
-  esp_log_level_set("modem", ESP_LOG_VERBOSE); 
+  esp_log_level_set("modem", ESP_LOG_VERBOSE);
   esp_log_level_set("mqtt", ESP_LOG_VERBOSE);
   esp_log_level_set("command_lib", ESP_LOG_VERBOSE);
   esp_log_level_set("uart_terminal", ESP_LOG_VERBOSE);
-  
 
   ESP_LOGCONFIG(TAG, "Setting up modem...");
   esp_modem_hard_reset();
@@ -126,141 +121,133 @@ void ModemComponent::setup() {
   ESP_LOGCONFIG(TAG, "Initing netif");
 
   esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::got_ip_event_handler, NULL);
-  //esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_changed, NULL);
+  // esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_changed, NULL);
 
-    /* Configure the PPP netif */
-    
-    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(CONFIG_MODEM_PPP_APN);
-    esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
-    this->modem_netif_ = esp_netif_new(&netif_ppp_config);
-    //esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
-    assert(this->modem_netif_);
-    ESP_LOGD(TAG, "netif create succes");
-    event_group = xEventGroupCreate();
+  /* Configure the PPP netif */
 
-    /* Configure the DTE */
-    esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
-    /* setup UART specific configuration based on kconfig options */
-    dte_config.uart_config.tx_io_num = CONFIG_MODEM_UART_TX_PIN;
-    dte_config.uart_config.rx_io_num = CONFIG_MODEM_UART_RX_PIN;
-    dte_config.uart_config.rx_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE;
-    dte_config.uart_config.tx_buffer_size = CONFIG_MODEM_UART_TX_BUFFER_SIZE;
-    dte_config.uart_config.event_queue_size = CONFIG_MODEM_UART_EVENT_QUEUE_SIZE;
-    dte_config.task_stack_size = CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE;
-    dte_config.task_priority = CONFIG_MODEM_UART_EVENT_TASK_PRIORITY;
-    dte_config.dte_buffer_size = CONFIG_MODEM_UART_RX_BUFFER_SIZE / 2;
+  esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
+  esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
+  this->modem_netif_ = esp_netif_new(&netif_ppp_config);
+  // esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
+  assert(this->modem_netif_);
+  ESP_LOGD(TAG, "netif create succes");
+  event_group = xEventGroupCreate();
 
-    ESP_LOGD(TAG, "Initializing esp_modem");
-    dte = esp_modem::create_uart_dte(&dte_config);
-    //esp_modem_dce_t *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM800, &dte_config, &dce_config, this->modem_netif_);
-    dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
-    
+  /* Configure the DTE */
+  esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
+  /* setup UART specific configuration based on kconfig options */
+  dte_config.uart_config.tx_io_num = this->tx_pin_;
+  dte_config.uart_config.rx_io_num = this->rx_pin_;
+  dte_config.uart_config.rx_buffer_size = this->uart_rx_buffer_size_;
+  dte_config.uart_config.tx_buffer_size = this->uart_tx_buffer_size_;
+  dte_config.uart_config.event_queue_size = this->uart_event_queue_size_;
+  dte_config.task_stack_size = this->uart_event_task_stack_size_;
+  dte_config.task_priority = this->uart_event_task_priority_;
+  dte_config.dte_buffer_size = this->uart_rx_buffer_size_ / 2;
 
-    xEventGroupClearBits(event_group, CONNECT_BIT | GOT_DATA_BIT | USB_DISCONNECTED_BIT);
-        /* Run the modem demo app */
-    //return;
+  ESP_LOGD(TAG, "Initializing esp_modem");
+  dte = esp_modem::create_uart_dte(&dte_config);
+  // esp_modem_dce_t *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM800, &dte_config, &dce_config, this->modem_netif_);
+  dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
 
-    esp_netif_flags_t flags = esp_netif_get_flags(this->modem_netif_);
-    print_netif_flags(flags);
-    
-    
-    //set data mode
-    //dce->set_data();
-    
-    //this->modem_netif_->
-    /* Wait for IP address */
-    //ESP_LOGI(TAG, "Waiting for IP address");
-    //xEventGroupWaitBits(event_group, CONNECT_BIT | USB_DISCONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
-    //vTaskDelay(15000);
+  xEventGroupClearBits(event_group, CONNECT_BIT | GOT_DATA_BIT | USB_DISCONNECTED_BIT);
+  /* Run the modem demo app */
+  // return;
+
+  esp_netif_flags_t flags = esp_netif_get_flags(this->modem_netif_);
+  print_netif_flags(flags);
+
+  // set data mode
+  // dce->set_data();
+
+  // this->modem_netif_->
+  /* Wait for IP address */
+  // ESP_LOGI(TAG, "Waiting for IP address");
+  // xEventGroupWaitBits(event_group, CONNECT_BIT | USB_DISCONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+  // vTaskDelay(15000);
 }
-
 
 void ModemComponent::loop() {
   const uint32_t now = millis();
-  if (time_info_print < now){
-    
-    //ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage()/1000);
+  if (time_info_print < now) {
+    // ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage()/1000);
     ESP_LOGD(TAG, "esp_netif_is_netif_UP");
-    if (esp_netif_is_netif_up(this->modem_netif_)){
+    if (esp_netif_is_netif_up(this->modem_netif_)) {
       ESP_LOGD(TAG, "esp_netif_is_netif_UP");
-    }
-    else{
+    } else {
       ESP_LOGD(TAG, "esp_netif_is_netif_DOWN");
     }
     time_info_print = now + 5000;
-    switch (this->state_)
-    {
-    case ModemComponentState::STOPPED:
-      ESP_LOGD(TAG, "modem STOPPED");
-      break;
-    case ModemComponentState::CONNECTING:
-      ESP_LOGD(TAG, "modem CONNECTING");
-      break;
-    case ModemComponentState::CONNECTED:
-      dce->set_data();
-      ESP_LOGD(TAG, "modem CONNECTED");
-      break;
-    default:
-      break;
+    switch (this->state_) {
+      case ModemComponentState::STOPPED:
+        ESP_LOGD(TAG, "modem STOPPED");
+        break;
+      case ModemComponentState::CONNECTING:
+        ESP_LOGD(TAG, "modem CONNECTING");
+        break;
+      case ModemComponentState::CONNECTED:
+        dce->set_data();
+        ESP_LOGD(TAG, "modem CONNECTED");
+        break;
+      default:
+        break;
     }
-    //ESP_LOGI(TAG, "SIgnal quality: rssi=%d", get_rssi());
+    // ESP_LOGI(TAG, "SIgnal quality: rssi=%d", get_rssi());
   }
 
   this->started_ = true;
 
-  
   switch (this->state_) {
     case ModemComponentState::STOPPED:
-      if (time_check_rssi + TIME_TO_START_MODEM < now){
+      if (time_check_rssi + TIME_TO_START_MODEM < now) {
         time_check_rssi = now;
-        //dce->set_command_mode();
+        // dce->set_command_mode();
         if (get_rssi()) {
           ESP_LOGD(TAG, "Starting modem connection");
           ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
           this->state_ = ModemComponentState::CONNECTING;
           dce->set_data();
-          //this->start_connect_();
+          // this->start_connect_();
         }
-        if (time_hard_reset_modem + TIME_TO_NEXT_HARD_RESET < now){
+        if (time_hard_reset_modem + TIME_TO_NEXT_HARD_RESET < now) {
           time_hard_reset_modem = now;
           esp_modem_hard_reset();
         }
-      }        
+      }
       break;
     case ModemComponentState::CONNECTING:
-    break;
+      break;
     case ModemComponentState::CONNECTED:
-    break;
+      break;
 
-  //     if (!this->started_) {
-  //       ESP_LOGI(TAG, "Stopped modem connection");
-  //       this->state_ = ModemComponentState::STOPPED;
-  //     } else if (this->connected_) {
-  //       // connection established
-  //       ESP_LOGI(TAG, "Connected via Modem!");
-  //       this->state_ = ModemComponentState::CONNECTED;
+      //     if (!this->started_) {
+      //       ESP_LOGI(TAG, "Stopped modem connection");
+      //       this->state_ = ModemComponentState::STOPPED;
+      //     } else if (this->connected_) {
+      //       // connection established
+      //       ESP_LOGI(TAG, "Connected via Modem!");
+      //       this->state_ = ModemComponentState::CONNECTED;
 
-  //       //this->dump_connect_params_();
-  //       this->status_clear_warning();
-  //     } else if (now - this->connect_begin_ > 40000) {
-  //       ESP_LOGW(TAG, "Connecting via modem failed! Re-connecting...");
-  //       this->start_connect_();
-  //       dce->set_data_mode();
-  //     }
-  //     break;
-  //   case ModemComponentState::CONNECTED:
-  //     if (!this->started_) {
-  //       ESP_LOGI(TAG, "Stopped modem connection");
-  //       this->state_ = ModemComponentState::STOPPED;
-  //     } else if (!this->connected_) {
-  //       ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
-  //       this->state_ = ModemComponentState::CONNECTING;
-  //       this->start_connect_();
-  //     }
-  //     break;
-    }
+      //       //this->dump_connect_params_();
+      //       this->status_clear_warning();
+      //     } else if (now - this->connect_begin_ > 40000) {
+      //       ESP_LOGW(TAG, "Connecting via modem failed! Re-connecting...");
+      //       this->start_connect_();
+      //       dce->set_data_mode();
+      //     }
+      //     break;
+      //   case ModemComponentState::CONNECTED:
+      //     if (!this->started_) {
+      //       ESP_LOGI(TAG, "Stopped modem connection");
+      //       this->state_ = ModemComponentState::STOPPED;
+      //     } else if (!this->connected_) {
+      //       ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
+      //       this->state_ = ModemComponentState::CONNECTING;
+      //       this->start_connect_();
+      //     }
+      //     break;
+  }
 }
-
 
 float ModemComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
@@ -299,39 +286,36 @@ void ModemComponent::modem_event_handler(void *arg, esp_event_base_t event_base,
   ESP_LOGV(TAG, "[Modem event] %s (num=%" PRId32 ")", event_name, event);
 }
 
-void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
-                                             void *event_data) {
+void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   xEventGroupSetBits(event_group, CONNECT_BIT);
   global_modem_component->connected_ = true;
   global_modem_component->state_ = ModemComponentState::CONNECTED;
 
-    ESP_LOGD(TAG, "IP event! %" PRIu32, event_id);
-    if (event_id == IP_EVENT_PPP_GOT_IP) {
-        esp_netif_dns_info_t dns_info;
+  ESP_LOGD(TAG, "IP event! %" PRIu32, event_id);
+  if (event_id == IP_EVENT_PPP_GOT_IP) {
+    esp_netif_dns_info_t dns_info;
 
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-        esp_netif_t *netif = event->esp_netif;
+    ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+    esp_netif_t *netif = event->esp_netif;
 
-        ESP_LOGI(TAG, "Modem Connect to PPP Server");
-        ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
-        ESP_LOGI(TAG, "IP          : " IPSTR, IP2STR(&event->ip_info.ip));
-        ESP_LOGI(TAG, "Netmask     : " IPSTR, IP2STR(&event->ip_info.netmask));
-        ESP_LOGI(TAG, "Gateway     : " IPSTR, IP2STR(&event->ip_info.gw));
-        esp_netif_get_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info);
-        ESP_LOGI(TAG, "Name Server1: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
-        esp_netif_get_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info);
-        ESP_LOGI(TAG, "Name Server2: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
-        ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
-        xEventGroupSetBits(event_group, CONNECT_BIT);
+    ESP_LOGI(TAG, "Modem Connect to PPP Server");
+    ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
+    ESP_LOGI(TAG, "IP          : " IPSTR, IP2STR(&event->ip_info.ip));
+    ESP_LOGI(TAG, "Netmask     : " IPSTR, IP2STR(&event->ip_info.netmask));
+    ESP_LOGI(TAG, "Gateway     : " IPSTR, IP2STR(&event->ip_info.gw));
+    esp_netif_get_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info);
+    ESP_LOGI(TAG, "Name Server1: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    esp_netif_get_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info);
+    ESP_LOGI(TAG, "Name Server2: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
+    xEventGroupSetBits(event_group, CONNECT_BIT);
 
-        ESP_LOGD(TAG, "GOT ip event!!!");
-    } else if (event_id == IP_EVENT_PPP_LOST_IP) {
-        ESP_LOGD(TAG, "Modem Disconnect from PPP Server");
-        global_modem_component->state_ = ModemComponentState::STOPPED;
-    }
-
+    ESP_LOGD(TAG, "GOT ip event!!!");
+  } else if (event_id == IP_EVENT_PPP_LOST_IP) {
+    ESP_LOGD(TAG, "Modem Disconnect from PPP Server");
+    global_modem_component->state_ = ModemComponentState::STOPPED;
+  }
 }
-
 
 void ModemComponent::start_connect_() {
   this->connect_begin_ = millis();
@@ -339,27 +323,26 @@ void ModemComponent::start_connect_() {
   esp_modem_hard_reset();
   esp_err_t err;
   err = esp_netif_set_hostname(this->modem_netif_, App.get_name().c_str());
-  if (err != ERR_OK) {    
+  if (err != ERR_OK) {
     ESP_LOGD(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   }
-  
 
   // esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
 
-  //restart ppp connection
+  // restart ppp connection
   dce->exit_data();
   int rssi, ber;
   esp_modem::command_result errr = dce->get_signal_quality(rssi, ber);
-  //esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
+  // esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
   if (errr != esp_modem::command_result::OK) {
-      ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
-      return;
+    ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
+    return;
   }
   ESP_LOGD(TAG, "Signal quality: rssi=%d, ber=%d", rssi, ber);
   dce->set_data();
 
-  //vTaskDelay(15000);
-  // this->status_set_warning();
+  // vTaskDelay(15000);
+  //  this->status_set_warning();
 }
 
 bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
@@ -367,7 +350,24 @@ bool ModemComponent::is_connected() { return this->state_ == ModemComponentState
 void ModemComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
 void ModemComponent::set_reset_pin(int reset_pin) { this->reset_pin_ = reset_pin; }
-
+void ModemComponent::set_apn(const std::string &apn) { this->apn_ = apn; }
+void ModemComponent::set_tx_pin(int tx_pin) { this->tx_pin_ = tx_pin; }
+void ModemComponent::set_rx_pin(int rx_pin) { this->rx_pin_ = rx_pin; }
+void ModemComponent::set_uart_event_task_stack_size(int uart_event_task_stack_size) {
+  this->uart_event_task_stack_size_ = uart_event_task_stack_size;
+}
+void ModemComponent::set_uart_event_task_priority(int uart_event_task_priority) {
+  this->uart_event_task_priority_ = uart_event_task_priority;
+}
+void ModemComponent::set_uart_event_queue_size(int uart_event_queue_size) {
+  this->uart_event_queue_size_ = uart_event_queue_size;
+}
+void ModemComponent::set_uart_tx_buffer_size(int uart_tx_buffer_size) {
+  this->uart_tx_buffer_size_ = uart_tx_buffer_size;
+}
+void ModemComponent::set_uart_rx_buffer_size(int uart_rx_buffer_size) {
+  this->uart_rx_buffer_size_ = uart_rx_buffer_size;
+}
 
 std::string ModemComponent::get_use_address() const {
   if (this->use_address_.empty()) {
