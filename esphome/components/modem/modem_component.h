@@ -46,6 +46,7 @@ class ModemComponent : public Component {
 
   void set_power_pin(int power_pin);
   void set_type(ModemType type);
+  void set_reset_pin(int reset_pin);
   //void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
   //void set_manual_ip(const ManualIP &manual_ip);
 
@@ -59,9 +60,11 @@ class ModemComponent : public Component {
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
   void start_connect_();
+  void esp_modem_hard_reset();
 
   std::string use_address_;
   int power_pin_{-1};
+  int reset_pin_{-1};
   ModemType type_{MODEM_TYPE_UNKNOWN};
   optional<ManualIP> manual_ip_{};
 

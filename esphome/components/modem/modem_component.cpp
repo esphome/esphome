@@ -67,15 +67,15 @@ void print_netif_flags(esp_netif_flags_t flags) {
 }
 
 #include "driver/gpio.h"
-void esp_modem_hard_reset()
+void ModemComponent::esp_modem_hard_reset()
 {
-    gpio_set_direction(GPIO_NUM_23, GPIO_MODE_OUTPUT);  
-    //gpio_pullup_en(GPIO_NUM_23);
-    gpio_set_level(GPIO_NUM_23, 0);
-    ESP_LOGD(TAG, "GPIO_NUM_23 0");
+    gpio_set_direction(gpio_num_t(this->reset_pin_), GPIO_MODE_OUTPUT);  
+    //gpio_pullup_en(reset_pin_);
+    gpio_set_level(gpio_num_t(this->reset_pin_), 0);
+    ESP_LOGD(TAG, "reset_pin_ 0");
     vTaskDelay(50);
-    gpio_set_level(GPIO_NUM_23, 1);
-    ESP_LOGD(TAG, "GPIO_NUM_23 1");
+    gpio_set_level(gpio_num_t(this->reset_pin_), 1);
+    ESP_LOGD(TAG, "reset_pin_ 1");
     vTaskDelay(2000);
     time_hard_reset_modem = millis();
 }
@@ -366,6 +366,7 @@ bool ModemComponent::is_connected() { return this->state_ == ModemComponentState
 
 void ModemComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
+void ModemComponent::set_reset_pin(int reset_pin) { this->reset_pin_ = reset_pin; }
 
 
 std::string ModemComponent::get_use_address() const {
