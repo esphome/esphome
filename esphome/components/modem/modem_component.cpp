@@ -1,12 +1,3 @@
-// #define CONFIG_MODEM_PPP_APN "internet"
-// #define CONFIG_MODEM_UART_TX_PIN 25
-// #define CONFIG_MODEM_UART_RX_PIN 26
-// #define CONFIG_MODEM_UART_EVENT_TASK_STACK_SIZE 2048
-// #define CONFIG_MODEM_UART_EVENT_TASK_PRIORITY 5
-// #define CONFIG_MODEM_UART_EVENT_QUEUE_SIZE 30
-// #define CONFIG_MODEM_UART_TX_BUFFER_SIZE 512
-// #define CONFIG_MODEM_UART_RX_BUFFER_SIZE 1024
-
 #include "esp_modem_c_api_types.h"
 #include "esp_netif_ppp.h"
 #include "cxx_include/esp_modem_api.hpp"
@@ -21,6 +12,7 @@
 #ifdef USE_ESP32
 
 #include <cinttypes>
+#include "driver/gpio.h"
 #include <lwip/dns.h>
 #include "esp_event.h"
 
@@ -37,10 +29,6 @@ uint32_t time_check_rssi = 0;
 namespace esphome {
 namespace modem {
 
-static EventGroupHandle_t event_group = NULL;
-static const int CONNECT_BIT = BIT0;
-static const int GOT_DATA_BIT = BIT2;
-static const int USB_DISCONNECTED_BIT = BIT3;
 static const char *const TAG = "modem";
 
 ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -53,49 +41,6 @@ ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-c
   }
 
 ModemComponent::ModemComponent() { global_modem_component = this; }
-void print_netif_flags(esp_netif_flags_t flags) {
-  // Check each flag and print its presecommand_lib%s", (flags & ESP_NETIF_DHCP_CLIENT) ? "true" : "false");
-  ESP_LOGD(TAG, "ESP_NETIF_DHCP_SERVER: %s", (flags & ESP_NETIF_DHCP_SERVER) ? "true" : "false");
-  ESP_LOGD(TAG, "ESP_NETIF_FLAG_AUTOUP: %s", (flags & ESP_NETIF_FLAG_AUTOUP) ? "true" : "false");
-  ESP_LOGD(TAG, "ESP_NETIF_FLAG_GARP: %s", (flags & ESP_NETIF_FLAG_GARP) ? "true" : "false");
-  ESP_LOGD(TAG, "ESP_NETIF_FLAG_EVENT_IP_MODIFIED: %s", (flags & ESP_NETIF_FLAG_EVENT_IP_MODIFIED) ? "true" : "false");
-  ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_PPP: %s", (flags & ESP_NETIF_FLAG_IS_PPP) ? "true" : "false");
-  ESP_LOGD(TAG, "ESP_NETIF_FLAG_IS_SLIP: %s", (flags & ESP_NETIF_FLAG_IS_SLIP) ? "true" : "false");
-  ESP_LOGD(TAG, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-}
-
-#include "driver/gpio.h"
-void ModemComponent::esp_modem_hard_reset() {
-  gpio_set_direction(gpio_num_t(this->reset_pin_), GPIO_MODE_OUTPUT);
-  // gpio_pullup_en(reset_pin_);
-  gpio_set_level(gpio_num_t(this->reset_pin_), 0);
-  ESP_LOGD(TAG, "reset_pin_ 0");
-  vTaskDelay(50);
-  gpio_set_level(gpio_num_t(this->reset_pin_), 1);
-  ESP_LOGD(TAG, "reset_pin_ 1");
-  vTaskDelay(2000);
-  time_hard_reset_modem = millis();
-}
-
-int get_rssi() {
-  int rssi = 0, ber = 0;
-  esp_modem::command_result errr = dce->get_signal_quality(rssi, ber);
-  // esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
-  if (errr != esp_modem::command_result::OK) {
-    ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
-  }
-  return rssi;
-}
-
-int get_modem_voltage() {
-  int voltage = 0, bcs = 0, bcl = 0;
-  dce->set_cmux();
-  esp_modem::command_result errr = dce->get_battery_status(voltage, bcs, bcl);
-  if (errr != esp_modem::command_result::OK) {
-    ESP_LOGE(TAG, "get_battery_status failed with");
-  }
-  return voltage;
-}
 
 // setup
 void ModemComponent::setup() {
@@ -121,17 +66,13 @@ void ModemComponent::setup() {
   ESP_LOGCONFIG(TAG, "Initing netif");
 
   esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::got_ip_event_handler, NULL);
-  // esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_changed, NULL);
 
   /* Configure the PPP netif */
-
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_.c_str());
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->modem_netif_ = esp_netif_new(&netif_ppp_config);
-  // esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
   assert(this->modem_netif_);
   ESP_LOGD(TAG, "netif create succes");
-  event_group = xEventGroupCreate();
 
   /* Configure the DTE */
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -147,24 +88,9 @@ void ModemComponent::setup() {
 
   ESP_LOGD(TAG, "Initializing esp_modem");
   dte = esp_modem::create_uart_dte(&dte_config);
-  // esp_modem_dce_t *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM800, &dte_config, &dce_config, this->modem_netif_);
   dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
 
-  xEventGroupClearBits(event_group, CONNECT_BIT | GOT_DATA_BIT | USB_DISCONNECTED_BIT);
-  /* Run the modem demo app */
-  // return;
-
   esp_netif_flags_t flags = esp_netif_get_flags(this->modem_netif_);
-  print_netif_flags(flags);
-
-  // set data mode
-  // dce->set_data();
-
-  // this->modem_netif_->
-  /* Wait for IP address */
-  // ESP_LOGI(TAG, "Waiting for IP address");
-  // xEventGroupWaitBits(event_group, CONNECT_BIT | USB_DISCONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
-  // vTaskDelay(15000);
 }
 
 void ModemComponent::loop() {
@@ -192,11 +118,8 @@ void ModemComponent::loop() {
       default:
         break;
     }
-    // ESP_LOGI(TAG, "SIgnal quality: rssi=%d", get_rssi());
   }
-
   this->started_ = true;
-
   switch (this->state_) {
     case ModemComponentState::STOPPED:
       if (time_check_rssi + TIME_TO_START_MODEM < now) {
@@ -219,34 +142,38 @@ void ModemComponent::loop() {
       break;
     case ModemComponentState::CONNECTED:
       break;
-
-      //     if (!this->started_) {
-      //       ESP_LOGI(TAG, "Stopped modem connection");
-      //       this->state_ = ModemComponentState::STOPPED;
-      //     } else if (this->connected_) {
-      //       // connection established
-      //       ESP_LOGI(TAG, "Connected via Modem!");
-      //       this->state_ = ModemComponentState::CONNECTED;
-
-      //       //this->dump_connect_params_();
-      //       this->status_clear_warning();
-      //     } else if (now - this->connect_begin_ > 40000) {
-      //       ESP_LOGW(TAG, "Connecting via modem failed! Re-connecting...");
-      //       this->start_connect_();
-      //       dce->set_data_mode();
-      //     }
-      //     break;
-      //   case ModemComponentState::CONNECTED:
-      //     if (!this->started_) {
-      //       ESP_LOGI(TAG, "Stopped modem connection");
-      //       this->state_ = ModemComponentState::STOPPED;
-      //     } else if (!this->connected_) {
-      //       ESP_LOGW(TAG, "Connection via Modem lost! Re-connecting...");
-      //       this->state_ = ModemComponentState::CONNECTING;
-      //       this->start_connect_();
-      //     }
-      //     break;
   }
+}
+
+void ModemComponent::esp_modem_hard_reset() {
+  gpio_set_direction(gpio_num_t(this->reset_pin_), GPIO_MODE_OUTPUT);
+  // gpio_pullup_en(reset_pin_);
+  gpio_set_level(gpio_num_t(this->reset_pin_), 0);
+  ESP_LOGD(TAG, "reset_pin_ 0");
+  vTaskDelay(pdMS_TO_TICKS(50));  // NOLINT
+  gpio_set_level(gpio_num_t(this->reset_pin_), 1);
+  ESP_LOGD(TAG, "reset_pin_ 1");
+  time_hard_reset_modem = millis();
+}
+
+int ModemComponent::get_rssi() {
+  int rssi = 0, ber = 0;
+  esp_modem::command_result errr = dce->get_signal_quality(rssi, ber);
+  // esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
+  if (errr != esp_modem::command_result::OK) {
+    ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
+  }
+  return rssi;
+}
+
+int ModemComponent::get_modem_voltage() {
+  int voltage = 0, bcs = 0, bcl = 0;
+  dce->set_cmux();
+  esp_modem::command_result errr = dce->get_battery_status(voltage, bcs, bcl);
+  if (errr != esp_modem::command_result::OK) {
+    ESP_LOGE(TAG, "get_battery_status failed with");
+  }
+  return voltage;
 }
 
 float ModemComponent::get_setup_priority() const { return setup_priority::WIFI; }
@@ -259,40 +186,11 @@ network::IPAddress ModemComponent::get_ip_address() {
   return network::IPAddress(&ip.ip);
 }
 
-void ModemComponent::modem_event_handler(void *arg, esp_event_base_t event_base, int32_t event, void *event_data) {
-  const char *event_name;
-
-  switch (event) {
-    case ETHERNET_EVENT_START:
-      event_name = "ETH started";
-      global_modem_component->started_ = true;
-      break;
-    case ETHERNET_EVENT_STOP:
-      event_name = "ETH stopped";
-      global_modem_component->started_ = false;
-      global_modem_component->connected_ = false;
-      break;
-    case ETHERNET_EVENT_CONNECTED:
-      event_name = "ETH connected";
-      break;
-    case ETHERNET_EVENT_DISCONNECTED:
-      event_name = "ETH disconnected";
-      global_modem_component->connected_ = false;
-      break;
-    default:
-      return;
-  }
-
-  ESP_LOGV(TAG, "[Modem event] %s (num=%" PRId32 ")", event_name, event);
-}
-
 void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-  xEventGroupSetBits(event_group, CONNECT_BIT);
-  global_modem_component->connected_ = true;
-  global_modem_component->state_ = ModemComponentState::CONNECTED;
-
   ESP_LOGD(TAG, "IP event! %" PRIu32, event_id);
   if (event_id == IP_EVENT_PPP_GOT_IP) {
+    global_modem_component->connected_ = true;
+    global_modem_component->state_ = ModemComponentState::CONNECTED;
     esp_netif_dns_info_t dns_info;
 
     ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
@@ -308,7 +206,6 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
     esp_netif_get_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info);
     ESP_LOGI(TAG, "Name Server2: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
     ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
-    xEventGroupSetBits(event_group, CONNECT_BIT);
 
     ESP_LOGD(TAG, "GOT ip event!!!");
   } else if (event_id == IP_EVENT_PPP_LOST_IP) {
@@ -341,7 +238,6 @@ void ModemComponent::start_connect_() {
   ESP_LOGD(TAG, "Signal quality: rssi=%d, ber=%d", rssi, ber);
   dce->set_data();
 
-  // vTaskDelay(15000);
   //  this->status_set_warning();
 }
 
@@ -377,21 +273,6 @@ std::string ModemComponent::get_use_address() const {
 }
 
 void ModemComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
-
-bool ModemComponent::powerdown() {
-  // ESP_LOGI(TAG, "Powering down modem PHY");
-  // if (this->phy_ == nullptr) {
-  //   ESP_LOGE(TAG, "Modem PHY not assigned");
-  //   return false;
-  // }
-  // this->connected_ = false;
-  // this->started_ = false;
-  // if (this->phy_->pwrctl(this->phy_, false) != ESP_OK) {
-  //   ESP_LOGE(TAG, "Error powering down modem PHY");
-  //   return false;
-  // }
-  return true;
-}
 
 }  // namespace modem
 }  // namespace esphome

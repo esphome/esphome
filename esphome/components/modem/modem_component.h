@@ -20,14 +20,6 @@ enum ModemType {
   MODEM_TYPE_SIM7070,
 };
 
-struct ManualIP {
-  network::IPAddress static_ip;
-  network::IPAddress gateway;
-  network::IPAddress subnet;
-  network::IPAddress dns1;  ///< The first DNS server. 0.0.0.0 for default.
-  network::IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
-};
-
 enum class ModemComponentState {
   STOPPED,
   CONNECTING,
@@ -41,7 +33,6 @@ class ModemComponent : public Component {
   void loop() override;
   float get_setup_priority() const override;
   bool can_proceed() override;
-  void on_shutdown() override { powerdown(); }
   bool is_connected();
 
   void set_power_pin(int power_pin);
@@ -62,11 +53,12 @@ class ModemComponent : public Component {
   bool powerdown();
 
  protected:
-  static void modem_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
   void start_connect_();
   void esp_modem_hard_reset();
+  int get_rssi();
+  int get_modem_voltage();
 
   ModemType type_{MODEM_TYPE_UNKNOWN};
   int power_pin_{-1};

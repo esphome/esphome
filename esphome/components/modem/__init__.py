@@ -34,30 +34,7 @@ MODEM_TYPES = {
     "SIM7070": ModemType.MODEM_TYPE_SIM7070,
 }
 
-# emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
-# emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
-# CLK_MODES = {
-#     "GPIO0_IN": (
-#         emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
-#         emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO,
-#     ),
-#     "GPIO0_OUT": (
-#         emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-#         emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO,
-#     ),
-#     "GPIO16_OUT": (
-#         emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-#         emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO,
-#     ),
-#     "GPIO17_OUT": (
-#         emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-#         emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO,
-#     ),
-# }
-
-
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
-# ManualIP = ethernet_ns.struct("ManualIP")
 
 
 def _validate(config):
@@ -92,7 +69,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
     cg.add(var.set_type(config[CONF_TYPE]))
     cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
     cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
@@ -104,12 +80,9 @@ async def to_code(config):
     cg.add(var.set_uart_event_task_priority(config[CONF_UART_EVENT_TASK_PRIORITY]))
     cg.add(var.set_uart_event_queue_size(config[CONF_UART_EVENT_QUEUE_SIZE]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
-
     cg.add_define("USE_MODEM")
-
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
-
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
         add_idf_component(
