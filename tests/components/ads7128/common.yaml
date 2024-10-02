@@ -1,0 +1,42 @@
+i2c:
+  id: i2c_bus
+  sda: ${i2c_sda}
+  scl: ${i2c_scl}
+
+ads7128:
+  - id: ads7128_hub
+    address: 0x10
+    i2c_id: i2c_bus
+
+sensor:
+  - platform: ads7128
+    name: "My Single-Sample Sensor"
+    channel: 0
+    oversampling: 64
+    update_interval: 1s
+  - platform: ads7128
+    name: "My RMS Sensor"
+    channel: 1
+    oversampling: 64
+    rms: true
+    rms_samples: 16384
+    cycle_time: 1
+    update_interval: 5s
+
+binary_sensors:
+  - platform: gpio
+    name: "ads7128 Input #0"
+    pin:
+      ads7128: ads7128_hub
+      number: 0
+      mode: INPUT
+      inverted: false
+
+switch:
+  - platform: gpio
+    id: ads7128_hub_1
+    pin:
+      ads7128: ads7128_hub
+      number: 1
+      mode: OUTPUT
+      inverted: false
