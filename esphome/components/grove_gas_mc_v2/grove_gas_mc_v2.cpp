@@ -46,7 +46,7 @@ void GroveGasMultichannelV2Component::update() {
   uint32_t no2, ethanol, voc, co;
 
   // Read from each of the gas sensors
-  if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM102B, this->no2_sensor_))
+  if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM102B, this->nitrogen_dioxide_sensor_))
     return;
   if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM302B, this->ethanol_sensor_))
     return;
@@ -62,10 +62,10 @@ void GroveGasMultichannelV2Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Grove Multichannel Gas Sensor V2");
   LOG_I2C_DEVICE(this)
   LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "NO2 Sensor", this->no2_sensor_)
-  LOG_SENSOR("  ", "Ethanol Sensor", this->ethanol_sensor_)
-  LOG_SENSOR("  ", "CO2 Sensor", this->carbon_monoxide_sensor_)
-  LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_sensor_)
+  LOG_SENSOR("  ", "Nitrogen Dioxide", this->nitrogen_dioxide_sensor_)
+  LOG_SENSOR("  ", "Ethanol", this->ethanol_sensor_)
+  LOG_SENSOR("  ", "Carbon Monoxide", this->carbon_monoxide_sensor_)
+  LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_)
 
   if (this->is_failed()) {
     switch (this->error_code_) {

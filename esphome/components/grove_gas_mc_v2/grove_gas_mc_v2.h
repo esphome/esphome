@@ -11,7 +11,7 @@ namespace grove_gas_mc_v2 {
 class GroveGasMultichannelV2Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(tvoc)
   SUB_SENSOR(carbon_monoxide)
-  SUB_SENSOR(no2)
+  SUB_SENSOR(nitrogen_dioxide)
   SUB_SENSOR(ethanol)
 
  public:

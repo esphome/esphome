@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_CARBON_MONOXIDE,
     CONF_ETHANOL,
     CONF_ID,
-    CONF_NO2,
+    CONF_NITROGEN_DIOXIDE,
     CONF_TVOC,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
@@ -46,7 +46,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_CARBON_MONOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_NO2): sensor.sensor_schema(
+            cv.Optional(CONF_NITROGEN_DIOXIDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_GAS_CYLINDER,
                 accuracy_decimals=0,
@@ -71,7 +71,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    for key in [CONF_TVOC, CONF_CARBON_MONOXIDE, CONF_NO2, CONF_ETHANOL]:
+    for key in [CONF_TVOC, CONF_CARBON_MONOXIDE, CONF_NITROGEN_DIOXIDE, CONF_ETHANOL]:
         if sensor_config := config.get(key):
             sensor_ = await sensor.new_sensor(sensor_config)
             cg.add(getattr(var, f"set_{key}_sensor")(sensor_))

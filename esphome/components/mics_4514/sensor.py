@@ -1,20 +1,18 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-
-from esphome.components import sensor, i2c
-
 from esphome.const import (
-    CONF_ID,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
     CONF_CARBON_MONOXIDE,
     CONF_ETHANOL,
+    CONF_ID,
+    CONF_NITROGEN_DIOXIDE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PARTS_PER_MILLION,
 )
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2c"]
 
-CONF_NITROGEN_DIOXIDE = "nitrogen_dioxide"
 CONF_METHANE = "methane"
 CONF_HYDROGEN = "hydrogen"
 CONF_AMMONIA = "ammonia"
