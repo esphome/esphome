@@ -3,7 +3,6 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import sensor
 from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 from . import generate
 
