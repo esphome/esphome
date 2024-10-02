@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_NO2,
     CONF_TVOC,
     DEVICE_CLASS_CARBON_MONOXIDE,
-    DEVICE_CLASS_ETHANOL,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     ICON_AIR_FILTER,
@@ -16,7 +15,8 @@ from esphome.const import (
     ICON_GAS_CYLINDER,
     ICON_MOLECULE_CO,
     STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_MILLION,
 )
 
 CODEOWNERS = ["@YorkshireIoT"]
@@ -33,31 +33,30 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(GroveGasMultichannelV2Component),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_AIR_FILTER,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CARBON_MONOXIDE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_MONOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_NO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_GAS_CYLINDER,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_NITROGEN_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ETHANOL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_FLASK_ROUND_BOTTOM,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ETHANOL,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
