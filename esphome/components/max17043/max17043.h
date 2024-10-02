@@ -13,6 +13,7 @@ class MAX17043Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+  void sleep_mode();
 
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_battery_remaining_sensor(sensor::Sensor *battery_remaining_sensor) {

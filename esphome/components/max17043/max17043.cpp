@@ -15,6 +15,7 @@ static const uint8_t MAX17043_CONFIG = 0x0c;
 
 static const uint16_t MAX17043_CONFIG_POWER_UP_DEFAULT = 0x971C;
 static const uint16_t MAX17043_CONFIG_SAFE_MASK = 0xFF1F;  // mask out sleep bit (7), unused bit (6) and alert bit (4)
+static const uint16_t MAX17043_CONFIG_SLEEP_MASK = 0x0080;
 
 void MAX17043Component::update() {
   uint16_t raw_voltage, raw_percent;
@@ -64,6 +65,13 @@ void MAX17043Component::setup() {
     this->mark_failed();
     return;
   }
+
+  // need to write back to config register to reset the sleep bit
+  if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT)) {
+    this->status_set_error("sleep reset failed");
+    this->mark_failed();
+    return;
+  }
 }
 
 void MAX17043Component::dump_config() {
@@ -78,6 +86,15 @@ void MAX17043Component::dump_config() {
 }
 
 float MAX17043Component::get_setup_priority() const { return setup_priority::DATA; }
+
+void MAX17043Component::sleep_mode() {
+  if (!this->is_failed()) {
+    if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT | MAX17043_CONFIG_SLEEP_MASK)) {
+      ESP_LOGW(TAG, "Unable to write the sleep bit to config register");
+      this->status_set_warning();
+    }
+  }
+}
 
 bool MAX17043Component::read_data_(uint16_t *raw_voltage, uint16_t *raw_percent) {
   if (this->write(&MAX17043_VCELL, 1) != i2c::ERROR_OK) {
