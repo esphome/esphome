@@ -46,13 +46,13 @@ void GroveGasMultichannelV2Component::update() {
   uint32_t no2, ethanol, voc, co;
 
   // Read from each of the gas sensors
-  if (this->read_sensor_(GROVE_GAS_MC_V2_READ_GM102B, this->no2_sensor_))
+  if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM102B, this->no2_sensor_))
     return;
-  if (this->read_sensor_(GROVE_GAS_MC_V2_READ_GM302B, this->ethanol_sensor_))
+  if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM302B, this->ethanol_sensor_))
     return;
-  if (this->read_sensor_(GROVE_GAS_MC_V2_READ_GM502B, this->tvoc_sensor_))
+  if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM502B, this->tvoc_sensor_))
     return;
-  if (this->read_sensor_(GROVE_GAS_MC_V2_READ_GM702B, this->carbon_monoxide_sensor_))
+  if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM702B, this->carbon_monoxide_sensor_))
     return;
 
   this->status_clear_warning();
