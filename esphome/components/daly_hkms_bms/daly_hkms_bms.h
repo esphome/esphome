@@ -31,9 +31,9 @@ class DalyHkmsBmsComponent : public PollingComponent, public modbus::ModbusDevic
 
 #ifdef USE_SENSOR
   void set_cell_voltage_sensor(size_t cell, sensor::Sensor *sensor) { 
-    if(cell > this->cell_voltage_sensors_max_)
+    if (cell > this->cell_voltage_sensors_max_)
       this->cell_voltage_sensors_max_ = cell;
-    this->cell_voltage_sensors_[cell-1] = sensor; 
+    this->cell_voltage_sensors_[cell - 1] = sensor; 
   };
 
   SUB_SENSOR(voltage)
@@ -84,7 +84,7 @@ class DalyHkmsBmsComponent : public PollingComponent, public modbus::ModbusDevic
 
   void advance_read_state();
 
-  enum class ReadState{ READ_CELL_VOLTAGES, READ_DATA, IDLE } read_state_{ReadState::IDLE};
+  enum class ReadState { READ_CELL_VOLTAGES, READ_DATA, IDLE } read_state_{ReadState::IDLE};
 };
 
 }  // namespace daly_hkms_bms

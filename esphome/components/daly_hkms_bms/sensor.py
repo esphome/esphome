@@ -103,14 +103,17 @@ CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(
     accuracy_decimals=3,
 )
 
+
 def get_cell_voltage_key(cell):
     return f"cell_{cell}_voltage"
 
+
 def get_cell_voltages_schema():
     schema_obj = {}
-    for i in range(1, MAX_CELL_NUMBER+1):
+    for i in range(1, MAX_CELL_NUMBER + 1):
         schema_obj[cv.Optional(get_cell_voltage_key(i))] = CELL_VOLTAGE_SCHEMA
     return cv.Schema(schema_obj)
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -121,7 +124,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
@@ -226,10 +229,12 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
+
 async def setup_conf(config, key, hub):
     if sensor_config := config.get(key):
         sens = await sensor.new_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
+
 
 async def setup_cell_voltage_conf(config, cell, hub):
     key = get_cell_voltage_key(cell)
@@ -237,9 +242,10 @@ async def setup_cell_voltage_conf(config, cell, hub):
         sens = await sensor.new_sensor(sensor_config)
         cg.add(hub.set_cell_voltage_sensor(cell, sens))
 
+
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_DALY_HKMS_BMS_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)
-    for i in range(1, MAX_CELL_NUMBER+1):
+    for i in range(1, MAX_CELL_NUMBER + 1):
         await setup_cell_voltage_conf(config, i, hub)

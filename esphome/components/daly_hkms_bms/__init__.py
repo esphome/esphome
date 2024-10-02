@@ -14,16 +14,13 @@ DalyHkmsBmsComponent = daly_hkms_bms.class_(
     "DalyHkmsBmsComponent", cg.PollingComponent, modbus.ModbusDevice
 )
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(DalyHkmsBmsComponent),
-            cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.Modbus),
-            cv.Optional(CONF_ADDRESS, default=1): cv.positive_int,
-        }
-    )
-    .extend(cv.polling_component_schema("30s"))
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(DalyHkmsBmsComponent),
+        cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.Modbus),
+        cv.Optional(CONF_ADDRESS, default=1): cv.positive_int,
+    }
+).extend(cv.polling_component_schema("30s"))
 
 
 async def to_code(config):
