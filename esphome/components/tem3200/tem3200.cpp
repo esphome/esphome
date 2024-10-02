@@ -137,7 +137,7 @@ void TEM3200Component::update() {
 
   float temperature = convert_temperature(raw_temperature);
 
-  ESP_LOGD(TAG, "Got pressure=%draw temperature=%.1f°C", raw_pressure, temperature);
+  ESP_LOGD(TAG, "Got raw pressure=%d, temperature=%.1f°C", raw_pressure, temperature);
 
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
