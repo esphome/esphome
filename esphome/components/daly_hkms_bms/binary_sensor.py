@@ -19,9 +19,15 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_DALY_HKMS_BMS_ID): cv.use_id(DalyHkmsBmsComponent),
-            cv.Optional(CONF_CHARGING_MOS_ENABLED): binary_sensor.binary_sensor_schema(),
-            cv.Optional(CONF_DISCHARGING_MOS_ENABLED): binary_sensor.binary_sensor_schema(),
-            cv.Optional(CONF_PRECHARGING_MOS_ENABLED): binary_sensor.binary_sensor_schema(),
+            cv.Optional(
+                CONF_CHARGING_MOS_ENABLED
+            ): binary_sensor.binary_sensor_schema(),
+            cv.Optional(
+                CONF_DISCHARGING_MOS_ENABLED
+            ): binary_sensor.binary_sensor_schema(),
+            cv.Optional(
+                CONF_PRECHARGING_MOS_ENABLED
+            ): binary_sensor.binary_sensor_schema(),
             cv.Optional(CONF_BALANCING_ACTIVE): binary_sensor.binary_sensor_schema(),
         }
     ).extend(cv.COMPONENT_SCHEMA)
