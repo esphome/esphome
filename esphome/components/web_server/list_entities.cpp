@@ -48,7 +48,8 @@ bool ListEntitiesIterator::on_light(light::LightState *light) {
 bool ListEntitiesIterator::on_sensor(sensor::Sensor *sensor) {
   if (this->web_server_->events_.count() == 0)
     return true;
-  this->web_server_->events_.send(this->web_server_->sensor_json(sensor, sensor->state, DETAIL_ALL).c_str(), "init_entity");
+  this->web_server_->events_.send(this->web_server_->sensor_json(sensor, sensor->state, DETAIL_ALL).c_str(),
+                                  "init_entity");
   return true;
 }
 #endif
@@ -82,7 +83,8 @@ bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) 
 bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) {
   if (this->web_server_->events_.count() == 0)
     return true;
-  this->web_server_->events_.send(this->web_server_->lock_json(a_lock, a_lock->state, DETAIL_ALL).c_str(), "init_entity");
+  this->web_server_->events_.send(this->web_server_->lock_json(a_lock, a_lock->state, DETAIL_ALL).c_str(),
+                                  "init_entity");
   return true;
 }
 #endif
@@ -109,7 +111,8 @@ bool ListEntitiesIterator::on_climate(climate::Climate *climate) {
 bool ListEntitiesIterator::on_number(number::Number *number) {
   if (this->web_server_->events_.count() == 0)
     return true;
-  this->web_server_->events_.send(this->web_server_->number_json(number, number->state, DETAIL_ALL).c_str(), "init_entity");
+  this->web_server_->events_.send(this->web_server_->number_json(number, number->state, DETAIL_ALL).c_str(),
+                                  "init_entity");
   return true;
 }
 #endif
@@ -152,7 +155,8 @@ bool ListEntitiesIterator::on_text(text::Text *text) {
 bool ListEntitiesIterator::on_select(select::Select *select) {
   if (this->web_server_->events_.count() == 0)
     return true;
-  this->web_server_->events_.send(this->web_server_->select_json(select, select->state, DETAIL_ALL).c_str(), "init_entity");
+  this->web_server_->events_.send(this->web_server_->select_json(select, select->state, DETAIL_ALL).c_str(),
+                                  "init_entity");
   return true;
 }
 #endif
@@ -173,7 +177,8 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 bool ListEntitiesIterator::on_event(event::Event *event) {
   // Null event type, since we are just iterating over entities
   const std::string null_event_type = "";
-  this->web_server_->events_.send(this->web_server_->event_json(event, null_event_type, DETAIL_ALL).c_str(), "init_entity");
+  this->web_server_->events_.send(this->web_server_->event_json(event, null_event_type, DETAIL_ALL).c_str(),
+                                  "init_entity");
   return true;
 }
 #endif
