@@ -1,26 +1,26 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_ETHANOL,
     CONF_CARBON_MONOXIDE,
+    CONF_ETHANOL,
+    CONF_ID,
     CONF_NO2,
     CONF_TVOC,
     DEVICE_CLASS_CARBON_MONOXIDE,
-    DEVICE_CLASS_NITROGEN_DIOXIDE,
     DEVICE_CLASS_ETHANOL,
+    DEVICE_CLASS_NITROGEN_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
-    STATE_CLASS_MEASUREMENT,
     ICON_AIR_FILTER,
-    ICON_MOLECULE_CO,
     ICON_FLASK_ROUND_BOTTOM,
     ICON_GAS_CYLINDER,
+    ICON_MOLECULE_CO,
+    STATE_CLASS_MEASUREMENT,
     UNIT_EMPTY,
 )
 
-DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@YorkshireIoT"]
+DEPENDENCIES = ["i2c"]
 
 grove_gas_mc_v2_ns = cg.esphome_ns.namespace("grove_gas_mc_v2")
 
@@ -32,28 +32,28 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GroveGasMultichannelV2Component),
-            cv.Required(CONF_TVOC): sensor.sensor_schema(
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_AIR_FILTER,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_CARBON_MONOXIDE): sensor.sensor_schema(
+            cv.Optional(CONF_CARBON_MONOXIDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_MOLECULE_CO,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_MONOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_NO2): sensor.sensor_schema(
+            cv.Optional(CONF_NO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_GAS_CYLINDER,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_NITROGEN_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_ETHANOL): sensor.sensor_schema(
+            cv.Optional(CONF_ETHANOL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_FLASK_ROUND_BOTTOM,
                 accuracy_decimals=0,
@@ -72,14 +72,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    sens = await sensor.new_sensor(config[CONF_TVOC])
-    cg.add(var.set_tvoc(sens))
-
-    sens = await sensor.new_sensor(config[CONF_CARBON_MONOXIDE])
-    cg.add(var.set_carbon_monoxide(sens))
-
-    sens = await sensor.new_sensor(config[CONF_NO2])
-    cg.add(var.set_no2(sens))
-
-    sens = await sensor.new_sensor(config[CONF_ETHANOL])
-    cg.add(var.set_ethanol(sens))
+    for key in [CONF_TVOC, CONF_CARBON_MONOXIDE, CONF_NO2, CONF_ETHANOL]:
+        if sensor_config := config.get(key):
+            sensor_ = await sensor.new_sensor(sensor_config)
+            cg.add(getattr(var, f"set_{key}_sensor")(sensor_))
