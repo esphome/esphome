@@ -86,7 +86,7 @@ esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
-esphome/components/ch422g/* @jesterret
+esphome/components/ch422g/* @clydebarrow @jesterret
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
@@ -152,6 +152,7 @@ esphome/components/ft63x6/* @gpambrozio
 esphome/components/gcja5/* @gcormier
 esphome/components/gdk101/* @Szewcson
 esphome/components/globals/* @esphome/core
+esphome/components/gp2y1010au0f/* @zry98
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
 esphome/components/gpio/one_wire/* @ssieb
