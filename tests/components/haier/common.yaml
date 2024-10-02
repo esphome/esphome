@@ -16,7 +16,6 @@ climate:
     name: Haier AC
     wifi_signal: true
     answer_timeout: 200ms
-    beeper: true
     visual:
       min_temperature: 16 °C
       max_temperature: 30 °C
@@ -38,7 +37,6 @@ climate:
     supported_presets:
       - AWAY
       - BOOST
-      - ECO
       - SLEEP
     on_alarm_start:
       then:
@@ -112,3 +110,15 @@ text_sensor:
       name: Haier cleaning status
     protocol_version:
       name: Haier protocol version
+
+switch:
+  - platform: haier
+    haier_id: haier_ac
+    beeper:
+      name: Haier beeper
+    display:
+      name: Haier display
+    health_mode:
+      name: Haier health mode
+    quiet_mode:
+      name: Haier quiet mode

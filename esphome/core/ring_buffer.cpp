@@ -11,16 +11,26 @@ namespace esphome {
 
 static const char *const TAG = "ring_buffer";
 
+RingBuffer::~RingBuffer() {
+  if (this->handle_ != nullptr) {
+    vStreamBufferDelete(this->handle_);
+    ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    allocator.deallocate(this->storage_, this->size_);
+  }
+}
+
 std::unique_ptr<RingBuffer> RingBuffer::create(size_t len) {
   std::unique_ptr<RingBuffer> rb = make_unique<RingBuffer>();
 
+  rb->size_ = len + 1;
+
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  rb->storage_ = allocator.allocate(len + 1);
+  rb->storage_ = allocator.allocate(rb->size_);
   if (rb->storage_ == nullptr) {
     return nullptr;
   }
 
-  rb->handle_ = xStreamBufferCreateStatic(len + 1, 1, rb->storage_, &rb->structure_);
+  rb->handle_ = xStreamBufferCreateStatic(rb->size_, 1, rb->storage_, &rb->structure_);
   ESP_LOGD(TAG, "Created ring buffer with size %u", len);
   return rb;
 }

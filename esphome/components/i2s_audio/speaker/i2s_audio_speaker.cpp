@@ -83,7 +83,7 @@ void I2SAudioSpeaker::player_task(void *params) {
       .sample_rate = this_speaker->sample_rate_,
       .bits_per_sample = this_speaker->bits_per_sample_,
       .channel_format = this_speaker->channel_,
-      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+      .communication_format = this_speaker->i2s_comm_fmt_,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 8,
       .dma_buf_len = 256,
