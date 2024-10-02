@@ -43,10 +43,10 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   bool secure_{false};
 };
 
-class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string> {
+class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
  public:
-  void process(std::shared_ptr<HttpContainer> container, std::string response_body) {
-    this->trigger(std::move(container), std::move(response_body));
+  void process(std::shared_ptr<HttpContainer> container, std::string &response_body) {
+    this->trigger(std::move(container), response_body);
   }
 };
 
@@ -80,7 +80,7 @@ class HttpRequestComponent : public Component {
   const char *useragent_{nullptr};
   bool follow_redirects_;
   uint16_t redirect_limit_;
-  uint16_t timeout_{5000};
+  uint16_t timeout_{4500};
   uint32_t watchdog_timeout_{0};
 };
 
@@ -149,11 +149,21 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
         }
         response_body.reserve(read_index);
         response_body.assign((char *) buf, read_index);
+        allocator.deallocate(buf, max_length);
       }
     }
 
-    for (auto *trigger : this->response_triggers_) {
-      trigger->process(container, response_body);
+    if (this->response_triggers_.size() == 1) {
+      // if there is only one trigger, no need to copy the response body
+      this->response_triggers_[0]->process(container, response_body);
+    } else {
+      for (auto *trigger : this->response_triggers_) {
+        // with multiple triggers, pass a copy of the response body to each
+        // one so that modifications made in one trigger are not visible to
+        // the others
+        auto response_body_copy = std::string(response_body);
+        trigger->process(container, response_body_copy);
+      }
     }
     container->end();
   }

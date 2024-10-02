@@ -92,7 +92,7 @@ rp2040:
   board: {board}
   framework:
     # Required until https://github.com/platformio/platform-raspberrypi/pull/36 is merged
-    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git#5e87ae34ca025274df25b3303e9e9cb6c120123c
 """
 
 BK72XX_CONFIG = """
@@ -276,8 +276,8 @@ def wizard(path):
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
-    from esphome.components.rtl87xx import boards as rtl87xx_boards
     from esphome.components.rp2040 import boards as rp2040_boards
+    from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
