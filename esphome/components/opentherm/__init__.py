@@ -36,13 +36,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DHW_BLOCK, False): cv.boolean,
             cv.Optional(CONF_SYNC_MODE, False): cv.boolean,
         }
-    )
-    .extend(
-        validate.create_entities_schema(
-            schema.INPUTS, (lambda _: cv.use_id(sensor.Sensor))
-        )
-    )
-    .extend(cv.COMPONENT_SCHEMA),
+    ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 
@@ -59,23 +53,8 @@ async def to_code(config: dict[str, Any]) -> None:
     cg.add(var.set_out_pin(out_pin))
 
     non_sensors = {CONF_ID, CONF_IN_PIN, CONF_OUT_PIN}
-    input_sensors = []
     for key, value in config.items():
         if key in non_sensors:
             continue
-        if key in schema.INPUTS:
-            input_sensor = await cg.get_variable(value)
-            cg.add(
-                getattr(var, f"set_{key}_{const.INPUT_SENSOR.lower()}")(input_sensor)
-            )
-            input_sensors.append(key)
-        else:
-            cg.add(getattr(var, f"set_{key}")(value))
 
-    if len(input_sensors) > 0:
-        generate.define_has_component(const.INPUT_SENSOR, input_sensors)
-        generate.define_message_handler(
-            const.INPUT_SENSOR, input_sensors, schema.INPUTS
-        )
-        generate.define_readers(const.INPUT_SENSOR, input_sensors)
-        generate.add_messages(var, input_sensors, schema.INPUTS)
+        cg.add(getattr(var, f"set_{key}")(value))

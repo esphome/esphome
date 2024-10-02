@@ -6,7 +6,7 @@ from esphome.const import CONF_ID
 from . import const
 from .schema import TSchema
 
-opentherm_ns = cg.esphome_ns.namespace("esphome::opentherm")
+opentherm_ns = cg.esphome_ns.namespace("opentherm")
 OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
 
 

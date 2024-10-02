@@ -11,22 +11,6 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-#ifdef OPENTHERM_USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
-
-#ifdef OPENTHERM_USE_SWITCH
-#include "esphome/components/opentherm/switch/switch.h"
-#endif
-
-#ifdef OPENTHERM_USE_OUTPUT
-#include "esphome/components/opentherm/output/output.h"
-#endif
-
-#ifdef OPENTHERM_USE_NUMBER
-#include "esphome/components/opentherm/number/number.h"
-#endif
-
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -46,16 +30,6 @@ class OpenthermHub : public Component {
   std::unique_ptr<OpenTherm> opentherm_;
 
   OPENTHERM_SENSOR_LIST(OPENTHERM_DECLARE_SENSOR, )
-
-  OPENTHERM_BINARY_SENSOR_LIST(OPENTHERM_DECLARE_BINARY_SENSOR, )
-
-  OPENTHERM_SWITCH_LIST(OPENTHERM_DECLARE_SWITCH, )
-
-  OPENTHERM_NUMBER_LIST(OPENTHERM_DECLARE_NUMBER, )
-
-  OPENTHERM_OUTPUT_LIST(OPENTHERM_DECLARE_OUTPUT, )
-
-  OPENTHERM_INPUT_SENSOR_LIST(OPENTHERM_DECLARE_INPUT_SENSOR, )
 
   // The set of initial messages to send on starting communication with the boiler
   std::unordered_set<MessageId> initial_messages_;
@@ -113,16 +87,6 @@ class OpenthermHub : public Component {
   void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin_ = out_pin; }
 
   OPENTHERM_SENSOR_LIST(OPENTHERM_SET_SENSOR, )
-
-  OPENTHERM_BINARY_SENSOR_LIST(OPENTHERM_SET_BINARY_SENSOR, )
-
-  OPENTHERM_SWITCH_LIST(OPENTHERM_SET_SWITCH, )
-
-  OPENTHERM_NUMBER_LIST(OPENTHERM_SET_NUMBER, )
-
-  OPENTHERM_OUTPUT_LIST(OPENTHERM_SET_OUTPUT, )
-
-  OPENTHERM_INPUT_SENSOR_LIST(OPENTHERM_SET_INPUT_SENSOR, )
 
   // Add a request to the set of initial requests
   void add_initial_message(MessageId message_id) { this->initial_messages_.insert(message_id); }

@@ -92,26 +92,8 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch"
 
-  // Next, we start with the write requests from switches and other inputs,
-  // because we would want to write that data if it is available, rather than
-  // request a read for that type (in the case that both read and write are
-  // supported).
-  switch (request_id) {
-    OPENTHERM_SWITCH_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-    OPENTHERM_NUMBER_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-    OPENTHERM_OUTPUT_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                      OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-    OPENTHERM_INPUT_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_WRITE_MESSAGE, OPENTHERM_MESSAGE_WRITE_ENTITY, ,
-                                            OPENTHERM_MESSAGE_WRITE_POSTSCRIPT, )
-  }
-
-  // Finally, handle the simple read requests, which only change with the message id.
   switch (request_id) { OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , ) }
-  switch (request_id) {
-    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , )
-  }
+
 #pragma GCC diagnostic pop
 
   // And if we get here, a message was requested which somehow wasn't handled.
@@ -132,10 +114,6 @@ void OpenthermHub::process_response(OpenthermData &data) {
   switch (data.id) {
     OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
                                       OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
-  }
-  switch (data.id) {
-    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
-                                             OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
   }
 }
 
