@@ -110,6 +110,8 @@ void WebServer::setup() {
   }
 #endif
 
+  this->base_->add_handler(this);
+
   if (this->allow_ota_)
     this->base_->add_ota_handler();
 
