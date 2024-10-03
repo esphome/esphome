@@ -7,11 +7,12 @@
 namespace esphome {
 namespace web_server {
 
+class DeferredUpdateEventSource;
 class WebServer;
 
 class ListEntitiesIterator : public ComponentIterator {
  public:
-  ListEntitiesIterator(WebServer *web_server);
+  ListEntitiesIterator(WebServer *ws, DeferredUpdateEventSource *es);
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) override;
 #endif
@@ -75,6 +76,7 @@ class ListEntitiesIterator : public ComponentIterator {
 
  protected:
   WebServer *web_server_;
+  DeferredUpdateEventSource *es_;
 };
 
 }  // namespace web_server

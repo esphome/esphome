@@ -1,0 +1,71 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\nkinnan\\Documents\\git\\esphome\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\web_server.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:esphome\\components\\web_server\\web_server.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\web_server.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:esphome\\components\\web_server\\web_server.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\list_entities.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:esphome\\components\\web_server\\list_entities.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "web_server.h",
+              "DocumentMoniker": "C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\web_server.h",
+              "RelativeDocumentMoniker": "esphome\\components\\web_server\\web_server.h",
+              "ToolTip": "C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\web_server.h",
+              "RelativeToolTip": "esphome\\components\\web_server\\web_server.h",
+              "ViewState": "AgIAAEcBAAAAAAAAAAAAAFoBAAAUAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2024-10-01T05:50:35.412Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "list_entities.cpp",
+              "DocumentMoniker": "C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\list_entities.cpp",
+              "RelativeDocumentMoniker": "esphome\\components\\web_server\\list_entities.cpp",
+              "ToolTip": "C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\list_entities.cpp",
+              "RelativeToolTip": "esphome\\components\\web_server\\list_entities.cpp",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2024-10-01T05:50:01.018Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "web_server.cpp",
+              "DocumentMoniker": "C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\web_server.cpp",
+              "RelativeDocumentMoniker": "esphome\\components\\web_server\\web_server.cpp",
+              "ToolTip": "C:\\Users\\nkinnan\\Documents\\git\\esphome\\esphome\\components\\web_server\\web_server.cpp",
+              "RelativeToolTip": "esphome\\components\\web_server\\web_server.cpp",
+              "ViewState": "AgIAAFYAAAAAAAAAAAD4v2kAAAAOAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2024-10-01T05:44:15.492Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\esphome",
+    "\\esphome\\components",
+    "\\esphome\\components\\api",
+    "\\esphome\\components\\web_server"
+  ],
+  "SelectedNode": "\\esphome\\components\\web_server\\web_server.h",
+  "PreviewInSolutionExplorer": false
+}

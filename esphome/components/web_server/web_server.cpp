@@ -1,5 +1,5 @@
 #include "web_server.h"
-#ifdef USE_WEBSERVER
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -73,7 +73,7 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 WebServer::WebServer(web_server_base::WebServerBase *base)
-    : base_(base), entities_iterator_(ListEntitiesIterator(this)) {
+    : base_(base) {
 #ifdef USE_ESP32
   to_schedule_lock_ = xSemaphoreCreateMutex();
 #endif
@@ -101,26 +101,20 @@ void WebServer::setup() {
   this->setup_controller(this->include_internal_);
   this->base_->init();
 
-  this->events_.onConnect([this](AsyncEventSourceClient *client) {
-    // Configure reconnect timeout and send config
-    client->send(this->get_config_json().c_str(), "ping", millis(), 30000);
-
-    this->entities_iterator_.begin(this->include_internal_);
-  });
-
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
     logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
+      // logs are not deferred, the memory overhead would be too large
+      [this](int level, const char *tag, const char *message) { this->events_list_.try_send_nodefer(message, "log", millis()); 
+    });
   }
 #endif
-  this->base_->add_handler(&this->events_);
-  this->base_->add_handler(this);
 
   if (this->allow_ota_)
     this->base_->add_ota_handler();
 
-  this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
+  // doesn't need defer functionality - if the queue is full, it's because messages are being received, so the client JS knows it's alive
+  this->set_interval(10000, [this]() { this->events_list_.try_send_nodefer("", "ping", millis(), 30000); });
 }
 void WebServer::loop() {
 #ifdef USE_ESP32
@@ -139,7 +133,8 @@ void WebServer::loop() {
     }
   }
 #endif
-  this->entities_iterator_.advance();
+
+  this->events_list_.loop();
 }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
@@ -211,24 +206,19 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [this, event]() { return sensor_json((sensor::Sensor*)(event->source_), ((sensor::Sensor*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->sensor_json(obj, obj->state, detail);
-      request->send(200, "application/json", data.c_str());
-      return;
-    }
+    std::string data = this->sensor_json(obj, obj->state, DETAIL_STATE);
+    request->send(200, "application/json", data.c_str());
+    return;
   }
   request->send(404);
 }
@@ -256,24 +246,19 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->text_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [this, event]() { return text_sensor_json((text_sensor::TextSensor*)(event->source_), ((text_sensor::TextSensor*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->text_sensor_json(obj, obj->state, detail);
-      request->send(200, "application/json", data.c_str());
-      return;
-    }
+    std::string data = this->text_sensor_json(obj, obj->state, DETAIL_STATE);
+    request->send(200, "application/json", data.c_str());
+    return;
   }
   request->send(404);
 }
@@ -292,9 +277,11 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 
 #ifdef USE_SWITCH
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->switch_json(obj, state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [this, event]() { return switch_json((switch_::Switch*)(event->source_), ((switch_::Switch*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
@@ -302,12 +289,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->switch_json(obj, obj->state, detail);
+      std::string data = this->switch_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->schedule_([obj]() { obj->toggle(); });
@@ -343,15 +325,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
   for (button::Button *obj : App.get_buttons()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->button_json(obj, detail);
-      request->send(200, "application/json", data.c_str());
-    } else if (match.method == "press") {
+    if (match.method == "press") {
       this->schedule_([obj]() { obj->press(); });
       request->send(200);
       return;
@@ -376,24 +350,19 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->binary_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return binary_sensor_json((binary_sensor::BinarySensor*)(event->source_), ((binary_sensor::BinarySensor*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->binary_sensor_json(obj, obj->state, detail);
-      request->send(200, "application/json", data.c_str());
-      return;
-    }
+    std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
+    request->send(200, "application/json", data.c_str());
+    return;
   }
   request->send(404);
 }
@@ -412,9 +381,11 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::Fan *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return fan_json((fan::Fan*)(event->source_), ((fan::Fan*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
@@ -422,12 +393,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->fan_json(obj, detail);
+      std::string data = this->fan_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->schedule_([obj]() { obj->toggle().perform(); });
@@ -495,9 +461,11 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->light_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return light_json((light::LightState*)(event->source_), ((light::LightState*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
@@ -505,12 +473,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->light_json(obj, detail);
+      std::string data = this->light_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->schedule_([obj]() { obj->toggle().perform(); });
@@ -611,9 +574,11 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->cover_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return cover_json((cover::Cover*)(event->source_), ((cover::Cover*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
@@ -621,14 +586,9 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->cover_json(obj, detail);
+      std::string data = this->cover_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
-      return;
+      continue;
     }
 
     auto call = obj->make_call();
@@ -692,9 +652,11 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
 #ifdef USE_NUMBER
 void WebServer::on_number_update(number::Number *obj, float state) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->number_json(obj, state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [this, event]() { return number_json((number::Number*)(event->source_), ((number::Number*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
@@ -702,12 +664,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->number_json(obj, obj->state, detail);
+      std::string data = this->number_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -763,21 +720,18 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
 #ifdef USE_DATETIME_DATE
 void WebServer::on_date_update(datetime::DateEntity *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->date_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return date_json((datetime::DateEntity*)(event->source_), ((datetime::DateEntity*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->date_json(obj, detail);
+    if (request->method() == HTTP_GET) {
+      std::string data = this->date_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -822,21 +776,18 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_TIME
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->time_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return time_json((datetime::TimeEntity*)(event->source_), ((datetime::TimeEntity*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->time_json(obj, detail);
+      std::string data = this->time_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -880,21 +831,18 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_DATETIME
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->datetime_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [this, event]() { return datetime_json((datetime::DateTimeEntity*)(event->source_), DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->datetime_json(obj, detail);
+      std::string data = this->datetime_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -939,9 +887,11 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return text_json((text::Text*)(event->source_), ((text::Text*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
@@ -949,13 +899,8 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->text_json(obj, obj->state, detail);
-      request->send(200, "application/json", data.c_str());
+      std::string data = this->text_json(obj, obj->state, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
       return;
     }
     if (match.method != "set") {
@@ -1000,9 +945,11 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [this, event]() { return select_json((select::Select*)(event->source_), ((select::Select*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
@@ -1059,9 +1006,11 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->climate_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return climate_json((climate::Climate*)(event->source_), ((climate::Climate*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
@@ -1069,15 +1018,11 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->climate_json(obj, detail);
+      std::string data = this->climate_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
+
     if (match.method != "set") {
       request->send(404);
       return;
@@ -1088,16 +1033,6 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     if (request->hasParam("mode")) {
       auto mode = request->getParam("mode")->value();
       call.set_mode(mode.c_str());
-    }
-
-    if (request->hasParam("fan_mode")) {
-      auto mode = request->getParam("fan_mode")->value();
-      call.set_fan_mode(mode.c_str());
-    }
-
-    if (request->hasParam("swing_mode")) {
-      auto mode = request->getParam("swing_mode")->value();
-      call.set_swing_mode(mode.c_str());
     }
 
     if (request->hasParam("target_temperature_high")) {
@@ -1217,9 +1152,11 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
 #ifdef USE_LOCK
 void WebServer::on_lock_update(lock::Lock *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->lock_json(obj, obj->state, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return lock_json((lock::Lock*)(event->source_), ((lock::Lock*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
@@ -1227,12 +1164,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->lock_json(obj, obj->state, detail);
+      std::string data = this->lock_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "lock") {
       this->schedule_([obj]() { obj->lock(); });
@@ -1265,9 +1197,11 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
 
 #ifdef USE_VALVE
 void WebServer::on_valve_update(valve::Valve *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->valve_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return valve_json((valve::Valve*)(event->source_), ((valve::Valve*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
@@ -1275,14 +1209,9 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->valve_json(obj, detail);
+      std::string data = this->valve_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
-      return;
+      continue;
     }
 
     auto call = obj->make_call();
@@ -1335,9 +1264,11 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(event->source_), ((alarm_control_panel::AlarmControlPanel*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
@@ -1345,12 +1276,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->alarm_control_panel_json(obj, obj->get_state(), detail);
+      std::string data = this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1375,7 +1301,9 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
-  this->events_.send(this->event_json(obj, event_type, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return event_json((event::Event*)(event->source_), ((event::Event*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
@@ -1397,9 +1325,11 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 
 #ifdef USE_UPDATE
 void WebServer::on_update(update::UpdateEntity *obj) {
-  if (this->events_.count() == 0)
+  if (this->events_list_.size() == 0)
     return;
-  this->events_.send(this->update_json(obj, DETAIL_STATE).c_str(), "state");
+  DeferredEvent* event = new DeferredEvent(obj, "state");
+  event->message_generator_ = [event]() { return update_json((update::UpdateEntity*)(event->source_), ((update::UpdateEntity*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  this->events_list_.send(event);
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
@@ -1407,12 +1337,7 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      auto detail = DETAIL_STATE;
-      auto *param = request->getParam("detail");
-      if (param && param->value() == "all") {
-        detail = DETAIL_ALL;
-      }
-      std::string data = this->update_json(obj, detail);
+      std::string data = this->update_json(obj, DETAIL_STATE);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1462,6 +1387,11 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
+
+  if(request->url() == "/events") {
+    ESP_LOGE("canHandle /events")
+    return true;
+  }
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css")
@@ -1589,6 +1519,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (request->url() == "/") {
     this->handle_index_request(request);
     return;
+  }
+
+  if(request->url() == "/events") {
+    ESP_LOGE("add_new_client")
+    this->events_list_.add_new_client(this, request, [this]() -> const char* { return this->get_config_json().c_str(); }, this->include_internal_);
   }
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -1767,4 +1702,3 @@ void WebServer::schedule_(std::function<void()> &&f) {
 
 }  // namespace web_server
 }  // namespace esphome
-#endif
