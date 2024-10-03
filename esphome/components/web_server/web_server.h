@@ -52,11 +52,11 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
 /*
   This class holds a pointer to the event source, the event type, and a pointer to a lambda that will lazily 
-  generate the message body.  The source and type allow dedup in the deferred queue and the lambda saves on
+  generate the event body.  The source and type allow dedup in the deferred queue and the lambda saves on
   having to store the message body upfront.  The lambda should point back into the DeferredEvent itself for 
-  parameters so it only need to closure a single reference (4 bytes).  By always pulling from source_.state 
-  in the lambda, the latest value is always used, so no need to swap entries in the deferred queue, simply 
-  discard the dup.
+  parameters so it only need to closure a single reference (4 bytes).
+
+  The three pointers, plus the closure reference, plus entry in the deq should equal 20 bytes per entry all-told.
 */
   class DeferredEvent {
   public:
@@ -77,8 +77,9 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 class DeferredUpdateEventSource: public AsyncEventSource {
 public:
   DeferredUpdateEventSource(WebServer *ws, const String& url)  :
-  AsyncEventSource(url),
-  entities_iterator_(ListEntitiesIterator(ws, this)) {}
+    AsyncEventSource(url),
+    entities_iterator_(ListEntitiesIterator(ws, this)) {
+    }
 
   using AsyncEventSource::handleRequest;
 
@@ -114,6 +115,8 @@ public:
     while(true) {
       DeferredEvent* de = deq.front();
       const char* event_type = de->event_type_;
+      // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
+      //     but both are "state" on the wire
       if(event_type == "state_detail_all")
         event_type = "state";
       if(this->try_send(de->message_generator_(), event_type)) {
@@ -152,7 +155,7 @@ public:
     }
   }
 
-  // mainly used for logs
+  // mainly used for logs plus the initial ping
   void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0) {
     this->send(message, event, id, reconnect);
   }
