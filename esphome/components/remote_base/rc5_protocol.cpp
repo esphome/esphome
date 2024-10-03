@@ -40,50 +40,49 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   RC5Data out{
       .address = 0,
       .command = 0,
+      .toggle = 0,
   };
-  uint8_t field_bit;
 
-  if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
-    field_bit = 1;
-  } else if (src.expect_space(2 * BIT_TIME_US)) {
-    field_bit = 0;
-  } else {
-    return {};
-  }
+  enum states { mark, space, empty };
 
-  if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)) ||
-         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) &&
-        (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-          (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) ||
-         ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-          (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))))) {
-    return {};
-  }
+  states state = src.expect_mark(BIT_TIME_US * 2) ? mark : src.expect_mark(BIT_TIME_US) ? empty : space;
+  if (state == space)
+    return {};  // invalid initial state
 
-  uint32_t out_data = 0;
-  for (int bit = NBITS - 4; bit >= 1; bit--) {
-    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-        (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
-      out_data |= 0 << bit;
-    } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-               (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
-      out_data |= 1 << bit;
-    } else {
-      return {};
+  uint8_t bits_in = 1;
+  uint32_t out_data = 1;
+  bool gotmark = false;
+
+  // move 1 bit / full clock cycle
+  while (bits_in < NBITS) {
+    if (state == empty) {
+      if ((gotmark = src.expect_mark(BIT_TIME_US)) || (src.expect_space(BIT_TIME_US)))
+        state = gotmark ? mark : space;
+      else
+        break;
     }
-  }
-  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
-    out_data |= 0;
-  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
-    out_data |= 1;
+    out_data = (out_data << 1) | (state != mark);
+    bits_in++;
+    state = (state == space) && src.expect_mark(BIT_TIME_US * 2) ? mark
+            : src.expect_space(2 * BIT_TIME_US)                  ? space
+                                                                 : empty;
+
+    if ((state == empty) && !(src.expect_mark(BIT_TIME_US) || src.expect_space(BIT_TIME_US)))
+      break;
   }
 
-  out.command = (uint8_t) (out_data & 0x3F) + (1 - field_bit) * 64u;
+  if (bits_in != NBITS)
+    return {};
+
+  out.command = (uint8_t) (out_data & 0x3F) | ((~out_data & 0x1000) >> 6);
   out.address = (out_data >> 6) & 0x1F;
+  out.toggle = (out_data & 0x0800) != 0;
+
   return out;
 }
+
 void RC5Protocol::dump(const RC5Data &data) {
-  ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X", data.address, data.command);
+  ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X, toggle=0x%02X", data.address, data.command, data.toggle);
 }
 
 }  // namespace remote_base
