@@ -43,10 +43,10 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
       .toggle = 0,
   };
 
-  enum states { mark, space, empty };
+  enum States { MARK, SPACE, EMPTY };
 
-  states state = src.expect_mark(BIT_TIME_US * 2) ? mark : src.expect_mark(BIT_TIME_US) ? empty : space;
-  if (state == space)
+  States state = src.expect_mark(BIT_TIME_US * 2) ? MARK : src.expect_mark(BIT_TIME_US) ? EMPTY : SPACE;
+  if (state == SPACE)
     return {};  // invalid initial state
 
   uint8_t bits_in = 1;
@@ -55,19 +55,19 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
 
   // move 1 bit / full clock cycle
   while (bits_in < NBITS) {
-    if (state == empty) {
-      if ((gotmark = src.expect_mark(BIT_TIME_US)) || (src.expect_space(BIT_TIME_US)))
-        state = gotmark ? mark : space;
-      else
+    if (state == EMPTY) {
+      if ((gotmark = src.expect_mark(BIT_TIME_US)) || (src.expect_space(BIT_TIME_US))) {
+        state = gotmark ? MARK : SPACE;
+      } else
         break;
     }
-    out_data = (out_data << 1) | (state != mark);
+    out_data = (out_data << 1) | (state != MARK);
     bits_in++;
-    state = (state == space) && src.expect_mark(BIT_TIME_US * 2) ? mark
-            : src.expect_space(2 * BIT_TIME_US)                  ? space
-                                                                 : empty;
+    state = (state == SPACE) && src.expect_mark(BIT_TIME_US * 2) ? MARK
+            : src.expect_space(2 * BIT_TIME_US)                  ? SPACE
+                                                                 : EMPTY;
 
-    if ((state == empty) && !(src.expect_mark(BIT_TIME_US) || src.expect_space(BIT_TIME_US)))
+    if ((state == EMPTY) && !(src.expect_mark(BIT_TIME_US) || src.expect_space(BIT_TIME_US)))
       break;
   }
 
