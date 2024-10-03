@@ -28,20 +28,35 @@
 #define USE_DATETIME_DATETIME
 #define USE_DATETIME_TIME
 #define USE_DEEP_SLEEP
+#define USE_DISPLAY
+#define USE_ESP32_IMPROV_STATE_CALLBACK
 #define USE_EVENT
 #define USE_FAN
 #define USE_GRAPH
 #define USE_GRAPHICAL_DISPLAY_MENU
 #define USE_HOMEASSISTANT_TIME
+#define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_JSON
 #define USE_LIGHT
 #define USE_LOCK
 #define USE_LOGGER
+#define USE_LVGL
+#define USE_LVGL_ANIMIMG
+#define USE_LVGL_BINARY_SENSOR
+#define USE_LVGL_BUTTONMATRIX
+#define USE_LVGL_FONT
+#define USE_LVGL_IMAGE
+#define USE_LVGL_KEY_LISTENER
+#define USE_LVGL_KEYBOARD
+#define USE_LVGL_ROTARY_ENCODER
+#define USE_LVGL_TOUCHSCREEN
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT
+#define USE_NETWORK
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
+#define USE_ONLINE_IMAGE_PNG_SUPPORT
 #define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
@@ -58,9 +73,11 @@
 #define USE_TIME
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
+#define USE_UPDATE
 #define USE_VALVE
 #define USE_WIFI
 #define USE_WIFI_AP
+#define USE_WIREGUARD
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
@@ -84,6 +101,7 @@
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
 #define USE_IMPROV
+#define USE_MICRO_WAKE_WORD_VAD
 #define USE_MICROPHONE
 #define USE_PSRAM
 #define USE_SOCKET_IMPL_BSD_SOCKETS
@@ -99,6 +117,14 @@
 
 #ifdef USE_ESP_IDF
 #define USE_ESP_IDF_VERSION_CODE VERSION_CODE(4, 4, 2)
+#endif
+
+#if defined(USE_ESP32_VARIANT_ESP32S2)
+#define USE_LOGGER_USB_CDC
+#elif defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
+#define USE_LOGGER_USB_CDC
+#define USE_LOGGER_USB_SERIAL_JTAG
 #endif
 #endif
 
@@ -122,6 +148,7 @@
 
 #ifdef USE_RP2040
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
+#define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_SPI
 #endif
@@ -135,6 +162,7 @@
 #endif
 
 // Disabled feature flags
-// #define USE_BSEC  // Requires a library with proprietary license.
+// #define USE_BSEC   // Requires a library with proprietary license
+// #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT

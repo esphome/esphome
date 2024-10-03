@@ -73,6 +73,9 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_EVENT
   bool on_event(event::Event *event) override { return true; };
 #endif
+#ifdef USE_UPDATE
+  bool on_update(update::UpdateEntity *update) override;
+#endif
  protected:
   APIConnection *client_;
 };

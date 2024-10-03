@@ -1,6 +1,5 @@
 import logging
 import os
-
 from string import ascii_letters, digits
 
 import esphome.codegen as cg
@@ -8,6 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_PLATFORM_VERSION,
     CONF_SOURCE,
     CONF_VERSION,
     KEY_CORE,
@@ -15,10 +15,9 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_RP2040,
-    CONF_PLATFORM_VERSION,
 )
-from esphome.core import CORE, coroutine_with_priority, EsphomeError
-from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
+from esphome.core import CORE, EsphomeError, coroutine_with_priority
+from esphome.helpers import copy_file_if_changed, mkdir_p, write_file
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
@@ -47,10 +46,16 @@ def set_core_data(config):
 def get_download_types(storage_json):
     return [
         {
-            "title": "UF2 format",
+            "title": "UF2 factory format",
             "description": "For copying to RP2040 over USB.",
             "file": "firmware.uf2",
-            "download": f"{storage_json.name}.uf2",
+            "download": f"{storage_json.name}.factory.uf2",
+        },
+        {
+            "title": "OTA format",
+            "description": "For OTA updating a device.",
+            "file": "firmware.ota.bin",
+            "download": f"{storage_json.name}.ota.bin",
         },
     ]
 
@@ -66,6 +71,14 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
+def _parse_platform_version(value):
+    value = cv.string(value)
+    if value.startswith("http"):
+        return value
+
+    return f"https://github.com/maxgerhardt/platform-raspberrypi.git#{value}"
+
+
 # NOTE: Keep this in mind when updating the recommended version:
 #  * The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
@@ -75,19 +88,18 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 7, 2)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 9, 4)
 
-# The platformio/raspberrypi version to use for arduino frameworks
-#  - https://github.com/platformio/platform-raspberrypi/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 12, 0)
+# The raspberrypi platform version to use for arduino frameworks
+#  - https://github.com/maxgerhardt/platform-raspberrypi/tags
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.2.0-gcc12"
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(3, 4, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(3, 4, 0), None),
+        "dev": (cv.Version(3, 9, 4), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(3, 9, 4), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -106,7 +118,8 @@ def _arduino_check_versions(value):
     value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
     value[CONF_PLATFORM_VERSION] = value.get(
-        CONF_PLATFORM_VERSION, _parse_platform_version(str(ARDUINO_PLATFORM_VERSION))
+        CONF_PLATFORM_VERSION,
+        _parse_platform_version(RECOMMENDED_ARDUINO_PLATFORM_VERSION),
     )
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
@@ -115,15 +128,6 @@ def _arduino_check_versions(value):
         )
 
     return value
-
-
-def _parse_platform_version(value):
-    try:
-        # if platform version is a valid version constraint, prefix the default package
-        cv.platformio_version_constraint(value)
-        return f"platformio/raspberrypi@{value}"
-    except cv.Invalid:
-        return value
 
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
@@ -159,6 +163,8 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_RP2040")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")
+
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -225,4 +231,10 @@ def generate_pio_files() -> bool:
 
 # Called by writer.py
 def copy_files() -> bool:
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
+    )
     return generate_pio_files()

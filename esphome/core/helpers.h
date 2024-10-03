@@ -155,7 +155,7 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 }
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
-uint8_t crc8(uint8_t *data, uint8_t len);
+uint8_t crc8(const uint8_t *data, uint8_t len);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
@@ -635,6 +635,14 @@ std::string get_mac_address_pretty();
 void set_mac_address(uint8_t *mac);
 #endif
 
+/// Check if a custom MAC address is set (ESP32 & variants)
+/// @return True if a custom MAC address is set (ESP32 & variants), else false
+bool has_custom_mac_address();
+
+/// Check if the MAC address is not all zeros or all ones
+/// @return True if MAC is valid, else false
+bool mac_address_is_valid(const uint8_t *mac);
+
 /// Delay for the given amount of microseconds, possibly yielding to other processes during the wait.
 void delay_microseconds_safe(uint32_t us);
 
@@ -680,7 +688,7 @@ template<class T> class ExternalRAMAllocator {
   }
 
  private:
-  Flags flags_{Flags::NONE};
+  Flags flags_{Flags::ALLOW_FAILURE};
 };
 
 /// @}

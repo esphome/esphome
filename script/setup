@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Set up ESPHome dev environment
 
 set -e
@@ -11,11 +11,6 @@ if [ ! -n "$DEVCONTAINER" ] && [ ! -n "$VIRTUAL_ENV" ] && [ ! "$ESPHOME_NO_VENV"
     location="venv/Scripts/activate"
   fi
   source $location
-fi
-
-# Avoid unsafe git error when running inside devcontainer
-if [ -n "$DEVCONTAINER" ]; then
-  git config --global --add safe.directory "$PWD"
 fi
 
 pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt -r requirements_dev.txt

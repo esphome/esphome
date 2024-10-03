@@ -1,30 +1,36 @@
+from __future__ import annotations
+
 import gzip
+
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTH,
     CONF_CSS_INCLUDE,
     CONF_CSS_URL,
+    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
     CONF_ID,
+    CONF_INCLUDE_INTERNAL,
     CONF_JS_INCLUDE,
     CONF_JS_URL,
-    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
-    CONF_PORT,
-    CONF_AUTH,
-    CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_INCLUDE_INTERNAL,
-    CONF_OTA,
-    CONF_LOG,
-    CONF_VERSION,
     CONF_LOCAL,
+    CONF_LOG,
+    CONF_OTA,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_VERSION,
+    CONF_WEB_SERVER_ID,
+    CONF_WEB_SERVER_SORTING_WEIGHT,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
+import esphome.final_validate as fv
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -62,6 +68,46 @@ def validate_ota(config):
     if CORE.using_esp_idf and config[CONF_OTA]:
         raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
     return config
+
+
+def _validate_no_sorting_weight(
+    webserver_version: int, config: dict, path: list[str] | None = None
+) -> None:
+    if path is None:
+        path = []
+    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
+        raise cv.FinalExternalInvalid(
+            f"Sorting weight on entities is not supported in web_server version {webserver_version}",
+            path=path + [CONF_WEB_SERVER_SORTING_WEIGHT],
+        )
+    for p, value in config.items():
+        if isinstance(value, dict):
+            _validate_no_sorting_weight(webserver_version, value, path + [p])
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, dict):
+                    _validate_no_sorting_weight(webserver_version, item, path + [p, i])
+
+
+def _final_validate_sorting_weight(config):
+    if (webserver_version := config.get(CONF_VERSION)) != 3:
+        _validate_no_sorting_weight(webserver_version, fv.full_config.get())
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_sorting_weight
+
+
+WEBSERVER_SORTING_SCHEMA = cv.Schema(
+    {
+        cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
+        cv.Optional(CONF_WEB_SERVER_SORTING_WEIGHT): cv.All(
+            cv.requires_component("web_server"),
+            cv.float_,
+        ),
+    }
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -108,6 +154,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def add_entity_to_sorting_list(web_server, entity, config):
+    sorting_weight = 50
+    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
+        sorting_weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
+
+    cg.add(
+        web_server.add_entity_to_sorting_list(
+            entity,
+            sorting_weight,
+        )
+    )
+
+
 def build_index_html(config) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
     css_include = config.get(CONF_CSS_INCLUDE)
@@ -150,7 +209,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
-    cg.add_define("USE_WEBSERVER")
     version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))

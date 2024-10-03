@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#ifdef USE_WIFI
 #include <cinttypes>
 #include <map>
 
@@ -58,7 +59,7 @@ void WiFiComponent::setup() {
 
 void WiFiComponent::start() {
   ESP_LOGCONFIG(TAG, "Starting WiFi...");
-  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
+  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   this->last_connected_ = millis();
 
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
@@ -135,7 +136,7 @@ void WiFiComponent::loop() {
 
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
-        this->status_set_warning();
+        this->status_set_warning("waiting to reconnect");
         if (millis() - this->action_started_ > 5000) {
           if (this->fast_connect_ || this->retry_hidden_) {
             this->start_connecting(this->sta_[0], false);
@@ -146,13 +147,13 @@ void WiFiComponent::loop() {
         break;
       }
       case WIFI_COMPONENT_STATE_STA_SCANNING: {
-        this->status_set_warning();
+        this->status_set_warning("scanning for networks");
         this->check_scanning_finished();
         break;
       }
       case WIFI_COMPONENT_STATE_STA_CONNECTING:
       case WIFI_COMPONENT_STATE_STA_CONNECTING_2: {
-        this->status_set_warning();
+        this->status_set_warning("associating to network");
         this->check_connecting_finished();
         break;
       }
@@ -856,3 +857,4 @@ WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-con
 
 }  // namespace wifi
 }  // namespace esphome
+#endif

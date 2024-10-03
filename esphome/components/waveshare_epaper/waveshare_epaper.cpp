@@ -480,7 +480,7 @@ void HOT WaveshareEPaperTypeA::display() {
   this->start_data_();
   switch (this->model_) {
     case TTGO_EPAPER_2_13_IN_B1: {  // block needed because of variable initializations
-      int16_t wb = ((this->get_width_internal()) >> 3);
+      int16_t wb = ((this->get_width_controller()) >> 3);
       for (int i = 0; i < this->get_height_internal(); i++) {
         for (int j = 0; j < wb; j++) {
           int idx = j + (this->get_height_internal() - 1 - i) * wb;
@@ -766,7 +766,7 @@ void WaveshareEPaper2P7InV2::initialize() {
   // XRAM_START_AND_END_POSITION
   this->command(0x44);
   this->data(0x00);
-  this->data(((get_width_internal() - 1) >> 3) & 0xFF);
+  this->data(((this->get_width_controller() - 1) >> 3) & 0xFF);
   // YRAM_START_AND_END_POSITION
   this->command(0x45);
   this->data(0x00);
@@ -928,8 +928,8 @@ void HOT WaveshareEPaper2P7InB::display() {
 
   // TCON_RESOLUTION
   this->command(0x61);
-  this->data(this->get_width_internal() >> 8);
-  this->data(this->get_width_internal() & 0xff);  // 176
+  this->data(this->get_width_controller() >> 8);
+  this->data(this->get_width_controller() & 0xff);  // 176
   this->data(this->get_height_internal() >> 8);
   this->data(this->get_height_internal() & 0xff);  // 264
 
@@ -994,7 +994,7 @@ void WaveshareEPaper2P7InBV2::initialize() {
   // self.SetWindows(0, 0, self.width-1, self.height-1)
   // SetWindows(self, Xstart, Ystart, Xend, Yend):
 
-  uint32_t xend = this->get_width_internal() - 1;
+  uint32_t xend = this->get_width_controller() - 1;
   uint32_t yend = this->get_height_internal() - 1;
   this->command(0x44);
   this->data(0x00);
@@ -2961,6 +2961,89 @@ void WaveshareEPaper2P13InDKE::dump_config() {
 
 void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
+}
+
+// ========================================================
+//               13.3in (K version)
+// Datasheet/Specification/Reference:
+//  - https://files.waveshare.com/wiki/13.3inch-e-Paper-HAT-(K)/13.3-inch-e-Paper-(K)-user-manual.pdf
+//  - https://github.com/waveshareteam/e-Paper/tree/master/Arduino/epd13in3k
+// ========================================================
+
+// using default wait_until_idle_() function
+void WaveshareEPaper13P3InK::initialize() {
+  this->wait_until_idle_();
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  this->command(0x0c);  // set soft start
+  this->data(0xae);
+  this->data(0xc7);
+  this->data(0xc3);
+  this->data(0xc0);
+  this->data(0x80);
+
+  this->command(0x01);                            // driver output control
+  this->data((get_height_internal() - 1) % 256);  // Y
+  this->data((get_height_internal() - 1) / 256);  // Y
+  this->data(0x00);
+
+  this->command(0x11);  // data entry mode
+  this->data(0x03);
+
+  // SET WINDOWS
+  // XRAM_START_AND_END_POSITION
+  this->command(0x44);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  this->data((get_width_internal() - 1) & 0xFF);
+  this->data(((get_width_internal() - 1) >> 8) & 0x03);
+  // YRAM_START_AND_END_POSITION
+  this->command(0x45);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  this->data((get_height_internal() - 1) & 0xFF);
+  this->data(((get_height_internal() - 1) >> 8) & 0x03);
+
+  this->command(0x3C);  // Border setting
+  this->data(0x01);
+
+  this->command(0x18);  // use the internal temperature sensor
+  this->data(0x80);
+
+  // SET CURSOR
+  // XRAM_ADDRESS
+  this->command(0x4E);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+  // YRAM_ADDRESS
+  this->command(0x4F);
+  this->data(0 & 0xFF);
+  this->data((0 >> 8) & 0x03);
+}
+void HOT WaveshareEPaper13P3InK::display() {
+  // do single full update
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x22);
+  this->data(0xF7);
+  this->command(0x20);
+}
+
+int WaveshareEPaper13P3InK::get_width_internal() { return 960; }
+int WaveshareEPaper13P3InK::get_height_internal() { return 680; }
+uint32_t WaveshareEPaper13P3InK::idle_timeout_() { return 10000; }
+void WaveshareEPaper13P3InK::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 13.3inK");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 }  // namespace waveshare_epaper

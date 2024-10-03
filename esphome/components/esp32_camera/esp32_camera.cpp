@@ -127,7 +127,7 @@ void ESP32Camera::dump_config() {
   sensor_t *s = esp_camera_sensor_get();
   auto st = s->status;
   ESP_LOGCONFIG(TAG, "  JPEG Quality: %u", st.quality);
-  // ESP_LOGCONFIG(TAG, "  Framebuffer Count: %u", conf.fb_count);
+  ESP_LOGCONFIG(TAG, "  Framebuffer Count: %u", conf.fb_count);
   ESP_LOGCONFIG(TAG, "  Contrast: %d", st.contrast);
   ESP_LOGCONFIG(TAG, "  Brightness: %d", st.brightness);
   ESP_LOGCONFIG(TAG, "  Saturation: %d", st.saturation);
@@ -212,6 +212,8 @@ ESP32Camera::ESP32Camera() {
   this->config_.frame_size = FRAMESIZE_VGA;  // 640x480
   this->config_.jpeg_quality = 10;
   this->config_.fb_count = 1;
+  this->config_.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  this->config_.fb_location = CAMERA_FB_IN_PSRAM;
 
   global_esp32_camera = this;
 }
@@ -332,6 +334,12 @@ void ESP32Camera::set_max_update_interval(uint32_t max_update_interval) {
 }
 void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
   this->idle_update_interval_ = idle_update_interval;
+}
+/* set frame buffer parameters */
+void ESP32Camera::set_frame_buffer_mode(camera_grab_mode_t mode) { this->config_.grab_mode = mode; }
+void ESP32Camera::set_frame_buffer_count(uint8_t fb_count) {
+  this->config_.fb_count = fb_count;
+  this->set_frame_buffer_mode(fb_count > 1 ? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY);
 }
 
 /* ---------------- public API (specific) ---------------- */
