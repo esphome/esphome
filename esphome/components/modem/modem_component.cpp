@@ -1,7 +1,6 @@
 #include "esp_modem_c_api_types.h"
 #include "esp_netif_ppp.h"
 #include "cxx_include/esp_modem_api.hpp"
-#include "cxx_include/esp_modem_dce.hpp"
 
 #include "modem_component.h"
 #include "esphome/core/log.h"
@@ -14,8 +13,6 @@
 #include "driver/gpio.h"
 #include <lwip/dns.h>
 #include "esp_event.h"
-
-std::unique_ptr<esp_modem::DCE> dce{nullptr};
 
 uint32_t time_info_print = 0;
 uint32_t time_hard_reset_modem = 0;
@@ -86,48 +83,25 @@ void ModemComponent::setup() {
 
   ESP_LOGD(TAG, "Initializing esp_modem");
   this->dte = esp_modem::create_uart_dte(&dte_config);
-  dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
+  this->dce = esp_modem::create_SIM800_dce(&dce_config, dte, this->modem_netif_);
 
   esp_netif_flags_t flags = esp_netif_get_flags(this->modem_netif_);
+
+  this->started_ = true;
 }
 
 void ModemComponent::loop() {
   const uint32_t now = millis();
-  if (time_info_print < now) {
-    // ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage()/1000);
-    ESP_LOGD(TAG, "esp_netif_is_netif_UP");
-    if (esp_netif_is_netif_up(this->modem_netif_)) {
-      ESP_LOGD(TAG, "esp_netif_is_netif_UP");
-    } else {
-      ESP_LOGD(TAG, "esp_netif_is_netif_DOWN");
-    }
-    time_info_print = now + 5000;
-    switch (this->state_) {
-      case ModemComponentState::STOPPED:
-        ESP_LOGD(TAG, "modem STOPPED");
-        break;
-      case ModemComponentState::CONNECTING:
-        ESP_LOGD(TAG, "modem CONNECTING");
-        break;
-      case ModemComponentState::CONNECTED:
-        dce->set_data();
-        ESP_LOGD(TAG, "modem CONNECTED");
-        break;
-      default:
-        break;
-    }
-  }
-  this->started_ = true;
   switch (this->state_) {
     case ModemComponentState::STOPPED:
       if (time_check_rssi + TIME_TO_START_MODEM < now) {
         time_check_rssi = now;
-        // dce->set_command_mode();
+        // this->dce->set_command_mode();
         if (get_rssi()) {
           ESP_LOGD(TAG, "Starting modem connection");
           ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
           this->state_ = ModemComponentState::CONNECTING;
-          dce->set_data();
+          this->dce->set_data();
           // this->start_connect_();
         }
         if (time_hard_reset_modem + TIME_TO_NEXT_HARD_RESET < now) {
@@ -139,12 +113,21 @@ void ModemComponent::loop() {
     case ModemComponentState::CONNECTING:
       break;
     case ModemComponentState::CONNECTED:
+      if (time_info_print < now) {
+        ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage()/1000);
+        if (esp_netif_is_netif_up(this->modem_netif_)) {
+          ESP_LOGD(TAG, "esp_netif_is_netif_UP");
+        } else {
+          ESP_LOGD(TAG, "esp_netif_is_netif_DOWN");
+        }
+        time_info_print = now + 5000;
+      }
       break;
   }
 }
 
 void ModemComponent::dump_config() {
-  this->dump_config_();
+  this->dump_connect_params();
   ESP_LOGCONFIG(TAG, "Modem:");
   ESP_LOGCONFIG(TAG, "  Power Pin: %d", this->power_pin_);
   ESP_LOGCONFIG(TAG, "  Type: %d", this->type_);
@@ -159,7 +142,7 @@ void ModemComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  UART RX Buffer Size: %d", this->uart_rx_buffer_size_);
 }
 
-void ModemComponent::dump_connect_params_() {
+void ModemComponent::dump_connect_params() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->modem_netif_, &ip);
   ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
@@ -185,7 +168,7 @@ void ModemComponent::esp_modem_hard_reset() {
 
 int ModemComponent::get_rssi() {
   int rssi = 0, ber = 0;
-  esp_modem::command_result errr = dce->get_signal_quality(rssi, ber);
+  esp_modem::command_result errr = this->dce->get_signal_quality(rssi, ber);
   // esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
   if (errr != esp_modem::command_result::OK) {
     ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
@@ -195,8 +178,7 @@ int ModemComponent::get_rssi() {
 
 int ModemComponent::get_modem_voltage() {
   int voltage = 0, bcs = 0, bcl = 0;
-  dce->set_cmux();
-  esp_modem::command_result errr = dce->get_battery_status(voltage, bcs, bcl);
+  esp_modem::command_result errr = this->dce->get_battery_status(voltage, bcs, bcl);
   if (errr != esp_modem::command_result::OK) {
     ESP_LOGE(TAG, "get_battery_status failed with");
   }
@@ -254,16 +236,16 @@ void ModemComponent::start_connect_() {
   // esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
 
   // restart ppp connection
-  dce->exit_data();
+  this->dce->exit_data();
   int rssi, ber;
-  esp_modem::command_result errr = dce->get_signal_quality(rssi, ber);
+  esp_modem::command_result errr = this->dce->get_signal_quality(rssi, ber);
   // esp_err_t err = esp_modem::esp_modem_get_signal_quality(dce, &rssi, &ber);
   if (errr != esp_modem::command_result::OK) {
     ESP_LOGE(TAG, "esp_modem_get_signal_quality failed with");
     return;
   }
   ESP_LOGD(TAG, "Signal quality: rssi=%d, ber=%d", rssi, ber);
-  dce->set_data();
+  this->dce->set_data();
 
   //  this->status_set_warning();
 }
