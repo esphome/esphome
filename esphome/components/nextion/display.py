@@ -23,6 +23,7 @@ from .base_component import (
     CONF_START_UP_PAGE,
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_EXIT_REPARSE_ON_START,
+    CONF_SKIP_CONNECTION_HANDSHAKE,
 )
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
@@ -72,6 +73,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
             cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
+            cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -117,6 +119,8 @@ async def to_code(config):
     cg.add(var.set_auto_wake_on_touch_internal(config[CONF_AUTO_WAKE_ON_TOUCH]))
 
     cg.add(var.set_exit_reparse_on_start_internal(config[CONF_EXIT_REPARSE_ON_START]))
+
+    cg.add(var.set_skip_connection_handshake(config[CONF_SKIP_CONNECTION_HANDSHAKE]))
 
     await display.register_display(var, config)
 

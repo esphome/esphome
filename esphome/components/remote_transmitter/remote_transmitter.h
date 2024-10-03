@@ -33,6 +33,9 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
   void set_carrier_duty_percent(uint8_t carrier_duty_percent) { this->carrier_duty_percent_ = carrier_duty_percent; }
 
+  Trigger<> *get_transmit_trigger() const { return this->transmit_trigger_; };
+  Trigger<> *get_complete_trigger() const { return this->complete_trigger_; };
+
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
@@ -57,6 +60,9 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   bool inverted_{false};
 #endif
   uint8_t carrier_duty_percent_;
+
+  Trigger<> *transmit_trigger_{new Trigger<>()};
+  Trigger<> *complete_trigger_{new Trigger<>()};
 };
 
 }  // namespace remote_transmitter
