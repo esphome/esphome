@@ -709,7 +709,7 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 #endif
 
 bool has_custom_mac_address() {
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && !defined(USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC)
   uint8_t mac[6];
   // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
 #ifndef USE_ESP32_VARIANT_ESP32
