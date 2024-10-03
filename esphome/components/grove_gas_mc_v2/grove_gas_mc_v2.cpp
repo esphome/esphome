@@ -43,8 +43,6 @@ void GroveGasMultichannelV2Component::setup() {
 }
 
 void GroveGasMultichannelV2Component::update() {
-  uint32_t no2, ethanol, voc, co;
-
   // Read from each of the gas sensors
   if (!this->read_sensor_(GROVE_GAS_MC_V2_READ_GM102B, this->nitrogen_dioxide_sensor_))
     return;
