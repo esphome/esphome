@@ -328,6 +328,18 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
     this->buffer_[pos] &= ~(1 << subpos);
   }
 }
+void HOT SSD1306::draw_vertical_pixel_group_internal(int x, int y_row, uint8_t colors, uint8_t transparency,
+                                                     bool reverse_bit_order) {
+  if (x >= this->get_width_internal() || x < 0 || y_row >= (this->get_height_internal() / 8) || y_row < 0)
+    return;
+  uint16_t pos = x + y_row * this->get_width_internal();
+  if (reverse_bit_order) {
+    colors = DisplayBuffer::reverse_bit_order(colors);
+    transparency = DisplayBuffer::reverse_bit_order(transparency);
+  }
+  this->buffer_[pos] &= ~(transparency);
+  this->buffer_[pos] |= (colors & transparency);
+}
 void SSD1306::fill(Color color) {
   uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
