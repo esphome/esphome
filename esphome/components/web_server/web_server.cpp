@@ -211,7 +211,7 @@ void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [this, event]() { return sensor_json((sensor::Sensor*)(event->source_), ((sensor::Sensor*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [this, event](WebServer* web_server, void* source) { return web_server->sensor_json((sensor::Sensor*)(source), ((sensor::Sensor*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -251,7 +251,7 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [this, event]() { return text_sensor_json((text_sensor::TextSensor*)(event->source_), ((text_sensor::TextSensor*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->text_sensor_json((text_sensor::TextSensor*)(source), ((text_sensor::TextSensor*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -282,7 +282,7 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [this, event]() { return switch_json((switch_::Switch*)(event->source_), ((switch_::Switch*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->switch_json((switch_::Switch*)(source), ((switch_::Switch*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -355,7 +355,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return binary_sensor_json((binary_sensor::BinarySensor*)(event->source_), ((binary_sensor::BinarySensor*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->binary_sensor_json((binary_sensor::BinarySensor*)(source), ((binary_sensor::BinarySensor*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -386,7 +386,7 @@ void WebServer::on_fan_update(fan::Fan *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return fan_json((fan::Fan*)(event->source_), ((fan::Fan*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->fan_json((fan::Fan*)(source), ((fan::Fan*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -466,7 +466,7 @@ void WebServer::on_light_update(light::LightState *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return light_json((light::LightState*)(event->source_), ((light::LightState*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->light_json((light::LightState*)(source), ((light::LightState*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -579,7 +579,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return cover_json((cover::Cover*)(event->source_), ((cover::Cover*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->cover_json((cover::Cover*)(source), ((cover::Cover*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -657,7 +657,7 @@ void WebServer::on_number_update(number::Number *obj, float state) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [this, event]() { return number_json((number::Number*)(event->source_), ((number::Number*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->number_json((number::Number*)(source), ((number::Number*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -725,7 +725,7 @@ void WebServer::on_date_update(datetime::DateEntity *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return date_json((datetime::DateEntity*)(event->source_), ((datetime::DateEntity*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->date_json((datetime::DateEntity*)(source), ((datetime::DateEntity*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -781,7 +781,7 @@ void WebServer::on_time_update(datetime::TimeEntity *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return time_json((datetime::TimeEntity*)(event->source_), ((datetime::TimeEntity*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->time_json((datetime::TimeEntity*)(source), ((datetime::TimeEntity*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -836,7 +836,7 @@ void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [this, event]() { return datetime_json((datetime::DateTimeEntity*)(event->source_), DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->datetime_json((datetime::DateTimeEntity*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -892,7 +892,7 @@ void WebServer::on_text_update(text::Text *obj, const std::string &state) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return text_json((text::Text*)(event->source_), ((text::Text*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->text_json((text::Text*)(source), ((text::Text*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -950,7 +950,7 @@ void WebServer::on_select_update(select::Select *obj, const std::string &state, 
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [this, event]() { return select_json((select::Select*)(event->source_), ((select::Select*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->select_json((select::Select*)(source), ((select::Select*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1011,7 +1011,7 @@ void WebServer::on_climate_update(climate::Climate *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return climate_json((climate::Climate*)(event->source_), ((climate::Climate*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->climate_json((climate::Climate*)(source), ((climate::Climate*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1157,7 +1157,7 @@ void WebServer::on_lock_update(lock::Lock *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return lock_json((lock::Lock*)(event->source_), ((lock::Lock*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->lock_json((lock::Lock*)(source), ((lock::Lock*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1202,7 +1202,7 @@ void WebServer::on_valve_update(valve::Valve *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return valve_json((valve::Valve*)(event->source_), ((valve::Valve*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->valve_json((valve::Valve*)(source), ((valve::Valve*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1269,7 +1269,7 @@ void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(event->source_), ((alarm_control_panel::AlarmControlPanel*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(source), ((alarm_control_panel::AlarmControlPanel*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1304,7 +1304,7 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return event_json((event::Event*)(event->source_), ((event::Event*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->event_json((event::Event*)(source), ((event::Event*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 
@@ -1330,7 +1330,7 @@ void WebServer::on_update(update::UpdateEntity *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [event]() { return update_json((update::UpdateEntity*)(event->source_), ((update::UpdateEntity*)(event->source_))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->update_json((update::UpdateEntity*)(source), ((update::UpdateEntity*)(source))->state, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1391,7 +1391,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 
   if(request->url() == "/events") {
-    ESP_LOGE("canHandle /events")
     return true;
   }
 
@@ -1524,7 +1523,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 
   if(request->url() == "/events") {
-    ESP_LOGE("add_new_client")
     this->events_list_.add_new_client(this, request, [this]() -> const char* { return this->get_config_json().c_str(); }, this->include_internal_);
   }
 

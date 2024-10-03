@@ -50,17 +50,19 @@ struct SortingComponents {
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
+class WebServer;
+
 /*
   This class holds a pointer to the event source, the event type, and a pointer to a lambda that will lazily 
   generate the event body.  The source and type allow dedup in the deferred queue and the lambda saves on
   having to store the message body upfront.  The lambda should point back into the DeferredEvent itself for 
   parameters so it only need to closure a single reference (4 bytes).
 
-  The three pointers, plus the closure reference, plus entry in the deq should equal 20 bytes per entry all-told.
+  The three pointers, plus the entry in the deq should equal 16 bytes per entry all-told.
 */
   class DeferredEvent {
   public:
-    DeferredEvent(const void* source, const char* event_type) {
+    DeferredEvent(void* source, char* event_type) {
       source_ = source;
       event_type_ = event_type;
     }
@@ -69,16 +71,17 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
       event_type_ = to_clone->event_type_;
       message_generator_ = to_clone->message_generator_;
     }
-    const void* source_;
-    const char* event_type_;
-    std::function<const char* ()> message_generator_;
+    void* source_;
+    char* event_type_;
+    std::function<const char* (WebServer* web_server, void* source)> message_generator_;
 };
 
 class DeferredUpdateEventSource: public AsyncEventSource {
 public:
   DeferredUpdateEventSource(WebServer *ws, const String& url)  :
     AsyncEventSource(url),
-    entities_iterator_(ListEntitiesIterator(ws, this)) {
+    entities_iterator_(ListEntitiesIterator(ws, this)),
+    web_server_(ws) {
     }
 
   using AsyncEventSource::handleRequest;
@@ -87,40 +90,42 @@ public:
 
 protected:
   using AsyncEventSource::send;
-
-  std::list<DeferredEvent*> deq;
+  std::list<DeferredEvent*> deq_;
+  WebServer * web_server_;
 
   // helper for allowing only unique entries in the queue
   void deq_clone_and_push_back_with_dedup(DeferredEvent* item) {
+    // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive 
+    //     in this context since DeferredEvent itself is lightweight by design
     item = new DeferredEvent(item);
 
-    auto iter = std::find_if(this->deq.begin(), this->deq.end(),
+    auto iter = std::find_if(this->deq_.begin(), this->deq_.end(),
       [&item](const DeferredEvent* test) -> bool {
         return 
           test->source_ == item->source_ &&
           test->event_type_ == item->event_type_;
       });
 
-    if (iter != this->deq.end()) {
+    if (iter != this->deq_.end()) {
       std::swap((*iter), item);
       delete item;
     }
     else {
-      this->deq.push_back(item);
+      this->deq_.push_back(item);
     }
   }
 
 public:
   void process_deferred_queue() {
-    while(true) {
-      DeferredEvent* de = deq.front();
+    while(deq_.size() > 0) {
+      DeferredEvent* de = deq_.front();
       const char* event_type = de->event_type_;
       // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
       //     but both are "state" on the wire
       if(event_type == "state_detail_all")
         event_type = "state";
-      if(this->try_send(de->message_generator_(), event_type)) {
-        deq.pop_front();
+      if(this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
+        deq_.pop_front();
         delete de;
       } 
       else {
@@ -136,9 +141,9 @@ public:
   }
 
   void send(DeferredEvent* de) {
-    if(deq.size() > 0)
+    if(deq_.size() > 0)
       process_deferred_queue();
-    if(deq.size() > 0) {
+    if(deq_.size() > 0) {
       deq_clone_and_push_back_with_dedup(de);
     } 
     else {
@@ -147,7 +152,7 @@ public:
       //     but both are "state" on the wire
       if(event_type == "state_detail_all")
         event_type = "state";
-      if(!this->try_send(de->message_generator_(), event_type)) {
+      if(!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
         if(de->event_type_ != "log") {
           deq_clone_and_push_back_with_dedup(de);
         }
@@ -160,8 +165,6 @@ public:
     this->send(message, event, id, reconnect);
   }
 };
-
-class WebServer;
 
 class DeferredUpdateEventSourceList: public std::list<DeferredUpdateEventSource*> {
 public:
@@ -196,6 +199,11 @@ public:
       es->try_send_nodefer(generate_config_json(), "ping", millis(), 30000);
 
       es->entities_iterator_.begin(include_internal);
+
+      // just dump them all up-front and take advantage of the deferred queue
+      //while(!es->entities_iterator_.completed()) {
+      //  es->entities_iterator_.advance();
+      //}
     });
 
     es->onDisconnect([es, this](AsyncEventSource *source) {
@@ -336,7 +344,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the binary sensor state with its value as a JSON string.
-  static std::string binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config);
+  std::string binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config);
 #endif
 
 #ifdef USE_FAN
@@ -346,7 +354,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the fan state as a JSON string.
-  static std::string fan_json(fan::Fan *obj, JsonDetail start_config);
+  std::string fan_json(fan::Fan *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_LIGHT
@@ -356,7 +364,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the light state as a JSON string.
-  static std::string light_json(light::LightState *obj, JsonDetail start_config);
+  std::string light_json(light::LightState *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -376,7 +384,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the cover state as a JSON string.
-  static std::string cover_json(cover::Cover *obj, JsonDetail start_config);
+  std::string cover_json(cover::Cover *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_NUMBER
@@ -394,7 +402,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the date state with its value as a JSON string.
-  static std::string date_json(datetime::DateEntity *obj, JsonDetail start_config);
+  std::string date_json(datetime::DateEntity *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_DATETIME_TIME
@@ -403,7 +411,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the time state with its value as a JSON string.
-  static std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
+  std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_DATETIME_DATETIME
@@ -421,7 +429,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the text state with its value as a JSON string.
-  static std::string text_json(text::Text *obj, const std::string &value, JsonDetail start_config);
+  std::string text_json(text::Text *obj, const std::string &value, JsonDetail start_config);
 #endif
 
 #ifdef USE_SELECT
@@ -439,7 +447,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the climate details
-  static std::string climate_json(climate::Climate *obj, JsonDetail start_config);
+  std::string climate_json(climate::Climate *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_LOCK
@@ -449,7 +457,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the lock state with its value as a JSON string.
-  static std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
+  std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
 #ifdef USE_VALVE
@@ -459,7 +467,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the valve state as a JSON string.
-  static std::string valve_json(valve::Valve *obj, JsonDetail start_config);
+  std::string valve_json(valve::Valve *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -469,7 +477,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the alarm_control_panel state with its value as a JSON string.
-  static std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
+  std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
                                               alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
 #endif
 
@@ -477,7 +485,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void on_event(event::Event *obj, const std::string &event_type) override;
 
   /// Dump the event details with its value as a JSON string.
-  static std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
+  std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
 
 #ifdef USE_UPDATE
@@ -487,7 +495,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the update state with its value as a JSON string.
-  static std::string update_json(update::UpdateEntity *obj, JsonDetail start_config);
+  std::string update_json(update::UpdateEntity *obj, JsonDetail start_config);
 #endif
 
   /// Override the web handler's canHandle method.
