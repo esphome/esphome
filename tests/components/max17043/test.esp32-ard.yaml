@@ -1,7 +1,7 @@
 i2c:
   - id: i2c_max17043
-    scl: 16
-    sda: 17
+    sda: 21
+    scl: 22
 
 sensor:
   - platform: max17043
