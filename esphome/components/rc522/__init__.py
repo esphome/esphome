@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import i2c
 from esphome.const import (
+    CONF_GAIN,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
@@ -20,6 +21,18 @@ RC522Trigger = rc522_ns.class_(
     "RC522Trigger", automation.Trigger.template(cg.std_string)
 )
 
+RC522Gain = rc522_ns.enum("RC522Gain")
+GAIN = {
+    "18dB": RC522Gain.RC522_GAIN_18DB,
+    "23dB": RC522Gain.RC522_GAIN_23DB,
+    "18dB_a": RC522Gain.RC522_GAIN_18DBA,
+    "23dB_a": RC522Gain.RC522_GAIN_23DBA,
+    "33dB": RC522Gain.RC522_GAIN_33DB,
+    "38dB": RC522Gain.RC522_GAIN_38DB,
+    "43dB": RC522Gain.RC522_GAIN_43DB,
+    "48dB": RC522Gain.RC522_GAIN_48DB,
+}
+
 RC522_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(RC522),
@@ -34,6 +47,7 @@ RC522_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
             }
         ),
+        cv.Optional(CONF_GAIN, default="38dB"): cv.enum(GAIN, string=True),
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -54,3 +68,5 @@ async def setup_rc522(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_ontagremoved_trigger(trigger))
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+    cg.add(var.set_gain(config[CONF_GAIN]))
