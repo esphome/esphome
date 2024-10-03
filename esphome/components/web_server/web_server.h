@@ -62,7 +62,7 @@ class WebServer;
 */
   class DeferredEvent {
   public:
-    DeferredEvent(void* source, char* event_type) {
+    DeferredEvent(void* source, const char* event_type) {
       source_ = source;
       event_type_ = event_type;
     }
@@ -72,7 +72,7 @@ class WebServer;
       message_generator_ = to_clone->message_generator_;
     }
     void* source_;
-    char* event_type_;
+    const char* event_type_;
     std::function<const char* (WebServer* web_server, void* source)> message_generator_;
 };
 
@@ -201,9 +201,9 @@ public:
       es->entities_iterator_.begin(include_internal);
 
       // just dump them all up-front and take advantage of the deferred queue
-      //while(!es->entities_iterator_.completed()) {
-      //  es->entities_iterator_.advance();
-      //}
+      while(!es->entities_iterator_.completed()) {
+        es->entities_iterator_.advance();
+      }
     });
 
     es->onDisconnect([es, this](AsyncEventSource *source) {
