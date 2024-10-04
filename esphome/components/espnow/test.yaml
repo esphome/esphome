@@ -38,9 +38,8 @@ espnow:
   on_receive:
     - logger.log:
         format: "Received: %s  RSSI: %d"
-        args: [packet.payload_as_bytes(), packet.rssi]
-
+        args: [packet.get_payload(), packet.rssi]
 interval:
-  - interval: 1min
+  - interval: 10sec
     then:
       - espnow.send: "hallo everyone"

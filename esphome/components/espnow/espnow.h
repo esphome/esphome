@@ -6,7 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/bytebuffer.h"
-
+#include "esphome/core/log.h"
 #include <esp_now.h>
 
 #include <array>
@@ -21,22 +21,19 @@ namespace espnow {
 
 static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
 
-static const uint8_t ESPNOW_DATA_HEADER = 0x00;
-static const uint8_t ESPNOW_DATA_PROTOCOL = 0x03;
-static const uint8_t ESPNOW_DATA_PACKET = 0x07;
-static const uint8_t ESPNOW_DATA_CONTENT = 0x08;
-
 static const uint8_t MAX_ESPNOW_DATA_SIZE = 241;
 
-static const uint8_t MAX_NUMBER_OF_RETRYS = 5;
+static const uint8_t TRANSPORT_HEADER[] = {'N', '0', 'w'};
+static const uint32_t ESPNOW_MAIN_PROTOCOL_ID = 0x447453;  // = StD
 
-static const uint32_t TRANSPORT_HEADER = 0xC19983;
-static const uint32_t ESPNOW_MAIN_PROTOCOL_ID = 0x11CFAF;
+static const uint8_t ESPNOW_COMMAND_ACK = 0x06;
+static const uint8_t ESPNOW_COMMAND_NAK = 0x15;
+static const uint8_t ESPNOW_COMMAND_RESEND = 0x05;
 
 struct ESPNowPacket {
   uint64_t peer{0};
   uint8_t rssi{0};
-  uint8_t attempts{0};
+  int8_t attempts{0};
   bool is_broadcast{false};
   uint32_t timestamp{0};
   uint8_t size{0};
@@ -51,46 +48,58 @@ struct ESPNowPacket {
 
   inline ESPNowPacket() ESPHOME_ALWAYS_INLINE {}
   // Create packet to be send.
-  inline ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t protocol) ESPHOME_ALWAYS_INLINE {
+  inline ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size, uint32_t protocol,
+                      uint8_t command = 0) ESPHOME_ALWAYS_INLINE {
     assert(size <= MAX_ESPNOW_DATA_SIZE);
+    if (peer == 0) {
+      peer = ESPNOW_BROADCAST_ADDR;
+    }
 
-    this->set_peer(peer);
+    this->peer = peer;
 
-    this->is_broadcast =
-        (std::memcmp((const void *) this->peer_as_bytes(), (const void *) &ESPNOW_BROADCAST_ADDR, 6) == 0);
-    this->protocol(protocol);
+    this->set_protocol(protocol);
+    if (command != 0) {
+      this->set_command(command);
+    }
     this->size = size;
-    std::memcpy(this->payload_as_bytes(), data, size);
+    std::memcpy(this->get_payload(), data, size);
   }
   // Load received packet's.
-  ESPNowPacket(uint64_t peer, const uint8_t *data, uint8_t size) ESPHOME_ALWAYS_INLINE {
+  ESPNowPacket(const uint8_t *peer, const uint8_t *data, uint8_t size) ESPHOME_ALWAYS_INLINE {
     this->set_peer(peer);
-    std::memcpy(this->content_as_bytes(), data, size);
+    std::memcpy(this->get_content(), data, size);
     this->size = size - this->prefix_size();
   }
 
-  inline uint8_t *peer_as_bytes() const { return (uint8_t *) &(this->peer); }
-  inline void set_peer(uint64_t peer) ESPHOME_ALWAYS_INLINE {
-    if (peer == 0) {
-      this->peer = ESPNOW_BROADCAST_ADDR;
-    } else {
-      this->peer = peer;
+  inline uint8_t *get_peer() const { return (uint8_t *) &(this->peer); }
+  inline void set_peer(const uint8_t *peer) ESPHOME_ALWAYS_INLINE {
+    if (*peer == 0) {
+      peer = (uint8_t *) &ESPNOW_BROADCAST_ADDR;
     }
+    memcpy((void *) this->get_peer(), (const void *) peer, 6);
   };
+  inline bool is_peer(const uint8_t *peer) const { return memcmp(peer, this->get_peer(), 6) == 0; }
 
-  uint8_t prefix_size() const { return sizeof((*this).content.prefix); }
+  uint8_t prefix_size() const { return sizeof(this->content.prefix); }
 
-  uint8_t content_size() const { return ((*this).prefix_size() + (*this).size); }
+  uint8_t content_size() const { return (this->prefix_size() + this->size); }
 
-  inline uint32_t protocol() const { return this->content.prefix.protocol; }
-  inline void protocol(uint32_t protocol) ESPHOME_ALWAYS_INLINE { this->content.prefix.protocol = protocol; }
+  inline uint32_t get_protocol() const { return this->content.prefix.protocol & 0x00FFFFFF; }
+  inline void set_protocol(uint32_t protocol) {
+    this->content.prefix.protocol = (this->content.prefix.protocol & 0xFF000000) + (protocol & 0x00FFFFFF);
+  }
 
-  uint8_t sequents() const { return (*this).content.prefix.sequents; }
-  inline void sequents(uint8_t sequents) ESPHOME_ALWAYS_INLINE { this->content.prefix.sequents = sequents; }
+  inline uint8_t get_command() const { return this->content.prefix.protocol >> 24; }
+  inline void set_command(uint32_t command) ESPHOME_ALWAYS_INLINE {
+    this->content.prefix.protocol = (this->content.prefix.protocol & 0x00FFFFFF) + (command << 24);
+  }
 
-  inline uint8_t *content_as_bytes() const { return (uint8_t *) &(this->content); }
-  inline uint8_t *payload_as_bytes() const { return (uint8_t *) &(this->content.payload); }
-  inline uint8_t content_at(uint8_t pos) const {
+  uint8_t get_sequents() const { return this->content.prefix.sequents; }
+  inline void set_sequents(uint8_t sequents) ESPHOME_ALWAYS_INLINE { this->content.prefix.sequents = sequents; }
+
+  inline uint8_t *get_content() const { return (uint8_t *) &(this->content); }
+  inline uint8_t *get_payload() const { return (uint8_t *) &(this->content.payload); }
+  inline uint8_t get_byte_at(uint8_t pos) const {
     assert(pos < this->size);
     return *(((uint8_t *) &this->content) + pos);
   }
@@ -98,9 +107,14 @@ struct ESPNowPacket {
   inline void retry() ESPHOME_ALWAYS_INLINE { attempts++; }
 
   inline bool is_valid() const {
-    // bool valid = (memcmp((const void *) this->content_as_bytes(), (const void *) &TRANSPORT_HEADER, 3) == 0);
-    // valid &= (this->protocol() != 0);
-    return true;  // valid;
+    bool valid = (memcmp((const void *) this->get_content(), (const void *) &TRANSPORT_HEADER, 3) == 0);
+    valid &= (this->get_protocol() != 0);
+    return valid;
+  }
+
+ protected:
+  static uint32_t protocol_(uint8_t *protocol) {
+    return (*(protocol + 2) << 0) + (*(protocol + 1) << 8) + (*(protocol + 0) << 16);
   }
 };
 
@@ -181,6 +195,11 @@ class ESPNowComponent : public Component {
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
   void set_use_sent_check(bool value) { this->use_sent_check_ = value; }
+  void set_convermation_timeout(uint32_t timeout) {
+    this->conformation_timeout_ = timeout;
+    ESP_LOGD("ESPNOW", "%d", timeout);
+  }
+  void set_retries(uint8_t value) { this->retries_ = value; }
 
   void setup() override;
   void loop() override;
@@ -214,29 +233,27 @@ class ESPNowComponent : public Component {
   bool validate_channel_(uint8_t channel);
   ESPNowProtocol *get_protocol_component_(uint32_t protocol);
 
+  uint64_t own_peer_address_{0};
   uint8_t wifi_channel_{0};
+
+  uint32_t conformation_timeout_{5000};
+  uint8_t retries_{5};
 
   bool auto_add_peer_{false};
   bool use_sent_check_{true};
+
   bool lock_{false};
 
-  void call_on_receive_(ESPNowPacket packet);
-  void call_on_sent_(ESPNowPacket packet, bool status);
-  void call_on_new_peer_(ESPNowPacket packet);
+  void call_on_receive_(ESPNowPacket &packet);
+  void call_on_sent_(ESPNowPacket &packet, bool status);
+  void call_on_new_peer_(ESPNowPacket &packet);
 
   QueueHandle_t receive_queue_{};
   QueueHandle_t send_queue_{};
 
   std::map<uint32_t, ESPNowProtocol *> protocols_{};
   std::vector<uint64_t> peers_{};
-  uint64_t own_peer_address_{0};
-  ESPNowDefaultProtocol *default_protocol_{nullptr};
-
-  TaskHandle_t espnow_task_handle_{nullptr};
   bool task_running_{false};
-
-  uint32_t conformation_timeout_{5000};
-
   static ESPNowComponent *static_;  // NOLINT
 };
 

@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_MAC_ADDRESS, CONF_TRIGGER_ID
+from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID
 from esphome.core import CORE
 
 CODEOWNERS = ["@nielsnl68", "@jesserockz"]
@@ -30,14 +30,17 @@ SendAction = espnow_ns.class_("SendAction", automation.Action)
 NewPeerAction = espnow_ns.class_("NewPeerAction", automation.Action)
 DelPeerAction = espnow_ns.class_("DelPeerAction", automation.Action)
 
+CONF_AUTO_ADD_PEER = "auto_add_peer"
+CONF_CONVORMATION_TIMEOUT = "conformation_timeout"
 CONF_ESPNOW = "espnow"
+CONF_RETRIES = "retries"
 CONF_ON_RECEIVE = "on_receive"
 CONF_ON_SENT = "on_sent"
 CONF_ON_NEW_PEER = "on_new_peer"
-CONF_WIFI_CHANNEL = "wifi_channel"
+CONF_PEER = "peer"
 CONF_PEERS = "peers"
-CONF_AUTO_ADD_PEER = "auto_add_peer"
 CONF_USE_SENT_CHECK = "use_sent_check"
+CONF_WIFI_CHANNEL = "wifi_channel"
 
 
 def validate_raw_data(value):
@@ -56,6 +59,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_WIFI_CHANNEL, default=0): cv.int_range(0, 14),
         cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
         cv.Optional(CONF_USE_SENT_CHECK, default=True): cv.boolean,
+        cv.Optional(
+            CONF_CONVORMATION_TIMEOUT, default="5000ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_RETRIES, default=5): cv.int_range(min=1, max=10),
         cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPNowReceiveTrigger),
@@ -89,6 +96,8 @@ async def to_code(config):
     cg.add(var.set_wifi_channel(config[CONF_WIFI_CHANNEL]))
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
     cg.add(var.set_use_sent_check(config[CONF_USE_SENT_CHECK]))
+    cg.add(var.set_convermation_timeout(config[CONF_CONVORMATION_TIMEOUT]))
+    cg.add(var.set_retries(config[CONF_RETRIES]))
 
     for conf in config.get(CONF_ON_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -133,7 +142,7 @@ async def register_protocol(var, config):
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(ESPNowComponent),
-            cv.Optional(CONF_MAC_ADDRESS): cv.templatable(cv.mac_address),
+            cv.Optional(CONF_PEER): cv.templatable(cv.mac_address),
             cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
         },
         key=CONF_DATA,
@@ -142,10 +151,8 @@ async def register_protocol(var, config):
 async def send_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    if CONF_MAC_ADDRESS in config:
-        template_ = await cg.templatable(
-            config[CONF_MAC_ADDRESS].as_hex, args, cg.uint64
-        )
+    if CONF_PEER in config:
+        template_ = await cg.templatable(config[CONF_PEER].as_hex, args, cg.uint64)
         cg.add(var.set_mac(template_))
 
     data = config.get(CONF_DATA, [])
@@ -166,14 +173,14 @@ async def send_action(config, action_id, template_arg, args):
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(ESPNowComponent),
-            cv.Required(CONF_MAC_ADDRESS): cv.templatable(cv.mac_address),
+            cv.Required(CONF_PEER): cv.templatable(cv.mac_address),
         },
-        key=CONF_MAC_ADDRESS,
+        key=CONF_PEER,
     ),
 )
 async def new_peer_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    template_ = await cg.templatable(config[CONF_MAC_ADDRESS].as_hex, args, cg.uint64)
+    template_ = await cg.templatable(config[CONF_PEER].as_hex, args, cg.uint64)
     cg.add(var.set_mac(template_))
     return var
 
@@ -184,13 +191,13 @@ async def new_peer_action(config, action_id, template_arg, args):
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(ESPNowComponent),
-            cv.Required(CONF_MAC_ADDRESS): cv.templatable(cv.mac_address),
+            cv.Required(CONF_PEER): cv.templatable(cv.mac_address),
         },
-        key=CONF_MAC_ADDRESS,
+        key=CONF_PEER,
     ),
 )
 async def del_peer_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    template_ = await cg.templatable(config[CONF_MAC_ADDRESS].as_hex, args, cg.uint64)
+    template_ = await cg.templatable(config[CONF_PEER].as_hex, args, cg.uint64)
     cg.add(var.set_mac(template_))
     return var
