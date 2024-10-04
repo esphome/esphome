@@ -9,13 +9,13 @@
 namespace esphome {
 namespace web_server {
 
-ListEntitiesIterator::ListEntitiesIterator(WebServer *ws, DeferredUpdateEventSource *es) : web_server_(ws), es_(es) {}
+ListEntitiesIterator::ListEntitiesIterator(WebServer *ws, DeferredUpdateEventSource *es) : web_server_(ws), event_source_(es) {}
 
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -27,9 +27,9 @@ bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *obj) {
 #endif
 #ifdef USE_COVER
 bool ListEntitiesIterator::on_cover(cover::Cover *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -41,9 +41,9 @@ bool ListEntitiesIterator::on_cover(cover::Cover *obj) {
 #endif
 #ifdef USE_FAN
 bool ListEntitiesIterator::on_fan(fan::Fan *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -55,9 +55,9 @@ bool ListEntitiesIterator::on_fan(fan::Fan *obj) {
 #endif
 #ifdef USE_LIGHT
 bool ListEntitiesIterator::on_light(light::LightState *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -69,9 +69,9 @@ bool ListEntitiesIterator::on_light(light::LightState *obj) {
 #endif
 #ifdef USE_SENSOR
 bool ListEntitiesIterator::on_sensor(sensor::Sensor *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -83,9 +83,9 @@ bool ListEntitiesIterator::on_sensor(sensor::Sensor *obj) {
 #endif
 #ifdef USE_SWITCH
 bool ListEntitiesIterator::on_switch(switch_::Switch *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -97,9 +97,9 @@ bool ListEntitiesIterator::on_switch(switch_::Switch *obj) {
 #endif
 #ifdef USE_BUTTON
 bool ListEntitiesIterator::on_button(button::Button *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -111,9 +111,9 @@ bool ListEntitiesIterator::on_button(button::Button *obj) {
 #endif
 #ifdef USE_TEXT_SENSOR
 bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -125,9 +125,9 @@ bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *obj) {
 #endif
 #ifdef USE_LOCK
 bool ListEntitiesIterator::on_lock(lock::Lock *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -140,9 +140,9 @@ bool ListEntitiesIterator::on_lock(lock::Lock *obj) {
 
 #ifdef USE_VALVE
 bool ListEntitiesIterator::on_valve(valve::Valve *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -155,9 +155,9 @@ bool ListEntitiesIterator::on_valve(valve::Valve *obj) {
 
 #ifdef USE_CLIMATE
 bool ListEntitiesIterator::on_climate(climate::Climate *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -170,9 +170,9 @@ bool ListEntitiesIterator::on_climate(climate::Climate *obj) {
 
 #ifdef USE_NUMBER
 bool ListEntitiesIterator::on_number(number::Number *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -185,9 +185,9 @@ bool ListEntitiesIterator::on_number(number::Number *obj) {
 
 #ifdef USE_DATETIME_DATE
 bool ListEntitiesIterator::on_date(datetime::DateEntity *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -200,9 +200,9 @@ bool ListEntitiesIterator::on_date(datetime::DateEntity *obj) {
 
 #ifdef USE_DATETIME_TIME
 bool ListEntitiesIterator::on_time(datetime::TimeEntity *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -215,9 +215,9 @@ bool ListEntitiesIterator::on_time(datetime::TimeEntity *obj) {
 
 #ifdef USE_DATETIME_DATETIME
 bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -230,9 +230,9 @@ bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *obj) {
 
 #ifdef USE_TEXT
 bool ListEntitiesIterator::on_text(text::Text *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -245,9 +245,9 @@ bool ListEntitiesIterator::on_text(text::Text *obj) {
 
 #ifdef USE_SELECT
 bool ListEntitiesIterator::on_select(select::Select *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -260,9 +260,9 @@ bool ListEntitiesIterator::on_select(select::Select *obj) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
 bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -275,10 +275,10 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
   // Null event type, since we are just iterating over entities
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",
@@ -291,9 +291,9 @@ bool ListEntitiesIterator::on_event(event::Event *obj) {
 
 #ifdef USE_UPDATE
 bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
-  if (this->es_->count() == 0)
+  if (this->event_source_->count() == 0)
     return true;
-  this->es_->deferrable_send(
+  this->event_source_->deferrable_send(
     new DeferredEvent(
       obj, 
       "state_detail_all",

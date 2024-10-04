@@ -77,7 +77,7 @@ class ListEntitiesIterator : public ComponentIterator {
 
  protected:
   WebServer *web_server_;
-  DeferredUpdateEventSource *es_;
+  DeferredUpdateEventSource *event_source_;
 };
 
 }  // namespace web_server
