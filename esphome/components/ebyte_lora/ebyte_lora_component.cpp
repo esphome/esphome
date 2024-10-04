@@ -2,18 +2,6 @@
 namespace esphome {
 namespace ebyte_lora {
 
-void IRAM_ATTR HOT EbyteAuxStore::gpio_intr(EbyteAuxStore *arg) {
-  const bool can_send = !arg->pin.digital_read();
-  if (can_send == arg->can_send)
-    return;
-  arg->can_send = can_send;
-  const uint32_t now = micros();
-
-  if (!can_send)
-    arg->on_time += now - arg->last_interrupt;
-
-  arg->last_interrupt = now;
-}
 // when this is called it is asking peers to say something about repeater
 static const uint8_t REQUEST_REPEATER_INFO = 0x88;
 static const uint8_t REPEATER_INFO = 0x99;
@@ -309,8 +297,6 @@ void EbyteLoraComponent::setup() {
   this->should_send_ |= !this->binary_sensors_.empty();
 #endif
   this->pin_aux_->setup();
-  this->pin_aux_->attach_interrupt(EbyteAuxStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
-  this->store_.can_send = true;
   this->pin_m0_->setup();
   this->pin_m1_->setup();
   this->get_current_config_();
@@ -324,10 +310,8 @@ void EbyteLoraComponent::get_current_config_() {
 }
 ModeType EbyteLoraComponent::get_mode_() {
   ModeType internal_mode = MODE_INIT;
-  if (!this->store_.can_send) {
-    ESP_LOGD(TAG, "Can't sent it right now");
+  if (this->can_send_message_())
     return internal_mode;
-  }
 
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
@@ -355,10 +339,9 @@ ModeType EbyteLoraComponent::get_mode_() {
   return internal_mode;
 }
 void EbyteLoraComponent::set_mode_(ModeType mode) {
-  if (!this->store_.can_send) {
-    ESP_LOGD(TAG, "Can't sent it right now");
+  if (this->can_send_message_())
     return;
-  }
+
   if (this->pin_m0_ == nullptr || this->pin_m1_ == nullptr) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
     return;
@@ -394,6 +377,17 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   }
   this->config_mode_ = mode;
   ESP_LOGD(TAG, "Mode is going to be set");
+}
+bool EbyteLoraComponent::can_send_message_() {
+  // High means no more information is needed
+  if (this->pin_aux_->digital_read()) {
+    this->flush();
+    ESP_LOGD(TAG, "Aux pin is High! Can send again!");
+    return true;
+  } else {
+    ESP_LOGD(TAG, "Can't sent it right now");
+    return false;
+  }
 }
 void EbyteLoraComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
@@ -497,7 +491,6 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
   }
 };
 void EbyteLoraComponent::loop() {
-  this->store_.can_send = !this->pin_aux_->digital_read();
   std::vector<uint8_t> data;
   if (!this->available())
     return;
@@ -546,10 +539,8 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> conf) {
   this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
 }
 void EbyteLoraComponent::send_data_(bool all) {
-  if (!this->store_.can_send) {
-    ESP_LOGD(TAG, "Can't sent it right now");
+  if (this->can_send_message_())
     return;
-  }
   std::vector<uint8_t> data;
   data.push_back(network_id_);
 #ifdef USE_SENSOR
@@ -589,10 +580,8 @@ void EbyteLoraComponent::send_data_(bool all) {
 }
 
 void EbyteLoraComponent::send_repeater_info_() {
-  if (!this->store_.can_send) {
-    ESP_LOGD(TAG, "Can't sent it right now");
+  if (this->can_send_message_())
     return;
-  }
   uint8_t data[3];
   data[0] = REPEATER_INFO;  // response
   data[1] = this->repeater_enabled_;
@@ -601,10 +590,8 @@ void EbyteLoraComponent::send_repeater_info_() {
   this->write_array(data, sizeof(data));
 }
 void EbyteLoraComponent::request_repeater_info_() {
-  if (!this->store_.can_send) {
-    ESP_LOGD(TAG, "Can't sent it right now");
+  if (this->can_send_message_())
     return;
-  }
   uint8_t data[2];
   data[0] = REQUEST_REPEATER_INFO;  // Request
   data[1] = this->network_id_;      // for unique id
@@ -613,10 +600,8 @@ void EbyteLoraComponent::request_repeater_info_() {
 }
 void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
   ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
-  if (!this->store_.can_send) {
-    ESP_LOGD(TAG, "Can't sent it right now");
+  if (this->can_send_message_())
     return;
-  }
   this->write_array(data.data(), data.size());
 }
 

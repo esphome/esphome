@@ -18,14 +18,6 @@
 namespace esphome {
 namespace ebyte_lora {
 
-/// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
-struct EbyteAuxStore {
-  volatile uint32_t last_interrupt{0};
-  volatile uint32_t on_time{0};
-  volatile bool can_send{false};
-  ISRInternalGPIOPin pin;
-  static void gpio_intr(EbyteAuxStore *arg);
-};
 #ifdef USE_SENSOR
 struct Sensor {
   sensor::Sensor *sensor;
@@ -114,6 +106,7 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   void send_data_(bool all);
   void request_repeater_info_();
   void send_repeater_info_();
+  bool can_send_message_();
 
  protected:
   bool updated_{};
@@ -130,7 +123,6 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   // used to tell one lora device apart from another
   int network_id_ = 0;
   int rssi_ = 0;
-  EbyteAuxStore store_;
   RegisterConfig current_config_;
   RegisterConfig expected_config_;
 #ifdef USE_SENSOR
