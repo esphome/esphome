@@ -184,6 +184,10 @@ def final_validate(config):
         )
 
 
+def wifi_has_sta(config):
+    return bool(config.get(CONF_NETWORKS, False)) or config.get(CONF_SSID, False)
+
+
 def final_validate_power_esp32_ble(value):
     if not CORE.is_esp32:
         return
@@ -418,6 +422,10 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
+        if CORE.is_esp32 and CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+
     elif CORE.is_esp32 and CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)

@@ -341,7 +341,7 @@ void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
 }
 
-float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
+float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI + 1; }
 
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
 

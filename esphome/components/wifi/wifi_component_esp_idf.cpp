@@ -25,6 +25,7 @@
 
 #ifdef USE_WIFI_AP
 #include "dhcpserver/dhcpserver.h"
+#include "lwip/lwip_napt.h"
 #endif  // USE_WIFI_AP
 
 #include "lwip/apps/sntp.h"
@@ -47,6 +48,7 @@ static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_gw_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif                                        // USE_WIFI_AP
 static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -141,11 +143,37 @@ void WiFiComponent::wifi_pre_setup_() {
     set_mac_address(mac);
   }
 #endif
-  esp_err_t err = esp_netif_init();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
+
+  esp_err_t err;
+#ifdef USE_WIFI_AP
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 2)
+  s_gw_netif = esp_netif_next_unsafe(nullptr);
+#else
+  s_gw_netif = esp_netif_next(nullptr);
+#endif
+  if (s_gw_netif && this->has_sta()) {
+    ESP_LOGE(TAG, "Only WiFi AP can be used when a network interface (%s) already exists",
+             esp_netif_get_ifkey(s_gw_netif));
     return;
   }
+  if (!s_gw_netif) {
+#else
+  if (true) {
+#endif  // USE_WIFI_AP
+
+    err = esp_netif_init();
+    if (err != ERR_OK) {
+      ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
+      return;
+    }
+
+    err = esp_event_loop_create_default();
+    if (err != ERR_OK) {
+      ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
+      return;
+    }
+  }
+
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
     ESP_LOGE(TAG, "xEventGroupCreate failed");
@@ -157,11 +185,7 @@ void WiFiComponent::wifi_pre_setup_() {
     ESP_LOGE(TAG, "xQueueCreate failed");
     return;
   }
-  err = esp_event_loop_create_default();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
-    return;
-  }
+
   esp_event_handler_instance_t instance_wifi_id, instance_ip_id;
   err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, nullptr, &instance_wifi_id);
   if (err != ERR_OK) {
@@ -887,8 +911,31 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_netif_dhcps_option failed! %d", err);
+    ESP_LOGE(TAG, "esp_netif_dhcps_option lease failed! %d", err);
     return false;
+  }
+
+  if (s_gw_netif) {
+    const char *if_key = esp_netif_get_ifkey(s_gw_netif);
+
+    ESP_LOGD(TAG, "Using previous netif '%s' to setup NAT", if_key);
+
+    esp_netif_dns_info_t dns_gw;
+    esp_netif_get_dns_info(s_gw_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
+
+    if (dns_gw.ip.u_addr.ip4.addr != 0) {
+      dhcps_offer_t dhcps_dns_value = OFFER_DNS;
+      ESP_LOGD(TAG, "Reusing DNS " IPSTR " from netif '%s' for DHCP server", IP2STR(&dns_gw.ip.u_addr.ip4), if_key);
+      ESP_ERROR_CHECK(esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER,
+                                             &dhcps_dns_value, sizeof(dhcps_dns_value)));
+      err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_netif_dhcps_option dns failed! %d", err);
+        return false;
+      }
+    }
+
+    ip_napt_enable(info.ip.addr, 1);
   }
 
   err = esp_netif_dhcps_start(s_ap_netif);
