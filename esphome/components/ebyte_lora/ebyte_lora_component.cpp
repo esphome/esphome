@@ -6,7 +6,6 @@ namespace ebyte_lora {
 static const uint8_t REQUEST_REPEATER_INFO = 0x88;
 static const uint8_t REPEATER_INFO = 0x99;
 static const uint8_t REPEATER_KEY = 0x99;
-
 static const uint8_t PROGRAM_CONF = 0xC1;
 static const uint8_t BINARY_SENSOR_KEY = 0x66;
 static const uint8_t SENSOR_KEY = 0x77;
@@ -213,35 +212,31 @@ bool EbyteLoraComponent::check_config_() {
   }
   return success;
 }
-void EbyteLoraComponent::update() {
-  if (this->current_config_.config_set == 0) {
-    ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
-    this->get_current_config_();
-    return;
-  } else {
-    // if it already set just continue quickly!
-    if (!this->config_checked_) {
-      this->config_checked_ = this->check_config_();
-      if (!this->config_checked_) {
-        ESP_LOGD(TAG, "Config is not right, changing it now");
-        this->set_config_();
-      }
-    }
-  }
-  if (this->config_mode_ != NORMAL) {
-    this->config_mode_ = this->get_mode_();
-
-    if (this->config_mode_ != NORMAL) {
-      ESP_LOGD(TAG, "Mode is not set right");
-      this->set_mode_(NORMAL);
-    }
-  }
-  this->updated_ = true;
-  auto now = millis() / 1000;
-  if (this->last_key_time_ + this->repeater_request_recyle_time_ < now) {
-    this->resend_repeater_request_ = true;
-    this->last_key_time_ = now;
-  }
+void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> conf) {
+  ESP_LOGD(TAG, "Config set");
+  this->current_config_.config_set = 1;
+  // 3 is addh
+  this->current_config_.addh = conf[3];
+  // 4 is addl
+  this->current_config_.addl = conf[4];
+  // 5 is reg0, which is air_data for first 3 bits, then parity for 2, uart_baud for 3
+  ESP_LOGD(TAG, "reg0: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[5]));
+  this->current_config_.air_data_rate = (conf[5] >> 0) & 0b111;
+  this->current_config_.parity = (conf[5] >> 3) & 0b11;
+  this->current_config_.uart_baud = (conf[5] >> 5) & 0b111;
+  // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
+  ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[6]));
+  this->current_config_.transmission_power = (conf[6] >> 0) & 0b11;
+  this->current_config_.rssi_noise = (conf[6] >> 5) & 0b1;
+  this->current_config_.sub_packet = (conf[6] >> 6) & 0b11;
+  // 7 is reg2; channel
+  this->current_config_.channel = conf[7];
+  // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
+  ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[8]));
+  this->current_config_.wor_period = (conf[8] >> 0) & 0b111;
+  this->current_config_.enable_lbt = (conf[8] >> 4) & 0b1;
+  this->current_config_.transmission_mode = (conf[8] >> 6) & 0b1;
+  this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
 }
 void EbyteLoraComponent::set_config_() {
   uint8_t data[11];
@@ -390,15 +385,58 @@ bool EbyteLoraComponent::can_send_message_() {
     return false;
   }
 }
-void EbyteLoraComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
-  ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id_);
-  if (this->repeater_enabled_) {
-    ESP_LOGCONFIG(TAG, "  Repeater mode");
+void EbyteLoraComponent::update() {
+  if (this->current_config_.config_set == 0) {
+    ESP_LOGD(TAG, "Config not set yet!, gonna request it now!");
+    this->get_current_config_();
+    return;
   } else {
-    ESP_LOGCONFIG(TAG, "  Normal mode");
+    // if it already set just continue quickly!
+    if (!this->config_checked_) {
+      this->config_checked_ = this->check_config_();
+      if (!this->config_checked_) {
+        ESP_LOGD(TAG, "Config is not right, changing it now");
+        this->set_config_();
+      }
+    }
   }
-};
+  if (this->config_mode_ != NORMAL) {
+    this->config_mode_ = this->get_mode_();
+
+    if (this->config_mode_ != NORMAL) {
+      ESP_LOGD(TAG, "Mode is not set right");
+      this->set_mode_(NORMAL);
+    }
+  }
+  this->updated_ = true;
+  auto now = millis() / 1000;
+  if (this->last_key_time_ + this->repeater_request_recyle_time_ < now) {
+    this->resend_repeater_request_ = true;
+    this->last_key_time_ = now;
+  }
+}
+void EbyteLoraComponent::loop() {
+  std::vector<uint8_t> data;
+  if (!this->available())
+    return;
+  ESP_LOGD(TAG, "Reading serial");
+  while (this->available()) {
+    uint8_t c;
+    this->read_byte(&c);
+    data.push_back(c);
+  }
+
+  if (this->repeater_enabled_) {
+    this->repeat_message_(data);
+  }
+  this->process_(data);
+
+  if (this->resend_repeater_request_)
+    this->request_repeater_info_();
+  if (this->updated_) {
+    this->send_data_(true);
+  }
+}
 void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
 #ifdef USE_SENSOR
   auto &sensors = this->remote_sensors_[network_id_];
@@ -492,54 +530,6 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
     ESP_LOGD(TAG, "RSSI: %f", rssi);
   }
 };
-void EbyteLoraComponent::loop() {
-  std::vector<uint8_t> data;
-  if (!this->available())
-    return;
-  ESP_LOGD(TAG, "Reading serial");
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    data.push_back(c);
-  }
-
-  if (this->repeater_enabled_) {
-    this->repeat_message_(data);
-  }
-  this->process_(data);
-
-  if (this->resend_repeater_request_)
-    this->request_repeater_info_();
-  if (this->updated_) {
-    this->send_data_(true);
-  }
-}
-void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> conf) {
-  ESP_LOGD(TAG, "Config set");
-  this->current_config_.config_set = 1;
-  // 3 is addh
-  this->current_config_.addh = conf[3];
-  // 4 is addl
-  this->current_config_.addl = conf[4];
-  // 5 is reg0, which is air_data for first 3 bits, then parity for 2, uart_baud for 3
-  ESP_LOGD(TAG, "reg0: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[5]));
-  this->current_config_.air_data_rate = (conf[5] >> 0) & 0b111;
-  this->current_config_.parity = (conf[5] >> 3) & 0b11;
-  this->current_config_.uart_baud = (conf[5] >> 5) & 0b111;
-  // 6 is reg1; transmission_power : 2, reserve : 3, rssi_noise : 1, sub_packet : 2
-  ESP_LOGD(TAG, "reg1: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[6]));
-  this->current_config_.transmission_power = (conf[6] >> 0) & 0b11;
-  this->current_config_.rssi_noise = (conf[6] >> 5) & 0b1;
-  this->current_config_.sub_packet = (conf[6] >> 6) & 0b11;
-  // 7 is reg2; channel
-  this->current_config_.channel = conf[7];
-  // 8 is reg3; wor_period:3, reserve:1, enable_lbt:1, reserve:1, transmission_mode:1, enable_rssi:1
-  ESP_LOGD(TAG, "reg3: %c%c%c%c%c%c%c%c", BYTE_TO_BINARY(conf[8]));
-  this->current_config_.wor_period = (conf[8] >> 0) & 0b111;
-  this->current_config_.enable_lbt = (conf[8] >> 4) & 0b1;
-  this->current_config_.transmission_mode = (conf[8] >> 6) & 0b1;
-  this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
-}
 void EbyteLoraComponent::send_data_(bool all) {
   if (!this->can_send_message_())
     return;
@@ -580,7 +570,6 @@ void EbyteLoraComponent::send_data_(bool all) {
 #endif
   this->write_array(data);
 }
-
 void EbyteLoraComponent::send_repeater_info_() {
   if (!this->can_send_message_())
     return;
@@ -606,6 +595,14 @@ void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
     return;
   this->write_array(data.data(), data.size());
 }
-
+void EbyteLoraComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Ebyte Lora E220:");
+  ESP_LOGCONFIG(TAG, "  Network id: %u", this->network_id_);
+  if (this->repeater_enabled_) {
+    ESP_LOGCONFIG(TAG, "  Repeater mode");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Normal mode");
+  }
+};
 }  // namespace ebyte_lora
 }  // namespace esphome
