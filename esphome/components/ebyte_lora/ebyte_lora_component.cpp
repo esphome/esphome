@@ -435,6 +435,7 @@ void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
 #ifdef USE_BINARY_SENSOR
   auto &binary_sensors = this->remote_binary_sensors_[network_id_];
 #endif
+  ESP_LOGD(TAG, "GOT new data to process");
   while (buf < end) {
     byte = *buf++;
     if (byte == REQUEST_REPEATER_INFO) {
