@@ -1,16 +1,17 @@
 #pragma once
 
-#include "cxx_include/esp_modem_dte.hpp"
-#include "cxx_include/esp_modem_dce.hpp"
-
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_ESP32
 
+using esphome::esp_log_printf_; 
+
 #include "esp_netif.h"
+#include "cxx_include/esp_modem_api.hpp"
 
 namespace esphome {
 namespace modem {

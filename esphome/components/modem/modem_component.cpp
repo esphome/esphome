@@ -1,11 +1,11 @@
-#include "esp_modem_c_api_types.h"
-#include "esp_netif_ppp.h"
-#include "cxx_include/esp_modem_api.hpp"
-
 #include "modem_component.h"
+
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
+
+#include "esp_modem_c_api_types.h"
+#include "esp_netif_ppp.h"
 
 #ifdef USE_ESP32
 
