@@ -450,7 +450,8 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
 
       // key length for the sensor data
       i++;
-      auto sensor_name_length = data[i];
+      uint8_t sensor_name_length = 0;
+      sensor_name_length = data[i];
       if (data.size() - i < sensor_name_length) {
         return ESP_LOGV(TAG, "Name length of %u not available", sensor_name_length);
       }
