@@ -53,10 +53,11 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 /*
   This class holds a pointer to the event source, the event type, and a pointer to a lambda that will lazily 
   generate the event body.  The source and type allow dedup in the deferred queue and the lambda saves on
-  having to store the message body upfront.  The lambda should point back into the DeferredEvent itself for 
-  parameters so it only need to closure a single reference (4 bytes).
+  having to store the message body upfront.  The lambda should not need any closures due to the parameters
+  so it's only overhead is the pointer to the lambda itself.
 
-  The three pointers, plus the entry in the deq should equal 16 bytes per entry all-told.
+  That's three pointers, plus the entry in the deferred event queue itself (a std::vector with no overhead) 
+  should equal 16 bytes per entry total.
 */
 class DeferredUpdateEventSource;
   class DeferredEvent {
@@ -80,16 +81,17 @@ class DeferredUpdateEventSource;
 };
 
 class DeferredUpdateEventSourceList;
-
 class DeferredUpdateEventSource: public AsyncEventSource {
   friend class DeferredUpdateEventSourceList;
 
 protected:
+  // surface a couple methods from the base class
   using AsyncEventSource::handleRequest;
   using AsyncEventSource::send;
 
   ListEntitiesIterator entities_iterator_;
-  std::list<DeferredEvent*> deq_;
+  // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory footprint is more important than speed here)
+  std::vector<DeferredEvent*> deferred_queue_;
   WebServer * web_server_;
 
   // helper for allowing only unique entries in the queue
@@ -121,7 +123,7 @@ public:
   void add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal);
 
   void on_client_connect(DeferredUpdateEventSource* source, std::function<const char* ()> generate_config_json, bool include_internal);
-  void remove_client(DeferredUpdateEventSource* source);
+  void on_client_disconnect(DeferredUpdateEventSource* source);
 };
 
 /** This class allows users to create a web server with their ESP nodes.

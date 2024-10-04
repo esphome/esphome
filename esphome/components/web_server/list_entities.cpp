@@ -266,7 +266,7 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
     new DeferredEvent(
       obj, 
       "state_detail_all",
-      [](WebServer* web_server, void* source) { return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(source), ((alarm_control_panel::AlarmControlPanel*)(source))->state, DETAIL_ALL).c_str(); }
+      [](WebServer* web_server, void* source) { return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(source), ((alarm_control_panel::AlarmControlPanel*)(source))->get_state(), DETAIL_ALL).c_str(); }
     )
   );
   return true;

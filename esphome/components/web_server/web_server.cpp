@@ -78,32 +78,32 @@ void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent
   //     in this context since DeferredEvent itself is lightweight by design
   item = new DeferredEvent(item);
 
-  auto iter = std::find_if(this->deq_.begin(), this->deq_.end(),
+  auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
     [&item](const DeferredEvent* test) -> bool {
       return 
         test->source_ == item->source_ &&
         test->event_type_ == item->event_type_;
     });
 
-  if (iter != this->deq_.end()) {
+  if (iter != this->deferred_queue_.end()) {
     std::swap((*iter), item);
     delete item;
   }
   else {
-    this->deq_.push_back(item);
+    this->deferred_queue_.push_back(item);
   }
 }
 
 void DeferredUpdateEventSource::process_deferred_queue() {
-  while(deq_.size() > 0) {
-    DeferredEvent* de = deq_.front();
+  while(deferred_queue_.size() > 0) {
+    DeferredEvent* de = deferred_queue_.front();
     const char* event_type = de->event_type_;
     // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
     //     but both are "state" on the wire
     if(event_type == "state_detail_all")
       event_type = "state";
     if(this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
-      deq_.pop_front();
+      deferred_queue_.pop_front();
       delete de;
     } 
     else {
@@ -123,9 +123,9 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent* de) {
   if(!entities_iterator_.completed() && de->event_type_ != "state_detail_all")
     return;
 
-  if(deq_.size() > 0)
+  if(deferred_queue_.size() > 0)
     process_deferred_queue();
-  if(deq_.size() > 0) {
+  if(deferred_queue_.size() > 0) {
     deq_clone_and_push_back_with_dedup(de);
   } 
   else {
@@ -176,7 +176,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer* ws, AsyncWebServer
   });
 
   es->onDisconnect([this, ws, es](AsyncEventSource *source) { 
-    ws->defer([this, source]() { this->remove_client((DeferredUpdateEventSource*)source); });
+    ws->defer([this, source]() { this->on_client_disconnect((DeferredUpdateEventSource*)source); });
   });
 
   es->handleRequest(request);
@@ -195,7 +195,7 @@ void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource*
     }
 }
 
-void DeferredUpdateEventSourceList::remove_client(DeferredUpdateEventSource* source)
+void DeferredUpdateEventSourceList::on_client_disconnect(DeferredUpdateEventSource* source)
 {
   source->onConnect(nullptr);
   source->onDisconnect(nullptr);
