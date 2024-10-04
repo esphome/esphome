@@ -303,40 +303,38 @@ void EbyteLoraComponent::setup() {
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::get_current_config_() {
-  this->set_mode_(CONFIGURATION);
+  if (this->get_mode_() != CONFIGURATION)
+    this->set_mode_(CONFIGURATION);
   if (this->can_send_message_()) {
     uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
     this->write_array(data, sizeof(data));
     ESP_LOGD(TAG, "Config info requested");
+  } else {
+    ESP_LOGD(TAG, "Config info can't be requested right now, since device is busy");
   }
 }
 ModeType EbyteLoraComponent::get_mode_() {
   ModeType internal_mode = MODE_INIT;
-  if (this->can_send_message_())
+  if (!this->can_send_message_())
     return internal_mode;
 
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
     // ESP_LOGD(TAG, "MODE NORMAL!");
-    internal_mode = NORMAL;
+    return NORMAL;
   }
   if (pin1 && !pin2) {
     // ESP_LOGD(TAG, "MODE WOR!");
-    internal_mode = WOR_SEND;
+    return WOR_SEND;
   }
   if (!pin1 && pin2) {
     // ESP_LOGD(TAG, "MODE WOR!");
-    internal_mode = WOR_RECEIVER;
+    return WOR_RECEIVER;
   }
   if (pin1 && pin2) {
     // ESP_LOGD(TAG, "MODE Conf!");
-    internal_mode = CONFIGURATION;
-  }
-  if (internal_mode != this->config_mode_) {
-    ESP_LOGD(TAG, "Modes are not equal, calling the set function!! , checked: %u, expected: %u", internal_mode,
-             this->config_mode_);
-    this->set_mode_(internal_mode);
+    return CONFIGURATION;
   }
   return internal_mode;
 }
@@ -344,35 +342,40 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   if (this->pin_m0_ == nullptr || this->pin_m1_ == nullptr) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
     return;
-  } else {
-    switch (mode) {
-      case NORMAL:
-        // Mode 0 | normal operation
-        this->pin_m0_->digital_write(false);
-        this->pin_m1_->digital_write(false);
-        ESP_LOGD(TAG, "MODE NORMAL!");
-        break;
-      case WOR_SEND:
-        this->pin_m0_->digital_write(true);
-        this->pin_m1_->digital_write(false);
-        ESP_LOGD(TAG, "MODE WOR SEND!");
-        break;
-      case WOR_RECEIVER:
-        // case MODE_2_PROGRAM:
-        this->pin_m0_->digital_write(false);
-        this->pin_m1_->digital_write(true);
-        ESP_LOGD(TAG, "MODE RECEIVING!");
-        break;
-      case CONFIGURATION:
-        // Mode 3 | Setting operation
-        this->pin_m0_->digital_write(true);
-        this->pin_m1_->digital_write(true);
-        ESP_LOGD(TAG, "MODE SLEEP and CONFIG!");
-        break;
-      case MODE_INIT:
-        ESP_LOGD(TAG, "Don't call this!");
-        break;
-    }
+  }
+  // no need to do anything if the mode is correct
+  if (mode == this->get_mode_()) {
+    this->config_mode_ = mode;
+    ESP_LOGD(TAG, "Mode is already correct");
+    return;
+  }
+  switch (mode) {
+    case NORMAL:
+      // Mode 0 | normal operation
+      this->pin_m0_->digital_write(false);
+      this->pin_m1_->digital_write(false);
+      ESP_LOGD(TAG, "MODE NORMAL!");
+      break;
+    case WOR_SEND:
+      this->pin_m0_->digital_write(true);
+      this->pin_m1_->digital_write(false);
+      ESP_LOGD(TAG, "MODE WOR SEND!");
+      break;
+    case WOR_RECEIVER:
+      // case MODE_2_PROGRAM:
+      this->pin_m0_->digital_write(false);
+      this->pin_m1_->digital_write(true);
+      ESP_LOGD(TAG, "MODE RECEIVING!");
+      break;
+    case CONFIGURATION:
+      // Mode 3 | Setting operation
+      this->pin_m0_->digital_write(true);
+      this->pin_m1_->digital_write(true);
+      ESP_LOGD(TAG, "MODE SLEEP and CONFIG!");
+      break;
+    case MODE_INIT:
+      ESP_LOGD(TAG, "Don't call this!");
+      break;
   }
   this->config_mode_ = mode;
 }
@@ -538,7 +541,7 @@ void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> conf) {
   this->current_config_.enable_rssi = (conf[8] >> 7) & 0b1;
 }
 void EbyteLoraComponent::send_data_(bool all) {
-  if (this->can_send_message_())
+  if (!this->can_send_message_())
     return;
   std::vector<uint8_t> data;
   data.push_back(network_id_);
@@ -579,7 +582,7 @@ void EbyteLoraComponent::send_data_(bool all) {
 }
 
 void EbyteLoraComponent::send_repeater_info_() {
-  if (this->can_send_message_())
+  if (!this->can_send_message_())
     return;
   uint8_t data[3];
   data[0] = REPEATER_INFO;  // response
@@ -589,7 +592,7 @@ void EbyteLoraComponent::send_repeater_info_() {
   this->write_array(data, sizeof(data));
 }
 void EbyteLoraComponent::request_repeater_info_() {
-  if (this->can_send_message_())
+  if (!this->can_send_message_())
     return;
   uint8_t data[2];
   data[0] = REQUEST_REPEATER_INFO;  // Request
@@ -599,7 +602,7 @@ void EbyteLoraComponent::request_repeater_info_() {
 }
 void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
   ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
-  if (this->can_send_message_())
+  if (!this->can_send_message_())
     return;
   this->write_array(data.data(), data.size());
 }
