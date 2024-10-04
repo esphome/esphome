@@ -94,7 +94,7 @@ void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup_(DeferredEven
 }
 
 void DeferredUpdateEventSource::process_deferred_queue_() {
-  while (deferred_queue_.size() > 0) {
+  while (!deferred_queue_.empty()) {
     DeferredEvent *de = deferred_queue_.front();
     const char *event_type = de->event_type_;
     // normal state updates and the list_entities iterator output with extra details in the json had to be
