@@ -103,7 +103,8 @@ void DeferredUpdateEventSource::process_deferred_queue() {
     if(event_type == "state_detail_all")
       event_type = "state";
     if(this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
-      deferred_queue_.pop_front();
+      // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
+      deferred_queue_.erase(deferred_queue_.begin());
       delete de;
     } 
     else {
