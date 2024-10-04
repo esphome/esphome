@@ -300,7 +300,7 @@ void EbyteLoraComponent::setup() {
 }
 void EbyteLoraComponent::get_current_config_() {
   if (this->get_mode_() != CONFIGURATION) {
-    ESP_LOGD(TAG, "Mode not set right requesting that and returning");
+    ESP_LOGD(TAG, "Mode not set right requesting that and returning %u", this->get_mode_());
     this->set_mode_(CONFIGURATION);
     return;
   }
