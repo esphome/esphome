@@ -365,7 +365,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
       std::string data = this->sensor_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
-    }  
+    }
   }
   request->send(404);
 }
