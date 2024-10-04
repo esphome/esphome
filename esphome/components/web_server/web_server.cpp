@@ -1844,6 +1844,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
   if(request->url() == "/events") {
     this->event_source_list_.add_new_client(this, request, [this]() -> const char* { return this->get_config_json().c_str(); }, this->include_internal_);
+    return;
   }
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
