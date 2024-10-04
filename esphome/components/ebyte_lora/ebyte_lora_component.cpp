@@ -509,6 +509,7 @@ void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
   }
 };
 void EbyteLoraComponent::loop() {
+  this->store_.can_send = !this->pin_aux_->digital_read();
   if (auto len = this->available()) {
     uint8_t buf[len];
     this->read_array(buf, len);
