@@ -77,6 +77,8 @@ void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent
   // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive
   //     in this context since DeferredEvent itself is lightweight by design
   item = new DeferredEvent(item);
+  if(item == nullptr)
+    return;
 
   auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
                            [&item](const DeferredEvent *test) -> bool {
@@ -98,7 +100,7 @@ void DeferredUpdateEventSource::process_deferred_queue() {
     // normal state updates and the list_entities iterator output with extra details in the json had to be
     // differentiated
     //     but both are "state" on the wire
-    if (event_type == "state_detail_all")
+    if (0 == strcmp(event_type, "state_detail_all"))
       event_type = "state";
     if (this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
@@ -116,9 +118,19 @@ void DeferredUpdateEventSource::loop() {
 }
 
 void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
+  if(de == nullptr)
+    return;
+
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI
-  if (!entities_iterator_.completed() && de->event_type_ != "state_detail_all")
+  if (!entities_iterator_.completed() && 0 != strcmp(de->event_type_, "state_detail_all"))
+    return;
+
+  if(de->event_type_ == nullptr)
+    return;
+  if(de->message_generator_ == nullptr)
+    return;
+  if(de->source_ == nullptr)
     return;
 
   if (deferred_queue_.size() > 0)
@@ -131,7 +143,7 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
     // normal state updates and the list_entities iterator output with extra details in the json had to be
     // differentiated
     //     but both are "state" on the wire
-    if (event_type == "state_detail_all")
+    if (0 == strcmp(event_type, "state_detail_all"))
       event_type = "state";
     if (!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
       if (de->event_type_ != "log") {
@@ -181,7 +193,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
     });
   });
 
-  es->onDisconnect([this, ws, es](AsyncEventSource *source) {
+  es->onDisconnect([this, ws, es](AsyncEventSource *source, AsyncEventSourceClient *client) {
     ws->defer([this, source]() { this->on_client_disconnect((DeferredUpdateEventSource *) source); });
   });
 
