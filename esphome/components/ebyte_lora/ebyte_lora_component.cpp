@@ -556,12 +556,12 @@ void EbyteLoraComponent::send_data_(bool all) {
   for (auto &sensor : this->sensors_) {
     if (all || sensor.updated) {
       sensor.updated = false;
-      FuData udata{.f32 = sensor.sensor->get_state()};
+      uint32_t u32 = sensor.sensor->get_state();
       data.push_back(SENSOR_KEY);
-      data.push_back(udata.u32 & 0xFF);
-      data.push_back((udata.u32 >> 8) & 0xFF);
-      data.push_back((udata.u32 >> 16) & 0xFF);
-      data.push_back((udata.u32 >> 24) & 0xFF);
+      data.push_back(u32 & 0xFF);
+      data.push_back((u32 >> 8) & 0xFF);
+      data.push_back((u32 >> 16) & 0xFF);
+      data.push_back((u32 >> 24) & 0xFF);
       // add all the sensor date info
       auto len = strlen(sensor.id);
       data.push_back(len);
