@@ -122,7 +122,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
   void deferrable_send(DeferredEvent *event);
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 
-  void add_new_client(WebServer *ws, AsyncWebServerRequest *request, 
+  void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
                       const std::function<const char *()> &generate_config_json, bool include_internal);
 
   void on_client_connect(DeferredUpdateEventSource *source, const std::function<const char *()> &generate_config_json,
