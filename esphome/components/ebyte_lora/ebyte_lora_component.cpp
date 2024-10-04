@@ -430,7 +430,7 @@ void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
   if (first_byte == BINARY_SENSOR_KEY || first_byte == SENSOR_KEY) {
     for (size_t i = 0; i < data.size() - 1; i++) {
       uint8_t key = data[i];
-      uint32_t u32;
+      uint32_t u32 = 0;
       if (key == BINARY_SENSOR_KEY) {
         // 1 byte for the length of the sensor name, one for the name, 1 for the data
         if (data.size() - i < 3) {
