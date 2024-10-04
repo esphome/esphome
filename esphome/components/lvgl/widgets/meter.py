@@ -20,7 +20,7 @@ from ..defines import (
     CONF_END_VALUE,
     CONF_INDICATOR,
     CONF_MAIN,
-    CONF_OPACITY,
+    CONF_OPA,
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
     CONF_SRC,
@@ -78,7 +78,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_COLOR, default=0): lv_color,
         cv.Optional(CONF_R_MOD, default=0): size,
         cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_OPACITY): opacity,
+        cv.Optional(CONF_OPA): opacity,
     }
 )
 INDICATOR_IMG_SCHEMA = cv.Schema(
@@ -87,7 +87,7 @@ INDICATOR_IMG_SCHEMA = cv.Schema(
         cv.Required(CONF_PIVOT_X): pixels,
         cv.Required(CONF_PIVOT_Y): pixels,
         cv.Optional(CONF_VALUE): lv_float,
-        cv.Optional(CONF_OPACITY): opacity,
+        cv.Optional(CONF_OPA): opacity,
     }
 )
 INDICATOR_ARC_SCHEMA = cv.Schema(
@@ -98,7 +98,7 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
         cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
-        cv.Optional(CONF_OPACITY): opacity,
+        cv.Optional(CONF_OPA): opacity,
     }
 )
 INDICATOR_TICKS_SCHEMA = cv.Schema(
@@ -286,7 +286,7 @@ meter_spec = MeterType()
             cv.Exclusive(CONF_VALUE, CONF_VALUE): lv_float,
             cv.Exclusive(CONF_START_VALUE, CONF_VALUE): lv_float,
             cv.Optional(CONF_END_VALUE): lv_float,
-            cv.Optional(CONF_OPACITY): opacity,
+            cv.Optional(CONF_OPA): opacity,
         }
     ),
 )
@@ -309,6 +309,6 @@ async def set_indicator_values(meter, indicator, config):
             lv.meter_set_indicator_start_value(meter, indicator, start_value)
     if end_value is not None:
         lv.meter_set_indicator_end_value(meter, indicator, end_value)
-    if opa := config.get(CONF_OPACITY):
+    if opa := config.get(CONF_OPA):
         lv_assign(indicator.opa, await opacity.process(opa))
         lv_obj.invalidate(meter)
