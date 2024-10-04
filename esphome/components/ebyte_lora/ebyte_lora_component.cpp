@@ -297,8 +297,11 @@ void EbyteLoraComponent::setup() {
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::get_current_config_() {
-  if (this->get_mode_() != CONFIGURATION)
+  if (this->get_mode_() != CONFIGURATION) {
+    ESP_LOGD(TAG, "Mode not set right requesting that and returning");
     this->set_mode_(CONFIGURATION);
+    return;
+  }
   if (this->can_send_message_()) {
     uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
     this->write_array(data, sizeof(data));
@@ -349,7 +352,7 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     if (this->config_mode_ == MODE_INIT) {
       ESP_LOGD(TAG, "Very first time setting the mode, going to ignore device busy state");
     } else {
-      ESP_LOGD(TAG, "Device busy lets wait");
+      ESP_LOGD(TAG, "Device busy lets wait, current mode is %u", this->config_mode_);
       return;
     }
   }
