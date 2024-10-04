@@ -120,9 +120,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
   bool resend_repeater_request_{};
   uint32_t repeater_request_recyle_time_{};
   uint32_t last_key_time_{};
-  void setup_conf_(uint8_t const *conf);
-  void process_(uint8_t *buf, size_t len);
-  void repeat_message_(uint8_t *buf);
+  void setup_conf_(std::vector<uint8_t> conf);
+  void process_(std::vector<uint8_t> data);
+  void repeat_message_(std::vector<uint8_t> data);
   // set if there is some sensor info available or it is in repeater mode
   bool should_send_{};
   // if set it will function as a repeater only

@@ -14,11 +14,6 @@ void IRAM_ATTR HOT EbyteAuxStore::gpio_intr(EbyteAuxStore *arg) {
 
   arg->last_interrupt = now;
 }
-union FuData {
-  uint32_t u32;
-  float f32;
-};
-
 // when this is called it is asking peers to say something about repeater
 static const uint8_t REQUEST_REPEATER_INFO = 0x88;
 static const uint8_t REPEATER_INFO = 0x99;
@@ -27,20 +22,6 @@ static const uint8_t REPEATER_KEY = 0x99;
 static const uint8_t PROGRAM_CONF = 0xC1;
 static const uint8_t BINARY_SENSOR_KEY = 0x66;
 static const uint8_t SENSOR_KEY = 0x77;
-
-static inline uint32_t get_uint32(uint8_t *&buf) {
-  uint32_t data = *buf++;
-  data += *buf++ << 8;
-  data += *buf++ << 16;
-  data += *buf++ << 24;
-  return data;
-}
-
-static inline uint16_t get_uint16(uint8_t *&buf) {
-  uint16_t data = *buf++;
-  data += *buf++ << 8;
-  return data;
-}
 bool EbyteLoraComponent::check_config_() {
   bool success = true;
   if (this->current_config_.addh != this->expected_config_.addh) {
@@ -423,12 +404,7 @@ void EbyteLoraComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Normal mode");
   }
 };
-void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
-  uint8_t *start_ptr = buf;
-  uint8_t byte;
-  // -1 cause the last one is always RSSI
-  const uint8_t *end = buf + len - 1;
-  FuData rdata{};
+void EbyteLoraComponent::process_(std::vector<uint8_t> data) {
 #ifdef USE_SENSOR
   auto &sensors = this->remote_sensors_[network_id_];
 #endif
@@ -436,96 +412,114 @@ void EbyteLoraComponent::process_(uint8_t *buf, const size_t len) {
   auto &binary_sensors = this->remote_binary_sensors_[network_id_];
 #endif
   ESP_LOGD(TAG, "GOT new data to process");
-  while (buf < end) {
-    byte = *buf++;
-    if (byte == REQUEST_REPEATER_INFO) {
-      ESP_LOGD(TAG, "Got request for repeater info from network id %u", buf[1]);
-      this->send_repeater_info_();
-      break;
-    }
-
-    if (byte == REPEATER_INFO) {
-      ESP_LOGD(TAG, "Got some repeater info from network %u setting rssi next", buf[2]);
-      break;
-    }
-    if (byte == PROGRAM_CONF) {
-      ESP_LOGD(TAG, "GOT PROGRAM_CONF");
-      this->setup_conf_(buf);
-      this->set_mode_(NORMAL);
-      break;
-    }
-    byte = *buf++;
-
-    // Do all the stuff if they are sensors
-    if (byte == BINARY_SENSOR_KEY || byte == SENSOR_KEY) {
-      if (byte == BINARY_SENSOR_KEY) {
+  uint8_t first_byte = data[0];
+  // rssi is always the last one, except for when it is a program conf
+  if (first_byte == REQUEST_REPEATER_INFO) {
+    ESP_LOGD(TAG, "Got request for repeater info from network id %u", data[1]);
+    this->send_repeater_info_();
+  }
+  if (first_byte == REPEATER_INFO) {
+    ESP_LOGD(TAG, "Got some repeater info from network %u setting rssi next", data[2]);
+  }
+  if (first_byte == PROGRAM_CONF) {
+    ESP_LOGD(TAG, "GOT PROGRAM_CONF");
+    this->setup_conf_(data);
+    this->set_mode_(NORMAL);
+  }
+  // Do all the stuff if they are sensors
+  if (first_byte == BINARY_SENSOR_KEY || first_byte == SENSOR_KEY) {
+    for (size_t i = 0; i < data.size() - 1; i++) {
+      uint8_t key = data[i];
+      uint32_t u32;
+      if (key == BINARY_SENSOR_KEY) {
         // 1 byte for the length of the sensor name, one for the name, 1 for the data
-        if (end - buf < 3) {
+        if (data.size() - i < 3) {
           return ESP_LOGV(TAG, "Binary sensor key requires at least 3 more bytes");
         }
         // grab the first bite, that is the state, there will be 2 at least two more
-        rdata.u32 = *buf++;
-      } else if (byte == SENSOR_KEY) {
+        i++;
+        u32 = data[i];
+      } else if (key == SENSOR_KEY) {
         // same as before but we need 4 for sensor data
-        if (end - buf < 6) {
+        if (data.size() - i < 6) {
           return ESP_LOGV(TAG, "Sensor key requires at least 6 more bytes");
         }
-        // next 4 bytes are the int32
-        rdata.u32 = get_uint32(buf);
+        i++;
+        u32 = data[i];
+        i++;
+        u32 += data[i] << 8;
+        i++;
+        u32 += data[i] << 16;
+        i++;
+        u32 += data[i] << 24;
       }
+
       // key length for the sensor data
-      auto sensor_name_length = *buf++;
-      if (end - buf < sensor_name_length) {
+      i++;
+      auto sensor_name_length = data[i];
+      if (data.size() - i < sensor_name_length) {
         return ESP_LOGV(TAG, "Name length of %u not available", sensor_name_length);
       }
       // max length of sensors name
       char sensor_name[sensor_name_length]{};
       // get the memory cleared and set
       memset(sensor_name, 0, sizeof sensor_name);
-      // copy from buffer to sensor_name
-      memcpy(sensor_name, buf, sensor_name_length);
-      ESP_LOGV(TAG, "Found sensor key %d, id %s, data %lX", byte, sensor_name, (unsigned long) rdata.u32);
+      for (size_t s = 0; s < sensor_name_length; s++) {
+        // set each
+        sensor_name[s] = data[s];
+      }
+
+      ESP_LOGV(TAG, "Found sensor key %d, id %s, data %lX", key, sensor_name, (unsigned long) u32);
       // move the buffer to after sensor name length
-      buf += sensor_name_length;
+      i += sensor_name_length;
 
 #ifdef USE_SENSOR
-      if (byte == SENSOR_KEY && sensors.count(sensor_name) != 0)
-        sensors[sensor_name]->publish_state(rdata.f32);
+      if (key == SENSOR_KEY && sensors.count(sensor_name) != 0)
+        sensors[sensor_name]->publish_state(u32);
 #endif
 #ifdef USE_BINARY_SENSOR
-      if (byte == BINARY_SENSOR_KEY && binary_sensors.count(sensor_name) != 0)
-        binary_sensors[sensor_name]->publish_state(rdata.u32 != 0);
+      if (key == BINARY_SENSOR_KEY && binary_sensors.count(sensor_name) != 0)
+        binary_sensors[sensor_name]->publish_state(u32 != 0);
 #endif
-    } else {
-      return ESP_LOGW(TAG, "Unknown key byte %X", byte);
     }
+
+  } else {
+    return ESP_LOGW(TAG, "Unknown key byte %X", first_byte);
   }
 
   // RSSI is always found whenever it is not program info
-  if (buf[0] != PROGRAM_CONF) {
+  if (first_byte != PROGRAM_CONF) {
+    float rssi = (data[data.size() - 1] / 255.0) * 100;
 #ifdef USE_SENSOR
-    this->rssi_sensor_->publish_state((buf[sizeof(buf) - 1] / 255.0) * 100);
+    this->rssi_sensor_->publish_state(rssi);
 #endif
-    ESP_LOGD(TAG, "RSSI: %f", (buf[sizeof(buf) - 1] / 255.0) * 100);
+    ESP_LOGD(TAG, "RSSI: %f", rssi);
   }
 };
 void EbyteLoraComponent::loop() {
   this->store_.can_send = !this->pin_aux_->digital_read();
-  if (auto len = this->available()) {
-    uint8_t buf[len];
-    this->read_array(buf, len);
-    if (this->repeater_enabled_) {
-      this->repeat_message_(buf);
-    }
-    this->process_(buf, len);
+  std::vector<uint8_t> data;
+  if (!this->available())
+    return;
+  ESP_LOGD(TAG, "Reading serial");
+  while (this->available()) {
+    uint8_t c;
+    this->read_byte(&c);
+    data.push_back(c);
   }
+
+  if (this->repeater_enabled_) {
+    this->repeat_message_(data);
+  }
+  this->process_(data);
+
   if (this->resend_repeater_request_)
     this->request_repeater_info_();
   if (this->updated_) {
     this->send_data_(true);
   }
 }
-void EbyteLoraComponent::setup_conf_(uint8_t const *conf) {
+void EbyteLoraComponent::setup_conf_(std::vector<uint8_t> conf) {
   ESP_LOGD(TAG, "Config set");
   this->current_config_.config_set = 1;
   // 3 is addh
@@ -617,13 +611,13 @@ void EbyteLoraComponent::request_repeater_info_() {
   ESP_LOGD(TAG, "Asking for repeater info");
   this->write_array(data, sizeof(data));
 }
-void EbyteLoraComponent::repeat_message_(uint8_t *buf) {
-  ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", buf[1]);
+void EbyteLoraComponent::repeat_message_(std::vector<uint8_t> data) {
+  ESP_LOGD(TAG, "Got some info that i need to repeat for network %u", data[1]);
   if (!this->store_.can_send) {
     ESP_LOGD(TAG, "Can't sent it right now");
     return;
   }
-  this->write_array(buf, sizeof(buf));
+  this->write_array(data.data(), data.size());
 }
 
 }  // namespace ebyte_lora
