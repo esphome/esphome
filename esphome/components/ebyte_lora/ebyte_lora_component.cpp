@@ -294,8 +294,6 @@ void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
   this->pin_m1_->setup();
-  this->pin_m0_->digital_write(false);
-  this->pin_m1_->digital_write(false);
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::get_current_config_() {
@@ -358,7 +356,6 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   }
   switch (mode) {
     case NORMAL:
-      // Mode 0 | normal operation
       this->pin_m0_->digital_write(false);
       this->pin_m1_->digital_write(false);
       ESP_LOGD(TAG, "MODE NORMAL!");
@@ -369,13 +366,11 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
       ESP_LOGD(TAG, "MODE WOR SEND!");
       break;
     case WOR_RECEIVER:
-      // case MODE_2_PROGRAM:
       this->pin_m0_->digital_write(false);
       this->pin_m1_->digital_write(true);
       ESP_LOGD(TAG, "MODE RECEIVING!");
       break;
     case CONFIGURATION:
-      // Mode 3 | Setting operation
       this->pin_m0_->digital_write(true);
       this->pin_m1_->digital_write(true);
       ESP_LOGD(TAG, "MODE SLEEP and CONFIG!");
