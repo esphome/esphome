@@ -60,24 +60,24 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   should equal 16 bytes per entry total.
 */
 class DeferredUpdateEventSource;
-  class DeferredEvent {
-    friend class DeferredUpdateEventSource;
-  protected:
-    void* source_;
-    const char* event_type_;
-    std::function<const char* (WebServer* web_server, void* source)> message_generator_;
+class DeferredEvent {
+  friend class DeferredUpdateEventSource;
+protected:
+  void* source_;
+  const char* event_type_;
+  std::function<const char* (WebServer* web_server, void* source)> message_generator_;
 
-  public:
-    DeferredEvent(void* source, const char* event_type, std::function<const char* (WebServer* web_server, void* source)> message_generator) {
-      source_ = source;
-      event_type_ = event_type;
-      message_generator_ = message_generator;
-    }
-    DeferredEvent(DeferredEvent* to_clone) {
-      source_ = to_clone->source_;
-      event_type_ = to_clone->event_type_;
-      message_generator_ = to_clone->message_generator_;
-    }
+public:
+  DeferredEvent(void* source, const char* event_type, std::function<const char* (WebServer* web_server, void* source)> message_generator) {
+    source_ = source;
+    event_type_ = event_type;
+    message_generator_ = message_generator;
+  }
+  DeferredEvent(DeferredEvent* to_clone) {
+    source_ = to_clone->source_;
+    event_type_ = to_clone->event_type_;
+    message_generator_ = to_clone->message_generator_;
+  }
 };
 
 class DeferredUpdateEventSourceList;
@@ -390,7 +390,7 @@ friend class DeferredUpdateEventSourceList;
 
   /// Dump the alarm_control_panel state with its value as a JSON string.
   std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
-                                              alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
+                                       alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
 #endif
 
 #ifdef USE_EVENT
@@ -422,7 +422,7 @@ friend class DeferredUpdateEventSourceList;
  protected:
   void schedule_(std::function<void()> &&f);
   web_server_base::WebServerBase *base_;
-  DeferredUpdateEventSourceList events_list_;
+  DeferredUpdateEventSourceList event_source_list_;
   std::map<EntityBase *, SortingComponents> sorting_entitys_;
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
