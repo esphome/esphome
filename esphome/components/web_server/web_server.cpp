@@ -182,7 +182,7 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const 
 }
 
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request,
-                                                   const std::function<const char *()>& generate_config_json,
+                                                   const std::function<const char *()> &generate_config_json,
                                                    bool include_internal) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
   this->push_back(es);
@@ -201,7 +201,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 }
 
 void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource *source,
-                                                      const std::function<const char *()>& generate_config_json,
+                                                      const std::function<const char *()> &generate_config_json,
                                                       bool include_internal) {
   // Configure reconnect timeout and send config
   // this should always go through since the AsyncEventSourceClient event queue is empty on connect
