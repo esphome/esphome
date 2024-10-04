@@ -344,8 +344,9 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     ESP_LOGD(TAG, "Mode is already correct");
     return;
   }
-  // no need to do anything if the mode is correct
-  if (!this->can_send_message_()) {
+  // when the system starts, aux will stay low until you set the first mode
+  // so make sure mode init isn't set AND we can't sent because aux is low
+  if (this->config_mode_ != MODE_INIT && !this->can_send_message_()) {
     ESP_LOGD(TAG, "Device busy lets wait");
     return;
   }
