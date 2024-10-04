@@ -329,7 +329,7 @@ void EbyteLoraComponent::setup() {
 #endif
   this->pin_aux_->setup();
   this->pin_aux_->attach_interrupt(EbyteAuxStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
-  this->store_.can_send = false;
+  this->store_.can_send = true;
   this->pin_m0_->setup();
   this->pin_m1_->setup();
   this->get_current_config_();
