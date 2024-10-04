@@ -73,7 +73,7 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 // helper for allowing only unique entries in the queue
-void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent *item) {
+void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup_(DeferredEvent *item) {
   // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive
   //     in this context since DeferredEvent itself is lightweight by design
   item = new DeferredEvent(item);
@@ -93,7 +93,7 @@ void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent
   }
 }
 
-void DeferredUpdateEventSource::process_deferred_queue() {
+void DeferredUpdateEventSource::process_deferred_queue_() {
   while (deferred_queue_.size() > 0) {
     DeferredEvent *de = deferred_queue_.front();
     const char *event_type = de->event_type_;
@@ -113,7 +113,7 @@ void DeferredUpdateEventSource::process_deferred_queue() {
 }
 
 void DeferredUpdateEventSource::loop() {
-  process_deferred_queue();
+  process_deferred_queue_();
   this->entities_iterator_.advance();
 }
 
@@ -133,11 +133,11 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
   if (de->source_ == nullptr)
     return;
 
-  if (deferred_queue_.size() > 0)
-    process_deferred_queue();
-  if (deferred_queue_.size() > 0) {
+  if (!deferred_queue_.empty())
+    process_deferred_queue_();
+  if (!deferred_queue_.empty()) {
     // deferred queue still not empty which means downstream event queue full, no point trying to send first
-    deq_clone_and_push_back_with_dedup(de);
+    deq_clone_and_push_back_with_dedup_(de);
   } else {
     const char *event_type = de->event_type_;
     // normal state updates and the list_entities iterator output with extra details in the json had to be
@@ -148,7 +148,7 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
     if (!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
       if (de->event_type_ != "log") {
         // send failed and it's not a log (which is simply dropped) so queue it for a later send
-        deq_clone_and_push_back_with_dedup(de);
+        deq_clone_and_push_back_with_dedup_(de);
       }
     }
   }
@@ -182,7 +182,7 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const 
 }
 
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request,
-                                                   std::function<const char *()> generate_config_json,
+                                                   const std::function<const char *()>& generate_config_json,
                                                    bool include_internal) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
   this->push_back(es);
@@ -193,7 +193,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
     });
   });
 
-  es->onDisconnect([this, ws, es](AsyncEventSource *source, AsyncEventSourceClient *client) {
+  es->onDisconnect([this, ws](AsyncEventSource *source, AsyncEventSourceClient *client) {
     ws->defer([this, source]() { this->on_client_disconnect((DeferredUpdateEventSource *) source); });
   });
 
@@ -201,7 +201,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 }
 
 void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource *source,
-                                                      std::function<const char *()> generate_config_json,
+                                                      const std::function<const char *()>& generate_config_json,
                                                       bool include_internal) {
   // Configure reconnect timeout and send config
   // this should always go through since the AsyncEventSourceClient event queue is empty on connect
@@ -360,7 +360,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->sensor_json((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_STATE)
@@ -408,7 +408,7 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server
@@ -449,7 +449,7 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 
 #ifdef USE_SWITCH
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->switch_json((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_STATE)
@@ -536,7 +536,7 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server
@@ -577,7 +577,7 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::Fan *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->fan_json((fan::Fan *) (source), DETAIL_STATE).c_str();
@@ -662,7 +662,7 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->light_json((light::LightState *) (source), DETAIL_STATE).c_str();
@@ -780,7 +780,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->cover_json((cover::Cover *) (source), DETAIL_STATE).c_str();
@@ -863,7 +863,7 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
 #ifdef USE_NUMBER
 void WebServer::on_number_update(number::Number *obj, float state) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->number_json((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_STATE)
@@ -937,7 +937,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
 #ifdef USE_DATETIME_DATE
 void WebServer::on_date_update(datetime::DateEntity *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->date_json((datetime::DateEntity *) (source), DETAIL_STATE).c_str();
@@ -998,7 +998,7 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_TIME
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->time_json((datetime::TimeEntity *) (source), DETAIL_STATE).c_str();
@@ -1058,7 +1058,7 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_DATETIME
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->datetime_json((datetime::DateTimeEntity *) (source), DETAIL_STATE).c_str();
@@ -1119,7 +1119,7 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->text_json((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_STATE).c_str();
@@ -1182,7 +1182,7 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_STATE)
@@ -1244,7 +1244,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->climate_json((climate::Climate *) (source), DETAIL_STATE).c_str();
@@ -1405,7 +1405,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
 #ifdef USE_LOCK
 void WebServer::on_lock_update(lock::Lock *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->lock_json((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_STATE).c_str();
@@ -1455,7 +1455,7 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
 
 #ifdef USE_VALVE
 void WebServer::on_valve_update(valve::Valve *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->valve_json((valve::Valve *) (source), DETAIL_STATE).c_str();
@@ -1527,7 +1527,7 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server
@@ -1600,7 +1600,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 
 #ifdef USE_UPDATE
 void WebServer::on_update(update::UpdateEntity *obj) {
-  if (this->event_source_list_.size() == 0)
+  if (this->event_source_list_.empty())
     return;
   this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
     return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE).c_str();

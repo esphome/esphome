@@ -8,10 +8,11 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
 
-#include <map>
-#include <vector>
-#include <list>
 #include <functional>
+#include <list>
+#include <map>
+#include <utility>
+#include <vector>
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -73,7 +74,7 @@ class DeferredEvent {
                 std::function<const char *(WebServer *web_server, void *source)> message_generator) {
     source_ = source;
     event_type_ = event_type;
-    message_generator_ = message_generator;
+    message_generator_ = std::move(message_generator);
   }
   DeferredEvent(DeferredEvent *to_clone) {
     source_ = to_clone->source_;
@@ -98,9 +99,9 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   WebServer *web_server_;
 
   // helper for allowing only unique entries in the queue
-  void deq_clone_and_push_back_with_dedup(DeferredEvent *item);
+  void deq_clone_and_push_back_with_dedup_(DeferredEvent *item);
 
-  void process_deferred_queue();
+  void process_deferred_queue_();
 
  public:
   DeferredUpdateEventSource(WebServer *ws, const String &url)
@@ -111,7 +112,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   void deferrable_send(DeferredEvent *de);
 
   // mainly used for logs plus the initial ping
-  void try_send_nodefer(const char *message, const char *event = NULL, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
@@ -119,12 +120,12 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
   void loop();
 
   void deferrable_send(DeferredEvent *event);
-  void try_send_nodefer(const char *message, const char *event = NULL, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 
-  void add_new_client(WebServer *ws, AsyncWebServerRequest *request, std::function<const char *()> generate_config_json,
+  void add_new_client(WebServer *ws, AsyncWebServerRequest *request, const std::function<const char *()>& generate_config_json,
                       bool include_internal);
 
-  void on_client_connect(DeferredUpdateEventSource *source, std::function<const char *()> generate_config_json,
+  void on_client_connect(DeferredUpdateEventSource *source, const std::function<const char *()>& generate_config_json,
                          bool include_internal);
   void on_client_disconnect(DeferredUpdateEventSource *source);
 };
