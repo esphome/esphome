@@ -74,13 +74,13 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 
 // helper for allowing only unique entries in the queue
 void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent* item) {
-  // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive 
+  // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive
   //     in this context since DeferredEvent itself is lightweight by design
   item = new DeferredEvent(item);
 
   auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
     [&item](const DeferredEvent* test) -> bool {
-      return 
+      return
         test->source_ == item->source_ &&
         test->event_type_ == item->event_type_;
     });
@@ -98,7 +98,7 @@ void DeferredUpdateEventSource::process_deferred_queue() {
   while(deferred_queue_.size() > 0) {
     DeferredEvent* de = deferred_queue_.front();
     const char* event_type = de->event_type_;
-    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
+    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated
     //     but both are "state" on the wire
     if(event_type == "state_detail_all")
       event_type = "state";
@@ -106,7 +106,7 @@ void DeferredUpdateEventSource::process_deferred_queue() {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
       delete de;
-    } 
+    }
     else {
       break;
     }
@@ -128,10 +128,10 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent* de) {
   if(deferred_queue_.size() > 0) {
     // deferred queue still not empty which means downstream event queue full, no point trying to send first
     deq_clone_and_push_back_with_dedup(de);
-  } 
+  }
   else {
     const char* event_type = de->event_type_;
-    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
+    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated
     //     but both are "state" on the wire
     if(event_type == "state_detail_all")
       event_type = "state";
@@ -173,11 +173,11 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer* ws, AsyncWebServer
   DeferredUpdateEventSource* es = new DeferredUpdateEventSource(ws, "/events");
   this->push_back(es);
 
-  es->onConnect([this, ws, es, generate_config_json, include_internal](AsyncEventSourceClient *client) { 
+  es->onConnect([this, ws, es, generate_config_json, include_internal](AsyncEventSourceClient *client) {
     ws->defer([this, es, generate_config_json, include_internal]() { this->on_client_connect(es, generate_config_json, include_internal); });
   });
 
-  es->onDisconnect([this, ws, es](AsyncEventSource *source) { 
+  es->onDisconnect([this, ws, es](AsyncEventSource *source) {
     ws->defer([this, source]() { this->on_client_disconnect((DeferredUpdateEventSource*)source); });
   });
 
@@ -239,7 +239,7 @@ void WebServer::setup() {
   if (logger::global_logger != nullptr && this->expose_log_) {
     logger::global_logger->add_on_log_callback(
       // logs are not deferred, the memory overhead would be too large
-      [this](int level, const char *tag, const char *message) { this->event_source_list_.try_send_nodefer(message, "log", millis()); 
+      [this](int level, const char *tag, const char *message) { this->event_source_list_.try_send_nodefer(message, "log", millis());
     });
   }
 #endif
