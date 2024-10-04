@@ -71,9 +71,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
 #ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
 #endif
-  void set_pin_aux(InternalGPIOPin *pin_aux) { pin_aux_ = pin_aux; }
-  void set_pin_m0(InternalGPIOPin *pin_m0) { pin_m0_ = pin_m0; }
-  void set_pin_m1(InternalGPIOPin *pin_m1) { pin_m1_ = pin_m1; }
+  void set_pin_aux(GPIOPin *pin_aux) { pin_aux_ = pin_aux; }
+  void set_pin_m0(GPIOPin *pin_m0) { pin_m0_ = pin_m0; }
+  void set_pin_m1(GPIOPin *pin_m1) { pin_m1_ = pin_m1; }
   void set_addh(uint8_t addh) { expected_config_.addh = addh; }
   void set_addl(uint8_t addl) { expected_config_.addl = addl; }
   void set_air_data_rate(AirDataRate air_data_rate) { expected_config_.air_data_rate = air_data_rate; }
@@ -136,9 +136,9 @@ class EbyteLoraComponent : public PollingComponent, public uart::UARTDevice {
 #ifdef USE_SENSOR
   sensor::Sensor *rssi_sensor_{nullptr};
 #endif
-  InternalGPIOPin *pin_aux_{nullptr};
-  InternalGPIOPin *pin_m0_{nullptr};
-  InternalGPIOPin *pin_m1_{nullptr};
+  GPIOPin *pin_aux_{nullptr};
+  GPIOPin *pin_m0_{nullptr};
+  GPIOPin *pin_m1_{nullptr};
 };
 }  // namespace ebyte_lora
 }  // namespace esphome

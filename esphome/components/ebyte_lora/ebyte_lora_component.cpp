@@ -291,8 +291,11 @@ void EbyteLoraComponent::setup() {
 #ifdef USE_BINARY_SENSOR
   this->should_send_ |= !this->binary_sensors_.empty();
 #endif
+  this->pin_aux_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->pin_aux_->setup();
+  this->pin_m0_->pin_mode(gpio::FLAG_OUTPUT);
   this->pin_m0_->setup();
+  this->pin_m1_->pin_mode(gpio::FLAG_OUTPUT);
   this->pin_m1_->setup();
   ESP_LOGD(TAG, "Setup success");
 }
