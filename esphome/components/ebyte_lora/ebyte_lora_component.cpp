@@ -304,9 +304,11 @@ void EbyteLoraComponent::setup() {
 }
 void EbyteLoraComponent::get_current_config_() {
   this->set_mode_(CONFIGURATION);
-  uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
-  this->write_array(data, sizeof(data));
-  ESP_LOGD(TAG, "Config info requested");
+  if (this->can_send_message_()) {
+    uint8_t data[3] = {PROGRAM_CONF, 0x00, 0x08};
+    this->write_array(data, sizeof(data));
+    ESP_LOGD(TAG, "Config info requested");
+  }
 }
 ModeType EbyteLoraComponent::get_mode_() {
   ModeType internal_mode = MODE_INIT;
@@ -339,9 +341,6 @@ ModeType EbyteLoraComponent::get_mode_() {
   return internal_mode;
 }
 void EbyteLoraComponent::set_mode_(ModeType mode) {
-  if (this->can_send_message_())
-    return;
-
   if (this->pin_m0_ == nullptr || this->pin_m1_ == nullptr) {
     ESP_LOGD(TAG, "The M0 and M1 pins is not set, this mean that you are connect directly the pins as you need!");
     return;
@@ -376,7 +375,6 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     }
   }
   this->config_mode_ = mode;
-  ESP_LOGD(TAG, "Mode is going to be set");
 }
 bool EbyteLoraComponent::can_send_message_() {
   // High means no more information is needed
