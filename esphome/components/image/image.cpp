@@ -79,7 +79,7 @@ Color Image::get_pixel(int x, int y, Color color_on, Color color_off) const {
       return color_off;
   }
 }
-#ifdef USE_LVGL_IMAGE
+#ifdef USE_LVGL
 lv_img_dsc_t *Image::get_lv_img_dsc() {
   // lazily construct lvgl image_dsc.
   if (this->dsc_.data != this->data_start_) {
@@ -121,7 +121,7 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
   }
   return &this->dsc_;
 }
-#endif
+#endif  // USE_LVGL
 
 bool Image::get_binary_pixel_(int x, int y) const {
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
