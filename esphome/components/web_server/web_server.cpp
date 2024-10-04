@@ -77,7 +77,7 @@ void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent
   // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive
   //     in this context since DeferredEvent itself is lightweight by design
   item = new DeferredEvent(item);
-  if(item == nullptr)
+  if (item == nullptr)
     return;
 
   auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
@@ -118,7 +118,7 @@ void DeferredUpdateEventSource::loop() {
 }
 
 void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
-  if(de == nullptr)
+  if (de == nullptr)
     return;
 
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
@@ -126,11 +126,11 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
   if (!entities_iterator_.completed() && 0 != strcmp(de->event_type_, "state_detail_all"))
     return;
 
-  if(de->event_type_ == nullptr)
+  if (de->event_type_ == nullptr)
     return;
-  if(de->message_generator_ == nullptr)
+  if (de->message_generator_ == nullptr)
     return;
-  if(de->source_ == nullptr)
+  if (de->source_ == nullptr)
     return;
 
   if (deferred_queue_.size() > 0)
