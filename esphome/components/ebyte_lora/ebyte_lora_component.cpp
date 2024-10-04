@@ -333,6 +333,7 @@ ModeType EbyteLoraComponent::get_mode_() {
     // ESP_LOGD(TAG, "MODE Conf!");
     return CONFIGURATION;
   }
+  return MODE_INIT;
 }
 void EbyteLoraComponent::set_mode_(ModeType mode) {
   if (this->pin_m0_ == nullptr || this->pin_m1_ == nullptr) {
