@@ -450,7 +450,12 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->switch_json(obj, obj->state, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->switch_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->schedule_([obj]() { obj->toggle(); });
@@ -486,7 +491,15 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
   for (button::Button *obj : App.get_buttons()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (match.method == "press") {
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->button_json(obj, detail);
+      request->send(200, "application/json", data.c_str());
+    } else if (match.method == "press") {
       this->schedule_([obj]() { obj->press(); });
       request->send(200);
       return;
@@ -525,9 +538,16 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
-    request->send(200, "application/json", data.c_str());
-    return;
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->binary_sensor_json(obj, obj->state, detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
   }
   request->send(404);
 }
@@ -562,7 +582,12 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->fan_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->fan_json(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->schedule_([obj]() { obj->toggle().perform(); });
@@ -646,7 +671,12 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->light_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->light_json(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->schedule_([obj]() { obj->toggle().perform(); });
@@ -763,9 +793,14 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->cover_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->cover_json(obj, detail);
       request->send(200, "application/json", data.c_str());
-      continue;
+      return;
     }
 
     auto call = obj->make_call();
@@ -845,7 +880,12 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->number_json(obj, obj->state, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->number_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -915,8 +955,13 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
   for (auto *obj : App.get_dates()) {
     if (obj->get_object_id() != match.id)
       continue;
-    if (request->method() == HTTP_GET) {
-      std::string data = this->date_json(obj, DETAIL_STATE);
+    if (request->method() == HTTP_GET && match.method.empty()) {
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->date_json(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -976,7 +1021,12 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->time_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->time_json(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1035,7 +1085,12 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->datetime_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->datetime_json(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1096,8 +1151,13 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->text_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->text_json(obj, obj->state, detail);
+      request->send(200, "application/json", data.c_str());
       return;
     }
     if (match.method != "set") {
@@ -1223,7 +1283,12 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->climate_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->climate_json(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1238,6 +1303,16 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     if (request->hasParam("mode")) {
       auto mode = request->getParam("mode")->value();
       call.set_mode(mode.c_str());
+    }
+
+    if (request->hasParam("fan_mode")) {
+      auto mode = request->getParam("fan_mode")->value();
+      call.set_fan_mode(mode.c_str());
+    }
+
+    if (request->hasParam("swing_mode")) {
+      auto mode = request->getParam("swing_mode")->value();
+      call.set_swing_mode(mode.c_str());
     }
 
     if (request->hasParam("target_temperature_high")) {
@@ -1373,7 +1448,12 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->lock_json(obj, obj->state, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->lock_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method == "lock") {
       this->schedule_([obj]() { obj->lock(); });
@@ -1422,9 +1502,14 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->valve_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->valve_json(obj, detail);
       request->send(200, "application/json", data.c_str());
-      continue;
+      return;
     }
 
     auto call = obj->make_call();
@@ -1493,7 +1578,12 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->alarm_control_panel_json(obj, obj->get_state(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1563,7 +1653,12 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET && match.method.empty()) {
-      std::string data = this->update_json(obj, DETAIL_STATE);
+      auto detail = DETAIL_STATE;
+      auto *param = request->getParam("detail");
+      if (param && param->value() == "all") {
+        detail = DETAIL_ALL;
+      }
+      std::string data = this->update_json(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
