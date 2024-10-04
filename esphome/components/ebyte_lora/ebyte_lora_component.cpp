@@ -294,6 +294,8 @@ void EbyteLoraComponent::setup() {
   this->pin_aux_->setup();
   this->pin_m0_->setup();
   this->pin_m1_->setup();
+  this->pin_m0_->digital_write(false);
+  this->pin_m1_->digital_write(false);
   ESP_LOGD(TAG, "Setup success");
 }
 void EbyteLoraComponent::get_current_config_() {
@@ -311,10 +313,8 @@ void EbyteLoraComponent::get_current_config_() {
   }
 }
 ModeType EbyteLoraComponent::get_mode_() {
-  ModeType internal_mode = MODE_INIT;
   if (!this->can_send_message_())
-    return internal_mode;
-
+    return MODE_INIT;
   bool pin1 = this->pin_m0_->digital_read();
   bool pin2 = this->pin_m1_->digital_read();
   if (!pin1 && !pin2) {
@@ -333,7 +333,6 @@ ModeType EbyteLoraComponent::get_mode_() {
     // ESP_LOGD(TAG, "MODE Conf!");
     return CONFIGURATION;
   }
-  return internal_mode;
 }
 void EbyteLoraComponent::set_mode_(ModeType mode) {
   if (this->pin_m0_ == nullptr || this->pin_m1_ == nullptr) {
