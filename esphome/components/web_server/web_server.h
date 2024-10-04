@@ -51,12 +51,12 @@ struct SortingComponents {
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
 /*
-  This class holds a pointer to the event source, the event type, and a pointer to a lambda that will lazily 
+  This class holds a pointer to the event source, the event type, and a pointer to a lambda that will lazily
   generate the event body.  The source and type allow dedup in the deferred queue and the lambda saves on
   having to store the message body upfront.  The lambda should not need any closures due to the parameters
   so it's only overhead is the pointer to the lambda itself.
 
-  That's three pointers, plus the entry in the deferred event queue itself (a std::vector with no overhead) 
+  That's three pointers, plus the entry in the deferred event queue itself (a std::vector with no overhead)
   should equal 16 bytes per entry total.
 */
 class DeferredUpdateEventSource;

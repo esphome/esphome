@@ -346,7 +346,7 @@ void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->sensor_json((sensor::Sensor*)(source), ((sensor::Sensor*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -397,7 +397,7 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->text_sensor_json((text_sensor::TextSensor*)(source), ((text_sensor::TextSensor*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -439,7 +439,7 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->switch_json((switch_::Switch*)(source), ((switch_::Switch*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -529,7 +529,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->binary_sensor_json((binary_sensor::BinarySensor*)(source), ((binary_sensor::BinarySensor*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -571,7 +571,7 @@ void WebServer::on_fan_update(fan::Fan *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->fan_json((fan::Fan*)(source), DETAIL_STATE).c_str(); }
     )
@@ -660,7 +660,7 @@ void WebServer::on_light_update(light::LightState *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->light_json((light::LightState*)(source), DETAIL_STATE).c_str(); }
     )
@@ -782,7 +782,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->cover_json((cover::Cover*)(source), DETAIL_STATE).c_str(); }
     )
@@ -869,7 +869,7 @@ void WebServer::on_number_update(number::Number *obj, float state) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->number_json((number::Number*)(source), ((number::Number*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -946,7 +946,7 @@ void WebServer::on_date_update(datetime::DateEntity *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->date_json((datetime::DateEntity*)(source), DETAIL_STATE).c_str(); }
     )
@@ -1011,7 +1011,7 @@ void WebServer::on_time_update(datetime::TimeEntity *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->time_json((datetime::TimeEntity*)(source), DETAIL_STATE).c_str(); }
     )
@@ -1075,7 +1075,7 @@ void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->datetime_json((datetime::DateTimeEntity*)(source), DETAIL_STATE).c_str(); }
     )
@@ -1140,7 +1140,7 @@ void WebServer::on_text_update(text::Text *obj, const std::string &state) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->text_json((text::Text*)(source), ((text::Text*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -1207,7 +1207,7 @@ void WebServer::on_select_update(select::Select *obj, const std::string &state, 
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->select_json((select::Select*)(source), ((select::Select*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -1272,7 +1272,7 @@ void WebServer::on_climate_update(climate::Climate *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->climate_json((climate::Climate*)(source), DETAIL_STATE).c_str(); }
     )
@@ -1437,7 +1437,7 @@ void WebServer::on_lock_update(lock::Lock *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->lock_json((lock::Lock*)(source), ((lock::Lock*)(source))->state, DETAIL_STATE).c_str(); }
     )
@@ -1491,7 +1491,7 @@ void WebServer::on_valve_update(valve::Valve *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->valve_json((valve::Valve*)(source), DETAIL_STATE).c_str(); }
     )
@@ -1567,7 +1567,7 @@ void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(source), ((alarm_control_panel::AlarmControlPanel*)(source))->get_state(), DETAIL_STATE).c_str(); }
     )
@@ -1611,7 +1611,7 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       // theoretically event_type is a reference to a string contained in event::Event::types_ so it's safe to closure a reference
       [event_type](WebServer* web_server, void* source) { return web_server->event_json((event::Event*)(source), event_type, DETAIL_STATE).c_str(); }
@@ -1642,7 +1642,7 @@ void WebServer::on_update(update::UpdateEntity *obj) {
     return;
   this->event_source_list_.deferrable_send(
     new DeferredEvent(
-      obj, 
+      obj,
       "state",
       [](WebServer* web_server, void* source) { return web_server->update_json((update::UpdateEntity*)(source), DETAIL_STATE).c_str(); }
     )
