@@ -62,18 +62,20 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 class DeferredUpdateEventSource;
 class DeferredEvent {
   friend class DeferredUpdateEventSource;
-protected:
-  void* source_;
-  const char* event_type_;
-  std::function<const char* (WebServer* web_server, void* source)> message_generator_;
 
-public:
-  DeferredEvent(void* source, const char* event_type, std::function<const char* (WebServer* web_server, void* source)> message_generator) {
+ protected:
+  void *source_;
+  const char *event_type_;
+  std::function<const char *(WebServer *web_server, void *source)> message_generator_;
+
+ public:
+  DeferredEvent(void *source, const char *event_type,
+                std::function<const char *(WebServer *web_server, void *source)> message_generator) {
     source_ = source;
     event_type_ = event_type;
     message_generator_ = message_generator;
   }
-  DeferredEvent(DeferredEvent* to_clone) {
+  DeferredEvent(DeferredEvent *to_clone) {
     source_ = to_clone->source_;
     event_type_ = to_clone->event_type_;
     message_generator_ = to_clone->message_generator_;
@@ -81,49 +83,50 @@ public:
 };
 
 class DeferredUpdateEventSourceList;
-class DeferredUpdateEventSource: public AsyncEventSource {
+class DeferredUpdateEventSource : public AsyncEventSource {
   friend class DeferredUpdateEventSourceList;
 
-protected:
+ protected:
   // surface a couple methods from the base class
   using AsyncEventSource::handleRequest;
   using AsyncEventSource::send;
 
   ListEntitiesIterator entities_iterator_;
-  // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory footprint is more important than speed here)
-  std::vector<DeferredEvent*> deferred_queue_;
-  WebServer * web_server_;
+  // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory
+  // footprint is more important than speed here)
+  std::vector<DeferredEvent *> deferred_queue_;
+  WebServer *web_server_;
 
   // helper for allowing only unique entries in the queue
-  void deq_clone_and_push_back_with_dedup(DeferredEvent* item);
+  void deq_clone_and_push_back_with_dedup(DeferredEvent *item);
 
   void process_deferred_queue();
 
-public:
-  DeferredUpdateEventSource(WebServer *ws, const String& url)  :
-    AsyncEventSource(url),
-    entities_iterator_(ListEntitiesIterator(ws, this)),
-    web_server_(ws) {}
+ public:
+  DeferredUpdateEventSource(WebServer *ws, const String &url)
+      : AsyncEventSource(url), entities_iterator_(ListEntitiesIterator(ws, this)), web_server_(ws) {}
 
   void loop();
 
-  void deferrable_send(DeferredEvent* de);
+  void deferrable_send(DeferredEvent *de);
 
   // mainly used for logs plus the initial ping
-  void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0);
+  void try_send_nodefer(const char *message, const char *event = NULL, uint32_t id = 0, uint32_t reconnect = 0);
 };
 
-class DeferredUpdateEventSourceList: public std::list<DeferredUpdateEventSource*> {
-public:
+class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
+ public:
   void loop();
 
-  void deferrable_send(DeferredEvent* event);
-  void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0);
+  void deferrable_send(DeferredEvent *event);
+  void try_send_nodefer(const char *message, const char *event = NULL, uint32_t id = 0, uint32_t reconnect = 0);
 
-  void add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal);
+  void add_new_client(WebServer *ws, AsyncWebServerRequest *request, std::function<const char *()> generate_config_json,
+                      bool include_internal);
 
-  void on_client_connect(DeferredUpdateEventSource* source, std::function<const char* ()> generate_config_json, bool include_internal);
-  void on_client_disconnect(DeferredUpdateEventSource* source);
+  void on_client_connect(DeferredUpdateEventSource *source, std::function<const char *()> generate_config_json,
+                         bool include_internal);
+  void on_client_disconnect(DeferredUpdateEventSource *source);
 };
 
 /** This class allows users to create a web server with their ESP nodes.
@@ -136,7 +139,7 @@ public:
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
-friend class DeferredUpdateEventSourceList;
+  friend class DeferredUpdateEventSourceList;
 
  public:
   WebServer(web_server_base::WebServerBase *base);
