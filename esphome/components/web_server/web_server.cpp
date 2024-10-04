@@ -73,41 +73,38 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 // helper for allowing only unique entries in the queue
-void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent* item) {
+void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent *item) {
   // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive
   //     in this context since DeferredEvent itself is lightweight by design
   item = new DeferredEvent(item);
 
   auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
-    [&item](const DeferredEvent* test) -> bool {
-      return
-        test->source_ == item->source_ &&
-        test->event_type_ == item->event_type_;
-    });
+                           [&item](const DeferredEvent *test) -> bool {
+                             return test->source_ == item->source_ && test->event_type_ == item->event_type_;
+                           });
 
   if (iter != this->deferred_queue_.end()) {
     std::swap((*iter), item);
     delete item;
-  }
-  else {
+  } else {
     this->deferred_queue_.push_back(item);
   }
 }
 
 void DeferredUpdateEventSource::process_deferred_queue() {
-  while(deferred_queue_.size() > 0) {
-    DeferredEvent* de = deferred_queue_.front();
-    const char* event_type = de->event_type_;
-    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated
+  while (deferred_queue_.size() > 0) {
+    DeferredEvent *de = deferred_queue_.front();
+    const char *event_type = de->event_type_;
+    // normal state updates and the list_entities iterator output with extra details in the json had to be
+    // differentiated
     //     but both are "state" on the wire
-    if(event_type == "state_detail_all")
+    if (event_type == "state_detail_all")
       event_type = "state";
-    if(this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
+    if (this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
       delete de;
-    }
-    else {
+    } else {
       break;
     }
   }
@@ -118,25 +115,26 @@ void DeferredUpdateEventSource::loop() {
   this->entities_iterator_.advance();
 }
 
-void DeferredUpdateEventSource::deferrable_send(DeferredEvent* de) {
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing up in the web GUI
-  if(!entities_iterator_.completed() && de->event_type_ != "state_detail_all")
+void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
+  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
+  // up in the web GUI
+  if (!entities_iterator_.completed() && de->event_type_ != "state_detail_all")
     return;
 
-  if(deferred_queue_.size() > 0)
+  if (deferred_queue_.size() > 0)
     process_deferred_queue();
-  if(deferred_queue_.size() > 0) {
+  if (deferred_queue_.size() > 0) {
     // deferred queue still not empty which means downstream event queue full, no point trying to send first
     deq_clone_and_push_back_with_dedup(de);
-  }
-  else {
-    const char* event_type = de->event_type_;
-    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated
+  } else {
+    const char *event_type = de->event_type_;
+    // normal state updates and the list_entities iterator output with extra details in the json had to be
+    // differentiated
     //     but both are "state" on the wire
-    if(event_type == "state_detail_all")
+    if (event_type == "state_detail_all")
       event_type = "state";
-    if(!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
-      if(de->event_type_ != "log") {
+    if (!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
+      if (de->event_type_ != "log") {
         // send failed and it's not a log (which is simply dropped) so queue it for a later send
         deq_clone_and_push_back_with_dedup(de);
       }
@@ -145,46 +143,54 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent* de) {
 }
 
 // mainly used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
+                                                 uint32_t reconnect) {
   this->send(message, event, id, reconnect);
 }
 
 void DeferredUpdateEventSourceList::loop() {
-  for(DeferredUpdateEventSource* dues : *this) {
+  for (DeferredUpdateEventSource *dues : *this) {
     dues->loop();
   }
 }
 
-void DeferredUpdateEventSourceList::deferrable_send(DeferredEvent* event) {
-  for(DeferredUpdateEventSource* dues : *this) {
+void DeferredUpdateEventSourceList::deferrable_send(DeferredEvent *event) {
+  for (DeferredUpdateEventSource *dues : *this) {
     dues->deferrable_send(event);
   }
   // would have been cloned into the deferred list if needed
   delete event;
 }
 
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
-  for(DeferredUpdateEventSource* dues : *this) {
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id,
+                                                     uint32_t reconnect) {
+  for (DeferredUpdateEventSource *dues : *this) {
     dues->try_send_nodefer(message, event, id, reconnect);
   }
 }
 
-void DeferredUpdateEventSourceList::add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal) {
-  DeferredUpdateEventSource* es = new DeferredUpdateEventSource(ws, "/events");
+void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request,
+                                                   std::function<const char *()> generate_config_json,
+                                                   bool include_internal) {
+  DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
   this->push_back(es);
 
   es->onConnect([this, ws, es, generate_config_json, include_internal](AsyncEventSourceClient *client) {
-    ws->defer([this, es, generate_config_json, include_internal]() { this->on_client_connect(es, generate_config_json, include_internal); });
+    ws->defer([this, es, generate_config_json, include_internal]() {
+      this->on_client_connect(es, generate_config_json, include_internal);
+    });
   });
 
   es->onDisconnect([this, ws, es](AsyncEventSource *source) {
-    ws->defer([this, source]() { this->on_client_disconnect((DeferredUpdateEventSource*)source); });
+    ws->defer([this, source]() { this->on_client_disconnect((DeferredUpdateEventSource *) source); });
   });
 
   es->handleRequest(request);
 }
 
-void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource* source, std::function<const char* ()> generate_config_json, bool include_internal) {
+void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource *source,
+                                                      std::function<const char *()> generate_config_json,
+                                                      bool include_internal) {
   // Configure reconnect timeout and send config
   // this should always go through since the AsyncEventSourceClient event queue is empty on connect
   source->try_send_nodefer(generate_config_json(), "ping", millis(), 30000);
@@ -193,21 +199,19 @@ void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource*
 
   // just dump them all up-front and take advantage of the deferred queue
   //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  //while(!source->entities_iterator_.completed()) {
+  // while(!source->entities_iterator_.completed()) {
   //  source->entities_iterator_.advance();
   //}
 }
 
-void DeferredUpdateEventSourceList::on_client_disconnect(DeferredUpdateEventSource* source)
-{
+void DeferredUpdateEventSourceList::on_client_disconnect(DeferredUpdateEventSource *source) {
   source->onConnect(nullptr);
   source->onDisconnect(nullptr);
   this->remove(source);
   delete source;
 }
 
-WebServer::WebServer(web_server_base::WebServerBase *base)
-    : base_(base) {
+WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {
 #ifdef USE_ESP32
   to_schedule_lock_ = xSemaphoreCreateMutex();
 #endif
@@ -238,9 +242,10 @@ void WebServer::setup() {
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
     logger::global_logger->add_on_log_callback(
-      // logs are not deferred, the memory overhead would be too large
-      [this](int level, const char *tag, const char *message) { this->event_source_list_.try_send_nodefer(message, "log", millis());
-    });
+        // logs are not deferred, the memory overhead would be too large
+        [this](int level, const char *tag, const char *message) {
+          this->event_source_list_.try_send_nodefer(message, "log", millis());
+        });
   }
 #endif
 
@@ -249,7 +254,8 @@ void WebServer::setup() {
   if (this->allow_ota_)
     this->base_->add_ota_handler();
 
-  // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly getting a lot of events
+  // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
+  // getting a lot of events
   this->set_interval(10000, [this]() { this->event_source_list_.try_send_nodefer("", "ping", millis(), 30000); });
 }
 void WebServer::loop() {
@@ -344,13 +350,10 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->sensor_json((sensor::Sensor*)(source), ((sensor::Sensor*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->sensor_json((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_STATE)
+        .c_str();
+  }));
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
@@ -395,13 +398,12 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->text_sensor_json((text_sensor::TextSensor*)(source), ((text_sensor::TextSensor*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server
+        ->text_sensor_json((text_sensor::TextSensor *) (source), ((text_sensor::TextSensor *) (source))->state,
+                           DETAIL_STATE)
+        .c_str();
+  }));
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
@@ -437,13 +439,10 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->switch_json((switch_::Switch*)(source), ((switch_::Switch*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->switch_json((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_STATE)
+        .c_str();
+  }));
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
@@ -527,13 +526,12 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->binary_sensor_json((binary_sensor::BinarySensor*)(source), ((binary_sensor::BinarySensor*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server
+        ->binary_sensor_json((binary_sensor::BinarySensor *) (source),
+                             ((binary_sensor::BinarySensor *) (source))->state, DETAIL_STATE)
+        .c_str();
+  }));
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
@@ -569,13 +567,9 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 void WebServer::on_fan_update(fan::Fan *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->fan_json((fan::Fan*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->fan_json((fan::Fan *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
@@ -658,13 +652,9 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
 void WebServer::on_light_update(light::LightState *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->light_json((light::LightState*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->light_json((light::LightState *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
@@ -780,13 +770,9 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 void WebServer::on_cover_update(cover::Cover *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->cover_json((cover::Cover*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->cover_json((cover::Cover *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
@@ -867,13 +853,10 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 void WebServer::on_number_update(number::Number *obj, float state) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->number_json((number::Number*)(source), ((number::Number*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->number_json((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_STATE)
+        .c_str();
+  }));
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
@@ -944,13 +927,9 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 void WebServer::on_date_update(datetime::DateEntity *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->date_json((datetime::DateEntity*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->date_json((datetime::DateEntity *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
@@ -1009,13 +988,9 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->time_json((datetime::TimeEntity*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->time_json((datetime::TimeEntity *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
@@ -1073,13 +1048,9 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->datetime_json((datetime::DateTimeEntity*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->datetime_json((datetime::DateTimeEntity *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
@@ -1138,13 +1109,9 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->text_json((text::Text*)(source), ((text::Text*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->text_json((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
@@ -1205,13 +1172,10 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->select_json((select::Select*)(source), ((select::Select*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_STATE)
+        .c_str();
+  }));
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
@@ -1270,13 +1234,9 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 void WebServer::on_climate_update(climate::Climate *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->climate_json((climate::Climate*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->climate_json((climate::Climate *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
@@ -1435,13 +1395,9 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 void WebServer::on_lock_update(lock::Lock *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->lock_json((lock::Lock*)(source), ((lock::Lock*)(source))->state, DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->lock_json((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
@@ -1489,13 +1445,9 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
 void WebServer::on_valve_update(valve::Valve *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->valve_json((valve::Valve*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->valve_json((valve::Valve *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
@@ -1565,13 +1517,12 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(source), ((alarm_control_panel::AlarmControlPanel*)(source))->get_state(), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server
+        ->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel *) (source),
+                                   ((alarm_control_panel::AlarmControlPanel *) (source))->get_state(), DETAIL_STATE)
+        .c_str();
+  }));
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
@@ -1610,13 +1561,12 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
   this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      // theoretically event_type is a reference to a string contained in event::Event::types_ so it's safe to closure a reference
-      [event_type](WebServer* web_server, void* source) { return web_server->event_json((event::Event*)(source), event_type, DETAIL_STATE).c_str(); }
-    )
-  );
+      new DeferredEvent(obj, "state",
+                        // theoretically event_type is a reference to a string contained in event::Event::types_ so it's
+                        // safe to closure a reference
+                        [event_type](WebServer *web_server, void *source) {
+                          return web_server->event_json((event::Event *) (source), event_type, DETAIL_STATE).c_str();
+                        }));
 }
 
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
@@ -1640,13 +1590,9 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 void WebServer::on_update(update::UpdateEntity *obj) {
   if (this->event_source_list_.size() == 0)
     return;
-  this->event_source_list_.deferrable_send(
-    new DeferredEvent(
-      obj,
-      "state",
-      [](WebServer* web_server, void* source) { return web_server->update_json((update::UpdateEntity*)(source), DETAIL_STATE).c_str(); }
-    )
-  );
+  this->event_source_list_.deferrable_send(new DeferredEvent(obj, "state", [](WebServer *web_server, void *source) {
+    return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE).c_str();
+  }));
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
@@ -1710,7 +1656,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
-  if(request->url() == "/events") {
+  if (request->url() == "/events") {
     return true;
   }
 
@@ -1842,8 +1788,9 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 
-  if(request->url() == "/events") {
-    this->event_source_list_.add_new_client(this, request, [this]() -> const char* { return this->get_config_json().c_str(); }, this->include_internal_);
+  if (request->url() == "/events") {
+    this->event_source_list_.add_new_client(
+        this, request, [this]() -> const char * { return this->get_config_json().c_str(); }, this->include_internal_);
     return;
   }
 
