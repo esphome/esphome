@@ -5,7 +5,7 @@ espnow:
   on_receive:
     - logger.log:
         format: "Received: %s  RSSI: %d"
-        args: [packet.content_as_bytes(), packet.rssi]
+        args: [packet.get_payload(), packet.rssi]
 
 binary_sensor:
   - platform: gpio
