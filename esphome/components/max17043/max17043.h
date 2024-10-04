@@ -19,14 +19,12 @@ class MAX17043Component : public PollingComponent, public i2c::I2CDevice {
   void set_battery_remaining_sensor(sensor::Sensor *battery_remaining_sensor) {
     battery_remaining_sensor_ = battery_remaining_sensor;
   }
-  void set_alert_threshold(int alert_threshold) { this->alert_threshold_ = alert_threshold; }
 
  protected:
   bool read_data_(uint16_t *raw_voltage, uint16_t *raw_percent);
 
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *battery_remaining_sensor_{nullptr};
-  int alert_threshold_;
 };
 
 }  // namespace max17043
