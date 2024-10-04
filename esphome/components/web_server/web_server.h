@@ -58,39 +58,37 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
   The three pointers, plus the entry in the deq should equal 16 bytes per entry all-told.
 */
+class DeferredUpdateEventSource;
   class DeferredEvent {
+    friend class DeferredUpdateEventSource;
+  protected:
+    void* source_;
+    const char* event_type_;
+    std::function<const char* (WebServer* web_server, void* source)> message_generator_;
+
   public:
-    DeferredEvent(void* source, const char* event_type) {
+    DeferredEvent(void* source, const char* event_type, std::function<const char* (WebServer* web_server, void* source)> message_generator) {
       source_ = source;
       event_type_ = event_type;
+      message_generator_ = message_generator;
     }
     DeferredEvent(DeferredEvent* to_clone) {
       source_ = to_clone->source_;
       event_type_ = to_clone->event_type_;
       message_generator_ = to_clone->message_generator_;
     }
-    void* source_;
-    const char* event_type_;
-    std::function<const char* (WebServer* web_server, void* source)> message_generator_;
 };
 
-class DeferredUpdateSourceList;
+class DeferredUpdateEventSourceList;
 
 class DeferredUpdateEventSource: public AsyncEventSource {
-  friend class DeferredUpdateSourceList;
-
-public:
-  DeferredUpdateEventSource(WebServer *ws, const String& url)  :
-    AsyncEventSource(url),
-    entities_iterator_(ListEntitiesIterator(ws, this)),
-    web_server_(ws) {}
-
-  using AsyncEventSource::handleRequest;
-
-  ListEntitiesIterator entities_iterator_;
+  friend class DeferredUpdateEventSourceList;
 
 protected:
+  using AsyncEventSource::handleRequest;
   using AsyncEventSource::send;
+
+  ListEntitiesIterator entities_iterator_;
   std::list<DeferredEvent*> deq_;
   WebServer * web_server_;
 
@@ -100,9 +98,14 @@ protected:
   void process_deferred_queue();
 
 public:
+  DeferredUpdateEventSource(WebServer *ws, const String& url)  :
+    AsyncEventSource(url),
+    entities_iterator_(ListEntitiesIterator(ws, this)),
+    web_server_(ws) {}
+
   void loop();
 
-  void send(DeferredEvent* de);
+  void deferrable_send(DeferredEvent* de);
 
   // mainly used for logs plus the initial ping
   void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0);
@@ -112,7 +115,7 @@ class DeferredUpdateEventSourceList: public std::list<DeferredUpdateEventSource*
 public:
   void loop();
 
-  void send(DeferredEvent* event);
+  void deferrable_send(DeferredEvent* event);
   void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0);
 
   void add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal);
