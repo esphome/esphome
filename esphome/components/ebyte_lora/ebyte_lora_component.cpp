@@ -339,9 +339,14 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
     return;
   }
   // no need to do anything if the mode is correct
-  if (mode == this->get_mode_()) {
+  if (this->get_mode_() == mode) {
     this->config_mode_ = mode;
     ESP_LOGD(TAG, "Mode is already correct");
+    return;
+  }
+  // no need to do anything if the mode is correct
+  if (!this->can_send_message_()) {
+    ESP_LOGD(TAG, "Device busy lets wait");
     return;
   }
   switch (mode) {
