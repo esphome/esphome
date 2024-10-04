@@ -146,7 +146,7 @@ void DeferredUpdateEventSource::deferrable_send(DeferredEvent *de) {
     if (0 == strcmp(event_type, "state_detail_all"))
       event_type = "state";
     if (!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
-      if (de->event_type_ != "log") {
+      if (0 != strcmp(de->event_type_, "log")) {
         // send failed and it's not a log (which is simply dropped) so queue it for a later send
         deq_clone_and_push_back_with_dedup_(de);
       }
