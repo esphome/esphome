@@ -349,6 +349,8 @@ void EbyteLoraComponent::set_mode_(ModeType mode) {
   if (this->config_mode_ != MODE_INIT && !this->can_send_message_()) {
     ESP_LOGD(TAG, "Device busy lets wait");
     return;
+  } else {
+    ESP_LOGD(TAG, "Very first time setting the mode, going to ignore device busy state");
   }
   switch (mode) {
     case NORMAL:
