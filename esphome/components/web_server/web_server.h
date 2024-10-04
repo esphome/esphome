@@ -50,8 +50,6 @@ struct SortingComponents {
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
-class WebServer;
-
 /*
   This class holds a pointer to the event source, the event type, and a pointer to a lambda that will lazily 
   generate the event body.  The source and type allow dedup in the deferred queue and the lambda saves on
@@ -76,13 +74,16 @@ class WebServer;
     std::function<const char* (WebServer* web_server, void* source)> message_generator_;
 };
 
+class DeferredUpdateSourceList;
+
 class DeferredUpdateEventSource: public AsyncEventSource {
+  friend class DeferredUpdateSourceList;
+
 public:
   DeferredUpdateEventSource(WebServer *ws, const String& url)  :
     AsyncEventSource(url),
     entities_iterator_(ListEntitiesIterator(ws, this)),
-    web_server_(ws) {
-    }
+    web_server_(ws) {}
 
   using AsyncEventSource::handleRequest;
 
@@ -94,126 +95,30 @@ protected:
   WebServer * web_server_;
 
   // helper for allowing only unique entries in the queue
-  void deq_clone_and_push_back_with_dedup(DeferredEvent* item) {
-    // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive 
-    //     in this context since DeferredEvent itself is lightweight by design
-    item = new DeferredEvent(item);
+  void deq_clone_and_push_back_with_dedup(DeferredEvent* item);
 
-    auto iter = std::find_if(this->deq_.begin(), this->deq_.end(),
-      [&item](const DeferredEvent* test) -> bool {
-        return 
-          test->source_ == item->source_ &&
-          test->event_type_ == item->event_type_;
-      });
-
-    if (iter != this->deq_.end()) {
-      std::swap((*iter), item);
-      delete item;
-    }
-    else {
-      this->deq_.push_back(item);
-    }
-  }
+  void process_deferred_queue();
 
 public:
-  void process_deferred_queue() {
-    while(deq_.size() > 0) {
-      DeferredEvent* de = deq_.front();
-      const char* event_type = de->event_type_;
-      // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
-      //     but both are "state" on the wire
-      if(event_type == "state_detail_all")
-        event_type = "state";
-      if(this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
-        deq_.pop_front();
-        delete de;
-      } 
-      else {
-        break;
-      }
-    }
-  }
+  void loop();
 
-  void loop() {
-    process_deferred_queue();
-
-    this->entities_iterator_.advance();
-  }
-
-  void send(DeferredEvent* de) {
-    if(deq_.size() > 0)
-      process_deferred_queue();
-    if(deq_.size() > 0) {
-      deq_clone_and_push_back_with_dedup(de);
-    } 
-    else {
-      const char* event_type = de->event_type_;
-      // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
-      //     but both are "state" on the wire
-      if(event_type == "state_detail_all")
-        event_type = "state";
-      if(!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
-        if(de->event_type_ != "log") {
-          deq_clone_and_push_back_with_dedup(de);
-        }
-      }
-    }
-  }
+  void send(DeferredEvent* de);
 
   // mainly used for logs plus the initial ping
-  void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0) {
-    this->send(message, event, id, reconnect);
-  }
+  void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0);
 };
 
 class DeferredUpdateEventSourceList: public std::list<DeferredUpdateEventSource*> {
 public:
+  void loop();
 
-  void loop() {
-    for(DeferredUpdateEventSource* dues : *this) {
-      dues->loop();
-    }
-  }
+  void send(DeferredEvent* event);
+  void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0);
 
-  void send(DeferredEvent* event) {
-    for(DeferredUpdateEventSource* dues : *this) {
-      dues->send(event);
-    }
-    // DeferredEvent.send would have cloned it into the deferred list if needed
-    delete event;
-  }
+  void add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal);
 
-  void try_send_nodefer(const char *message, const char *event=NULL, uint32_t id=0, uint32_t reconnect=0) {
-    for(DeferredUpdateEventSource* dues : *this) {
-      dues->try_send_nodefer(message, event, id, reconnect);
-    }
-  }
-
-  void add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal) {
-    DeferredUpdateEventSource* es = new DeferredUpdateEventSource(ws, "/events");
-    this->push_back(es);
-
-    es->onConnect([es, generate_config_json, include_internal](AsyncEventSourceClient *client) {
-      // Configure reconnect timeout and send config
-      // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-      es->try_send_nodefer(generate_config_json(), "ping", millis(), 30000);
-
-      es->entities_iterator_.begin(include_internal);
-
-      // just dump them all up-front and take advantage of the deferred queue
-      while(!es->entities_iterator_.completed()) {
-        es->entities_iterator_.advance();
-      }
-    });
-
-    es->onDisconnect([es, this](AsyncEventSource *source) {
-      this->remove((DeferredUpdateEventSource*)source);
-      // bit funky to delete it while inside a callback from it
-      delete (DeferredUpdateEventSource*)source;
-    });
-
-    es->handleRequest(request);
-  }
+  void on_client_connect(DeferredUpdateEventSource* source, std::function<const char* ()> generate_config_json, bool include_internal);
+  void remove_client(DeferredUpdateEventSource* source);
 };
 
 /** This class allows users to create a web server with their ESP nodes.
@@ -226,6 +131,8 @@ public:
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
+friend class DeferredUpdateEventSourceList;
+
  public:
   WebServer(web_server_base::WebServerBase *base);
 

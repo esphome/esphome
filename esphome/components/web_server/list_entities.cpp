@@ -26,7 +26,7 @@ bool ListEntitiesIterator::on_cover(cover::Cover *obj) {
   if (this->es_->count() == 0)
     return true;
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->cover_json((cover::Cover*)(source), ((cover::Cover*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->cover_json((cover::Cover*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -36,7 +36,7 @@ bool ListEntitiesIterator::on_fan(fan::Fan *obj) {
   if (this->es_->count() == 0)
     return true;
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->fan_json((fan::Fan*)(source), ((fan::Fan*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->fan_json((fan::Fan*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -46,7 +46,7 @@ bool ListEntitiesIterator::on_light(light::LightState *obj) {
   if (this->es_->count() == 0)
     return true;
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->light_json((light::LightState*)(source), ((light::LightState*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->light_json((light::LightState*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -107,7 +107,7 @@ bool ListEntitiesIterator::on_valve(valve::Valve *obj) {
   if (this->es_->count() == 0)
     return true;
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->valve_json((valve::Valve*)(source), ((valve::Valve*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->valve_json((valve::Valve*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -118,7 +118,7 @@ bool ListEntitiesIterator::on_climate(climate::Climate *obj) {
   if (this->es_->count() == 0)
     return true;
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->climate_json((climate::Climate*)(source), ((climate::Climate*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->climate_json((climate::Climate*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -140,7 +140,7 @@ bool ListEntitiesIterator::on_date(datetime::DateEntity *obj) {
   if (this->es_->count() == 0)
     return true;
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->date_json((datetime::DateEntity*)(source), ((datetime::DateEntity*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->date_json((datetime::DateEntity*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -149,7 +149,7 @@ bool ListEntitiesIterator::on_date(datetime::DateEntity *obj) {
 #ifdef USE_DATETIME_TIME
 bool ListEntitiesIterator::on_time(datetime::TimeEntity *obj) {
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->time_json((datetime::TimeEntity*)(source), ((datetime::TimeEntity*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->time_json((datetime::TimeEntity*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -202,9 +202,8 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {
   // Null event type, since we are just iterating over entities
-  const std::string null_event_type = "";
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->event_json((event::Event*)(source), ((event::Event*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->event_json((event::Event*)(source), "", DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }
@@ -215,7 +214,7 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
   if (this->es_->count() == 0)
     return true;
   DeferredEvent* event = new DeferredEvent(obj, "state_detail_all");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->update_json((update::UpdateEntity*)(source), ((update::UpdateEntity*)(source))->state, DETAIL_ALL).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->update_json((update::UpdateEntity*)(source), DETAIL_ALL).c_str(); };
   this->es_->send(event);
   return true;
 }

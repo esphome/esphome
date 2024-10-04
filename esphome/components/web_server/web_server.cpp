@@ -72,6 +72,159 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
   return match;
 }
 
+
+
+
+
+
+
+
+
+
+
+// helper for allowing only unique entries in the queue
+void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent* item) {
+  // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive 
+  //     in this context since DeferredEvent itself is lightweight by design
+  item = new DeferredEvent(item);
+
+  auto iter = std::find_if(this->deq_.begin(), this->deq_.end(),
+    [&item](const DeferredEvent* test) -> bool {
+      return 
+        test->source_ == item->source_ &&
+        test->event_type_ == item->event_type_;
+    });
+
+  if (iter != this->deq_.end()) {
+    std::swap((*iter), item);
+    delete item;
+  }
+  else {
+    this->deq_.push_back(item);
+  }
+}
+
+void DeferredUpdateEventSource::process_deferred_queue() {
+  while(deq_.size() > 0) {
+    DeferredEvent* de = deq_.front();
+    const char* event_type = de->event_type_;
+    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
+    //     but both are "state" on the wire
+    if(event_type == "state_detail_all")
+      event_type = "state";
+    if(this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
+      deq_.pop_front();
+      delete de;
+    } 
+    else {
+      break;
+    }
+  }
+}
+
+void DeferredUpdateEventSource::loop() {
+  process_deferred_queue();
+
+  this->entities_iterator_.advance();
+}
+
+void DeferredUpdateEventSource::send(DeferredEvent* de) {
+  if(deq_.size() > 0)
+    process_deferred_queue();
+  if(deq_.size() > 0) {
+    deq_clone_and_push_back_with_dedup(de);
+  } 
+  else {
+    const char* event_type = de->event_type_;
+    // normal state updates and the list_entities iterator output with extra details in the json had to be differentiated 
+    //     but both are "state" on the wire
+    if(event_type == "state_detail_all")
+      event_type = "state";
+    if(!this->try_send(de->message_generator_(web_server_, de->source_), event_type)) {
+      if(de->event_type_ != "log") {
+        deq_clone_and_push_back_with_dedup(de);
+      }
+    }
+  }
+}
+
+// mainly used for logs plus the initial ping
+void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+  this->send(message, event, id, reconnect);
+}
+
+void DeferredUpdateEventSourceList::loop() {
+  for(DeferredUpdateEventSource* dues : *this) {
+    dues->loop();
+  }
+}
+
+void DeferredUpdateEventSourceList::send(DeferredEvent* event) {
+  for(DeferredUpdateEventSource* dues : *this) {
+    dues->send(event);
+  }
+  // DeferredEvent.send would have cloned it into the deferred list if needed
+  delete event;
+}
+
+void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
+  for(DeferredUpdateEventSource* dues : *this) {
+    dues->try_send_nodefer(message, event, id, reconnect);
+  }
+}
+
+void DeferredUpdateEventSourceList::remove_client(DeferredUpdateEventSource* source)
+{
+  source->onConnect(nullptr);
+  source->onDisconnect(nullptr);
+  this->remove((DeferredUpdateEventSource*)source);
+  delete (DeferredUpdateEventSource*)source;
+}
+
+void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource* source, std::function<const char* ()> generate_config_json, bool include_internal) {
+  // Configure reconnect timeout and send config
+  // this should always go through since the AsyncEventSourceClient event queue is empty on connect
+  source->try_send_nodefer(generate_config_json(), "ping", millis(), 30000);
+
+  source->entities_iterator_.begin(include_internal);
+
+  // just dump them all up-front and take advantage of the deferred queue
+//    while(!source->entities_iterator_.completed()) {
+//      source->entities_iterator_.advance();
+//    }
+}
+
+void DeferredUpdateEventSourceList::add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal) {
+  DeferredUpdateEventSource* es = new DeferredUpdateEventSource(ws, "/events");
+  this->push_back(es);
+
+  es->onConnect([this, ws, es, generate_config_json, include_internal](AsyncEventSourceClient *client) { 
+    ws->defer([this, es, generate_config_json, include_internal]() { this->on_client_connect(es, generate_config_json, include_internal); });
+  });
+
+  es->onDisconnect([this, ws, es](AsyncEventSource *source) { 
+    ws->defer([this, source]() { this->remove_client((DeferredUpdateEventSource*)source); });
+  });
+
+  es->handleRequest(request);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 WebServer::WebServer(web_server_base::WebServerBase *base)
     : base_(base) {
 #ifdef USE_ESP32
@@ -369,7 +522,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
   request->send(404);
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
-  return json::build_json([this, obj, value, start_config](JsonObject root) {
+  return json::build_json([this, obj, value, start_config](JsonObject root) { 
     set_json_icon_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value,
                               start_config);
     if (start_config == DETAIL_ALL) {
@@ -386,7 +539,7 @@ void WebServer::on_fan_update(fan::Fan *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->fan_json((fan::Fan*)(source), ((fan::Fan*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->fan_json((fan::Fan*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -466,7 +619,7 @@ void WebServer::on_light_update(light::LightState *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->light_json((light::LightState*)(source), ((light::LightState*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->light_json((light::LightState*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -579,7 +732,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->cover_json((cover::Cover*)(source), ((cover::Cover*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->cover_json((cover::Cover*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -725,7 +878,7 @@ void WebServer::on_date_update(datetime::DateEntity *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->date_json((datetime::DateEntity*)(source), ((datetime::DateEntity*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->date_json((datetime::DateEntity*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -781,7 +934,7 @@ void WebServer::on_time_update(datetime::TimeEntity *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->time_json((datetime::TimeEntity*)(source), ((datetime::TimeEntity*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->time_json((datetime::TimeEntity*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1011,7 +1164,7 @@ void WebServer::on_climate_update(climate::Climate *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->climate_json((climate::Climate*)(source), ((climate::Climate*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->climate_json((climate::Climate*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1202,7 +1355,7 @@ void WebServer::on_valve_update(valve::Valve *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->valve_json((valve::Valve*)(source), ((valve::Valve*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->valve_json((valve::Valve*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1269,7 +1422,7 @@ void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(source), ((alarm_control_panel::AlarmControlPanel*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel*)(source), ((alarm_control_panel::AlarmControlPanel*)(source))->get_state(), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1304,7 +1457,8 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->event_json((event::Event*)(source), ((event::Event*)(source))->state, DETAIL_STATE).c_str(); };
+  // theoretically event_type is a reference to a string contained in event::Event::types_ so it's safe to closure a reference
+  event->message_generator_ = [event_type](WebServer* web_server, void* source) { return web_server->event_json((event::Event*)(source), event_type, DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 
@@ -1330,7 +1484,7 @@ void WebServer::on_update(update::UpdateEntity *obj) {
   if (this->events_list_.size() == 0)
     return;
   DeferredEvent* event = new DeferredEvent(obj, "state");
-  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->update_json((update::UpdateEntity*)(source), ((update::UpdateEntity*)(source))->state, DETAIL_STATE).c_str(); };
+  event->message_generator_ = [](WebServer* web_server, void* source) { return web_server->update_json((update::UpdateEntity*)(source), DETAIL_STATE).c_str(); };
   this->events_list_.send(event);
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
