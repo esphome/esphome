@@ -72,16 +72,6 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
   return match;
 }
 
-
-
-
-
-
-
-
-
-
-
 // helper for allowing only unique entries in the queue
 void DeferredUpdateEventSource::deq_clone_and_push_back_with_dedup(DeferredEvent* item) {
   // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive 
@@ -163,7 +153,7 @@ void DeferredUpdateEventSourceList::send(DeferredEvent* event) {
   for(DeferredUpdateEventSource* dues : *this) {
     dues->send(event);
   }
-  // DeferredEvent.send would have cloned it into the deferred list if needed
+  // would have been cloned into the deferred list if needed
   delete event;
 }
 
@@ -171,27 +161,6 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const 
   for(DeferredUpdateEventSource* dues : *this) {
     dues->try_send_nodefer(message, event, id, reconnect);
   }
-}
-
-void DeferredUpdateEventSourceList::remove_client(DeferredUpdateEventSource* source)
-{
-  source->onConnect(nullptr);
-  source->onDisconnect(nullptr);
-  this->remove((DeferredUpdateEventSource*)source);
-  delete (DeferredUpdateEventSource*)source;
-}
-
-void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource* source, std::function<const char* ()> generate_config_json, bool include_internal) {
-  // Configure reconnect timeout and send config
-  // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-  source->try_send_nodefer(generate_config_json(), "ping", millis(), 30000);
-
-  source->entities_iterator_.begin(include_internal);
-
-  // just dump them all up-front and take advantage of the deferred queue
-//    while(!source->entities_iterator_.completed()) {
-//      source->entities_iterator_.advance();
-//    }
 }
 
 void DeferredUpdateEventSourceList::add_new_client(WebServer* ws, AsyncWebServerRequest *request, std::function<const char* ()> generate_config_json, bool include_internal) {
@@ -209,21 +178,26 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer* ws, AsyncWebServer
   es->handleRequest(request);
 }
 
+void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource* source, std::function<const char* ()> generate_config_json, bool include_internal) {
+  // Configure reconnect timeout and send config
+  // this should always go through since the AsyncEventSourceClient event queue is empty on connect
+  source->try_send_nodefer(generate_config_json(), "ping", millis(), 30000);
 
+  source->entities_iterator_.begin(include_internal);
 
+  // just dump them all up-front and take advantage of the deferred queue
+//    while(!source->entities_iterator_.completed()) {
+//      source->entities_iterator_.advance();
+//    }
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
+void DeferredUpdateEventSourceList::remove_client(DeferredUpdateEventSource* source)
+{
+  source->onConnect(nullptr);
+  source->onDisconnect(nullptr);
+  this->remove((DeferredUpdateEventSource*)source);
+  delete (DeferredUpdateEventSource*)source;
+}
 
 WebServer::WebServer(web_server_base::WebServerBase *base)
     : base_(base) {
