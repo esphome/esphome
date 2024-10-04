@@ -552,7 +552,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
   request->send(404);
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
-  return json::build_json([this, obj, value, start_config](JsonObject root) { 
+  return json::build_json([this, obj, value, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value,
                               start_config);
     if (start_config == DETAIL_ALL) {
