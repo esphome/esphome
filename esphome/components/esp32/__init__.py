@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_COMPONENTS,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
+    CONF_IGNORE_EFUSE_CUSTOM_MAC,
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_NAME,
     CONF_PATH,
@@ -239,7 +240,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 4, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 7)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 8)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
@@ -401,6 +402,9 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             },
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
+                    cv.Optional(
+                        CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
+                    ): cv.boolean,
                     cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
                 }
             ),
@@ -526,6 +530,8 @@ async def to_code(config):
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
+        if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
+            cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
         if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_MAC_CRC]:
             cg.add_define("USE_ESP32_IGNORE_EFUSE_MAC_CRC")
             if (framework_ver.major, framework_ver.minor) >= (4, 4):
