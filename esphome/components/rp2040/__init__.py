@@ -71,6 +71,14 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
+def _parse_platform_version(value):
+    value = cv.string(value)
+    if value.startswith("http"):
+        return value
+
+    return f"https://github.com/maxgerhardt/platform-raspberrypi.git#{value}"
+
+
 # NOTE: Keep this in mind when updating the recommended version:
 #  * The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
@@ -82,10 +90,9 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
 RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 9, 4)
 
-# The platformio/raspberrypi version to use for arduino frameworks
-#  - https://github.com/platformio/platform-raspberrypi/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 13, 0)
+# The raspberrypi platform version to use for arduino frameworks
+#  - https://github.com/maxgerhardt/platform-raspberrypi/tags
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.2.0-gcc12"
 
 
 def _arduino_check_versions(value):
@@ -111,7 +118,8 @@ def _arduino_check_versions(value):
     value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
     value[CONF_PLATFORM_VERSION] = value.get(
-        CONF_PLATFORM_VERSION, _parse_platform_version(str(ARDUINO_PLATFORM_VERSION))
+        CONF_PLATFORM_VERSION,
+        _parse_platform_version(RECOMMENDED_ARDUINO_PLATFORM_VERSION),
     )
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
@@ -120,15 +128,6 @@ def _arduino_check_versions(value):
         )
 
     return value
-
-
-def _parse_platform_version(value):
-    try:
-        # if platform version is a valid version constraint, prefix the default package
-        cv.platformio_version_constraint(value)
-        return f"platformio/raspberrypi@{value}"
-    except cv.Invalid:
-        return value
 
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
