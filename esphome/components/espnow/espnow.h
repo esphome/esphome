@@ -195,10 +195,7 @@ class ESPNowComponent : public Component {
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
   void set_use_sent_check(bool value) { this->use_sent_check_ = value; }
-  void set_convermation_timeout(uint32_t timeout) {
-    this->conformation_timeout_ = timeout;
-    ESP_LOGD("ESPNOW", "%d", timeout);
-  }
+  void set_convermation_timeout(uint32_t timeout) { this->conformation_timeout_ = timeout; }
   void set_retries(uint8_t value) { this->retries_ = value; }
 
   void setup() override;

@@ -31,7 +31,7 @@ NewPeerAction = espnow_ns.class_("NewPeerAction", automation.Action)
 DelPeerAction = espnow_ns.class_("DelPeerAction", automation.Action)
 
 CONF_AUTO_ADD_PEER = "auto_add_peer"
-CONF_CONVORMATION_TIMEOUT = "conformation_timeout"
+CONF_CONFORMATION_TIMEOUT = "conformation_timeout"
 CONF_ESPNOW = "espnow"
 CONF_RETRIES = "retries"
 CONF_ON_RECEIVE = "on_receive"
@@ -60,7 +60,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
         cv.Optional(CONF_USE_SENT_CHECK, default=True): cv.boolean,
         cv.Optional(
-            CONF_CONVORMATION_TIMEOUT, default="5000ms"
+            CONF_CONFORMATION_TIMEOUT, default="5000ms"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_RETRIES, default=5): cv.int_range(min=1, max=10),
         cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
@@ -99,7 +99,7 @@ async def to_code(config):
     cg.add(var.set_wifi_channel(config[CONF_WIFI_CHANNEL]))
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
     cg.add(var.set_use_sent_check(config[CONF_USE_SENT_CHECK]))
-    cg.add(var.set_convermation_timeout(config[CONF_CONVORMATION_TIMEOUT]))
+    cg.add(var.set_convermation_timeout(config[CONF_CONFORMATION_TIMEOUT]))
     cg.add(var.set_retries(config[CONF_RETRIES]))
 
     for conf in config.get(CONF_ON_SENT, []):
