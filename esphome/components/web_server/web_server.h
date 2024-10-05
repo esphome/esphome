@@ -61,7 +61,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still 12 bytes total per
   entry.
 */
-typedef const std::string (message_generator_t) (WebServer *web_server, void *source);
+typedef const std::string(message_generator_t)(WebServer *web_server, void *source);
 
 class DeferredUpdateEventSourceList;
 class DeferredUpdateEventSource : public AsyncEventSource {
