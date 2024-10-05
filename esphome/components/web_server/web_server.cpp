@@ -1637,10 +1637,10 @@ void WebServer::on_event(event::Event *obj, const std::string &event_type) {
 }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->event_json((event::Event *) (source), ((event::Event *) (source))->state, DETAIL_STATE);
+  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_STATE);
 }
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->event_json((event::Event *) (source), ((event::Event *) (source))->state, DETAIL_ALL);
+  return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_ALL);
 }
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
   return json::build_json([obj, event_type, start_config](JsonObject root) {
