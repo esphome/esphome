@@ -59,7 +59,11 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   That's three pointers, so 12 bytes.  The entry in the deferred event queue (a std::vector with no storage overhead)
   is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still 12 bytes total per entry.
 */
+<<<<<<< HEAD
 using message_generator_t = std::string (WebServer *, const void *);
+=======
+using message_generator_t = std::string(WebServer *, void *);
+>>>>>>> c4c7829e1ba442e8d76a1cfee61580281543d5f0
 
 class DeferredUpdateEventSourceList;
 class DeferredUpdateEventSource : public AsyncEventSource {
