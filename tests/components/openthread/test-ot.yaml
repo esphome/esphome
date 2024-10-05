@@ -6,8 +6,8 @@ esp32:
   variant: esp32c6
   framework:
     type: esp-idf
-    version: "5.3.0"
-    platform_version: "https://github.com/pioarduino/platform-espressif32/releases/download/53.03.10%%2Brc1/platform-espressif32.zip"
+    version: "5.3.1"
+    platform_version: 6.8.1
 
 logger:
   level: DEBUG
