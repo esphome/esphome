@@ -1,8 +1,6 @@
 #include "openthread.h"
 
-#ifdef USE_ESP_IDF
-#include "openthread_esp.h"
-#else
+#ifndef USE_ESP_IDF
 #error "OpenThread is not supported on this platform"
 #endif
 

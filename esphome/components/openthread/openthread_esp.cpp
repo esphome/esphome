@@ -1,5 +1,4 @@
 // #ifdef USE_ESP_IDF
-#include "openthread_esp.h"
 #include "openthread.h"
 #include <openthread/logging.h>
 

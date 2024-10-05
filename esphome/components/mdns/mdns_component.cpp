@@ -126,10 +126,7 @@ void MDNSComponent::dump_config() {
   }
 }
 
-std::vector<MDNSService> MDNSComponent::get_services() {
-  return this->services_;
-}
-
+std::vector<MDNSService> MDNSComponent::get_services() { return this->services_; }
 
 }  // namespace mdns
 }  // namespace esphome
