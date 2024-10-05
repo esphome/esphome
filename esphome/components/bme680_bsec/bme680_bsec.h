@@ -58,9 +58,9 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void set_breath_voc_equivalent_sensor(sensor::Sensor *sensor) { this->breath_voc_equivalent_sensor_ = sensor; }
 
   static std::vector<BME680BSECComponent *> instances;
-  static int8_t read_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len);
-  static int8_t write_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len);
-  static void delay_ms(uint32_t period);
+  static BME68X_INTF_RET_TYPE read_bytes_wrapper(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *ptr);
+  static BME68X_INTF_RET_TYPE write_bytes_wrapper(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *ptr);
+  static void delay_us(uint32_t period, void *ptr);
 
   void setup() override;
   void dump_config() override;
@@ -95,9 +95,9 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
 
   static uint8_t work_buffer_[BSEC_MAX_WORKBUFFER_SIZE];
-  struct bme680_dev bme680_;
+  struct bme68x_dev bme68x_;
   bsec_library_return_t bsec_status_{BSEC_OK};
-  int8_t bme680_status_{BME680_OK};
+  int8_t bme68x_status_{BME68X_OK};
 
   int64_t last_time_ms_{0};
   uint32_t millis_overflow_counter_{0};
@@ -109,8 +109,8 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   uint8_t bsec_state_data_[BSEC_MAX_STATE_BLOB_SIZE];  // This is the current snapshot of the BSEC library state
   ESPPreferenceObject bsec_state_;
   uint32_t state_save_interval_ms_{21600000};  // 6 hours - 4 times a day
-  uint32_t last_state_save_ms_ = 0;
-  bsec_bme_settings_t bme680_settings_;
+  uint32_t last_state_save_ms_{0};
+  bsec_bme_settings_t bseclib_settings_;
 
   std::string device_id_;
   float temperature_offset_{0};
