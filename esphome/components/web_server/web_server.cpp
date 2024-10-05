@@ -176,7 +176,7 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, const 
 }
 
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request,
-                                                   const std::function<const char *()> &generate_config_json,
+                                                   const std::function<std::string()> &generate_config_json,
                                                    bool include_internal) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
   this->push_back(es);
@@ -195,11 +195,12 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 }
 
 void DeferredUpdateEventSourceList::on_client_connect(DeferredUpdateEventSource *source,
-                                                      const std::function<const char *()> &generate_config_json,
+                                                      const std::function<std::string()> &generate_config_json,
                                                       bool include_internal) {
   // Configure reconnect timeout and send config
   // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-  source->try_send_nodefer(generate_config_json(), "ping", millis(), 30000);
+  std::string message = generate_config_json();
+  source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
   source->entities_iterator_.begin(include_internal);
 
@@ -1867,7 +1868,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
   if (request->url() == "/events") {
     this->event_source_list_.add_new_client(
-        this, request, [this]() -> const char * { return this->get_config_json().c_str(); }, this->include_internal_);
+        this, request, [this]() -> std::string { return this->get_config_json(); }, this->include_internal_);
     return;
   }
 
