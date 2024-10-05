@@ -179,7 +179,7 @@ ESPNowDefaultProtocol *ESPNowComponent::get_default_protocol() {
 
 ESPNowProtocol *ESPNowComponent::get_protocol_component_(uint32_t protocol) {
   if (this->protocols_[protocol] == nullptr) {
-    ESP_LOGE(TAG, "Protocol for '%06x' is not registered", protocol);
+    ESP_LOGE(TAG, "Protocol for '%06lx' is not registered", protocol);
     return nullptr;
   }
   return this->protocols_[protocol];
