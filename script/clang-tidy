@@ -98,7 +98,7 @@ def clang_options(idedata):
             cmd.extend(["-isystem", directory])
 
     # add library include directories using -isystem to suppress their errors
-    for directory in set(idedata["includes"]["build"]):
+    for directory in list(idedata["includes"]["build"]):
         # skip our own directories, we add those later
         if (
             not directory.startswith(f"{root_path}/")
