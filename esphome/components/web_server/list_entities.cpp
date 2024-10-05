@@ -9,7 +9,7 @@
 namespace esphome {
 namespace web_server {
 
-ListEntitiesIterator::ListEntitiesIterator(WebServer *ws, DeferredUpdateEventSource *es)
+ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es)
     : web_server_(ws), event_source_(es) {}
 
 #ifdef USE_BINARY_SENSOR

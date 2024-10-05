@@ -12,7 +12,7 @@ class WebServer;
 
 class ListEntitiesIterator : public ComponentIterator {
  public:
-  ListEntitiesIterator(WebServer *ws, DeferredUpdateEventSource *es);
+  ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es);
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *obj) override;
 #endif
@@ -76,7 +76,7 @@ class ListEntitiesIterator : public ComponentIterator {
   bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
-  WebServer *web_server_;
+  const WebServer *web_server_;
   DeferredUpdateEventSource *event_source_;
 };
 
