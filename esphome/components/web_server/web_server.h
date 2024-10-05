@@ -54,16 +54,12 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 /*
   This class holds a pointer to the event source component, the event type, and a static pointer that will lazily
   generate the event body.  The source and type allow dedup in the deferred queue and the static pointer saves on
-  having to store the message body upfront. 
+  having to store the message body upfront.
 
   That's three pointers, so 12 bytes.  The entry in the deferred event queue (a std::vector with no storage overhead)
   is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still 12 bytes total per entry.
 */
-<<<<<<< HEAD
-using message_generator_t = std::string (WebServer *, const void *);
-=======
 using message_generator_t = std::string(WebServer *, void *);
->>>>>>> c4c7829e1ba442e8d76a1cfee61580281543d5f0
 
 class DeferredUpdateEventSourceList;
 class DeferredUpdateEventSource : public AsyncEventSource {
@@ -97,7 +93,8 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   WebServer *web_server_;
 
   // helper for allowing only unique entries in the queue
-  void deq_push_back_with_dedup_(const void *source, const char *event_type, const message_generator_t *message_generator);
+  void deq_push_back_with_dedup_(const void *source, const char *event_type, 
+                                 const message_generator_t *message_generator);
 
   void process_deferred_queue_();
 
@@ -110,15 +107,18 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   void deferrable_send(const void *source, const char *event_type, const message_generator_t *message_generator);
 
   // mainly used for logs plus the initial ping
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0, const uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0, 
+                        const uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
  public:
   void loop();
 
-  void deferrable_send(const void *source, const char *event_type, const message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0, const uint32_t reconnect = 0);
+  void deferrable_send(const void *source, const char *event_type, 
+                       const message_generator_t *message_generator);
+  void try_send_nodefer(const char *message, const char *event = nullptr, const uint32_t id = 0, 
+                        const uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request,
                       const std::function<std::string()> &generate_config_json, const bool include_internal);
