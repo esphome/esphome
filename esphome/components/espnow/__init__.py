@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_COMMAND, CONF_DATA, CONF_ID, CONF_TRIGGER_ID
 from esphome.core import CORE
 
 CODEOWNERS = ["@nielsnl68", "@jesserockz"]
@@ -66,16 +66,19 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPNowReceiveTrigger),
+                cv.Optional(CONF_COMMAND): cv.Range(min=16, max=255),
             }
         ),
         cv.Optional(CONF_ON_SENT): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPNowSentTrigger),
+                cv.Optional(CONF_COMMAND): cv.Range(min=16, max=255),
             }
         ),
         cv.Optional(CONF_ON_NEW_PEER): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPNowNewPeerTrigger),
+                cv.Optional(CONF_COMMAND): cv.Range(min=16, max=255),
             }
         ),
         cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
@@ -101,6 +104,8 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        if CONF_COMMAND in conf:
+            cg.add(trigger.set_command(conf[CONF_COMMAND]))
         await automation.build_automation(
             trigger,
             [(ESPNowPacketConst, "packet"), (bool, "status")],
@@ -109,12 +114,16 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_RECEIVE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        if CONF_COMMAND in conf:
+            cg.add(trigger.set_command(conf[CONF_COMMAND]))
         await automation.build_automation(
             trigger, [(ESPNowPacketConst, "packet")], conf
         )
 
     for conf in config.get(CONF_ON_NEW_PEER, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        if CONF_COMMAND in conf:
+            cg.add(trigger.set_command(conf[CONF_COMMAND]))
         await automation.build_automation(
             trigger, [(ESPNowPacketConst, "packet")], conf
         )
@@ -144,6 +153,7 @@ async def register_protocol(var, config):
             cv.GenerateID(): cv.use_id(ESPNowComponent),
             cv.Optional(CONF_PEER): cv.templatable(cv.mac_address),
             cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+            cv.Optional(CONF_COMMAND): cv.templatable(cv.Range(min=16, max=255)),
         },
         key=CONF_DATA,
     ),
@@ -154,6 +164,10 @@ async def send_action(config, action_id, template_arg, args):
     if CONF_PEER in config:
         template_ = await cg.templatable(config[CONF_PEER].as_hex, args, cg.uint64)
         cg.add(var.set_mac(template_))
+
+    if CONF_COMMAND in config:
+        template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+        cg.add(var.set_command(template_))
 
     data = config.get(CONF_DATA, [])
     if isinstance(data, bytes):
@@ -178,13 +192,6 @@ async def send_action(config, action_id, template_arg, args):
         key=CONF_PEER,
     ),
 )
-async def new_peer_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    template_ = await cg.templatable(config[CONF_PEER].as_hex, args, cg.uint64)
-    cg.add(var.set_mac(template_))
-    return var
-
-
 @automation.register_action(
     "espnow.peer.del",
     DelPeerAction,

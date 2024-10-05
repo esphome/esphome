@@ -23,7 +23,7 @@ static const uint64_t ESPNOW_BROADCAST_ADDR = 0xFFFFFFFFFFFF;
 
 static const uint8_t MAX_ESPNOW_DATA_SIZE = 241;
 
-static const uint8_t TRANSPORT_HEADER[] = {'N', '0', 'w'};
+static const uint8_t TRANSPORT_HEADER[3] = {'N', '0', 'w'};
 static const uint32_t ESPNOW_MAIN_PROTOCOL_ID = 0x447453;  // = StD
 
 static const uint8_t ESPNOW_COMMAND_ACK = 0x06;
@@ -129,7 +129,7 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
   virtual void on_new_peer(const ESPNowPacket &packet){};
 
   virtual uint32_t get_protocol_component_id() = 0;
-  uint8_t get_next_sequents() {
+  uint8_t get_next_sequents(uint64_t peer = 0, uint32_t protocol = 0) {
     if (this->next_sequents_ == 255) {
       this->next_sequents_ = 0;
     } else {
@@ -145,7 +145,7 @@ class ESPNowProtocol : public Parented<ESPNowComponent> {
     return valid;
   }
 
-  bool send(uint64_t peer, const uint8_t *data, uint8_t len);
+  bool send(uint64_t peer, const uint8_t *data, uint8_t len, uint8_t command = 0);
 
  protected:
   uint8_t next_sequents_{255};
@@ -260,6 +260,8 @@ class ESPNowComponent : public Component {
 template<typename... Ts> class SendAction : public Action<Ts...>, public Parented<ESPNowComponent> {
  public:
   template<typename V> void set_mac(V mac) { this->mac_ = mac; }
+  template<typename V> void set_command(V command) { this->command_ = command; }
+
   void set_data_template(std::function<ByteBuffer(Ts...)> func) {
     this->data_func_ = func;
     this->static_ = false;
@@ -271,6 +273,10 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
 
   void play(Ts... x) override {
     uint64_t mac = this->mac_.value(x...);
+    uint8_t command = 0;
+    if (this->command_.has_value()) {
+      command = this->mac_.value(x...);
+    }
 
     if (this->static_) {
       this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size());
@@ -281,6 +287,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   }
 
  protected:
+  TemplatableValue<uint8_t, Ts...> command_{};
   TemplatableValue<uint64_t, Ts...> mac_{};
   bool static_{false};
   std::function<ByteBuffer(Ts...)> data_func_{};
@@ -314,24 +321,46 @@ template<typename... Ts> class DelPeerAction : public Action<Ts...>, public Pare
 class ESPNowSentTrigger : public Trigger<const ESPNowPacket, bool> {
  public:
   explicit ESPNowSentTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_sent_callback(
-        [this](const ESPNowPacket packet, bool status) { this->trigger(packet, status); });
+    parent->get_default_protocol()->add_on_sent_callback([this](const ESPNowPacket packet, bool status) {
+      if ((this->command_ == 0) || this->command_ == packet.get_command()) {
+        this->trigger(packet, status);
+      }
+    });
   }
+  void set_command(uint8_t command) { this->command_ = command; }
+
+ protected:
+  uint8_t command_{0};
 };
 
 class ESPNowReceiveTrigger : public Trigger<const ESPNowPacket> {
  public:
   explicit ESPNowReceiveTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_receive_callback(
-        [this](const ESPNowPacket packet) { this->trigger(packet); });
+    parent->get_default_protocol()->add_on_receive_callback([this](const ESPNowPacket packet) {
+      if ((this->command_ == 0) || this->command_ == packet.get_command()) {
+        this->trigger(packet);
+      }
+    });
   }
+  void set_command(uint8_t command) { this->command_ = command; }
+
+ protected:
+  uint8_t command_{0};
 };
 
 class ESPNowNewPeerTrigger : public Trigger<const ESPNowPacket> {
  public:
   explicit ESPNowNewPeerTrigger(ESPNowComponent *parent) {
-    parent->get_default_protocol()->add_on_peer_callback([this](const ESPNowPacket packet) { this->trigger(packet); });
+    parent->get_default_protocol()->add_on_peer_callback([this](const ESPNowPacket packet) {
+      if ((this->command_ == 0) || this->command_ == packet.get_command()) {
+        this->trigger(packet);
+      }
+    });
   }
+  void set_command(uint8_t command) { this->command_ = command; }
+
+ protected:
+  uint8_t command_{0};
 };
 
 }  // namespace espnow

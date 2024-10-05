@@ -344,9 +344,10 @@ void ESPNowComponent::on_data_sent(const uint8_t *mac_addr, esp_now_send_status_
 
 /* ESPNowProtocol ********************************************************************** */
 
-bool ESPNowProtocol::send(uint64_t peer, const uint8_t *data, uint8_t len) {
+bool ESPNowProtocol::send(uint64_t peer, const uint8_t *data, uint8_t len, uint8_t command = 0) {
   ESPNowPacket packet(peer, data, len, this->get_protocol_component_id());  // NOLINT
-  packet.set_sequents(this->get_next_sequents());
+  packet.set_sequents(this->get_next_sequents(packet.peer, packet.protocol()));
+  packet.set_command(command);
   return this->parent_->send(packet);
 }
 
