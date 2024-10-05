@@ -657,7 +657,7 @@ void delay_microseconds_safe(uint32_t us);
  * - perform external allocation falling back to main memory if SPI RAM is full or unavailable
  * - perform external allocation only
  * - perform internal allocation only
- * - return `nulllptr` instead of aborting when no memory is available.
+ * - return `nullptr` instead of aborting when no memory is available.
  */
 template<class T> class RAMAllocator {
  public:
