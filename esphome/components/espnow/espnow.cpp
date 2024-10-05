@@ -106,6 +106,7 @@ void ESPNowComponent::setup() {
     this->mark_failed();
     return;
   }
+
   if (this->use_sent_check_) {
     ESP_LOGI(TAG, "send check enabled");
 
@@ -164,10 +165,8 @@ esp_err_t ESPNowComponent::add_peer(uint64_t addr) {
 }
 
 esp_err_t ESPNowComponent::del_peer(uint64_t addr) {
-  uint8_t mac[6];
-  memcpy((void *) &mac, (void *) &addr, 6);
-  if (esp_now_is_peer_exist((uint8_t *) &mac))
-    return esp_now_del_peer((uint8_t *) &mac);
+  if (esp_now_is_peer_exist((uint8_t *) &addr))
+    return esp_now_del_peer((uint8_t *) &addr);
   return ESP_OK;
 }
 
@@ -248,13 +247,11 @@ void ESPNowComponent::on_data_received(const uint8_t *addr, const uint8_t *data,
 }
 
 bool ESPNowComponent::send(ESPNowPacket packet) {
-  uint8_t *mac = packet.get_peer();
-
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Cannot send espnow packet, espnow failed to setup");
   } else if (this->send_queue_full()) {
     ESP_LOGE(TAG, "Send Buffer Out of Memory.");
-  } else if (!esp_now_is_peer_exist(mac)) {
+  } else if (!esp_now_is_peer_exist(packet.get_peer())) {
     ESP_LOGE(TAG, "Peer not registered: 0x%12llx.", packet.peer);
   } else if (!packet.is_valid()) {
     ESP_LOGE(TAG, "This Packet is invalid: '%012llx' (%d.%d)", packet.peer, packet.get_sequents(), packet.attempts);
@@ -264,7 +261,7 @@ bool ESPNowComponent::send(ESPNowPacket packet) {
     xQueueSendToBack(this->send_queue_, (void *) &packet, 10);
     return true;
   } else {
-    esp_err_t err = esp_now_send((uint8_t *) &mac, packet.get_content(), packet.content_size());
+    esp_err_t err = esp_now_send(packet.get_peer(), packet.get_content(), packet.content_size());
     ESP_LOGV(TAG, "Sended '%012llx' (%d.%d) directly%s.", packet.peer, packet.get_sequents(), packet.attempts,
              (err == ESP_OK) ? "" : " FAILED");
 
@@ -304,9 +301,8 @@ void ESPNowComponent::runner() {
         this->lock();
         packet.retry();
         packet.timestamp = millis();
-        uint8_t *mac = packet.get_peer();
 
-        esp_err_t err = esp_now_send(mac, packet.get_content(), packet.content_size());
+        esp_err_t err = esp_now_send(packet.get_peer(), packet.get_content(), packet.content_size());
 
         if (err == ESP_OK) {
           ESP_LOGD(TAG, "Sended '%012llx' (%d.%d) from buffer. Wait for conformation.", packet.peer,
