@@ -1,7 +1,8 @@
 #include "pulse_counter_ulp_sensor.h"
 #include "esphome/core/log.h"
 #include "esp32/ulp.h"
-#include "ulp_main.h"
+// This is created by ESP-IDF and clang-tidy doesn't know it exists
+#include "ulp_main.h"  // NOLINT(clang-diagnostic-error)
 #include "soc/rtc_periph.h"
 #include "driver/rtc_io.h"
 #include <esp_sleep.h>
@@ -25,8 +26,11 @@ const char *to_string(CountMode count_mode) {
 }
 }  // namespace
 
+// These identifiers are defined by ESP-IDF and we don't have control over them
+// NOLINTBEGIN(readability-identifier-naming)
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
+// NOLINTEND(readability-identifier-naming)
 
 std::unique_ptr<UlpProgram> UlpProgram::start(const Config &config) {
   esp_err_t error = ulp_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
