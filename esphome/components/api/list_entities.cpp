@@ -68,7 +68,7 @@ bool ListEntitiesIterator::on_valve(valve::Valve *valve) {
 }
 #endif
 
-bool ListEntitiesIterator::on_end() { this->client_->send_list_info_done(); }
+bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();

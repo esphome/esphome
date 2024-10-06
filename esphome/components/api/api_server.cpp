@@ -85,7 +85,7 @@ void APIServer::setup() {
         [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
           for (auto &c : this->clients_) {
             if (!c->remove_)
-              c->send_camera_state(image);
+              c->set_camera_state(image);
           }
         });
   }

@@ -246,6 +246,8 @@ bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary
   if (!APIConnection::try_send_binary_sensor_state(this, binary_sensor, state)) {
     this->deferred_message_queue_.defer(binary_sensor, try_send_binary_sensor_state);
   }
+
+  return true;
 }
 void APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_sensor) {
   if (!APIConnection::try_send_binary_sensor_info(this, binary_sensor)) {
@@ -289,6 +291,8 @@ bool APIConnection::send_cover_state(cover::Cover *cover) {
   if (!APIConnection::try_send_cover_state(this, cover)) {
     this->deferred_message_queue_.defer(cover, try_send_cover_state);
   }
+
+  return true;
 }
 void APIConnection::send_cover_info(cover::Cover *cover) {
   if (!APIConnection::try_send_cover_info(this, cover)) {
@@ -364,6 +368,8 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!APIConnection::try_send_fan_state(this, fan)) {
     this->deferred_message_queue_.defer(fan, try_send_fan_state);
   }
+
+  return true;
 }
 void APIConnection::send_fan_info(fan::Fan *fan) {
   if (!APIConnection::try_send_fan_info(this, fan)) {
@@ -437,6 +443,8 @@ bool APIConnection::send_light_state(light::LightState *light) {
   if (!APIConnection::try_send_light_state(this, light)) {
     this->deferred_message_queue_.defer(light, try_send_light_state);
   }
+
+  return true;
 }
 void APIConnection::send_light_info(light::LightState *light) {
   if (!APIConnection::try_send_light_info(this, light)) {
@@ -547,6 +555,8 @@ bool APIConnection::send_sensor_state(sensor::Sensor *sensor, float state) {
   if (!APIConnection::try_send_sensor_state(this, sensor, state)) {
     this->deferred_message_queue_.defer(sensor, try_send_sensor_state);
   }
+
+  return true;
 }
 void APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   if (!APIConnection::try_send_sensor_info(this, sensor)) {
@@ -594,6 +604,8 @@ bool APIConnection::send_switch_state(switch_::Switch *a_switch, bool state) {
   if (!APIConnection::try_send_switch_state(this, a_switch, state)) {
     this->deferred_message_queue_.defer(a_switch, try_send_switch_state);
   }
+
+  return true;
 }
 void APIConnection::send_switch_info(switch_::Switch *a_switch) {
   if (!APIConnection::try_send_switch_info(this, a_switch)) {
@@ -643,9 +655,11 @@ bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor,
   if (!this->state_subscription_)
     return false;
 
-  if (!APIConnection::try_send_text_sensor_state(this, text_sensor, state)) {
+  if (!APIConnection::try_send_text_sensor_state(this, text_sensor, std::move(state))) {
     this->deferred_message_queue_.defer(text_sensor, try_send_text_sensor_state);
   }
+
+  return true;
 }
 void APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) {
   if (!APIConnection::try_send_text_sensor_info(this, text_sensor)) {
@@ -689,6 +703,8 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   if (!APIConnection::try_send_climate_state(this, climate)) {
     this->deferred_message_queue_.defer(climate, try_send_climate_state);
   }
+
+  return true;
 }
 void APIConnection::send_climate_info(climate::Climate *climate) {
   if (!APIConnection::try_send_climate_info(this, climate)) {
@@ -809,6 +825,8 @@ bool APIConnection::send_number_state(number::Number *number, float state) {
   if (!APIConnection::try_send_number_state(this, number, state)) {
     this->deferred_message_queue_.defer(number, try_send_number_state);
   }
+
+  return true;
 }
 void APIConnection::send_number_info(number::Number *number) {
   if (!APIConnection::try_send_number_info(this, number)) {
@@ -866,6 +884,8 @@ bool APIConnection::send_date_state(datetime::DateEntity *date) {
   if (!APIConnection::try_send_date_state(this, date)) {
     this->deferred_message_queue_.defer(date, try_send_date_state);
   }
+
+  return true;
 }
 void APIConnection::send_date_info(datetime::DateEntity *date) {
   if (!APIConnection::try_send_date_info(this, date)) {
@@ -915,6 +935,8 @@ bool APIConnection::send_time_state(datetime::TimeEntity *time) {
   if (!APIConnection::try_send_time_state(this, time)) {
     this->deferred_message_queue_.defer(time, try_send_time_state);
   }
+
+  return true;
 }
 void APIConnection::send_time_info(datetime::TimeEntity *time) {
   if (!APIConnection::try_send_time_info(this, time)) {
@@ -964,6 +986,8 @@ bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
   if (!APIConnection::try_send_datetime_state(this, datetime)) {
     this->deferred_message_queue_.defer(datetime, try_send_datetime_state);
   }
+
+  return true;
 }
 void APIConnection::send_datetime_info(datetime::DateTimeEntity *datetime) {
   if (!APIConnection::try_send_datetime_info(this, datetime)) {
@@ -1011,9 +1035,11 @@ bool APIConnection::send_text_state(text::Text *text, std::string state) {
   if (!this->state_subscription_)
     return false;
 
-  if (!APIConnection::try_send_text_state(this, text, state)) {
+  if (!APIConnection::try_send_text_state(this, text, std::move(state))) {
     this->deferred_message_queue_.defer(text, try_send_text_state);
   }
+
+  return true;
 }
 void APIConnection::send_text_info(text::Text *text) {
   if (!APIConnection::try_send_text_info(this, text)) {
@@ -1064,9 +1090,11 @@ bool APIConnection::send_select_state(select::Select *select, std::string state)
   if (!this->state_subscription_)
     return false;
 
-  if (!APIConnection::try_send_select_state(this, select, state)) {
+  if (!APIConnection::try_send_select_state(this, select, std::move(state))) {
     this->deferred_message_queue_.defer(select, try_send_select_state);
   }
+
+  return true;
 }
 void APIConnection::send_select_info(select::Select *select) {
   if (!APIConnection::try_send_select_info(this, select)) {
@@ -1149,6 +1177,8 @@ bool APIConnection::send_lock_state(lock::Lock *a_lock, lock::LockState state) {
   if (!APIConnection::try_send_lock_state(this, a_lock, state)) {
     this->deferred_message_queue_.defer(a_lock, try_send_lock_state);
   }
+
+  return true;
 }
 void APIConnection::send_lock_info(lock::Lock *a_lock) {
   if (!APIConnection::try_send_lock_info(this, a_lock)) {
@@ -1208,6 +1238,8 @@ bool APIConnection::send_valve_state(valve::Valve *valve) {
   if (!APIConnection::try_send_valve_state(this, valve)) {
     this->deferred_message_queue_.defer(valve, try_send_valve_state);
   }
+
+  return true;
 }
 void APIConnection::send_valve_info(valve::Valve *valve) {
   if (!APIConnection::try_send_valve_info(this, valve)) {
@@ -1262,6 +1294,8 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
   if (!APIConnection::try_send_media_player_state(this, media_player)) {
     this->deferred_message_queue_.defer(media_player, try_send_media_player_state);
   }
+
+  return true;
 }
 void APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
   if (!APIConnection::try_send_media_player_info(this, media_player)) {
@@ -1546,6 +1580,8 @@ bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmCon
   if (!APIConnection::try_send_alarm_control_panel_state(this, a_alarm_control_panel)) {
     this->deferred_message_queue_.defer(a_alarm_control_panel, try_send_alarm_control_panel_state);
   }
+
+  return true;
 }
 void APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   if (!APIConnection::try_send_alarm_control_panel_info(this, a_alarm_control_panel)) {
@@ -1612,7 +1648,7 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 
 #ifdef USE_EVENT
 void APIConnection::send_event(event::Event *event, std::string event_type) {
-  if (!APIConnection::try_send_event(this, event, event_type)) {
+  if (!APIConnection::try_send_event(this, event, std::move(event_type))) {
     this->deferred_message_queue_.defer(event, try_send_event);
   }
 }
@@ -1657,6 +1693,8 @@ bool APIConnection::send_update_state(update::UpdateEntity *update) {
   if (!APIConnection::try_send_update_state(this, update)) {
     this->deferred_message_queue_.defer(update, try_send_update_state);
   }
+
+  return true;
 }
 void APIConnection::send_update_info(update::UpdateEntity *update) {
   if (!APIConnection::try_send_update_info(this, update)) {
