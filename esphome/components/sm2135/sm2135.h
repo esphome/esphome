@@ -39,6 +39,8 @@ class SM2135 : public Component {
     this->current_mask_ = (this->rgb_current_ << 4) | this->cw_current_;
   }
 
+  void set_separate_modes(bool separate_modes) { this->separate_modes_ = separate_modes; }
+
   void setup() override;
 
   void dump_config() override;
@@ -78,6 +80,7 @@ class SM2135 : public Component {
   uint8_t current_mask_;
   SM2135Current rgb_current_;
   SM2135Current cw_current_;
+  bool separate_modes_;
   uint8_t update_channel_;
   std::vector<uint8_t> pwm_amounts_;
   bool update_{true};

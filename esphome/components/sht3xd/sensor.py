@@ -14,6 +14,8 @@ from esphome.const import (
 
 CONF_HEATER_ENABLED = "heater_enabled"
 
+CODEOWNERS = ["@mrtoy-me"]
+
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
@@ -26,13 +28,13 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SHT3XDComponent),
-            cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_HUMIDITY): sensor.sensor_schema(
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_HUMIDITY,

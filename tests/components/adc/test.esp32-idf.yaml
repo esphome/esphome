@@ -1,0 +1,11 @@
+sensor:
+  - platform: adc
+    pin: A0
+    name: Living Room Brightness
+    update_interval: "1:01"
+    attenuation: 2.5db
+    unit_of_measurement: "°C"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 5
+    setup_priority: -100
+    force_update: true

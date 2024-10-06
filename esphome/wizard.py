@@ -51,10 +51,12 @@ BASE_CONFIG_FRIENDLY = """esphome:
   friendly_name: {friendly_name}
 """
 
-LOGGER_API_CONFIG = """
+LOGGER_CONFIG = """
 # Enable logging
 logger:
+"""
 
+API_CONFIG = """
 # Enable Home Assistant API
 api:
 """
@@ -88,9 +90,6 @@ esp32:
 RP2040_CONFIG = """
 rp2040:
   board: {board}
-  framework:
-    # Required until https://github.com/platformio/platform-raspberrypi/pull/36 is merged
-    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 """
 
 BK72XX_CONFIG = """
@@ -136,7 +135,12 @@ def wizard_file(**kwargs):
 
     config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
 
-    config += LOGGER_API_CONFIG
+    config += LOGGER_CONFIG
+
+    if kwargs["board"] == "rpipico":
+        return config
+
+    config += API_CONFIG
 
     # Configure API
     if "password" in kwargs:
@@ -146,10 +150,11 @@ def wizard_file(**kwargs):
 
     # Configure OTA
     config += "\nota:\n"
+    config += "  - platform: esphome\n"
     if "ota_password" in kwargs:
-        config += f"  password: \"{kwargs['ota_password']}\""
+        config += f"    password: \"{kwargs['ota_password']}\""
     elif "password" in kwargs:
-        config += f"  password: \"{kwargs['password']}\""
+        config += f"    password: \"{kwargs['password']}\""
 
     # Configuring wifi
     config += "\n\nwifi:\n"
@@ -268,6 +273,7 @@ def wizard(path):
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
@@ -335,7 +341,7 @@ def wizard(path):
         "firmwares for it."
     )
 
-    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "RTL87XX"]
+    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "RTL87XX", "RP2040"]
     safe_print(
         "Please choose one of the supported microcontrollers "
         "(Use ESP8266 for Sonoff devices)."
@@ -365,6 +371,10 @@ def wizard(path):
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
+    elif platform == "RP2040":
+        board_link = (
+            "https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html"
+        )
     elif platform in ["BK72XX", "RTL87XX"]:
         board_link = "https://docs.libretiny.eu/docs/status/supported/"
     else:
@@ -389,6 +399,10 @@ def wizard(path):
     elif platform == "RTL87XX":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'wr3')}\".")
         boards_list = rtl87xx_boards.BOARDS.items()
+    elif platform == "RP2040":
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'rpipicow')}\".")
+        boards_list = rp2040_boards.BOARDS.items()
+
     else:
         raise NotImplementedError("Unknown platform!")
 
@@ -415,60 +429,64 @@ def wizard(path):
     safe_print()
     sleep(1)
 
-    safe_print_step(3, WIFI_BIG)
-    safe_print("In this step, I'm going to create the configuration for WiFi.")
-    safe_print()
-    sleep(1)
-    safe_print(
-        f"First, what's the {color(Fore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
-    )
-    sleep(1.5)
-    safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
-    while True:
-        ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
-        try:
-            ssid = cv.ssid(ssid)
-            break
-        except vol.Invalid:
-            safe_print(
-                color(
-                    Fore.RED,
-                    f'Unfortunately, "{ssid}" doesn\'t seem to be a valid SSID. Please try again.',
+    # Do not create wifi if the board does not support it
+    if board not in ["rpipico"]:
+        safe_print_step(3, WIFI_BIG)
+        safe_print("In this step, I'm going to create the configuration for WiFi.")
+        safe_print()
+        sleep(1)
+        safe_print(
+            f"First, what's the {color(Fore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
+        )
+        sleep(1.5)
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
+        while True:
+            ssid = safe_input(color(Fore.BOLD_WHITE, "(ssid): "))
+            try:
+                ssid = cv.ssid(ssid)
+                break
+            except vol.Invalid:
+                safe_print(
+                    color(
+                        Fore.RED,
+                        f'Unfortunately, "{ssid}" doesn\'t seem to be a valid SSID. Please try again.',
+                    )
                 )
-            )
-            safe_print()
-            sleep(1)
+                safe_print()
+                sleep(1)
 
-    safe_print(
-        f'Thank you very much! You\'ve just chosen "{color(Fore.CYAN, ssid)}" as your SSID.'
-    )
-    safe_print()
-    sleep(0.75)
+        safe_print(
+            f'Thank you very much! You\'ve just chosen "{color(Fore.CYAN, ssid)}" as your SSID.'
+        )
+        safe_print()
+        sleep(0.75)
 
-    safe_print(
-        f"Now please state the {color(Fore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
-    )
-    safe_print()
-    safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
-    sleep(0.5)
-    psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
-    safe_print(
-        "Perfect! WiFi is now set up (you can create static IPs and so on later)."
-    )
-    sleep(1.5)
+        safe_print(
+            f"Now please state the {color(Fore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
+        )
+        safe_print()
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
+        sleep(0.5)
+        psk = safe_input(color(Fore.BOLD_WHITE, "(PSK): "))
+        safe_print(
+            "Perfect! WiFi is now set up (you can create static IPs and so on later)."
+        )
+        sleep(1.5)
 
-    safe_print_step(4, OTA_BIG)
-    safe_print(
-        "Almost there! ESPHome can automatically upload custom firmwares over WiFi "
-        "(over the air) and integrates into Home Assistant with a native API."
-    )
-    safe_print(
-        f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(Fore.GREEN, 'password')} for connecting to this ESP?"
-    )
-    safe_print()
-    sleep(0.25)
-    safe_print("Press ENTER for no password")
-    password = safe_input(color(Fore.BOLD_WHITE, "(password): "))
+        safe_print_step(4, OTA_BIG)
+        safe_print(
+            "Almost there! ESPHome can automatically upload custom firmwares over WiFi "
+            "(over the air) and integrates into Home Assistant with a native API."
+        )
+        safe_print(
+            f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(Fore.GREEN, 'password')} for connecting to this ESP?"
+        )
+        safe_print()
+        sleep(0.25)
+        safe_print("Press ENTER for no password")
+        password = safe_input(color(Fore.BOLD_WHITE, "(password): "))
+    else:
+        ssid, password, psk = "", "", ""
 
     if not wizard_write(
         path=path,

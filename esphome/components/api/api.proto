@@ -43,7 +43,12 @@ service APIConnection {
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
+  rpc valve_command (ValveCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
+  rpc date_command (DateCommandRequest) returns (void) {}
+  rpc time_command (TimeCommandRequest) returns (void) {}
+  rpc datetime_command (DateTimeCommandRequest) returns (void) {}
+  rpc update_command (UpdateCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -57,6 +62,8 @@ service APIConnection {
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
+  rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
+  rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration) returns (void) {}
 
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
 }
@@ -216,7 +223,8 @@ message DeviceInfoResponse {
 
   string friendly_name = 13;
 
-  uint32 voice_assistant_version = 14;
+  uint32 legacy_voice_assistant_version = 14;
+  uint32 voice_assistant_feature_flags = 17;
 
   string suggested_area = 16;
 }
@@ -600,6 +608,7 @@ message ListEntitiesTextSensorResponse {
   string icon = 5;
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
+  string device_class = 8;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -679,6 +688,7 @@ message SubscribeHomeAssistantStateResponse {
   option (source) = SOURCE_SERVER;
   string entity_id = 1;
   string attribute = 2;
+  bool once = 3;
 }
 
 message HomeAssistantStateResponse {
@@ -1099,6 +1109,19 @@ enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_MUTE = 3;
   MEDIA_PLAYER_COMMAND_UNMUTE = 4;
 }
+enum MediaPlayerFormatPurpose {
+  MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0;
+  MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT = 1;
+}
+message MediaPlayerSupportedFormat {
+  option (ifdef) = "USE_MEDIA_PLAYER";
+
+  string format = 1;
+  uint32 sample_rate = 2;
+  uint32 num_channels = 3;
+  MediaPlayerFormatPurpose purpose = 4;
+  uint32 sample_bytes = 5;
+}
 message ListEntitiesMediaPlayerResponse {
   option (id) = 63;
   option (source) = SOURCE_SERVER;
@@ -1114,6 +1137,8 @@ message ListEntitiesMediaPlayerResponse {
   EntityCategory entity_category = 7;
 
   bool supports_pause = 8;
+
+  repeated MediaPlayerSupportedFormat supported_formats = 9;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;
@@ -1141,6 +1166,9 @@ message MediaPlayerCommandRequest {
 
   bool has_media_url = 6;
   string media_url = 7;
+
+  bool has_announcement = 8;
+  bool announcement = 9;
 }
 
 // ==================== BLUETOOTH ====================
@@ -1420,12 +1448,18 @@ message BluetoothDeviceClearCacheResponse {
 }
 
 // ==================== PUSH TO TALK ====================
+enum VoiceAssistantSubscribeFlag {
+  VOICE_ASSISTANT_SUBSCRIBE_NONE = 0;
+  VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1;
+}
+
 message SubscribeVoiceAssistantRequest {
   option (id) = 89;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   bool subscribe = 1;
+  uint32 flags = 2;
 }
 
 enum VoiceAssistantRequestFlag {
@@ -1449,6 +1483,7 @@ message VoiceAssistantRequest {
   string conversation_id = 2;
   uint32 flags = 3;
   VoiceAssistantAudioSettings audio_settings = 4;
+  string wake_word_phrase = 5;
 }
 
 message VoiceAssistantResponse {
@@ -1490,6 +1525,82 @@ message VoiceAssistantEventResponse {
 
   VoiceAssistantEvent event_type = 1;
   repeated VoiceAssistantEventData data = 2;
+}
+
+message VoiceAssistantAudio {
+  option (id) = 106;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bytes data = 1;
+  bool end = 2;
+}
+
+enum VoiceAssistantTimerEvent {
+  VOICE_ASSISTANT_TIMER_STARTED = 0;
+  VOICE_ASSISTANT_TIMER_UPDATED = 1;
+  VOICE_ASSISTANT_TIMER_CANCELLED = 2;
+  VOICE_ASSISTANT_TIMER_FINISHED = 3;
+}
+
+message VoiceAssistantTimerEventResponse {
+  option (id) = 115;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  VoiceAssistantTimerEvent event_type = 1;
+  string timer_id = 2;
+  string name = 3;
+  uint32 total_seconds = 4;
+  uint32 seconds_left = 5;
+  bool is_active = 6;
+}
+
+message VoiceAssistantAnnounceRequest {
+  option (id) = 119;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  string media_id = 1;
+  string text = 2;
+}
+
+message VoiceAssistantAnnounceFinished {
+  option (id) = 120;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bool success = 1;
+}
+
+message VoiceAssistantWakeWord {
+  string id = 1;
+  string wake_word = 2;
+  repeated string trained_languages = 3;
+}
+
+message VoiceAssistantConfigurationRequest {
+  option (id) = 121;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+}
+
+message VoiceAssistantConfigurationResponse {
+  option (id) = 122;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated VoiceAssistantWakeWord available_wake_words = 1;
+  repeated string active_wake_words = 2;
+  uint32 max_active_wake_words = 3;
+}
+
+message VoiceAssistantSetConfiguration {
+  option (id) = 123;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated string active_wake_words = 1;
 }
 
 // ==================== ALARM CONTROL PANEL ====================
@@ -1595,4 +1706,248 @@ message TextCommandRequest {
 
   fixed32 key = 1;
   string state = 2;
+}
+
+
+// ==================== DATETIME DATE ====================
+message ListEntitiesDateResponse {
+  option (id) = 100;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+}
+message DateStateResponse {
+  option (id) = 101;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  // If the date does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 2;
+  uint32 year = 3;
+  uint32 month = 4;
+  uint32 day = 5;
+}
+message DateCommandRequest {
+  option (id) = 102;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DATETIME_DATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  uint32 year = 2;
+  uint32 month = 3;
+  uint32 day = 4;
+}
+
+// ==================== DATETIME TIME ====================
+message ListEntitiesTimeResponse {
+  option (id) = 103;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_TIME";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+}
+message TimeStateResponse {
+  option (id) = 104;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_TIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  // If the time does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 2;
+  uint32 hour = 3;
+  uint32 minute = 4;
+  uint32 second = 5;
+}
+message TimeCommandRequest {
+  option (id) = 105;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DATETIME_TIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  uint32 hour = 2;
+  uint32 minute = 3;
+  uint32 second = 4;
+}
+
+// ==================== EVENT ====================
+message ListEntitiesEventResponse {
+  option (id) = 107;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_EVENT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+
+  repeated string event_types = 9;
+}
+message EventResponse {
+  option (id) = 108;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_EVENT";
+
+  fixed32 key = 1;
+  string event_type = 2;
+}
+
+// ==================== VALVE ====================
+message ListEntitiesValveResponse {
+  option (id) = 109;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+
+  bool assumed_state = 9;
+  bool supports_position = 10;
+  bool supports_stop = 11;
+}
+
+enum ValveOperation {
+  VALVE_OPERATION_IDLE = 0;
+  VALVE_OPERATION_IS_OPENING = 1;
+  VALVE_OPERATION_IS_CLOSING = 2;
+}
+message ValveStateResponse {
+  option (id) = 110;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float position = 2;
+  ValveOperation current_operation = 3;
+}
+
+message ValveCommandRequest {
+  option (id) = 111;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VALVE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool has_position = 2;
+  float position = 3;
+  bool stop = 4;
+}
+
+// ==================== DATETIME DATETIME ====================
+message ListEntitiesDateTimeResponse {
+  option (id) = 112;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATETIME";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+}
+message DateTimeStateResponse {
+  option (id) = 113;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DATETIME_DATETIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  // If the datetime does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 2;
+  fixed32 epoch_seconds = 3;
+}
+message DateTimeCommandRequest {
+  option (id) = 114;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DATETIME_DATETIME";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  fixed32 epoch_seconds = 2;
+}
+
+// ==================== UPDATE ====================
+message ListEntitiesUpdateResponse {
+  option (id) = 116;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_UPDATE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+}
+message UpdateStateResponse {
+  option (id) = 117;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_UPDATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool missing_state = 2;
+  bool in_progress = 3;
+  bool has_progress = 4;
+  float progress = 5;
+  string current_version = 6;
+  string latest_version = 7;
+  string title = 8;
+  string release_summary = 9;
+  string release_url = 10;
+}
+enum UpdateCommand {
+  UPDATE_COMMAND_NONE = 0;
+  UPDATE_COMMAND_UPDATE = 1;
+  UPDATE_COMMAND_CHECK = 2;
+}
+message UpdateCommandRequest {
+  option (id) = 118;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_UPDATE";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  UpdateCommand command = 2;
 }

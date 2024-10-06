@@ -266,6 +266,9 @@ async def random_effect_to_code(config, effect_id):
                         cv.Required(
                             CONF_DURATION
                         ): cv.positive_time_period_milliseconds,
+                        cv.Optional(
+                            CONF_TRANSITION_LENGTH, default="0s"
+                        ): cv.positive_time_period_milliseconds,
                     }
                 ),
                 cv.has_at_least_one_key(
@@ -310,6 +313,7 @@ async def strobe_effect_to_code(config, effect_id):
                     ),
                 ),
                 ("duration", color[CONF_DURATION]),
+                ("transition_length", color[CONF_TRANSITION_LENGTH]),
             )
         )
     cg.add(var.set_colors(colors))

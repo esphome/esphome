@@ -2,16 +2,18 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
-from esphome.components import uart, sensor, climate, logger
+from esphome.components import uart, climate, logger
 from esphome import automation
 from esphome.const import (
     CONF_BEEPER,
+    CONF_DISPLAY,
     CONF_ID,
     CONF_LEVEL,
     CONF_LOGGER,
     CONF_LOGS,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
+    CONF_OUTDOOR_TEMPERATURE,
     CONF_PROTOCOL,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
@@ -21,10 +23,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VISUAL,
     CONF_WIFI,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
 )
 from esphome.components.climate import (
     ClimateMode,
@@ -40,35 +38,39 @@ PROTOCOL_MAX_TEMPERATURE = 30.0
 PROTOCOL_TARGET_TEMPERATURE_STEP = 1.0
 PROTOCOL_CURRENT_TEMPERATURE_STEP = 0.5
 PROTOCOL_CONTROL_PACKET_SIZE = 10
+PROTOCOL_MIN_SENSORS_PACKET_SIZE = 18
+PROTOCOL_DEFAULT_SENSORS_PACKET_SIZE = 22
+PROTOCOL_STATUS_MESSAGE_HEADER_SIZE = 0
 
 CODEOWNERS = ["@paveldn"]
-AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["climate", "uart"]
 CONF_ALTERNATIVE_SWING_CONTROL = "alternative_swing_control"
 CONF_ANSWER_TIMEOUT = "answer_timeout"
 CONF_CONTROL_METHOD = "control_method"
 CONF_CONTROL_PACKET_SIZE = "control_packet_size"
-CONF_DISPLAY = "display"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_ON_ALARM_START = "on_alarm_start"
 CONF_ON_ALARM_END = "on_alarm_end"
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
+CONF_ON_STATUS_MESSAGE = "on_status_message"
+CONF_SENSORS_PACKET_SIZE = "sensors_packet_size"
+CONF_STATUS_MESSAGE_HEADER_SIZE = "status_message_header_size"
 CONF_VERTICAL_AIRFLOW = "vertical_airflow"
 CONF_WIFI_SIGNAL = "wifi_signal"
 
 PROTOCOL_HON = "HON"
 PROTOCOL_SMARTAIR2 = "SMARTAIR2"
-PROTOCOLS_SUPPORTED = [PROTOCOL_HON, PROTOCOL_SMARTAIR2]
 
 haier_ns = cg.esphome_ns.namespace("haier")
+hon_protocol_ns = haier_ns.namespace("hon_protocol")
 HaierClimateBase = haier_ns.class_(
     "HaierClimateBase", uart.UARTDevice, climate.Climate, cg.Component
 )
 HonClimate = haier_ns.class_("HonClimate", HaierClimateBase)
 Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 
+CONF_HAIER_ID = "haier_id"
 
-AirflowVerticalDirection = haier_ns.enum("AirflowVerticalDirection", True)
+AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
     "HEALTH_UP": AirflowVerticalDirection.HEALTH_UP,
     "MAX_UP": AirflowVerticalDirection.MAX_UP,
@@ -78,7 +80,7 @@ AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
     "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
 }
 
-AirflowHorizontalDirection = haier_ns.enum("AirflowHorizontalDirection", True)
+AirflowHorizontalDirection = hon_protocol_ns.enum("HorizontalSwingMode", True)
 AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
     "MAX_LEFT": AirflowHorizontalDirection.MAX_LEFT,
     "LEFT": AirflowHorizontalDirection.LEFT,
@@ -112,7 +114,6 @@ SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
 SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
     "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
     "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
     "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
 }
 
@@ -131,6 +132,11 @@ HaierAlarmStartTrigger = haier_ns.class_(
 HaierAlarmEndTrigger = haier_ns.class_(
     "HaierAlarmEndTrigger",
     automation.Trigger.template(cg.uint8, cg.const_char_ptr),
+)
+
+StatusMessageTrigger = haier_ns.class_(
+    "StatusMessageTrigger",
+    automation.Trigger.template(cg.const_char_ptr, cg.size_t),
 )
 
 
@@ -187,7 +193,6 @@ BASE_CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SUPPORTED_SWING_MODES,
                 default=[
-                    "OFF",
                     "VERTICAL",
                     "HORIZONTAL",
                     "BOTH",
@@ -198,6 +203,11 @@ BASE_CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_ANSWER_TIMEOUT,
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StatusMessageTrigger),
+                }
+            ),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -215,7 +225,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=list(["BOOST", "COMFORT"]),  # No AWAY by default
+                        default=["BOOST", "COMFORT"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS, upper=True)
                     ),
@@ -229,22 +239,28 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_HON_CONTROL_METHODS, upper=True)
                     ),
-                    cv.Optional(CONF_BEEPER, default=True): cv.boolean,
+                    cv.Optional(CONF_BEEPER): cv.invalid(
+                        f"The {CONF_BEEPER} option is deprecated, use beeper_on/beeper_off actions or beeper switch for a haier platform instead"
+                    ),
                     cv.Optional(
                         CONF_CONTROL_PACKET_SIZE, default=PROTOCOL_CONTROL_PACKET_SIZE
                     ): cv.int_range(min=PROTOCOL_CONTROL_PACKET_SIZE, max=50),
                     cv.Optional(
+                        CONF_SENSORS_PACKET_SIZE,
+                        default=PROTOCOL_DEFAULT_SENSORS_PACKET_SIZE,
+                    ): cv.int_range(min=PROTOCOL_MIN_SENSORS_PACKET_SIZE, max=50),
+                    cv.Optional(
+                        CONF_STATUS_MESSAGE_HEADER_SIZE,
+                        default=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE,
+                    ): cv.int_range(min=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE),
+                    cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=list(["BOOST", "ECO", "SLEEP"]),  # No AWAY by default
+                        default=["BOOST", "SLEEP"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS, upper=True)
                     ),
-                    cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(
-                        unit_of_measurement=UNIT_CELSIUS,
-                        icon=ICON_THERMOMETER,
-                        accuracy_decimals=0,
-                        device_class=DEVICE_CLASS_TEMPERATURE,
-                        state_class=STATE_CLASS_MEASUREMENT,
+                    cv.Optional(CONF_OUTDOOR_TEMPERATURE): cv.invalid(
+                        f"The {CONF_OUTDOOR_TEMPERATURE} option is deprecated, use a sensor for a haier platform instead"
                     ),
                     cv.Optional(CONF_ON_ALARM_START): automation.validate_automation(
                         {
@@ -435,11 +451,7 @@ def _final_validate(config):
             "No logger component found, logging for Haier protocol is disabled"
         )
         cg.add_build_flag("-DHAIER_LOG_LEVEL=0")
-    if (
-        (CONF_WIFI_SIGNAL in config)
-        and (config[CONF_WIFI_SIGNAL])
-        and CONF_WIFI not in full_config
-    ):
+    if config.get(CONF_WIFI_SIGNAL) and CONF_WIFI not in full_config:
         raise cv.Invalid(
             f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration"
         )
@@ -463,9 +475,6 @@ async def to_code(config):
         cg.add(var.set_beeper_state(config[CONF_BEEPER]))
     if CONF_DISPLAY in config:
         cg.add(var.set_display_state(config[CONF_DISPLAY]))
-    if CONF_OUTDOOR_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
-        cg.add(var.set_outdoor_temperature_sensor(sens))
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
     if CONF_SUPPORTED_SWING_MODES in config:
@@ -484,6 +493,16 @@ async def to_code(config):
                 config[CONF_CONTROL_PACKET_SIZE] - PROTOCOL_CONTROL_PACKET_SIZE
             )
         )
+    if CONF_SENSORS_PACKET_SIZE in config:
+        cg.add(
+            var.set_extra_sensors_packet_bytes_size(
+                config[CONF_SENSORS_PACKET_SIZE] - PROTOCOL_MIN_SENSORS_PACKET_SIZE
+            )
+        )
+    if CONF_STATUS_MESSAGE_HEADER_SIZE in config:
+        cg.add(
+            var.set_status_message_header_size(config[CONF_STATUS_MESSAGE_HEADER_SIZE])
+        )
     for conf in config.get(CONF_ON_ALARM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
@@ -494,5 +513,10 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
         )
+    for conf in config.get(CONF_ON_STATUS_MESSAGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")], conf
+        )
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.25")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.31")

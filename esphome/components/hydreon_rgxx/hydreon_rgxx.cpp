@@ -17,6 +17,17 @@ void HydreonRGxxComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
   }
+  if (model_ == RG9) {
+    ESP_LOGCONFIG(TAG, "  Model: RG9");
+    ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
+  } else {
+    ESP_LOGCONFIG(TAG, "  Model: RG15");
+    if (this->resolution_ == FORCE_HIGH) {
+      ESP_LOGCONFIG(TAG, "  Resolution: high");
+    } else {
+      ESP_LOGCONFIG(TAG, "  Resolution: low");
+    }
+  }
   LOG_UPDATE_INTERVAL(this);
 
   int i = 0;
@@ -25,10 +36,6 @@ void HydreonRGxxComponent::dump_config() {
     LOG_SENSOR("  ", #s, this->sensors_[i - 1]); \
   }
   HYDREON_RGXX_PROTOCOL_LIST(HYDREON_RGXX_LOG_SENSOR, );
-
-  if (this->model_ == RG9) {
-    ESP_LOGCONFIG(TAG, "disable_led: %s", TRUEFALSE(this->disable_led_));
-  }
 }
 
 void HydreonRGxxComponent::setup() {
@@ -193,7 +200,11 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGI(TAG, "Boot detected: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
 
     if (this->model_ == RG15) {
-      this->write_str("P\nH\nM\n");  // set sensor to (P)polling mode, (H)high res mode, (M)metric mode
+      if (this->resolution_ == FORCE_HIGH) {
+        this->write_str("P\nH\nM\n");  // set sensor to (P)polling mode, (H)high res mode, (M)metric mode
+      } else {
+        this->write_str("P\nL\nM\n");  // set sensor to (P)polling mode, (L)low res mode, (M)metric mode
+      }
     }
 
     if (this->model_ == RG9) {
@@ -225,7 +236,7 @@ void HydreonRGxxComponent::process_line_() {
   }
   bool is_data_line = false;
   for (int i = 0; i < NUM_SENSORS; i++) {
-    if (this->sensors_[i] != nullptr && this->buffer_starts_with_(PROTOCOL_NAMES[i])) {
+    if (this->sensors_[i] != nullptr && this->buffer_.find(PROTOCOL_NAMES[i]) != std::string::npos) {
       is_data_line = true;
       break;
     }

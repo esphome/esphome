@@ -1,0 +1,17 @@
+esphome:
+  name: componenttestesp32c3idf
+  friendly_name: $component_name
+
+esp32:
+  board: lolin_c3_mini
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

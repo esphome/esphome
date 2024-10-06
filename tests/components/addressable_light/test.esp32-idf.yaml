@@ -1,0 +1,31 @@
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_matrix_32x8
+    default_transition_length: 500ms
+    chipset: ws2812
+    rgb_order: GRB
+    num_leds: 256
+    pin: 2
+    rmt_channel: 0
+
+display:
+  - platform: addressable_light
+    id: led_matrix_32x8_display
+    addressable_light_id: led_matrix_32x8
+    width: 32
+    height: 8
+    pixel_mapper: |-
+      if (x % 2 == 0) {
+        return (x * 8) + y;
+      }
+      return (x * 8) + (7 - y);
+    lambda: |-
+      Color red = Color(0xFF0000);
+      Color green = Color(0x00FF00);
+      Color blue = Color(0x0000FF);
+      it.rectangle(0, 0, it.get_width(), it.get_height(), red);
+      it.rectangle(1, 1, it.get_width()-2, it.get_height()-2, green);
+      it.rectangle(2, 2, it.get_width()-4, it.get_height()-4, blue);
+      it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
+    rotation: 0°
+    update_interval: 16ms

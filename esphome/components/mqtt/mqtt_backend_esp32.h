@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mqtt_backend.h"
+#ifdef USE_MQTT
 #ifdef USE_ESP32
 
 #include <string>
@@ -7,7 +9,6 @@
 #include <mqtt_client.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
-#include "mqtt_backend.h"
 
 namespace esphome {
 namespace mqtt {
@@ -124,6 +125,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void loop() final;
 
   void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }
+  void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }
+  void set_cl_key(const std::string &key) { cl_key_ = key; }
   void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
 
  protected:
@@ -154,6 +157,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   uint16_t keep_alive_;
   bool clean_session_;
   optional<std::string> ca_certificate_;
+  optional<std::string> cl_certificate_;
+  optional<std::string> cl_key_;
   bool skip_cert_cn_check_{false};
 
   // callbacks
@@ -169,4 +174,5 @@ class MQTTBackendESP32 final : public MQTTBackend {
 }  // namespace mqtt
 }  // namespace esphome
 
+#endif
 #endif

@@ -26,6 +26,23 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 void GT911Touchscreen::setup() {
   i2c::ErrorCode err;
   ESP_LOGCONFIG(TAG, "Setting up GT911 Touchscreen...");
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->setup();
+    this->reset_pin_->digital_write(false);
+    if (this->interrupt_pin_ != nullptr) {
+      // The interrupt pin is used as an input during reset to select the I2C address.
+      this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);
+      this->interrupt_pin_->setup();
+      this->interrupt_pin_->digital_write(false);
+    }
+    delay(2);
+    this->reset_pin_->digital_write(true);
+    delay(50);  // NOLINT
+    if (this->interrupt_pin_ != nullptr) {
+      this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
+      this->interrupt_pin_->setup();
+    }
+  }
 
   // check the configuration of the int line.
   uint8_t data[4];
@@ -48,9 +65,13 @@ void GT911Touchscreen::setup() {
     if (err == i2c::ERROR_OK) {
       err = this->read(data, sizeof(data));
       if (err == i2c::ERROR_OK) {
-        this->x_raw_max_ = encode_uint16(data[1], data[0]);
-        this->y_raw_max_ = encode_uint16(data[3], data[2]);
-        esph_log_d(TAG, "Read max_x/max_y %d/%d", this->x_raw_max_, this->y_raw_max_);
+        if (this->x_raw_max_ == this->x_raw_min_) {
+          this->x_raw_max_ = encode_uint16(data[1], data[0]);
+        }
+        if (this->y_raw_max_ == this->y_raw_min_) {
+          this->y_raw_max_ = encode_uint16(data[3], data[2]);
+        }
+        esph_log_d(TAG, "calibration max_x/max_y %d/%d", this->x_raw_max_, this->y_raw_max_);
       }
     }
   }

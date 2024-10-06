@@ -1,0 +1,11 @@
+i2c:
+  - id: i2c_am2315c
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: am2315c
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity

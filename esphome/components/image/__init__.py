@@ -1,23 +1,18 @@
 from __future__ import annotations
 
-import logging
-
 import hashlib
 import io
+import logging
 from pathlib import Path
 import re
-import requests
-from magic import Magic
 
-from PIL import Image
+import puremagic
 
-from esphome import core
-from esphome.components import font
-from esphome import external_files
-import esphome.config_validation as cv
+from esphome import core, external_files
 import esphome.codegen as cg
+from esphome.components import font
+import esphome.config_validation as cv
 from esphome.const import (
-    __version__,
     CONF_DITHER,
     CONF_FILE,
     CONF_ICON,
@@ -68,38 +63,13 @@ def _compute_local_icon_path(value: dict) -> Path:
     return base_dir / f"{value[CONF_ICON]}.svg"
 
 
-def _compute_local_image_path(value: dict) -> Path:
+def compute_local_image_path(value: dict) -> Path:
     url = value[CONF_URL]
     h = hashlib.new("sha256")
     h.update(url.encode())
     key = h.hexdigest()[:8]
     base_dir = external_files.compute_local_file_dir(DOMAIN)
     return base_dir / key
-
-
-def download_content(url: str, path: Path) -> None:
-    if not external_files.has_remote_file_changed(url, path):
-        _LOGGER.debug("Remote file has not changed %s", url)
-        return
-
-    _LOGGER.debug(
-        "Remote file has changed, downloading from %s to %s",
-        url,
-        path,
-    )
-
-    try:
-        req = requests.get(
-            url,
-            timeout=IMAGE_DOWNLOAD_TIMEOUT,
-            headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
-        )
-        req.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise cv.Invalid(f"Could not download from {url}: {e}")
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(req.content)
 
 
 def download_mdi(value):
@@ -110,16 +80,16 @@ def download_mdi(value):
 
     url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
 
-    download_content(url, path)
+    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
 
     return value
 
 
 def download_image(value):
     url = value[CONF_URL]
-    path = _compute_local_image_path(value)
+    path = compute_local_image_path(value)
 
-    download_content(url, path)
+    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
 
     return value
 
@@ -267,10 +237,12 @@ CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
 def load_svg_image(file: bytes, resize: tuple[int, int]):
-    # This import is only needed in case of SVG images; adding it
+    # Local imports only to allow "validate_pillow_installed" to run *before* importing it
+    # cairosvg is only needed in case of SVG images; adding it
     # to the top would force configurations not using SVG to also have it
     # installed for no reason.
     from cairosvg import svg2png
+    from PIL import Image
 
     if resize:
         req_width, req_height = resize
@@ -286,6 +258,9 @@ def load_svg_image(file: bytes, resize: tuple[int, int]):
 
 
 async def to_code(config):
+    # Local import only to allow "validate_pillow_installed" to run *before* importing it
+    from PIL import Image
+
     conf_file = config[CONF_FILE]
 
     if conf_file[CONF_SOURCE] == SOURCE_LOCAL:
@@ -295,7 +270,10 @@ async def to_code(config):
         path = _compute_local_icon_path(conf_file).as_posix()
 
     elif conf_file[CONF_SOURCE] == SOURCE_WEB:
-        path = _compute_local_image_path(conf_file).as_posix()
+        path = compute_local_image_path(conf_file).as_posix()
+
+    else:
+        raise core.EsphomeError(f"Unknown image source: {conf_file[CONF_SOURCE]}")
 
     try:
         with open(path, "rb") as f:
@@ -303,8 +281,7 @@ async def to_code(config):
     except Exception as e:
         raise core.EsphomeError(f"Could not load image file {path}: {e}")
 
-    mime = Magic(mime=True)
-    file_type = mime.from_buffer(file_contents)
+    file_type = puremagic.from_string(file_contents, mime=True)
 
     resize = config.get(CONF_RESIZE)
     if "svg" in file_type:

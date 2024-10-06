@@ -352,7 +352,7 @@ void SEN5XComponent::update() {
     float humidity = measurements[4] / 100.0;
     if (measurements[4] == 0xFFFF)
       humidity = NAN;
-    float temperature = measurements[5] / 200.0;
+    float temperature = (int16_t) measurements[5] / 200.0;
     if (measurements[5] == 0xFFFF)
       temperature = NAN;
     float voc = measurements[6] / 10.0;

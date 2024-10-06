@@ -1,0 +1,15 @@
+i2c:
+  - id: i2c_htu21d
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: htu21d
+    model: htu21d
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    heater:
+      name: Heater
+    update_interval: 15s

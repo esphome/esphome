@@ -1,20 +1,23 @@
+from __future__ import annotations
+
+from io import StringIO
 import json
 import os
+from typing import Any
 
-from typing import Optional
-
-from esphome.config import load_config, _format_vol_invalid, Config
-from esphome.core import CORE, DocumentRange
+from esphome.config import Config, _format_vol_invalid, validate_config
 import esphome.config_validation as cv
+from esphome.core import CORE, DocumentRange
+from esphome.yaml_util import parse_yaml
 
 
-def _get_invalid_range(res: Config, invalid: cv.Invalid) -> Optional[DocumentRange]:
+def _get_invalid_range(res: Config, invalid: cv.Invalid) -> DocumentRange | None:
     return res.get_deepest_document_range_for_path(
         invalid.path, invalid.error_message == "extra keys not allowed"
     )
 
 
-def _dump_range(range: Optional[DocumentRange]) -> Optional[dict]:
+def _dump_range(range: DocumentRange | None) -> dict | None:
     if range is None:
         return None
     return {
@@ -56,6 +59,25 @@ class VSCodeResult:
         )
 
 
+def _read_file_content_from_json_on_stdin() -> str:
+    """Read the content of a json encoded file from stdin."""
+    data = json.loads(input())
+    assert data["type"] == "file_response"
+    return data["content"]
+
+
+def _print_file_read_event(path: str) -> None:
+    """Print a file read event."""
+    print(
+        json.dumps(
+            {
+                "type": "read_file",
+                "path": path,
+            }
+        )
+    )
+
+
 def read_config(args):
     while True:
         CORE.reset()
@@ -68,9 +90,17 @@ def read_config(args):
             CORE.config_path = os.path.join(args.configuration, f)
         else:
             CORE.config_path = data["file"]
+
+        file_name = CORE.config_path
+        _print_file_read_event(file_name)
+        raw_yaml = _read_file_content_from_json_on_stdin()
+        command_line_substitutions: dict[str, Any] = (
+            dict(args.substitution) if args.substitution else {}
+        )
         vs = VSCodeResult()
         try:
-            res = load_config(dict(args.substitution) if args.substitution else {})
+            config = parse_yaml(file_name, StringIO(raw_yaml))
+            res = validate_config(config, command_line_substitutions)
         except Exception as err:  # pylint: disable=broad-except
             vs.add_yaml_error(str(err))
         else:

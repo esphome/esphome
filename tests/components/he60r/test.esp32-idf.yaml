@@ -1,0 +1,13 @@
+uart:
+  - id: uart_he60r
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 1200
+    parity: EVEN
+
+cover:
+  - platform: he60r
+    id: garage_door
+    name: Garage Door
+    open_duration: 14s
+    close_duration: 14s

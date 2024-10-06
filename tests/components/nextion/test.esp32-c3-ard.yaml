@@ -1,0 +1,60 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart:
+  - id: uart_nextion
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 115200
+
+binary_sensor:
+  - platform: nextion
+    page_id: 0
+    component_id: 2
+    name: Nextion Touch Component
+  - platform: nextion
+    id: r0_sensor
+    name: R0 Sensor
+    component_name: page0.r0
+
+sensor:
+  - platform: nextion
+    id: testnumber
+    name: testnumber
+    variable_name: testnumber
+  - platform: nextion
+    id: testwave
+    name: testwave
+    component_id: 2
+    wave_channel_id: 1
+
+switch:
+  - platform: nextion
+    id: r0
+    name: R0 Switch
+    component_name: page0.r0
+
+text_sensor:
+  - platform: nextion
+    name: text0
+    id: text0
+    update_interval: 4s
+    component_name: text0
+
+display:
+  - platform: nextion
+    tft_url: http://esphome.io/default35.tft
+    update_interval: 5s
+    on_sleep:
+      then:
+        lambda: 'ESP_LOGD("display","Display went to sleep");'
+    on_wake:
+      then:
+        lambda: 'ESP_LOGD("display","Display woke up");'
+    on_setup:
+      then:
+        lambda: 'ESP_LOGD("display","Display setup completed");'
+    on_page:
+      then:
+        lambda: 'ESP_LOGD("display","Display shows new page %u", x);'

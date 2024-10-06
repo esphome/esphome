@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import display, uart
+from esphome.components import esp32
 from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
@@ -22,9 +23,10 @@ from .base_component import (
     CONF_START_UP_PAGE,
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_EXIT_REPARSE_ON_START,
+    CONF_SKIP_CONNECTION_HANDSHAKE,
 )
 
-CODEOWNERS = ["@senexcrenshaw"]
+CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
@@ -67,10 +69,11 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.int_range(min=3, max=65535),
-            cv.Optional(CONF_WAKE_UP_PAGE): cv.positive_int,
-            cv.Optional(CONF_START_UP_PAGE): cv.positive_int,
+            cv.Optional(CONF_WAKE_UP_PAGE): cv.uint8_t,
+            cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
             cv.Optional(CONF_AUTO_WAKE_ON_TOUCH, default=True): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
+            cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -96,6 +99,11 @@ async def to_code(config):
         if CORE.is_esp32 and CORE.using_arduino:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
+        elif CORE.is_esp32 and CORE.using_esp_idf:
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
+            )
         elif CORE.is_esp8266 and CORE.using_arduino:
             cg.add_library("ESP8266HTTPClient", None)
 
@@ -111,6 +119,8 @@ async def to_code(config):
     cg.add(var.set_auto_wake_on_touch_internal(config[CONF_AUTO_WAKE_ON_TOUCH]))
 
     cg.add(var.set_exit_reparse_on_start_internal(config[CONF_EXIT_REPARSE_ON_START]))
+
+    cg.add(var.set_skip_connection_handshake(config[CONF_SKIP_CONNECTION_HANDSHAKE]))
 
     await display.register_display(var, config)
 

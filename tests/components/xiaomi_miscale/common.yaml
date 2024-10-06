@@ -1,0 +1,9 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_miscale
+    mac_address: '5C:CA:D3:70:D4:A2'
+    weight:
+      name: "Xiaomi Mi Scale Weight"
+    impedance:
+      name: "Xiaomi Mi Scale Impedance"

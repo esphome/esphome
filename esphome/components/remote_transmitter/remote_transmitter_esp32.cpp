@@ -23,7 +23,8 @@ void RemoteTransmitterComponent::dump_config() {
   }
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring RMT driver failed: %s", esp_err_to_name(this->error_code_));
+    ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_),
+             this->error_string_.c_str());
   }
 }
 
@@ -56,6 +57,7 @@ void RemoteTransmitterComponent::configure_rmt_() {
   esp_err_t error = rmt_config(&c);
   if (error != ESP_OK) {
     this->error_code_ = error;
+    this->error_string_ = "in rmt_config";
     this->mark_failed();
     return;
   }
@@ -64,6 +66,11 @@ void RemoteTransmitterComponent::configure_rmt_() {
     error = rmt_driver_install(this->channel_, 0, 0);
     if (error != ESP_OK) {
       this->error_code_ = error;
+      if (error == ESP_ERR_INVALID_STATE) {
+        this->error_string_ = str_sprintf("RMT channel %i is already in use by another component", this->channel_);
+      } else {
+        this->error_string_ = "in rmt_driver_install";
+      }
       this->mark_failed();
       return;
     }
@@ -117,6 +124,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     ESP_LOGE(TAG, "Empty data");
     return;
   }
+  this->transmit_trigger_->trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     esp_err_t error = rmt_write_items(this->channel_, this->rmt_temp_.data(), this->rmt_temp_.size(), true);
     if (error != ESP_OK) {
@@ -128,6 +136,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
+  this->complete_trigger_->trigger();
 }
 
 }  // namespace remote_transmitter

@@ -1,0 +1,19 @@
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: am43_blec
+
+cover:
+  - platform: am43
+    name: Test AM43 Cover
+    id: am43_test
+    ble_client_id: am43_blec
+
+sensor:
+  - platform: am43
+    ble_client_id: am43_blec
+    battery_level:
+      name: Kitchen blinds battery
+    illuminance:
+      name: Kitchen blinds light

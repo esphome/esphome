@@ -1,6 +1,7 @@
 #include "wifi_component.h"
 #include "esphome/core/defines.h"
 
+#ifdef USE_WIFI
 #ifdef USE_ESP8266
 
 #include <user_interface.h>
@@ -17,15 +18,17 @@ extern "C" {
 #include "lwip/dhcp.h"
 #include "lwip/init.h"  // LWIP_VERSION_
 #include "lwip/apps/sntp.h"
-#if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #include <AddrList.h>
-#endif
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
+#if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
+#include <ESP8266WiFi.h>
+#include "ESP8266WiFiAP.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
+#endif
 #endif
 }
 
@@ -185,12 +188,15 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return ret;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() {
+network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
-  struct ip_info ip {};
-  wifi_get_ip_info(STATION_IF, &ip);
-  return network::IPAddress(&ip.ip);
+  network::IPAddresses addresses;
+  uint8_t index = 0;
+  for (auto &addr : addrList) {
+    addresses[index++] = addr.ipFromNetifNum();
+  }
+  return addresses;
 }
 bool WiFiComponent::wifi_apply_hostname_() {
   const std::string &hostname = App.get_name();
@@ -327,17 +333,20 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
-#if ENABLE_IPV6
-  for (bool configured = false; !configured;) {
+#if USE_NETWORK_IPV6
+  bool connected = false;
+  while (!connected) {
+    uint8_t ipv6_addr_count = 0;
     for (auto addr : addrList) {
       ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
-      if ((configured = !addr.isLocal() && addr.isV6())) {
-        break;
+      if (addr.isV6()) {
+        ipv6_addr_count++;
       }
     }
     delay(500);  // NOLINT
+    connected = (ipv6_addr_count >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   }
-#endif
+#endif /* USE_NETWORK_IPV6 */
 
   if (ap.get_channel().has_value()) {
     ret = wifi_set_channel(*ap.get_channel());
@@ -708,16 +717,16 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   if (wifi_softap_dhcps_status() == DHCP_STARTED) {
     if (!wifi_softap_dhcps_stop()) {
-      ESP_LOGV(TAG, "Stopping DHCP server failed!");
+      ESP_LOGW(TAG, "Stopping DHCP server failed!");
     }
   }
 
   if (!wifi_set_ip_info(SOFTAP_IF, &info)) {
-    ESP_LOGV(TAG, "Setting SoftAP info failed!");
+    ESP_LOGE(TAG, "Setting SoftAP info failed!");
     return false;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
   dhcpSoftAP.begin(&info);
 #endif
 
@@ -727,29 +736,33 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   start_address += 99;
   lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
-  start_address += 100;
+  start_address += 10;
   lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   if (!wifi_softap_set_dhcps_lease(&lease)) {
-    ESP_LOGV(TAG, "Setting SoftAP DHCP lease failed!");
+    ESP_LOGE(TAG, "Setting SoftAP DHCP lease failed!");
     return false;
   }
 
   // lease time 1440 minutes (=24 hours)
   if (!wifi_softap_set_dhcps_lease_time(1440)) {
-    ESP_LOGV(TAG, "Setting SoftAP DHCP lease time failed!");
+    ESP_LOGE(TAG, "Setting SoftAP DHCP lease time failed!");
     return false;
   }
 
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
+  ESP8266WiFiClass::softAPDhcpServer().setRouter(true);  // send ROUTER option with netif's gateway IP
+#else
   uint8_t mode = 1;
   // bit0, 1 enables router information from ESP8266 SoftAP DHCP server.
   if (!wifi_softap_set_dhcps_offer_option(OFFER_ROUTER, &mode)) {
-    ESP_LOGV(TAG, "wifi_softap_set_dhcps_offer_option failed!");
+    ESP_LOGE(TAG, "wifi_softap_set_dhcps_offer_option failed!");
     return false;
   }
+#endif
 
   if (!wifi_softap_dhcps_start()) {
-    ESP_LOGV(TAG, "Starting SoftAP DHCPS failed!");
+    ESP_LOGE(TAG, "Starting SoftAP DHCPS failed!");
     return false;
   }
 
@@ -821,4 +834,5 @@ void WiFiComponent::wifi_loop_() {}
 }  // namespace wifi
 }  // namespace esphome
 
+#endif
 #endif

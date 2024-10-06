@@ -55,6 +55,9 @@ void Inkplate6::setup() {
   this->wakeup_pin_->digital_write(false);
 }
 
+/**
+ * Allocate buffers. May be called after setup to re-initialise if e.g. greyscale is changed.
+ */
 void Inkplate6::initialize_() {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   ExternalRAMAllocator<uint32_t> allocator32(ExternalRAMAllocator<uint32_t>::ALLOW_FAILURE);

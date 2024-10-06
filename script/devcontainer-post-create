@@ -1,7 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 # set -x
+
+apt update
+apt-get install avahi-utils -y
 
 mkdir -p config
 script/setup

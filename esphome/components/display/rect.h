@@ -15,11 +15,11 @@ class Rect {
   int16_t h;  ///< Height of region
 
   Rect() : x(VALUE_NO_SET), y(VALUE_NO_SET), w(VALUE_NO_SET), h(VALUE_NO_SET) {}  // NOLINT
-  inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
+  inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ESPHOME_ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
   inline int16_t x2() const { return this->x + this->w; };  ///< X coordinate of corner
   inline int16_t y2() const { return this->y + this->h; };  ///< Y coordinate of corner
 
-  inline bool is_set() const ALWAYS_INLINE { return (this->h != VALUE_NO_SET) && (this->w != VALUE_NO_SET); }
+  inline bool is_set() const ESPHOME_ALWAYS_INLINE { return (this->h != VALUE_NO_SET) && (this->w != VALUE_NO_SET); }
 
   void expand(int16_t horizontal, int16_t vertical);
 

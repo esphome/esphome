@@ -18,12 +18,15 @@
 #include <cinttypes>
 
 #ifdef USE_OTA
-#include "esphome/components/ota/ota_component.h"
+#include "esphome/components/ota/ota_backend.h"
 #endif
 
 #ifdef USE_ARDUINO
 #include <esp32-hal-bt.h>
 #endif
+
+#define MBEDTLS_AES_ALT
+#include <aes_alt.h>
 
 // bt_trace.h
 #undef TAG
@@ -58,11 +61,12 @@ void ESP32BLETracker::setup() {
   this->scanner_idle_ = true;
 
 #ifdef USE_OTA
-  ota::global_ota_component->add_on_state_callback([this](ota::OTAState state, float progress, uint8_t error) {
-    if (state == ota::OTA_STARTED) {
-      this->stop_scan();
-    }
-  });
+  ota::get_global_ota_callback()->add_on_state_callback(
+      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+        if (state == ota::OTA_STARTED) {
+          this->stop_scan();
+        }
+      });
 #endif
 }
 
@@ -364,7 +368,11 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
 }
 
 void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
-  this->scan_set_param_failed_ = param.status;
+  if (param.status == ESP_BT_STATUS_DONE) {
+    this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
+  } else {
+    this->scan_set_param_failed_ = param.status;
+  }
 }
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
@@ -454,14 +462,16 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
   }
   for (auto &data : this->manufacturer_datas_) {
-    ESP_LOGVV(TAG, "  Manufacturer data: %s", format_hex_pretty(data.data).c_str());
-    if (this->get_ibeacon().has_value()) {
-      auto ibeacon = this->get_ibeacon().value();
-      ESP_LOGVV(TAG, "    iBeacon data:");
-      ESP_LOGVV(TAG, "      UUID: %s", ibeacon.get_uuid().to_string().c_str());
-      ESP_LOGVV(TAG, "      Major: %u", ibeacon.get_major());
-      ESP_LOGVV(TAG, "      Minor: %u", ibeacon.get_minor());
-      ESP_LOGVV(TAG, "      TXPower: %d", ibeacon.get_signal_power());
+    auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(data);
+    if (ibeacon.has_value()) {
+      ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
+      ESP_LOGVV(TAG, "    UUID: %s", ibeacon.value().get_uuid().to_string().c_str());
+      ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
+      ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
+      ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
+    } else {
+      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", data.uuid.to_string().c_str(),
+                format_hex_pretty(data.data).c_str());
     }
   }
   for (auto &data : this->service_datas_) {
@@ -470,7 +480,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
     ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty(data.data).c_str());
   }
 
-  ESP_LOGVV(TAG, "Adv data: %s", format_hex_pretty(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
+  ESP_LOGVV(TAG, "  Adv data: %s", format_hex_pretty(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
@@ -686,6 +696,39 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   for (auto &tx_power : device.get_tx_powers()) {
     ESP_LOGD(TAG, "  TX Power: %d", tx_power);
   }
+}
+
+bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
+  uint8_t ecb_key[16];
+  uint8_t ecb_plaintext[16];
+  uint8_t ecb_ciphertext[16];
+
+  uint64_t addr64 = esp32_ble::ble_addr_to_uint64(this->address_);
+
+  memcpy(&ecb_key, irk, 16);
+  memset(&ecb_plaintext, 0, 16);
+
+  ecb_plaintext[13] = (addr64 >> 40) & 0xff;
+  ecb_plaintext[14] = (addr64 >> 32) & 0xff;
+  ecb_plaintext[15] = (addr64 >> 24) & 0xff;
+
+  mbedtls_aes_context ctx = {0, 0, {0}};
+  mbedtls_aes_init(&ctx);
+
+  if (mbedtls_aes_setkey_enc(&ctx, ecb_key, 128) != 0) {
+    mbedtls_aes_free(&ctx);
+    return false;
+  }
+
+  if (mbedtls_aes_crypt_ecb(&ctx, ESP_AES_ENCRYPT, ecb_plaintext, ecb_ciphertext) != 0) {
+    mbedtls_aes_free(&ctx);
+    return false;
+  }
+
+  mbedtls_aes_free(&ctx);
+
+  return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
+         ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
 }
 
 }  // namespace esp32_ble_tracker

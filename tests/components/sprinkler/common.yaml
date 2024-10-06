@@ -1,0 +1,83 @@
+esphome:
+  on_boot:
+    then:
+      - sprinkler.start_full_cycle: yard_sprinkler_ctrlr
+      - sprinkler.start_from_queue: yard_sprinkler_ctrlr
+      - sprinkler.start_single_valve:
+          id: yard_sprinkler_ctrlr
+          valve_number: 0
+          run_duration: 600s
+      - sprinkler.shutdown: yard_sprinkler_ctrlr
+      - sprinkler.next_valve: yard_sprinkler_ctrlr
+      - sprinkler.previous_valve: yard_sprinkler_ctrlr
+      - sprinkler.pause: yard_sprinkler_ctrlr
+      - sprinkler.resume: yard_sprinkler_ctrlr
+      - sprinkler.resume_or_start_full_cycle: yard_sprinkler_ctrlr
+      - sprinkler.queue_valve:
+          id: yard_sprinkler_ctrlr
+          valve_number: 2
+          run_duration: 900s
+      - sprinkler.clear_queued_valves: yard_sprinkler_ctrlr
+      - sprinkler.set_multiplier:
+          id: yard_sprinkler_ctrlr
+          multiplier: 1.5
+      - sprinkler.set_repeat:
+          id: yard_sprinkler_ctrlr
+          repeat: 2
+      - sprinkler.set_divider:
+          id: yard_sprinkler_ctrlr
+          divider: 2
+      - sprinkler.set_valve_run_duration:
+          id: yard_sprinkler_ctrlr
+          valve_number: 0
+          run_duration: 600s
+
+switch:
+  - platform: template
+    id: switch1
+    optimistic: true
+  - platform: template
+    id: switch2
+    optimistic: true
+
+sprinkler:
+  - id: yard_sprinkler_ctrlr
+    main_switch: Yard Sprinklers
+    auto_advance_switch: Yard Sprinklers Auto Advance
+    reverse_switch: Yard Sprinklers Reverse
+    pump_start_pump_delay: 2s
+    pump_stop_valve_delay: 4s
+    pump_switch_off_during_valve_open_delay: true
+    valve_open_delay: 5s
+    valves:
+      - valve_switch: Yard Valve 0
+        enable_switch: Enable Yard Valve 0
+        pump_switch_id: switch1
+        run_duration: 10s
+        valve_switch_id: switch2
+      - valve_switch: Yard Valve 1
+        enable_switch: Enable Yard Valve 1
+        pump_switch_id: switch1
+        run_duration: 10s
+        valve_switch_id: switch2
+      - valve_switch: Yard Valve 2
+        enable_switch: Enable Yard Valve 2
+        pump_switch_id: switch1
+        run_duration: 10s
+        valve_switch_id: switch2
+  - id: garden_sprinkler_ctrlr
+    main_switch: Garden Sprinklers
+    auto_advance_switch: Garden Sprinklers Auto Advance
+    reverse_switch: Garden Sprinklers Reverse
+    valve_overlap: 5s
+    valves:
+      - valve_switch: Garden Valve 0
+        enable_switch: Enable Garden Valve 0
+        pump_switch_id: switch1
+        run_duration: 10s
+        valve_switch_id: switch2
+      - valve_switch: Garden Valve 1
+        enable_switch: Enable Garden Valve 1
+        pump_switch_id: switch1
+        run_duration: 10s
+        valve_switch_id: switch2

@@ -4,6 +4,7 @@ from esphome.components import uart
 from esphome.const import CONF_ID, CONF_ADDRESS
 
 CODEOWNERS = ["@s1lvi0"]
+MULTI_CONF = True
 DEPENDENCIES = ["uart"]
 
 CONF_BMS_DALY_ID = "bms_daly_id"

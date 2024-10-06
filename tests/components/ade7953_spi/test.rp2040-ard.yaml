@@ -1,0 +1,36 @@
+spi:
+  - id: spi_ade7953
+    clk_pin: 2
+    mosi_pin: 3
+    miso_pin: 4
+
+sensor:
+  - platform: ade7953_spi
+    cs_pin: 5
+    irq_pin: 6
+    voltage:
+      name: ADE7953 Voltage
+      id: ade7953_voltage
+    current_a:
+      name: ADE7953 Current A
+      id: ade7953_current_a
+    current_b:
+      name: ADE7953 Current B
+      id: ade7953_current_b
+    power_factor_a:
+      name: ADE7953 Power Factor A
+    power_factor_b:
+      name: ADE7953 Power Factor B
+    apparent_power_a:
+      name: ADE7953 Apparent Power A
+    apparent_power_b:
+      name: ADE7953 Apparent Power B
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
+    reactive_power_a:
+      name: ADE7953 Reactive Power A
+    reactive_power_b:
+      name: ADE7953 Reactive Power B
+    update_interval: 1s

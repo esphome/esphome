@@ -1,0 +1,23 @@
+spi:
+  - id: spi_main_lcd
+    clk_pin: 16
+    mosi_pin: 17
+    miso_pin: 15
+
+display:
+  - platform: ili9xxx
+    invert_colors: true
+    dimensions: 320x240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    model: custom
+    cs_pin: 12
+    dc_pin: 13
+    reset_pin: 14
+    init_sequence:
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10]
+
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());

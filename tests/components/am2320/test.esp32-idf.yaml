@@ -1,0 +1,11 @@
+i2c:
+  - id: i2c_bme280
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: am2320
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity

@@ -1,0 +1,19 @@
+i2c:
+  - id: i2c_bme280
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: bme280_i2c
+    i2c_id: i2c_bme280
+    address: 0x76
+    temperature:
+      id: bme280_temperature
+      name: BME280 Temperature
+    humidity:
+      id: bme280_humidity
+      name: BME280 Humidity
+    pressure:
+      id: bme280_pressure
+      name: BME280 Pressure
+    update_interval: 15s
