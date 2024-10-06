@@ -54,13 +54,6 @@ enum class TuyaCommandType : uint8_t {
   DP_CACHE = 0x10
 };
 
-enum class TuyaLECommandType : uint8_t {
-  HEARTBEAT = 0x00,
-  PRODUCT_QUERY = 0x01,
-  WIFI_STATE = 0x02,
-  DATAPOINT_REPORT = 0x05
-};
-
 enum class TuyaExtendedServicesCommandType : uint8_t {
   RESET_NOTIFICATION = 0x04,
   MODULE_RESET = 0x05,
