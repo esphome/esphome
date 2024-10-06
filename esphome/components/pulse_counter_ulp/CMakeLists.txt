@@ -13,7 +13,7 @@ set(ulp_app_name ulp_main)
 ## 2. Specify all assembly source files.
 ##    Files should be placed into a separate directory (in this case, ulp/),
 ##    which should not be added to COMPONENT_SRCS.
-##TODO 
+##TODO
 set(ulp_s_sources "../ulp/pulse_cnt.S" "../ulp/wake_up.S")
 ##
 ## 3. List all the component source files which include automatically
