@@ -67,6 +67,9 @@ lvgl:
       border_width: 2
       pad_all: 4
       align: center
+    - id: image_recolor
+      image_recolor: 0x10ca1e
+      image_recolor_opa: cover
 
   touchscreens:
     - touchscreen_id: tft_touch

@@ -12,7 +12,7 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, LocalVariable, lv, lv_assign, lv_variable
-from .schemas import ALL_STYLES
+from .schemas import ALL_STYLES, STYLE_REMAP
 from .types import lv_lambda_t, lv_obj_t, lv_obj_t_ptr
 from .widgets import Widget, add_widgets, set_obj_properties, theme_widget_map
 from .widgets.obj import obj_spec
@@ -31,7 +31,8 @@ async def styles_to_code(config):
                     value = await validator.process(value)
                 if isinstance(value, list):
                     value = "|".join(value)
-                lv.call(f"style_set_{prop}", svar, literal(value))
+                remapped_prop = STYLE_REMAP.get(prop, prop)
+                lv.call(f"style_set_{remapped_prop}", svar, literal(value))
 
 
 async def theme_to_code(config):
