@@ -73,11 +73,9 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 // helper for allowing only unique entries in the queue
-void DeferredUpdateEventSource::deq_push_back_with_dedup_(const void *source, const char *event_type,
+void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, const char *event_type,
                                                           const message_generator_t *message_generator) {
-  // note that shared_ptr would eat up a lot more memory - it's a nice construct but expensive
-  //     in this context since DeferredEvent itself is lightweight by design
-  DeferredEvent item(source, event_type, message_generator);
+  DeferredEvent item(source, message_generator);
 
   auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
                            [&item](const DeferredEvent &test) -> bool { return test == item; });
@@ -92,14 +90,8 @@ void DeferredUpdateEventSource::deq_push_back_with_dedup_(const void *source, co
 void DeferredUpdateEventSource::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    const char *actual_event_type = de.event_type_;
-    // normal state updates and the list_entities iterator output with extra details in the json had to be
-    // differentiated
-    //     but both are "state" on the wire
-    if (0 == strcmp(actual_event_type, "state_detail_all"))
-      actual_event_type = "state";
     std::string message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send(message.c_str(), actual_event_type)) {
+    if (this->try_send(message.c_str(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
@@ -110,13 +102,14 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
 
 void DeferredUpdateEventSource::loop() {
   process_deferred_queue_();
-  this->entities_iterator_.advance();
+  if (!this->entities_iterator_.completed())
+    this->entities_iterator_.advance();
 }
 
-void DeferredUpdateEventSource::deferrable_send(const void *source, const char *event_type,
-                                                const message_generator_t *message_generator) {
+void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *event_type,
+                                                      const message_generator_t *message_generator) {
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI
+  // up in the web GUI and reduces event load during initial connect
   if (!entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
     return;
 
@@ -133,23 +126,14 @@ void DeferredUpdateEventSource::deferrable_send(const void *source, const char *
     // deferred queue still not empty which means downstream event queue full, no point trying to send first
     deq_push_back_with_dedup_(source, event_type, message_generator);
   } else {
-    const char *actual_event_type = event_type;
-    // normal state updates and the list_entities iterator output with extra details in the json had to be
-    // differentiated
-    //     but both are "state" on the wire
-    if (0 == strcmp(actual_event_type, "state_detail_all"))
-      actual_event_type = "state";
     std::string message = message_generator(web_server_, source);
-    if (!this->try_send(message.c_str(), actual_event_type)) {
-      if (0 != strcmp(actual_event_type, "log")) {
-        // send failed and it's not a log (which is simply dropped) so queue it for a later send
-        deq_push_back_with_dedup_(source, event_type, message_generator);
-      }
+    if (!this->try_send(message.c_str(), "state")) {
+      deq_push_back_with_dedup_(source, event_type, message_generator);
     }
   }
 }
 
-// mainly used for logs plus the initial ping/config
+// used for logs plus the initial ping/config
 void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id,
                                                  uint32_t reconnect) {
   this->send(message, event, id, reconnect);
@@ -161,10 +145,10 @@ void DeferredUpdateEventSourceList::loop() {
   }
 }
 
-void DeferredUpdateEventSourceList::deferrable_send(const void *source, const char *event_type,
-                                                    const message_generator_t *message_generator) {
+void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const char *event_type,
+                                                          const message_generator_t *message_generator) {
   for (DeferredUpdateEventSource *dues : *this) {
-    dues->deferrable_send(source, event_type, message_generator);
+    dues->deferrable_send_state(source, event_type, message_generator);
   }
 }
 
@@ -355,7 +339,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", sensor_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", sensor_state_json_generator);
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
@@ -374,10 +358,10 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-std::string WebServer::sensor_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::sensor_state_json_generator(WebServer *web_server, void *source) {
   return web_server->sensor_json((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::sensor_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::sensor_all_json_generator(WebServer *web_server, void *source) {
   return web_server->sensor_json((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_ALL);
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
@@ -406,7 +390,7 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", text_sensor_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", text_sensor_state_json_generator);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
@@ -425,11 +409,11 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
   }
   request->send(404);
 }
-std::string WebServer::text_sensor_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::text_sensor_state_json_generator(WebServer *web_server, void *source) {
   return web_server->text_sensor_json((text_sensor::TextSensor *) (source),
                                       ((text_sensor::TextSensor *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::text_sensor_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::text_sensor_all_json_generator(WebServer *web_server, void *source) {
   return web_server->text_sensor_json((text_sensor::TextSensor *) (source),
                                       ((text_sensor::TextSensor *) (source))->state, DETAIL_ALL);
 }
@@ -450,7 +434,7 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", switch_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", switch_state_json_generator);
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
@@ -481,10 +465,10 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-std::string WebServer::switch_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::switch_state_json_generator(WebServer *web_server, void *source) {
   return web_server->switch_json((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::switch_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::switch_all_json_generator(WebServer *web_server, void *source) {
   return web_server->switch_json((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_ALL);
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
@@ -524,10 +508,10 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-std::string WebServer::button_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::button_state_json_generator(WebServer *web_server, void *source) {
   return web_server->button_json((button::Button *) (source), DETAIL_STATE);
 }
-std::string WebServer::button_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::button_all_json_generator(WebServer *web_server, void *source) {
   return web_server->button_json((button::Button *) (source), DETAIL_ALL);
 }
 std::string WebServer::button_json(button::Button *obj, JsonDetail start_config) {
@@ -546,7 +530,7 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", binary_sensor_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", binary_sensor_state_json_generator);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
@@ -565,11 +549,11 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
   }
   request->send(404);
 }
-std::string WebServer::binary_sensor_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::binary_sensor_state_json_generator(WebServer *web_server, void *source) {
   return web_server->binary_sensor_json((binary_sensor::BinarySensor *) (source),
                                         ((binary_sensor::BinarySensor *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::binary_sensor_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::binary_sensor_all_json_generator(WebServer *web_server, void *source) {
   return web_server->binary_sensor_json((binary_sensor::BinarySensor *) (source),
                                         ((binary_sensor::BinarySensor *) (source))->state, DETAIL_ALL);
 }
@@ -590,7 +574,7 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 void WebServer::on_fan_update(fan::Fan *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", fan_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", fan_state_json_generator);
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
@@ -649,10 +633,10 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
   }
   request->send(404);
 }
-std::string WebServer::fan_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::fan_state_json_generator(WebServer *web_server, void *source) {
   return web_server->fan_json((fan::Fan *) (source), DETAIL_STATE);
 }
-std::string WebServer::fan_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::fan_all_json_generator(WebServer *web_server, void *source) {
   return web_server->fan_json((fan::Fan *) (source), DETAIL_ALL);
 }
 std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
@@ -679,7 +663,7 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
 void WebServer::on_light_update(light::LightState *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", light_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", light_state_json_generator);
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
@@ -771,10 +755,10 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
   }
   request->send(404);
 }
-std::string WebServer::light_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::light_state_json_generator(WebServer *web_server, void *source) {
   return web_server->light_json((light::LightState *) (source), DETAIL_STATE);
 }
-std::string WebServer::light_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::light_all_json_generator(WebServer *web_server, void *source) {
   return web_server->light_json((light::LightState *) (source), DETAIL_ALL);
 }
 std::string WebServer::light_json(light::LightState *obj, JsonDetail start_config) {
@@ -801,7 +785,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 void WebServer::on_cover_update(cover::Cover *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", cover_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", cover_state_json_generator);
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
@@ -859,10 +843,10 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
   }
   request->send(404);
 }
-std::string WebServer::cover_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::cover_state_json_generator(WebServer *web_server, void *source) {
   return web_server->cover_json((cover::Cover *) (source), DETAIL_STATE);
 }
-std::string WebServer::cover_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::cover_all_json_generator(WebServer *web_server, void *source) {
   return web_server->cover_json((cover::Cover *) (source), DETAIL_STATE);
 }
 std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
@@ -888,7 +872,7 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 void WebServer::on_number_update(number::Number *obj, float state) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", number_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", number_state_json_generator);
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
@@ -924,10 +908,10 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 
-std::string WebServer::number_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::number_state_json_generator(WebServer *web_server, void *source) {
   return web_server->number_json((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::number_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::number_all_json_generator(WebServer *web_server, void *source) {
   return web_server->number_json((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_ALL);
 }
 std::string WebServer::number_json(number::Number *obj, float value, JsonDetail start_config) {
@@ -965,7 +949,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 void WebServer::on_date_update(datetime::DateEntity *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", date_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", date_state_json_generator);
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
@@ -1005,10 +989,10 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
   request->send(404);
 }
 
-std::string WebServer::date_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::date_state_json_generator(WebServer *web_server, void *source) {
   return web_server->date_json((datetime::DateEntity *) (source), DETAIL_STATE);
 }
-std::string WebServer::date_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::date_all_json_generator(WebServer *web_server, void *source) {
   return web_server->date_json((datetime::DateEntity *) (source), DETAIL_ALL);
 }
 std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_config) {
@@ -1030,7 +1014,7 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", time_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", time_state_json_generator);
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
@@ -1069,10 +1053,10 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
   }
   request->send(404);
 }
-std::string WebServer::time_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::time_state_json_generator(WebServer *web_server, void *source) {
   return web_server->time_json((datetime::TimeEntity *) (source), DETAIL_STATE);
 }
-std::string WebServer::time_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::time_all_json_generator(WebServer *web_server, void *source) {
   return web_server->time_json((datetime::TimeEntity *) (source), DETAIL_ALL);
 }
 std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_config) {
@@ -1094,7 +1078,7 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", datetime_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", datetime_state_json_generator);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
@@ -1133,10 +1117,10 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
   }
   request->send(404);
 }
-std::string WebServer::datetime_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::datetime_state_json_generator(WebServer *web_server, void *source) {
   return web_server->datetime_json((datetime::DateTimeEntity *) (source), DETAIL_STATE);
 }
-std::string WebServer::datetime_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::datetime_all_json_generator(WebServer *web_server, void *source) {
   return web_server->datetime_json((datetime::DateTimeEntity *) (source), DETAIL_ALL);
 }
 std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config) {
@@ -1159,7 +1143,7 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", text_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", text_state_json_generator);
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
@@ -1194,10 +1178,10 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
   request->send(404);
 }
 
-std::string WebServer::text_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::text_state_json_generator(WebServer *web_server, void *source) {
   return web_server->text_json((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::text_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::text_all_json_generator(WebServer *web_server, void *source) {
   return web_server->text_json((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_ALL);
 }
 std::string WebServer::text_json(text::Text *obj, const std::string &value, JsonDetail start_config) {
@@ -1226,7 +1210,7 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", select_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", select_state_json_generator);
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
@@ -1262,10 +1246,10 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-std::string WebServer::select_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::select_state_json_generator(WebServer *web_server, void *source) {
   return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::select_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::select_all_json_generator(WebServer *web_server, void *source) {
   return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_ALL);
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
@@ -1291,7 +1275,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 void WebServer::on_climate_update(climate::Climate *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", climate_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", climate_state_json_generator);
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
@@ -1355,10 +1339,10 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
   }
   request->send(404);
 }
-std::string WebServer::climate_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::climate_state_json_generator(WebServer *web_server, void *source) {
   return web_server->climate_json((climate::Climate *) (source), DETAIL_STATE);
 }
-std::string WebServer::climate_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::climate_all_json_generator(WebServer *web_server, void *source) {
   return web_server->climate_json((climate::Climate *) (source), DETAIL_ALL);
 }
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
@@ -1456,7 +1440,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 void WebServer::on_lock_update(lock::Lock *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", lock_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", lock_state_json_generator);
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
@@ -1487,10 +1471,10 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
   }
   request->send(404);
 }
-std::string WebServer::lock_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::lock_state_json_generator(WebServer *web_server, void *source) {
   return web_server->lock_json((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_STATE);
 }
-std::string WebServer::lock_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::lock_all_json_generator(WebServer *web_server, void *source) {
   return web_server->lock_json((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_ALL);
 }
 std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config) {
@@ -1510,7 +1494,7 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
 void WebServer::on_valve_update(valve::Valve *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", valve_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", valve_state_json_generator);
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
@@ -1561,10 +1545,10 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
   }
   request->send(404);
 }
-std::string WebServer::valve_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::valve_state_json_generator(WebServer *web_server, void *source) {
   return web_server->valve_json((valve::Valve *) (source), DETAIL_STATE);
 }
-std::string WebServer::valve_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::valve_all_json_generator(WebServer *web_server, void *source) {
   return web_server->valve_json((valve::Valve *) (source), DETAIL_ALL);
 }
 std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
@@ -1586,7 +1570,7 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", alarm_control_panel_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", alarm_control_panel_state_json_generator);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
@@ -1606,12 +1590,12 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
   }
   request->send(404);
 }
-std::string WebServer::alarm_control_panel_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::alarm_control_panel_state_json_generator(WebServer *web_server, void *source) {
   return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel *) (source),
                                               ((alarm_control_panel::AlarmControlPanel *) (source))->get_state(),
                                               DETAIL_STATE);
 }
-std::string WebServer::alarm_control_panel_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::alarm_control_panel_all_json_generator(WebServer *web_server, void *source) {
   return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel *) (source),
                                               ((alarm_control_panel::AlarmControlPanel *) (source))->get_state(),
                                               DETAIL_ALL);
@@ -1634,13 +1618,13 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
 
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj, const std::string &event_type) {
-  this->event_source_list_.deferrable_send(obj, "state", event_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", event_state_json_generator);
 }
 
-std::string WebServer::event_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_STATE);
 }
-std::string WebServer::event_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   return web_server->event_json((event::Event *) (source), *(((event::Event *) (source))->state), DETAIL_ALL);
 }
 std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
@@ -1664,7 +1648,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
 void WebServer::on_update(update::UpdateEntity *obj) {
   if (this->event_source_list_.empty())
     return;
-  this->event_source_list_.deferrable_send(obj, "state", update_state_json_generator);
+  this->event_source_list_.deferrable_send_state(obj, "state", update_state_json_generator);
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
@@ -1693,10 +1677,10 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-std::string WebServer::update_state_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::update_state_json_generator(WebServer *web_server, void *source) {
   return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE);
 }
-std::string WebServer::update_all_json_generator(WebServer *web_server, const void *source) {
+std::string WebServer::update_all_json_generator(WebServer *web_server, void *source) {
   return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_config) {
