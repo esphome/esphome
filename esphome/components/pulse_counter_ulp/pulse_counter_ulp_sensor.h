@@ -11,7 +11,7 @@
 namespace esphome {
 namespace pulse_counter_ulp {
 
-enum class CountMode { disable = 0, increment = 1, decrement = -1 };
+enum class CountMode { DISABLE = 0, INCREMENT = 1, DECREMENT = -1 };
 
 using clock = std::chrono::steady_clock;
 using microseconds = std::chrono::duration<uint32_t, std::micro>;

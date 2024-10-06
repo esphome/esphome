@@ -19,9 +19,9 @@ from esphome.const import (
 pulse_counter_ulp_ns = cg.esphome_ns.namespace("pulse_counter_ulp")
 CountMode = pulse_counter_ulp_ns.enum("CountMode", is_class=True)
 COUNT_MODES = {
-    "DISABLE": CountMode.disable,
-    "INCREMENT": CountMode.increment,
-    "DECREMENT": CountMode.decrement,
+    "DISABLE": CountMode.DISABLE,
+    "INCREMENT": CountMode.INCREMENT,
+    "DECREMENT": CountMode.DECREMENT,
 }
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)

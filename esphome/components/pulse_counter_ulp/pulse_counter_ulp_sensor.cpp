@@ -14,11 +14,11 @@ static const char *const TAG = "pulse_counter_ulp";
 namespace {
 const char *to_string(CountMode count_mode) {
   switch (count_mode) {
-    case CountMode::disable:
+    case CountMode::DISABLE:
       return "disable";
-    case CountMode::increment:
+    case CountMode::INCREMENT:
       return "increment";
-    case CountMode::decrement:
+    case CountMode::DECREMENT:
       return "decrement";
   }
   return "UNKNOWN MODE";
