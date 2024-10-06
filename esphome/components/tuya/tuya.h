@@ -48,21 +48,17 @@ struct TuyaDatapointListener {
 enum class TuyaCommandType : uint8_t {
   HEARTBEAT = 0x00,
   PRODUCT_QUERY = 0x01,
-  CONF_QUERY = 0x02,
-  WIFI_STATE = 0x03,
-  WIFI_RESET = 0x04,
-  WIFI_SELECT = 0x05,
-  DATAPOINT_DELIVER = 0x06,
-  DATAPOINT_REPORT_ASYNC = 0x07,
-  DATAPOINT_QUERY = 0x08,
-  WIFI_TEST = 0x0E,
-  LOCAL_TIME_QUERY = 0x1C,
-  DATAPOINT_REPORT_SYNC = 0x22,
-  DATAPOINT_REPORT_ACK = 0x23,
-  WIFI_RSSI = 0x24,
-  VACUUM_MAP_UPLOAD = 0x28,
-  GET_NETWORK_STATUS = 0x2B,
-  EXTENDED_SERVICES = 0x34,
+  WIFI_STATE = 0x02,
+  DATAPOINT_REPORT = 0x05,
+  LOCAL_TIME_QUERY = 0x06,
+  DP_CACHE = 0x10
+};
+
+enum class TuyaLECommandType : uint8_t {
+  HEARTBEAT = 0x00,
+  PRODUCT_QUERY = 0x01,
+  WIFI_STATE = 0x02,
+  DATAPOINT_REPORT = 0x05
 };
 
 enum class TuyaExtendedServicesCommandType : uint8_t {
@@ -74,9 +70,7 @@ enum class TuyaExtendedServicesCommandType : uint8_t {
 enum class TuyaInitState : uint8_t {
   INIT_HEARTBEAT = 0x00,
   INIT_PRODUCT,
-  INIT_CONF,
   INIT_WIFI,
-  INIT_DATAPOINT,
   INIT_DONE,
 };
 
@@ -146,6 +140,7 @@ class Tuya : public Component, public uart::UARTDevice {
   bool init_failed_{false};
   int init_retries_{0};
   uint8_t protocol_version_ = -1;
+  bool low_power_mode_ = true;
   InternalGPIOPin *status_pin_{nullptr};
   int status_pin_reported_ = -1;
   int reset_pin_reported_ = -1;
