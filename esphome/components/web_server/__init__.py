@@ -32,7 +32,7 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 import esphome.final_validate as fv
 
-AUTO_LOAD = ["json", "web_server_base"]
+AUTO_LOAD = ["json", "web_server_base", "component_iterator"]
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)

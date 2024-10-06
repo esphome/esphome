@@ -3,7 +3,7 @@
 
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
-
+#ifndef USE_KEYBOARD
 #include "esphome/core/hal.h"
 
 namespace esphome {
@@ -642,5 +642,6 @@ const uint8_t INDEX_GZ[] PROGMEM = {
 }  // namespace web_server
 }  // namespace esphome
 
+#endif
 #endif
 #endif

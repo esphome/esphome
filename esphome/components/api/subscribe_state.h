@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/component_iterator.h"
+#include "esphome/components/component_iterator/component_iterator.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 
@@ -10,7 +10,7 @@ namespace api {
 
 class APIConnection;
 
-class InitialStateIterator : public ComponentIterator {
+class InitialStateIterator : public component_iterator::ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR

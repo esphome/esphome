@@ -93,6 +93,7 @@ esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
 esphome/components/combination/* @Cat-Ion @kahrendt
+esphome/components/component_iterator/* @tomaszduda23
 esphome/components/coolix/* @glmnet
 esphome/components/copy/* @OttoWinter
 esphome/components/cover/* @esphome/core
@@ -176,6 +177,7 @@ esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
+esphome/components/hid/keyboard/* @tomaszduda23
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
 esphome/components/hmac_md5/* @dwmw2
@@ -218,6 +220,7 @@ esphome/components/json/* @OttoWinter
 esphome/components/kamstrup_kmp/* @cfeenstra1024
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
+esphome/components/keyboard/* @tomaszduda23
 esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @regevbr @sebcaps
@@ -441,6 +444,8 @@ esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
+esphome/components/usb_device/* @tomaszduda23
+esphome/components/usb_device/hid/* @tomaszduda23
 esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
