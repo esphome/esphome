@@ -73,8 +73,7 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 // helper for allowing only unique entries in the queue
-void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, const char *event_type,
-                                                          const message_generator_t *message_generator) {
+void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, const message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
 
   auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
@@ -124,11 +123,11 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
     process_deferred_queue_();
   if (!deferred_queue_.empty()) {
     // deferred queue still not empty which means downstream event queue full, no point trying to send first
-    deq_push_back_with_dedup_(source, event_type, message_generator);
+    deq_push_back_with_dedup_(source, message_generator);
   } else {
     std::string message = message_generator(web_server_, source);
     if (!this->try_send(message.c_str(), "state")) {
-      deq_push_back_with_dedup_(source, event_type, message_generator);
+      deq_push_back_with_dedup_(source, message_generator);
     }
   }
 }

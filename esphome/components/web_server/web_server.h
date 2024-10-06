@@ -92,7 +92,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   WebServer *web_server_;
 
   // helper for allowing only unique entries in the queue
-  void deq_push_back_with_dedup_(void *source, const char *event_type, const message_generator_t *message_generator);
+  void deq_push_back_with_dedup_(void *source, const message_generator_t *message_generator);
 
   void process_deferred_queue_();
 
