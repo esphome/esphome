@@ -172,14 +172,14 @@ esp_err_t ESPNowComponent::del_peer(uint64_t addr) {
 
 ESPNowDefaultProtocol *ESPNowComponent::get_default_protocol() {
   if (this->protocols_[ESPNOW_MAIN_PROTOCOL_ID] == nullptr) {
-    this->register_protocol(new ESPNowDefaultProtocol());
+    this->register_protocol(new ESPNowDefaultProtocol());  // NOLINT
   }
   return (ESPNowDefaultProtocol *) this->protocols_[ESPNOW_MAIN_PROTOCOL_ID];
 }
 
 ESPNowProtocol *ESPNowComponent::get_protocol_component_(uint32_t protocol) {
   if (this->protocols_[protocol] == nullptr) {
-    ESP_LOGE(TAG, "Protocol for '%06lx' is not registered", protocol);
+    ESP_LOGE(TAG, "Protocol for '%06" PRIx32 "' is not registered", protocol);
     return nullptr;
   }
   return this->protocols_[protocol];

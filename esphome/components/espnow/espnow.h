@@ -113,7 +113,7 @@ struct ESPNowPacket {
   }
 
  protected:
-  static uint32_t protocol_(uint8_t *protocol) {
+  static uint32_t protocol_(const uint8_t *protocol) {
     return (*(protocol + 2) << 0) + (*(protocol + 1) << 8) + (*(protocol + 0) << 16);
   }
 };
@@ -276,10 +276,11 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
     }
 
     if (this->static_) {
-      this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size());
+      this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size(), command);
     } else {
       ByteBuffer data = this->data_func_(x...);
-      this->parent_->get_default_protocol()->send(mac, data.get_data().data(), (uint8_t) data.get_used_space());
+      this->parent_->get_default_protocol()->send(mac, data.get_data().data(), (uint8_t) data.get_used_space(),
+                                                  command);
     }
   }
 
