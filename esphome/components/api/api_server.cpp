@@ -71,7 +71,7 @@ void APIServer::setup() {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
       for (auto &c : this->clients_) {
         if (!c->remove_)
-          c->send_log_message(level, tag, message);
+          c->try_send_log_message(level, tag, message);
       }
     });
   }
