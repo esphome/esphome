@@ -13,18 +13,16 @@
 namespace esphome {
 namespace api {
 
-/*
-  This class holds a pointer to the event source, the event type, and a pointer to a lambda that will lazily
-  generate the event body.  The source and type allow dedup in the deferred queue and the lambda saves on
-  having to store the message body upfront.  The lambda should not need any closures due to the parameters
-  so it's only overhead is the pointer to the lambda itself.
-  That's three pointers, so 12 bytes.  The entry in the deferred event queue (a std::vector with no overhead)
-  is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still 12 bytes total per
-  entry.
-*/
 using send_message_t = bool(APIConnection *, void *);
 
-class DeferredUpdateEventSourceList;
+/*
+  This class holds a pointer to the source component that wants to publish a message, and a pointer to a function that
+  will lazily publish that message.  The two pointers allow dedup in the deferred queue if multiple publishes for the
+  same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a std::vector) is
+  the DeferredMessage instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per entry.  Even
+  100 backed up messages (you'd have to have at least 100 sensors publishing because of dedup) would take up only 0.8
+  kB.
+*/
 class DeferredMessageQueue {
   struct DeferredMessage {
     friend class DeferredMessageQueue;
@@ -51,9 +49,7 @@ class DeferredMessageQueue {
 
  public:
   DeferredMessageQueue(APIConnection *api_connection) : api_connection_(api_connection) {}
-
   void process_queue();
-
   void defer(void *source, send_message_t *send_message);
 };
 
