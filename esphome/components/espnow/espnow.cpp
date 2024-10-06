@@ -47,7 +47,7 @@ void ESPNowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Auto add new peers: %s.", this->auto_add_peer_ ? "Yes" : "No");
 
   ESP_LOGCONFIG(TAG, "  Use sent status: %s.", this->use_sent_check_ ? "Yes" : "No");
-  ESP_LOGCONFIG(TAG, "  Conversation timeout: %dms.", this->conformation_timeout_);
+  ESP_LOGCONFIG(TAG, "  Conversation timeout: %" PRIx32 "ms.", this->conformation_timeout_);
   ESP_LOGCONFIG(TAG, "  Send retries: %d.", this->retries_);
 }
 

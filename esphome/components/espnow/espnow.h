@@ -111,11 +111,6 @@ struct ESPNowPacket {
     valid &= (this->get_protocol() != 0);
     return valid;
   }
-
- protected:
-  static uint32_t protocol_(const uint8_t *protocol) {
-    return (*(protocol + 2) << 0) + (*(protocol + 1) << 8) + (*(protocol + 0) << 16);
-  }
 };
 
 class ESPNowComponent;
