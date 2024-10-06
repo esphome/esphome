@@ -55,14 +55,9 @@ for path in components_dir.iterdir():
         print(
             f"Cannot find component {name}. Make sure current path is pip installed ESPHome"
         )
-        # sys.exit(1)
+        sys.exit(1)
 
-    if name == "ballu_old":
-        codeowners[f"esphome/components/{name}/*"].extend(["@Midnighter32"])
-    elif comp is None:
-        codeowners[f"esphome/components/{name}/*"].extend(["@dwmw2"])
-    else:
-        codeowners[f"esphome/components/{name}/*"].extend(comp.codeowners)
+    codeowners[f"esphome/components/{name}/*"].extend(comp.codeowners)
 
     for platform_path in path.iterdir():
         platform_name = platform_path.stem
