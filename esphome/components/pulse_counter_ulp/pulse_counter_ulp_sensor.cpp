@@ -1,11 +1,10 @@
 #include "pulse_counter_ulp_sensor.h"
 #include "esphome/core/log.h"
 #include "esp32/ulp.h"
-// This is created by ESP-IDF and clang-tidy doesn't know it exists
-#include "ulp_main.h"  // NOLINT(clang-diagnostic-error)
 #include "soc/rtc_periph.h"
 #include "driver/rtc_io.h"
 #include <esp_sleep.h>
+#include <ulp_main.h>
 
 namespace esphome {
 namespace pulse_counter_ulp {
