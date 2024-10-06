@@ -55,10 +55,12 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
   this->pin = pin;
   this->pin->setup();
-  this->pcnt_unit = next_pcnt_unit;
+  this->pcnt_unit = (next_pcnt_unit - PCNT_UNIT_0) % PCNT_UNIT_MAX;
+  this->pcnt_channel = PCNT_CHANNEL_0 + (int)((next_pcnt_unit - PCNT_UNIT_0) / PCNT_UNIT_MAX);
   next_pcnt_unit = pcnt_unit_t(int(next_pcnt_unit) + 1);
 
   ESP_LOGCONFIG(TAG, "    PCNT Unit Number: %u", this->pcnt_unit);
+  ESP_LOGCONFIG(TAG, "    PCNT Channel Number: %u", this->pcnt_channel);
 
   pcnt_count_mode_t rising = PCNT_COUNT_DIS, falling = PCNT_COUNT_DIS;
   switch (this->rising_edge_mode) {
@@ -94,7 +96,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
       .counter_h_lim = 0,
       .counter_l_lim = 0,
       .unit = this->pcnt_unit,
-      .channel = PCNT_CHANNEL_0,
+      .channel = this->pcnt_channel,
   };
   esp_err_t error = pcnt_unit_config(&pcnt_config);
   if (error != ESP_OK) {
