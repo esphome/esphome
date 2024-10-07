@@ -12,7 +12,7 @@ light:
     num_leds: 60
     rmt_channel: 2
     rgb_order: RGB
-    bit0_high: 100us
-    bit0_low: 100us
-    bit1_high: 100us
-    bit1_low: 100us
+    bit0_high: 100µs
+    bit0_low: 100µs
+    bit1_high: 100µs
+    bit1_low: 100µs
