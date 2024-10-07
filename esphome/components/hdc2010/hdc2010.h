@@ -9,8 +9,9 @@ namespace hdc2010 {
 
 class HDC2010Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
+  void set_temperature_sensor(sensor::Sensor *temperature) { this->temperature_sensor_ = temperature; }
+
+  void set_humidity_sensor(sensor::Sensor *humidity) { this->humidity_sensor_ = humidity; }
 
   /// Setup the sensor and check for connection.
   void setup() override;
@@ -25,8 +26,8 @@ class HDC2010Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
 
  protected:
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
   uint16_t heater_temperature_{100};
   uint16_t heater_duration_{30};
 };
