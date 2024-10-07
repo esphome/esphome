@@ -1,10 +1,11 @@
 #include "pulse_counter_ulp_sensor.h"
-#include "esphome/core/log.h"
-#include "esp32/ulp.h"
-#include "soc/rtc_periph.h"
 #include "driver/rtc_io.h"
+#include "esp32/ulp.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "soc/rtc_periph.h"
+#include "ulp_main.h"
 #include <esp_sleep.h>
-#include <ulp_main.h>
 
 namespace esphome {
 namespace pulse_counter_ulp {
@@ -71,7 +72,7 @@ std::unique_ptr<UlpProgram> UlpProgram::start(const Config &config) {
     return nullptr;
   }
 
-  return std::unique_ptr<UlpProgram>(new UlpProgram());
+  return make_unique<UlpProgram>();
 }
 
 UlpProgram::State UlpProgram::pop_state() {
@@ -107,7 +108,7 @@ void PulseCounterUlpSensor::setup() {
     this->storage_ = UlpProgram::start(this->config_);
   } else {
     ESP_LOGD(TAG, "Woke up from sleep, skipping set-up of ULP program");
-    this->storage_ = std::unique_ptr<UlpProgram>(new UlpProgram);
+    this->storage_ = make_unique<UlpProgram>();
     UlpProgram::State state = this->storage_->peek_state();
     this->last_time_ = clock::now() - state.run_count_ * state.mean_exec_time_;
   }
