@@ -157,7 +157,7 @@ class OnlineImage : public PollingComponent,
 template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
  public:
   OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(const char *, url)
+  TEMPLATABLE_VALUE(std::string, url)
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->update();
