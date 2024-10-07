@@ -65,7 +65,8 @@ void EthernetComponent::setup() {
       .intr_flags = 0,
   };
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6)
   auto host = SPI2_HOST;
 #else
   auto host = SPI3_HOST;
@@ -119,6 +120,8 @@ void EthernetComponent::setup() {
   phy_config.reset_gpio_num = this->reset_pin_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+#elif defined(USE_ETHERNET_OPENETH)
+  esp_eth_mac_t *mac = esp_eth_mac_new_openeth(&mac_config);
 #else
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
@@ -142,6 +145,13 @@ void EthernetComponent::setup() {
 #endif
 
   switch (this->type_) {
+#ifdef USE_ETHERNET_OPENETH
+    case ETHERNET_TYPE_OPENETH: {
+      phy_config.autonego_timeout_ms = 1000;
+      this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
+      break;
+    }
+#endif
 #if CONFIG_ETH_USE_ESP32_EMAC
     case ETHERNET_TYPE_LAN8720: {
       this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
@@ -301,6 +311,10 @@ void EthernetComponent::dump_config() {
       eth_type = "W5500";
       break;
 
+    case ETHERNET_TYPE_OPENETH:
+      eth_type = "OPENETH";
+      break;
+
     default:
       eth_type = "Unknown";
       break;
@@ -393,7 +407,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
 #else
   global_eth_component->connected_ = true;
@@ -406,8 +420,12 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   global_eth_component->ipv6_count_ += 1;
+#if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+#else
+  global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
+#endif
 }
 #endif /* USE_NETWORK_IPV6 */
 
@@ -467,13 +485,13 @@ void EthernetComponent::start_connect_() {
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
-#if USE_NETWORK_IPV6
-    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-    if (err != ESP_OK) {
-      ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
-    }
-#endif /* USE_NETWORK_IPV6 */
   }
+#if USE_NETWORK_IPV6
+  err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  if (err != ESP_OK) {
+    ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
+  }
+#endif /* USE_NETWORK_IPV6 */
 
   this->connect_begin_ = millis();
   this->status_set_warning();
@@ -631,7 +649,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 
   if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
-    ESP_LOGD(TAG, "Select PHY Register Page 0x%02" PRIX32, 0x0);
+    ESP_LOGD(TAG, "Select PHY Register Page 0x00");
     err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, 0x0);
     ESPHL_ERROR_CHECK(err, "Select PHY Register Page 0 failed");
   }

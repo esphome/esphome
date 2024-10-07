@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "esphome/core/defines.h"
-
+#ifdef USE_API
 #ifdef USE_API_NOISE
 #include "noise/protocol.h"
 #endif
@@ -190,3 +190,4 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
 
 }  // namespace api
 }  // namespace esphome
+#endif

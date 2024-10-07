@@ -1,4 +1,6 @@
 #pragma once
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include <cstdint>
 #include <string>
 #include <cstdio>
@@ -140,3 +142,4 @@ using IPAddresses = std::array<IPAddress, 5>;
 
 }  // namespace network
 }  // namespace esphome
+#endif

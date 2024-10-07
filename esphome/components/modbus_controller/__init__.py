@@ -1,17 +1,30 @@
 import binascii
+
+from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import modbus
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_LAMBDA, CONF_OFFSET
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_NAME,
+    CONF_OFFSET,
+    CONF_TRIGGER_ID,
+)
 from esphome.cpp_helpers import logging
+
 from .const import (
+    CONF_ALLOW_DUPLICATE_COMMANDS,
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
-    CONF_OFFLINE_SKIP_UPDATES,
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
+    CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_OFFLINE_SKIP_UPDATES,
+    CONF_ON_COMMAND_SENT,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
@@ -97,6 +110,10 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
+ModbusCommandSentTrigger = modbus_controller_ns.class_(
+    "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 ModbusServerRegisterSchema = cv.Schema(
@@ -113,19 +130,27 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusController),
+            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS, default=False): cv.boolean,
             cv.Optional(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
+            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        ModbusCommandSentTrigger
+                    ),
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
-
 
 ModbusItemBaseSchema = cv.Schema(
     {
@@ -234,7 +259,9 @@ async def add_modbus_base_properties(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
     cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
+    cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     if CONF_SERVER_REGISTERS in config:
         for server_register in config[CONF_SERVER_REGISTERS]:
@@ -254,6 +281,11 @@ async def to_code(config):
                 )
             )
     await register_modbus_device(var, config)
+    for conf in config.get(CONF_ON_COMMAND_SENT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(int, "function_code"), (int, "address")], conf
+        )
 
 
 async def register_modbus_device(var, config):
