@@ -40,8 +40,7 @@ class ModemComponent : public Component {
   float get_setup_priority() const override;
   bool can_proceed() override;
   bool is_connected();
-
-  void set_power_pin(int power_pin);
+  void set_power_pin(std::unique_ptr<GPIOPin>  power_pin);
   void set_type(ModemType type);
   void set_reset_pin(int reset_pin);
   void set_apn(const std::string &apn);
@@ -69,8 +68,8 @@ class ModemComponent : public Component {
   std::shared_ptr<esp_modem::DTE> dte{nullptr};
   std::unique_ptr<esp_modem::DCE> dce{nullptr};
   ModemType type_{MODEM_TYPE_UNKNOWN};
-  int power_pin_{-1};
   int reset_pin_{-1};
+  std::unique_ptr<GPIOPin> power_pin_{nullptr};
   int tx_pin_{-1};
   int rx_pin_{-1};
   std::string apn_{""};

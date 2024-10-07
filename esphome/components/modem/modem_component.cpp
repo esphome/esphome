@@ -252,7 +252,7 @@ void ModemComponent::start_connect_() {
 
 bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
 
-void ModemComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
+void ModemComponent::set_power_pin(std::unique_ptr<GPIOPin> power_pin) { this->power_pin_ = &power_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
 void ModemComponent::set_reset_pin(int reset_pin) { this->reset_pin_ = reset_pin; }
 void ModemComponent::set_apn(const std::string &apn) { this->apn_ = apn; }
