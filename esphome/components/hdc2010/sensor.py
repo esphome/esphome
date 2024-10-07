@@ -54,4 +54,3 @@ async def to_code(config):
     if humidity_config := config.get(CONF_HUMIDITY):
         sens = await sensor.new_sensor(humidity_config)
         cg.add(var.set_humidity_sensor(sens))
-
