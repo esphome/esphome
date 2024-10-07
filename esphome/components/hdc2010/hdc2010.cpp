@@ -78,26 +78,15 @@ void HDC2010Component::update() {
 
   if (this->temperature_sensor_ != nullptr) {
     float temp = this->read_temp();
-    this->temperature_->publish_state(temp);
+    this->temperature_sensor_->publish_state(temp);
     ESP_LOGD(TAG, "Got temperature=%.1f°C", temp);
   }
 
   if (this->humidity_sensor_ != nullptr) {
     float humidity = this->read_humidity();
-    this->humidity_->publish_state(humidity);
+    this->humidity_sensor_->publish_state(humidity);
     ESP_LOGD(TAG, "Got humidity=%.1f%%", humidity);
   }
-}
-
-float HDC2010Component::read_temp() {
-  uint8_t byte[2];
-  uint16_t temp;
-
-  this->read_register(HDC2010_CMD_TEMPERATURE_LOW, &byte[0], 1);
-  this->read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
-
-  temp = (unsigned int) byte[1] << 8 | byte[0];
-  return (float) temp * 0.0025177f - 40.0f;
 }
 
 float HDC2010Component::read_temp() {
@@ -122,6 +111,6 @@ float HDC2010Component::read_humidity() {
   return (float) humidity * 0.001525879f;
 }
 
-float HDC2010Component::get_setup_priority() const { return this->setup_priority::DATA; }
+float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
 }  // namespace hdc2010
 }  // namespace esphome
