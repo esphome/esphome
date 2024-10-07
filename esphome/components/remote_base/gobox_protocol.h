@@ -7,31 +7,32 @@ namespace esphome {
 namespace remote_base {
 
 struct GoboxData {
-	int code;
-	bool operator==(const GoboxData &rhs) const {
-		return code == rhs.code;
-	}
+  int code;
+  bool operator==(const GoboxData &rhs) const {
+    return code == rhs.code;
+  }
 };
 
 enum {
-	GOBOX_MENU = 0xaa55,
-	GOBOX_RETURN = 0x22dd,
-	GOBOX_UP = 0x0af5,
-	GOBOX_LEFT = 0x8a75,
-	GOBOX_RIGHT = 0x48b7,
-	GOBOX_DOWN = 0xa25d,
-	GOBOX_OK = 0xc837,
-	GOBOX_TOGGLE = 0xb847,
-	GOBOX_PROFILE = 0xfa05,
-	GOBOX_FASTER = 0xf00f,
-	GOBOX_SLOWER = 0xd02f,
-	GOBOX_LOUDER = 0xb04f,
-	GOBOX_SOFTER = 0xf807,
+  GOBOX_MENU = 0xaa55,
+  GOBOX_RETURN = 0x22dd,
+  GOBOX_UP = 0x0af5,
+  GOBOX_LEFT = 0x8a75,
+  GOBOX_RIGHT = 0x48b7,
+  GOBOX_DOWN = 0xa25d,
+  GOBOX_OK = 0xc837,
+  GOBOX_TOGGLE = 0xb847,
+  GOBOX_PROFILE = 0xfa05,
+  GOBOX_FASTER = 0xf00f,
+  GOBOX_SLOWER = 0xd02f,
+  GOBOX_LOUDER = 0xb04f,
+  GOBOX_SOFTER = 0xf807,
 };
 
 class GoboxProtocol : public RemoteProtocol<GoboxData> {
-private:
+ private:
   void dump_timings(const RawTimings &timings) const;
+
  public:
   void encode(RemoteTransmitData *dst, const GoboxData &data) override;
   optional<GoboxData> decode(RemoteReceiveData src) override;
