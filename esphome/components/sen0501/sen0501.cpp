@@ -1,7 +1,6 @@
 #include "sen0501.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace sen0501 {
@@ -40,14 +39,14 @@ void Sen0501Component::setup() {
   } else {
     uint8_t buf[2];
     this->read_bytes(REG_PID, buf, 2);
-    uint16_t product_id = this->encode_uint16(buf[0], buf[1]);
+    uint16_t product_id = encode_uint16(buf[0], buf[1]);
     if ((product_id != DEVICE_PID_GRAVITY) && (product_id != DEVICE_PID_BREAKOUT)) {
       this->error_code_ = WRONG_DEVICE_ID;
       this->mark_failed();
       return;
     }
     this->read_bytes(REG_VID, buf, 2);
-    uint16_t vendor_id = this->encode_uint16(buf[0], buf[1]);
+    uint16_t vendor_id = encode_uint16(buf[0], buf[1]);
     if (vendor_id != DEVICE_VID) {
       this->error_code_ = WRONG_VENDOR_ID;
       this->mark_failed();
@@ -100,7 +99,7 @@ void Sen0501Component::read_temperature_() {
   uint8_t buffer[2];
   float temp;
   this->read_bytes(REG_TEMP, buffer, 2);
-  uint16_t data = this->encode_uint16(buffer[0], buffer[1]);
+  uint16_t data = encode_uint16(buffer[0], buffer[1]);
   temp = 175.0f * float(data) / 65536.0f - 45.0f;
   this->temperature_->publish_state(temp);
 }
@@ -111,7 +110,7 @@ void Sen0501Component::read_humidity_() {
   uint8_t buffer[2];
   float humidity;
   this->read_bytes(REG_HUMIDITY, buffer, 2);
-  uint16_t data = this->encode_uint16(buffer[0], buffer[1]);
+  uint16_t data = encode_uint16(buffer[0], buffer[1]);
   humidity = (float) data * 100 / 65536;
   this->humidity_->publish_state(humidity);
 }
@@ -123,21 +122,21 @@ void Sen0501Component::read_uv_intensity_() {
   uint16_t version = 0;
   float ultra_violet;
   this->read_bytes(REG_VERSION, buffer, 2);
-  version = this->encode_uint16(buffer[0], buffer[1]);
+  version = encode_uint16(buffer[0], buffer[1]);
   if (version == 0x1001) {
     this->read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
-    uint16_t uv_level = this->encode_uint16(buffer[0], buffer[1]);
+    uint16_t uv_level = encode_uint16(buffer[0], buffer[1]);
     ultra_violet = (float) uv_level / 1800.0;
   } else {
     this->read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
-    uint16_t uv_level = this->encode_uint16(buffer[0], buffer[1]);
+    uint16_t uv_level = encode_uint16(buffer[0], buffer[1]);
     float output_voltage = 3.0 * uv_level / 1024;
     if (output_voltage <= 0.99) {
       output_voltage = 0.99;
     } else if (output_voltage >= 2.99) {
       output_voltage = 2.99;
     }
-    ultra_violet = this->remap(output_voltage, 0.99f, 2.9f, 0.0f, 15.0f);
+    ultra_violet = remap(output_voltage, 0.99f, 2.9f, 0.0f, 15.0f);
   }
   this->uv_intensity_->publish_state(ultra_violet);
 }
@@ -147,7 +146,7 @@ void Sen0501Component::read_luminous_intensity_() {
     return;
   uint8_t buffer[2];
   this->read_bytes(REG_LUMINOUS_INTENSITY, buffer, 2);
-  uint16_t data = this->encode_uint16(buffer[0], buffer[1]);
+  uint16_t data = encode_uint16(buffer[0], buffer[1]);
   float luminous = data;
   luminous = luminous * (1.0023f + luminous * (8.1488e-5f + luminous * (-9.3924e-9f + luminous * 6.0135e-13f)));
   this->luminous_intensity_->publish_state(luminous);
@@ -158,7 +157,7 @@ void Sen0501Component::read_atmospheric_pressure_() {
     return;
   uint8_t buffer[2];
   this->read_bytes(REG_ATMOSPHERIC_PRESSURE, buffer, 2);
-  uint16_t atmosphere = this->encode_uint16(buffer[0], buffer[1]);
+  uint16_t atmosphere = encode_uint16(buffer[0], buffer[1]);
   this->atmospheric_pressure_->publish_state(atmosphere);
   if (this->elevation_ == nullptr)
     return;

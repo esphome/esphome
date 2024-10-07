@@ -27,7 +27,6 @@ class Sen0501Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-
   void read_temperature_();
   void read_humidity_();
   void read_uv_intensity_();
