@@ -1,7 +1,7 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-#include "esphome/core/component.h"
+#if defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/defines.h"
+#include "esphome/core/component.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -11,6 +11,7 @@ namespace usb_device {
 class UsbDevice : public PollingComponent {
  public:
   void update() override;
+  void setup() override;
   void dump_config() override;
 #ifdef USE_BINARY_SENSOR
   void set_configured_binary_sensor(binary_sensor::BinarySensor *sensor);
