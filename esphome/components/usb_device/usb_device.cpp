@@ -24,7 +24,7 @@ void status_callback(enum usb_dc_status_code cb_status, uint8_t *param) {
       usb_configured = false;
       break;
     case USB_DC_CONFIGURED:
-      usb_configured = false;
+      usb_configured = true;
       break;
     default:
       break;
