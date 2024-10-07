@@ -13,7 +13,7 @@ constexpr uint64_t HEADER = 0b011001001100010uL;  // 15 bits
 constexpr uint64_t HEADER_SIZE = 15;
 constexpr uint64_t CODE_SIZE = 17;
 
-void GoboxProtocol::dump_timings(const RawTimings &timings) const {
+void GoboxProtocol::dump_timings_(const RawTimings &timings) const {
   ESP_LOGD(TAG, "Gobox: size=%u", timings.size());
   for (auto it = timings.begin(); it != timings.end(); ++it) {
     ESP_LOGD(TAG, "Gobox: timing=%d", *it);
@@ -35,7 +35,7 @@ void GoboxProtocol::encode(RemoteTransmitData *dst, const GoboxData &data) {
   }
   dst->item(BIT_MARK_US, 2000);
 
-  dump_timings(dst->get_data());
+  dump_timings_(dst->get_data());
 }
 
 optional<GoboxData> GoboxProtocol::decode(RemoteReceiveData src) {
@@ -74,7 +74,7 @@ optional<GoboxData> GoboxProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
-  dump_timings(src.get_raw_data());
+  dump_timings_(src.get_raw_data());
 
   GoboxData out;
   out.code = code;

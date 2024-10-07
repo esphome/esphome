@@ -29,7 +29,7 @@ enum {
 
 class GoboxProtocol : public RemoteProtocol<GoboxData> {
  private:
-  void dump_timings(const RawTimings &timings) const;
+  void dump_timings_(const RawTimings &timings) const;
 
  public:
   void encode(RemoteTransmitData *dst, const GoboxData &data) override;
