@@ -20,7 +20,7 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(CST816Touchscreen),
         cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_SKIP_PROBE, default=False): bool,
+        cv.Optional(CONF_SKIP_PROBE, default=False): cv.boolean,
     }
 ).extend(i2c.i2c_device_schema(0x15))
 
