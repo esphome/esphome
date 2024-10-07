@@ -309,6 +309,6 @@ async def set_indicator_values(meter, indicator, config):
             lv.meter_set_indicator_start_value(meter, indicator, start_value)
     if end_value is not None:
         lv.meter_set_indicator_end_value(meter, indicator, end_value)
-    if opa := config.get(CONF_OPA):
+    if (opa := config.get(CONF_OPA)) is not None:
         lv_assign(indicator.opa, await opacity.process(opa))
         lv_obj.invalidate(meter)

@@ -708,6 +708,7 @@ lvgl:
                                 width: 4
                                 color: 0xA0A0A0
                                 r_mod: -20
+                                opa: 0%
 
 font:
   - file: "gfonts://Roboto"
