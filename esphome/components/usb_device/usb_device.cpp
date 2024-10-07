@@ -16,7 +16,7 @@ static const char *const TAG = "usb_device";
 #ifndef USE_ARDUINO
 bool usb_configured = false;
 void status_callback(enum usb_dc_status_code cb_status, uint8_t *param) {
-  switch(cb_status) {
+  switch (cb_status) {
     case USB_DC_ERROR:
     case USB_DC_RESET:
     case USB_DC_DISCONNECTED:
