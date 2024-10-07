@@ -1,6 +1,7 @@
 #include "sen0501.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace sen0501 {
@@ -161,7 +162,7 @@ void Sen0501Component::read_atmospheric_pressure_() {
   this->atmospheric_pressure_->publish_state(atmosphere);
   if (this->elevation_ == nullptr)
     return;
-  float elevation = 44330 * (1.0 - this->pow(atmosphere / 1015.0f, 0.1903));
+  float elevation = 44330 * (1.0 - pow(atmosphere / 1015.0f, 0.1903));
   this->elevation_->publish_state(elevation);
 }
 
