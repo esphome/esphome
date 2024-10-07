@@ -99,7 +99,7 @@ void Sen0501Component::read_temperature_() {
   uint8_t buffer[2];
   uint16_t data;
   float temp;
-  read_bytes(REG_TEMP, buffer, 2);
+  this->read_bytes(REG_TEMP, buffer, 2);
   data = buffer[0] << 8 | buffer[1];
   temp = 175.0f * float(data) / 65536.0f - 45.0f;
   this->temperature_->publish_state(temp);
@@ -111,7 +111,7 @@ void Sen0501Component::read_humidity_() {
   uint8_t buffer[2];
   uint16_t data;
   float humidity;
-  read_bytes(REG_HUMIDITY, buffer, 2);
+  this->read_bytes(REG_HUMIDITY, buffer, 2);
   data = buffer[0] << 8 | buffer[1];
   humidity = (float) data * 100 / 65536;
   this->humidity_->publish_state(humidity);
@@ -124,14 +124,14 @@ void Sen0501Component::read_uv_intensity_() {
   uint16_t uv_level;
   uint16_t version = 0;
   float ultra_violet;
-  read_bytes(REG_VERSION, buffer, 2);
+  this->read_bytes(REG_VERSION, buffer, 2);
   version = buffer[0] << 8 | buffer[1];
   if (version == 0x1001) {
-    read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
+    this->read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
     uv_level = buffer[0] << 8 | buffer[1];
     ultra_violet = (float) uv_level / 1800.0;
   } else {
-    read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
+    this->read_bytes(REG_ULTRAVIOLET_INTENSITY, buffer, 2);
     uv_level = buffer[0] << 8 | buffer[1];
     float output_voltage = 3.0 * uv_level / 1024;
     if (output_voltage <= 0.99) {
@@ -139,7 +139,7 @@ void Sen0501Component::read_uv_intensity_() {
     } else if (output_voltage >= 2.99) {
       output_voltage = 2.99;
     }
-    ultra_violet = remap(output_voltage, 0.99f, 2.9f, 0.0f, 15.0f);
+    ultra_violet = this->remap(output_voltage, 0.99f, 2.9f, 0.0f, 15.0f);
   }
   this->uv_intensity_->publish_state(ultra_violet);
 }
@@ -149,7 +149,7 @@ void Sen0501Component::read_luminous_intensity_() {
     return;
   uint8_t buffer[2];
   uint16_t data;
-  read_bytes(REG_LUMINOUS_INTENSITY, buffer, 2);
+  this->read_bytes(REG_LUMINOUS_INTENSITY, buffer, 2);
   data = buffer[0] << 8 | buffer[1];
   float luminous = data;
   luminous = luminous * (1.0023f + luminous * (8.1488e-5f + luminous * (-9.3924e-9f + luminous * 6.0135e-13f)));
@@ -161,12 +161,12 @@ void Sen0501Component::read_atmospheric_pressure_() {
     return;
   uint8_t buffer[2];
   uint16_t atmosphere;
-  read_bytes(REG_ATMOSPHERIC_PRESSURE, buffer, 2);
+  this->read_bytes(REG_ATMOSPHERIC_PRESSURE, buffer, 2);
   atmosphere = buffer[0] << 8 | buffer[1];
   this->atmospheric_pressure_->publish_state(atmosphere);
   if (this->elevation_ == nullptr)
     return;
-  float elevation = 44330 * (1.0 - pow(atmosphere / 1015.0f, 0.1903));
+  float elevation = 44330 * (1.0 - this->pow(atmosphere / 1015.0f, 0.1903));
   this->elevation_->publish_state(elevation);
 }
 
