@@ -93,10 +93,6 @@ float Sen0501Component::get_setup_priority() const { return setup_priority::DATA
 
 // PROTECTED
 
-float Sen0501Component::map_float_(float x, float in_min, float in_max, float out_min, float out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
 void Sen0501Component::read_temperature_() {
   uint8_t buffer[2];
   uint16_t data;
@@ -137,7 +133,7 @@ void Sen0501Component::read_uv_intensity_() {
     } else if (output_voltage >= 2.99) {
       output_voltage = 2.99;
     }
-    ultra_violet = map_float_(output_voltage, 0.99, 2.9, 0.0, 15.0);
+    ultra_violet = remap(output_voltage, 0.99f, 2.9f, 0.0f, 15.0f);
   }
   this->uv_intensity_->publish_state(ultra_violet);
 }
