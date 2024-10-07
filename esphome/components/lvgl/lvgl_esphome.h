@@ -102,10 +102,6 @@ class FontEngine {
   lv_font_t lv_font_{};
 };
 #endif  // USE_LVGL_FONT
-#ifdef USE_LVGL_IMAGE
-lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc = nullptr);
-#endif  // USE_LVGL_IMAGE
-
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG

@@ -50,6 +50,7 @@
 #define USE_LVGL_KEYBOARD
 #define USE_LVGL_ROTARY_ENCODER
 #define USE_LVGL_TOUCHSCREEN
+#define USE_MD5
 #define USE_MDNS
 #define USE_MEDIA_PLAYER
 #define USE_MQTT

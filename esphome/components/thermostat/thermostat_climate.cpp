@@ -502,8 +502,9 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
     }
     this->action = action;
     this->prev_action_trigger_ = trig;
-    assert(trig != nullptr);
-    trig->trigger();
+    if (trig != nullptr) {
+      trig->trigger();
+    }
     // if enabled, call the fan_only action with cooling/heating actions
     if (trig_fan != nullptr) {
       ESP_LOGVV(TAG, "Calling FAN_ONLY action with HEATING/COOLING action");
@@ -564,7 +565,6 @@ void ThermostatClimate::trigger_supplemental_action_() {
   }
 
   if (trig != nullptr) {
-    assert(trig != nullptr);
     trig->trigger();
   }
 }
@@ -634,8 +634,9 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bo
       this->prev_fan_mode_trigger_ = nullptr;
     }
     this->start_timer_(thermostat::TIMER_FAN_MODE);
-    assert(trig != nullptr);
-    trig->trigger();
+    if (trig != nullptr) {
+      trig->trigger();
+    }
     this->prev_fan_mode_ = fan_mode;
     this->prev_fan_mode_trigger_ = trig;
   }
@@ -678,8 +679,9 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_
       mode = climate::CLIMATE_MODE_HEAT_COOL;
       // trig = this->auto_mode_trigger_;
   }
-  assert(trig != nullptr);
-  trig->trigger();
+  if (trig != nullptr) {
+    trig->trigger();
+  }
   this->mode = mode;
   this->prev_mode_ = mode;
   this->prev_mode_trigger_ = trig;
@@ -718,8 +720,9 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
       swing_mode = climate::CLIMATE_SWING_OFF;
       // trig = this->swing_mode_off_trigger_;
   }
-  assert(trig != nullptr);
-  trig->trigger();
+  if (trig != nullptr) {
+    trig->trigger();
+  }
   this->swing_mode = swing_mode;
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
@@ -867,8 +870,9 @@ void ThermostatClimate::check_temperature_change_trigger_() {
   }
   // trigger the action
   Trigger<> *trig = this->temperature_change_trigger_;
-  assert(trig != nullptr);
-  trig->trigger();
+  if (trig != nullptr) {
+    trig->trigger();
+  }
 }
 
 bool ThermostatClimate::cooling_required_() {
@@ -998,9 +1002,10 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
         this->preset.value() != preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
-      assert(trig != nullptr);
       this->preset = preset;
-      trig->trigger();
+      if (trig != nullptr) {
+        trig->trigger();
+      }
 
       this->refresh();
       ESP_LOGI(TAG, "Preset %s applied", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
@@ -1023,9 +1028,10 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
         this->custom_preset.value() != custom_preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
-      assert(trig != nullptr);
       this->custom_preset = custom_preset;
-      trig->trigger();
+      if (trig != nullptr) {
+        trig->trigger();
+      }
 
       this->refresh();
       ESP_LOGI(TAG, "Custom preset %s applied", custom_preset.c_str());
