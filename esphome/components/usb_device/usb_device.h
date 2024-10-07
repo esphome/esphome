@@ -1,5 +1,5 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #ifdef USE_BINARY_SENSOR

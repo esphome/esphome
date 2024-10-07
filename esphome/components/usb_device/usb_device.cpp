@@ -1,13 +1,11 @@
-#if defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2)
 #include "usb_device.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ARDUINO
-#if ARDUINO_USB_MODE
-#include "HWCDC.h"
-#endif
+#include "USB.h"
 #else
-#include "esp32s3/rom/usb/usb_dc.h"
+#include "esp32s2/rom/usb/usb_dc.h"
 #endif
 
 namespace esphome {
@@ -15,13 +13,17 @@ namespace usb_device {
 
 static const char *const TAG = "usb_device";
 
+#ifndef USE_ARDUINO
 usb_dc_status_code g_cb_status;
 void status_callback(enum usb_dc_status_code cb_status, uint8_t *param) {
   g_cb_status = cb_status;
 }
+#endif
 
 void UsbDevice::update() {
+#ifndef USE_ARDUINO
   ESP_LOGD(TAG, "update %d", g_cb_status);
+#endif
 #ifdef USE_BINARY_SENSOR
   if (configured_ != nullptr) {
     configured_->publish_state(get_configured_());
@@ -42,25 +44,9 @@ void UsbDevice::set_configured_binary_sensor(binary_sensor::BinarySensor *sensor
 #endif
 
 bool UsbDevice::get_configured_() {
-// ESP32:
-// - Arduino framework does not support USB_SERIAL_JTAG.
-// ESP32-S3
-// - Arduino CDC logger is based on HWCDC.
-
 #ifdef USE_ARDUINO
-// based on defines in HWCDC.cpp
-#if ARDUINO_USB_MODE
-#if ARDUINO_USB_CDC_ON_BOOT  // Serial used for USB CDC
-  return Serial;
+  return USB;
 #else
-  return USBSerial;
-#endif
-#else
-// this is subject of change by other components so make sure that we won't fail to report silently
-#error Not implemented
-#endif
-#else
-
 #endif
   return false;
 }
