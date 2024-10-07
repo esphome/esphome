@@ -1,3 +1,16 @@
+substitutions:
+  light_recessed: "\U000F179B"
+  wall_sconce_round: "\U000F0748"
+  gas_burner: "\U000F1A1B"
+  home_icon: "\U000F02DC"
+  menu_left: "\U000F0A02"
+  menu_right: "\U000F035F"
+  close: "\U000F0156"
+  delete: "\U000F01B4"
+  backspace: "\U000F006E"
+  check: "\U000F012C"
+  arrow_down: "\U000F004B"
+
 lvgl:
   log_level: TRACE
   bg_color: light_blue
@@ -67,6 +80,9 @@ lvgl:
       border_width: 2
       pad_all: 4
       align: center
+    - id: image_recolor
+      image_recolor: 0x10ca1e
+      image_recolor_opa: cover
 
   touchscreens:
     - touchscreen_id: tft_touch
@@ -596,6 +612,42 @@ lvgl:
               - name: Cat
                 id: tabview_tab_2
                 widgets:
+                  - dropdown:
+                      indicator:
+                        text_font: helvetica20
+                      id: lv_dropdown
+                      options:
+                        - First
+                        - Second
+                        - Third
+                        - 4th
+                        - 5th
+                        - 6th
+                        - 7th
+                        - 8th
+                        - 9th
+                      selected_index: 2
+                      dir: top
+                      symbol: ${arrow_down}
+                      dropdown_list:
+                        max_height: 100px
+                        bg_color: 0x000080
+                        text_color: 0xFF00
+                        selected:
+                          bg_color: 0xFFFF00
+                          checked:
+                            bg_color: 0x00
+                            text_color: 0xFF0000
+                        scrollbar:
+                          bg_color: 0xFF
+                      on_value:
+                        logger.log:
+                          format: "Dropdown changed = %d"
+                          args: [x]
+                      on_cancel:
+                        logger.log:
+                          format: "Dropdown closed = %d"
+                          args: [x]
                   - image:
                       src: cat_image
                       on_click:
@@ -605,6 +657,59 @@ lvgl:
                               id: tabview_id
                               index: 0
                               animated: true
+                  - meter:
+                      height: 200px
+                      width: 200px
+                      indicator:
+                        bg_color: 0xFF
+                        radius: 0
+                      bg_opa: TRANSP
+                      text_color: 0xFFFFFF
+                      scales:
+                        - ticks:
+                            width: 1
+                            count: 61
+                            length: 20
+                            color: 0xFFFFFF
+                          range_from: 0
+                          range_to: 60
+                          angle_range: 360
+                          rotation: 270
+                          indicators:
+                            - line:
+                                opa: 50%
+                                id: minute_hand
+                                color: 0xFF0000
+                                r_mod: -1
+                                width: 3
+                        -
+                          angle_range: 330
+                          rotation: 300
+                          range_from: 1
+                          range_to: 12
+                          ticks:
+                            width: 1
+                            count: 12
+                            length: 1
+                            major:
+                              stride: 1
+                              width: 4
+                              length: 8
+                              color: 0xC0C0C0
+                              label_gap: 6
+                        - angle_range: 360
+                          rotation: 270
+                          range_from: 0
+                          range_to: 720
+                          indicators:
+                            - line:
+                                id: hour_hand
+                                value: 180
+                                width: 4
+                                color: 0xA0A0A0
+                                r_mod: -20
+                                opa: 0%
+
 font:
   - file: "gfonts://Roboto"
     id: space16
