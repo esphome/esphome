@@ -29,12 +29,14 @@ class SN74HC595Component : public Component {
   }
   void set_sr_count(uint8_t count) {
     this->sr_count_ = count;
-    this->output_bytes_.resize(count);
+    this->value_bytes_.resize(count);
+    this->inverted_bytes_.resize(count);
   }
 
  protected:
   friend class SN74HC595GPIOPin;
   void digital_write_(uint16_t pin, bool value);
+  void set_inverted_(uint16_t pin, bool inverted);
   virtual void write_gpio();
 
   void pre_setup_();
@@ -44,7 +46,8 @@ class SN74HC595Component : public Component {
   GPIOPin *oe_pin_;
   uint8_t sr_count_;
   bool have_oe_pin_{false};
-  std::vector<uint8_t> output_bytes_;
+  std::vector<uint8_t> value_bytes_;
+  std::vector<uint8_t> inverted_bytes_;
 };
 
 /// Helper class to expose a SC74HC595 pin as an internal output GPIO pin.
@@ -57,11 +60,10 @@ class SN74HC595GPIOPin : public GPIOPin, public Parented<SN74HC595Component> {
   std::string dump_summary() const override;
 
   void set_pin(uint16_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
+  void set_inverted(bool inverted);
 
  protected:
   uint16_t pin_;
-  bool inverted_;
 };
 
 class SN74HC595GPIOComponent : public SN74HC595Component {
