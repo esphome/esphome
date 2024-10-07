@@ -170,7 +170,6 @@ template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
 template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
  public:
   OnlineImageReleaseAction(OnlineImage *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(const char *, url)
   void play(Ts... x) override { this->parent_->release(); }
 
  protected:
