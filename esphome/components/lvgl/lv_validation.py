@@ -31,7 +31,6 @@ from .defines import (
     literal,
 )
 from .helpers import esphome_fonts_used, lv_fonts_used, requires_component
-from .lvcode import lv_expr
 from .types import lv_font_t, lv_gradient_t, lv_img_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
@@ -243,6 +242,8 @@ def pixels_or_percent_validator(value):
     """A length in one axis - either a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
         return ["pixels", "..%"]
+    if isinstance(value, str) and value.lower().endswith("px"):
+        value = cv.int_(value[:-2])
     value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
         return value
@@ -330,7 +331,7 @@ def image_validator(value):
 lv_image = LValidator(
     image_validator,
     lv_img_t,
-    retmapper=lambda x: lv_expr.img_from(MockObj(x)),
+    retmapper=lambda x: MockObj(x, "->").get_lv_img_dsc(),
     requires="image",
 )
 lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)
