@@ -147,6 +147,7 @@ void MQTTClientComponent::dump_config() {
                 this->ip_.str().c_str());
   ESP_LOGCONFIG(TAG, "  Username: " LOG_SECRET("'%s'"), this->credentials_.username.c_str());
   ESP_LOGCONFIG(TAG, "  Client ID: " LOG_SECRET("'%s'"), this->credentials_.client_id.c_str());
+  ESP_LOGCONFIG(TAG, "  Clean Session: %s", YESNO(this->credentials_.clean_session));
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -246,6 +247,7 @@ void MQTTClientComponent::start_connect_() {
   this->mqtt_backend_.disconnect();
 
   this->mqtt_backend_.set_client_id(this->credentials_.client_id.c_str());
+  this->mqtt_backend_.set_clean_session(this->credentials_.clean_session);
   const char *username = nullptr;
   if (!this->credentials_.username.empty())
     username = this->credentials_.username.c_str();

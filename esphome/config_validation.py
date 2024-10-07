@@ -750,6 +750,7 @@ def time_period_str_unit(value):
         "ns": "nanoseconds",
         "nanoseconds": "nanoseconds",
         "us": "microseconds",
+        "µs": "microseconds",
         "microseconds": "microseconds",
         "ms": "milliseconds",
         "milliseconds": "milliseconds",
@@ -2045,6 +2046,7 @@ def require_framework_version(
     esp32_arduino=None,
     esp8266_arduino=None,
     rp2040_arduino=None,
+    bk72xx_libretiny=None,
     host=None,
     max_version=False,
     extra_message=None,
@@ -2059,6 +2061,13 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = esp_idf
+        elif CORE.is_bk72xx and framework == "arduino":
+            if bk72xx_libretiny is None:
+                msg = "This feature is incompatible with BK72XX"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = bk72xx_libretiny
         elif CORE.is_esp32 and framework == "arduino":
             if esp32_arduino is None:
                 msg = "This feature is incompatible with ESP32 using arduino framework"

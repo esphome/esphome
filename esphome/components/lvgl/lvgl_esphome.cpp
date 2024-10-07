@@ -15,6 +15,60 @@ static void log_cb(const char *buf) {
 }
 #endif  // LV_USE_LOG
 
+static const char *const EVENT_NAMES[] = {
+    "NONE",
+    "PRESSED",
+    "PRESSING",
+    "PRESS_LOST",
+    "SHORT_CLICKED",
+    "LONG_PRESSED",
+    "LONG_PRESSED_REPEAT",
+    "CLICKED",
+    "RELEASED",
+    "SCROLL_BEGIN",
+    "SCROLL_END",
+    "SCROLL",
+    "GESTURE",
+    "KEY",
+    "FOCUSED",
+    "DEFOCUSED",
+    "LEAVE",
+    "HIT_TEST",
+    "COVER_CHECK",
+    "REFR_EXT_DRAW_SIZE",
+    "DRAW_MAIN_BEGIN",
+    "DRAW_MAIN",
+    "DRAW_MAIN_END",
+    "DRAW_POST_BEGIN",
+    "DRAW_POST",
+    "DRAW_POST_END",
+    "DRAW_PART_BEGIN",
+    "DRAW_PART_END",
+    "VALUE_CHANGED",
+    "INSERT",
+    "REFRESH",
+    "READY",
+    "CANCEL",
+    "DELETE",
+    "CHILD_CHANGED",
+    "CHILD_CREATED",
+    "CHILD_DELETED",
+    "SCREEN_UNLOAD_START",
+    "SCREEN_LOAD_START",
+    "SCREEN_LOADED",
+    "SCREEN_UNLOADED",
+    "SIZE_CHANGED",
+    "STYLE_CHANGED",
+    "LAYOUT_CHANGED",
+    "GET_SELF_SIZE",
+};
+
+std::string lv_event_code_name_for(uint8_t event_code) {
+  if (event_code < sizeof(EVENT_NAMES) / sizeof(EVENT_NAMES[0])) {
+    return EVENT_NAMES[event_code];
+  }
+  return str_sprintf("%2d", event_code);
+}
 static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   // make sure all coordinates are even
   if (area->x1 & 1)
@@ -301,49 +355,6 @@ bool lv_is_pre_initialise() {
   }
   return false;
 }
-
-#ifdef USE_LVGL_IMAGE
-lv_img_dsc_t *lv_img_from(image::Image *src, lv_img_dsc_t *img_dsc) {
-  if (img_dsc == nullptr)
-    img_dsc = new lv_img_dsc_t();  // NOLINT
-  img_dsc->header.always_zero = 0;
-  img_dsc->header.reserved = 0;
-  img_dsc->header.w = src->get_width();
-  img_dsc->header.h = src->get_height();
-  img_dsc->data = src->get_data_start();
-  img_dsc->data_size = image_type_to_width_stride(img_dsc->header.w * img_dsc->header.h, src->get_type());
-  switch (src->get_type()) {
-    case image::IMAGE_TYPE_BINARY:
-      img_dsc->header.cf = LV_IMG_CF_ALPHA_1BIT;
-      break;
-
-    case image::IMAGE_TYPE_GRAYSCALE:
-      img_dsc->header.cf = LV_IMG_CF_ALPHA_8BIT;
-      break;
-
-    case image::IMAGE_TYPE_RGB24:
-      img_dsc->header.cf = LV_IMG_CF_RGB888;
-      break;
-
-    case image::IMAGE_TYPE_RGB565:
-#if LV_COLOR_DEPTH == 16
-      img_dsc->header.cf = src->has_transparency() ? LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED : LV_IMG_CF_TRUE_COLOR;
-#else
-      img_dsc->header.cf = LV_IMG_CF_RGB565;
-#endif
-      break;
-
-    case image::IMAGE_TYPE_RGBA:
-#if LV_COLOR_DEPTH == 32
-      img_dsc->header.cf = LV_IMG_CF_TRUE_COLOR;
-#else
-      img_dsc->header.cf = LV_IMG_CF_RGBA8888;
-#endif
-      break;
-  }
-  return img_dsc;
-}
-#endif  // USE_LVGL_IMAGE
 
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj) {
