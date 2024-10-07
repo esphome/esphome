@@ -17,7 +17,7 @@ class Sen0501Component : public PollingComponent, public i2c::I2CDevice {
   void set_uv_intensity(sensor::Sensor *uv_intensity) { this->uv_intensity_ = uv_intensity; }
   void set_luminous_intensity(sensor::Sensor *luminous_intensity) { this->luminous_intensity_ = luminous_intensity; }
   void set_atmospheric_pressure(sensor::Sensor *atmospheric_pressure) {
-      this->atmospheric_pressure_ = atmospheric_pressure;
+    this->atmospheric_pressure_ = atmospheric_pressure;
   }
   void set_elevation(sensor::Sensor *elevation) { this->elevation_ = elevation; }
 
