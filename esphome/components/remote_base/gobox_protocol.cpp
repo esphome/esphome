@@ -16,7 +16,7 @@ constexpr uint64_t CODE_SIZE = 17;
 void GoboxProtocol::dump_timings(const RawTimings &timings) const {
   ESP_LOGD(TAG, "Gobox: size=%u", timings.size());
   for (auto it = timings.begin(); it != timings.end(); ++it) {
-    ESP_LOGD(TAG, "Gobox: timing=%ld", *it);
+    ESP_LOGD(TAG, "Gobox: timing=%d", *it);
   }
 }
 
