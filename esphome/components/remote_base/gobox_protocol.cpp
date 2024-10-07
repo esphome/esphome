@@ -14,14 +14,14 @@ constexpr uint64_t HEADER_SIZE = 15;
 constexpr uint64_t CODE_SIZE = 17;
 
 void GoboxProtocol::dump_timings(const RawTimings &timings) const {
-  ESP_LOGD(TAG, "Gobox: size=%Ld", timings.size());
+  ESP_LOGD(TAG, "Gobox: size=%u", timings.size());
   for (auto it = timings.begin(); it != timings.end(); ++it) {
-    ESP_LOGD(TAG, "Gobox: timing=%Ld", *it);
+    ESP_LOGD(TAG, "Gobox: timing=%ld", *it);
   }
 }
 
 void GoboxProtocol::encode(RemoteTransmitData *dst, const GoboxData &data) {
-  ESP_LOGI(TAG, "Send Gobox: code=%Ld", data.code);
+  ESP_LOGI(TAG, "Send Gobox: code=0x%x", data.code);
   dst->set_carrier_frequency(38000);
   dst->reserve((HEADER_SIZE + CODE_SIZE + 1) * 2);
   uint64_t code = (HEADER << CODE_SIZE) | (data.code & ((1UL << CODE_SIZE) - 1));
@@ -83,7 +83,7 @@ optional<GoboxData> GoboxProtocol::decode(RemoteReceiveData src) {
 }
 
 void GoboxProtocol::dump(const GoboxData &data) {
-  ESP_LOGI(TAG, "Received Gobox: code=0x%Lx", data.code);
+  ESP_LOGI(TAG, "Received Gobox: code=0x%x", data.code);
   switch (data.code) {
     case GOBOX_MENU:
       ESP_LOGI(TAG, "Received Gobox: key=MENU");
