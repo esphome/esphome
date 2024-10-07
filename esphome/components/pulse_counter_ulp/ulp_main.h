@@ -9,7 +9,9 @@
 #pragma once
 
 // Required to pass linting
-namespace esphome::pulse_counter_ulp {}  // namespace esphome::pulse_counter_ulp
+namespace esphome {
+namespace pulse_counter_ulp {}  // namespace pulse_counter_ulp
+}  // namespace esphome
 
 extern uint32_t ulp_changed;
 extern uint32_t ulp_debounce_counter;
