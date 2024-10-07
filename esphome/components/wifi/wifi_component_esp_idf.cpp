@@ -131,16 +131,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 
 void WiFiComponent::wifi_pre_setup_() {
   uint8_t mac[6];
-#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
-  get_mac_address_raw(mac);
-  set_mac_address(mac);
-  ESP_LOGV(TAG, "Use EFuse MAC without checking CRC: %s", get_mac_address_pretty().c_str());
-#else
   if (has_custom_mac_address()) {
     get_mac_address_raw(mac);
     set_mac_address(mac);
   }
-#endif
   esp_err_t err = esp_netif_init();
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));

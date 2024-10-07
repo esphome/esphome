@@ -157,8 +157,11 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
     default:
       trig = nullptr;
   }
-  assert(trig != nullptr);
-  trig->trigger();
+  if (trig != nullptr) {
+    trig->trigger();
+  } else {
+    ESP_LOGW(TAG, "trig not set - unsupported action");
+  }
   this->action = action;
   this->prev_trigger_ = trig;
   this->publish_state();
