@@ -94,6 +94,8 @@ float Sen0501Component::get_setup_priority() const { return setup_priority::DATA
 // PROTECTED
 
 void Sen0501Component::read_temperature_() {
+  if (this->temperature_ == nullptr)
+    return;
   uint8_t buffer[2];
   uint16_t data;
   float temp;
@@ -104,6 +106,8 @@ void Sen0501Component::read_temperature_() {
 }
 
 void Sen0501Component::read_humidity_() {
+  if (this->humidity_ == nullptr)
+    return;
   uint8_t buffer[2];
   uint16_t data;
   float humidity;
@@ -114,6 +118,8 @@ void Sen0501Component::read_humidity_() {
 }
 
 void Sen0501Component::read_uv_intensity_() {
+  if (this->uv_intensity_ == nullptr)
+    return;
   uint8_t buffer[2];
   uint16_t uv_level;
   uint16_t version = 0;
@@ -139,6 +145,8 @@ void Sen0501Component::read_uv_intensity_() {
 }
 
 void Sen0501Component::read_luminous_intensity_() {
+  if (this->luminous_intensity_ == nullptr)
+    return;
   uint8_t buffer[2];
   uint16_t data;
   read_bytes(REG_LUMINOUS_INTENSITY, buffer, 2);
@@ -149,12 +157,16 @@ void Sen0501Component::read_luminous_intensity_() {
 }
 
 void Sen0501Component::read_atmospheric_pressure_() {
+  if (this->atmospheric_pressure_ == nullptr)
+    return;
   uint8_t buffer[2];
   uint16_t atmosphere;
   read_bytes(REG_ATMOSPHERIC_PRESSURE, buffer, 2);
   atmosphere = buffer[0] << 8 | buffer[1];
-  float elevation = 44330 * (1.0 - pow(atmosphere / 1015.0f, 0.1903));
   this->atmospheric_pressure_->publish_state(atmosphere);
+  if (this->elevation_ == nullptr)
+    return;
+  float elevation = 44330 * (1.0 - pow(atmosphere / 1015.0f, 0.1903));
   this->elevation_->publish_state(elevation);
 }
 
