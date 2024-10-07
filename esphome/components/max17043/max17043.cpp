@@ -24,7 +24,7 @@ void MAX17043Component::update() {
     if (this->write(&MAX17043_VCELL, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
     } else {
-      if (this->read(reinterpret_cast<uint8_t *>(raw_voltage), 2) != i2c::ERROR_OK) {
+      if (this->read(reinterpret_cast<uint8_t *>(&raw_voltage), 2) != i2c::ERROR_OK) {
         this->status_set_warning();
       } else {
         raw_voltage = i2c::i2ctohs(raw_voltage);
@@ -39,7 +39,7 @@ void MAX17043Component::update() {
     if (this->write(&MAX17043_SOC, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
     } else {
-      if (this->read(reinterpret_cast<uint8_t *>(raw_percent), 2) != i2c::ERROR_OK) {
+      if (this->read(reinterpret_cast<uint8_t *>(&raw_percent), 2) != i2c::ERROR_OK) {
         this->status_set_warning();
       } else {
         raw_percent = i2c::i2ctohs(raw_percent);
