@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import output
-from esphome.const import CONF_ID, CONF_MIN_POWER, CONF_METHOD
+from esphome.const import CONF_ID, CONF_MIN_POWER, CONF_METHOD, CONF_INTERRUPT_METHOD #Remember const.py
 
 CODEOWNERS = ["@glmnet"]
 
@@ -14,6 +14,14 @@ DIM_METHODS = {
     "LEADING_PULSE": DimMethod.DIM_METHOD_LEADING_PULSE,
     "LEADING": DimMethod.DIM_METHOD_LEADING,
     "TRAILING": DimMethod.DIM_METHOD_TRAILING,
+}
+
+InterruptMethod = ac_dimmer_ns.enum("InterruptMethod")
+INTERRUPT_METHODS = {
+    "RISING": InterruptMethod.INTERRUPT_METHOD_RISING,
+    "FALLING": InterruptMethod.INTERRUPT_METHOD_FALLING,
+    "ANY": InterruptMethod.INTERRUPT_METHOD_ANY,
+    "CHANGE": InterruptMethod.INTERRUPT_METHOD_CHANGE,
 }
 
 CONF_GATE_PIN = "gate_pin"
@@ -29,11 +37,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_METHOD, default="leading pulse"): cv.enum(
                 DIM_METHODS, upper=True, space="_"
             ),
+            cv.Optional(CONF_INTERRUPT_METHOD, default="falling"): cv.enum(
+                INTERRUPT_METHODS, upper=True, space="_"
+            ), 
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
 )
-
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -50,3 +60,4 @@ async def to_code(config):
     cg.add(var.set_zero_cross_pin(pin))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
     cg.add(var.set_method(config[CONF_METHOD]))
+    cg.add(var.set_interrupt_method(config[CONF_INTERRUPT_METHOD]))

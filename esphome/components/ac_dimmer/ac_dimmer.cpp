@@ -35,7 +35,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   // If no ZC signal received yet.
   if (this->crossed_zero_at == 0)
     return 0;
-
+  // If 100% or Off
   uint32_t time_since_zc = now - this->crossed_zero_at;
   if (this->value == 65535 || this->value == 0) {
     return 0;
@@ -96,6 +96,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   uint32_t cycle_time = this->crossed_zero_at - prev_crossed;
   if (cycle_time > 5000) {
     this->cycle_time_us = cycle_time;
+
+//  un responsive
   } else {
     // Otherwise this is noise and this is 2nd (or 3rd...) fall in the same pulse
     // Consider this is the right fall edge and accumulate the cycle time instead
@@ -178,12 +180,22 @@ void AcDimmer::setup() {
   this->store_.min_power = static_cast<uint16_t>(this->min_power_ * 1000);
   this->min_power_ = 0;
   this->store_.method = this->method_;
+  this->store_.interrupt_method = this->interrupt_method_;
 
   if (setup_zero_cross_pin) {
     this->zero_cross_pin_->setup();
     this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
-    this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_,
-                                            gpio::INTERRUPT_FALLING_EDGE);
+    switch (this->interrupt_method_) {
+      case INTERRUPT_METHOD_FALLING:
+        this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
+        break;
+      case INTERRUPT_METHOD_RISING:
+        this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_, gpio::INTERRUPT_RISING_EDGE);
+        break;
+      default: //INTERRUPT_ANY_EDGE or INTERRUPT_METHOD_CHANGE
+        this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
+        break;
+      }
   }
 
 #ifdef USE_ESP8266
@@ -222,7 +234,17 @@ void AcDimmer::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "   Method: trailing");
   }
-
+  switch (interrupt_method_)  {
+  case INTERRUPT_METHOD_FALLING:
+        ESP_LOGCONFIG(TAG, "   ZC INTERRUPT_FALLING_EDGE");
+    break;
+  case INTERRUPT_METHOD_RISING:
+        ESP_LOGCONFIG(TAG, "   ZC INTERRUPT_RISING_EDGE");
+    break;
+  default:  //CHANGE = ANY
+        ESP_LOGCONFIG(TAG, "   ZC INTERRUPT_ANY_EDGE");
+    break;
+  }
   LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
