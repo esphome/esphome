@@ -8,9 +8,7 @@ namespace remote_base {
 
 struct GoboxData {
   int code;
-  bool operator==(const GoboxData &rhs) const {
-    return code == rhs.code;
-  }
+  bool operator==(const GoboxData &rhs) const { return code == rhs.code; }
 };
 
 enum {
