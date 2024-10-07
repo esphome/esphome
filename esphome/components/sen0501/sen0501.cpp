@@ -153,16 +153,16 @@ void Sen0501Component::read_luminous_intensity_() {
 }
 
 void Sen0501Component::read_atmospheric_pressure_() {
-  if (this->atmospheric_pressure_ == nullptr)
+  if (this->atmospheric_pressure_ == nullptr && this->elevation_ == nullptr)
     return;
   uint8_t buffer[2];
   this->read_bytes(REG_ATMOSPHERIC_PRESSURE, buffer, 2);
   uint16_t atmosphere = encode_uint16(buffer[0], buffer[1]);
-  this->atmospheric_pressure_->publish_state(atmosphere);
-  if (this->elevation_ == nullptr)
-    return;
-  float elevation = 44330 * (1.0 - pow(atmosphere / 1015.0f, 0.1903));
-  this->elevation_->publish_state(elevation);
+  if (this->atmospheric_pressure_ != nullptr)
+    this->atmospheric_pressure_->publish_state(atmosphere);
+  if (this->elevation_ != nullptr)
+    float elevation = 44330 * (1.0 - pow(atmosphere / 1015.0f, 0.1903));
+    this->elevation_->publish_state(elevation);
 }
 
 }  // namespace sen0501
