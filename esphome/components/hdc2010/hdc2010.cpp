@@ -34,22 +34,22 @@ void HDC2010Component::setup() {
 
   // Set measurement mode to temperature and humidity
   uint8_t config_contents;
-  read_register(MEASUREMENT_CONFIG, &config_contents, 1);
+  this->read_register(MEASUREMENT_CONFIG, &config_contents, 1);
   config_contents = (config_contents & 0xF9);  // Always set to TEMP_AND_HUMID mode
   this->write_bytes(MEASUREMENT_CONFIG, &config_contents, 1);
 
   // Set rate to manual
-  read_register(CONFIG, &config_contents, 1);
+  this->read_register(CONFIG, &config_contents, 1);
   config_contents &= 0x8F;
   this->write_bytes(CONFIG, &config_contents, 1);
 
   // Set temperature resolution to 14bit
-  read_register(CONFIG, &config_contents, 1);
+  this->read_register(CONFIG, &config_contents, 1);
   config_contents &= 0x3F;
   this->write_bytes(CONFIG, &config_contents, 1);
 
   // Set humidity resolution to 14bit
-  read_register(CONFIG, &config_contents, 1);
+  this->read_register(CONFIG, &config_contents, 1);
   config_contents &= 0xCF;
   this->write_bytes(CONFIG, &config_contents, 1);
 
@@ -63,14 +63,14 @@ void HDC2010Component::dump_config() {
     ESP_LOGE(TAG, "Communication with HDC2010 failed!");
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
 void HDC2010Component::update() {
   // Trigger measurement
   uint8_t config_contents;
-  read_register(CONFIG, &config_contents, 1);
+  this->read_register(CONFIG, &config_contents, 1);
   config_contents |= 0x01;
   this->write_bytes(MEASUREMENT_CONFIG, &config_contents, 1);
 
@@ -93,8 +93,19 @@ float HDC2010Component::read_temp() {
   uint8_t byte[2];
   uint16_t temp;
 
-  read_register(HDC2010_CMD_TEMPERATURE_LOW, &byte[0], 1);
-  read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
+  this->read_register(HDC2010_CMD_TEMPERATURE_LOW, &byte[0], 1);
+  this->read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
+
+  temp = (unsigned int) byte[1] << 8 | byte[0];
+  return (float) temp * 0.0025177f - 40.0f;
+}
+
+float HDC2010Component::read_temp() {
+  uint8_t byte[2];
+  uint16_t temp;
+
+  this->read_register(HDC2010_CMD_TEMPERATURE_LOW, &byte[0], 1);
+  this->read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
 
   temp = (unsigned int) byte[1] << 8 | byte[0];
   return (float) temp * 0.0025177f - 40.0f;
@@ -104,13 +115,13 @@ float HDC2010Component::read_humidity() {
   uint8_t byte[2];
   uint16_t humidity;
 
-  read_register(HDC2010_CMD_HUMIDITY_LOW, &byte[0], 1);
-  read_register(HDC2010_CMD_HUMIDITY_HIGH, &byte[1], 1);
+  this->read_register(HDC2010_CMD_HUMIDITY_LOW, &byte[0], 1);
+  this->read_register(HDC2010_CMD_HUMIDITY_HIGH, &byte[1], 1);
 
   humidity = (unsigned int) byte[1] << 8 | byte[0];
   return (float) humidity * 0.001525879f;
 }
 
-float HDC2010Component::get_setup_priority() const { return setup_priority::DATA; }
+float HDC2010Component::get_setup_priority() const { return this->setup_priority::DATA; }
 }  // namespace hdc2010
 }  // namespace esphome

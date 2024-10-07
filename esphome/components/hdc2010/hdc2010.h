@@ -28,8 +28,6 @@ class HDC2010Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
-  uint16_t heater_temperature_{100};
-  uint16_t heater_duration_{30};
 };
 
 }  // namespace hdc2010
