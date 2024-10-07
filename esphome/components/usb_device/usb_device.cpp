@@ -14,15 +14,26 @@ namespace usb_device {
 static const char *const TAG = "usb_device";
 
 #ifndef USE_ARDUINO
-usb_dc_status_code g_cb_status;
+bool usb_configured = false;
 void status_callback(enum usb_dc_status_code cb_status, uint8_t *param) {
-  g_cb_status = cb_status;
+  ESP_LOGD(TAG, "USB dc status %d", cb_status);
+  switch(cb_status) {
+    case USB_DC_ERROR:
+    case USB_DC_RESET:
+    case USB_DC_DISCONNECTED:
+      usb_configured = false;
+      break;
+    case USB_DC_CONFIGURED:
+      usb_configured = false;
+      break;
+    default:
+      break;
+  }
 }
 #endif
 
 void UsbDevice::update() {
 #ifndef USE_ARDUINO
-  ESP_LOGD(TAG, "update %d", g_cb_status);
 #endif
 #ifdef USE_BINARY_SENSOR
   if (configured_ != nullptr) {
@@ -47,6 +58,7 @@ bool UsbDevice::get_configured_() {
 #ifdef USE_ARDUINO
   return USB;
 #else
+  return usb_configured;
 #endif
   return false;
 }
