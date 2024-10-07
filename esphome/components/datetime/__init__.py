@@ -18,7 +18,7 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
-    CONF_WEB_SERVER_ID,
+    CONF_WEB_SERVER,
     CONF_YEAR,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -138,9 +138,8 @@ async def setup_datetime_core_(var, config):
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)

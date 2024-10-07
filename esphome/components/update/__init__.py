@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_FORCE_UPDATE,
     CONF_ID,
     CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
+    CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_FIRMWARE,
     ENTITY_CATEGORY_CONFIG,
@@ -73,9 +73,8 @@ async def setup_update_core_(var, config):
         mqtt_ = cg.new_Pvariable(mqtt_id_config, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-    if web_server_id_config := config.get(CONF_WEB_SERVER_ID):
-        web_server_ = await cg.get_variable(web_server_id_config)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_update(var, config):
