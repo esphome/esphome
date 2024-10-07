@@ -9,13 +9,12 @@ time:
     id: homeassistant_time
     timezone: America/Los_Angeles
 
-# Temporarily commented out until this component can be merged
-# select:
-#   - platform: mitsubishi_itp
-#     temperature_source:
-#       name: "Temperature Source"
-#       sources:
-#         - fake_temp
+select:
+  - platform: mitsubishi_itp
+    temperature_source:
+      name: "Temperature Source"
+      sources:
+        - fake_temp
 
 sensor:
   - platform: template
