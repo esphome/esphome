@@ -81,8 +81,8 @@ void MAX17043Component::dump_config() {
     ESP_LOGE(TAG, "Communication with MAX17043 failed");
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Voltage: %s", this->voltage_sensor_->get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Percent: %s", this->battery_remaining_sensor_->get_name().c_str());
+  LOG_SENSOR("  ", "Battery Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_remaining_sensor_);
 }
 
 float MAX17043Component::get_setup_priority() const { return setup_priority::DATA; }
