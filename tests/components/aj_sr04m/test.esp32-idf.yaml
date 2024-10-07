@@ -1,0 +1,14 @@
+uart:
+  - id: aj_sr04m_uart
+    tx_pin:
+      number: 17
+    rx_pin:
+      number: 16
+    baud_rate: 9600
+
+sensor:
+  - platform: aj_sr04m
+    id: aj_sr04m_sensor
+    name: "aj_sr04m Distance"
+    uart_id: aj_sr04m_uart
+    update_interval: 2s
