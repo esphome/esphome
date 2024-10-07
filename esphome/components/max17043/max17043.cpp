@@ -20,22 +20,23 @@ static const uint16_t MAX17043_CONFIG_SLEEP_MASK = 0x0080;
 void MAX17043Component::update() {
   uint16_t raw_voltage, raw_percent;
 
-  if (!this->read_byte_16(MAX17043_VCELL, &raw_voltage)) {
-    this->status_set_warning("Unable to read MAX17043_VCELL");
-  } else {
-    // raw_voltage = i2c::i2ctohs(raw_voltage);
-    float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
-    this->voltage_sensor_->publish_state(voltage);
-    this->status_clear_warning();
+  if (this->voltage_sensor_ != nullptr) {
+    if (!this->read_byte_16(MAX17043_VCELL, &raw_voltage)) {
+      this->status_set_warning("Unable to read MAX17043_VCELL");
+    } else {
+      float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
+      this->voltage_sensor_->publish_state(voltage);
+      this->status_clear_warning();
+    }
   }
-
-  if (!this->read_byte_16(MAX17043_SOC, &raw_percent)) {
-    this->status_set_warning("Unable to read MAX17043_SOC");
-  } else {
-    // raw_percent = i2c::i2ctohs(raw_percent);
-    float percent = (float) ((raw_percent >> 8) + 0.003906f * (raw_percent & 0x00ff));
-    this->battery_remaining_sensor_->publish_state(percent);
-    this->status_clear_warning();
+  if (this->battery_remaining_sensor_ != nullptr) {
+    if (!this->read_byte_16(MAX17043_SOC, &raw_percent)) {
+      this->status_set_warning("Unable to read MAX17043_SOC");
+    } else {
+      float percent = (float) ((raw_percent >> 8) + 0.003906f * (raw_percent & 0x00ff));
+      this->battery_remaining_sensor_->publish_state(percent);
+      this->status_clear_warning();
+    }
   }
 }
 
