@@ -1,3 +1,16 @@
+substitutions:
+  light_recessed: "\U000F179B"
+  wall_sconce_round: "\U000F0748"
+  gas_burner: "\U000F1A1B"
+  home_icon: "\U000F02DC"
+  menu_left: "\U000F0A02"
+  menu_right: "\U000F035F"
+  close: "\U000F0156"
+  delete: "\U000F01B4"
+  backspace: "\U000F006E"
+  check: "\U000F012C"
+  arrow_down: "\U000F004B"
+
 lvgl:
   log_level: TRACE
   bg_color: light_blue
@@ -599,6 +612,42 @@ lvgl:
               - name: Cat
                 id: tabview_tab_2
                 widgets:
+                  - dropdown:
+                      indicator:
+                        text_font: helvetica20
+                      id: lv_dropdown
+                      options:
+                        - First
+                        - Second
+                        - Third
+                        - 4th
+                        - 5th
+                        - 6th
+                        - 7th
+                        - 8th
+                        - 9th
+                      selected_index: 2
+                      dir: top
+                      symbol: ${arrow_down}
+                      dropdown_list:
+                        max_height: 100px
+                        bg_color: 0x000080
+                        text_color: 0xFF00
+                        selected:
+                          bg_color: 0xFFFF00
+                          checked:
+                            bg_color: 0x00
+                            text_color: 0xFF0000
+                        scrollbar:
+                          bg_color: 0xFF
+                      on_value:
+                        logger.log:
+                          format: "Dropdown changed = %d"
+                          args: [x]
+                      on_cancel:
+                        logger.log:
+                          format: "Dropdown closed = %d"
+                          args: [x]
                   - image:
                       src: cat_image
                       on_click:
@@ -659,6 +708,7 @@ lvgl:
                                 width: 4
                                 color: 0xA0A0A0
                                 r_mod: -20
+                                opa: 0%
 
 font:
   - file: "gfonts://Roboto"

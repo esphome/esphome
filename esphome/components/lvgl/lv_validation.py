@@ -242,6 +242,8 @@ def pixels_or_percent_validator(value):
     """A length in one axis - either a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
         return ["pixels", "..%"]
+    if isinstance(value, str) and value.lower().endswith("px"):
+        value = cv.int_(value[:-2])
     value = cv.Any(cv.int_, cv.percentage)(value)
     if isinstance(value, int):
         return value
