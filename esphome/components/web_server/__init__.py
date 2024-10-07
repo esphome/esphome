@@ -17,13 +17,14 @@ from esphome.const import (
     CONF_JS_URL,
     CONF_LOCAL,
     CONF_LOG,
+    CONF_NAME,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_USERNAME,
     CONF_VERSION,
+    CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
-    CONF_WEB_SERVER_SORTING_WEIGHT,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -34,8 +35,14 @@ import esphome.final_validate as fv
 
 AUTO_LOAD = ["json", "web_server_base"]
 
+CONF_SORTING_GROUP_ID = "sorting_group_id"
+CONF_SORTING_GROUPS = "sorting_groups"
+CONF_SORTING_WEIGHT = "sorting_weight"
+
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
+
+sorting_groups = {}
 
 
 def default_url(config):
@@ -70,42 +77,74 @@ def validate_ota(config):
     return config
 
 
-def _validate_no_sorting_weight(
-    webserver_version: int, config: dict, path: list[str] | None = None
-) -> None:
-    if path is None:
-        path = []
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
-        raise cv.FinalExternalInvalid(
-            f"Sorting weight on entities is not supported in web_server version {webserver_version}",
-            path=path + [CONF_WEB_SERVER_SORTING_WEIGHT],
+def validate_sorting_groups(config):
+    if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
+        raise cv.Invalid(
+            f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
         )
-    for p, value in config.items():
-        if isinstance(value, dict):
-            _validate_no_sorting_weight(webserver_version, value, path + [p])
-        elif isinstance(value, list):
-            for i, item in enumerate(value):
-                if isinstance(item, dict):
-                    _validate_no_sorting_weight(webserver_version, item, path + [p, i])
-
-
-def _final_validate_sorting_weight(config):
-    if (webserver_version := config.get(CONF_VERSION)) != 3:
-        _validate_no_sorting_weight(webserver_version, fv.full_config.get())
-
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate_sorting_weight
+def _validate_no_sorting_component(
+    sorting_component: str,
+    webserver_version: int,
+    config: dict,
+    path: list[str] | None = None,
+) -> None:
+    if path is None:
+        path = []
+    if CONF_WEB_SERVER in config and sorting_component in config[CONF_WEB_SERVER]:
+        raise cv.FinalExternalInvalid(
+            f"{sorting_component} on entities is not supported in web_server version {webserver_version}",
+            path=path + [sorting_component],
+        )
+    for p, value in config.items():
+        if isinstance(value, dict):
+            _validate_no_sorting_component(
+                sorting_component, webserver_version, value, path + [p]
+            )
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, dict):
+                    _validate_no_sorting_component(
+                        sorting_component, webserver_version, item, path + [p, i]
+                    )
 
+
+def _final_validate_sorting(config):
+    if (webserver_version := config.get(CONF_VERSION)) != 3:
+        _validate_no_sorting_component(
+            CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
+        )
+        _validate_no_sorting_component(
+            CONF_SORTING_GROUP_ID, webserver_version, fv.full_config.get()
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_sorting
+
+sorting_group = {
+    cv.Required(CONF_ID): cv.declare_id(cg.int_),
+    cv.Required(CONF_NAME): cv.string,
+    cv.Optional(CONF_SORTING_WEIGHT): cv.float_,
+}
 
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
     {
-        cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
-        cv.Optional(CONF_WEB_SERVER_SORTING_WEIGHT): cv.All(
-            cv.requires_component("web_server"),
-            cv.float_,
-        ),
+        cv.Optional(CONF_WEB_SERVER): cv.Schema(
+            {
+                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
+                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.float_,
+                ),
+                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.use_id(cg.int_),
+                ),
+            }
+        )
     }
 )
 
@@ -145,24 +184,38 @@ CONFIG_SCHEMA = cv.All(
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
+            cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
     default_url,
     validate_local,
     validate_ota,
+    validate_sorting_groups,
 )
 
 
-def add_entity_to_sorting_list(web_server, entity, config):
-    sorting_weight = 50
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
-        sorting_weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
+def add_sorting_groups(web_server_var, config):
+    for group in config:
+        sorting_groups[group[CONF_ID]] = group[CONF_NAME]
+        group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
+        cg.add(
+            web_server_var.add_sorting_group(
+                hash(group[CONF_ID]), group[CONF_NAME], group_sorting_weight
+            )
+        )
+
+
+async def add_entity_config(entity, config):
+    web_server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
+    sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
+    sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
 
     cg.add(
-        web_server.add_entity_to_sorting_list(
+        web_server.add_entity_config(
             entity,
             sorting_weight,
+            sorting_group_hash,
         )
     )
 
@@ -241,3 +294,6 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
+
+    if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
+        add_sorting_groups(var, sorting_group_config)
