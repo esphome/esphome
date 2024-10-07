@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -7,7 +9,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
@@ -153,3 +154,4 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
 
 }  // namespace api
 }  // namespace esphome
+#endif
