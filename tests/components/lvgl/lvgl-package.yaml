@@ -608,6 +608,58 @@ lvgl:
                               id: tabview_id
                               index: 0
                               animated: true
+                  - meter:
+                      height: 200px
+                      width: 200px
+                      indicator:
+                        bg_color: 0xFF
+                        radius: 0
+                      bg_opa: TRANSP
+                      text_color: 0xFFFFFF
+                      scales:
+                        - ticks:
+                            width: 1
+                            count: 61
+                            length: 20
+                            color: 0xFFFFFF
+                          range_from: 0
+                          range_to: 60
+                          angle_range: 360
+                          rotation: 270
+                          indicators:
+                            - line:
+                                opa: 50%
+                                id: minute_hand
+                                color: 0xFF0000
+                                r_mod: -1
+                                width: 3
+                        -
+                          angle_range: 330
+                          rotation: 300
+                          range_from: 1
+                          range_to: 12
+                          ticks:
+                            width: 1
+                            count: 12
+                            length: 1
+                            major:
+                              stride: 1
+                              width: 4
+                              length: 8
+                              color: 0xC0C0C0
+                              label_gap: 6
+                        - angle_range: 360
+                          rotation: 270
+                          range_from: 0
+                          range_to: 720
+                          indicators:
+                            - line:
+                                id: hour_hand
+                                value: 180
+                                width: 4
+                                color: 0xA0A0A0
+                                r_mod: -20
+
 font:
   - file: "gfonts://Roboto"
     id: space16
