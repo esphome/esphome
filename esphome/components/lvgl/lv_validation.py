@@ -31,7 +31,6 @@ from .defines import (
     literal,
 )
 from .helpers import esphome_fonts_used, lv_fonts_used, requires_component
-from .lvcode import lv_expr
 from .types import lv_font_t, lv_gradient_t, lv_img_t
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
@@ -330,7 +329,7 @@ def image_validator(value):
 lv_image = LValidator(
     image_validator,
     lv_img_t,
-    retmapper=lambda x: lv_expr.img_from(MockObj(x)),
+    retmapper=lambda x: MockObj(x, "->").get_lv_img_dsc(),
     requires="image",
 )
 lv_bool = LValidator(cv.boolean, cg.bool_, retmapper=literal)

@@ -24,6 +24,7 @@ esphome/components/ade7953_i2c/* @angelnu
 esphome/components/ade7953_spi/* @angelnu
 esphome/components/ads1118/* @solomondg1
 esphome/components/ags10/* @mak-42
+esphome/components/aic3204/* @kbx81
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
@@ -47,6 +48,7 @@ esphome/components/at581x/* @X-Ryl669
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/atm90e26/* @danieltwagner
 esphome/components/atm90e32/* @circuitsetup @descipher
+esphome/components/audio_dac/* @kbx81
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
