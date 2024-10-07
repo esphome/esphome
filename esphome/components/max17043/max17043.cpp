@@ -19,27 +19,42 @@ static const uint16_t MAX17043_CONFIG_SLEEP_MASK = 0x0080;
 
 void MAX17043Component::update() {
   uint16_t raw_voltage, raw_percent;
-  if (!this->read_data_(&raw_voltage, &raw_percent)) {
-    this->status_set_warning();
-    return;
+
+  if (this->voltage_sensor_ != nullptr) {
+    if (this->write(&MAX17043_VCELL, 1) != i2c::ERROR_OK) {
+      this->status_set_warning();
+    } else {
+      if (this->read(reinterpret_cast<uint8_t *>(raw_voltage), 2) != i2c::ERROR_OK) {
+        this->status_set_warning();
+      } else {
+        raw_voltage = i2c::i2ctohs(raw_voltage);
+        float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
+        this->voltage_sensor_->publish_state(voltage);
+        this->status_clear_warning();
+      }
+    }
   }
 
-  float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
+  if (this->battery_remaining_sensor_ != nullptr) {
+    if (this->write(&MAX17043_SOC, 1) != i2c::ERROR_OK) {
+      this->status_set_warning();
+    } else {
+      if (this->read(reinterpret_cast<uint8_t *>(raw_percent), 2) != i2c::ERROR_OK) {
+        this->status_set_warning();
+      } else {
+        raw_percent = i2c::i2ctohs(raw_percent);
+        float percent = (float) ((raw_percent >> 8) + 0.003906f * (raw_percent & 0x00ff));
 
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-
-  // During charging the percentage might be (slightly) above 100%. To avoid strange numbers
-  // in the statistics the percentage provided by this driver will not go above 100%
-  float percent = (float) ((raw_percent >> 8) + 0.003906f * (raw_percent & 0x00ff));
-  if (percent > 100.0) {
-    percent = 100.0;
+        // During charging the percentage might be (slightly) above 100%. To avoid strange numbers
+        // in the statistics the percentage provided by this driver will not go above 100%
+        if (percent > 100.0) {
+          percent = 100.0;
+        }
+        this->battery_remaining_sensor_->publish_state(percent);
+        this->status_clear_warning();
+      }
+    }
   }
-
-  if (this->battery_remaining_sensor_ != nullptr)
-    this->battery_remaining_sensor_->publish_state(percent);
-
-  this->status_clear_warning();
 }
 
 void MAX17043Component::setup() {
@@ -94,32 +109,6 @@ void MAX17043Component::sleep_mode() {
       this->status_set_warning();
     }
   }
-}
-
-bool MAX17043Component::read_data_(uint16_t *raw_voltage, uint16_t *raw_percent) {
-  if (this->write(&MAX17043_VCELL, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return false;
-  }
-
-  if (this->read(reinterpret_cast<uint8_t *>(raw_voltage), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return false;
-  }
-  *raw_voltage = i2c::i2ctohs(*raw_voltage);
-
-  if (this->write(&MAX17043_SOC, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return false;
-  }
-
-  if (this->read(reinterpret_cast<uint8_t *>(raw_percent), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return false;
-  }
-  *raw_percent = i2c::i2ctohs(*raw_percent);
-
-  return true;
 }
 
 }  // namespace max17043

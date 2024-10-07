@@ -21,8 +21,6 @@ class MAX17043Component : public PollingComponent, public i2c::I2CDevice {
   }
 
  protected:
-  bool read_data_(uint16_t *raw_voltage, uint16_t *raw_percent);
-
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *battery_remaining_sensor_{nullptr};
 };
