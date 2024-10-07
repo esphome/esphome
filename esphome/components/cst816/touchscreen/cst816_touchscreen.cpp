@@ -8,7 +8,7 @@ void CST816Touchscreen::continue_setup_() {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
-  if (!this->read_byte(REG_CHIP_ID, &this->chip_id_)) {
+  if (!this->skip_probe_ && !this->read_byte(REG_CHIP_ID, &this->chip_id_)) {
     this->mark_failed();
     esph_log_e(TAG, "Failed to read chip id");
     return;
@@ -22,9 +22,11 @@ void CST816Touchscreen::continue_setup_() {
     case CST816T_CHIP_ID:
       break;
     default:
-      this->mark_failed();
-      esph_log_e(TAG, "Unknown chip ID 0x%02X", this->chip_id_);
-      return;
+      if (!this->skip_probe_) {
+        this->mark_failed();
+        esph_log_e(TAG, "Unknown chip ID 0x%02X", this->chip_id_);
+        return;
+      }
   }
   this->write_byte(REG_IRQ_CTL, IRQ_EN_MOTION);
   if (this->x_raw_max_ == this->x_raw_min_) {

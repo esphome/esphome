@@ -4,6 +4,7 @@ touchscreen:
     interrupt_pin:
       number: 21
     reset_pin: GPIO16
+    skip_probe: false
     transform:
       mirror_x: false
       mirror_y: false
