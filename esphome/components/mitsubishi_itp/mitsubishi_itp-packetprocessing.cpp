@@ -235,6 +235,16 @@ void MitsubishiUART::process_packet(const ErrorStateGetResponsePacket &packet) {
   alert_listeners_(packet);
 }
 
+void MitsubishiUART::process_packet(const Functions1GetResponsePacket &packet) {
+  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+  route_packet_(packet);
+}
+
+void MitsubishiUART::process_packet(const Functions2GetResponsePacket &packet) {
+  ESP_LOGV(TAG, "Processing %s", packet.to_string().c_str());
+  route_packet_(packet);
+}
+
 void MitsubishiUART::process_packet(const SettingsSetRequestPacket &packet) {
   ESP_LOGV(TAG, "Passing through inbound %s", packet.to_string().c_str());
 

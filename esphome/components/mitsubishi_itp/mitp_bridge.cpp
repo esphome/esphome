@@ -173,6 +173,12 @@ void MITPBridge::classify_and_process_raw_packet_(RawPacket &pkt) const {
         case GetCommand::STATUS:
           process_raw_packet_<StatusGetResponsePacket>(pkt, false);
           break;
+        case GetCommand::FUNCTIONS_1:
+          process_raw_packet_<Functions1GetResponsePacket>(pkt, false);
+          break;
+        case GetCommand::FUNCTIONS_2:
+          process_raw_packet_<Functions2GetResponsePacket>(pkt, false);
+          break;
         case GetCommand::THERMOSTAT_STATE_DOWNLOAD:
           process_raw_packet_<ThermostatStateDownloadResponsePacket>(pkt, false);
           break;

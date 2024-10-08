@@ -35,6 +35,8 @@ enum class GetCommand : uint8_t {
   ERROR_INFO = 0x04,
   STATUS = 0x06,
   RUN_STATE = 0x09,
+  FUNCTIONS_1 = 0x20,
+  FUNCTIONS_2 = 0x22,
   THERMOSTAT_STATE_DOWNLOAD = 0xa9,
   THERMOSTAT_GET_AB = 0xab,
 };

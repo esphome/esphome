@@ -139,6 +139,8 @@ void MitsubishiUART::update() {
   //       For now, just requesting it as part of our "init loops" is a good first step.
   if (!this->capabilities_requested_) {
     IFACTIVE(hp_bridge_.send_packet(CapabilitiesRequestPacket::instance()); this->capabilities_requested_ = true;)
+    IFACTIVE(hp_bridge_.send_packet(GetRequestPacket::get_functions_1_instance());)
+    IFACTIVE(hp_bridge_.send_packet(GetRequestPacket::get_functions_2_instance());)
   }
 
   // Before requesting additional updates, publish any changes waiting from packets received
