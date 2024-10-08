@@ -652,12 +652,12 @@ void delay_microseconds_safe(uint32_t us);
 ///@{
 
 /** An STL allocator that uses SPI or internal RAM.
+ * Returns `nullptr` in case no memory is available.
  *
  * By setting flags, it can be configured to:
  * - perform external allocation falling back to main memory if SPI RAM is full or unavailable
  * - perform external allocation only
  * - perform internal allocation only
- * - return `nullptr` instead of aborting when no memory is available.
  */
 template<class T> class RAMAllocator {
  public:
@@ -668,7 +668,7 @@ template<class T> class RAMAllocator {
         0,  ///< Perform external allocation and fall back to internal memory when external RAM is full or unavailable.
     ALLOC_EXTERNAL = 1 << 0,  ///< Perform external allocation only.
     ALLOC_INTERNAL = 1 << 1,  ///< Perform internal allocation only.
-    ALLOW_FAILURE = 1 << 2,   ///< Don't abort when memory allocation fails.
+    ALLOW_FAILURE = 1 << 2,   ///< Does nothing. Kept for compatibility.
   };
 
   RAMAllocator() = default;
@@ -685,8 +685,6 @@ template<class T> class RAMAllocator {
 #endif
     if (ptr == nullptr && (this->flags_ & Flags::ALLOC_EXTERNAL) == 0)
       ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
-    if (ptr == nullptr && (this->flags_ & Flags::ALLOW_FAILURE) == 0)
-      abort();
     return ptr;
   }
 
