@@ -25,6 +25,31 @@ void MitsubishiUART::setup() {
   for (auto *listener : listeners_) {
     listener->setup(bool(ts_uart_));
   }
+  // Using App.get_compilation_time() means these will get reset each time the firmware is updated, but this
+  // is an easy way to prevent wierd conflicts if e.g. select options change.
+  preferences_ = global_preferences->make_preference<MITPPreferences>(get_object_id_hash() ^
+                                                                      fnv1_hash(App.get_compilation_time()));
+  restore_preferences_();
+}
+
+void MitsubishiUART::restore_preferences_() {
+  MITPPreferences prefs;
+  if (preferences_.load(&prefs)) {
+    for (auto i = 0; i < MAX_RECALL_MODE_INDEX; i++) {
+      if (prefs.modeRecallSetpoints[i] > 0) {
+        // If any setpoints are set, assume valid preferences and load all of them
+        mode_recall_setpoints_ = prefs.modeRecallSetpoints;
+        ESP_LOGCONFIG(TAG, "Loaded mode recall setpoints.");
+        break;
+      }
+    }
+  }
+}
+
+void MitsubishiUART::save_preferences_() {
+  MITPPreferences prefs{};
+  prefs.modeRecallSetpoints = mode_recall_setpoints_;
+  preferences_.save(&prefs);
 }
 
 void MitsubishiUART::send_if_active_(const Packet &packet) {
@@ -157,7 +182,11 @@ void MitsubishiUART::update() {
   }
 }
 
-void MitsubishiUART::do_publish_() { publish_state(); }
+void MitsubishiUART::do_publish_() {
+  publish_state();
+  // We can safely do this on every publish as ESPPreferences collects changes and only writes if different
+  save_preferences_();
+}
 
 bool MitsubishiUART::select_temperature_source(const std::string &state) {
   // TODO: Possibly check to see if state is available from the select options?  (Might be a bit redundant)

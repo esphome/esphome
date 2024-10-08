@@ -111,6 +111,9 @@ void MitsubishiUART::process_packet(const SettingsGetResponsePacket &packet) {
   const float old_target_temperature = target_temperature;
   target_temperature = packet.get_target_temp();
   publish_on_update_ |= (old_target_temperature != target_temperature);
+  if (mode <= MAX_RECALL_MODE_INDEX) {
+    mode_recall_setpoints_[mode] = target_temperature;
+  }
 
   switch (mode) {
     case climate::CLIMATE_MODE_COOL:

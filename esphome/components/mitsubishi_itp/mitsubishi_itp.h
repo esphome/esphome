@@ -27,6 +27,8 @@ const std::string TEMPERATURE_SOURCE_THERMOSTAT = "Thermostat";
 
 const uint32_t TEMPERATURE_SOURCE_TIMEOUT_MS = 420000;  // (7min) The heatpump will revert on its own in ~10min
 
+const auto MAX_RECALL_MODE_INDEX = climate::ClimateMode::CLIMATE_MODE_DRY;
+
 class MitsubishiUART : public PollingComponent, public climate::Climate, public PacketProcessor {
  public:
   /**
@@ -81,6 +83,9 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
 
   // Turns on or off Kumo emulation mode
   void set_enhanced_mhk_support(const bool supports) { enhanced_mhk_support_ = supports; }
+
+  // Enables the recall setpoint feature
+  void set_recall_setpoint(const bool enabled) { recall_setpoint_ = enabled; }
 
 #ifdef USE_TIME
   void set_time_source(time::RealTimeClock *rtc) { time_source_ = rtc; }
@@ -175,7 +180,22 @@ class MitsubishiUART : public PollingComponent, public climate::Climate, public 
   // used to track whether to support/handle the enhanced MHK protocol packets
   bool enhanced_mhk_support_ = false;
 
+  // If enabled, switching modes will recall target mode's previous setpoint
+  bool recall_setpoint_ = false;
+  // Array stores a float setpoint for each climate mode up to DRY.
+  std::array<float, MAX_RECALL_MODE_INDEX + 1> mode_recall_setpoints_;
+
   MHKState mhk_state_;
+
+  // Preferences
+  void save_preferences_();
+  void restore_preferences_();
+  ESPPreferenceObject preferences_;
+};
+
+struct MITPPreferences {
+  // Array stores a float setpoint for each climate mode up to DRY.
+  std::array<float, MAX_RECALL_MODE_INDEX + 1> modeRecallSetpoints;
 };
 
 }  // namespace mitsubishi_itp

@@ -23,6 +23,7 @@ CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
 CONF_ENHANCED_MHK_SUPPORT = (
     "enhanced_mhk"  # EXPERIMENTAL. Will be set to default eventually.
 )
+CONF_RECALL_SETPOINT = "recall_setpoint"
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -49,6 +50,7 @@ CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
         ),
         cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
         cv.Optional(CONF_ENHANCED_MHK_SUPPORT, default=False): cv.boolean,
+        cv.Optional(CONF_RECALL_SETPOINT, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
@@ -124,3 +126,5 @@ async def to_code(config):
         cg.add(
             getattr(mitp_component, "set_enhanced_mhk_support")(enhanced_mhk_protocol)
         )
+    if rs_conf := config.get(CONF_RECALL_SETPOINT):
+        cg.add(getattr(mitp_component, "set_recall_setpoint")(rs_conf))
