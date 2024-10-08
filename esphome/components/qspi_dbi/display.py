@@ -31,13 +31,15 @@ QSPI_DBI = qspi_dbi_ns.class_(
 ColorOrder = display.display_ns.enum("ColorMode")
 Model = qspi_dbi_ns.enum("Model")
 
-MODELS = {"RM690B0": Model.RM690B0, "RM67162": Model.RM67162}
+MODELS = {"RM690B0": Model.RM690B0, "RM67162": Model.RM67162, "CUSTOM": Model.CUSTOM}
 
 COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
     "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
+
+CONF_INIT_SEQUENCE = "init_sequence"
 
 
 def validate_dimension(value):
@@ -47,12 +49,42 @@ def validate_dimension(value):
     return value
 
 
+def cmd(c, *args):
+    """
+    Create a command sequence
+    :param c: The command (8 bit)
+    :param args: zero or more arguments (8 bit values)
+    :return: a list with the command, the argument count and the arguments
+    """
+    return [c, len(args)] + list(args)
+
+
+def map_sequence(value):
+    """
+    An initialisation sequence is a literal array of data bytes.
+    The format is a repeated sequence of [CMD, <data>]
+    """
+    if len(value) == 0:
+        raise cv.Invalid("Empty sequence")
+    return cmd(*value)
+
+
+def _validate(config):
+    model = config[CONF_MODEL]
+    if model == "CUSTOM":
+        if CONF_INIT_SEQUENCE not in config:
+            raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(QSPI_DBI),
                 cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True),
+                cv.Optional(CONF_INIT_SEQUENCE): cv.ensure_list(map_sequence),
                 cv.Required(CONF_DIMENSIONS): cv.Any(
                     cv.dimensions,
                     cv.Schema(
@@ -102,6 +134,12 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
+
+    if init_sequences := config.get(CONF_INIT_SEQUENCE):
+        sequence = []
+        for seq in init_sequences:
+            sequence.extend(seq)
+        cg.add(var.add_init_sequence(sequence))
 
     cg.add(var.set_color_mode(config[CONF_COLOR_ORDER]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))

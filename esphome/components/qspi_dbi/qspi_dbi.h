@@ -49,6 +49,7 @@ static inline void put16_be(uint8_t *buf, uint16_t value) {
 }
 
 enum Model {
+  CUSTOM,
   RM690B0,
   RM67162,
 };
@@ -99,6 +100,7 @@ class QspiDbi : public display::DisplayBuffer,
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   bool can_proceed() override { return this->setup_complete_; }
+  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->extra_init_sequence_ = sequence; }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
@@ -153,6 +155,7 @@ class QspiDbi : public display::DisplayBuffer,
   bool mirror_y_{};
   uint8_t brightness_{0xD0};
   Model model_{RM690B0};
+  std::vector<uint8_t> extra_init_sequence_;
 
   esp_lcd_panel_handle_t handle_{};
 };

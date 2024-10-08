@@ -117,9 +117,10 @@ void QspiDbi::write_init_sequence_() {
     this->write_command_(0xC2, 0x00);
     delay(10);
     this->write_command_(TEON, 0x00);
+  } else if (this->model_ == RM67162) {
+    this->write_command_(PIXFMT, 0x55);
+    this->write_command_(BRIGHTNESS, 0);
   }
-  this->write_command_(PIXFMT, 0x55);
-  this->write_command_(BRIGHTNESS, 0);
   this->write_command_(DISPLAY_ON);
   this->reset_params_(true);
   this->setup_complete_ = true;
