@@ -9,7 +9,7 @@ CODEOWNERS = ["@Midnighter32"]
 ballu_old_ns = cg.esphome_ns.namespace("ballu_old")
 BalluOldClimate = ballu_old_ns.class_("BalluOldClimate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+CONFIG_SCHEMA = climate_ir.CLIMATE_IR_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(BalluOldClimate),
     }
