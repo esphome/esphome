@@ -53,6 +53,7 @@ from .const import (  # noqa
     KEY_SDKCONFIG_OPTIONS,
     KEY_SUBMODULES,
     KEY_VARIANT,
+    VARIANT_ESP32,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
@@ -376,6 +377,15 @@ def final_validate(config):
             f"Please specify {CONF_FLASH_SIZE} within esp32 configuration only"
         )
 
+    if (
+        config[CONF_VARIANT] != VARIANT_ESP32
+        and CONF_ADVANCED in (conf_fw := config[CONF_FRAMEWORK])
+        and CONF_IGNORE_EFUSE_MAC_CRC in conf_fw[CONF_ADVANCED]
+    ):
+        raise cv.Invalid(
+            f"{CONF_IGNORE_EFUSE_MAC_CRC} is not supported on {config[CONF_VARIANT]}"
+        )
+
     return config
 
 
@@ -405,7 +415,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False
                     ): cv.boolean,
-                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
+                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -532,8 +542,8 @@ async def to_code(config):
 
         if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
             cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
-        if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_MAC_CRC]:
-            cg.add_define("USE_ESP32_IGNORE_EFUSE_MAC_CRC")
+        if conf[CONF_ADVANCED].get(CONF_IGNORE_EFUSE_MAC_CRC):
+            add_idf_sdkconfig_option("CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR", True)
             if (framework_ver.major, framework_ver.minor) >= (4, 4):
                 add_idf_sdkconfig_option(
                     "CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE", False
