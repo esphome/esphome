@@ -88,9 +88,7 @@ void BalluOldClimate::transmit_state() {
   for (uint8_t i = 0; i < BALLU_STATE_LENGTH - 1; i++)
     remote_state[13] += remote_state[i];
 
-  ESP_LOGV(TAG, "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X", remote_state[0],
-           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
-           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12]);
+  ESP_LOGV(TAG, "Sending: %s", format_hex_pretty(remote_state, BALLU_STATE_LENGTH - 1).c_str());
 
   // Send code
   auto transmit = this->transmitter_->transmit();
