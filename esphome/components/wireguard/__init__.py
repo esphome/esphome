@@ -1,19 +1,20 @@
-import re
 import ipaddress
+import re
+
+from esphome import automation
 import esphome.codegen as cg
+from esphome.components import time
+from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_TIME_ID,
     CONF_ADDRESS,
+    CONF_ID,
     CONF_REBOOT_TIMEOUT,
+    CONF_TIME_ID,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
 )
-from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
-from esphome.components import time
 from esphome.core import TimePeriod
-from esphome import automation
 
 CONF_NETMASK = "netmask"
 CONF_PRIVATE_KEY = "private_key"
@@ -90,6 +91,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+
+    cg.add_define("USE_WIREGUARD")
 
     cg.add(var.set_address(str(config[CONF_ADDRESS])))
     cg.add(var.set_netmask(str(config[CONF_NETMASK])))

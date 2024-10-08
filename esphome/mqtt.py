@@ -3,7 +3,6 @@ import hashlib
 import json
 import logging
 import ssl
-import sys
 import time
 
 import paho.mqtt.client as mqtt
@@ -103,10 +102,7 @@ def prepare(
     if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
         CONF_CERTIFICATE_AUTHORITY
     ):
-        if sys.version_info >= (2, 7, 13):
-            tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
-        else:
-            tls_version = ssl.PROTOCOL_SSLv23
+        tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
         client.tls_set(
             ca_certs=None,
             certfile=None,

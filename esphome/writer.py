@@ -9,6 +9,7 @@ from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
     ENV_NOGITIGNORE,
     HEADER_FILE_EXTENSIONS,
+    PLATFORM_ESP32,
     SOURCE_FILE_EXTENSIONS,
     __version__,
 )
@@ -106,6 +107,11 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
         return True
     if old.build_path != new.build_path:
         return True
+    if old.loaded_integrations != new.loaded_integrations:
+        if new.core_platform == PLATFORM_ESP32:
+            from esphome.components.esp32 import FRAMEWORK_ESP_IDF
+
+            return new.framework == FRAMEWORK_ESP_IDF
     return False
 
 
@@ -117,7 +123,9 @@ def update_storage_json():
         return
 
     if storage_should_clean(old, new):
-        _LOGGER.info("Core config or version changed, cleaning build files...")
+        _LOGGER.info(
+            "Core config, version or integrations changed, cleaning build files..."
+        )
         clean_build()
 
     new.save(path)

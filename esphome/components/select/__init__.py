@@ -1,20 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CYCLE,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_INDEX,
+    CONF_MODE,
+    CONF_MQTT_ID,
     CONF_ON_VALUE,
+    CONF_OPERATION,
     CONF_OPTION,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
-    CONF_WEB_SERVER_ID,
-    CONF_CYCLE,
-    CONF_MODE,
-    CONF_OPERATION,
-    CONF_INDEX,
+    CONF_WEB_SERVER,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -104,9 +104,8 @@ async def setup_select_core_(var, config, *, options: list[str]):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
-    if (webserver_id := config.get(CONF_WEB_SERVER_ID)) is not None:
-        web_server_ = await cg.get_variable(webserver_id)
-        web_server.add_entity_to_sorting_list(web_server_, var, config)
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_select(var, config, *, options: list[str]):

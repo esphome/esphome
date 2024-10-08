@@ -1,0 +1,3 @@
+opentherm:
+  in_pin: 1
+  out_pin: 2
