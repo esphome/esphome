@@ -19,5 +19,11 @@ void ErrorCodeSensor::process_packet(const ErrorStateGetResponsePacket &packet) 
   }
 }
 
+void ThermostatBatterySensor::process_packet(const ThermostatSensorStatusPacket &packet) {
+  if (packet.get_flags() & 0x08) {
+    mitp_text_sensor_state_ = THERMOSTAT_BATTERY_STATE_NAMES[packet.get_thermostat_battery_state()];
+  }
+}
+
 }  // namespace mitsubishi_itp
 }  // namespace esphome

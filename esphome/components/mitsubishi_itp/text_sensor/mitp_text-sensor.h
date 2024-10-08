@@ -29,5 +29,9 @@ class ErrorCodeSensor : public MITPTextSensor {
   void process_packet(const ErrorStateGetResponsePacket &packet) override;
 };
 
+class ThermostatBatterySensor : public MITPTextSensor {
+  void process_packet(const ThermostatSensorStatusPacket &packet) override;
+};
+
 }  // namespace mitsubishi_itp
 }  // namespace esphome
