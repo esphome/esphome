@@ -255,12 +255,9 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
 
   void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
     this->data_func_ = func;
-    this->static_ = false;
+    this->dynamic_ = true;
   }
-  void set_data_static(const std::vector<uint8_t> &data) {
-    this->data_static_ = data;
-    this->static_ = true;
-  }
+  void set_data_static(const std::vector<uint8_t> &data) { this->data_static_ = data; }
 
   void play(Ts... x) override {
     uint64_t mac = this->mac_.value(x...);
@@ -269,7 +266,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
       command = this->mac_.value(x...);
     }
 
-    if (!this->static_) {
+    if (this->dynamic_) {
       this->data_static_ = this->data_func_(x...);
     }
     this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size(), command);
@@ -278,8 +275,8 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
  protected:
   TemplatableValue<uint8_t, Ts...> command_{};
   TemplatableValue<uint64_t, Ts...> mac_{};
-  bool static_{false};
-  std::function<ByteBuffer(Ts...)> data_func_{};
+  bool dynamic_{false};
+  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};
 };
 
