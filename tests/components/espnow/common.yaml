@@ -1,3 +1,8 @@
+external_components:
+  - source: github://pr#7564
+    components: []
+    refresh: 1 sec
+
 espnow:
   auto_add_peer: true
   peers:
