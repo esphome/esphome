@@ -151,6 +151,10 @@ lvgl:
             align: center
             text_font: montserrat_40
             border_post: true
+            on_press:
+              lvgl.label.update:
+                id: hello_label
+                text: Goodbye
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
