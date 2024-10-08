@@ -5,7 +5,7 @@ from esphome.const import CONF_MAC_ADDRESS, CONF_ID, CONF_BINDKEY
 
 
 AUTO_LOAD = ["xiaomi_ble"]
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@t0urista"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 MULTI_CONF = True
 
