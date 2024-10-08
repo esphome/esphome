@@ -1,0 +1,6 @@
+i2c:
+  sda: 21
+  scl: 22
+  id: i2c_bus
+
+<<: !include common.yaml
