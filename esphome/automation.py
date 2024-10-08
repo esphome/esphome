@@ -247,12 +247,13 @@ async def delay_action_to_code(config, action_id, template_arg, args):
             cv.Exclusive(
                 CONF_CONDITION, CONF_CONDITION
             ): validate_potentially_and_condition,
-            cv.Exclusive(CONF_ANY, CONF_CONDITION): validate_potentially_and_condition,
+            cv.Exclusive(CONF_ANY, CONF_CONDITION): validate_potentially_or_condition,
             cv.Exclusive(CONF_ALL, CONF_CONDITION): validate_potentially_and_condition,
             cv.Optional(CONF_THEN): validate_action_list,
             cv.Optional(CONF_ELSE): validate_action_list,
         },
         cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
+        cv.has_at_least_one_key(CONF_CONDITION, CONF_ANY, CONF_ALL),
     ),
 )
 async def if_action_to_code(config, action_id, template_arg, args):
