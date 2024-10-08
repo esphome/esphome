@@ -25,6 +25,8 @@ from .const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_OFFLINE_SKIP_UPDATES,
     CONF_ON_COMMAND_SENT,
+    CONF_ON_ONLINE,
+    CONF_ON_OFFLINE,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
@@ -114,6 +116,14 @@ ModbusCommandSentTrigger = modbus_controller_ns.class_(
     "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
 )
 
+ModbusOnlineTrigger = modbus_controller_ns.class_(
+    "ModbusOnlineTrigger", automation.Trigger.template(cg.int_, cg.int_)
+)
+
+ModbusOfflineTrigger = modbus_controller_ns.class_(
+    "ModbusOfflineTrigger", automation.Trigger.template(cg.int_, cg.int_)
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 ModbusServerRegisterSchema = cv.Schema(
@@ -144,6 +154,16 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         ModbusCommandSentTrigger
                     ),
+                }
+            ),
+            cv.Optional(CONF_ON_ONLINE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOnlineTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_OFFLINE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOnlineTrigger),
                 }
             ),
         }
@@ -284,7 +304,17 @@ async def to_code(config):
     for conf in config.get(CONF_ON_COMMAND_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(int, "function_code"), (int, "address")], conf
+            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
+        )
+    for conf in config.get(CONF_ON_ONLINE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
+        )
+    for conf in config.get(CONF_ON_OFFLINE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
         )
 
 
