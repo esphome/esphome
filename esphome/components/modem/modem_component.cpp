@@ -93,6 +93,7 @@ void ModemComponent::setup() {
   if (this->power_pin_) {
     this->power_pin_->setup();
     this->power_pin_->digital_write(false);
+    this->reset_pin_->setup();
   }
 }
 
@@ -137,7 +138,7 @@ void ModemComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Modem:");
   ESP_LOGCONFIG(TAG, "  Power Pin: %d", this->power_pin_->get_pin());
   ESP_LOGCONFIG(TAG, "  Type: %d", this->type_);
-  ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_->get_pin());
   ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
   ESP_LOGCONFIG(TAG, "  TX Pin: %d", this->tx_pin_);
   ESP_LOGCONFIG(TAG, "  RX Pin: %d", this->rx_pin_);
@@ -162,12 +163,10 @@ void ModemComponent::dump_connect_params() {
 }
 
 void ModemComponent::esp_modem_hard_reset() {
-  gpio_set_direction(gpio_num_t(this->reset_pin_), GPIO_MODE_OUTPUT);
-  // gpio_pullup_en(reset_pin_);
-  gpio_set_level(gpio_num_t(this->reset_pin_), 0);
+  this->reset_pin_->digital_write(false);
   ESP_LOGD(TAG, "reset_pin_ 0");
-  vTaskDelay(pdMS_TO_TICKS(50));  // NOLINT
-  gpio_set_level(gpio_num_t(this->reset_pin_), 1);
+  vTaskDelay(pdMS_TO_TICKS(110));  // NOLINT
+  this->reset_pin_->digital_write(true);
   ESP_LOGD(TAG, "reset_pin_ 1");
   time_hard_reset_modem = millis();
 }
@@ -259,7 +258,7 @@ void ModemComponent::start_connect_() {
 bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
 void ModemComponent::set_power_pin(InternalGPIOPin *power_pin) { this->power_pin_ = power_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
-void ModemComponent::set_reset_pin(int reset_pin) { this->reset_pin_ = reset_pin; }
+void ModemComponent::set_reset_pin(InternalGPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
 void ModemComponent::set_apn(const std::string &apn) { this->apn_ = apn; }
 void ModemComponent::set_tx_pin(int tx_pin) { this->tx_pin_ = tx_pin; }
 void ModemComponent::set_rx_pin(int rx_pin) { this->rx_pin_ = rx_pin; }

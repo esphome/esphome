@@ -42,7 +42,7 @@ class ModemComponent : public Component {
   bool is_connected();
   void set_power_pin(InternalGPIOPin *power_pin);
   void set_type(ModemType type);
-  void set_reset_pin(int reset_pin);
+  void set_reset_pin(InternalGPIOPin *reset_pin);
   void set_apn(const std::string &apn);
   void set_tx_pin(int tx_pin);
   void set_rx_pin(int rx_pin);
@@ -68,7 +68,7 @@ class ModemComponent : public Component {
   std::shared_ptr<esp_modem::DTE> dte{nullptr};
   std::unique_ptr<esp_modem::DCE> dce{nullptr};
   ModemType type_{MODEM_TYPE_UNKNOWN};
-  int reset_pin_{-1};
+  InternalGPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *power_pin_{nullptr};
   int tx_pin_{-1};
   int rx_pin_{-1};
