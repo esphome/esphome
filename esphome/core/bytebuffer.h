@@ -139,11 +139,7 @@ class ByteBuffer {
   void reset() { this->position_ = this->mark_; }
   void resize() { this->used_space_ = this->position_; }
 
-  bool is_changed() {
-    bool changed = this->is_changed_;
-    this->is_changed_ = false;
-    return changed;
-  }
+  bool is_changed();
 
   ByteBuffer &operator[](size_t idx) {
     this->set_position(idx);
@@ -152,12 +148,8 @@ class ByteBuffer {
 
  protected:
   ByteBuffer(std::vector<uint8_t> const &data) : data_(data), limit_(data.size()) {}
-  void update_() {
-    this->is_changed_ = true;
-    if (this->used_space_ < this->position_) {
-      this->resize();
-    }
-  }
+  void update_used_space_();
+
   std::vector<uint8_t> data_;
   Endian endianness_{LITTLE};
   size_t position_{0};
