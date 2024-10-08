@@ -8,7 +8,7 @@
 
 #ifdef USE_ESP32
 
-using esphome::esp_log_printf_; 
+using esphome::esp_log_printf_;
 
 #include "esp_netif.h"
 #include "cxx_include/esp_modem_api.hpp"
@@ -40,7 +40,7 @@ class ModemComponent : public Component {
   float get_setup_priority() const override;
   bool can_proceed() override;
   bool is_connected();
-  void set_power_pin(std::unique_ptr<GPIOPin>  power_pin);
+  void set_power_pin(InternalGPIOPin *power_pin);
   void set_type(ModemType type);
   void set_reset_pin(int reset_pin);
   void set_apn(const std::string &apn);
@@ -69,7 +69,7 @@ class ModemComponent : public Component {
   std::unique_ptr<esp_modem::DCE> dce{nullptr};
   ModemType type_{MODEM_TYPE_UNKNOWN};
   int reset_pin_{-1};
-  std::unique_ptr<GPIOPin> power_pin_{nullptr};
+  InternalGPIOPin *power_pin_{nullptr};
   int tx_pin_{-1};
   int rx_pin_{-1};
   std::string apn_{""};

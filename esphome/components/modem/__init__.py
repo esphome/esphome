@@ -49,7 +49,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(ModemComponent),
         cv.Required(CONF_TYPE): cv.enum(MODEM_TYPES, upper=True),
         cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_schema,
         cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_APN, default="internet"): cv.string,
@@ -72,12 +72,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add(var.set_type(config[CONF_TYPE]))
     cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
-    
-    # cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
     if power_pin := config.get(CONF_POWER_PIN, None):
         pin = await cg.gpio_pin_expression(power_pin)
         cg.add(var.set_power_pin(pin))
-        
+
     cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
     cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
     cg.add(var.set_apn(config[CONF_APN]))

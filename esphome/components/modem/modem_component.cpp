@@ -88,6 +88,12 @@ void ModemComponent::setup() {
   esp_netif_flags_t flags = esp_netif_get_flags(this->modem_netif_);
 
   this->started_ = true;
+
+  // power pin on
+  if (this->power_pin_) {
+    this->power_pin_->setup();
+    this->power_pin_->digital_write(false);
+  }
 }
 
 void ModemComponent::loop() {
@@ -114,7 +120,7 @@ void ModemComponent::loop() {
       break;
     case ModemComponentState::CONNECTED:
       if (time_info_print < now) {
-        ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage()/1000);
+        ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage() / 1000);
         if (esp_netif_is_netif_up(this->modem_netif_)) {
           ESP_LOGD(TAG, "esp_netif_is_netif_UP");
         } else {
@@ -129,7 +135,7 @@ void ModemComponent::loop() {
 void ModemComponent::dump_config() {
   this->dump_connect_params();
   ESP_LOGCONFIG(TAG, "Modem:");
-  ESP_LOGCONFIG(TAG, "  Power Pin: %d", this->power_pin_);
+  ESP_LOGCONFIG(TAG, "  Power Pin: %d", this->power_pin_->get_pin());
   ESP_LOGCONFIG(TAG, "  Type: %d", this->type_);
   ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
@@ -251,8 +257,7 @@ void ModemComponent::start_connect_() {
 }
 
 bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
-
-void ModemComponent::set_power_pin(std::unique_ptr<GPIOPin> power_pin) { this->power_pin_ = &power_pin; }
+void ModemComponent::set_power_pin(InternalGPIOPin *power_pin) { this->power_pin_ = power_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
 void ModemComponent::set_reset_pin(int reset_pin) { this->reset_pin_ = reset_pin; }
 void ModemComponent::set_apn(const std::string &apn) { this->apn_ = apn; }
