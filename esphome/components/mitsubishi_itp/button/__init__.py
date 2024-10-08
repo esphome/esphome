@@ -1,15 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import button
-from esphome.const import (
-    ENTITY_CATEGORY_CONFIG,
-)
+import esphome.config_validation as cv
+from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.core import coroutine
-from ...mitsubishi_itp import (
-    CONF_MITSUBISHI_ITP_ID,
-    mitsubishi_itp_ns,
-    MitsubishiUART,
-)
+
+from ...mitsubishi_itp import CONF_MITSUBISHI_ITP_ID, MitsubishiUART, mitsubishi_itp_ns
 
 CONF_FILTER_RESET_BUTTON = "filter_reset_button"
 

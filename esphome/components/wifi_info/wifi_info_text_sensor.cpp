@@ -1,4 +1,5 @@
 #include "wifi_info_text_sensor.h"
+#ifdef USE_WIFI
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -15,3 +16,4 @@ void DNSAddressWifiInfo::dump_config() { LOG_TEXT_SENSOR("", "WifiInfo DNS Addre
 
 }  // namespace wifi_info
 }  // namespace esphome
+#endif

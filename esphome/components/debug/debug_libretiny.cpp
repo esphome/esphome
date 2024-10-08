@@ -12,7 +12,7 @@ std::string DebugComponent::get_reset_reason_() { return lt_get_reboot_reason_na
 uint32_t DebugComponent::get_free_heap_() { return lt_heap_get_free(); }
 
 void DebugComponent::get_device_info_(std::string &device_info) {
-  str::string reset_reason = get_reset_reason_();
+  std::string reset_reason = get_reset_reason_();
   ESP_LOGD(TAG, "LibreTiny Version: %s", lt_get_version());
   ESP_LOGD(TAG, "Chip: %s (%04x) @ %u MHz", lt_cpu_get_model_name(), lt_cpu_get_model(), lt_cpu_get_freq_mhz());
   ESP_LOGD(TAG, "Chip ID: 0x%06X", lt_cpu_get_mac_id());

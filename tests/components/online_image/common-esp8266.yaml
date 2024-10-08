@@ -1,0 +1,18 @@
+<<: !include common.yaml
+
+spi:
+  - id: spi_main_lcd
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+display:
+  - platform: ili9xxx
+    id: main_lcd
+    model: ili9342
+    cs_pin: 15
+    dc_pin: 3
+    reset_pin: 1
+    lambda: |-
+      it.fill(Color(0, 0, 0));
+      it.image(0, 0, id(online_rgba_image));

@@ -1,21 +1,21 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, spi
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_REACTIVE_POWER,
-    CONF_VOLTAGE,
+    CONF_APPARENT_POWER,
     CONF_CURRENT,
+    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_FREQUENCY,
+    CONF_ID,
     CONF_PHASE_A,
+    CONF_PHASE_ANGLE,
     CONF_PHASE_B,
     CONF_PHASE_C,
-    CONF_PHASE_ANGLE,
     CONF_POWER,
     CONF_POWER_FACTOR,
-    CONF_APPARENT_POWER,
-    CONF_FREQUENCY,
-    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_REACTIVE_POWER,
     CONF_REVERSE_ACTIVE_ENERGY,
+    CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
@@ -23,19 +23,21 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_LIGHTBULB,
     ICON_CURRENT_AC,
+    ICON_LIGHTBULB,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
-    UNIT_DEGREES,
     UNIT_CELSIUS,
+    UNIT_DEGREES,
     UNIT_HERTZ,
     UNIT_VOLT,
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+
+from . import atm90e32_ns
 
 CONF_LINE_FREQUENCY = "line_frequency"
 CONF_CHIP_TEMPERATURE = "chip_temperature"
@@ -46,6 +48,7 @@ CONF_GAIN_CT = "gain_ct"
 CONF_HARMONIC_POWER = "harmonic_power"
 CONF_PEAK_CURRENT = "peak_current"
 CONF_PEAK_CURRENT_SIGNED = "peak_current_signed"
+CONF_ENABLE_OFFSET_CALIBRATION = "enable_offset_calibration"
 UNIT_DEG = "degrees"
 LINE_FREQS = {
     "50HZ": 50,
@@ -61,7 +64,6 @@ PGA_GAINS = {
     "4X": 0x2A,
 }
 
-atm90e32_ns = cg.esphome_ns.namespace("atm90e32")
 ATM90E32Component = atm90e32_ns.class_(
     "ATM90E32Component", cg.PollingComponent, spi.SPIDevice
 )
@@ -164,6 +166,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_GAIN_PGA, default="2X"): cv.enum(PGA_GAINS, upper=True),
             cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_OFFSET_CALIBRATION, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -227,3 +230,4 @@ async def to_code(config):
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
     cg.add(var.set_peak_current_signed(config[CONF_PEAK_CURRENT_SIGNED]))
+    cg.add(var.set_enable_offset_calibration(config[CONF_ENABLE_OFFSET_CALIBRATION]))

@@ -1,10 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import climate, time, uart
 import esphome.config_validation as cv
-from esphome.components import (
-    climate,
-    uart,
-    time,
-)
 from esphome.const import (
     CONF_CUSTOM_FAN_MODES,
     CONF_ID,
@@ -13,11 +9,9 @@ from esphome.const import (
     CONF_TIME_ID,
 )
 from esphome.core import coroutine
-from . import mitsubishi_itp_ns, MitsubishiUART
 
-AUTO_LOAD = [
-    "time",
-]
+from . import MitsubishiUART, mitsubishi_itp_ns
+
 DEPENDENCIES = [
     "uart",
 ]
@@ -29,6 +23,7 @@ CONF_DISABLE_ACTIVE_MODE = "disable_active_mode"
 CONF_ENHANCED_MHK_SUPPORT = (
     "enhanced_mhk"  # EXPERIMENTAL. Will be set to default eventually.
 )
+CONF_RECALL_SETPOINT = "recall_setpoint"
 
 DEFAULT_POLLING_INTERVAL = "5s"
 
@@ -55,6 +50,7 @@ CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
         ),
         cv.Optional(CONF_DISABLE_ACTIVE_MODE, default=False): cv.boolean,
         cv.Optional(CONF_ENHANCED_MHK_SUPPORT, default=False): cv.boolean,
+        cv.Optional(CONF_RECALL_SETPOINT, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
 
@@ -90,28 +86,28 @@ FINAL_VALIDATE_SCHEMA = final_validate
 @coroutine
 async def to_code(config):
     hp_uart_component = await cg.get_variable(config[CONF_UART_HEATPUMP])
-    muart_component = cg.new_Pvariable(config[CONF_ID], hp_uart_component)
+    mitp_component = cg.new_Pvariable(config[CONF_ID], hp_uart_component)
 
-    await cg.register_component(muart_component, config)
-    await climate.register_climate(muart_component, config)
+    await cg.register_component(mitp_component, config)
+    await climate.register_climate(mitp_component, config)
 
     # If thermostat defined
     if CONF_UART_THERMOSTAT in config:
-        # Register thermostat with MUART
+        # Register thermostat with MITP
         ts_uart_component = await cg.get_variable(config[CONF_UART_THERMOSTAT])
-        cg.add(getattr(muart_component, "set_thermostat_uart")(ts_uart_component))
+        cg.add(getattr(mitp_component, "set_thermostat_uart")(ts_uart_component))
 
     # If RTC defined
     if CONF_TIME_ID in config:
         rtc_component = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(getattr(muart_component, "set_time_source")(rtc_component))
+        cg.add(getattr(mitp_component, "set_time_source")(rtc_component))
     elif CONF_UART_THERMOSTAT in config and config.get(CONF_ENHANCED_MHK_SUPPORT):
         raise cv.RequiredFieldInvalid(
             f"{CONF_TIME_ID} is required if {CONF_ENHANCED_MHK_SUPPORT} is set."
         )
 
     # Traits
-    traits = muart_component.config_traits()
+    traits = mitp_component.config_traits()
 
     if CONF_SUPPORTED_MODES in config:
         cg.add(traits.set_supported_modes(config[CONF_SUPPORTED_MODES]))
@@ -124,9 +120,11 @@ async def to_code(config):
 
     # Debug Settings
     if dam_conf := config.get(CONF_DISABLE_ACTIVE_MODE):
-        cg.add(getattr(muart_component, "set_active_mode")(not dam_conf))
+        cg.add(getattr(mitp_component, "set_active_mode")(not dam_conf))
 
     if enhanced_mhk_protocol := config.get(CONF_ENHANCED_MHK_SUPPORT):
         cg.add(
-            getattr(muart_component, "set_enhanced_mhk_support")(enhanced_mhk_protocol)
+            getattr(mitp_component, "set_enhanced_mhk_support")(enhanced_mhk_protocol)
         )
+    if rs_conf := config.get(CONF_RECALL_SETPOINT):
+        cg.add(getattr(mitp_component, "set_recall_setpoint")(rs_conf))

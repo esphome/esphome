@@ -1,22 +1,21 @@
+from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.components import (
-    sensor,
-)
 from esphome.const import (
     CONF_OUTDOOR_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_HERTZ,
     UNIT_PERCENT,
 )
 from esphome.core import coroutine
+
 from ...mitsubishi_itp import (
     mitsubishi_itp_ns,
-    sensors_to_config_schema,
     sensors_to_code,
+    sensors_to_config_schema,
 )
 
 CONF_THERMOSTAT_HUMIDITY = "thermostat_humidity"
