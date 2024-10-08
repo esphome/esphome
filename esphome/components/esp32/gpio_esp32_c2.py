@@ -1,9 +1,8 @@
 import logging
 
+import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
-
-import esphome.config_validation as cv
 
 _ESP32C2_STRAPPING_PINS = {8, 9}
 

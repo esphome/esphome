@@ -1,17 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import select, sensor
-from esphome.const import (
-    CONF_ID,
-    ENTITY_CATEGORY_CONFIG,
-    ENTITY_CATEGORY_NONE,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ENTITY_CATEGORY_NONE
 from esphome.core import coroutine
-from ...mitsubishi_itp import (
-    CONF_MITSUBISHI_ITP_ID,
-    mitsubishi_itp_ns,
-    MitsubishiUART,
-)
+
+from ...mitsubishi_itp import CONF_MITSUBISHI_ITP_ID, MitsubishiUART, mitsubishi_itp_ns
 
 CONF_TEMPERATURE_SOURCE = (
     "temperature_source"  # This is to create a Select object for selecting a source

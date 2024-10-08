@@ -1,12 +1,11 @@
+from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.components import (
-    text_sensor,
-)
 from esphome.core import coroutine
+
 from ...mitsubishi_itp import (
     mitsubishi_itp_ns,
-    sensors_to_config_schema,
     sensors_to_code,
+    sensors_to_config_schema,
 )
 
 CONF_THERMOSTAT_BATTERY = "thermostat_battery"

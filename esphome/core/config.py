@@ -3,9 +3,9 @@ import multiprocessing
 import os
 import re
 
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.const import (
     CONF_ARDUINO_VERSION,
     CONF_AREA,
@@ -16,11 +16,11 @@ from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
+    CONF_FRIENDLY_NAME,
     CONF_INCLUDES,
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
-    CONF_FRIENDLY_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
@@ -34,8 +34,8 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VERSION,
     KEY_CORE,
-    TARGET_PLATFORMS,
     PLATFORM_ESP8266,
+    TARGET_PLATFORMS,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority

@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import climate
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@Sammy1Am", "@KazWolfe"]
@@ -26,7 +26,7 @@ def sensors_to_config_schema(sensors):
 
 
 async def sensors_to_code(config, sensors, registration_function):
-    muart_component = await cg.get_variable(config[CONF_MITSUBISHI_ITP_ID])
+    mitp_component = await cg.get_variable(config[CONF_MITSUBISHI_ITP_ID])
 
     # Sensors
 
@@ -36,4 +36,4 @@ async def sensors_to_code(config, sensors, registration_function):
 
             await registration_function(sensor_component, sensor_conf)
 
-            cg.add(getattr(muart_component, "register_listener")(sensor_component))
+            cg.add(getattr(mitp_component, "register_listener")(sensor_component))
