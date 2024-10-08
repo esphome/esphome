@@ -52,6 +52,7 @@ from ..types import LV_STATE, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t
 EVENT_LAMB = "event_lamb__"
 
 theme_widget_map = {}
+styles_used = set()
 
 
 class LvScrActType(WidgetType):
@@ -158,6 +159,7 @@ class Widget:
     def set_style(self, prop, value, state):
         if value is None:
             return
+        styles_used.add(prop)
         lv.call(f"obj_set_style_{prop}", self.obj, value, state)
 
     def __type_base(self):

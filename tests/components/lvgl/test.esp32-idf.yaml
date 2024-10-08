@@ -10,7 +10,7 @@ sensor:
   - platform: rotary_encoder
     name: "Rotary Encoder"
     id: encoder
-    pin_a: 2
+    pin_a: 3
     pin_b: 1
     internal: true
 
