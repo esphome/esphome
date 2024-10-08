@@ -105,6 +105,14 @@ void WebServer::setup() {
     // Configure reconnect timeout and send config
     client->send(this->get_config_json().c_str(), "ping", millis(), 30000);
 
+    for (auto &group : this->sorting_groups_) {
+      client->send(json::build_json([group](JsonObject root) {
+                     root["name"] = group.second.name;
+                     root["sorting_weight"] = group.second.weight;
+                   }).c_str(),
+                   "sorting_group");
+    }
+
     this->entities_iterator_.begin(this->include_internal_);
   });
 
@@ -246,6 +254,9 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
       if (!obj->get_unit_of_measurement().empty())
         root["uom"] = obj->get_unit_of_measurement();
@@ -284,6 +295,9 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -332,6 +346,9 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail 
       root["assumed_state"] = obj->assumed_state();
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -368,6 +385,9 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -404,6 +424,9 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -487,6 +510,9 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -603,6 +629,9 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
       }
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -684,6 +713,9 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -745,6 +777,9 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
         root["uom"] = obj->traits.get_unit_of_measurement();
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
     if (std::isnan(value)) {
@@ -814,6 +849,9 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -872,6 +910,9 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -931,6 +972,9 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -992,6 +1036,9 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
       root["mode"] = (int) obj->traits.get_mode();
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -1048,6 +1095,9 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
       }
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -1164,6 +1214,9 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       }
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
 
@@ -1257,6 +1310,9 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -1326,8 +1382,13 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
     if (obj->get_traits().get_supports_position())
       root["position"] = obj->position;
-    if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
-      root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+    if (start_config == DETAIL_ALL) {
+      if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
+        root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
+      }
     }
   });
 }
@@ -1367,6 +1428,9 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
     if (start_config == DETAIL_ALL) {
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -1453,6 +1517,9 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
       root["release_url"] = obj->update_info.release_url;
       if (this->sorting_entitys_.find(obj) != this->sorting_entitys_.end()) {
         root["sorting_weight"] = this->sorting_entitys_[obj].weight;
+        if (this->sorting_groups_.find(this->sorting_entitys_[obj].group_id) != this->sorting_groups_.end()) {
+          root["sorting_group"] = this->sorting_groups_[this->sorting_entitys_[obj].group_id].name;
+        }
       }
     }
   });
@@ -1751,8 +1818,12 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
-void WebServer::add_entity_to_sorting_list(EntityBase *entity, float weight) {
-  this->sorting_entitys_[entity] = SortingComponents{weight};
+void WebServer::add_entity_config(EntityBase *entity, float weight, uint64_t group) {
+  this->sorting_entitys_[entity] = SortingComponents{weight, group};
+}
+
+void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {
+  this->sorting_groups_[group_id] = SortingGroup{group_name, weight};
 }
 
 void WebServer::schedule_(std::function<void()> &&f) {
