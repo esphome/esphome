@@ -14,9 +14,9 @@
 #include "esp_lcd_panel_rgb.h"
 
 namespace esphome {
-namespace qspi_amoled {
+namespace qspi_dbi {
 
-constexpr static const char *const TAG = "display.qspi_amoled";
+constexpr static const char *const TAG = "display.qspi_dbi";
 static const uint8_t SW_RESET_CMD = 0x01;
 static const uint8_t SLEEP_OUT = 0x11;
 static const uint8_t INVERT_OFF = 0x20;
@@ -53,9 +53,9 @@ enum Model {
   RM67162,
 };
 
-class QspiAmoLed : public display::DisplayBuffer,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                         spi::DATA_RATE_1MHZ> {
+class QspiDbi : public display::DisplayBuffer,
+                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                      spi::DATA_RATE_1MHZ> {
  public:
   void set_model(Model model) { this->model_ = model; }
   void update() override;
@@ -157,6 +157,6 @@ class QspiAmoLed : public display::DisplayBuffer,
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace qspi_amoled
+}  // namespace qspi_dbi
 }  // namespace esphome
 #endif

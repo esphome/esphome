@@ -1,38 +1,35 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import (
-    spi,
-    display,
-)
+import esphome.codegen as cg
+from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_RESET_PIN,
-    CONF_ID,
-    CONF_DIMENSIONS,
-    CONF_WIDTH,
-    CONF_HEIGHT,
-    CONF_LAMBDA,
     CONF_BRIGHTNESS,
+    CONF_COLOR_ORDER,
+    CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
+    CONF_HEIGHT,
+    CONF_ID,
+    CONF_INVERT_COLORS,
+    CONF_LAMBDA,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
-    CONF_INVERT_COLORS,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
+    CONF_RESET_PIN,
     CONF_SWAP_XY,
-    CONF_COLOR_ORDER,
     CONF_TRANSFORM,
+    CONF_WIDTH,
 )
 
 DEPENDENCIES = ["spi"]
 
-qspi_amoled_ns = cg.esphome_ns.namespace("qspi_amoled")
-QSPI_AMOLED = qspi_amoled_ns.class_(
-    "QspiAmoLed", display.Display, display.DisplayBuffer, cg.Component, spi.SPIDevice
+qspi_dbi_ns = cg.esphome_ns.namespace("qspi_dbi")
+QSPI_DBI = qspi_dbi_ns.class_(
+    "QspiDbi", display.Display, display.DisplayBuffer, cg.Component, spi.SPIDevice
 )
 ColorOrder = display.display_ns.enum("ColorMode")
-Model = qspi_amoled_ns.enum("Model")
+Model = qspi_dbi_ns.enum("Model")
 
 MODELS = {"RM690B0": Model.RM690B0, "RM67162": Model.RM67162}
 
@@ -54,7 +51,7 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         cv.Schema(
             {
-                cv.GenerateID(): cv.declare_id(QSPI_AMOLED),
+                cv.GenerateID(): cv.declare_id(QSPI_DBI),
                 cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True),
                 cv.Required(CONF_DIMENSIONS): cv.Any(
                     cv.dimensions,

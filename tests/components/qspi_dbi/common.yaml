@@ -5,7 +5,7 @@ spi:
   data_pins: [14, 10, 16, 12]
 
 display:
-  - platform: qspi_amoled
+  - platform: qspi_dbi
     model: RM690B0
     data_rate: 80MHz
     spi_mode: mode0
@@ -20,7 +20,7 @@ display:
     reset_pin: 13
     enable_pin: 9
 
-  - platform: qspi_amoled
+  - platform: qspi_dbi
     model: RM67162
     id: main_lcd
     dimensions:

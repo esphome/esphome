@@ -1,12 +1,12 @@
 #ifdef USE_ESP_IDF
-#include "qspi_amoled.h"
+#include "qspi_dbi.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace qspi_amoled {
+namespace qspi_dbi {
 
-void QspiAmoLed::setup() {
-  esph_log_config(TAG, "Setting up QSPI_AMOLED");
+void QspiDbi::setup() {
+  esph_log_config(TAG, "Setting up QSPI_DBI");
   this->spi_setup();
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();
@@ -24,7 +24,7 @@ void QspiAmoLed::setup() {
   this->set_timeout(240, [this] { this->write_init_sequence_(); });
 }
 
-void QspiAmoLed::update() {
+void QspiDbi::update() {
   if (!this->setup_complete_) {
     return;
   }
@@ -53,7 +53,7 @@ void QspiAmoLed::update() {
   this->y_high_ = 0;
 }
 
-void QspiAmoLed::draw_absolute_pixel_internal(int x, int y, Color color) {
+void QspiDbi::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
@@ -90,7 +90,7 @@ void QspiAmoLed::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-void QspiAmoLed::reset_params_(bool ready) {
+void QspiDbi::reset_params_(bool ready) {
   if (!ready && !this->is_ready())
     return;
   this->write_command_(this->invert_colors_ ? INVERT_ON : INVERT_OFF);
@@ -106,7 +106,7 @@ void QspiAmoLed::reset_params_(bool ready) {
   this->write_command_(BRIGHTNESS, &this->brightness_, 1);
 }
 
-void QspiAmoLed::write_init_sequence_() {
+void QspiDbi::write_init_sequence_() {
   if (this->model_ == RM690B0) {
     this->write_command_(PAGESEL, 0x20);
     this->write_command_(MIPI, 0x0A);
@@ -123,10 +123,10 @@ void QspiAmoLed::write_init_sequence_() {
   this->write_command_(DISPLAY_ON);
   this->reset_params_(true);
   this->setup_complete_ = true;
-  esph_log_config(TAG, "QSPI_AMOLED setup complete");
+  esph_log_config(TAG, "QSPI_DBI setup complete");
 }
 
-void QspiAmoLed::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
+void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
   uint8_t buf[4];
   x1 += this->offset_x_;
   x2 += this->offset_x_;
@@ -140,8 +140,8 @@ void QspiAmoLed::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_
   this->write_command_(RASET, buf, sizeof buf);
 }
 
-void QspiAmoLed::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                                display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                             display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (!this->setup_complete_ || this->is_failed())
     return;
   if (w <= 0 || h <= 0)
@@ -167,8 +167,8 @@ void QspiAmoLed::draw_pixels_at(int x_start, int y_start, int w, int h, const ui
   this->disable();
 }
 
-void QspiAmoLed::dump_config() {
-  ESP_LOGCONFIG("", "QSPI AMOLED");
+void QspiDbi::dump_config() {
+  ESP_LOGCONFIG("", "QSPI_DBI Display");
   ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
   ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
   LOG_PIN("  CS Pin: ", this->cs_);
@@ -176,6 +176,6 @@ void QspiAmoLed::dump_config() {
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
-}  // namespace qspi_amoled
+}  // namespace qspi_dbi
 }  // namespace esphome
 #endif
