@@ -5,7 +5,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/bytebuffer.h"
 #include "esphome/core/log.h"
 #include <esp_now.h>
 
@@ -254,7 +253,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   template<typename V> void set_mac(V mac) { this->mac_ = mac; }
   template<typename V> void set_command(V command) { this->command_ = command; }
 
-  void set_data_template(std::function<ByteBuffer(Ts...)> func) {
+  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
     this->data_func_ = func;
     this->static_ = false;
   }
@@ -270,13 +269,10 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
       command = this->mac_.value(x...);
     }
 
-    if (this->static_) {
-      this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size(), command);
-    } else {
-      ByteBuffer data = this->data_func_(x...);
-      this->parent_->get_default_protocol()->send(mac, data.get_data().data(), (uint8_t) data.get_used_space(),
-                                                  command);
+    if (!this->static_) {
+      this->data_static_ = this->data_func_(x...);
     }
+    this->parent_->get_default_protocol()->send(mac, this->data_static_.data(), this->data_static_.size(), command);
   }
 
  protected:
