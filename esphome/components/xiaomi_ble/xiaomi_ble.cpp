@@ -10,10 +10,14 @@
 namespace esphome {
 namespace xiaomi_ble {
 
+
+
+
 static const char *const TAG = "xiaomi_ble";
 
 bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
-  // button pressed, 3 bytes, only byte 3 is used for supported devices so far
+ 
+ // button pressed, 3 bytes, only byte 3 is used for supported devices so far
   if ((value_type == 0x1001) && (value_length == 3)) {
     result.button_press = data[2] == 0;
     return true;
@@ -73,6 +77,11 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   else if ((value_type == 0x1013) && (value_length == 1)) {
     result.tablet = data[0];
   }
+    // smoke detection, 1 byte, 8-bit unsigned integer          // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+  else if ((value_type == 0x1015) && (value_length == 1)) {     // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+    result.has_smoke = data[0];                                 // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+  }															    // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+  
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x1017) && (value_length == 4)) {
     const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
@@ -120,7 +129,8 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     ESP_LOGVV(TAG, "parse_xiaomi_message(): payload has wrong size (%d)!", payload_length);
     return false;
   }
-
+  
+  
   while (payload_length > 3) {
     if (payload[payload_offset + 1] != 0x10 && payload[payload_offset + 1] != 0x00 &&
         payload[payload_offset + 1] != 0x4C && payload[payload_offset + 1] != 0x48) {
@@ -175,7 +185,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   result.raw_offset = result.has_capability ? 12 : 11;
 
   const uint16_t device_uuid = encode_uint16(raw[3], raw[2]);
-
+  
   if (device_uuid == 0x0098) {  // MiFlora
     result.type = XiaomiParseResult::TYPE_HHCCJCY01;
     result.name = "HHCCJCY01";
@@ -188,6 +198,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if (device_uuid == 0x02df) {  // Xiaomi (Honeywell) formaldehyde sensor, OLED display
     result.type = XiaomiParseResult::TYPE_JQJCY01YM;
     result.name = "JQJCY01YM";
+  } else if (device_uuid == 0x0997) {                  // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+    result.type = XiaomiParseResult::TYPE_JTYJGD03MI;  // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+    result.name = "JTYJGD03MI";	                       // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
   } else if (device_uuid == 0x03dd) {  // Philips/Xiaomi BLE nightlight
     result.type = XiaomiParseResult::TYPE_MUE4094RT;
     result.name = "MUE4094RT";
@@ -307,6 +320,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     memcpy(mac_address + 3, mac_reverse + 2, 1);
     memcpy(mac_address + 4, mac_reverse + 1, 1);
     memcpy(mac_address + 5, mac_reverse, 1);
+
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption failed.");
     ESP_LOGVV(TAG, "  MAC address : %s", format_hex_pretty(mac_address, 6).c_str());
     ESP_LOGVV(TAG, "       Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
@@ -330,7 +344,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
 
   ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption passed.");
   ESP_LOGVV(TAG, "  Plaintext : %s, Packet : %d", format_hex_pretty(raw.data() + cipher_pos, vector.datasize).c_str(),
-            static_cast<int>(raw[4]));
+  static_cast<int>(raw[4]));
 
   mbedtls_ccm_free(&ctx);
   return true;
@@ -369,15 +383,17 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
     ESP_LOGD(TAG, "  Repellent: %s", (*result->is_active) ? "on" : "off");
   }
   if (result->has_motion.has_value()) {
-    ESP_LOGD(TAG, "  Motion: %s", (*result->has_motion) ? "yes" : "no");
+    ESP_LOGI(TAG, "  Motion: %s", (*result->has_motion) ? "yes" : "no");
   }
+  if (result->has_smoke.has_value()) {                                    // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+    ESP_LOGI(TAG, "  Motion: %s", (*result->has_smoke) ? "yes" : "no");   // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
+  }                                                                       // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
   if (result->is_light.has_value()) {
     ESP_LOGD(TAG, "  Light: %s", (*result->is_light) ? "on" : "off");
   }
   if (result->button_press.has_value()) {
     ESP_LOGD(TAG, "  Button: %s", (*result->button_press) ? "pressed" : "");
   }
-
   return true;
 }
 

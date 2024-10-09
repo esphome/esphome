@@ -30,6 +30,7 @@ struct XiaomiParseResult {
     TYPE_MHOC401,
     TYPE_CGPR1,
     TYPE_RTCGQ02LM,
+	TYPE_JTYJGD03MI,   // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
   } type;
   std::string name;
   optional<float> temperature;
@@ -43,6 +44,7 @@ struct XiaomiParseResult {
   optional<float> idle_time;
   optional<bool> is_active;
   optional<bool> has_motion;
+  optional<bool> has_smoke;  // added to support Xiaomi (Honeywell)  smoke sensor JTYJGD03MI
   optional<bool> is_light;
   optional<bool> button_press;
   bool has_data;        // 0x40
