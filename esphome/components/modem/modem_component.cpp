@@ -48,22 +48,16 @@ void ModemComponent::setup() {
 
   ESP_LOGCONFIG(TAG, "Setting up modem...");
 
+  if (this->power_pin_) {
+    this->power_pin_->setup();
+  }
+  if (this->pwrkey_pin_) {
+    this->pwrkey_pin_->setup();
+  }
   this->reset_pin_->setup();
 
-  if (this->power_pin_) {
-    ESP_LOGD(TAG, "power_pin_ ON");
-    this->power_pin_->setup();
-    this->power_pin_->digital_write(true);
-
-    vTaskDelay(pdMS_TO_TICKS(2000));  // NOLINT
-  }
-    if (this->pwrkey_pin_) {
-    ESP_LOGD(TAG, "pwrkey pin used");
-    this->pwrkey_pin_->setup();
-    this->pwrkey_pin_->digital_write(false);
-    vTaskDelay(pdMS_TO_TICKS(2000));  // NOLINT
-    this->pwrkey_pin_->digital_write(true);
-  }
+  this->turn_on_modem();
+  this->use_pwrkey();
   //esp_modem_hard_reset();
 
 
@@ -125,7 +119,7 @@ void ModemComponent::loop() {
         }
         if (time_hard_reset_modem + TIME_TO_NEXT_HARD_RESET < now) {
           time_hard_reset_modem = now;
-          esp_modem_hard_reset();
+          reset_modem();
         }
       }
       break;
@@ -133,7 +127,7 @@ void ModemComponent::loop() {
       break;
     case ModemComponentState::CONNECTED:
       if (time_info_print < now) {
-        ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage() / 1000);
+        //ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage() / 1000);
         if (esp_netif_is_netif_up(this->modem_netif_)) {
           ESP_LOGD(TAG, "esp_netif_is_netif_UP");
         } else {
@@ -145,16 +139,54 @@ void ModemComponent::loop() {
   }
 }
 
-bool power_on(){
+bool ModemComponent::turn_on_modem(){
+  if (this->power_pin_) {
+    this->power_pin_->digital_write(true);
+    vTaskDelay(pdMS_TO_TICKS(1900));  // NOLINT
+    ESP_LOGD(TAG, "modem is on");
+    return true;
+  }
+  else {
+    ESP_LOGD(TAG, "failed to turn on modem because power_pin_ is not initialized");
+    return false;
+  }
+  // wait no more than 1.9 sec for signs of life to appear
+}
+
+bool ModemComponent::turn_off_modem(){
+  if (this->power_pin_) {
+    this->power_pin_->digital_write(true);
+    vTaskDelay(pdMS_TO_TICKS(1900));  // NOLINT
+    ESP_LOGD(TAG, "modem is off");
+    return true;
+  }
+  else {
+    ESP_LOGD(TAG, "failed to turn off modem because power_pin_ is not initialized");
+    return false;
+  }
+  // wait no more than 1.9 sec for signs of life to appear
+}
+
+bool ModemComponent::use_pwrkey(){
+  if (this->pwrkey_pin_) {
+    ESP_LOGD(TAG, "pwrkey used");
+    this->pwrkey_pin_->digital_write(false);
+    vTaskDelay(pdMS_TO_TICKS(1050));  // NOLINT
+    this->pwrkey_pin_->digital_write(true);
+  }
+  else {
+    ESP_LOGD(TAG, "failed to press button because pwrkey_pin_ is not initialized");
+  }
   return true;
 }
 
-bool power_off(){
-  return true;
-}
-
-bool use_pwrkey(){
-  return true;
+void ModemComponent::reset_modem() {
+  ESP_LOGD(TAG, "reset modem");
+  this->reset_pin_->digital_write(false);
+  vTaskDelay(pdMS_TO_TICKS(105));  // NOLINT
+  this->reset_pin_->digital_write(true);
+  time_hard_reset_modem = millis();
+  // you need to wait another 2,7 sec to get the status
 }
 void ModemComponent::dump_config() {
   this->dump_connect_params();
@@ -183,19 +215,6 @@ void ModemComponent::dump_connect_params() {
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(&dns_info.ip.u_addr.ip4).str().c_str());
   esp_netif_get_dns_info(this->modem_netif_, ESP_NETIF_DNS_BACKUP, &dns_info);
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(&dns_info.ip.u_addr.ip4).str().c_str());
-}
-
-void ModemComponent::esp_modem_hard_reset() {
-  //gpio_set_direction(gpio_num_t(this->reset_pin_->get_pin()), GPIO_MODE_OUTPUT);
-  //gpio_set_level(gpio_num_t(this->reset_pin_->get_pin()), 0);
-  // this->reset_pin_->digital_write(false);
-  // ESP_LOGD(TAG, "reset_pin_ 0");
-  // vTaskDelay(pdMS_TO_TICKS(110));  // NOLINT
-
-  // //gpio_set_level(gpio_num_t(this->reset_pin_->get_pin()), 1);
-  // this->reset_pin_->digital_write(true);
-  // ESP_LOGD(TAG, "reset_pin_ 1");
-  // time_hard_reset_modem = millis();
 }
 
 int ModemComponent::get_rssi() {
@@ -258,7 +277,7 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
 void ModemComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning();
-  esp_modem_hard_reset();
+  reset_modem();
   esp_err_t err;
   err = esp_netif_set_hostname(this->modem_netif_, App.get_name().c_str());
   if (err != ERR_OK) {
