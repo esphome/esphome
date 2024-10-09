@@ -59,6 +59,9 @@ AutomationLightEffect = light_ns.class_("AutomationLightEffect", LightEffect)
 StrobeLightEffect = light_ns.class_("StrobeLightEffect", LightEffect)
 StrobeLightEffectColor = light_ns.class_("StrobeLightEffectColor", LightEffect)
 FlickerLightEffect = light_ns.class_("FlickerLightEffect", LightEffect)
+FlameEffectNumberFlickers = light_ns.struct("FlameEffectNumberFlickers")
+CandleLightEffect = light_ns.class_("CandleLightEffect", LightEffect)
+FireplaceLightEffect = light_ns.class_("FireplaceLightEffect", LightEffect)
 AddressableLightEffect = light_ns.class_("AddressableLightEffect", LightEffect)
 AddressableLambdaLightEffect = light_ns.class_(
     "AddressableLambdaLightEffect", AddressableLightEffect
