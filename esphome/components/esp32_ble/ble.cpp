@@ -1,6 +1,11 @@
 #ifdef USE_ESP32
 
 #include "ble.h"
+
+#ifdef USE_ESP32_VARIANT_ESP32C6
+#include "const_esp32c6.h"
+#endif  // USE_ESP32_VARIANT_ESP32C6
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
@@ -73,6 +78,11 @@ void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &dat
   this->advertising_start();
 }
 
+void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback) {
+  this->advertising_init_();
+  this->advertising_->register_raw_advertisement_callback(std::move(callback));
+}
+
 void ESP32BLE::advertising_add_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->add_service_uuid(uuid);
@@ -97,7 +107,7 @@ bool ESP32BLE::ble_pre_setup_() {
 void ESP32BLE::advertising_init_() {
   if (this->advertising_ != nullptr)
     return;
-  this->advertising_ = new BLEAdvertising();  // NOLINT(cppcoreguidelines-owning-memory)
+  this->advertising_ = new BLEAdvertising(this->advertising_cycle_time_);  // NOLINT(cppcoreguidelines-owning-memory)
 
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
@@ -114,7 +124,11 @@ bool ESP32BLE::ble_setup_() {
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
+#ifdef USE_ESP32_VARIANT_ESP32C6
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_CONFIG;
+#else
       esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+#endif
       err = esp_bt_controller_init(&cfg);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
@@ -302,6 +316,9 @@ void ESP32BLE::loop() {
     }
     delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
+  }
+  if (this->advertising_ != nullptr) {
+    this->advertising_->loop();
   }
 }
 

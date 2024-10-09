@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_mpl3115a2
+    scl: 16
+    sda: 17
+
+sensor:
+  - platform: mpl3115a2
+    temperature:
+      name: MPL3115A2 Temperature
+    pressure:
+      name: MPL3115A2 Pressure
+    update_interval: 10s

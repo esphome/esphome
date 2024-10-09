@@ -60,5 +60,14 @@ void TLC5947::loop() {
   this->update_ = false;
 }
 
+void TLC5947::set_channel_value(uint16_t channel, uint16_t value) {
+  if (channel >= this->num_chips_ * N_CHANNELS_PER_CHIP)
+    return;
+  if (this->pwm_amounts_[channel] != value) {
+    this->update_ = true;
+  }
+  this->pwm_amounts_[channel] = value;
+}
+
 }  // namespace tlc5947
 }  // namespace esphome

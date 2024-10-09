@@ -157,8 +157,11 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
     default:
       trig = nullptr;
   }
-  assert(trig != nullptr);
-  trig->trigger();
+  if (trig != nullptr) {
+    trig->trigger();
+  } else {
+    ESP_LOGW(TAG, "trig not set - unsupported action");
+  }
   this->action = action;
   this->prev_trigger_ = trig;
   this->publish_state();
@@ -194,8 +197,8 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
-  ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
-  ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.2f°C", this->normal_config_.default_temperature_low);
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.2f°C", this->normal_config_.default_temperature_high);
 }
 
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig() = default;

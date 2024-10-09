@@ -15,6 +15,10 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
     this->match_by_ = MATCH_BY_MAC_ADDRESS;
     this->address_ = address;
   }
+  void set_irk(uint8_t *irk) {
+    this->match_by_ = MATCH_BY_IRK;
+    this->irk_ = irk;
+  }
   void set_service_uuid16(uint16_t uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
     this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint16(uuid);
@@ -48,6 +52,13 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
     switch (this->match_by_) {
       case MATCH_BY_MAC_ADDRESS:
         if (device.address_uint64() == this->address_) {
+          this->publish_state(device.get_rssi());
+          this->found_ = true;
+          return true;
+        }
+        break;
+      case MATCH_BY_IRK:
+        if (device.resolve_irk(this->irk_)) {
           this->publish_state(device.get_rssi());
           this->found_ = true;
           return true;
@@ -91,12 +102,13 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-  enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
+  enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_IRK, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
   MatchType match_by_;
 
   bool found_{false};
 
   uint64_t address_;
+  uint8_t *irk_;
 
   esp32_ble_tracker::ESPBTUUID uuid_;
 

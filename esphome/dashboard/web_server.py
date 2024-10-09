@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from collections.abc import Iterable
 import datetime
 import functools
 import gzip
@@ -9,14 +10,14 @@ import hashlib
 import json
 import logging
 import os
+from pathlib import Path
 import secrets
 import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Iterable
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from urllib.parse import urlparse
 
 import tornado
 import tornado.concurrent
@@ -25,13 +26,13 @@ import tornado.httpserver
 import tornado.httputil
 import tornado.ioloop
 import tornado.iostream
+from tornado.log import access_log
 import tornado.netutil
 import tornado.process
 import tornado.queues
 import tornado.web
 import tornado.websocket
 import yaml
-from tornado.log import access_log
 from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
@@ -165,6 +166,18 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Windows doesn't support non-blocking pipes,
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
+
+    def check_origin(self, origin):
+        if "ESPHOME_TRUSTED_DOMAINS" not in os.environ:
+            return super().check_origin(origin)
+        trusted_domains = [
+            s.strip() for s in os.environ["ESPHOME_TRUSTED_DOMAINS"].split(",")
+        ]
+        url = urlparse(origin)
+        if url.hostname in trusted_domains:
+            return True
+        _LOGGER.info("check_origin %s, domain is not trusted", origin)
+        return False
 
     def open(self, *args: str, **kwargs: str) -> None:
         """Handle new WebSocket connection."""
@@ -516,7 +529,8 @@ class ImportRequestHandler(BaseHandler):
             self.set_status(500)
             self.write("File already exists")
             return
-        except ValueError:
+        except ValueError as e:
+            _LOGGER.error(e)
             self.set_status(422)
             self.write("Invalid package url")
             return
@@ -687,6 +701,11 @@ class MainRequestHandler(BaseHandler):
     @authenticated
     def get(self) -> None:
         begin = bool(self.get_argument("begin", False))
+        if settings.using_password:
+            # Simply accessing the xsrf_token sets the cookie for us
+            self.xsrf_token  # pylint: disable=pointless-statement
+        else:
+            self.clear_cookie("_xsrf")
 
         self.render(
             "index.template.html",
@@ -820,6 +839,7 @@ class EditRequestHandler(BaseHandler):
             None, self._read_file, filename, configuration
         )
         if content is not None:
+            self.set_header("Content-Type", "application/yaml")
             self.write(content)
 
     def _read_file(self, filename: str, configuration: str) -> bytes | None:
@@ -1100,6 +1120,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
         "template_path": get_base_frontend_path(),
+        "xsrf_cookies": settings.using_password,
     }
     rel = settings.relative_url
     return tornado.web.Application(

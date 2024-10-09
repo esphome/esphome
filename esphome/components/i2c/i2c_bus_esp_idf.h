@@ -29,6 +29,7 @@ class IDFI2CBus : public I2CBus, public Component {
   void set_scl_pin(uint8_t scl_pin) { scl_pin_ = scl_pin; }
   void set_scl_pullup_enabled(bool scl_pullup_enabled) { scl_pullup_enabled_ = scl_pullup_enabled; }
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
+  void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
  private:
   void recover_();
@@ -41,6 +42,7 @@ class IDFI2CBus : public I2CBus, public Component {
   uint8_t scl_pin_;
   bool scl_pullup_enabled_;
   uint32_t frequency_;
+  uint32_t timeout_ = 0;
   bool initialized_ = false;
 };
 

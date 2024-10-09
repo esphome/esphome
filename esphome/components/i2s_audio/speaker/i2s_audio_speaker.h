@@ -21,7 +21,6 @@ static const size_t BUFFER_SIZE = 1024;
 enum class TaskEventType : uint8_t {
   STARTING = 0,
   STARTED,
-  PLAYING,
   STOPPING,
   STOPPED,
   WARNING = 255,
@@ -38,21 +37,23 @@ struct DataEvent {
   uint8_t data[BUFFER_SIZE];
 };
 
-class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAudioOut {
+class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Component {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
 
   void setup() override;
   void loop() override;
 
+  void set_timeout(uint32_t ms) { this->timeout_ = ms; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = pin; }
 #if SOC_I2S_SUPPORTS_DAC
   void set_internal_dac_mode(i2s_dac_mode_t mode) { this->internal_dac_mode_ = mode; }
 #endif
-  void set_external_dac_channels(uint8_t channels) { this->external_dac_channels_ = channels; }
+  void set_i2s_comm_fmt(i2s_comm_format_t mode) { this->i2s_comm_fmt_ = mode; }
 
   void start() override;
   void stop() override;
+  void finish() override;
 
   size_t play(const uint8_t *data, size_t length) override;
 
@@ -60,7 +61,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
 
  protected:
   void start_();
-  // void stop_();
+  void stop_(bool wait_on_empty);
   void watch_();
 
   static void player_task(void *params);
@@ -69,12 +70,14 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
   QueueHandle_t buffer_queue_;
   QueueHandle_t event_queue_;
 
+  uint32_t timeout_{0};
   uint8_t dout_pin_{0};
+  bool task_created_{false};
 
 #if SOC_I2S_SUPPORTS_DAC
   i2s_dac_mode_t internal_dac_mode_{I2S_DAC_CHANNEL_DISABLE};
 #endif
-  uint8_t external_dac_channels_;
+  i2s_comm_format_t i2s_comm_fmt_;
 };
 
 }  // namespace i2s_audio

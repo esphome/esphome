@@ -45,11 +45,8 @@ void UponorSmatrixComponent::loop() {
 
   // Read incoming data
   while (this->available()) {
-    // The controller polls devices every 10 seconds, with around 200 ms between devices.
-    // Remember timestamps so we can send our own packets when the bus is expected to be silent.
-    if (now - this->last_rx_ > 500) {
-      this->last_poll_start_ = now;
-    }
+    // The controller polls devices every 10 seconds in some units or continuously in others with around 200 ms between
+    // devices. Remember timestamps so we can send our own packets when the bus is expected to be silent.
     this->last_rx_ = now;
 
     uint8_t byte;
@@ -60,10 +57,13 @@ void UponorSmatrixComponent::loop() {
   }
 
   // Send packets during bus silence
-  if ((now - this->last_rx_ > 300) && (now - this->last_poll_start_ < 9500) && (now - this->last_tx_ > 200)) {
+  if (this->rx_buffer_.empty() && (now - this->last_rx_ > 50) && (now - this->last_rx_ < 100) &&
+      (now - this->last_tx_ > 200)) {
+#ifdef USE_TIME
     // Only build time packet when bus is silent and queue is empty to make sure we can send it right away
     if (this->send_time_requested_ && this->tx_queue_.empty() && this->do_send_time_())
       this->send_time_requested_ = false;
+#endif
     // Send the next packet in the queue
     if (!this->tx_queue_.empty()) {
       auto packet = std::move(this->tx_queue_.front());
@@ -171,7 +171,9 @@ bool UponorSmatrixComponent::send(uint16_t device_address, const UponorSmatrixDa
     return false;
 
   // Assemble packet for send queue. All fields are big-endian except for the little-endian checksum.
-  std::vector<uint8_t> packet(6 + 3 * data_len);
+  std::vector<uint8_t> packet;
+  packet.reserve(6 + 3 * data_len);
+
   packet.push_back(this->address_ >> 8);
   packet.push_back(this->address_ >> 0);
   packet.push_back(device_address >> 8);

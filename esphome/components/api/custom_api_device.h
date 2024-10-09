@@ -1,9 +1,9 @@
 #pragma once
 
 #include <map>
-#include "user_services.h"
 #include "api_server.h"
-
+#ifdef USE_API
+#include "user_services.h"
 namespace esphome {
 namespace api {
 
@@ -105,7 +105,7 @@ class CustomAPIDevice {
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
    *
    * Usage:
-   *å
+   *
    * ```cpp
    * void setup() override {
    *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "sensor.weather_forecast");
@@ -216,3 +216,4 @@ class CustomAPIDevice {
 
 }  // namespace api
 }  // namespace esphome
+#endif

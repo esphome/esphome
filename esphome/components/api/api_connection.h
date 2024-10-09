@@ -1,12 +1,13 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
 #include "api_frame_helper.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 
 #include <vector>
 
@@ -72,6 +73,21 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
+#ifdef USE_DATETIME_DATE
+  bool send_date_state(datetime::DateEntity *date);
+  bool send_date_info(datetime::DateEntity *date);
+  void date_command(const DateCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_TIME
+  bool send_time_state(datetime::TimeEntity *time);
+  bool send_time_info(datetime::TimeEntity *time);
+  void time_command(const TimeCommandRequest &msg) override;
+#endif
+#ifdef USE_DATETIME_DATETIME
+  bool send_datetime_state(datetime::DateTimeEntity *datetime);
+  bool send_datetime_info(datetime::DateTimeEntity *datetime);
+  void datetime_command(const DateTimeCommandRequest &msg) override;
+#endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text, std::string state);
   bool send_text_info(text::Text *text);
@@ -90,6 +106,11 @@ class APIConnection : public APIServerConnection {
   bool send_lock_state(lock::Lock *a_lock, lock::LockState state);
   bool send_lock_info(lock::Lock *a_lock);
   void lock_command(const LockCommandRequest &msg) override;
+#endif
+#ifdef USE_VALVE
+  bool send_valve_state(valve::Valve *valve);
+  bool send_valve_info(valve::Valve *valve);
+  void valve_command(const ValveCommandRequest &msg) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
   bool send_media_player_state(media_player::MediaPlayer *media_player);
@@ -129,12 +150,29 @@ class APIConnection : public APIServerConnection {
   void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override;
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
+  void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
+  void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) override;
+  void on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg) override;
+  VoiceAssistantConfigurationResponse voice_assistant_get_configuration(
+      const VoiceAssistantConfigurationRequest &msg) override;
+  void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   bool send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
+#endif
+
+#ifdef USE_EVENT
+  bool send_event(event::Event *event, std::string event_type);
+  bool send_event_info(event::Event *event);
+#endif
+
+#ifdef USE_UPDATE
+  bool send_update_state(update::UpdateEntity *update);
+  bool send_update_info(update::UpdateEntity *update);
+  void update_command(const UpdateCommandRequest &msg) override;
 #endif
 
   void on_disconnect_response(const DisconnectResponse &value) override;
@@ -231,3 +269,4 @@ class APIConnection : public APIServerConnection {
 
 }  // namespace api
 }  // namespace esphome
+#endif

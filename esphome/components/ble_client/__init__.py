@@ -1,7 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
+from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import esp32_ble_tracker, esp32_ble_client
+import esphome.codegen as cg
+from esphome.components import esp32_ble_client, esp32_ble_tracker
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
     CONF_ID,
@@ -13,7 +14,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VALUE,
 )
-from esphome import automation
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
@@ -65,9 +65,7 @@ CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
 CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_AUTO_CONNECT = "auto_connect"
 
-# Espressif platformio framework is built with MAX_BLE_CONN to 3, so
-# enforce this in yaml checks.
-MULTI_CONF = 3
+MULTI_CONF = True
 
 CONFIG_SCHEMA = (
     cv.Schema(

@@ -24,8 +24,10 @@ void PVVXDisplay::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                                       esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT:
-      ESP_LOGV(TAG, "[%s] Connected successfully!", this->parent_->address_str().c_str());
-      this->delayed_disconnect_();
+      if (param->open.status == ESP_GATT_OK) {
+        ESP_LOGV(TAG, "[%s] Connected successfully!", this->parent_->address_str().c_str());
+        this->delayed_disconnect_();
+      }
       break;
     case ESP_GATTC_DISCONNECT_EVT:
       ESP_LOGV(TAG, "[%s] Disconnected", this->parent_->address_str().c_str());

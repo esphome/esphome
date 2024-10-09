@@ -53,13 +53,22 @@ enum class TuyaCommandType : uint8_t {
   WIFI_RESET = 0x04,
   WIFI_SELECT = 0x05,
   DATAPOINT_DELIVER = 0x06,
-  DATAPOINT_REPORT = 0x07,
+  DATAPOINT_REPORT_ASYNC = 0x07,
   DATAPOINT_QUERY = 0x08,
   WIFI_TEST = 0x0E,
   LOCAL_TIME_QUERY = 0x1C,
+  DATAPOINT_REPORT_SYNC = 0x22,
+  DATAPOINT_REPORT_ACK = 0x23,
   WIFI_RSSI = 0x24,
   VACUUM_MAP_UPLOAD = 0x28,
   GET_NETWORK_STATUS = 0x2B,
+  EXTENDED_SERVICES = 0x34,
+};
+
+enum class TuyaExtendedServicesCommandType : uint8_t {
+  RESET_NOTIFICATION = 0x04,
+  MODULE_RESET = 0x05,
+  UPDATE_IN_PROGRESS = 0x0A,
 };
 
 enum class TuyaInitState : uint8_t {

@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
+    CONF_VOLTAGE,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -92,7 +93,15 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
                 cv.current, cv.Range(min=0.0)
             ),
-            cv.Optional(CONF_ADC_TIME, default="1100 us"): validate_adc_time,
+            cv.Optional(CONF_ADC_TIME, default="1100 us"): cv.Any(
+                validate_adc_time,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_VOLTAGE): validate_adc_time,
+                        cv.Required(CONF_CURRENT): validate_adc_time,
+                    }
+                ),
+            ),
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True
             ),
@@ -110,7 +119,15 @@ async def to_code(config):
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))
-    cg.add(var.set_adc_time(config[CONF_ADC_TIME]))
+
+    adc_time_config = config[CONF_ADC_TIME]
+    if isinstance(adc_time_config, dict):
+        cg.add(var.set_adc_time_voltage(adc_time_config[CONF_VOLTAGE]))
+        cg.add(var.set_adc_time_current(adc_time_config[CONF_CURRENT]))
+    else:
+        cg.add(var.set_adc_time_voltage(adc_time_config))
+        cg.add(var.set_adc_time_current(adc_time_config))
+
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
 
     if CONF_BUS_VOLTAGE in config:

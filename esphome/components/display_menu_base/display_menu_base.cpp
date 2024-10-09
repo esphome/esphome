@@ -60,6 +60,8 @@ void DisplayMenuComponent::left() {
             if (this->editing_) {
               this->finish_editing_();
               changed = true;
+            } else {
+              changed = this->leave_menu_();
             }
             break;
           case MENU_MODE_JOYSTICK:

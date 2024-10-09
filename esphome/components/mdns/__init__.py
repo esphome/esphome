@@ -1,17 +1,17 @@
+import esphome.codegen as cg
+from esphome.components.esp32 import add_idf_component
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DISABLED,
     CONF_ID,
     CONF_PORT,
     CONF_PROTOCOL,
-    CONF_SERVICES,
     CONF_SERVICE,
+    CONF_SERVICES,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
-    CONF_DISABLED,
 )
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.core import CORE, coroutine_with_priority
-from esphome.components.esp32 import add_idf_component
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -74,6 +74,9 @@ def mdns_service(
 
 @coroutine_with_priority(55.0)
 async def to_code(config):
+    if config[CONF_DISABLED] is True:
+        return
+
     if CORE.using_arduino:
         if CORE.is_esp32:
             cg.add_library("ESPmDNS", None)
@@ -88,12 +91,9 @@ async def to_code(config):
         add_idf_component(
             name="mdns",
             repo="https://github.com/espressif/esp-protocols.git",
-            ref="mdns-v1.2.2",
+            ref="mdns-v1.3.2",
             path="components/mdns",
         )
-
-    if config[CONF_DISABLED]:
-        return
 
     cg.add_define("USE_MDNS")
 
