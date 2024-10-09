@@ -6,9 +6,9 @@
 namespace esphome {
 namespace qn8027 {
 
-class T1mSelNumber : public number::Number, public Parented<QN8027Component> {
+class XtalCurrentNumber : public number::Number, public Parented<QN8027Component> {
  public:
-  T1mSelNumber() = default;
+  XtalCurrentNumber() = default;
 
  protected:
   void control(float value) override;

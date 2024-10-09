@@ -24,11 +24,16 @@ MULTI_CONF = True
 UNIT_MEGA_HERTZ = "MHz"
 UNIT_KILO_HERTZ = "KHz"
 UNIT_MILLI_VOLT = "mV"
+UNIT_MICRO_AMPERE = "mA"
+UNIT_DECIBEL_MICRO_VOLT = "dBµV"
 
 ICON_VOLUME_MUTE = "mdi:volume-mute"
 ICON_EAR_HEARING = "mdi:ear-hearing"
 ICON_RADIO_TOWER = "mdi:radio-tower"
-ICON_SLEEP = "mdi:mdi-sleep"
+ICON_SLEEP = "mdi:sleep"
+ICON_SINE_WAVE = "mdi:sine-wave"
+ICON_RESISTOR = "mdi:resistor"
+ICON_FORMAT_TEXT = "mdi:format-text"
 
 qn8027_ns = cg.esphome_ns.namespace("qn8027")
 QN8027Component = qn8027_ns.class_("QN8027Component", cg.PollingComponent, i2c.I2CDevice)
@@ -41,7 +46,7 @@ CONF_MONO = "mono"
 CONF_TX_ENABLE = "tx_enable"
 CONF_TX_PILOT = "tx_pilot"
 CONF_T1M_SEL = "t1m_sel"
-CONF_PIVACY_MODE = "pivacy_mode"
+CONF_PRIV_EN = "priv_en"
 CONF_PRE_EMPHASIS = "pre_emphasis"
 CONF_XTAL_SOURCE = "xtal_source"
 CONF_XTAL_CURRENT = "xtal_current"
@@ -56,6 +61,7 @@ CONF_RDS_STATION = "rds_station"
 CONF_RDS_TEXT = "rds_text"
 CONF_AUD_PK = "aud_pk"
 CONF_FSM = "fsm"
+CONF_CHIP_ID = "chip_id"
 
 SetFrequencyAction = qn8027_ns.class_(
     "SetFrequencyAction", automation.Action, cg.Parented.template(QN8027Component)
@@ -63,16 +69,16 @@ SetFrequencyAction = qn8027_ns.class_(
 
 T1mSel = qn8027_ns.enum("T1mSel", True)
 T1M_SEL = {
-    "58S": T1mSel.T1M_SEL_58S,
-    "59S": T1mSel.T1M_SEL_59S,
-    "60S": T1mSel.T1M_SEL_60S,
-    "NEVER": T1mSel.T1M_SEL_NEVER,
+    "58s": T1mSel.T1M_SEL_58S,
+    "59s": T1mSel.T1M_SEL_59S,
+    "60s": T1mSel.T1M_SEL_60S,
+    "Never": T1mSel.T1M_SEL_NEVER,
 }
 
 PreEmphasis = qn8027_ns.enum("PreEmphasis", True)
 PRE_EMPHASIS = {
-    "50US": PreEmphasis.TC_50US,
-    "75US": PreEmphasis.TC_75US,
+    "50us": PreEmphasis.TC_50US,
+    "75us": PreEmphasis.TC_75US,
 }
 
 XtalSource = qn8027_ns.enum("XtalSource", True)
@@ -85,16 +91,16 @@ XTAL_SOURCE = {
 
 XtalFrequency = qn8027_ns.enum("XtalFrequency", True)
 XTAL_FREQUENCY = {
-    "12MHZ": XtalFrequency.XSEL_12MHZ,
-    "24MHZ": XtalFrequency.XSEL_24MHZ,
+    "12MHz": XtalFrequency.XSEL_12MHZ,
+    "24MHz": XtalFrequency.XSEL_24MHZ,
 }
 
 InputImpedance = qn8027_ns.enum("InputImpedance", True)
 INPUT_IMPEDANCE = {
-    "5KOHM": InputImpedance.VGA_RIN_5KOHM,
-    "10KOHM": InputImpedance.VGA_RIN_10KOHM,
-    "20KOHM": InputImpedance.VGA_RIN_20KOHM,
-    "40KOHM": InputImpedance.VGA_RIN_40KOHM,
+    "5kOhm": InputImpedance.VGA_RIN_5KOHM,
+    "10kOhm": InputImpedance.VGA_RIN_10KOHM,
+    "20kOhm": InputImpedance.VGA_RIN_20KOHM,
+    "40kOhm": InputImpedance.VGA_RIN_40KOHM,
 }
 
 CONFIG_SCHEMA = (
@@ -107,13 +113,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MONO, default=False): cv.boolean,
             cv.Optional(CONF_TX_ENABLE, default=True): cv.boolean,
             cv.Optional(CONF_TX_PILOT, default=9): cv.All(cv.uint8_t, cv.Range(min=7, max=10)),
-            cv.Optional(CONF_T1M_SEL, default="60s"): cv.enum(T1M_SEL, upper=True, space="_"),
-            cv.Optional(CONF_PIVACY_MODE, default=False): cv.boolean,
-            cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS, upper=True, space="_"),
-            cv.Optional(CONF_XTAL_SOURCE, default="crystal"): cv.enum(XTAL_SOURCE, upper=True, space="_"),
+            cv.Optional(CONF_T1M_SEL, default="60s"): cv.enum(T1M_SEL),
+            cv.Optional(CONF_PRIV_EN, default=False): cv.boolean,
+            cv.Optional(CONF_PRE_EMPHASIS, default="75us"): cv.enum(PRE_EMPHASIS),
+            cv.Optional(CONF_XTAL_SOURCE, default="CRYSTAL"): cv.enum(XTAL_SOURCE, upper=True, space="_"),
             cv.Optional(CONF_XTAL_CURRENT, default=100): cv.float_range(0, 400),
-            cv.Optional(CONF_XTAL_FREQUENCY, default="24MHz"): cv.enum(XTAL_FREQUENCY, upper=True, space="_"),
-            cv.Optional(CONF_INPUT_IMPEDANCE, default="20kOhm"): cv.enum(INPUT_IMPEDANCE, upper=True, space="_"),
+            cv.Optional(CONF_XTAL_FREQUENCY, default="24MHz"): cv.enum(XTAL_FREQUENCY),
+            cv.Optional(CONF_INPUT_IMPEDANCE, default="20kOhm"): cv.enum(INPUT_IMPEDANCE),
             cv.Optional(CONF_INPUT_GAIN, default=3): cv.All(cv.uint8_t, cv.Range(min=0, max=5)),
             cv.Optional(CONF_DIGITAL_GAIN, default=0): cv.All(cv.uint8_t, cv.Range(min=0, max=2)),
             cv.Optional(CONF_POWER_TARGET, default=117.5): cv.float_range(83.4, 117.5),
@@ -129,6 +135,10 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_FSM): text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                icon=ICON_CHIP,
+            ),
+            cv.Optional(CONF_CHIP_ID): text_sensor.text_sensor_schema(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 icon=ICON_CHIP,
             ),
@@ -156,8 +166,8 @@ async def to_code(config):
         cg.add(var.set_t1m_sel(conf_t1m_sel))
     if conf_pre_emphasis := config.get(CONF_PRE_EMPHASIS):
         cg.add(var.set_pre_emphasis(conf_pre_emphasis))
-    if conf_pivacy_mode := config.get(CONF_PIVACY_MODE):
-        cg.add(var.set_pivacy_mode(conf_pivacy_mode))
+    if conf_priv_en := config.get(CONF_PRIV_EN):
+        cg.add(var.set_priv_en(conf_priv_en))
     if conf_xtal_source := config.get(CONF_XTAL_SOURCE):
         cg.add(var.set_xtal_source(conf_xtal_source))
     if conf_xtal_current := config.get(CONF_XTAL_CURRENT):
@@ -186,4 +196,7 @@ async def to_code(config):
     if conf_fsm := config.get(CONF_FSM):
         s = await text_sensor.new_text_sensor(conf_fsm)
         cg.add(var.set_fsm_text_sensor(s))
+    if conf_chip_id := config.get(CONF_CHIP_ID):
+        s = await text_sensor.new_text_sensor(conf_chip_id)
+        cg.add(var.set_chip_id_text_sensor(s))
 

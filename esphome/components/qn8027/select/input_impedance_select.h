@@ -6,9 +6,9 @@
 namespace esphome {
 namespace qn8027 {
 
-class TxPilotSelect : public select::Select, public Parented<QN8027Component> {
+class InputImpedanceSelect : public select::Select, public Parented<QN8027Component> {
  public:
-  TxPilotSelect() = default;
+  InputImpedanceSelect() = default;
 
  protected:
   void control(const std::string &value) override;

@@ -4,9 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
     UNIT_PERCENT,
-    UNIT_SECOND,
+    UNIT_DECIBEL,
     DEVICE_CLASS_FREQUENCY,
-    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_EMPTY,
     ENTITY_CATEGORY_CONFIG,
 )
@@ -16,15 +17,25 @@ from .. import (
     qn8027_ns,
     CONF_FREQUENCY_DEVIATION,
     CONF_TX_PILOT,
-    CONF_T1M_SEL,
+    CONF_XTAL_CURRENT,
+    CONF_INPUT_GAIN,
+    CONF_DIGITAL_GAIN,
+    CONF_POWER_TARGET,
+    CONF_RDS_FREQUENCY_DEVIATION,
     UNIT_MEGA_HERTZ,
     UNIT_KILO_HERTZ,
+    UNIT_MICRO_AMPERE,
+    UNIT_DECIBEL_MICRO_VOLT,
 )
 
 FrequencyNumber = qn8027_ns.class_("FrequencyNumber", number.Number)
 FrequencyDeviationNumber = qn8027_ns.class_("FrequencyDeviationNumber", number.Number)
 TxPilotNumber = qn8027_ns.class_("TxPilotNumber", number.Number)
-T1mSelNumber = qn8027_ns.class_("T1mSelNumber", number.Number)
+XtalCurrentNumber = qn8027_ns.class_("XtalCurrentNumber", number.Number)
+InputGainNumber = qn8027_ns.class_("InputGainNumber", number.Number)
+DigitalGainNumber = qn8027_ns.class_("DigitalGainNumber", number.Number)
+PowerTargetNumber = qn8027_ns.class_("PowerTargetNumber", number.Number)
+RDSFrequencyDeviationNumber = qn8027_ns.class_("RDSFrequencyDeviationNumber", number.Number)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -47,10 +58,34 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_EMPTY,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
-        cv.Optional(CONF_T1M_SEL): number.number_schema(
-            T1mSelNumber,
-            unit_of_measurement=UNIT_SECOND,
-            device_class=DEVICE_CLASS_DURATION,
+        cv.Optional(CONF_XTAL_CURRENT): number.number_schema(
+            XtalCurrentNumber,
+            unit_of_measurement=UNIT_MICRO_AMPERE,
+            device_class=DEVICE_CLASS_CURRENT,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_INPUT_GAIN): number.number_schema(
+            InputGainNumber,
+            unit_of_measurement=UNIT_DECIBEL,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_DIGITAL_GAIN): number.number_schema(
+            DigitalGainNumber,
+            unit_of_measurement=UNIT_DECIBEL,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_POWER_TARGET): number.number_schema(
+            PowerTargetNumber,
+            unit_of_measurement=UNIT_DECIBEL_MICRO_VOLT,
+            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        cv.Optional(CONF_RDS_FREQUENCY_DEVIATION): number.number_schema(
+            RDSFrequencyDeviationNumber,
+            unit_of_measurement=UNIT_KILO_HERTZ,
+            device_class=DEVICE_CLASS_FREQUENCY,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
     }
@@ -70,7 +105,23 @@ async def to_code(config):
         n = await number.new_number(tx_pilot_config, min_value=7, max_value=15, step=1)
         await cg.register_parented(n, config[CONF_QN8027_ID])
         cg.add(qn8027_component.set_tx_pilot_number(n))
-    if t1m_sel_config := config.get(CONF_T1M_SEL):
-        n = await number.new_number(t1m_sel_config, min_value=58, max_value=60, step=1)
+    if xtal_current_config := config.get(CONF_XTAL_CURRENT):
+        n = await number.new_number(xtal_current_config, min_value=0, max_value=393.75, step=6.25)
         await cg.register_parented(n, config[CONF_QN8027_ID])
-        cg.add(qn8027_component.set_t1m_sel_number(n))
+        cg.add(qn8027_component.set_xtal_current_number(n))
+    if input_gain_config := config.get(CONF_INPUT_GAIN):
+        n = await number.new_number(input_gain_config, min_value=0, max_value=5, step=1)
+        await cg.register_parented(n, config[CONF_QN8027_ID])
+        cg.add(qn8027_component.set_input_gain_number(n))
+    if digital_gain_config := config.get(CONF_DIGITAL_GAIN):
+        n = await number.new_number(digital_gain_config, min_value=0, max_value=2, step=1)
+        await cg.register_parented(n, config[CONF_QN8027_ID])
+        cg.add(qn8027_component.set_digital_gain_number(n))
+    if power_target_config := config.get(CONF_POWER_TARGET):
+        n = await number.new_number(power_target_config, min_value=83.4, max_value=117.5, step=0.62)
+        await cg.register_parented(n, config[CONF_QN8027_ID])
+        cg.add(qn8027_component.set_power_target_number(n))
+    if rds_frequency_deviation_config := config.get(CONF_RDS_FREQUENCY_DEVIATION):
+        n = await number.new_number(rds_frequency_deviation_config, min_value=0, max_value=44.45, step=0.35)
+        await cg.register_parented(n, config[CONF_QN8027_ID])
+        cg.add(qn8027_component.set_rds_frequency_deviation_number(n))

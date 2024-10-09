@@ -41,7 +41,7 @@ static const uint8_t RDS_TEXT_MAX_SIZE = 64;
 static const uint8_t CID1_FM = 0;
 static const uint8_t CID3_QN8027 = 4;
 
-static const uint16_t XISEL_MAX = 400;
+static const uint16_t XISEL_MAX = 393.75f;
 
 // TODO: enum class
 static const uint8_t FSM_STATUS_RESET = 0;
