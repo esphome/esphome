@@ -39,7 +39,7 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
-    CONF_SSL_FINGERPRINTS,
+    CONF_SSL_FINGERPRINT,
     CONF_STATE_TOPIC,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
@@ -53,12 +53,15 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
-DEPENDENCIES = ["network"]
+
+def DEPENDENCIES():
+    if CORE.is_esp8266:
+        # required for WifiSecureClient to have current time to validate the certificate
+        return ["network", "time"]
+    return ["network"]
 
 
 def AUTO_LOAD():
-    if CORE.is_esp8266 or CORE.is_libretiny:
-        return ["async_tcp", "json"]
     return ["json"]
 
 
@@ -215,18 +218,14 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
-            cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
-                cv.string, cv.only_with_esp_idf
-            ),
+            cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(cv.string),
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
             cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
-            ),
+            cv.Optional(CONF_SKIP_CERT_CN_CHECK, default=False): cv.All(cv.boolean),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
@@ -255,8 +254,8 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 validate_message_just_topic,
             ),
-            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
-                cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
+            cv.Optional(CONF_SSL_FINGERPRINT): cv.All(
+                cv.only_on_esp8266, cv.string, validate_fingerprint
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -317,8 +316,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     # Add required libraries for ESP8266 and LibreTiny
     if CORE.is_esp8266 or CORE.is_libretiny:
-        # https://github.com/heman/async-mqtt-client/blob/master/library.json
-        cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+        cg.add_library("256dpi/MQTT", "2.5.2")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -395,33 +393,35 @@ async def to_code(config):
         if CONF_LEVEL in log_topic:
             cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
 
-    if CONF_SSL_FINGERPRINTS in config:
-        for fingerprint in config[CONF_SSL_FINGERPRINTS]:
-            arr = [
-                cg.RawExpression(f"0x{fingerprint[i:i + 2]}") for i in range(0, 40, 2)
-            ]
-            cg.add(var.add_ssl_fingerprint(arr))
-        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
-
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
-    # esp-idf only
-    if CONF_CERTIFICATE_AUTHORITY in config:
-        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
+    if CONF_SSL_FINGERPRINT in config:
+        cg.add_define("USE_MQTT_SECURE_CLIENT")
+        fingerprint = config[CONF_SSL_FINGERPRINT]
+        arr = [cg.RawExpression(f"0x{fingerprint[i:i + 2]}") for i in range(0, 40, 2)]
+        cg.add(var.set_ssl_fingerprint(arr))
+
+    if CONF_SKIP_CERT_CN_CHECK in config:
+        if config[CONF_SKIP_CERT_CN_CHECK]:
+            cg.add_define("USE_MQTT_SECURE_CLIENT")
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+
+    if CONF_CERTIFICATE_AUTHORITY in config:
+        cg.add_define("USE_MQTT_SECURE_CLIENT")
+        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
         if CONF_CLIENT_CERTIFICATE in config:
             cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
 
-        # prevent error -0x428e
-        # See https://github.com/espressif/esp-idf/issues/139
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
+        if CORE.is_esp32:
+            # prevent error -0x428e
+            # See https://github.com/espressif/esp-idf/issues/139
+            add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
-    # end esp-idf
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])

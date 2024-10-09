@@ -2,6 +2,9 @@ wifi:
   ssid: MySSID
   password: password1
 
+time:
+  - platform: sntp
+
 mqtt:
   broker: test.mosquitto.org
   port: 1883

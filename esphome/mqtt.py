@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_PASSWORD,
     CONF_PORT,
-    CONF_SSL_FINGERPRINTS,
+    CONF_SSL_FINGERPRINT,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USERNAME,
@@ -99,7 +99,7 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
+    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINT) or config[CONF_MQTT].get(
         CONF_CERTIFICATE_AUTHORITY
     ):
         tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
@@ -267,6 +267,6 @@ def get_fingerprint(config):
 
     safe_print(f"SHA1 Fingerprint: {color(Fore.CYAN, sha1)}")
     safe_print(
-        f"Copy the string above into mqtt.ssl_fingerprints section of {CORE.config_path}"
+        f"Add the following line to the mqtt section of {CORE.config_path}:\n  {CONF_SSL_FINGERPRINT}: {sha1}"
     )
     return 0
