@@ -6,8 +6,11 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_BECQUEREL_PER_CUBIC_METER,
     CONF_ID,
+    CONF_VERSION,
     CONF_RADON,
+    CONF_RADON_DAY_AVG,
     CONF_RADON_LONG_TERM,
+    CONF_RADON_PEAK,
     ICON_RADIOACTIVE,
 )
 
@@ -22,6 +25,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RadonEyeRD200),
+            cv.Optional(CONF_VERSION, default=1): cv.int_range(1, 3),
             cv.Optional(CONF_RADON): sensor.sensor_schema(
                 unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
                 icon=ICON_RADIOACTIVE,
@@ -29,6 +33,18 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_RADON_LONG_TERM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
+                icon=ICON_RADIOACTIVE,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_RADON_PEAK): sensor.sensor_schema(
+                unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
+                icon=ICON_RADIOACTIVE,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_RADON_DAY_AVG): sensor.sensor_schema(
                 unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
                 icon=ICON_RADIOACTIVE,
                 accuracy_decimals=0,
@@ -47,9 +63,17 @@ async def to_code(config):
 
     await ble_client.register_ble_node(var, config)
 
+    cg.add(var.set_version(config[CONF_VERSION]))
+
     if CONF_RADON in config:
         sens = await sensor.new_sensor(config[CONF_RADON])
         cg.add(var.set_radon(sens))
     if CONF_RADON_LONG_TERM in config:
         sens = await sensor.new_sensor(config[CONF_RADON_LONG_TERM])
         cg.add(var.set_radon_long_term(sens))
+    if CONF_RADON_PEAK in config:
+        sens = await sensor.new_sensor(config[CONF_RADON_PEAK])
+        cg.add(var.set_radon_peak(sens))
+    if CONF_RADON_DAY_AVG in config:
+        sens = await sensor.new_sensor(config[CONF_RADON_DAY_AVG])
+        cg.add(var.set_radon_day_avg(sens))
