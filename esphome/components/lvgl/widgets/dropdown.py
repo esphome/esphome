@@ -6,6 +6,8 @@ from ..defines import (
     CONF_DIR,
     CONF_INDICATOR,
     CONF_MAIN,
+    CONF_SCROLLBAR,
+    CONF_SELECTED,
     CONF_SELECTED_INDEX,
     CONF_SYMBOL,
     DIRECTIONS,
@@ -23,7 +25,9 @@ CONF_DROPDOWN_LIST = "dropdown_list"
 
 lv_dropdown_t = LvSelect("lv_dropdown_t")
 lv_dropdown_list_t = LvType("lv_dropdown_list_t")
-dropdown_list_spec = WidgetType(CONF_DROPDOWN_LIST, lv_dropdown_list_t, (CONF_MAIN,))
+dropdown_list_spec = WidgetType(
+    CONF_DROPDOWN_LIST, lv_dropdown_list_t, (CONF_MAIN, CONF_SELECTED, CONF_SCROLLBAR)
+)
 
 DROPDOWN_BASE_SCHEMA = cv.Schema(
     {

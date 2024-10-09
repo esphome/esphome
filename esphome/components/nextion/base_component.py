@@ -27,6 +27,7 @@ CONF_BACKGROUND_PRESSED_COLOR = "background_pressed_color"
 CONF_FOREGROUND_PRESSED_COLOR = "foreground_pressed_color"
 CONF_FONT_ID = "font_id"
 CONF_EXIT_REPARSE_ON_START = "exit_reparse_on_start"
+CONF_SKIP_CONNECTION_HANDSHAKE = "skip_connection_handshake"
 
 
 def NextionName(value):
