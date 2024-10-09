@@ -41,6 +41,7 @@ class ModemComponent : public Component {
   bool can_proceed() override;
   bool is_connected();
   void set_power_pin(InternalGPIOPin *power_pin);
+  void set_pwrkey_pin(InternalGPIOPin *pwrkey_pin);
   void set_type(ModemType type);
   void set_reset_pin(InternalGPIOPin *reset_pin);
   void set_apn(const std::string &apn);
@@ -60,6 +61,9 @@ class ModemComponent : public Component {
  protected:
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
+  bool power_on();
+  bool power_off();
+  bool use_pwrkey();
   void start_connect_();
   void esp_modem_hard_reset();
   int get_rssi();
@@ -70,6 +74,7 @@ class ModemComponent : public Component {
   ModemType type_{MODEM_TYPE_UNKNOWN};
   InternalGPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *power_pin_{nullptr};
+  InternalGPIOPin *pwrkey_pin_{nullptr};
   int tx_pin_{-1};
   int rx_pin_{-1};
   std::string apn_{""};

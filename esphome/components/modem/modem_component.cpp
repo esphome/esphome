@@ -47,7 +47,26 @@ void ModemComponent::setup() {
   esp_log_level_set("uart_terminal", ESP_LOG_VERBOSE);
 
   ESP_LOGCONFIG(TAG, "Setting up modem...");
-  esp_modem_hard_reset();
+
+  this->reset_pin_->setup();
+
+  if (this->power_pin_) {
+    ESP_LOGD(TAG, "power_pin_ ON");
+    this->power_pin_->setup();
+    this->power_pin_->digital_write(true);
+
+    vTaskDelay(pdMS_TO_TICKS(2000));  // NOLINT
+  }
+    if (this->pwrkey_pin_) {
+    ESP_LOGD(TAG, "pwrkey pin used");
+    this->pwrkey_pin_->setup();
+    this->pwrkey_pin_->digital_write(false);
+    vTaskDelay(pdMS_TO_TICKS(2000));  // NOLINT
+    this->pwrkey_pin_->digital_write(true);
+  }
+  //esp_modem_hard_reset();
+
+
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
     // Delay here to allow power to stabilise before Modem is initialized.
     delay(300);  // NOLINT
@@ -88,13 +107,6 @@ void ModemComponent::setup() {
   esp_netif_flags_t flags = esp_netif_get_flags(this->modem_netif_);
 
   this->started_ = true;
-
-  // power pin on
-  if (this->power_pin_) {
-    this->power_pin_->setup();
-    this->power_pin_->digital_write(false);
-    this->reset_pin_->setup();
-  }
 }
 
 void ModemComponent::loop() {
@@ -133,12 +145,23 @@ void ModemComponent::loop() {
   }
 }
 
+bool power_on(){
+  return true;
+}
+
+bool power_off(){
+  return true;
+}
+
+bool use_pwrkey(){
+  return true;
+}
 void ModemComponent::dump_config() {
   this->dump_connect_params();
   ESP_LOGCONFIG(TAG, "Modem:");
-  ESP_LOGCONFIG(TAG, "  Power Pin: %d", this->power_pin_->get_pin());
   ESP_LOGCONFIG(TAG, "  Type: %d", this->type_);
-  ESP_LOGCONFIG(TAG, "  Reset Pin: %d", this->reset_pin_->get_pin());
+  ESP_LOGCONFIG(TAG, "  Reset Pin: %u", this->reset_pin_->get_pin());
+  ESP_LOGCONFIG(TAG, "  Power pin : %s", (this->power_pin_) ? this->power_pin_->dump_summary().c_str() : "Not defined");
   ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
   ESP_LOGCONFIG(TAG, "  TX Pin: %d", this->tx_pin_);
   ESP_LOGCONFIG(TAG, "  RX Pin: %d", this->rx_pin_);
@@ -163,12 +186,16 @@ void ModemComponent::dump_connect_params() {
 }
 
 void ModemComponent::esp_modem_hard_reset() {
-  this->reset_pin_->digital_write(false);
-  ESP_LOGD(TAG, "reset_pin_ 0");
-  vTaskDelay(pdMS_TO_TICKS(110));  // NOLINT
-  this->reset_pin_->digital_write(true);
-  ESP_LOGD(TAG, "reset_pin_ 1");
-  time_hard_reset_modem = millis();
+  //gpio_set_direction(gpio_num_t(this->reset_pin_->get_pin()), GPIO_MODE_OUTPUT);
+  //gpio_set_level(gpio_num_t(this->reset_pin_->get_pin()), 0);
+  // this->reset_pin_->digital_write(false);
+  // ESP_LOGD(TAG, "reset_pin_ 0");
+  // vTaskDelay(pdMS_TO_TICKS(110));  // NOLINT
+
+  // //gpio_set_level(gpio_num_t(this->reset_pin_->get_pin()), 1);
+  // this->reset_pin_->digital_write(true);
+  // ESP_LOGD(TAG, "reset_pin_ 1");
+  // time_hard_reset_modem = millis();
 }
 
 int ModemComponent::get_rssi() {
@@ -257,6 +284,7 @@ void ModemComponent::start_connect_() {
 
 bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
 void ModemComponent::set_power_pin(InternalGPIOPin *power_pin) { this->power_pin_ = power_pin; }
+void ModemComponent::set_pwrkey_pin(InternalGPIOPin *pwrkey_pin) { this->pwrkey_pin_ = pwrkey_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
 void ModemComponent::set_reset_pin(InternalGPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
 void ModemComponent::set_apn(const std::string &apn) { this->apn_ = apn; }
