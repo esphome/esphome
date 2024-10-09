@@ -19,6 +19,7 @@ class RGBCTLightOutput : public light::LightOutput {
 
   void set_cold_white_temperature(float cold_white_temperature) { cold_white_temperature_ = cold_white_temperature; }
   void set_warm_white_temperature(float warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
+  void set_off_color_temperature(float off_color_temperature) { off_color_temperature_ = off_color_temperature; }
   void set_color_interlock(bool color_interlock) { color_interlock_ = color_interlock; }
 
   light::LightTraits get_traits() override {
@@ -30,6 +31,7 @@ class RGBCTLightOutput : public light::LightOutput {
     }
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);
+    traits.set_off_mireds(this->off_color_temperature_);
     return traits;
   }
   void write_state(light::LightState *state) override {
@@ -52,6 +54,7 @@ class RGBCTLightOutput : public light::LightOutput {
   output::FloatOutput *white_brightness_;
   float cold_white_temperature_;
   float warm_white_temperature_;
+  float off_color_temperature_{0};
   bool color_interlock_{true};
 };
 

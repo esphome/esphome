@@ -13,11 +13,13 @@ class CTLightOutput : public light::LightOutput {
   void set_brightness(output::FloatOutput *brightness) { brightness_ = brightness; }
   void set_cold_white_temperature(float cold_white_temperature) { cold_white_temperature_ = cold_white_temperature; }
   void set_warm_white_temperature(float warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
+  void set_off_color_temperature(float off_color_temperature) { off_color_temperature_ = off_color_temperature; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::COLOR_TEMPERATURE});
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);
+    traits.set_off_mireds(this->off_color_temperature_);
     return traits;
   }
   void write_state(light::LightState *state) override {
@@ -32,6 +34,7 @@ class CTLightOutput : public light::LightOutput {
   output::FloatOutput *brightness_;
   float cold_white_temperature_;
   float warm_white_temperature_;
+  float off_color_temperature_{0};
 };
 
 }  // namespace color_temperature

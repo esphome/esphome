@@ -165,10 +165,11 @@ class LightColorValues {
   }
 
   /// Convert these light color values to an RGB+CT+BR representation with the given parameters.
-  void as_rgbct(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
-                float *color_temperature, float *white_brightness, float gamma = 0) const {
+  void as_rgbct(float color_temperature_cw, float color_temperature_ww, float color_temperature_off, float *red,
+                float *green, float *blue, float *color_temperature, float *white_brightness, float gamma = 0) const {
     this->as_rgb(red, green, blue, gamma);
-    this->as_ct(color_temperature_cw, color_temperature_ww, color_temperature, white_brightness, gamma);
+    this->as_ct(color_temperature_cw, color_temperature_ww, color_temperature_off, color_temperature, white_brightness,
+                gamma);
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
@@ -196,16 +197,23 @@ class LightColorValues {
   }
 
   /// Convert these light color values to a CT+BR representation with the given parameters.
-  void as_ct(float color_temperature_cw, float color_temperature_ww, float *color_temperature, float *white_brightness,
-             float gamma = 0) const {
+  void as_ct(float color_temperature_cw, float color_temperature_ww, float color_temperature_off,
+             float *color_temperature, float *white_brightness, float gamma = 0) const {
     const float white_level = this->color_mode_ & ColorCapability::RGB ? this->white_ : 1;
+    float output_color_temperature = color_temperature_off;
+
     if (this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) {
-      *color_temperature =
-          (this->color_temperature_ - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
       *white_brightness = gamma_correct(this->state_ * this->brightness_ * white_level, gamma);
+
+      if (*white_brightness != 0.0f) {
+        output_color_temperature = this->color_temperature_;
+      }
     } else {  // Probably won't get here but put this here anyway.
       *white_brightness = 0;
     }
+
+    *color_temperature =
+        (output_color_temperature - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
   }
 
   /// Compare this LightColorValues to rhs, return true if and only if all attributes match.

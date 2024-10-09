@@ -50,11 +50,14 @@ class LightTraits {
   void set_min_mireds(float min_mireds) { this->min_mireds_ = min_mireds; }
   float get_max_mireds() const { return this->max_mireds_; }
   void set_max_mireds(float max_mireds) { this->max_mireds_ = max_mireds; }
+  float get_off_mireds() const { return this->off_mireds_; }
+  void set_off_mireds(float off_mireds) { this->off_mireds_ = off_mireds; }
 
  protected:
   std::set<ColorMode> supported_color_modes_{};
   float min_mireds_{0};
   float max_mireds_{0};
+  float off_mireds_{0};
 };
 
 }  // namespace light
