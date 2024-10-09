@@ -115,7 +115,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   static const float B_COEF = -0.444f;                  //
   static const float CT_COEF = 3810.f;                  // Color Temperature Coefficient
   static const float CT_OFFSET = 1391.f;                // Color Temperatuer Offset
-  static const float MAX_ILLUMINANCE = 200000.0f;       // Cap illuminance at 200,000 lux
+  static const float MAX_ILLUMINANCE = 100000.0f;       // Cap illuminance at 100,000 lux
   static const float MAX_COLOR_TEMPERATURE = 15000.0f;  // Maximum expected color temperature in Kelvin
   static const float MIN_COLOR_TEMPERATURE = 1000.0f;   // Maximum reasonable color temperature in Kelvin
 
@@ -184,9 +184,11 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   this->illuminance_ = std::max(g1 / cpl, 0.0f);
 
   if (this->illuminance_ > MAX_ILLUMINANCE) {
-    ESP_LOGW(TAG, "Calculated illuminance greater than limit (%f), setting to NAN", this->illuminance_);
-    this->illuminance_ = NAN;
-    return;
+    if (ga < 1.1f || this->illuminance_ > MAX_ILLUMINANCE * ga) {
+      ESP_LOGW(TAG, "Calculated illuminance greater than limit (%f), setting to NAN", this->illuminance_);
+      this->illuminance_ = NAN;
+      return;
+    }
   }
 
   if (r == 0) {
