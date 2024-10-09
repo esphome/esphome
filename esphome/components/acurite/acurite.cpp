@@ -245,7 +245,7 @@ bool AcuRiteComponent::on_receive(remote_base::RemoteReceiveData data) {
   uint32_t bits = 0;
   uint32_t syncs = 0;
 
-  ESP_LOGV(TAG, "Received raw data with length %d", data.size());
+  ESP_LOGV(TAG, "Received raw data with length %" PRIi32, data.size());
 
   // demodulate AcuRite OOK data
   for (auto i : data.get_raw_data()) {
