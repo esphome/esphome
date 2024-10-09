@@ -1,12 +1,13 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
 #include "api_frame_helper.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 
 #include <vector>
 
@@ -268,3 +269,4 @@ class APIConnection : public APIServerConnection {
 
 }  // namespace api
 }  // namespace esphome
+#endif

@@ -1,6 +1,15 @@
 #pragma once
 #include "esphome/core/color.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
+
+#ifdef USE_LVGL
+// required for clang-tidy
+#ifndef LV_CONF_H
+#define LV_CONF_SKIP 1  // NOLINT
+#endif                  // LV_CONF_H
+
+#include <lvgl.h>
+#endif  // USE_LVGL
 
 namespace esphome {
 namespace image {
@@ -37,7 +46,7 @@ class Image : public display::BaseImage {
   Color get_pixel(int x, int y, Color color_on = display::COLOR_ON, Color color_off = display::COLOR_OFF) const;
   int get_width() const override;
   int get_height() const override;
-  const uint8_t *get_data_start() { return this->data_start_; }
+  const uint8_t *get_data_start() const { return this->data_start_; }
   ImageType get_type() const;
 
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
@@ -45,6 +54,9 @@ class Image : public display::BaseImage {
   void set_transparency(bool transparent) { transparent_ = transparent; }
   bool has_transparency() const { return transparent_; }
 
+#ifdef USE_LVGL
+  lv_img_dsc_t *get_lv_img_dsc();
+#endif
  protected:
   bool get_binary_pixel_(int x, int y) const;
   Color get_rgb24_pixel_(int x, int y) const;
@@ -57,6 +69,9 @@ class Image : public display::BaseImage {
   ImageType type_;
   const uint8_t *data_start_;
   bool transparent_;
+#ifdef USE_LVGL
+  lv_img_dsc_t dsc_{};
+#endif
 };
 
 }  // namespace image
