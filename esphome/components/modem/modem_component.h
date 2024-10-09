@@ -26,6 +26,9 @@ enum ModemType {
 
 enum class ModemComponentState {
   STOPPED,
+  RESETTING,
+  TURNING_ON,
+  TURNING_OFF,
   CONNECTING,
   CONNECTED,
 };
