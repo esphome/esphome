@@ -2,6 +2,7 @@ remote_receiver:
   pin: GPIO5
   filter: 100us
   idle: 800us
+  buffer_size: 1000b
 
 acurite:
 
