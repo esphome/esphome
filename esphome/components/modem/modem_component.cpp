@@ -19,12 +19,13 @@
 uint32_t time_info_print = 0;
 uint32_t time_hard_reset_modem = 0;
 uint32_t time_check_rssi = 0;
-uint32_t time_push_pwrkey = 0;
+uint32_t time_check_pwrkey = 0;
 uint32_t time_turn_on_modem = 0;
 
 #define TIME_TO_NEXT_HARD_RESET 30000
 #define TIME_TO_START_MODEM 9000
 #define TIME_CHECK_REGISTRATION_IN_NETWORK 1000
+#define TIME_CHECK_START_MODEM 1000
 
 namespace esphome {
 namespace modem {
@@ -61,8 +62,8 @@ void ModemComponent::setup() {
   }
   this->reset_pin_->setup();
 
-  this->turn_on_modem();
-  this->use_pwrkey();
+  // this->turn_on_modem();
+  // this->use_pwrkey();
   // esp_modem_hard_reset();
 
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
@@ -112,6 +113,9 @@ void ModemComponent::loop() {
   switch (this->state_) {
     case ModemComponentState::STOPPED:
       this->turn_on_modem();
+      this->turn_on_pwrkey();
+
+
       // if (time_check_rssi + TIME_TO_START_MODEM < now) {
       //   time_check_rssi = now;
       //   // this->dce->set_command_mode();
@@ -128,10 +132,16 @@ void ModemComponent::loop() {
       //   }
       // }
       break;
-    case ModemComponentState::TURNING_ON:
-      if (this->dce->sync() != esp_modem::command_result::OK){
-        ESP_LOGD(TAG, "sync OK");
-        this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
+    case ModemComponentState::TURNING_ON: //time_check_pwrkey
+      if (time_check_pwrkey + TIME_CHECK_START_MODEM < now){
+        time_check_pwrkey = now;
+        if (this->dce->sync() == esp_modem::command_result::OK){
+          ESP_LOGD(TAG, "sync OK");
+          this->turn_off_pwrkey();
+          this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
+        } else {
+          ESP_LOGD(TAG, "Wait sync");
+        }
       }
       break;
     case ModemComponentState::REGISTRATION_IN_NETWORK:
@@ -169,44 +179,31 @@ void ModemComponent::loop() {
   }
 }
 
-bool ModemComponent::turn_on_modem() {
-  if (this->power_pin_) {
-    this->power_pin_->digital_write(true);
-    time_turn_on_modem = millis();
-    vTaskDelay(pdMS_TO_TICKS(1900));  // NOLINT
-    this->state_ = ModemComponentState::TURNING_ON;
-    ESP_LOGD(TAG, "modem is on");
-    return true;
-  } else {
-    ESP_LOGD(TAG, "failed to turn on modem because power_pin_ is not initialized");
-    return false;
-  }
+void ModemComponent::turn_on_modem() {
+  this->power_pin_->digital_write(true);
+  time_turn_on_modem = millis();
+  this->state_ = ModemComponentState::TURNING_ON;
+  ESP_LOGD(TAG, "modem turn on");
   // wait no more than 1.9 sec for signs of life to appear
 }
 
-bool ModemComponent::turn_off_modem() {
-  if (this->power_pin_) {
-    this->power_pin_->digital_write(true);
-    vTaskDelay(pdMS_TO_TICKS(1900));  // NOLINT
-    ESP_LOGD(TAG, "modem is off");
-    return true;
-  } else {
-    ESP_LOGD(TAG, "failed to turn off modem because power_pin_ is not initialized");
-    return false;
-  }
+void ModemComponent::turn_off_modem() {
+  this->power_pin_->digital_write(true);
+  ESP_LOGD(TAG, "modem turn off");
   // wait no more than 1.9 sec for signs of life to appear
 }
 
-bool ModemComponent::use_pwrkey() {
-  if (this->pwrkey_pin_) {
-    ESP_LOGD(TAG, "pwrkey used");
-    this->pwrkey_pin_->digital_write(false);
-    vTaskDelay(pdMS_TO_TICKS(1050));  // NOLINT
-    this->pwrkey_pin_->digital_write(true);
-  } else {
-    ESP_LOGD(TAG, "failed to press button because pwrkey_pin_ is not initialized");
-  }
-  return true;
+void ModemComponent::turn_on_pwrkey() {
+  ESP_LOGD(TAG, "pwrkey turn on");
+  this->pwrkey_pin_->digital_write(false);
+  // delay 1050
+
+    //vTaskDelay(pdMS_TO_TICKS(500));  // NOLINT
+}
+
+void ModemComponent::turn_off_pwrkey() {
+  ESP_LOGD(TAG, "pwrkey turn off");
+  this->pwrkey_pin_->digital_write(true);
 }
 
 void ModemComponent::reset_modem() {

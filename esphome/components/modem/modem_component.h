@@ -66,9 +66,10 @@ class ModemComponent : public Component {
  protected:
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
-  bool turn_on_modem();
-  bool turn_off_modem();
-  bool use_pwrkey();
+  void turn_on_modem();
+  void turn_off_modem();
+  void turn_on_pwrkey();
+  void turn_off_pwrkey();
   void start_connect_();
   void reset_modem();
   int get_rssi();
