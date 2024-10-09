@@ -4,10 +4,12 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
-#include "esp_modem_c_api_types.h"
-#include "esp_netif_ppp.h"
 
 #ifdef USE_ESP32
+
+#include "esp_modem_c_api_types.h"
+#include "esp_netif_ppp.h"
+#include "cxx_include/esp_modem_types.hpp"
 
 #include <cinttypes>
 #include "driver/gpio.h"
@@ -22,6 +24,7 @@ uint32_t time_turn_on_modem = 0;
 
 #define TIME_TO_NEXT_HARD_RESET 30000
 #define TIME_TO_START_MODEM 9000
+#define TIME_CHECK_REGISTRATION_IN_NETWORK 1000
 
 namespace esphome {
 namespace modem {
@@ -108,28 +111,42 @@ void ModemComponent::loop() {
   const uint32_t now = millis();
   switch (this->state_) {
     case ModemComponentState::STOPPED:
-      if (time_check_rssi + TIME_TO_START_MODEM < now) {
+      this->turn_on_modem();
+      // if (time_check_rssi + TIME_TO_START_MODEM < now) {
+      //   time_check_rssi = now;
+      //   // this->dce->set_command_mode();
+      //   if (get_rssi()) {
+      //     ESP_LOGD(TAG, "Starting modem connection");
+      //     ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
+      //     this->state_ = ModemComponentState::CONNECTING;
+      //     this->dce->set_data();
+      //     // this->start_connect_();
+      //   }
+      //   if (time_hard_reset_modem + TIME_TO_NEXT_HARD_RESET < now) {
+      //     time_hard_reset_modem = now;
+      //     reset_modem();
+      //   }
+      // }
+      break;
+    case ModemComponentState::TURNING_ON:
+      if (this->dce->sync() != esp_modem::command_result::OK){
+        ESP_LOGD(TAG, "sync OK");
+        this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
+      }
+      break;
+    case ModemComponentState::REGISTRATION_IN_NETWORK:
+      if (time_check_rssi + TIME_CHECK_REGISTRATION_IN_NETWORK < now){
         time_check_rssi = now;
-        // this->dce->set_command_mode();
         if (get_rssi()) {
           ESP_LOGD(TAG, "Starting modem connection");
           ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
           this->state_ = ModemComponentState::CONNECTING;
           this->dce->set_data();
           // this->start_connect_();
-        }
-        if (time_hard_reset_modem + TIME_TO_NEXT_HARD_RESET < now) {
-          time_hard_reset_modem = now;
-          reset_modem();
+        } else {
+          ESP_LOGD(TAG, "Wait RSSI");
         }
       }
-      break;
-    case ModemComponentState::RESETTING:
-      break;
-    case ModemComponentState::TURNING_ON:
-
-      break;
-    case ModemComponentState::TURNING_OFF:
       break;
     case ModemComponentState::CONNECTING:
       break;
@@ -137,12 +154,17 @@ void ModemComponent::loop() {
       if (time_info_print < now) {
         // ESP_LOGI(TAG, "voltage %dV.", get_modem_voltage() / 1000);
         if (esp_netif_is_netif_up(this->modem_netif_)) {
+          
           ESP_LOGD(TAG, "esp_netif_is_netif_UP");
         } else {
           ESP_LOGD(TAG, "esp_netif_is_netif_DOWN");
         }
         time_info_print = now + 5000;
       }
+      break;
+    case ModemComponentState::RESETTING:
+      break;
+    case ModemComponentState::TURNING_OFF:
       break;
   }
 }
@@ -152,6 +174,7 @@ bool ModemComponent::turn_on_modem() {
     this->power_pin_->digital_write(true);
     time_turn_on_modem = millis();
     vTaskDelay(pdMS_TO_TICKS(1900));  // NOLINT
+    this->state_ = ModemComponentState::TURNING_ON;
     ESP_LOGD(TAG, "modem is on");
     return true;
   } else {

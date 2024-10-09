@@ -6,6 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
+
 #ifdef USE_ESP32
 
 using esphome::esp_log_printf_;
@@ -26,11 +27,12 @@ enum ModemType {
 
 enum class ModemComponentState {
   STOPPED,
-  RESETTING,
   TURNING_ON,
-  TURNING_OFF,
+  REGISTRATION_IN_NETWORK,
   CONNECTING,
   CONNECTED,
+  RESETTING,
+  TURNING_OFF,
 };
 
 class ModemComponent : public Component {
