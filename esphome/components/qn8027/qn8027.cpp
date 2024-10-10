@@ -302,8 +302,8 @@ void QN8027Component::set_frequency(float value) {
 }
 
 float QN8027Component::get_frequency() {
-  uint16_t CH = ((uint16_t) this->state_.CH_UPPER << 8) | this->state_.CH_LOWER;
-  return (float) CH / 20 + 76;
+  uint16_t ch = ((uint16_t) this->state_.CH_UPPER << 8) | this->state_.CH_LOWER;
+  return (float) ch / 20 + 76;
 }
 
 void QN8027Component::set_frequency_deviation(float value) {
@@ -499,7 +499,7 @@ void QN8027Component::set_power_target(float value) {
   // or when the frequency changed the PA output power setting will take effect
 
   if (this->state_.FSM == FSM_STATUS_TRANSMIT) {
-    uint8_t TXREQ = this->state_.TXREQ;
+    uint8_t txreq = this->state_.TXREQ;
     this->state_.TXREQ = 0;
     this->write_reg_(REG_SYSTEM_ADDR);
     int tries = 10;
@@ -511,8 +511,8 @@ void QN8027Component::set_power_target(float value) {
     if (tries <= 0) {
       ESP_LOGE(TAG, "set_power_target(%.2f) could not reach IDLE status in time", value);
     }
-    if (TXREQ) {
-      this->state_.TXREQ = TXREQ;
+    if (txreq) {
+      this->state_.TXREQ = txreq;
       this->write_reg_(REG_SYSTEM_ADDR);
     }
   }
@@ -570,7 +570,7 @@ void QN8027Component::set_rds_text(const std::string &value) {
 void QN8027Component::publish_aud_pk() { this->publish(this->aud_pk_sensor_, 45.0f * this->state_.aud_pk); }
 
 void QN8027Component::publish_fsm() {
-  const char *value = NULL;
+  const char *value = nullptr;
   switch (this->state_.FSM) {
     case 0:
       value = "RESET";
