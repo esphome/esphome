@@ -37,10 +37,10 @@ enum class ModemComponentState {
 };
 
 struct ModemComponentStateTiming {
-  int time_limit;
   int poll_period;
-  ModemComponentStateTiming() : time_limit(0), poll_period(0) {}
-  ModemComponentStateTiming(int time_limit, int poll_period) : time_limit(time_limit), poll_period(poll_period) {}
+  int time_limit;
+  ModemComponentStateTiming() : poll_period(0), time_limit(0) {}
+  ModemComponentStateTiming(int poll_period, int time_limit) : poll_period(poll_period), time_limit(time_limit) {}
 };
 
 class ModemComponent : public Component {
@@ -74,13 +74,13 @@ class ModemComponent : public Component {
  protected:
   std::map<ModemComponentState, ModemComponentStateTiming> modemComponentStateTimingMap = {
       {ModemComponentState::STOPPED, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(1000, 10000)},
-      {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(1000, 5000)},
-      {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(1000, 4000)},
-      {ModemComponentState::CONNECTING, ModemComponentStateTiming(1000, 4000)},
+      {ModemComponentState::TURNING_ON_POWER, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_ON_PWRKEY, ModemComponentStateTiming(1000, 20000)},
+      {ModemComponentState::REGISTRATION_IN_NETWORK, ModemComponentStateTiming(1000, 20000)},
+      {ModemComponentState::CONNECTING, ModemComponentStateTiming(1000, 0)},
       {ModemComponentState::CONNECTED, ModemComponentStateTiming(0, 0)},
-      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(1000, 6000)},
-      {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(0, 0)},
+      {ModemComponentState::TURNING_ON_RESET, ModemComponentStateTiming(2000, 0)},
+      {ModemComponentState::TURNING_OFF_POWER, ModemComponentStateTiming(2000, 0)},
   };
 
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int event_id, void *event_data);
@@ -98,6 +98,7 @@ class ModemComponent : public Component {
   void turn_off_reset();
   int get_rssi();
   int get_modem_voltage();
+  const char *get_state();
 
   std::shared_ptr<esp_modem::DTE> dte{nullptr};
   std::unique_ptr<esp_modem::DCE> dce{nullptr};

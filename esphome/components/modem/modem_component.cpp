@@ -112,32 +112,31 @@ void ModemComponent::loop() {
       this->dce_init();
       break;
     case ModemComponentState::TURNING_ON_PWRKEY:
-      if (time_check_pwrkey + SYNCHRONIZATION_CHECK_PERIOD < now) {
-        time_check_pwrkey = now;
-        if (this->dce->sync() == esp_modem::command_result::OK) {
-          ESP_LOGD(TAG, "sync OK TURNING_ON_PWRKEY");
-          this->turn_off_pwrkey();
-          this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
-        } else {
-          ESP_LOGD(TAG, "Wait sync TURNING_ON_PWRKEY");
-        }
+      if (this->dce->sync() == esp_modem::command_result::OK) {
+        ESP_LOGD(TAG, "sync OK TURNING_ON_PWRKEY");
+        this->turn_off_pwrkey();
+        this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
+        time_change_state = millis();
+      } else {
+        ESP_LOGD(TAG, "Wait sync TURNING_ON_PWRKEY");
       }
+      
       break;
     case ModemComponentState::REGISTRATION_IN_NETWORK:
-      if (time_check_rssi + TIME_CHECK_REGISTRATION_IN_NETWORK < now) {
-        time_check_rssi = now;
-        if (get_rssi()) {
-          ESP_LOGD(TAG, "Starting modem connection");
-          ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
-          this->state_ = ModemComponentState::CONNECTING;
-          this->dce->set_data();
-          // this->start_connect_();
-        } else {
-          ESP_LOGD(TAG, "Wait RSSI");
-        }
+      if (get_rssi()) {
+        ESP_LOGD(TAG, "Starting modem connection");
+        ESP_LOGD(TAG, "SIgnal quality: rssi=%d", get_rssi());
+        this->state_ = ModemComponentState::CONNECTING;
+        time_change_state = millis();
+        this->dce->set_data();
+        // this->start_connect_();
+      } else {
+        ESP_LOGD(TAG, "Wait RSSI");
       }
+    
       break;
     case ModemComponentState::CONNECTING:
+      ESP_LOGD(TAG, "Wait WAN");
       break;
     case ModemComponentState::CONNECTED:
       if (time_info_print < now) {
@@ -160,6 +159,7 @@ void ModemComponent::loop() {
           ESP_LOGD(TAG, "sync OK TURNING_ON_RESET");
           this->turn_off_reset();
           this->state_ = ModemComponentState::REGISTRATION_IN_NETWORK;
+          time_change_state = millis();
         } else {
           ESP_LOGD(TAG, "Wait sync TURNING_ON_RESET");
         }
@@ -202,11 +202,19 @@ void ModemComponent::dce_init() {
 bool ModemComponent::check_modem_component_state_timings() {
   const int now = millis();
   ModemComponentStateTiming timing = this->modemComponentStateTimingMap[this->state_];
-  if (last_pull_time + timing.poll_period > now) {
+  if (!timing.poll_period){
+    return true;
+  }
+  if ((last_pull_time + timing.poll_period) < now) {
+    //ESP_LOGD(TAG, "it's time for pull");//%d %d", timing.poll_period, timing.time_limit);
     last_pull_time = now;
     return true;
-  } else if (time_change_state + timing.time_limit < now) {
-    return true;
+  }
+  if (!timing.time_limit){
+      if ((time_change_state + timing.time_limit) < now) {
+      // TODO: REBOOT return true;
+      return false;
+    }
   }
   return false;
 }
@@ -217,6 +225,7 @@ void ModemComponent::turn_on_modem() {
     time_turn_on_modem = millis();
     ESP_LOGD(TAG, "Modem turn on");
     this->state_ = ModemComponentState::TURNING_ON_POWER;
+    time_change_state = millis();
   } else {
     ESP_LOGD(TAG, "Can't turn on modem power pin because it is not configured, go to turn on pwrkey");
     this->turn_on_pwrkey();
@@ -229,6 +238,7 @@ void ModemComponent::turn_off_modem() {
   time_turn_off_modem = millis();
   ESP_LOGD(TAG, "modem turn off");
   global_modem_component->state_ = ModemComponentState::STOPPED;
+  time_change_state = millis();
   // wait no more than 1.9 sec for signs of life to appear
 }
 
@@ -237,6 +247,7 @@ void ModemComponent::turn_on_pwrkey() {
     this->pwrkey_pin_->digital_write(false);
     ESP_LOGD(TAG, "pwrkey turn on");
     this->state_ = ModemComponentState::TURNING_ON_PWRKEY;
+    time_change_state = millis();
   } else {
     ESP_LOGD(TAG, "Can't turn on pwrkey pin because it is not configured, go to reset modem");
     this->turn_on_reset();
@@ -323,6 +334,7 @@ void ModemComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base
   if (event_id == IP_EVENT_PPP_GOT_IP) {
     global_modem_component->connected_ = true;
     global_modem_component->state_ = ModemComponentState::CONNECTED;
+    time_change_state = millis();
     esp_netif_dns_info_t dns_info;
 
     ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
@@ -373,7 +385,10 @@ void ModemComponent::start_connect_() {
   //  this->status_set_warning();
 }
 
-bool ModemComponent::is_connected() { return this->state_ == ModemComponentState::CONNECTED; }
+bool ModemComponent::is_connected() { 
+  time_change_state = millis();
+  return this->state_ == ModemComponentState::CONNECTED; 
+}
 void ModemComponent::set_power_pin(InternalGPIOPin *power_pin) { this->power_pin_ = power_pin; }
 void ModemComponent::set_pwrkey_pin(InternalGPIOPin *pwrkey_pin) { this->pwrkey_pin_ = pwrkey_pin; }
 void ModemComponent::set_type(ModemType type) { this->type_ = type; }
