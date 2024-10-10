@@ -172,7 +172,8 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
         this->current_frame_len_++;
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
-        // ESP_LOGD(TAG, "GET CURRENT_FRAME_TYPE: 0x%02x 0x%02x", this->current_frame_buf_[this->current_frame_len_ - 2],
+        // ESP_LOGD(TAG, "GET CURRENT_FRAME_TYPE: 0x%02x 0x%02x", this->current_frame_buf_[this->current_frame_len_ -
+        // 2],
         //          this->current_frame_buf_[this->current_frame_len_ - 1]);
       } else {
         // ESP_LOGD(TAG, "CURRENT_FRAME_TYPE NOT FOUND: 0x%02x 0x%02x",
@@ -259,8 +260,7 @@ void MR60FDA2Component::process_frame_() {
     case RUSULT_INSTALL_HEIGHT:
       if (this->current_data_buf_[0]) {
         ESP_LOGD(TAG, "Successfully set the mounting height");
-      }
-      else {
+      } else {
         ESP_LOGD(TAG, "Failed to set the mounting height");
       }
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
@@ -268,8 +268,7 @@ void MR60FDA2Component::process_frame_() {
     case RUSULT_HEIGHT_THRESHOLD:
       if (this->current_data_buf_[0]) {
         ESP_LOGD(TAG, "Successfully set the height threshold");
-      }
-      else {
+      } else {
         ESP_LOGD(TAG, "Failed to set the height threshold");
       }
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
@@ -277,8 +276,7 @@ void MR60FDA2Component::process_frame_() {
     case RUSULT_SENSITIVITY:
       if (this->current_data_buf_[0]) {
         ESP_LOGD(TAG, "Successfully set the sensitivity");
-      }
-      else {
+      } else {
         ESP_LOGD(TAG, "Failed to set the sensitivity");
       }
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
@@ -295,9 +293,9 @@ void MR60FDA2Component::process_frame_() {
       //     TAG,
       //     "GET CURRENT_FRAME_2: 0x%02x 0x%02x 0x%02x 0x%02x, 0x%02x 0x%02x 0x%02x 0x%02x, 0x%02x 0x%02x 0x%02x
       //     0x%02x", this->current_data_buf_[0], this->current_data_buf_[1], this->current_data_buf_[2],
-      //     this->current_data_buf_[3], this->current_data_buf_[4], this->current_data_buf_[5], this->current_data_buf_[6],
-      //     this->current_data_buf_[7], this->current_data_buf_[8], this->current_data_buf_[9],
-      //     this->current_data_buf_[10], this->current_data_buf_[11]);
+      //     this->current_data_buf_[3], this->current_data_buf_[4], this->current_data_buf_[5],
+      //     this->current_data_buf_[6], this->current_data_buf_[7], this->current_data_buf_[8],
+      //     this->current_data_buf_[9], this->current_data_buf_[10], this->current_data_buf_[11]);
       this->current_install_height_int_ =
           (static_cast<uint32_t>(current_data_buf_[3]) << 24) | (static_cast<uint32_t>(current_data_buf_[2]) << 16) |
           (static_cast<uint32_t>(current_data_buf_[1]) << 8) | static_cast<uint32_t>(current_data_buf_[0]);
